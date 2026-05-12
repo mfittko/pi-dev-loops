@@ -96,6 +96,8 @@ describe("phase-files helper", () => {
       phasesRoot: "/repo/tmp/phases",
       phase: "phase-2",
       phaseDir: "/repo/tmp/phases/phase-2",
+      docsPhasesRoot: "/repo/docs/phases",
+      phasePlanPath: "/repo/docs/phases/phase-2.md",
       manifestPath: "/repo/tmp/phases/phase-2/manifest.json",
       indexPath: "/repo/tmp/phases/index.json",
       bashExitOnePath: "/repo/tmp/phases/phase-2/bash-exit-1.jsonl",

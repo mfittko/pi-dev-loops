@@ -28,11 +28,13 @@ describe("init-phase helper", () => {
       const manifest = JSON.parse(
         await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "manifest.json"), "utf8"),
       );
+      const phaseDoc = await readFile(path.join(tempDir, "docs", "phases", "phase-2.md"), "utf8");
       const variantA = await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "variant-a.md"), "utf8");
       const mergedPlan = await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "merged-plan.md"), "utf8");
 
       expect(manifest.status).toBe("planning");
       expect(manifest.artifacts).toEqual([
+        "../../../docs/phases/phase-2.md",
         "manifest.json",
         "merged-plan.md",
         "review.md",
@@ -40,6 +42,7 @@ describe("init-phase helper", () => {
         "variant-b.md",
         "variant-c.md",
       ]);
+      expect(phaseDoc).toContain("# phase-2 durable plan");
       expect(variantA).toContain("# Phase phase-2 variant a");
       expect(mergedPlan).toContain("# Phase phase-2 merged plan");
     } finally {

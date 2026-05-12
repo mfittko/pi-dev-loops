@@ -26,6 +26,7 @@ This repo should eventually provide four layers:
    - lightweight orchestration helpers that call into deterministic scripts rather than replacing them
 
 4. **Deterministic shared tooling**
+   - reusable npm support packages for logic shared by Pi skills, repo-local scripts, and GitHub Actions
    - reusable `lib/` modules for state discovery and interpretation
    - reusable `scripts/` for watch/review/fix mechanics
    - fixture-backed tests for the mechanical parts
@@ -69,8 +70,9 @@ Until the package/override model is fully generalized, this repository should us
 
 - `skills/`
 - `agents/`
+- `docs/phases/`
 
-And expose them to Pi through repo-local symlinks under:
+And expose the Pi-facing assets through repo-local symlinks under:
 
 - `.pi/skills -> ../skills`
 - `.pi/agents -> ../agents`
@@ -109,6 +111,7 @@ Skills should define:
 - when to wait/watch
 - what artifacts to log
 - when to ask for confirmation
+- how durable phase docs and ephemeral tmp artifacts relate
 
 ### 3. Scripts and shared library code should do the mechanical work
 
@@ -158,7 +161,11 @@ Before shared helpers and generalized agents harden the wrong assumptions, defin
 - repo-local overlays should override the shared defaults only where necessary
 - asset path references inside skills and docs should not assume a single install mode forever
 
-### 7. Shared logic belongs in `lib/`
+### 7. Shared logic belongs in a package-first support layer
+
+Prefer a shared npm support package for logic that should work from Pi skills,
+repo-local scripts, or GitHub Actions. Keep Pi-specific orchestration outside
+that package.
 
 Avoid duplicating:
 
@@ -167,6 +174,8 @@ Avoid duplicating:
 - watch-state interpretation
 - actionable-thread detection
 - artifact-path conventions
+- phase/artifact mutation helpers
+- CLI wrappers for deterministic helpers
 
 ## Target repository structure
 
@@ -178,6 +187,19 @@ agents/
   fixer.agent.md
   quality.agent.md
   review.agent.md
+
+docs/
+  IMPLEMENTATION_STATE.md
+  IMPLEMENTATION_WORKFLOW.md
+  phases/
+    phase-0.md
+    phase-1.md
+
+packages/
+  core/
+    src/
+    bin/
+    test/
 
 skills/
   dev-loop/
@@ -212,6 +234,7 @@ test/
 
 The exact layout can evolve, but the important separation is:
 
+- durable planning docs
 - agent definitions
 - loop skills
 - extension UX/package glue
@@ -220,7 +243,7 @@ The exact layout can evolve, but the important separation is:
 
 ## Consolidation roadmap
 
-### Phase 0 — bootstrap and inventory
+### Phase 0 — bootstrap, workflow convention, and inventory
 
 - create this repository
 - rename/package it as `pi-dev-loops`
@@ -229,13 +252,17 @@ The exact layout can evolve, but the important separation is:
 - import candidate reusable agent definitions
 - scaffold a package extension
 - document the intended architecture
+- define the docs-first phase workflow convention
 - record what is still repo-specific
 
 Acceptance criteria:
 
 - bootstrap assets exist in one repo
 - imported sources are traceable
-- the next generalization steps are explicit
+- the docs-first phase workflow convention is explicit in both repo docs and the local dev-loop skill
+- a durable Phase 0 plan exists under `docs/phases/`
+- the phase scaffold can create a durable phase doc plus tmp planning artifacts
+- the next generalization steps are explicit without requiring broader normalization work yet
 
 ### Phase 1 — normalize the imported assets without changing intent
 
@@ -311,9 +338,9 @@ Acceptance criteria:
   - source-loaded vs built-distribution expectations
   - root-level vs per-skill test execution story
 
-### Phase 3 — shared deterministic library
+### Phase 3 — shared deterministic library and npm support package
 
-Add reusable `lib/` modules for:
+Add reusable package/library modules for:
 
 - GitHub issue/PR state discovery
 - review-thread parsing
@@ -326,6 +353,7 @@ Add reusable `lib/` modules for:
 Acceptance criteria:
 
 - repeated GitHub parsing logic is centralized
+- at least one helper ships through a shared npm support package with both JS and CLI entrypoints
 - watcher scripts consume shared library modules
 - library outputs have stable machine-readable shapes
 
@@ -438,5 +466,6 @@ Examples:
    - `repo-wiki`-specific assumptions in `skills/copilot-dev-loop/SKILL.md`
 4. finish documenting the runtime/build/test and install/override contract
 5. identify the first shared library modules to extract
-6. add the first deterministic GitHub helper scripts
-7. refactor the first three generic agents: `developer`, `docs`, `quality`
+6. move the first deterministic helper into a shared npm support package with a thin skill-local wrapper
+7. add the first deterministic GitHub helper scripts
+8. refactor the first three generic agents: `developer`, `docs`, `quality`
