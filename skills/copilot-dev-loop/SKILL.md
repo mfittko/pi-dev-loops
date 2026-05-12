@@ -1,0 +1,379 @@
+---
+name: copilot-dev-loop
+description: Use for this repository's GitHub-first Copilot development workflow: choose or confirm a ready GitHub issue, align on scope and acceptance criteria, hand work to Copilot when appropriate, watch the resulting PR for new Copilot review activity, run async Pi follow-up review/fix passes in-session, validate with repo CI-equivalent commands, and stop for confirmation before any GitHub or branch state changes.
+user-invocable: false
+---
+
+# Copilot Dev Loop
+
+This skill is the repo-specific alternative to a local phase-based dev loop.
+
+Use it in this repository when the user wants to work through the normal GitHub/Copilot flow rather than a purely local implementation loop.
+
+Typical triggers:
+- start the copilot dev loop
+- continue the copilot loop
+- hand the next ready issue to Copilot
+- watch the Copilot PR and follow up
+- run the repo-wiki copilot dev loop
+- continue PR review/fix work for the current Copilot branch
+
+## What this skill assumes about this repo
+
+This repository is **GitHub-first**, not local-phase-first.
+
+Treat these as the primary workflow surfaces:
+1. GitHub Issues are the execution backlog.
+2. Milestones, labels, and issue templates define scope and readiness.
+3. Copilot may implement work on a branch and open or update a PR.
+4. PR review comments, Copilot review comments, and CI are the main iteration loop.
+5. Pi follow-up work happens as targeted async review/fix passes around that PR.
+
+Do **not** default to a local `tmp/phases/phase-x` implementation workflow here.
+
+## Required read order
+
+Before planning, review, or automation:
+
+1. `AGENTS.md`
+2. `docs/PLAN.md`
+3. the relevant GitHub issue or PR
+4. relevant generated wiki pages for orientation only:
+   - `.llmwiki/wiki/Agent-Context-Pack.md`
+   - `.llmwiki/wiki/Index.md`
+   - `.llmwiki/wiki/Architecture.md`
+   - task-relevant `.llmwiki/wiki/Module-*.md`
+5. if the task may change implementation details, read these repo-required files before editing:
+   - `.llmwiki/schema.md`
+   - `src/cli.ts`
+   - `src/scanner.ts`
+   - `src/compiler.ts`
+6. task-relevant source files, tests, configuration, and CI
+
+Verify all material claims against source, tests, configuration, and CI.
+
+## Authority and safety rules
+
+- Source code, tests, CI, and config are authoritative.
+- The generated wiki is a navigation aid, not the source of truth.
+- GitHub Issues are the backlog. Do not invent a parallel backlog file.
+- Before any state-changing action, get explicit confirmation unless the user's latest message already clearly authorizes that action.
+- Questions, preferences, future-tense statements, and implied approval are not confirmation.
+- The bare response `ok` is not confirmation.
+- State-changing actions include local edits, commits, pushes, merges, rebases, branch deletion, issue assignment, label or milestone changes, PR reviews, thread resolution, workflow triggers, and publication.
+- When handing work to Copilot, assign `copilot-swe-agent` directly, not `copilot`.
+- Prefer single commands where practical. If the logic is too involved for one command, write a temporary `.mjs` script under `tmp/` instead of building up fragile shell sequences.
+- For GitHub issue or PR comments, prefer `--body-file` / `-F` or stdin via `-F -` over inline shell strings.
+- Keep scope tight to the issue/PR at hand.
+
+## Primary execution modes
+
+This skill supports four common modes.
+
+### 1. Issue handoff mode
+Use when the user wants to start new work from the backlog.
+
+Goal:
+- identify a ready GitHub issue
+- confirm scope and acceptance criteria
+- prepare or initiate Copilot execution when authorized
+
+### 2. PR follow-up mode
+Use when a Copilot PR already exists.
+
+Goal:
+- inspect current PR state
+- check CI, unresolved comments, and review status
+- decide whether the next step is waiting, reviewing, fixing, or merging
+
+### 3. Async watch mode
+Use when the user wants Pi to wait for fresh Copilot review activity and then react.
+
+Goal:
+- baseline current Copilot activity
+- poll deterministically for new Copilot comments/reviews
+- launch an in-session Pi fixer only after fresh review activity appears
+
+### 4. Fixer mode
+Use when actionable PR feedback already exists.
+
+Goal:
+- inspect unresolved review comments and failing checks
+- apply only narrow fixes related to the current PR
+- validate and report readiness for the next GitHub action
+
+## Workflow overview
+
+```text
+ready issue -> confirm scope -> Copilot branch/PR -> async review/watch -> Pi follow-up fixes -> validation -> confirm verdict/action -> merge when authorized
+```
+
+## Step 1: Choose the work item
+
+Prefer a GitHub issue over an ad hoc local TODO.
+
+When selecting the next item:
+- prefer `type:task` issues under the relevant epic
+- prefer `status:ready`
+- inspect milestone, labels, and acceptance criteria
+- confirm whether a PR already exists for the issue before proposing new execution
+
+Useful checks:
+- `gh issue list --state open`
+- `gh issue view <number>`
+- `gh pr list --state open`
+
+If the user says “what is next,” use GitHub issue readiness plus current PR state to answer.
+
+## Step 2: Confirm issue scope before execution
+
+Before handing work to Copilot or doing follow-up fixes, summarize:
+- issue number and title
+- parent epic if present
+- milestone
+- labels
+- exact acceptance criteria
+- intended narrow scope
+- non-goals inferred from the issue and plan
+
+If the issue text is too vague, stop and ask a short clarification question rather than guessing.
+
+## Step 3: Decide whether Copilot or Pi should act next
+
+Use this heuristic:
+
+### Prefer Copilot when
+- there is a ready implementation issue with clear acceptance criteria
+- no PR exists yet for that issue
+- the user wants the repository's normal GitHub/Copilot path
+- the next step is “start work” rather than “finish this already-open PR right now”
+
+### Prefer Pi follow-up when
+- a PR already exists
+- Copilot has already pushed work and now needs review/fix follow-up
+- there are unresolved comments or failing checks
+- the user wants async in-session watching and response
+
+### Prefer plain analysis only when
+- the user is asking what should happen next
+- authorization for GitHub state changes has not been given yet
+- the issue/PR state is unclear and needs inspection first
+
+## Step 4: Copilot handoff rules
+
+When preparing work for Copilot:
+- use the GitHub issue as the source of truth
+- preserve the issue's acceptance criteria
+- keep the requested scope narrow
+- do not broaden into adjacent backlog items
+- prefer one issue per PR unless the user explicitly wants bundling
+
+Before any GitHub mutation such as assigning the issue, posting instructions, or changing labels, confirm first unless explicitly authorized.
+
+When you do hand work to Copilot:
+- assign `copilot-swe-agent`
+- reference the issue number and acceptance criteria clearly
+- keep instructions implementation-focused and test-aware
+
+## Timeout and watch policy
+
+This workflow is intentionally long-lived.
+
+Do not rely on short default timeouts for unattended Copilot loops.
+
+Preferred defaults for this repo:
+- poll interval for review/activity watchers: **5 minutes**
+- unattended watch timeout: **72 hours**
+- if the user says to stay on it until done or avoid near-term timeout, prefer **168 hours**
+- parent/subagent no-activity threshold for watcher-style runs: at least **15 minutes**
+- active-long-running notice threshold for watcher-style runs: about **30 minutes**
+
+A watcher sleeping between polls is expected behavior, not a blocker.
+
+If the polling interval is 5 minutes, do not treat silence shorter than one full poll interval as suspicious, and do not configure needs-attention thresholds close to 60 seconds for this loop.
+
+## Step 5: PR discovery and interpretation
+
+For a relevant issue, look for:
+- open PRs from `app/copilot-swe-agent`
+- branch names that start with `copilot/`
+- draft status
+- merge state
+- requested reviewers
+- unresolved review comments
+- current check status
+
+Treat the PR as the main working artifact once it exists.
+
+Inspect:
+- PR body and title
+- PR author, because verdict handling differs for PRs not opened by the active GitHub user
+- review summaries
+- unresolved inline comments and issue comments
+- latest commits
+- CI results
+
+## Step 6: Async watch behavior
+
+When the user wants Pi to wait for fresh Copilot review activity, prefer native GitHub watch behavior when `gh` supports the exact wait condition, and otherwise use a deterministic watcher rather than ad hoc polling.
+
+Preferred order:
+1. use `gh ... --watch` / `gh ... watch` when GitHub CLI has a native watch mode for the exact thing you need
+2. otherwise use the existing deterministic watcher pattern
+3. only fall back to custom ad hoc polling when neither of the above can express the required condition safely
+
+Practical rule for this repo:
+- prefer `gh run watch` for GitHub Actions / check-run waiting when you already know the run ID
+- prefer ordinary `gh pr view`, `gh issue view`, `gh api`, and `gh pr checks` snapshots for one-time inspection
+- use deterministic custom watchers for conditions that `gh` does not natively watch well, such as:
+  - waiting for a Copilot-authored PR to appear
+  - waiting for new Copilot review bodies/comments after a baseline
+  - waiting for unresolved thread state to change in a review-aware way
+
+Preferred approach for Copilot review follow-up:
+- baseline current Copilot review activity
+- poll for new Copilot-authored reviews/comments
+- keep the watcher in the current Pi/TelePi session
+- after new review activity appears, launch an async Pi fixer in-session
+- use explicit long timeouts from the timeout policy above rather than short defaults
+
+Use the existing watcher skill and tooling concepts from:
+- `copilot-review-followup`
+
+Key rules:
+- expected polling idle time is normal
+- do not restart watchers just because there has been a short quiet period
+- do not bypass session-based async notifications with detached shell automation unless explicitly asked
+- if a watcher is sleeping between polls, prefer raising the orchestration inactivity threshold over interrupting the child
+
+## Step 7: Pi review/fix follow-up loop
+
+When actionable review feedback exists, use a narrow follow-up loop:
+
+1. inspect unresolved comments/threads and failing checks
+2. classify findings:
+   - must fix now
+   - worth fixing now
+   - defer / non-blocking / disagree
+3. apply only the accepted narrow fixes
+4. run the smallest validation that honestly proves the fix
+5. if scope has broadened, stop and ask before continuing
+
+When helpful, run parallel review angles such as:
+- correctness/regressions
+- tests/validation
+- maintainability/scope control
+
+Do not make unrelated cleanup changes just because the branch is already open.
+
+## Validation policy for this repo
+
+Default validation should match or approximate PR CI.
+
+Strong default commands:
+- `npm run lint:code`
+- `npm run check`
+- `npm run coverage`
+- `npm run pack:check`
+
+Use narrower validation only when justified by the change scope, for example:
+- docs-only changes: `git diff --check` and targeted markdown review
+- very focused code fixes: the smallest targeted command that proves correctness, followed by a clear note about broader CI expectations
+
+When GitHub Actions runs already exist and the next step is to wait for them rather than rerun them locally, prefer native GitHub CLI watch support where available:
+- use `gh run watch` for a known workflow run ID
+- fall back to snapshot inspection when no watchable run ID is known yet
+
+When reporting status, distinguish between:
+- locally validated narrowly
+- locally validated with full PR-equivalent checks
+- still awaiting GitHub CI confirmation
+
+## Artifact and note layout
+
+Do not use the phase-artifact structure from the local dev-loop.
+
+For this repo-specific async Copilot loop, prefer lightweight PR/issue artifacts under `tmp/copilot-loop/` such as:
+
+- `tmp/copilot-loop/issue-<n>/summary.md`
+- `tmp/copilot-loop/pr-<n>/status.md`
+- `tmp/copilot-loop/pr-<n>/copilot-baseline-<timestamp>.json`
+- `tmp/copilot-loop/pr-<n>/copilot-review-<timestamp>.json`
+- `tmp/copilot-loop/pr-<n>/copilot-review-<timestamp>.md`
+- `tmp/copilot-loop/pr-<n>/pi-findings-<timestamp>.md`
+- `tmp/copilot-loop/pr-<n>/fix-summary-<timestamp>.md`
+
+Use these artifacts only when they genuinely help async continuation or handoff. Do not create noise files by default.
+
+## Confirmation checkpoints
+
+Always stop and ask before these actions unless explicitly authorized already:
+- editing repository files
+- assigning or reassigning an issue
+- changing labels or milestones
+- posting GitHub comments
+- submitting a PR review
+- resolving review threads
+- committing local changes
+- pushing a branch
+- merging a PR
+- triggering workflows
+
+When a PR verdict is requested:
+- first summarize pending comments/threads
+- summarize proposed resolution status
+- draft the verdict text
+- if the PR was not opened by the active GitHub user, use a formal GitHub review after confirmation: Approve for merge-ready, Request Changes for must-fix findings
+- do not leave only a plain PR comment for those verdicts
+- ask for confirmation before submitting the review
+
+## Merge-readiness checklist
+
+Before recommending merge, confirm:
+- issue scope is satisfied
+- acceptance criteria appear met
+- unresolved blocking comments are addressed or intentionally deferred with rationale
+- validation is appropriate for the change
+- CI is green or the remaining risk is clearly disclosed
+- no unrelated files are included
+
+Then ask for confirmation before any merge or formal GitHub review action.
+
+## Stop conditions
+
+Stop and report instead of acting when:
+- the next step requires a GitHub mutation that is not yet authorized
+- issue scope is ambiguous
+- the PR has no actionable unresolved feedback
+- CI failures are unrelated and require maintainer judgment
+- the branch contains unrelated local changes
+- a proposed fix would broaden scope beyond the issue/PR
+
+## Anti-patterns
+
+Do not:
+- treat this repo like a local phase-by-phase prototype workflow
+- create a separate local backlog
+- broaden a Copilot PR into multiple issue scopes
+- resolve threads without checking whether the current branch actually fixes them
+- submit a merge-ready verdict without first summarizing the pending thread state
+- bypass Pi async notifications with detached automation when the user wants in-session async behavior
+- assume the generated wiki is authoritative over code or CI
+
+## Recommended companion skills
+
+Use these alongside this skill when appropriate:
+- `repo-wiki-navigation` for repository orientation
+- `repo-wiki-cli` for local wiki/CLI workflows
+- `copilot-review-followup` for deterministic async waiting on new Copilot review activity
+- `async-review-fix-push` for in-session async Pi review/fix execution
+
+## Output expectations
+
+When using this skill, keep user-facing summaries concise and operational.
+
+A good status update should say:
+- what issue or PR you inspected
+- current state
+- what the next recommended action is
+- whether authorization is needed before taking it

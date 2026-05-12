@@ -1,0 +1,30 @@
+{
+  "name": "pi-dev-loops",
+  "private": true,
+  "type": "module",
+  "description": "Shared Pi workflow infrastructure for reusable local and remote development loops",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "workflow",
+    "dev-loop",
+    "github",
+    "copilot"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./extension/index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  }
+}

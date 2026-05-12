@@ -1,0 +1,11 @@
+{
+  "name": "dev-loop-skill-support",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --config ./jest.config.mjs"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
