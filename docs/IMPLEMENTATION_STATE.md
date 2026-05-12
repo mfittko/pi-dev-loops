@@ -11,7 +11,7 @@ Phase 0 is complete. The docs-first workflow convention and initial support-pack
 - Execution skill: `skills/dev-loop/SKILL.md`
 - Repo contract: `AGENTS.md`
 - Workflow explainer: `docs/IMPLEMENTATION_WORKFLOW.md`
-- tmp index for fresh-context inspection: `tmp/phases/index.json`
+- tmp index for fresh-context inspection if present locally: `tmp/phases/index.json`
 
 ## Current phase
 
@@ -29,7 +29,7 @@ If the user says **"start implementation"** or **"continue implementation"**:
 4. read `docs/IMPLEMENTATION_WORKFLOW.md`
 5. read this file
 6. read `docs/phases/phase-1.md`
-7. inspect `tmp/phases/index.json` and `tmp/phases/phase-0/` for prior phase context
+7. inspect `tmp/phases/index.json` and `tmp/phases/phase-0/` for prior phase context if they still exist locally
 8. refine Phase 1 only before starting any Phase 1 implementation
 
 ## Next unfinished phase

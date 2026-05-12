@@ -46,7 +46,7 @@ Phase 0 is complete when all of the following are true:
 - `docs/phases/phase-0.md` clearly states scope, non-goals, acceptance criteria, and open questions for the phase
 - `skills/dev-loop/SKILL.md` treats `docs/phases/phase-<n>.md` as a first-class durable artifact
 - the phase scaffold helper can generate `docs/phases/phase-<n>.md` plus the expected tmp artifacts in a temp repo smoke test
-- the expected bootstrap support files for this workflow contract exist in the repository, including `AGENTS.md`, `docs/IMPLEMENTATION_STATE.md`, `docs/IMPLEMENTATION_WORKFLOW.md`, the active `docs/phases/phase-0.md`, and `tmp/phases/index.json`
+- the expected durable support files for this workflow contract exist in the repository, including `AGENTS.md`, `docs/IMPLEMENTATION_STATE.md`, `docs/IMPLEMENTATION_WORKFLOW.md`, and the active `docs/phases/phase-0.md`
 - no additional broad helper extraction work is required to claim the workflow convention is established
 - the phase has passed the required review/fix and validation steps
 - the resulting branch state has been committed and merged back to local `main`, or the phase is explicitly marked `awaiting-finalization` pending authorization for that last step
@@ -58,7 +58,7 @@ Phase 0 is complete when all of the following are true:
 - a durable Phase 0 doc under `docs/phases/`
 - aligned `dev-loop` skill instructions and templates
 - aligned deterministic phase scaffold helpers
-- Phase 0 tmp planning artifacts showing the chosen direction and review
+- temporary local Phase 0 planning artifacts were produced during execution, but they are not required as checked-in repo history
 ## Validation approach
 
 - inspect the updated docs and skill for consistency
@@ -70,7 +70,7 @@ Phase 0 is complete when all of the following are true:
 
 - `PLAN.md` remains the cross-phase roadmap and product-truth document
 - `docs/phases/phase-<n>.md` is the durable per-phase plan
-- `tmp/phases/phase-<n>/` remains the execution-artifact surface
+- `tmp/phases/phase-<n>/` remains the temporary local execution-artifact surface
 - shared deterministic logic should move toward a package-first support layer
 
 ## Shared support-package boundary
@@ -127,4 +127,4 @@ Phase 0 has been finalized in git. The branch state has been committed and merge
 
 ## Links to execution artifacts
 
-- `tmp/phases/phase-0/`
+- local execution artifacts may exist under `tmp/phases/phase-0/`, but they are temporary and are not required in git history

@@ -19,13 +19,15 @@ Use for the durable plan for one phase:
 A fresh human or agent should be able to read the active phase doc first and understand the current intent without replaying tmp artifacts.
 
 ### 3. `tmp/phases/phase-<n>/`
-Use for execution artifacts and audit trails:
+Use for temporary local execution artifacts and audit trails:
 - planning variants
 - merged plan drafts
 - review notes
 - retrospectives
 - subagent summaries
 - deterministic logs such as `bash-exit-1.jsonl`
+
+These files are normally local-only and do not need to be committed to git.
 
 ## Default operating mode
 
@@ -46,7 +48,7 @@ Use these terms consistently:
 - `awaiting-finalization` = scoped work, required support files, artifacts, and validation are done, but commit and/or merge steps are still pending authorization or execution
 - `completed` = the phase is fully finalized, including commit history capture and merge back to local `main`
 
-For bootstrap/setup phases, do not use `awaiting-finalization` or `completed` until the expected support files for the workflow contract exist in the repository.
+For bootstrap/setup phases, do not use `awaiting-finalization` or `completed` until the expected durable support files for the workflow contract exist in the repository. Temporary `tmp/` artifacts do not need to be committed.
 
 Do not mark a phase `completed` if the only thing left is “commit later” or “merge later.” In that case, mark it `awaiting-finalization` and record the missing step explicitly.
 

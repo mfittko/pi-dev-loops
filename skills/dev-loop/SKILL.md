@@ -56,6 +56,7 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 - Maintain **90% coverage** thresholds.
 - Log detailed iteration artifacts under `tmp/` using the required structure below.
 - Keep durable phase intent and acceptance criteria in `docs/phases/phase-x.md`, but keep detailed execution artifacts in `tmp/`.
+- Treat `tmp/` as temporary local execution state. Do not rely on it as durable repo history and do not force-add it to git unless the user explicitly wants checked-in examples or fixtures.
 - When a phase changes durable product truth in ways `PLAN.md` should express (for example command surface, accepted product decisions, resolved open questions, or scope changes), update `PLAN.md` before closing the phase.
 - Do implementation work on a dedicated local branch, not directly on `main`.
 - If the repo has no commits yet, still create the working branch first so the first commits land off `main`; only move `main` forward after review and validation.
@@ -69,9 +70,9 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 Treat the workflow as three layers:
 - `PLAN.md` = strategic product and architecture truth
 - `docs/phases/phase-x.md` = durable per-phase plan and acceptance criteria
-- `tmp/` = execution audit trail and machine-friendly continuation state
+- `tmp/` = temporary local execution audit trail and machine-friendly continuation state
 
-Maintain these paths:
+Maintain these paths while the phase is active locally:
 
 - `docs/phases/phase-x.md`
 - `tmp/phases/index.json`
@@ -105,7 +106,7 @@ If these files are missing, create them from `templates/` before continuing:
 
 The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase.
 
-For bootstrap/setup phases, do not mark the phase `completed` or `awaiting-finalization` until the expected support files for the chosen workflow contract actually exist in the repository.
+For bootstrap/setup phases, do not mark the phase `completed` or `awaiting-finalization` until the expected durable support files for the chosen workflow contract actually exist in the repository. Temporary `tmp/` execution artifacts do not need to be committed.
 ## Plan sufficiency check
 
 Before phase planning, check whether `PLAN.md` contains enough information to proceed safely.
@@ -149,7 +150,7 @@ Do not begin fan-out planning until the current phase is sufficiently specified,
 Read `docs/IMPLEMENTATION_STATE.md` and identify the next unfinished phase.
 Read `docs/phases/phase-x.md` for that phase if it exists.
 
-If `tmp/phases/index.json` exists, use it as a fast index for prior artifacts.
+If `tmp/phases/index.json` exists locally, use it as a fast index for prior artifacts.
 If the durable phase doc, the state file, and the tmp index disagree, trust docs first and note the mismatch in the phase review log.
 
 If the state file is ambiguous, resolve ambiguity conservatively:
@@ -358,18 +359,21 @@ Dev mode is still phase-bounded. It improves the loop around the completed phase
 
 At minimum, each phase should leave behind:
 - a durable phase doc at `docs/phases/phase-x.md`
-- `manifest.json`
-- `variant-a.md`
-- `variant-b.md`
-- optional `variant-c.md`
-- `merged-plan.md`
-- `review.md`
-- `summary.md`
-- `retrospective.md`
-- `bash-exit-1.jsonl` when any bash call during the phase exited with code `1`
-- `clarification.md` when a plan-sufficiency interview or auto-clarification step was needed
-- subagent summaries when subagents were used
-- in dev mode: `dev-mode-context.json`, `dev-mode-review.md`, and `dev-mode-skill-changes.md`
+- local `tmp/` execution artifacts as needed during the phase, including:
+  - `manifest.json`
+  - `variant-a.md`
+  - `variant-b.md`
+  - optional `variant-c.md`
+  - `merged-plan.md`
+  - `review.md`
+  - `summary.md`
+  - `retrospective.md`
+  - `bash-exit-1.jsonl` when any bash call during the phase exited with code `1`
+  - `clarification.md` when a plan-sufficiency interview or auto-clarification step was needed
+  - subagent summaries when subagents were used
+  - in dev mode: `dev-mode-context.json`, `dev-mode-review.md`, and `dev-mode-skill-changes.md`
+
+These `tmp/` artifacts are normally temporary and do not need to be checked into git.
 
 Also log validation output summaries and notable decisions if they help evaluate the local dev loop later.
 

@@ -22,4 +22,4 @@ Planning
 
 ## Links to execution artifacts
 
-- `tmp/phases/{{phase}}/`
+- local execution artifacts may exist under `tmp/phases/{{phase}}/`
