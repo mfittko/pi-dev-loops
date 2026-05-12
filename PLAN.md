@@ -317,7 +317,33 @@ Acceptance criteria:
 - obvious hardcoded repo-specific assumptions are identified and classified
 - the first reusable assets do not depend on source-repo-only paths or hardcoded reviewer identity
 
-### Phase 2 — package extension and setup UX
+### Phase 2 — dedicated refiner agent and refinement contract
+
+This phase should strengthen the local phase-refinement workflow before broader UX/package work continues.
+
+Add a dedicated refiner agent and integrate it into the local dev loop so refinement produces complete acceptance criteria and definition-of-done lists.
+
+Goals:
+
+- add a dedicated `refiner` role for phase refinement
+- make AC and DoD generation first-class refinement outputs
+- preserve parallel fan-out/fan-in refinement where it adds value
+- escalate RFC-worthy technical decisions through the coordinator instead of guessing through them
+- define the RFC handoff team boundary as:
+  - lead dev
+  - specialized dev
+  - systems architect
+
+Acceptance criteria:
+
+- a dedicated refiner agent exists and is clearly scoped to phase refinement
+- the refiner requires complete acceptance-criteria and definition-of-done output
+- the refiner escalates RFC-worthy technical decisions through the coordinator
+- the coordinator-side contract names the RFC team boundary clearly
+- the local dev-loop planning contract uses the refiner without collapsing coordinator responsibilities
+- durable planning surfaces can carry stable definition-of-done output
+
+### Phase 3 — package extension and setup UX
 
 This phase should also define the runtime/build/test contract for the package.
 
@@ -338,7 +364,7 @@ Acceptance criteria:
   - source-loaded vs built-distribution expectations
   - root-level vs per-skill test execution story
 
-### Phase 3 — shared deterministic library and npm support package
+### Phase 4 — shared deterministic library and npm support package
 
 Add reusable package/library modules for:
 
@@ -357,7 +383,7 @@ Acceptance criteria:
 - watcher scripts consume shared library modules
 - library outputs have stable machine-readable shapes
 
-### Phase 4 — deterministic scripts
+### Phase 5 — deterministic scripts
 
 Add reusable `scripts/` entrypoints such as:
 
@@ -375,7 +401,7 @@ Acceptance criteria:
 - scripts prefer native `gh` watch support when possible and only use custom polling when necessary
 - scripts are testable with fixtures
 
-### Phase 5 — second-repo pilot
+### Phase 6 — second-repo pilot
 
 Before polishing the extension or broadening the package surface further, prove reuse in at least one unrelated repository.
 
@@ -391,7 +417,7 @@ Acceptance criteria:
 - one non-bootstrap repository can load the package and use at least one loop skill successfully
 - second-repo breakages are documented and fed back into the roadmap
 
-### Phase 6 — agent generalization
+### Phase 7 — agent generalization
 
 Refactor the imported agent definitions so they work for both:
 
@@ -410,7 +436,7 @@ Acceptance criteria:
 - role agents are workflow-agnostic
 - loop-specific mechanics live outside the agent definitions
 
-### Phase 7 — package and reuse strategy
+### Phase 8 — package and reuse strategy
 
 Decide how this repo is consumed:
 
@@ -451,11 +477,11 @@ Examples:
 
 ## Open questions
 
-- Should agents remain as plain markdown definitions only, or should some shared prompt fragments also move into deterministic templates or generated prompt builders? _(target: Phase 6)_
-- How much of the GitHub/Copilot loop should stay skill-driven versus script-driven? _(target: Phase 4)_
-- What is the right minimum package/install contract for global Pi reuse? _(target: Phase 2)_
-- Should there be one generic coordinator, or a base coordinator plus loop-specific coordinator overlays? _(target: Phase 6)_
-- How should repo-local policy overlays be layered on top of these global defaults without duplicating the whole asset? _(target: Phase 7)_
+- Should agents remain as plain markdown definitions only, or should some shared prompt fragments also move into deterministic templates or generated prompt builders? _(target: Phase 7)_
+- How much of the GitHub/Copilot loop should stay skill-driven versus script-driven? _(target: Phase 5)_
+- What is the right minimum package/install contract for global Pi reuse? _(target: Phase 3)_
+- Should there be one generic coordinator, or a base coordinator plus loop-specific coordinator overlays? _(target: Phase 7)_
+- How should repo-local policy overlays be layered on top of these global defaults without duplicating the whole asset? _(target: Phase 8)_
 
 ## Immediate next steps
 
@@ -464,9 +490,9 @@ Examples:
 3. remove the first known blockers to reuse:
    - hardcoded reviewer identity in `agents/review.agent.md`
    - `repo-wiki`-specific assumptions in `skills/copilot-dev-loop/SKILL.md`
-4. finish documenting the runtime/build/test and install/override contract
-5. identify the first shared library modules to extract
-6. move the first deterministic helper into a shared npm support package with a thin skill-local wrapper
-7. add the first deterministic GitHub helper scripts
-8. refactor the first three generic agents: `developer`, `docs`, `quality`
-9. design a dedicated refiner agent for phase-refinement work so planning/refinement can be delegated without overloading the coordinator
+4. design and integrate a dedicated refiner agent for phase-refinement work so planning/refinement can be delegated without overloading the coordinator
+5. finish documenting the runtime/build/test and install/override contract
+6. identify the first shared library modules to extract
+7. move the first deterministic helper into a shared npm support package with a thin skill-local wrapper
+8. add the first deterministic GitHub helper scripts
+9. refactor the first three generic agents: `developer`, `docs`, `quality`

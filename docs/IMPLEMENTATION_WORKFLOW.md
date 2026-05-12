@@ -13,6 +13,7 @@ Use for the durable plan for one phase:
 - in-scope work
 - explicit non-goals
 - acceptance criteria
+- definition of done
 - validation approach
 - durable decisions and open questions
 
@@ -22,7 +23,7 @@ A fresh human or agent should be able to read the active phase doc first and und
 Use for temporary local execution artifacts and audit trails:
 - planning variants
 - merged plan drafts
-- review notes
+- review notes, including definition-of-done and RFC-escalation checks
 - retrospectives
 - subagent summaries
 - deterministic logs such as `bash-exit-1.jsonl`
@@ -43,6 +44,7 @@ The dev retrospective should drive at least one bounded follow-up update to a re
 
 - one phase at a time
 - refine the active phase before coding it
+- use the dedicated refiner role for phase-refinement work when available, while keeping the coordinator as the RFC receiving boundary and decision owner
 - keep durable decisions in docs and execution traces in `tmp/`
 - use fan-out / fan-in / review before implementation
 - write tests first for non-trivial changes
