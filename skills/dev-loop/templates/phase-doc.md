@@ -14,6 +14,8 @@ Planning
 
 ## Acceptance criteria
 
+## Definition of done
+
 ## Validation approach
 
 ## Durable decisions

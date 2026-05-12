@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. The bounded dev-mode workflow simplification pass also completed, including the required dev retrospective and follow-up skill-prompt updates.
+Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged.
 
 ## Current source of truth
 
@@ -15,8 +15,8 @@ Phase 1 imported-asset normalization is complete, locally validated, committed, 
 
 ## Current phase
 
-- Most recently completed phase: `phase-1`
-- Durable phase plan: `docs/phases/phase-1.md`
+- Most recently completed phase: `phase-2`
+- Durable phase plan: `docs/phases/phase-2.md`
 - Status: `completed`
 
 ## Next action for a fresh session
@@ -28,16 +28,17 @@ If the user says **"continue implementation"**:
 3. read `AGENTS.md`
 4. read `docs/IMPLEMENTATION_WORKFLOW.md`
 5. read this file
-6. read `docs/phases/phase-2.md` if it exists, or bootstrap/refine it if it does not
-7. inspect `tmp/phases/index.json` and any local Phase 1 artifacts only if prior context is useful
-8. refine Phase 2 before implementation starts
+6. read `docs/phases/phase-3.md` if it exists, or bootstrap/refine it if it does not
+7. inspect `tmp/phases/index.json` and any useful prior phase artifacts only if prior context helps
+8. refine Phase 3 before implementation starts
 
 ## Next unfinished phase
 
-Phase 2 — package extension and setup UX.
+Phase 3 — package extension and setup UX.
 
 ## Phase queue
 
 - `phase-0` — complete
 - `phase-1` — complete
-- `phase-2` — next
+- `phase-2` — complete
+- `phase-3` — next

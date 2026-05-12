@@ -19,7 +19,7 @@
     "packages/*"
   ],
   "scripts": {
-    "test:assets": "node --test test/imported-assets-normalization.test.mjs",
+    "test:assets": "node --test test/imported-assets-normalization.test.mjs test/refiner-agent-phase-planning.test.mjs test/dev-loop-init-phase-smoke.test.mjs",
     "test:core": "node --test packages/core/test/*.test.mjs",
     "test:dev-loop": "npm --prefix skills/dev-loop test"
   },

@@ -31,6 +31,7 @@ describe("init-phase helper", () => {
       const phaseDoc = await readFile(path.join(tempDir, "docs", "phases", "phase-2.md"), "utf8");
       const variantA = await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "variant-a.md"), "utf8");
       const mergedPlan = await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "merged-plan.md"), "utf8");
+      const review = await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "review.md"), "utf8");
 
       expect(manifest.status).toBe("planning");
       expect(manifest.artifacts).toEqual([
@@ -42,8 +43,13 @@ describe("init-phase helper", () => {
         "variant-b.md",
       ]);
       expect(phaseDoc).toContain("# phase-2 durable plan");
+      expect(phaseDoc).toContain("## Definition of done");
       expect(variantA).toContain("# Phase phase-2 variant a");
       expect(mergedPlan).toContain("# Phase phase-2 merged plan");
+      expect(mergedPlan).toContain("## Definition of done");
+      expect(review).toContain("## Definition-of-done clarity check");
+      expect(review).toContain("review-surface completeness");
+      expect(review).toContain("RFC-escalation sanity");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

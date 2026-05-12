@@ -3,10 +3,11 @@ name: dev-loop
 description: >-
   Use for phased local development in Pi-managed repositories when the user says
   to start or continue work. Reads project docs, resumes the next unfinished
-  phase, runs a fan-out/fan-in/review/merge planning loop for that phase only,
-  logs structured artifacts under tmp/, records subagent summaries, writes tests
-  first, validates locally, updates implementation state, and stops at phase
-  boundaries unless explicitly told to continue.
+  phase, uses the refiner for phase refinement, runs a fan-out/fan-in/review/
+  merge planning loop for that phase only, logs structured artifacts under tmp/,
+  records subagent summaries, writes tests first, validates locally, updates
+  implementation state, and stops at phase boundaries unless explicitly told to
+  continue.
 compatibility: Pi skill for git-based repositories with Node.js/npm and optional subagent support.
 allowed-tools: read bash edit write subagent review_loop
 user-invocable: true
@@ -52,6 +53,7 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 
 - Implement **one phase at a time**.
 - Do not refine later phases in detail before the current phase is complete.
+- Use the `refiner` agent for phase-refinement work when subagents are available; keep the coordinator as the escalation and decision owner when RFC-worthy technical decisions appear.
 - Work **test-first** for all non-trivial logic.
 - Maintain **90% coverage** thresholds.
 - Log detailed iteration artifacts under `tmp/` using the required structure below.
@@ -203,7 +205,14 @@ Write 2-3 short variants:
 - `variant-b.md` = best practical UX/developer-experience option within phase scope
 - `variant-c.md` = safest boundary/risk-reduction option when useful
 
-When subagents are available, the default fan-out path should use **parallel fresh-context subagents** so the variants are independently generated rather than serially contaminated by one another.
+When subagents are available, the default refinement path should use the `refiner` role and **parallel fresh-context subagents** so the variants are independently generated rather than serially contaminated by one another.
+
+Each refiner variant should make room for:
+- explicit non-goals
+- complete acceptance criteria
+- a complete definition of done
+- risks and unresolved questions
+- RFC escalation notes when technical decisions should go through the coordinator
 
 Use the template in `templates/phase-variant.md`.
 
@@ -237,8 +246,10 @@ The merged plan must include:
 - implementation order
 - validation steps
 - acceptance criteria
+- definition of done
+- RFC escalation notes for any RFC-worthy technical decisions that must go through the coordinator instead of being silently resolved during refinement
 
-The durable phase doc should capture the subset that a fresh human or agent should read first: objective, why now, scope, non-goals, acceptance criteria, validation approach, durable decisions, and open questions.
+The durable phase doc should capture the subset that a fresh human or agent should read first: objective, why now, scope, non-goals, acceptance criteria, definition of done, validation approach, durable decisions, and open questions.
 
 ### 5. Review the merged phase plan adversarially
 
@@ -256,6 +267,9 @@ The review must check for:
 - unclear module boundaries
 - hidden coupling to Pi runtime internals
 - ambiguous acceptance criteria
+- unclear or incomplete definition-of-done output
+- missing review-surface completeness
+- weak RFC-escalation sanity when the plan surfaces an unresolved technical decision
 
 If the review finds real issues, revise the merged plan and briefly update the review.
 
