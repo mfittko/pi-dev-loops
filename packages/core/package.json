@@ -1,0 +1,15 @@
+{
+  "name": "@pi-dev-loops/core",
+  "private": true,
+  "type": "module",
+  "description": "Shared deterministic support package for Pi dev-loop skills, repo-local scripts, and GitHub automation.",
+  "exports": {
+    "./bash-exit-one": "./src/bash-exit-one.mjs"
+  },
+  "bin": {
+    "pi-dev-loops-log-bash-exit-1": "./bin/log-bash-exit-1.mjs"
+  },
+  "scripts": {
+    "test": "node --test ./test/*.test.mjs"
+  }
+}

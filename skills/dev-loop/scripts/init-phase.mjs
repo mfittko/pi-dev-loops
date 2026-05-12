@@ -22,14 +22,20 @@ const skillRoot = path.resolve(scriptDir, "..");
 const templateRoot = path.join(skillRoot, "templates");
 
 export async function initializePhase(projectRoot, phase, patch = {}) {
+  const phasePlanArtifact = path.relative(
+    path.join(projectRoot, "tmp", "phases", phase),
+    path.join(projectRoot, "docs", "phases", `${phase}.md`),
+  );
+
   const nextPatch = {
     ...patch,
-    artifacts: [...(patch.artifacts ?? []), ...DEFAULT_PHASE_ARTIFACTS],
+    artifacts: [...(patch.artifacts ?? []), ...DEFAULT_PHASE_ARTIFACTS, phasePlanArtifact],
   };
 
   const result = await ensurePhaseFiles(projectRoot, phase, nextPatch);
 
   const outputs = [
+    ["phase-doc.md", result.paths.phasePlanPath, { phase }],
     ["phase-variant.md", path.join(result.paths.phaseDir, "variant-a.md"), { phase, variant: "a" }],
     ["phase-variant.md", path.join(result.paths.phaseDir, "variant-b.md"), { phase, variant: "b" }],
     ["phase-variant.md", path.join(result.paths.phaseDir, "variant-c.md"), { phase, variant: "c" }],

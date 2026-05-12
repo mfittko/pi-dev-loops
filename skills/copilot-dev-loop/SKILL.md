@@ -1,14 +1,22 @@
 ---
 name: copilot-dev-loop
-description: Use for this repository's GitHub-first Copilot development workflow: choose or confirm a ready GitHub issue, align on scope and acceptance criteria, hand work to Copilot when appropriate, watch the resulting PR for new Copilot review activity, run async Pi follow-up review/fix passes in-session, validate with repo CI-equivalent commands, and stop for confirmation before any GitHub or branch state changes.
-user-invocable: false
+description: >-
+  Use for GitHub-first Pi development workflows when the user wants to choose or
+  confirm a ready GitHub issue, align on scope and acceptance criteria, hand
+  work to Copilot when appropriate, watch the resulting PR for new Copilot
+  review activity, run async Pi follow-up review/fix passes in-session,
+  validate with repository-appropriate checks, and stop for confirmation before
+  any GitHub or branch state changes.
+compatibility: Pi skill for git+GitHub repositories. Requires gh auth; async follow-up works best in Pi/TelePi sessions.
+allowed-tools: read bash edit write subagent review_loop
+user-invocable: true
 ---
 
 # Copilot Dev Loop
 
-This skill is the repo-specific alternative to a local phase-based dev loop.
+This skill is the Pi-first GitHub/Copilot alternative to a local phase-based dev loop.
 
-Use it in this repository when the user wants to work through the normal GitHub/Copilot flow rather than a purely local implementation loop.
+Use it when the user wants to work through the normal GitHub/Copilot flow rather than a purely local implementation loop. Keep repository specifics grounded in the active repo's actual files, scripts, CI, and GitHub state rather than assuming a hard-coded project layout.
 
 Typical triggers:
 - start the copilot dev loop
@@ -35,20 +43,17 @@ Do **not** default to a local `tmp/phases/phase-x` implementation workflow here.
 
 Before planning, review, or automation:
 
-1. `AGENTS.md`
-2. `docs/PLAN.md`
-3. the relevant GitHub issue or PR
-4. relevant generated wiki pages for orientation only:
-   - `.llmwiki/wiki/Agent-Context-Pack.md`
-   - `.llmwiki/wiki/Index.md`
-   - `.llmwiki/wiki/Architecture.md`
-   - task-relevant `.llmwiki/wiki/Module-*.md`
-5. if the task may change implementation details, read these repo-required files before editing:
-   - `.llmwiki/schema.md`
-   - `src/cli.ts`
-   - `src/scanner.ts`
-   - `src/compiler.ts`
-6. task-relevant source files, tests, configuration, and CI
+1. `README.md`
+2. `PLAN.md` if present
+3. `AGENTS.md` if present
+4. the relevant GitHub issue or PR
+5. the repository's actual validation surface:
+   - root `package.json`
+   - relevant package-level `package.json` files
+   - CI/workflow configuration if present
+6. task-relevant source files, tests, configuration, and any repo-local documentation or generated context
+
+If the repo includes generated wiki or LLM context files, treat them as orientation aids only.
 
 Verify all material claims against source, tests, configuration, and CI.
 
@@ -268,17 +273,17 @@ Do not make unrelated cleanup changes just because the branch is already open.
 
 ## Validation policy for this repo
 
-Default validation should match or approximate PR CI.
+Default validation should match or approximate the active repository's PR CI.
 
-Strong default commands:
-- `npm run lint:code`
-- `npm run check`
-- `npm run coverage`
-- `npm run pack:check`
+Strong defaults:
+- prefer the repo's declared root scripts when they exist
+- prefer package-local test/check scripts when the change is isolated to one Pi package surface
+- if the repo does not yet define CI-equivalent scripts, say so explicitly and run the narrowest honest validation available
 
-Use narrower validation only when justified by the change scope, for example:
+Useful examples in this repository:
+- changes under `skills/dev-loop/scripts/` or `skills/dev-loop/templates/`: `npm --prefix skills/dev-loop test`
 - docs-only changes: `git diff --check` and targeted markdown review
-- very focused code fixes: the smallest targeted command that proves correctness, followed by a clear note about broader CI expectations
+- frontmatter or skill-only changes: parse/inspect the updated `SKILL.md` files and note any remaining gaps
 
 When GitHub Actions runs already exist and the next step is to wait for them rather than rerun them locally, prefer native GitHub CLI watch support where available:
 - use `gh run watch` for a known workflow run ID
@@ -363,8 +368,7 @@ Do not:
 ## Recommended companion skills
 
 Use these alongside this skill when appropriate:
-- `repo-wiki-navigation` for repository orientation
-- `repo-wiki-cli` for local wiki/CLI workflows
+- `dev-loop` when the user explicitly wants a local phase-based implementation path instead of the GitHub/Copilot path
 - `copilot-review-followup` for deterministic async waiting on new Copilot review activity
 - `async-review-fix-push` for in-session async Pi review/fix execution
 

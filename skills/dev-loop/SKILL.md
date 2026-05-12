@@ -1,6 +1,15 @@
 ---
 name: dev-loop
-description: Use for phased local development in this repo when the user says to start or continue work. Reads project docs, resumes from the next unfinished phase, runs a fan-out/fan-in/review/merge planning loop for that phase only, logs structured artifacts under tmp/, records subagent summaries, writes tests first, validates locally, updates implementation state, and stops at phase boundaries unless explicitly told to continue.
+description: >-
+  Use for phased local development in Pi-managed repositories when the user says
+  to start or continue work. Reads project docs, resumes the next unfinished
+  phase, runs a fan-out/fan-in/review/merge planning loop for that phase only,
+  logs structured artifacts under tmp/, records subagent summaries, writes tests
+  first, validates locally, updates implementation state, and stops at phase
+  boundaries unless explicitly told to continue.
+compatibility: Pi skill for git-based repositories with Node.js/npm and optional subagent support.
+allowed-tools: read bash edit write subagent review_loop
+user-invocable: true
 ---
 
 # Local Implementation Loop
@@ -22,7 +31,7 @@ Do not assume GitHub PRs, issues, or remote review workflows. This repo is local
 For a new project, the only required inputs are:
 
 1. `PLAN.md`
-2. this skill at `.pi/skills/dev-loop/SKILL.md`
+2. this skill's `SKILL.md`
 
 Everything else is optional and may be bootstrapped by this skill.
 
@@ -33,8 +42,9 @@ Before doing any planning or coding:
 1. read `PLAN.md`
 2. read this skill
 3. if `AGENTS.md` exists, read it
-4. if `docs/IMPLEMENTATION_STATE.md` exists, read it
-5. if `docs/IMPLEMENTATION_WORKFLOW.md` exists, read it
+4. if `docs/IMPLEMENTATION_WORKFLOW.md` exists, read it
+5. if `docs/IMPLEMENTATION_STATE.md` exists, read it
+6. if `docs/phases/phase-x.md` exists for the active phase, read it
 
 Treat missing optional files as normal bootstrap conditions, not as errors.
 
@@ -45,23 +55,25 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 - Work **test-first** for all non-trivial logic.
 - Maintain **90% coverage** thresholds.
 - Log detailed iteration artifacts under `tmp/` using the required structure below.
-- Keep source-of-truth decisions in docs, but keep detailed execution artifacts in `tmp/`.
+- Keep durable phase intent and acceptance criteria in `docs/phases/phase-x.md`, but keep detailed execution artifacts in `tmp/`.
 - When a phase changes durable product truth in ways `PLAN.md` should express (for example command surface, accepted product decisions, resolved open questions, or scope changes), update `PLAN.md` before closing the phase.
 - Do implementation work on a dedicated local branch, not directly on `main`.
 - If the repo has no commits yet, still create the working branch first so the first commits land off `main`; only move `main` forward after review and validation.
 - Use small atomic local commits as progress checkpoints whenever a coherent slice is green and reviewable.
-- Before a branch is considered ready, run a full parallel review / fix loop, apply accepted fixes, rerun validation, and then merge the reviewed branch back into local `main`.
-- When subagents are used, log what each subagent was asked to do and what it concluded.
+- Before a branch is considered ready, run a full parallel review / fix loop, apply accepted fixes, rerun validation, and then merge the reviewed branch back into local `main` when authorized.
+- A phase is only fully complete when its scoped work, required support files, artifacts, validation, review/fix pass, commit(s), and merge back to local `main` are done, or when the only remaining step is an explicitly noted authorization-gated finalization action.- When subagents are used, log what each subagent was asked to do and what it concluded.
 - If `PLAN.md` is too rough or ambiguous to safely start the current phase, do not guess: run a clarification/interview step with the user first.
 
 ## Deterministic logging structure
 
-Treat `tmp/` as both:
-- a human-readable audit trail
-- a machine-friendly input for fresh-context continuation and later process improvement
+Treat the workflow as three layers:
+- `PLAN.md` = strategic product and architecture truth
+- `docs/phases/phase-x.md` = durable per-phase plan and acceptance criteria
+- `tmp/` = execution audit trail and machine-friendly continuation state
 
 Maintain these paths:
 
+- `docs/phases/phase-x.md`
 - `tmp/phases/index.json`
 - `tmp/phases/phase-x/manifest.json`
 - `tmp/phases/phase-x/variant-a.md`
@@ -77,9 +89,9 @@ Maintain these paths:
 - in dev mode: `tmp/phases/phase-x/dev-mode-review.md`
 - in dev mode: `tmp/phases/phase-x/dev-mode-skill-changes.md`
 
-Use the templates in `templates/`.
+Use the templates in `templates/` relative to the skill directory.
 
-Use deterministic helper scripts from `scripts/` for repeatable support tasks such as phase initialization, phase-file updates, template materialization, bash-exit logging, and dev-mode context collection. Paths referenced from this skill are relative to the skill directory and should be treated as directly available to the skill.
+Use deterministic helper scripts from `scripts/` for repeatable support tasks such as phase initialization, phase-file updates, template materialization, bash-exit logging, and dev-mode context collection. Paths referenced from this skill are relative to the skill directory so the workflow works from project-local `.pi/skills/`, packaged Pi installs, or other supported Pi skill locations.
 
 ## Bootstrap missing support files
 
@@ -88,10 +100,12 @@ If these files are missing, create them from `templates/` before continuing:
 - missing `AGENTS.md` -> create from `templates/bootstrap-agents.md`
 - missing `docs/IMPLEMENTATION_STATE.md` -> create from `templates/bootstrap-implementation-state.md`
 - missing `docs/IMPLEMENTATION_WORKFLOW.md` -> create from `templates/bootstrap-implementation-workflow.md`
+- missing `docs/phases/phase-x.md` for the active phase -> create from `templates/phase-doc.md`
 - missing `tmp/phases/index.json` -> create or reinitialize it
 
-The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth.
+The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase.
 
+For bootstrap/setup phases, do not mark the phase `completed` or `awaiting-finalization` until the expected support files for the chosen workflow contract actually exist in the repository.
 ## Plan sufficiency check
 
 Before phase planning, check whether `PLAN.md` contains enough information to proceed safely.
@@ -112,7 +126,8 @@ When the plan is insufficient, use one of these modes:
 - ask only the missing high-value questions needed to safely refine the current phase
 - prefer a short interview or wizard-style sequence over one giant question dump
 - record the answers in `tmp/phases/phase-x/clarification.md`
-- update `PLAN.md` only if the clarified information is durable product/project truth
+- update `docs/phases/phase-x.md` with clarified durable phase intent, scope, or acceptance criteria
+- update `PLAN.md` only if the clarified information is durable product/project truth beyond the current phase
 - update `docs/IMPLEMENTATION_STATE.md` if the clarification changes the next phase boundary
 
 ### Mode B — auto clarification
@@ -132,9 +147,10 @@ Do not begin fan-out planning until the current phase is sufficiently specified,
 ## Determine where to resume
 
 Read `docs/IMPLEMENTATION_STATE.md` and identify the next unfinished phase.
+Read `docs/phases/phase-x.md` for that phase if it exists.
 
 If `tmp/phases/index.json` exists, use it as a fast index for prior artifacts.
-If the state file and the tmp index disagree, trust the docs first and note the mismatch in the phase review log.
+If the durable phase doc, the state file, and the tmp index disagree, trust docs first and note the mismatch in the phase review log.
 
 If the state file is ambiguous, resolve ambiguity conservatively:
 - prefer the earliest clearly unfinished phase
@@ -146,13 +162,16 @@ If the state file is ambiguous, resolve ambiguity conservatively:
 
 For the **current phase only**, run this loop before implementation.
 
-### 1. Create or update the phase directory under tmp
+### 1. Create or update the durable phase doc and tmp scaffold
 
-Use a path like:
+Use paths like:
+- `docs/phases/phase-0.md`
 - `tmp/phases/phase-0/`
+- `docs/phases/phase-1.md`
 - `tmp/phases/phase-1/`
 
 Create or update:
+- `docs/phases/phase-x.md`
 - `tmp/phases/phase-x/manifest.json`
 - `tmp/phases/index.json`
 
@@ -200,8 +219,9 @@ Update `manifest.json` with the planned artifact list and current status.
 
 Write:
 - `tmp/phases/phase-x/merged-plan.md`
+- update `docs/phases/phase-x.md` with the selected durable phase plan
 
-Use the template in `templates/merged-phase-plan.md`.
+Use the templates in `templates/merged-phase-plan.md` and `templates/phase-doc.md`.
 
 The merged plan must include:
 - exact scope for this phase
@@ -211,12 +231,15 @@ The merged plan must include:
 - validation steps
 - acceptance criteria
 
+The durable phase doc should capture the subset that a fresh human or agent should read first: objective, why now, scope, non-goals, acceptance criteria, validation approach, durable decisions, and open questions.
+
 ### 5. Review the merged phase plan adversarially
 
 Write:
 - `tmp/phases/phase-x/review.md`
 
 Use the template in `templates/review.md`.
+Ensure the durable phase doc still matches the reviewed plan; update `docs/phases/phase-x.md` if the review changes accepted scope or criteria.
 
 The review must check for:
 - overreach beyond phase scope
@@ -278,12 +301,15 @@ After the phase plan passes review:
    - apply accepted fixes on the same branch
    - rerun validation after fixes
    - log review artifacts and subagent summaries under `tmp/`
-6. Update `PLAN.md` when the phase changed durable product truth, resolved an open question, or made the shipped command/behavior surface more concrete.
-7. Write `tmp/phases/phase-x/summary.md` using `templates/phase-summary.md`.
-8. Write `tmp/phases/phase-x/retrospective.md` using `templates/retrospective.md`.
-9. Update `tmp/phases/phase-x/manifest.json` and `tmp/phases/index.json`.
-10. Update `docs/IMPLEMENTATION_STATE.md`.
-11. If authorized, make sure the phase branch history is captured with atomic commits and merge the fully reviewed branch back into local `main`.
+6. Update `docs/phases/phase-x.md` so it reflects the phase as actually implemented, including any accepted scope or validation changes.
+7. Update `PLAN.md` when the phase changed durable product truth, resolved an open question, or made the shipped command/behavior surface more concrete.
+8. Write `tmp/phases/phase-x/summary.md` using `templates/phase-summary.md`.
+9. Write `tmp/phases/phase-x/retrospective.md` using `templates/retrospective.md`.
+10. Update `tmp/phases/phase-x/manifest.json` and `tmp/phases/index.json`.
+11. Update `docs/IMPLEMENTATION_STATE.md`.
+12. Make sure the phase branch history is captured with atomic commits once the phase is review-ready and authorized for commit.
+13. If authorized, merge the fully reviewed, locally validated phase branch back into local `main`.
+14. If authorization for commit or merge is still pending, mark the phase as `awaiting-finalization` rather than `completed`, and record exactly which finalization step is pending.
 
 ## Retrospective requirements
 
@@ -315,8 +341,9 @@ In dev mode, after the normal phase summary and retrospective are written, run o
    - places where deterministic tooling should replace ad hoc work
 3. write `tmp/phases/phase-x/dev-mode-review.md`
 4. if the review finds worthwhile skill/workflow improvements, patch only the skill-support surface:
-   - `.pi/skills/dev-loop/SKILL.md`
+   - this skill's `SKILL.md`
    - `docs/IMPLEMENTATION_WORKFLOW.md`
+   - durable workflow docs under `docs/phases/` when the convention changes
    - `templates/`
    - `scripts/`
    - skill-local test/config files
@@ -330,6 +357,7 @@ Dev mode is still phase-bounded. It improves the loop around the completed phase
 ## tmp/ logging requirements
 
 At minimum, each phase should leave behind:
+- a durable phase doc at `docs/phases/phase-x.md`
 - `manifest.json`
 - `variant-a.md`
 - `variant-b.md`
@@ -365,7 +393,7 @@ If useful, also include truncated `stdout` and `stderr` fields or a path to a la
 ## Stop conditions
 
 Stop after the current phase when:
-- the current phase is implemented and validated
+- the current phase is implemented, validated, and fully finalized, or is explicitly marked `awaiting-finalization`
 - the next step would require refining the next phase
 - a decision requires user or coordination/main-agent approval
 - validation fails in a way that needs a direction change
@@ -378,6 +406,8 @@ Stop after the current phase when:
 - Use atomic local commits to log progress, but only for coherent reviewable slices.
 - Before merging, run a full parallel review / fix loop and resolve accepted findings on the same branch.
 - Rerun validation after review-driven fixes.
+- A phase is not operationally closed until its branch state is captured in commit history and the reviewed branch has been merged back into local `main`, unless authorization for that finalization is still pending.
+- When authorization is pending, record the phase as `awaiting-finalization` and describe the exact missing step.
 - Merge the fully reviewed, locally validated branch back into local `main` when authorized.
 
 ## Commit policy
@@ -387,17 +417,19 @@ Stop after the current phase when:
 - Keep commits small and phase-bounded.
 - Do not leave completed phase work stranded off `main`; once the reviewed branch is ready and authorized, merge it locally.
 - Commit only when the coordination/main agent has decided the slice or phase is ready.
+- If commit/merge authorization has not yet been given, do not call the phase `completed`; call it `awaiting-finalization` instead.
 
 ## Anti-patterns
 
 Do not:
-- assume a project must already have `AGENTS.md`, `docs/IMPLEMENTATION_STATE.md`, or `docs/IMPLEMENTATION_WORKFLOW.md`
+- assume a project must already have `AGENTS.md`, `docs/IMPLEMENTATION_STATE.md`, `docs/IMPLEMENTATION_WORKFLOW.md`, or `docs/phases/phase-x.md`
 - guess through missing plan details when a short clarification step would resolve them
 - implement multiple future phases in one pass
 - skip the fan-out/fan-in/review loop
 - treat rough notes as implementation authorization
 - expand scope because a helper may be useful later
 - rely on Pi private internals when public hooks exist
+- skip updating `docs/phases/phase-x.md` when the accepted phase plan changes
 - skip updating `docs/IMPLEMENTATION_STATE.md`
 - skip writing `tmp/` artifacts
 - use subagents without leaving readable summaries of what they did

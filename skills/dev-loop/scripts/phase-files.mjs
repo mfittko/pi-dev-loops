@@ -61,12 +61,15 @@ export function buildPhasePaths(projectRoot, phase) {
   const normalizedPhase = normalizePhaseName(phase);
   const phasesRoot = path.join(projectRoot, "tmp", "phases");
   const phaseDir = path.join(phasesRoot, normalizedPhase);
+  const docsPhasesRoot = path.join(projectRoot, "docs", "phases");
 
   return {
     projectRoot,
     phasesRoot,
     phase: normalizedPhase,
     phaseDir,
+    docsPhasesRoot,
+    phasePlanPath: path.join(docsPhasesRoot, `${normalizedPhase}.md`),
     manifestPath: path.join(phaseDir, "manifest.json"),
     indexPath: path.join(phasesRoot, "index.json"),
     bashExitOnePath: path.join(phaseDir, "bash-exit-1.jsonl"),

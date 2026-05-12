@@ -15,6 +15,13 @@
   "engines": {
     "node": ">=20"
   },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test:core": "node --test packages/core/test/*.test.mjs",
+    "test:dev-loop": "npm --prefix skills/dev-loop test"
+  },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*"
