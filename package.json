@@ -19,6 +19,7 @@
     "packages/*"
   ],
   "scripts": {
+    "test:assets": "node --test test/imported-assets-normalization.test.mjs",
     "test:core": "node --test packages/core/test/*.test.mjs",
     "test:dev-loop": "npm --prefix skills/dev-loop test"
   },

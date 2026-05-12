@@ -27,6 +27,12 @@ Used during the per-phase loop.
   - what happened in the phase
 - `retrospective.md`
   - process-improvement notes for later phases and future projects
+- `dev-mode-retrospective.md`
+  - required when dev mode is used; captures workflow lessons and the prompt follow-ups that should be applied immediately
+- `dev-mode-review.md`
+  - optional analytical notes that can support the dev-mode retrospective
+- `dev-mode-skill-changes.md`
+  - records the required skill and/or agent-prompt updates plus any supporting tooling/doc changes
 - `subagent-summary.md`
   - readable summary of each subagent run, including async runs once results arrive
 - `clarification.md`

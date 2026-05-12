@@ -27,7 +27,17 @@ Use for temporary local execution artifacts and audit trails:
 - subagent summaries
 - deterministic logs such as `bash-exit-1.jsonl`
 
+Keep this surface minimal. Start with only the artifacts needed to resume the current phase, and create optional artifacts such as extra variants, clarification notes, raw subagent output captures, and dev-mode files only when they are actually used.
+
 These files are normally local-only and do not need to be committed to git.
+
+## Dev mode expectation
+
+When dev mode is used for a phase, leave behind:
+- `tmp/phases/phase-<n>/dev-mode-retrospective.md`
+- `tmp/phases/phase-<n>/dev-mode-skill-changes.md`
+
+The dev retrospective should drive at least one bounded follow-up update to a relevant skill and/or agent prompt. Supporting workflow-doc, template, script, or test changes may accompany that prompt update, but they do not replace it.
 
 ## Default operating mode
 

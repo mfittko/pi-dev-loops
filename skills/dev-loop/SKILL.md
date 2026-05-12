@@ -72,22 +72,28 @@ Treat the workflow as three layers:
 - `docs/phases/phase-x.md` = durable per-phase plan and acceptance criteria
 - `tmp/` = temporary local execution audit trail and machine-friendly continuation state
 
-Maintain these paths while the phase is active locally:
+Maintain the core paths below while the phase is active locally, and create optional artifacts only when they are actually used:
 
+Core paths:
 - `docs/phases/phase-x.md`
 - `tmp/phases/index.json`
 - `tmp/phases/phase-x/manifest.json`
 - `tmp/phases/phase-x/variant-a.md`
 - `tmp/phases/phase-x/variant-b.md`
-- optional `tmp/phases/phase-x/variant-c.md`
 - `tmp/phases/phase-x/merged-plan.md`
 - `tmp/phases/phase-x/review.md`
 - `tmp/phases/phase-x/summary.md`
 - `tmp/phases/phase-x/retrospective.md`
+
+Optional when used:
+- `tmp/phases/phase-x/variant-c.md`
 - `tmp/phases/phase-x/subagents/`
+- `tmp/phases/phase-x/subagents/raw/`
 - `tmp/phases/phase-x/bash-exit-1.jsonl`
+- `tmp/phases/phase-x/clarification.md`
 - in dev mode: `tmp/phases/phase-x/dev-mode-context.json`
-- in dev mode: `tmp/phases/phase-x/dev-mode-review.md`
+- in dev mode: `tmp/phases/phase-x/dev-mode-review.md` as optional analytical notes when they help shape the retrospective
+- in dev mode: `tmp/phases/phase-x/dev-mode-retrospective.md`
 - in dev mode: `tmp/phases/phase-x/dev-mode-skill-changes.md`
 
 Use the templates in `templates/` relative to the skill directory.
@@ -211,8 +217,8 @@ Each variant should cover only:
 
 If subagents generate the variants:
 - run them in parallel with clean context when practical
-- save each raw subagent output under `tmp/phases/phase-x/subagents/raw/`
-- then write the human-oriented `variant-a.md` / `variant-b.md` / `variant-c.md` files from those raw outputs
+- save raw subagent outputs under `tmp/phases/phase-x/subagents/raw/` only when keeping the raw capture is actually useful
+- then write the human-oriented `variant-a.md` / `variant-b.md` / `variant-c.md` files from those raw outputs when applicable
 
 Update `manifest.json` with the planned artifact list and current status.
 
@@ -334,24 +340,27 @@ In dev mode, after the normal phase summary and retrospective are written, run o
 1. collect a deterministic context bundle for the phase using:
    - `scripts/dev-mode-context.mjs`
    - output to `tmp/phases/phase-x/dev-mode-context.json`
-2. review the phase artifacts and logs with emphasis on the skill itself:
+2. review the phase artifacts and logs with emphasis on the workflow itself:
    - planning quality
    - review quality
    - validation friction
    - bash exit-code-1 patterns
+   - places where skill or agent prompts should be tightened
    - places where deterministic tooling should replace ad hoc work
-3. write `tmp/phases/phase-x/dev-mode-review.md`
-4. if the review finds worthwhile skill/workflow improvements, patch only the skill-support surface:
-   - this skill's `SKILL.md`
-   - `docs/IMPLEMENTATION_WORKFLOW.md`
-   - durable workflow docs under `docs/phases/` when the convention changes
-   - `templates/`
-   - `scripts/`
-   - skill-local test/config files
-5. write `tmp/phases/phase-x/dev-mode-skill-changes.md`
-   - if no changes were needed, say so explicitly
-6. if skill scripts or deterministic tooling changed, rerun the skill-local tests
-7. stop after this bounded self-improvement pass; do not recurse into endless self-editing loops
+3. write `tmp/phases/phase-x/dev-mode-retrospective.md`
+   - this is the required dev-mode retrospective artifact
+   - it should name the highest-value prompt/workflow follow-ups revealed by the phase
+4. optionally write `tmp/phases/phase-x/dev-mode-review.md` when separate analytical notes help support the retrospective
+5. apply at least one bounded follow-up update to a relevant skill and/or agent prompt
+   - deterministic tooling, docs, templates, or tests may accompany that change
+   - but they do not replace the required prompt update
+   - keep the change phase-bounded and tied directly to the retrospective findings
+6. write `tmp/phases/phase-x/dev-mode-skill-changes.md`
+   - record which skill and/or agent prompts changed
+   - record any supporting tooling/docs/template changes that accompanied them
+   - if no prompt update can be justified safely, stop and report that dev-mode exit criteria were not met
+7. if skill scripts or deterministic tooling changed, rerun the skill-local tests
+8. stop after this bounded self-improvement pass; do not recurse into endless self-editing loops
 
 Dev mode is still phase-bounded. It improves the loop around the completed phase; it does not authorize work on the next product phase.
 
@@ -359,19 +368,21 @@ Dev mode is still phase-bounded. It improves the loop around the completed phase
 
 At minimum, each phase should leave behind:
 - a durable phase doc at `docs/phases/phase-x.md`
-- local `tmp/` execution artifacts as needed during the phase, including:
+- local `tmp/` execution artifacts needed to resume and audit the phase, including:
   - `manifest.json`
   - `variant-a.md`
   - `variant-b.md`
-  - optional `variant-c.md`
   - `merged-plan.md`
   - `review.md`
   - `summary.md`
   - `retrospective.md`
+  - optional `variant-c.md` when a third variant was actually useful
   - `bash-exit-1.jsonl` when any bash call during the phase exited with code `1`
   - `clarification.md` when a plan-sufficiency interview or auto-clarification step was needed
   - subagent summaries when subagents were used
-  - in dev mode: `dev-mode-context.json`, `dev-mode-review.md`, and `dev-mode-skill-changes.md`
+  - raw subagent outputs only when they were saved separately on purpose
+  - in dev mode: `dev-mode-context.json`, `dev-mode-retrospective.md`, and `dev-mode-skill-changes.md`
+  - optional in dev mode: `dev-mode-review.md` when separate analytical notes were useful
 
 These `tmp/` artifacts are normally temporary and do not need to be checked into git.
 

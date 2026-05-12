@@ -9,7 +9,7 @@ The goal is to extract reusable local and remote development loops out of indivi
 This repo should eventually provide four layers:
 
 1. **Generic role agents**
-   - implementation, docs, quality, review, fixer, coordination
+   - implementation, docs, quality, review, fixer, coordination, refinement
    - reusable across repositories
    - workflow-agnostic
 
@@ -469,3 +469,4 @@ Examples:
 6. move the first deterministic helper into a shared npm support package with a thin skill-local wrapper
 7. add the first deterministic GitHub helper scripts
 8. refactor the first three generic agents: `developer`, `docs`, `quality`
+9. design a dedicated refiner agent for phase-refinement work so planning/refinement can be delegated without overloading the coordinator

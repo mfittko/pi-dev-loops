@@ -1,5 +1,7 @@
 # Phase {{phase}} dev-mode review
 
+Optional analytical notes that support the required `dev-mode-retrospective.md`.
+
 ## Iteration reviewed
 
 ## Artifact inputs reviewed
