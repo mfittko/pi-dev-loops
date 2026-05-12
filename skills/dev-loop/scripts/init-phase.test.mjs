@@ -40,7 +40,6 @@ describe("init-phase helper", () => {
         "review.md",
         "variant-a.md",
         "variant-b.md",
-        "variant-c.md",
       ]);
       expect(phaseDoc).toContain("# phase-2 durable plan");
       expect(variantA).toContain("# Phase phase-2 variant a");

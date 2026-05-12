@@ -8,7 +8,6 @@ export const DEFAULT_PHASE_ARTIFACTS = [
   "manifest.json",
   "variant-a.md",
   "variant-b.md",
-  "variant-c.md",
   "merged-plan.md",
   "review.md",
 ];
@@ -38,7 +37,6 @@ export async function initializePhase(projectRoot, phase, patch = {}) {
     ["phase-doc.md", result.paths.phasePlanPath, { phase }],
     ["phase-variant.md", path.join(result.paths.phaseDir, "variant-a.md"), { phase, variant: "a" }],
     ["phase-variant.md", path.join(result.paths.phaseDir, "variant-b.md"), { phase, variant: "b" }],
-    ["phase-variant.md", path.join(result.paths.phaseDir, "variant-c.md"), { phase, variant: "c" }],
     ["merged-phase-plan.md", path.join(result.paths.phaseDir, "merged-plan.md"), { phase }],
     ["review.md", path.join(result.paths.phaseDir, "review.md"), { phase }],
   ];

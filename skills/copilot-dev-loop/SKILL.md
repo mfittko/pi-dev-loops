@@ -23,7 +23,6 @@ Typical triggers:
 - continue the copilot loop
 - hand the next ready issue to Copilot
 - watch the Copilot PR and follow up
-- run the repo-wiki copilot dev loop
 - continue PR review/fix work for the current Copilot branch
 
 ## What this skill assumes about this repo
@@ -242,8 +241,7 @@ Preferred approach for Copilot review follow-up:
 - after new review activity appears, launch an async Pi fixer in-session
 - use explicit long timeouts from the timeout policy above rather than short defaults
 
-Use the existing watcher skill and tooling concepts from:
-- `copilot-review-followup`
+Use an existing repo-local async review-follow-up skill or deterministic watcher when available.
 
 Key rules:
 - expected polling idle time is normal
@@ -369,8 +367,8 @@ Do not:
 
 Use these alongside this skill when appropriate:
 - `dev-loop` when the user explicitly wants a local phase-based implementation path instead of the GitHub/Copilot path
-- `copilot-review-followup` for deterministic async waiting on new Copilot review activity
-- `async-review-fix-push` for in-session async Pi review/fix execution
+- any repo-local async review-follow-up skill when deterministic waiting on new Copilot review activity is available
+- any repo-local async review/fix skill when in-session follow-up execution is available
 
 ## Output expectations
 
