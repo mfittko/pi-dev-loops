@@ -248,6 +248,8 @@ When a PR is moved from draft to ready, explicitly attempt to request Copilot re
 
 Do not web-search or rediscover this behavior during normal operation. Treat the deterministic helper and the repository docs as the source of truth unless you are explicitly debugging the tooling itself.
 
+When introducing or changing deterministic GitHub write helpers (for example review-request or reply/resolve helpers), do not rely on fixture tests alone if a real authorized PR is available. Run one bounded real-PR smoke check before entrusting a long-lived async loop to that helper.
+
 If the explicit request fails because Copilot review is not enabled for the repository, the reviewer identity is not requestable, or GitHub rejects the request because the reviewer is not a collaborator/requestable actor, record that exact limitation and continue with the documented watch/follow-up path rather than silently assuming review was requested.
 
 ## Step 6: Async watch behavior
@@ -296,10 +298,14 @@ When actionable review feedback exists, use a narrow follow-up loop:
 4. run the smallest validation that honestly proves the fix
 5. if files changed, push the resolving commit before any thread reply claims the fix is present
 6. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
+   - prefer the deterministic helper `scripts/github/reply-resolve-review-thread.mjs` when it exists
+   - use a body file under `tmp/` rather than inline shell text for the reply body
+   - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
 7. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
+   - do not stop at a local fix if GitHub-side reply/resolve is authorized
 8. if scope has broadened, stop and ask before continuing
 
-Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up.
+Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 
 When helpful, run parallel review angles such as:
 - correctness/regressions

@@ -1,0 +1,208 @@
+#!/usr/bin/env node
+import { readFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { formatCliError } from "../_core-helpers.mjs";
+
+const RESOLVE_REVIEW_THREAD_MUTATION = [
+  "mutation($threadId: ID!) {",
+  "  resolveReviewThread(input: { threadId: $threadId }) {",
+  "    thread {",
+  "      id",
+  "      isResolved",
+  "    }",
+  "  }",
+  "}",
+].join("\n");
+
+function requireOptionValue(args, flag) {
+  const value = args.shift();
+
+  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
+    throw new Error(`Missing value for ${flag}`);
+  }
+
+  return value;
+}
+
+function parsePositiveInteger(value, flag) {
+  if (!/^\d+$/.test(value) || Number(value) === 0) {
+    throw new Error(`${flag} must be a positive integer`);
+  }
+
+  return Number(value);
+}
+
+export function parseReplyResolveCliArgs(argv) {
+  const args = [...argv];
+  const options = {
+    repo: undefined,
+    pr: undefined,
+    commentId: undefined,
+    threadId: undefined,
+    bodyFile: undefined,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo");
+      continue;
+    }
+
+    if (token === "--pr") {
+      options.pr = parsePositiveInteger(requireOptionValue(args, "--pr"), "--pr");
+      continue;
+    }
+
+    if (token === "--comment-id") {
+      options.commentId = parsePositiveInteger(requireOptionValue(args, "--comment-id"), "--comment-id");
+      continue;
+    }
+
+    if (token === "--thread-id") {
+      options.threadId = requireOptionValue(args, "--thread-id");
+      continue;
+    }
+
+    if (token === "--body-file") {
+      options.bodyFile = requireOptionValue(args, "--body-file");
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${token}`);
+  }
+
+  if (!options.repo || !options.pr || !options.commentId || !options.threadId || !options.bodyFile) {
+    throw new Error(
+      "Replying and resolving a review thread requires --repo <owner/name>, --pr <number>, --comment-id <number>, --thread-id <node-id>, and --body-file <path>",
+    );
+  }
+
+  return options;
+}
+
+function runChild(command, args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON from gh: ${text.trim() || "<empty>"}`);
+  }
+}
+
+async function postReply({ repo, pr, commentId, body }, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    ["api", "-X", "POST", `repos/${repo}/pulls/${pr}/comments/${commentId}/replies`, "-f", `body=${body}`],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  return parseJson(result.stdout);
+}
+
+async function resolveThread(threadId, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    [
+      "api",
+      "graphql",
+      "--field",
+      `threadId=${threadId}`,
+      "--field",
+      `query=${RESOLVE_REVIEW_THREAD_MUTATION}`,
+    ],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  const payload = parseJson(result.stdout);
+  return payload?.data?.resolveReviewThread?.thread;
+}
+
+export async function runCli(
+  argv = process.argv.slice(2),
+  {
+    stdout = process.stdout,
+    env = process.env,
+    ghCommand = "gh",
+  } = {},
+) {
+  const options = parseReplyResolveCliArgs(argv);
+  const body = (await readFile(options.bodyFile, "utf8")).trim();
+
+  if (body.length === 0) {
+    throw new Error("--body-file must contain non-empty text");
+  }
+
+  const reply = await postReply(
+    {
+      repo: options.repo,
+      pr: options.pr,
+      commentId: options.commentId,
+      body,
+    },
+    { env, ghCommand },
+  );
+  const resolvedThread = await resolveThread(options.threadId, { env, ghCommand });
+
+  if (!resolvedThread?.isResolved) {
+    throw new Error(`Review thread did not resolve successfully: ${options.threadId}`);
+  }
+
+  stdout.write(`${JSON.stringify({
+    ok: true,
+    repo: options.repo,
+    pr: options.pr,
+    commentId: options.commentId,
+    threadId: options.threadId,
+    replyId: reply?.id,
+    replyUrl: reply?.html_url,
+    resolved: true,
+  })}\n`);
+}
+
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  runCli().catch((error) => {
+    process.stderr.write(`${formatCliError(error)}\n`);
+    process.exitCode = 1;
+  });
+}
