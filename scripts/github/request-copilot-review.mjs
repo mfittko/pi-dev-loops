@@ -79,7 +79,7 @@ function runChild(command, args, env) {
 }
 
 function isCopilotReviewer(login) {
-  return typeof login === "string" && login.toLowerCase() === "copilot";
+  return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
 }
 
 function parseRequestedReviewersPayload(text) {
