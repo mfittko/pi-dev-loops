@@ -2,27 +2,49 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 
 import { resolveSystemSkillsRoot, syncPackagedSkills } from "../extension/installer.ts";
+
+async function seedFiles(rootPath, files) {
+  for (const [relativePath, content] of Object.entries(files)) {
+    const targetPath = path.join(rootPath, relativePath);
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, content);
+  }
+}
 
 async function seedPackagedSupport(tempDir) {
   const scriptsRoot = path.join(tempDir, "scripts-source");
   const coreSourceRoot = path.join(tempDir, "core-src-source");
   const docsRoot = path.join(tempDir, "docs-source");
 
-  await mkdir(path.join(scriptsRoot, "github"), { recursive: true });
-  await mkdir(path.join(scriptsRoot, "loop"), { recursive: true });
-  await mkdir(path.join(coreSourceRoot, "loop"), { recursive: true });
-  await mkdir(docsRoot, { recursive: true });
+  await seedFiles(scriptsRoot, {
+    "_core-helpers.mjs": "export const helper = true;\n",
+    "github/capture-review-threads.mjs": "export const capture = true;\n",
+    "github/reply-resolve-review-thread.mjs": "export const reply = true;\n",
+    "github/request-copilot-review.mjs": "#!/usr/bin/env node\n",
+    "github/stage-reviewer-draft.mjs": "export const stage = true;\n",
+    "github/watch-copilot-review.mjs": "export const watch = true;\n",
+    "loop/detect-copilot-loop-state.mjs": "#!/usr/bin/env node\n",
+    "loop/detect-reviewer-loop-state.mjs": "export const reviewer = true;\n",
+    "README.md": "scripts readme\n",
+    "github/extra-helper.mjs": "export const extra = true;\n",
+  });
 
-  await writeFile(path.join(scriptsRoot, "_core-helpers.mjs"), "export const helper = true;\n");
-  await writeFile(path.join(scriptsRoot, "README.md"), "scripts readme\n");
-  await writeFile(path.join(scriptsRoot, "github", "request-copilot-review.mjs"), "#!/usr/bin/env node\n");
-  await writeFile(path.join(scriptsRoot, "loop", "detect-copilot-loop-state.mjs"), "#!/usr/bin/env node\n");
-  await writeFile(path.join(coreSourceRoot, "loop", "copilot-loop-state.mjs"), "export const state = true;\n");
-  await writeFile(path.join(docsRoot, "copilot-loop-state-graph.md"), "copilot graph\n");
-  await writeFile(path.join(docsRoot, "reviewer-loop-state-graph.md"), "reviewer graph\n");
+  await seedFiles(coreSourceRoot, {
+    "github/review-threads.mjs": "export const reviewThreads = true;\n",
+    "loop/copilot-loop-state.mjs": "export const copilotState = true;\n",
+    "loop/phase-files.mjs": "export const phaseFiles = true;\n",
+    "loop/reviewer-loop-state.mjs": "export const reviewerState = true;\n",
+    "other/not-needed.mjs": "export const notNeeded = true;\n",
+  });
+
+  await seedFiles(docsRoot, {
+    "copilot-loop-state-graph.md": "copilot graph\n",
+    "reviewer-loop-state-graph.md": "reviewer graph\n",
+    "IMPLEMENTATION_STATE.md": "not bundled\n",
+  });
 
   return { scriptsRoot, coreSourceRoot, docsRoot };
 }
@@ -31,7 +53,7 @@ test("resolveSystemSkillsRoot targets ~/.pi/agent/skills", () => {
   assert.equal(resolveSystemSkillsRoot("/tmp/home"), path.join("/tmp/home", ".pi", "agent", "skills"));
 });
 
-test("install copies packaged skills and bundled copilot runtime support without overwriting existing targets", async () => {
+test("install copies packaged skills and only the allow-listed copilot runtime support without overwriting existing targets", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-extension-install-"));
   const sourceRoot = path.join(tempDir, "source");
   const targetRoot = path.join(tempDir, "target");
@@ -70,12 +92,17 @@ test("install copies packaged skills and bundled copilot runtime support without
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-dev-loop", "packages", "core", "src", "loop", "copilot-loop-state.mjs"), "utf8"),
-    "export const state = true;\n",
+    "export const copilotState = true;\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "copilot-loop-state-graph.md"), "utf8"),
     "copilot graph\n",
   );
+
+  await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "scripts", "README.md")));
+  await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "scripts", "github", "extra-helper.mjs")));
+  await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "packages", "core", "src", "other", "not-needed.mjs")));
+  await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "docs", "IMPLEMENTATION_STATE.md")));
 
   await writeFile(path.join(targetRoot, "dev-loop", "SKILL.md"), "repo override\n");
 

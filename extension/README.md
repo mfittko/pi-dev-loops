@@ -41,7 +41,7 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 
 ## Install/update contract for this phase
 
-`/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories. For `copilot-dev-loop`, they also bundle the deterministic runtime support it references: `scripts/`, the required `packages/core/src/` subset, and the reviewer-loop state-graph docs under the installed skill directory.
+`/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories. For `copilot-dev-loop`, they also bundle an explicit allow-listed runtime support set under the installed skill directory: the required deterministic script files, the required `packages/core/src/` files, and both loop state-graph docs.
 
 `install` is for first-time setup. `update` refreshes installed skills only, reports missing targets, and guides users back to `install` when first-time setup is still needed.
 
