@@ -56,6 +56,32 @@ Success output shape:
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/github/stage-reviewer-draft.mjs`
+
+Stage a pending reviewer-side draft review from a merged deterministic review package.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+- `--review-file <path>`
+
+Optional:
+- `--local-state-output <path>` writes/merges deterministic draft-review metadata for later
+  `detect-reviewer-loop-state.mjs --local-state` use
+
+Contract:
+- reads a merged reviewer result JSON file (for example output derived from `mergeReviewerResults`)
+- builds a deterministic pending-review payload pinned to the review package `headSha`
+- posts the pending review to `repos/<owner>/<name>/pulls/<pr>/reviews` without an `event` field so GitHub keeps it pending
+- returns the draft review id/url/commit sha
+- optionally writes bounded local reviewer-loop metadata including `draftReviewPosted`, `draftReviewId`, `draftReviewUrl`, `draftReviewCommitSha`, and `draftReviewNotificationStatus`
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/name", "pr": 17, "reviewId": 456, "reviewUrl": "...", "reviewState": "PENDING", "commitSha": "abc123", "localStatePath": "..."|null }`
+
+Failure behavior:
+- malformed arguments, invalid review JSON, missing `headSha`, unexpected `gh` failures, and malformed review-create responses emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/github/reply-resolve-review-thread.mjs`
 
 Reply to a PR review comment and resolve the associated review thread deterministically.
@@ -158,6 +184,38 @@ Key behavioral guarantees:
 - When `copilotReviewRequestStatus` is `unavailable` or `failed`, the state is a terminal stop/report state with no allowed transitions
 - When `agentFixStatus` is `"applied"` and unresolved threads exist, the state is `already_fixed_needs_reply_resolve`, and `allowedTransitions` includes only `ready_to_rerequest_review`
 - If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
+
+### `scripts/loop/detect-reviewer-loop-state.mjs`
+
+Deterministic reviewer-loop state detector. Captures reviewer-side PR loop state from observable
+GitHub facts plus optional local reviewer-loop metadata and interprets that snapshot into one
+explicit current state, allowed next transitions, and a recommended next action. See
+`docs/reviewer-loop-state-graph.md` for the full reviewer-loop state graph and contracts.
+
+Two modes:
+
+- **Auto-detect**: `--repo <owner/name> --pr <number>`
+  Fetches PR/open-head state, review-request status, and pending/submitted review surfaces from
+  GitHub and interprets them into deterministic reviewer-loop state.
+
+- **Snapshot interpretation**: `--input <path>`
+  Reads a pre-built snapshot JSON and interprets it without any `gh` calls.
+
+Optional (auto-detect mode only):
+- `--reviewer-login <login>`
+  Scope review-request and review-surface detection to a single reviewer identity.
+- `--review-requested <true|false>`
+  Override review-request detection with a known prior result.
+- `--local-state <path>`
+  Inject local reviewer-loop metadata (planning/run/merge/draft-notification status) used for
+  deterministic planning/running/merge-ready and draft lifecycle transitions.
+
+Success output shape:
+- `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }`
+
+Failure behavior:
+- malformed arguments, unexpected `gh` failures, and invalid input/local-state JSON emit
+  `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/loop/summarize-loop-state.mjs`
 
