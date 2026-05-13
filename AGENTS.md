@@ -15,6 +15,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Maintain at least 90% coverage for lines, statements, functions, and branches.
 - Implement one phase at a time.
 - Use fan-out / fan-in / review / merge before implementing each phase.
+- Default phase and issue refinement to multiple parallel variants before converging on a merged plan; do not rely on a single-plan synthesis when fan-out is practical.
 - Keep logs under `tmp/` in deterministic phase-scoped paths.
 - Use feature branches and small commits only after local verification.
 - For public-facing or release-bound changes, prefer GitHub issues/PRs/CI over direct local-main finalization.

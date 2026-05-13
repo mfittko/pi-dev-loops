@@ -140,6 +140,12 @@ Before handing work to Copilot or doing follow-up fixes, summarize:
 - intended narrow scope
 - non-goals inferred from the issue and plan
 
+If the work item is phase-like, ambiguous, or likely to shape more than one downstream step, default to a short fan-out / fan-in refinement pass before implementation:
+- generate 2-3 plan variants in parallel when practical
+- compare the variants explicitly
+- merge them into one bounded execution plan
+- only then proceed with GitHub execution
+
 If the issue text is too vague, stop and ask a short clarification question rather than guessing.
 
 ## Step 3: Decide whether Copilot or Pi should act next

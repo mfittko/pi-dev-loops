@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is implemented locally and awaiting finalization.
+Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is complete, merged, and synced back to local `main`. Phase 7 second-repo pilot refinement is now in planning.
 
 ## Current source of truth
 
@@ -15,9 +15,9 @@ Phase 1 imported-asset normalization is complete, locally validated, committed, 
 
 ## Current phase
 
-- Active phase: `phase-6`
-- Durable phase plan: `docs/phases/phase-6.md`
-- Status: `awaiting-finalization`
+- Active phase: `phase-7`
+- Durable phase plan: `docs/phases/phase-7.md`
+- Status: `planning`
 
 ## Next action for a fresh session
 
@@ -28,13 +28,13 @@ If the user says **"continue implementation"**:
 3. read `AGENTS.md`
 4. read `docs/IMPLEMENTATION_WORKFLOW.md`
 5. read this file
-6. read `docs/phases/phase-6.md`
+6. read `docs/phases/phase-7.md`
 7. inspect `tmp/phases/index.json` and any useful prior phase artifacts only if prior context helps
-8. finish Phase 6 finalization or resume it conservatively if local validation/finalization state is unclear
+8. clarify the target repository and pilot path if they are still unset, then finish refining Phase 7 before implementation starts
 
 ## Next unfinished phase
 
-Phase 6 — public release hardening (awaiting finalization).
+Phase 7 — second-repo pilot.
 
 ## Phase queue
 
@@ -44,7 +44,7 @@ Phase 6 — public release hardening (awaiting finalization).
 - `phase-3` — complete
 - `phase-4` — complete
 - `phase-5` — complete
-- `phase-6` — awaiting-finalization
-- `phase-7` — next
+- `phase-6` — complete
+- `phase-7` — planning
 - `phase-8` — queued
 - `phase-9` — queued

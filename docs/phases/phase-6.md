@@ -2,7 +2,7 @@
 
 ## Status
 
-awaiting-finalization
+completed
 
 ## Objective
 
@@ -65,7 +65,7 @@ The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a for
 
 ## Operational closure status
 
-Phase 6 implementation is in place locally and pending finalization through the normal commit/merge flow.
+Phase 6 implementation, review/fix follow-up, validation, PR merge, and local-main synchronization are complete.
 
 ## Links to execution artifacts
 
