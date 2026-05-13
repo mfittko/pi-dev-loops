@@ -58,7 +58,7 @@ When `action` is `"watch"`, use the returned `watchArgs` with `watch-copilot-rev
 
 **Request status reference**
 | Status | Meaning | Next step |
-|---|---|---|
+| --- | --- | --- |
 | `requested` | Copilot added to reviewers | Baseline and watch |
 | `already-requested` | Copilot was already pending | Baseline and watch |
 | `unavailable` | Copilot review not enabled | Report and stop |
