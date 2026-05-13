@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is complete, merged, and synced back to local `main`. Phase 7 second-repo pilot refinement is now in planning.
+Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is complete, merged, and synced back to local `main`. The deterministic Copilot-loop state-machine follow-up from issue #5 is now merged as well, and issue #7 is the next deterministic workflow-control follow-on for reviewer-side PR loops. Phase 7 second-repo pilot refinement is now in planning.
 
 ## Current source of truth
 
