@@ -224,6 +224,11 @@ Each variant should cover only:
 - acceptance criteria
 - risks/non-goals
 
+When a phase includes a bounded audit, inventory, or scan:
+- treat the scan as a first-class deliverable rather than an implicit side note
+- require prioritized findings, not an unbounded dump
+- state explicitly what the scan does **not** authorize or rewrite in the current phase
+
 If subagents generate the variants:
 - run them in parallel with clean context when practical
 - save raw subagent outputs under `tmp/phases/phase-x/subagents/raw/` only when keeping the raw capture is actually useful
@@ -248,6 +253,7 @@ The merged plan must include:
 - acceptance criteria
 - definition of done
 - RFC escalation notes for any RFC-worthy technical decisions that must go through the coordinator instead of being silently resolved during refinement
+- for any new CLI surface: explicit success-output and malformed-argument/error-contract expectations
 
 The durable phase doc should capture the subset that a fresh human or agent should read first: objective, why now, scope, non-goals, acceptance criteria, definition of done, validation approach, durable decisions, and open questions.
 
@@ -270,6 +276,8 @@ The review must check for:
 - unclear or incomplete definition-of-done output
 - missing review-surface completeness
 - weak RFC-escalation sanity when the plan surfaces an unresolved technical decision
+- for bounded audits/scans: missing prioritization or quiet expansion into a broad rewrite
+- for new CLI surfaces: weak malformed-argument or error-contract coverage
 
 If the review finds real issues, revise the merged plan and briefly update the review.
 
