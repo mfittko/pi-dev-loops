@@ -41,6 +41,7 @@ This phase exists to answer, in one real non-bootstrap repo:
   - what remains upstream-owned
   - what manual update expectation exists downstream
 - fix only the smallest portability issues in this repo required for the pilot to succeed
+- keep package installation separate from skill installation: the extension should expose `/dev-loops`, while packaged skills are installed or refreshed explicitly through `/dev-loops install ...` and `/dev-loops update ...`
 - capture prioritized findings with explicit fixed-now vs deferred decisions
 - update durable docs only where pilot findings change durable project truth
 
@@ -116,6 +117,7 @@ This phase exists to answer, in one real non-bootstrap repo:
 - success requires discovery/readiness proof, one bounded non-mutating skill path, and one thin local override
 - success does not require publishing, multi-repo proof, watcher validation, overlay-system design, or broad agent cleanup
 - any downstream customization in this phase should stay thin, local, and explicitly documented rather than generalized prematurely
+- for the Phase 7 portability path, package install should expose the extension command surface only; packaged skills should be copied explicitly into repo-local or system-wide skill directories through `/dev-loops install ...` and `/dev-loops update ...`
 - phase refinement for this repo should default to fan-out / fan-in planning with multiple variants before converging on one merged plan
 
 ## Open questions

@@ -63,6 +63,10 @@ Default operating mode:
 - Push branches after verification, with branch names that reflect the task or story.
 - Use pull requests as the default delivery mechanism for completed work, with reviewable commits and a clear description of code and documentation changes.
 - Default to draft pull requests first, then mark ready for review only after verification passes and the milestone is genuinely reviewable.
+- After moving a PR out of draft, explicitly attempt to request Copilot review instead of assuming repository automation will do it.
+- After any follow-up fix commit is pushed to an open PR, explicitly decide whether another Copilot pass is desired; if it is, re-request Copilot review for the new head instead of assuming GitHub will do it automatically.
+- Prefer the deterministic helper `scripts/github/request-copilot-review.mjs` when it exists, rather than ad hoc CLI/API combinations or web research.
+- If that explicit review request fails because Copilot review is unavailable, not requestable, or rejected by GitHub (for example not a collaborator/requestable reviewer), record the exact blocker in the PR status summary rather than pretending the request succeeded.
 - If work started on `main` and has become non-trivial, move to a task branch before declaring the milestone complete unless the user explicitly requests a direct-to-`main` workflow.
 - When creating or editing issue/PR descriptions or comments, prefer `--body-file` / `-F` or stdin over inline shell strings; use heredocs or temp files for multi-line content and do not interpolate untrusted text directly into shell commands.
 - To assign Copilot to a GitHub issue in this repository, use `gh issue edit <number> --add-assignee copilot-swe-agent`. Do not use `copilot`, and do not attempt `@github-copilot` mention comments — those do not trigger Copilot task assignment.
@@ -74,7 +78,7 @@ Default operating mode:
 - Require the final PR description to be detailed and structured, with explicit headings for summary, scope/context, acceptance criteria, definition of done items, and non-goals.
 - Require verification results, evidence, and merge-readiness status to be carried by the review subagent verdict rather than the PR description.
 - Require the review subagent verdict to include explicit acceptance-criteria and definition-of-done verification tables with status and evidence, while the PR description remains limited to a concise change description, acceptance criteria, definition of done, and non-goals.
-- Record whether automatic Copilot review is expected to trigger when the PR leaves draft, whether the review has actually posted, and whether all Copilot comments/threads were addressed, deferred with rationale, or blocked by repository settings/tooling.
+- Record whether automatic Copilot review is expected to trigger when the PR leaves draft, whether an explicit Copilot review request was attempted after ready-for-review, whether any post-fix re-request was attempted after new commits, whether the review has actually posted, and whether all Copilot comments/threads from the latest requested pass were addressed, deferred with rationale, or blocked by repository settings/tooling.
 - If no documentation change is needed, record that explicitly in the PR summary.
 
 ## Delegation Rules
@@ -92,7 +96,7 @@ A task is complete only when:
 - branch and worktree state are understood,
 - the required documentation is updated or an explicit no-docs rationale is recorded,
 - the result is pushed to a review branch and a draft pull request is opened by default, or an exact blocker to opening it is recorded with PR-ready handoff details.
-- automatic Copilot review is expected to trigger when the PR leaves draft, and either the Copilot review has posted and its comments/threads have been addressed or explicitly deferred, or its absence/inaccessibility has been explicitly explained as a repository-setting, tooling, permission, or rate-limit limitation.
+- after the PR leaves draft, an explicit Copilot review request has been attempted when appropriate, and after later fix commits any needed Copilot re-request for the new head has also been attempted, and either the latest requested Copilot pass has posted and its comments/threads have been addressed or explicitly deferred, or its absence/inaccessibility has been explicitly explained as a repository-setting, tooling, permission, collaborator/requestability, or rate-limit limitation.
 - the PR description includes a concise change description, explicit acceptance criteria, a complete definition of done, and non-goals, without verdict status, evidence, or changelog content.
 
 ## Output Format

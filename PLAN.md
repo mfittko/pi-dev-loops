@@ -20,7 +20,8 @@ This repo should eventually provide four layers:
    - re-review loops
 
 3. **Extension UX and package glue**
-   - setup/doctor commands
+   - status/doctor commands
+   - explicit skill install/update commands for repo-local or system-wide skill copies
    - readiness/status widget or dashboard
    - future installer-style overlays
    - lightweight orchestration helpers that call into deterministic scripts rather than replacing them
@@ -41,7 +42,7 @@ For the initial versions, it is acceptable to require:
 - GitHub-hosted pull request workflows for remote loops
 - repositories that can tolerate an opinionated PR/review/fix loop
 
-The package may assume Pi-package installation and extension loading from the start.
+The package may assume Pi-package installation and extension loading from the start, but packaged skills should be installed explicitly rather than auto-exposed on package install.
 
 Non-goals for the first phase:
 
@@ -143,7 +144,8 @@ If `gh` does not natively watch the exact needed condition, use deterministic cu
 
 The extension should provide:
 
-- doctor/setup commands
+- status/doctor commands
+- explicit skill install/update commands
 - lightweight widgets or overlays
 - package-level status UX
 - small orchestration glue
@@ -343,13 +345,13 @@ Acceptance criteria:
 - the local dev-loop planning contract uses the refiner without collapsing coordinator responsibilities
 - durable planning surfaces can carry stable definition-of-done output
 
-### Phase 3 — package extension and setup UX
+### Phase 3 — package extension and install UX
 
 This phase should also define the runtime/build/test contract for the package.
 
 Add an initial extension that can:
 
-- register doctor/setup commands
+- register status/doctor plus explicit install/update commands
 - show readiness/status in a widget or overlay
 - report whether `gh` and `pi-subagents` are available
 - point users to the relevant skills and installation requirements
@@ -357,7 +359,7 @@ Add an initial extension that can:
 Acceptance criteria:
 
 - package exposes a working extension entrypoint
-- users can run a doctor/setup command from Pi
+- users can run status/doctor plus explicit install/update commands from Pi
 - the extension remains thin and mostly delegates to deterministic checks/helpers
 - the runtime/build/test contract is explicit:
   - supported Pi/Node/`gh` versions
@@ -517,7 +519,7 @@ Examples:
 4. design and integrate a dedicated refiner agent for phase-refinement work so planning/refinement can be delegated without overloading the coordinator
 5. choose the public license and add `LICENSE` plus matching package metadata
 6. add baseline GitHub Actions CI for the existing test suite
-7. finish documenting the runtime/build/test and install/override contract
+7. finish documenting the runtime/build/test, explicit skill-install, and install/override contract
 8. identify the first shared library modules to extract
 9. move the first deterministic helper into a shared npm support package with a thin skill-local wrapper
 10. add the first deterministic GitHub helper scripts

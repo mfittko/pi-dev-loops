@@ -1,0 +1,287 @@
+import assert from "node:assert/strict";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import test from "node:test";
+
+const scriptPath = path.resolve("scripts/github/reply-resolve-review-thread.mjs");
+
+function runNode(args = [], options = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [scriptPath, ...args], {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+async function writeGhStub(tempDir, entries) {
+  const sequencePath = path.join(tempDir, "gh-sequence.json");
+  const counterPath = path.join(tempDir, "gh-counter.txt");
+  const ghPath = path.join(tempDir, "gh");
+  const ghLogPath = path.join(tempDir, "gh-log.jsonl");
+
+  await writeFile(sequencePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+  await writeFile(counterPath, "0\n", "utf8");
+  await writeFile(ghLogPath, "", "utf8");
+  await writeFile(
+    ghPath,
+    [
+      "#!/usr/bin/env node",
+      'import { appendFileSync, readFileSync, writeFileSync } from "node:fs";',
+      "const sequencePath = process.env.GH_SEQUENCE_PATH;",
+      "const counterPath = process.env.GH_COUNTER_PATH;",
+      "const ghLogPath = process.env.GH_LOG_PATH;",
+      'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
+      'const current = Number(readFileSync(counterPath, "utf8").trim() || "0");',
+      'const entry = entries[Math.min(current, entries.length - 1)] ?? { stdout: "{}\\n" };',
+      'writeFileSync(counterPath, String(current + 1));',
+      'appendFileSync(ghLogPath, `${JSON.stringify(process.argv.slice(2))}\\n`);',
+      'const actual = process.argv.slice(2);',
+      'let stdin = "";',
+      'process.stdin.setEncoding("utf8");',
+      'process.stdin.on("data", (chunk) => { stdin += chunk; });',
+      'if (entry.assertArgs) {',
+      '  for (const expected of entry.assertArgs) {',
+      '    if (!actual.includes(expected)) {',
+      '      process.stderr.write(`missing expected gh arg: ${expected}\\n`);',
+      '      process.exit(98);',
+      '    }',
+      '  }',
+      '}',
+      'process.stdin.on("end", () => {',
+      'if (entry.assertStdinIncludes) {',
+      '  for (const expected of entry.assertStdinIncludes) {',
+      '    if (!stdin.includes(expected)) {',
+      '      process.stderr.write(`missing expected stdin text: ${expected}\\n`);',
+      '      process.exit(97);',
+      '    }',
+      '  }',
+      '}',
+      'if (entry.stderr) {',
+      '  process.stderr.write(entry.stderr);',
+      '}',
+      'if (entry.stdout) {',
+      '  process.stdout.write(entry.stdout);',
+      '}',
+      'process.exit(entry.exitCode ?? 0);',
+      '});',
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(ghPath, 0o755);
+
+  return {
+    env: {
+      ...process.env,
+      PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
+      GH_SEQUENCE_PATH: sequencePath,
+      GH_COUNTER_PATH: counterPath,
+      GH_LOG_PATH: ghLogPath,
+    },
+    ghLogPath,
+  };
+}
+
+test("reply-resolve-review-thread posts a reply then resolves the thread", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-thread-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "Fixed in 93cd7f8. Added the missing symlinked-ancestor guard and coverage.\n", "utf8");
+
+  try {
+    const gh = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies", "--input", "-"],
+        assertStdinIncludes: ['"body":"Fixed in 93cd7f8. Added the missing symlinked-ancestor guard and coverage.\\n"'],
+        stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "--field", "threadId=THREAD_123"],
+        stdout: '{"data":{"resolveReviewThread":{"thread":{"id":"THREAD_123","isResolved":true}}}}\n',
+      },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: gh.env },
+    );
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      repo: "owner/repo",
+      pr: 17,
+      commentId: 123,
+      threadId: "THREAD_123",
+      replyId: 456,
+      replyUrl: "https://github.com/owner/repo/pull/17#discussion_r456",
+      resolved: true,
+    });
+
+    const ghLog = (await readFile(gh.ghLogPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+    assert.equal(ghLog.length, 2);
+    assert(ghLog[0].includes("--input"));
+    assert.equal(ghLog[0].some((entry) => entry.startsWith("body=")), false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reply-resolve-review-thread rejects malformed arguments and empty body files deterministically", async () => {
+  const missing = await runNode(["--repo", "owner/repo"]);
+  assert.equal(missing.code, 1);
+  assert.equal(missing.stdout, "");
+  assert.deepEqual(JSON.parse(missing.stderr), {
+    ok: false,
+    error: "Replying and resolving a review thread requires --repo <owner/name>, --pr <number>, --comment-id <number>, --thread-id <node-id>, and --body-file <path>",
+  });
+
+  const badRepo = await runNode(["--repo", " owner / repo ", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", "x.md"]);
+  assert.equal(badRepo.code, 1);
+  assert.equal(badRepo.stdout, "");
+  assert.deepEqual(JSON.parse(badRepo.stderr), {
+    ok: false,
+    error: "--repo must match <owner/name>",
+  });
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-empty-"));
+  const emptyBody = path.join(tempDir, "empty.md");
+  await writeFile(emptyBody, "   \n", "utf8");
+
+  try {
+    const empty = await runNode([
+      "--repo",
+      "owner/repo",
+      "--pr",
+      "17",
+      "--comment-id",
+      "123",
+      "--thread-id",
+      "THREAD_123",
+      "--body-file",
+      emptyBody,
+    ]);
+    assert.equal(empty.code, 1);
+    assert.equal(empty.stdout, "");
+    assert.deepEqual(JSON.parse(empty.stderr), {
+      ok: false,
+      error: "--body-file must contain non-empty text",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reply-resolve-review-thread preserves leading whitespace in the reply body payload", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-whitespace-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "  indented line\n", "utf8");
+
+  try {
+    const gh = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies", "--input", "-"],
+        assertStdinIncludes: ['"body":"  indented line\\n"'],
+        stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "--field", "threadId=THREAD_123"],
+        stdout: '{"data":{"resolveReviewThread":{"thread":{"id":"THREAD_123","isResolved":true}}}}\n',
+      },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: gh.env },
+    );
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reply-resolve-review-thread reports reply and resolve failures deterministically", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-failure-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "Resolved in 93cd7f8.\n", "utf8");
+
+  try {
+    const gh = await writeGhStub(tempDir, [
+      {
+        stderr: "gh: forbidden\n",
+        exitCode: 1,
+      },
+    ]);
+
+    const replyFailure = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: gh.env },
+    );
+    assert.equal(replyFailure.code, 1);
+    assert.equal(replyFailure.stdout, "");
+    assert.deepEqual(JSON.parse(replyFailure.stderr), {
+      ok: false,
+      error: "gh command failed: gh: forbidden",
+    });
+
+    const ghMissingReplyFields = await writeGhStub(tempDir, [
+      {
+        stdout: '{"id":456}\n',
+      },
+    ]);
+
+    const missingReplyFields = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: ghMissingReplyFields.env },
+    );
+    assert.equal(missingReplyFields.code, 1);
+    assert.equal(missingReplyFields.stdout, "");
+    assert.deepEqual(JSON.parse(missingReplyFields.stderr), {
+      ok: false,
+      error: "Reply payload from gh did not include both id and html_url",
+    });
+
+    const ghResolve = await writeGhStub(tempDir, [
+      {
+        stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
+      },
+      {
+        stdout: '{"data":{"resolveReviewThread":{"thread":{"id":"THREAD_123","isResolved":false}}}}\n',
+      },
+    ]);
+
+    const resolveFailure = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: ghResolve.env },
+    );
+    assert.equal(resolveFailure.code, 1);
+    assert.equal(resolveFailure.stdout, "");
+    assert.deepEqual(JSON.parse(resolveFailure.stderr), {
+      ok: false,
+      error: "Review thread did not resolve successfully: THREAD_123",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

@@ -1,10 +1,56 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
-import { formatCliError, parseReviewThreads } from "../_core-helpers.mjs";
-import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
+import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
+import { parseRepoSlug } from "./capture-review-threads.mjs";
+
+const COPILOT_ACTIVITY_QUERY = [
+  "query($owner: String!, $name: String!, $pr: Int!) {",
+  "  repository(owner: $owner, name: $name) {",
+  "    pullRequest(number: $pr) {",
+  "      reviewThreads(first: 100) {",
+  "        nodes {",
+  "          id",
+  "          isResolved",
+  "          comments(first: 100) {",
+  "            nodes {",
+  "              id",
+  "              body",
+  "              author {",
+  "                login",
+  "                __typename",
+  "              }",
+  "            }",
+  "          }",
+  "        }",
+  "      }",
+  "      reviews(first: 100) {",
+  "        nodes {",
+  "          id",
+  "          body",
+  "          author {",
+  "            login",
+  "            __typename",
+  "          }",
+  "        }",
+  "      }",
+  "      comments(first: 100) {",
+  "        nodes {",
+  "          id",
+  "          body",
+  "          author {",
+  "            login",
+  "            __typename",
+  "          }",
+  "        }",
+  "      }",
+  "    }",
+  "  }",
+  "}",
+].join("\n");
 
 function requireOptionValue(args, flag) {
   const value = args.shift();
@@ -78,11 +124,106 @@ function isCopilotLogin(login) {
   return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
 }
 
-export function findFreshCopilotComments(baseline, current) {
-  const baselineIds = new Set((baseline?.comments ?? []).map((comment) => comment.id));
+function runChild(command, args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
-  return (current?.comments ?? [])
-    .filter((comment) => !baselineIds.has(comment.id))
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+async function fetchGithubCopilotActivityPayload(
+  { repo, pr },
+  { env = process.env, ghCommand = "gh" } = {},
+) {
+  const { owner, name } = parseRepoSlug(repo);
+  const result = await runChild(
+    ghCommand,
+    [
+      "api",
+      "graphql",
+      "--field",
+      `owner=${owner}`,
+      "--field",
+      `name=${name}`,
+      "--field",
+      `pr=${pr}`,
+      "--field",
+      `query=${COPILOT_ACTIVITY_QUERY}`,
+    ],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  return parseJsonText(result.stdout);
+}
+
+function normalizeAuthorLogin(author) {
+  return typeof author?.login === "string" ? author.login : "";
+}
+
+function normalizeBody(body) {
+  return typeof body === "string" ? body.trim() : "";
+}
+
+function extractCopilotReviews(payload) {
+  const reviews = payload?.data?.repository?.pullRequest?.reviews?.nodes;
+
+  if (!Array.isArray(reviews)) {
+    return [];
+  }
+
+  return reviews
+    .filter((review) => isCopilotLogin(normalizeAuthorLogin(review?.author)))
+    .map((review) => ({
+      id: String(review?.id ?? ""),
+      authorLogin: normalizeAuthorLogin(review?.author),
+      body: normalizeBody(review?.body),
+    }))
+    .filter((review) => review.id.length > 0);
+}
+
+function extractCopilotIssueComments(payload) {
+  const comments = payload?.data?.repository?.pullRequest?.comments?.nodes;
+
+  if (!Array.isArray(comments)) {
+    return [];
+  }
+
+  return comments
+    .filter((comment) => isCopilotLogin(normalizeAuthorLogin(comment?.author)))
+    .map((comment) => ({
+      id: String(comment?.id ?? ""),
+      authorLogin: normalizeAuthorLogin(comment?.author),
+      body: normalizeBody(comment?.body),
+    }))
+    .filter((comment) => comment.id.length > 0);
+}
+
+function parseCopilotActivity(payload) {
+  const parsedThreads = parseReviewThreads(payload);
+  const newComments = (parsedThreads?.comments ?? [])
     .filter((comment) => isCopilotLogin(comment.author?.login))
     .map((comment) => ({
       id: comment.id,
@@ -90,6 +231,24 @@ export function findFreshCopilotComments(baseline, current) {
       authorLogin: comment.author?.login ?? "",
       body: comment.body,
     }));
+
+  return {
+    reviewThreadComments: newComments,
+    reviews: extractCopilotReviews(payload),
+    issueComments: extractCopilotIssueComments(payload),
+  };
+}
+
+export function findFreshCopilotActivity(baseline, current) {
+  const baselineCommentIds = new Set((baseline?.reviewThreadComments ?? []).map((comment) => comment.id));
+  const baselineReviewIds = new Set((baseline?.reviews ?? []).map((review) => review.id));
+  const baselineIssueCommentIds = new Set((baseline?.issueComments ?? []).map((comment) => comment.id));
+
+  return {
+    newComments: (current?.reviewThreadComments ?? []).filter((comment) => !baselineCommentIds.has(comment.id)),
+    newReviews: (current?.reviews ?? []).filter((review) => !baselineReviewIds.has(review.id)),
+    newIssueComments: (current?.issueComments ?? []).filter((comment) => !baselineIssueCommentIds.has(comment.id)),
+  };
 }
 
 function buildNoChangePayload(status, repo, pr, attempts) {
@@ -100,6 +259,8 @@ function buildNoChangePayload(status, repo, pr, attempts) {
     pr,
     attempts,
     newComments: [],
+    newReviews: [],
+    newIssueComments: [],
   };
 }
 
@@ -120,7 +281,7 @@ export async function runCli(
   } = {},
 ) {
   const options = parseWatchCliArgs(argv);
-  const baseline = parseReviewThreads(await fetchGithubReviewThreadsPayload(
+  const baseline = parseCopilotActivity(await fetchGithubCopilotActivityPayload(
     { repo: options.repo, pr: options.pr },
     { env, ghCommand },
   ));
@@ -131,20 +292,20 @@ export async function runCli(
       await delay(options.pollIntervalMs);
     }
 
-    const current = parseReviewThreads(await fetchGithubReviewThreadsPayload(
+    const current = parseCopilotActivity(await fetchGithubCopilotActivityPayload(
       { repo: options.repo, pr: options.pr },
       { env, ghCommand },
     ));
-    const newComments = findFreshCopilotComments(baseline, current);
+    const activity = findFreshCopilotActivity(baseline, current);
 
-    if (newComments.length > 0) {
+    if (activity.newComments.length > 0 || activity.newReviews.length > 0 || activity.newIssueComments.length > 0) {
       stdout.write(`${JSON.stringify({
         ok: true,
         status: "changed",
         repo: options.repo,
         pr: options.pr,
         attempts: attempt,
-        newComments,
+        ...activity,
       })}\n`);
       return;
     }

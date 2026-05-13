@@ -96,7 +96,7 @@ export function isActionableThread(thread) {
   return extractRawComments(thread).some((comment) => isActionableComment(comment));
 }
 
-function normalizeComment(comment, threadId, index) {
+function normalizeComment(comment, threadId, index, { isResolved = false } = {}) {
   const author = normalizeAuthor(comment?.author);
   const body = normalizeBody(comment?.body ?? comment?.bodyText ?? comment?.bodyHTML ?? "");
 
@@ -105,7 +105,7 @@ function normalizeComment(comment, threadId, index) {
     threadId,
     author,
     body,
-    isActionable: body.length > 0 && author.login.length > 0 && author.type !== "System" && !author.isBot,
+    isActionable: !isResolved && body.length > 0 && author.login.length > 0 && author.type !== "System" && !author.isBot,
   };
 }
 
@@ -114,20 +114,22 @@ export function parseReviewThreads(payload) {
   const comments = [];
   const threads = rawThreads.map((thread, threadIndex) => {
     const threadId = normalizeId(thread?.id ?? thread?.databaseId, `thread-${threadIndex + 1}`);
+    const isResolved = Boolean(thread?.isResolved);
     const normalizedComments = extractRawComments(thread)
-      .map((comment, commentIndex) => normalizeComment(comment, threadId, commentIndex))
+      .map((comment, commentIndex) => normalizeComment(comment, threadId, commentIndex, { isResolved }))
       .sort((left, right) => compareIds(left.id, right.id));
 
     comments.push(...normalizedComments);
-
-    const actionableCommentIds = normalizedComments
-      .filter((comment) => comment.isActionable)
-      .map((comment) => comment.id);
+    const actionableCommentIds = isResolved
+      ? []
+      : normalizedComments
+          .filter((comment) => comment.isActionable)
+          .map((comment) => comment.id);
 
     return {
       id: threadId,
-      isResolved: Boolean(thread?.isResolved),
-      isActionable: !Boolean(thread?.isResolved) && actionableCommentIds.length > 0,
+      isResolved,
+      isActionable: actionableCommentIds.length > 0,
       commentIds: normalizedComments.map((comment) => comment.id),
       actionableCommentIds,
     };
@@ -143,7 +145,7 @@ export function parseReviewThreads(payload) {
       totalThreads: threads.length,
       unresolvedThreads: threads.filter((thread) => !thread.isResolved).length,
       actionableThreads: threads.filter((thread) => thread.isActionable).length,
-      actionableComments: sortedComments.filter((comment) => comment.isActionable).length,
+      actionableComments: threads.reduce((count, thread) => count + thread.actionableCommentIds.length, 0),
     },
     threads,
     comments: sortedComments,

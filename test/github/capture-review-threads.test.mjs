@@ -112,7 +112,7 @@ test("capture-review-threads emits deterministic JSON for --input", async () => 
     totalThreads: 3,
     unresolvedThreads: 2,
     actionableThreads: 1,
-    actionableComments: 2,
+    actionableComments: 1,
   });
   assert.equal(output.threads[0].id, "t-1");
   assert.equal(output.comments[3].id, "c-4");

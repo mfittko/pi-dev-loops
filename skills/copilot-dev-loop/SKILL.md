@@ -242,7 +242,17 @@ Inspect:
 
 When confirming whether Copilot is requested as a reviewer, do not rely solely on `gh pr view --json reviewRequests`.
 
-Prefer `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers` or an equivalent GraphQL review-request query when reviewer-request confirmation matters.
+Prefer the deterministic helper `scripts/github/request-copilot-review.mjs` when it exists. That helper verifies reviewer state through `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers`, which is more reliable here than `gh pr view --json reviewRequests`.
+
+When a PR is moved from draft to ready, explicitly attempt to request Copilot review rather than assuming repository automation will do it.
+
+After any follow-up fix commit is pushed to an open PR, explicitly decide whether another Copilot pass is desired. If yes, request Copilot review again rather than assuming GitHub will automatically re-request it for the new head.
+
+Do not web-search or rediscover this behavior during normal operation. Treat the deterministic helper and the repository docs as the source of truth unless you are explicitly debugging the tooling itself.
+
+When introducing or changing deterministic GitHub write helpers (for example review-request or reply/resolve helpers), do not rely on fixture tests alone if a real authorized PR is available. Run one bounded real-PR smoke check before entrusting a long-lived async loop to that helper.
+
+If the explicit request fails because Copilot review is not enabled for the repository, the reviewer identity is not requestable, or GitHub rejects the request because the reviewer is not a collaborator/requestable actor, record that exact limitation and continue with the documented watch/follow-up path rather than silently assuming review was requested.
 
 ## Step 6: Async watch behavior
 
@@ -258,14 +268,17 @@ Practical rule for this repo:
 - prefer ordinary `gh pr view`, `gh issue view`, `gh api`, and `gh pr checks` snapshots for one-time inspection
 - use deterministic custom watchers for conditions that `gh` does not natively watch well, such as:
   - waiting for a Copilot-authored PR to appear
-  - waiting for new Copilot review bodies/comments after a baseline
+  - waiting for new Copilot review activity after a baseline, including review-thread comments, review summaries, or PR issue comments
   - waiting for unresolved thread state to change in a review-aware way
 
 Preferred approach for Copilot review follow-up:
+- after a PR leaves draft, explicitly request Copilot review first, preferably through `scripts/github/request-copilot-review.mjs`
+- after any follow-up fix commit is pushed and another Copilot pass is wanted, explicitly request Copilot review again for the updated head before waiting
 - baseline current Copilot review activity
-- poll for new Copilot-authored reviews/comments
+- poll for new Copilot-authored review activity across review-thread comments, review summaries, and PR issue comments
 - keep the watcher in the current Pi/TelePi session
 - after new review activity appears, launch an async Pi fixer in-session
+- do not report the loop complete while fresh Copilot comments remain unresolved; a new Copilot pass must flow back into fixer/reply/resolve work before completion when authorization exists
 - use explicit long timeouts from the timeout policy above rather than short defaults
 
 Use an existing repo-local async review-follow-up skill or deterministic watcher when available.
@@ -288,11 +301,17 @@ When actionable review feedback exists, use a narrow follow-up loop:
 3. apply only the accepted narrow fixes
 4. run the smallest validation that honestly proves the fix
 5. if files changed, push the resolving commit before any thread reply claims the fix is present
+   - after the push, if another Copilot pass is desired, explicitly re-request Copilot review for the new head rather than assuming it remains requested
 6. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
+   - prefer the deterministic helper `scripts/github/reply-resolve-review-thread.mjs` when it exists
+   - use a body file under `tmp/` rather than inline shell text for the reply body
+   - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
 7. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
-8. if scope has broadened, stop and ask before continuing
+   - do not stop at a local fix if GitHub-side reply/resolve is authorized
+8. after a re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
+9. if scope has broadened, stop and ask before continuing
 
-Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up.
+Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 
 When helpful, run parallel review angles such as:
 - correctness/regressions

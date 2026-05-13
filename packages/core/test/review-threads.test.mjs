@@ -53,7 +53,7 @@ test("parseReviewThreads normalizes fixture-backed review thread data", async ()
     totalThreads: 3,
     unresolvedThreads: 2,
     actionableThreads: 1,
-    actionableComments: 2,
+    actionableComments: 1,
   });
 
   assert.deepEqual(result.threads, [
@@ -69,7 +69,7 @@ test("parseReviewThreads normalizes fixture-backed review thread data", async ()
       isResolved: true,
       isActionable: false,
       commentIds: ["c-2"],
-      actionableCommentIds: ["c-2"],
+      actionableCommentIds: [],
     },
     {
       id: "t-3",
@@ -93,7 +93,7 @@ test("parseReviewThreads normalizes fixture-backed review thread data", async ()
       threadId: "t-2",
       author: { login: "maintainer", type: "User", isBot: false },
       body: "Resolve after the docs update lands.",
-      isActionable: true,
+      isActionable: false,
     },
     {
       id: "c-3",

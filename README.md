@@ -6,7 +6,7 @@ This repo is intended to become a reusable **Pi package** that bundles:
 
 - generic role agents
 - reusable loop skills
-- a small extension for setup/doctor/dashboard UX
+- a small extension for status/doctor plus explicit skill install/update UX
 - deterministic helper scripts
 - shared library code for GitHub/review/watch state
 
@@ -38,7 +38,7 @@ For the first implementation phase, this repo may be opinionated and require:
 `pi-dev-loops` should eventually install as a Pi package that exposes:
 
 - `skills/` for local and remote loop orchestration
-- `extension/` for setup, doctor, status, and future dashboard/installer UI
+- `extension/` for status, doctor, explicit skill install/update commands, and future dashboard/installer UI
 - deterministic `lib/` and `scripts/` shared by multiple skills
 
 ## Layout
@@ -62,5 +62,5 @@ Turn these imported assets into a coherent, reusable toolkit where:
 - agents are workflow-agnostic role definitions
 - skills orchestrate loops
 - deterministic scripts and shared library code handle as much mechanical work as possible
-- the extension provides setup/doctor UX and can grow into dashboard/installer widgets
+- the extension provides status/doctor plus explicit skill install/update UX and can grow into dashboard/installer widgets
 - repo-local overlays can specialize behavior without forking the core workflow stack

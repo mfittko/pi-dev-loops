@@ -32,9 +32,58 @@ Failure behavior:
 - malformed arguments, invalid JSON, and `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - live capture is only allowed when both `--repo` and `--pr` are present
 
+### `scripts/github/request-copilot-review.mjs`
+
+Request Copilot review on a PR and verify the request deterministically.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Contract:
+- checks `requested_reviewers` first so an existing Copilot request is detected without mutating PR state again
+- requests Copilot via `gh pr edit <pr> --repo <owner/name> --add-reviewer @copilot`
+- is suitable both for the first request after ready-for-review and for later explicit re-requests after follow-up fix commits land on the PR head
+- should be paired with a fresh unresolved-thread check after Copilot posts again; requesting review alone does not complete the loop
+- verifies the result through `gh api repos/<owner>/<name>/pulls/<pr>/requested_reviewers`
+- does **not** rely on `gh pr view --json reviewRequests`, which can be incomplete for Copilot reviewer state
+- normalizes known repository/tooling limitations into a machine-readable `unavailable` result instead of forcing callers to parse ad hoc stderr
+
+Success output shape:
+- `{ "ok": true, "status": "requested"|"already-requested"|"unavailable", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
+- `unavailable` also includes a `detail` string with the normalized GitHub/CLI limitation
+
+Failure behavior:
+- malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
+### `scripts/github/reply-resolve-review-thread.mjs`
+
+Reply to a PR review comment and resolve the associated review thread deterministically.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+- `--comment-id <number>`
+- `--thread-id <node-id>`
+- `--body-file <path>`
+
+Contract:
+- reads the reply body from a file so shell quoting does not become part of the workflow logic
+- posts the reply to `repos/<owner>/<name>/pulls/<pr>/comments/<comment-id>/replies`
+- resolves the thread with the GraphQL `resolveReviewThread` mutation
+- fails if the thread does not report resolved after the mutation
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/name", "pr": 17, "commentId": 123, "threadId": "...", "replyId": 456, "replyUrl": "...", "resolved": true }`
+
+Failure behavior:
+- malformed arguments, empty body files, unexpected `gh` failures, and unsuccessful resolve responses emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
+For new GitHub mutation helpers in this repo, do not stop at fixture-only confidence when a real PR is available and mutation is authorized. Run a bounded real-PR smoke check before depending on the helper inside a longer async review/fix loop.
+
 ### `scripts/github/watch-copilot-review.mjs`
 
-Watch for fresh Copilot-authored review/comment activity on a PR.
+Watch for fresh Copilot-authored review activity on a PR.
 
 Required:
 - `--repo <owner/name>`
@@ -46,12 +95,12 @@ Optional:
 
 Contract:
 - captures a baseline snapshot, then performs a bounded number of follow-up polls
-- returns `changed` only for fresh Copilot-authored comments that were not present in the baseline snapshot
-- ignores fresh non-Copilot review activity
+- returns `changed` for any fresh Copilot-authored review-thread comments, PR review summaries, or PR issue comments that were not present in the baseline snapshot
+- ignores fresh non-Copilot review activity across those same surfaces
 - `--timeout-ms 0` performs a single immediate recheck and returns `idle` if unchanged
 
 Success output shape:
-- `{ "ok": true, "status": "changed"|"timeout"|"idle", "repo": "owner/name", "pr": 17, "attempts": 1, "newComments": [...] }`
+- `{ "ok": true, "status": "changed"|"timeout"|"idle", "repo": "owner/name", "pr": 17, "attempts": 1, "newComments": [...], "newReviews": [...], "newIssueComments": [...] }`
 
 Failure behavior:
 - malformed arguments and `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
