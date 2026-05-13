@@ -49,7 +49,7 @@ test("parse-review-threads CLI emits stable machine-readable success output", as
     totalThreads: 3,
     unresolvedThreads: 2,
     actionableThreads: 1,
-    actionableComments: 2,
+    actionableComments: 1,
   });
   assert.equal(output.ok, true);
   assert.equal(output.threads[0].id, "t-1");

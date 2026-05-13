@@ -120,14 +120,17 @@ export function parseReviewThreads(payload) {
 
     comments.push(...normalizedComments);
 
-    const actionableCommentIds = normalizedComments
-      .filter((comment) => comment.isActionable)
-      .map((comment) => comment.id);
+    const isResolved = Boolean(thread?.isResolved);
+    const actionableCommentIds = isResolved
+      ? []
+      : normalizedComments
+          .filter((comment) => comment.isActionable)
+          .map((comment) => comment.id);
 
     return {
       id: threadId,
-      isResolved: Boolean(thread?.isResolved),
-      isActionable: !Boolean(thread?.isResolved) && actionableCommentIds.length > 0,
+      isResolved,
+      isActionable: actionableCommentIds.length > 0,
       commentIds: normalizedComments.map((comment) => comment.id),
       actionableCommentIds,
     };
@@ -143,7 +146,7 @@ export function parseReviewThreads(payload) {
       totalThreads: threads.length,
       unresolvedThreads: threads.filter((thread) => !thread.isResolved).length,
       actionableThreads: threads.filter((thread) => thread.isActionable).length,
-      actionableComments: sortedComments.filter((comment) => comment.isActionable).length,
+      actionableComments: threads.reduce((count, thread) => count + thread.actionableCommentIds.length, 0),
     },
     threads,
     comments: sortedComments,
