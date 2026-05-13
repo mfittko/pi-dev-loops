@@ -252,7 +252,15 @@ Do not web-search or rediscover this behavior during normal operation. Treat the
 
 When introducing or changing deterministic GitHub write helpers (for example review-request or reply/resolve helpers), do not rely on fixture tests alone if a real authorized PR is available. Run one bounded real-PR smoke check before entrusting a long-lived async loop to that helper.
 
-If the explicit request fails because Copilot review is not enabled for the repository, the reviewer identity is not requestable, or GitHub rejects the request because the reviewer is not a collaborator/requestable actor, record that exact limitation and continue with the documented watch/follow-up path rather than silently assuming review was requested.
+If the explicit request fails because Copilot review is not enabled for the repository, the reviewer identity is not requestable, or GitHub rejects the request because the reviewer is not a collaborator/requestable actor, record that exact limitation explicitly.
+
+Do not treat an attempted request as equivalent to a confirmed request.
+
+For `scripts/github/request-copilot-review.mjs`, branch on the machine-readable result:
+- `requested`: baseline fresh state, then wait/watch when another Copilot pass is actually desired
+- `already-requested`: baseline fresh state, then wait/watch
+- `unavailable`: report the limitation and stop unless the user explicitly wants passive waiting without a fresh request
+- non-zero / unexpected failure: stop and report the error rather than entering a sleep/watch loop
 
 ## Step 6: Async watch behavior
 
@@ -274,7 +282,8 @@ Practical rule for this repo:
 Preferred approach for Copilot review follow-up:
 - after a PR leaves draft, explicitly request Copilot review first, preferably through `scripts/github/request-copilot-review.mjs`
 - after any follow-up fix commit is pushed and another Copilot pass is wanted, explicitly request Copilot review again for the updated head before waiting
-- baseline current Copilot review activity
+- only enter the watch loop after the request state is confirmed as `requested` or `already-requested`
+- baseline current Copilot review activity only after that confirmed request state, unless the user explicitly asked for passive waiting without a fresh request
 - poll for new Copilot-authored review activity across review-thread comments, review summaries, and PR issue comments
 - keep the watcher in the current Pi/TelePi session
 - after new review activity appears, launch an async Pi fixer in-session
@@ -301,15 +310,19 @@ When actionable review feedback exists, use a narrow follow-up loop:
 3. apply only the accepted narrow fixes
 4. run the smallest validation that honestly proves the fix
 5. if files changed, push the resolving commit before any thread reply claims the fix is present
-   - after the push, if another Copilot pass is desired, explicitly re-request Copilot review for the new head rather than assuming it remains requested
 6. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
    - prefer the deterministic helper `scripts/github/reply-resolve-review-thread.mjs` when it exists
    - use a body file under `tmp/` rather than inline shell text for the reply body
    - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
 7. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
    - do not stop at a local fix if GitHub-side reply/resolve is authorized
-8. after a re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
-9. if scope has broadened, stop and ask before continuing
+8. only after GitHub-side reply/resolve work is done for the addressed threads, decide whether another Copilot pass is desired
+   - if yes, explicitly re-request Copilot review for the new head rather than assuming it remains requested
+   - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
+   - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
+   - if the request command fails unexpectedly, stop and report the error rather than sleeping and hoping for a new review
+9. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
+10. if scope has broadened, stop and ask before continuing
 
 Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 

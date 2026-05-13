@@ -34,3 +34,12 @@ test("copilot skill still contains its core workflow guidance", async () => {
   assert.match(content, /Preferred defaults for this repo:/);
   assert.match(content, /Default validation should match or approximate/);
 });
+
+test("copilot skill requires github reply\/resolve follow-up and gates waiting on confirmed review-request state", async () => {
+  const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(content, /only after GitHub-side reply\/resolve work is done for the addressed threads, decide whether another Copilot pass is desired/);
+  assert.match(content, /only enter a wait\/watch loop if the request result is confirmed as `requested` or `already-requested`/);
+  assert.match(content, /if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway/);
+  assert.match(content, /stop and report the error rather than sleeping and hoping for a new review/);
+});
