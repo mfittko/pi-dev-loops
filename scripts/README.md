@@ -137,7 +137,7 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `prDraft` {boolean} — whether the PR is in draft state
 - `prMerged` {boolean} — whether the PR has been merged
 - `prClosed` {boolean} — whether the PR was closed without merge
-- `copilotReviewRequestStatus` {"requested"|"already-requested"|"unavailable"|"none"|"failed"} — result of the most recent Copilot review-request attempt
+- `copilotReviewRequestStatus` {"requested"|"already-requested"|"unavailable"|"none"|"failed"} — current known Copilot review-request state
 - `copilotReviewPresent` {boolean} — whether at least one Copilot review exists on the PR
 - `unresolvedThreadCount` {number} — total unresolved review-thread count
 - `actionableThreadCount` {number} — unresolved threads with non-bot actionable comments

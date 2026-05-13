@@ -11,7 +11,8 @@
  *    Reads a pre-built snapshot JSON and interprets it without any gh calls.
  *    Use this mode when the caller has already gathered facts (e.g. incorporating
  *    the result of scripts/github/request-copilot-review.mjs which can report
- *    "unavailable" or "failed" statuses that are not observable from static state).
+ *    historical request-attempt outcomes like "already-requested", "unavailable",
+ *    or "failed" that are not fully observable from static state alone).
  *
  * Optional (auto-detect mode only):
  *   --review-request-status <requested|already-requested|unavailable|none|failed>
@@ -270,7 +271,7 @@ async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride }, { e
     copilotReviewRequestStatus = reviewRequestStatusOverride;
   } else {
     const copilotRequested = await fetchCopilotRequested({ repo, pr }, { env, ghCommand });
-    copilotReviewRequestStatus = copilotRequested ? "already-requested" : "none";
+    copilotReviewRequestStatus = copilotRequested ? "requested" : "none";
   }
 
   // Fetch review threads for unresolved counts. This must fail closed: if we

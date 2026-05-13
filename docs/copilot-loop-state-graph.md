@@ -82,7 +82,7 @@ The snapshot is the set of observable facts that the interpreter uses to determi
 | `prDraft` | `boolean` | Whether the PR is in draft state |
 | `prMerged` | `boolean` | Whether the PR has been merged |
 | `prClosed` | `boolean` | Whether the PR was closed without merge |
-| `copilotReviewRequestStatus` | `"requested" \| "already-requested" \| "unavailable" \| "none" \| "failed"` | Result of the most recent Copilot review-request attempt |
+| `copilotReviewRequestStatus` | `"requested" \| "already-requested" \| "unavailable" \| "none" \| "failed"` | Current known Copilot review-request state |
 | `copilotReviewPresent` | `boolean` | Whether at least one Copilot review exists on the PR |
 | `unresolvedThreadCount` | `number` | Total unresolved review-thread count |
 | `actionableThreadCount` | `number` | Unresolved threads with non-bot actionable comments |
@@ -93,11 +93,11 @@ The snapshot is the set of observable facts that the interpreter uses to determi
 
 | Value | Meaning |
 |---|---|
-| `requested` | `gh pr edit --add-reviewer @copilot` succeeded; Copilot is now in `requested_reviewers` |
-| `already-requested` | Copilot was already in `requested_reviewers` before the request attempt |
+| `requested` | Copilot is currently in `requested_reviewers`, whether detected directly or immediately after a successful request |
+| `already-requested` | A caller with prior request-attempt context knows Copilot was already in `requested_reviewers` before that attempt |
 | `unavailable` | GitHub rejected the request (Copilot review not enabled, not a collaborator, etc.) |
-| `none` | No recent request attempt; status is unknown / not yet requested |
-| `failed` | An unexpected `gh` failure occurred during the request attempt |
+| `none` | Copilot is not currently requested and there is no stronger request-attempt result to inject |
+| `failed` | A prior request attempt failed unexpectedly |
 
 ### Agent judgment boundary
 

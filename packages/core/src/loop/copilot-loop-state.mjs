@@ -117,7 +117,7 @@ const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
  * - prMerged {boolean} — whether the PR has been merged
  * - prClosed {boolean} — whether the PR has been closed without merge
  * - copilotReviewRequestStatus {"requested"|"already-requested"|"unavailable"|"none"|"failed"}
- *     — result of the most recent Copilot review-request attempt, or "none" if unknown
+ *     — current known Copilot review-request state, or "none" if unknown
  * - copilotReviewPresent {boolean} — whether at least one Copilot review exists on the PR
  * - unresolvedThreadCount {number} — total unresolved review-thread count
  * - actionableThreadCount {number} — unresolved threads with non-bot actionable comments
