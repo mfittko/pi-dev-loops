@@ -310,6 +310,14 @@ test("request-copilot-review rejects malformed arguments deterministically", asy
     error: "--pr must be a positive integer",
   });
 
+  const badRepo = await runNode(["--repo", " owner / repo ", "--pr", "17"]);
+  assert.equal(badRepo.code, 1);
+  assert.equal(badRepo.stdout, "");
+  assert.deepEqual(JSON.parse(badRepo.stderr), {
+    ok: false,
+    error: "--repo must match <owner/name>",
+  });
+
   const unknown = await runNode(["--repo", "owner/repo", "--pr", "17", "--wat"]);
   assert.equal(unknown.code, 1);
   assert.equal(unknown.stdout, "");

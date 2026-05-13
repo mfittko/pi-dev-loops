@@ -110,7 +110,7 @@ test("reply-resolve-review-thread posts a reply then resolves the thread", async
     const gh = await writeGhStub(tempDir, [
       {
         assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies", "--input", "-"],
-        assertStdinIncludes: ['"body":"Fixed in 93cd7f8. Added the missing symlinked-ancestor guard and coverage."'],
+        assertStdinIncludes: ['"body":"Fixed in 93cd7f8. Added the missing symlinked-ancestor guard and coverage.\\n"'],
         stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
       },
       {
@@ -155,6 +155,14 @@ test("reply-resolve-review-thread rejects malformed arguments and empty body fil
     error: "Replying and resolving a review thread requires --repo <owner/name>, --pr <number>, --comment-id <number>, --thread-id <node-id>, and --body-file <path>",
   });
 
+  const badRepo = await runNode(["--repo", " owner / repo ", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", "x.md"]);
+  assert.equal(badRepo.code, 1);
+  assert.equal(badRepo.stdout, "");
+  assert.deepEqual(JSON.parse(badRepo.stderr), {
+    ok: false,
+    error: "--repo must match <owner/name>",
+  });
+
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-empty-"));
   const emptyBody = path.join(tempDir, "empty.md");
   await writeFile(emptyBody, "   \n", "utf8");
@@ -178,6 +186,36 @@ test("reply-resolve-review-thread rejects malformed arguments and empty body fil
       ok: false,
       error: "--body-file must contain non-empty text",
     });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reply-resolve-review-thread preserves leading whitespace in the reply body payload", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-whitespace-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "  indented line\n", "utf8");
+
+  try {
+    const gh = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies", "--input", "-"],
+        assertStdinIncludes: ['"body":"  indented line\\n"'],
+        stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "--field", "threadId=THREAD_123"],
+        stdout: '{"data":{"resolveReviewThread":{"thread":{"id":"THREAD_123","isResolved":true}}}}\n',
+      },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: gh.env },
+    );
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { formatCliError } from "../_core-helpers.mjs";
+import { parseRepoSlug } from "./capture-review-threads.mjs";
 
 const RESOLVE_REVIEW_THREAD_MUTATION = [
   "mutation($threadId: ID!) {",
@@ -49,7 +50,7 @@ export function parseReplyResolveCliArgs(argv) {
     const token = args.shift();
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo");
+      options.repo = requireOptionValue(args, "--repo").trim();
       continue;
     }
 
@@ -81,6 +82,8 @@ export function parseReplyResolveCliArgs(argv) {
       "Replying and resolving a review thread requires --repo <owner/name>, --pr <number>, --comment-id <number>, --thread-id <node-id>, and --body-file <path>",
     );
   }
+
+  parseRepoSlug(options.repo);
 
   return options;
 }
@@ -193,9 +196,9 @@ export async function runCli(
   } = {},
 ) {
   const options = parseReplyResolveCliArgs(argv);
-  const body = (await readFile(options.bodyFile, "utf8")).trim();
+  const rawBody = await readFile(options.bodyFile, "utf8");
 
-  if (body.length === 0) {
+  if (rawBody.trim().length === 0) {
     throw new Error("--body-file must contain non-empty text");
   }
 
@@ -204,7 +207,7 @@ export async function runCli(
       repo: options.repo,
       pr: options.pr,
       commentId: options.commentId,
-      body,
+      body: rawBody,
     },
     { env, ghCommand },
   ));

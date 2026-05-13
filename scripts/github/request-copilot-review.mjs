@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { formatCliError } from "../_core-helpers.mjs";
+import { parseRepoSlug } from "./capture-review-threads.mjs";
 
 function requireOptionValue(args, flag) {
   const value = args.shift();
@@ -34,7 +35,7 @@ export function parseRequestCliArgs(argv) {
     const token = args.shift();
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo");
+      options.repo = requireOptionValue(args, "--repo").trim();
       continue;
     }
 
@@ -49,6 +50,8 @@ export function parseRequestCliArgs(argv) {
   if (options.repo === undefined || options.pr === undefined) {
     throw new Error("Requesting Copilot review requires both --repo <owner/name> and --pr <number>");
   }
+
+  parseRepoSlug(options.repo);
 
   return options;
 }
