@@ -61,7 +61,11 @@ async function writeGhStub(tempDir, entries) {
       "const counterPath = process.env.GH_COUNTER_PATH;",
       'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
       'const current = Number(readFileSync(counterPath, "utf8").trim() || "0");',
-      'const entry = entries[Math.min(current, entries.length - 1)] ?? { stdout: "{}\\n" };',
+      'if (current >= entries.length) {',
+      '  process.stderr.write("unexpected gh call beyond scripted sequence\\n");',
+      '  process.exit(97);',
+      '}',
+      'const entry = entries[current] ?? { stdout: "{}\\n" };',
       'writeFileSync(counterPath, String(current + 1));',
       'const actual = process.argv.slice(2);',
       'if (entry.assertArgs) {',
@@ -564,6 +568,36 @@ test("detect-copilot-loop-state auto-detect prioritizes CI failure over pending 
     const output = JSON.parse(result.stdout);
     assert.equal(output.snapshot.ciStatus, "failure");
     assert.equal(output.state, "blocked_needs_user_decision");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state auto-detect fails when gh stub call budget is exceeded", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gh-budget-"));
+
+  try {
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          reviews: [],
+          statusCheckRollup: [],
+        }) + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "gh command failed: unexpected gh call beyond scripted sequence",
+    });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
