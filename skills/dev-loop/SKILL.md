@@ -213,6 +213,7 @@ Each refiner variant should make room for:
 - a complete definition of done
 - risks and unresolved questions
 - RFC escalation notes when technical decisions should go through the coordinator
+- for watcher/predicate-heavy phases: explicit negative-case tests and timeout semantics, including any zero-timeout or single-check contract
 
 Use the template in `templates/phase-variant.md`.
 
@@ -254,6 +255,8 @@ The merged plan must include:
 - definition of done
 - RFC escalation notes for any RFC-worthy technical decisions that must go through the coordinator instead of being silently resolved during refinement
 - for any new CLI surface: explicit success-output and malformed-argument/error-contract expectations
+- for any watcher/predicate-driven behavior: explicit timeout semantics plus negative-case detection rules for non-target identities or events
+- for package-first phases in a source-loaded workspace: explicit expectations about whether callers consume shared logic through workspace/source adapters or published package import paths during local development
 
 The durable phase doc should capture the subset that a fresh human or agent should read first: objective, why now, scope, non-goals, acceptance criteria, definition of done, validation approach, durable decisions, and open questions.
 
@@ -278,6 +281,8 @@ The review must check for:
 - weak RFC-escalation sanity when the plan surfaces an unresolved technical decision
 - for bounded audits/scans: missing prioritization or quiet expansion into a broad rewrite
 - for new CLI surfaces: weak malformed-argument or error-contract coverage
+- for watcher/predicate-heavy behavior: weak timeout semantics or missing negative-case tests for non-target activity
+- for package-first phases: ambiguous source-loaded workspace integration boundaries that leave local scripts/tests guessing how shared helpers are consumed
 
 If the review finds real issues, revise the merged plan and briefly update the review.
 

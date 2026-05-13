@@ -47,6 +47,8 @@ The dev retrospective should drive at least one bounded follow-up update to a re
 - use the dedicated refiner role for phase-refinement work when available, while keeping the coordinator as the RFC receiving boundary and decision owner
 - when a phase includes a bounded audit or scan, record prioritized findings and explicit non-goals rather than letting it become an open-ended rewrite
 - for new CLI surfaces, make success-output and malformed-argument/error-contract expectations explicit during planning
+- for watcher or predicate-driven behavior, make timeout semantics and negative-case/non-target-activity expectations explicit during planning
+- for package-first phases in a source-loaded workspace, make the local shared-helper consumption boundary explicit instead of assuming published-package import resolution
 - keep durable decisions in docs and execution traces in `tmp/`
 - use fan-out / fan-in / review before implementation
 - write tests first for non-trivial changes

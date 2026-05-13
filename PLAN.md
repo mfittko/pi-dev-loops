@@ -410,12 +410,14 @@ Goals:
 - install `pi-dev-loops` outside this bootstrap repo
 - identify which assumptions still leak from the imported source repos
 - validate the package/overlay contract in a real second codebase
+- validate an early local-skill iteration path where downstream repos can improve local overrides without losing upstream compatibility
 - use the findings to drive the remaining agent and skill cleanup
 
 Acceptance criteria:
 
 - one non-bootstrap repository can load the package and use at least one loop skill successfully
 - second-repo breakages are documented and fed back into the roadmap
+- the second-repo pilot produces concrete evidence about how local skill changes should coexist with upstream updates instead of being blindly overwritten
 
 ### Phase 7 — agent generalization
 
@@ -454,6 +456,7 @@ Initial bias:
 Acceptance criteria:
 
 - a documented install/override story exists
+- local overrides and upstream updates have a documented reconciliation strategy rather than a blind overwrite model
 - at least one reusable global workflow can be used from another repository without forking its definitions
 
 ## Testing strategy
@@ -482,6 +485,8 @@ Examples:
 - What is the right minimum package/install contract for global Pi reuse? _(target: Phase 3)_
 - Should there be one generic coordinator, or a base coordinator plus loop-specific coordinator overlays? _(target: Phase 7)_
 - How should repo-local policy overlays be layered on top of these global defaults without duplicating the whole asset? _(target: Phase 8)_
+- How should dev-mode improvements discovered in downstream repos flow back into `pi-dev-loops`: local skill iteration only, patch exchange, or GitHub PRs to the source repo? _(target: Phases 6 and 8)_
+- What extension/package tooling is needed so downstream repos can carry local skill changes while still incorporating upstream updates intelligently instead of blindly overwriting them? _(target: Phase 8)_
 
 ## Immediate next steps
 
