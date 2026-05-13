@@ -122,7 +122,7 @@ async function renderInstall(
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
-    ctx.ui.setStatus(STATUS_KEY, "pi-dev-loops");
+    ctx.ui.setStatus(STATUS_KEY, undefined);
   });
 
   pi.registerCommand("dev-loops", {

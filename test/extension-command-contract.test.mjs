@@ -76,7 +76,7 @@ function readyPi() {
   });
 }
 
-test("extension registers command and session_start wiring", async () => {
+test("extension clears any stale footer status on session start and registers the dev-loops command", async () => {
   const pi = readyPi();
   registerExtension(pi);
 
@@ -85,7 +85,7 @@ test("extension registers command and session_start wiring", async () => {
 
   const { ctx, calls } = createCommandContext();
   await pi.events.get("session_start")({}, ctx);
-  assert.deepEqual(calls.statuses, [{ key: "pi-dev-loops", text: "pi-dev-loops" }]);
+  assert.deepEqual(calls.statuses, [{ key: "pi-dev-loops", text: undefined }]);
 });
 
 test("help is the default action and malformed commands stay non-mutating", async () => {
