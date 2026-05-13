@@ -2,9 +2,12 @@
 
 ## Project contract
 
-This repository uses the `dev-loop` skill as the primary implementation workflow.
+This repository now prefers the GitHub remote-loop workflow for active implementation and release work.
 
-The skill may be provided repo-locally or globally; this contract does not assume a local skill path.
+- Use `copilot-dev-loop` as the primary workflow when work should move through GitHub branches, pull requests, CI, and review.
+- Use `dev-loop` only when the user explicitly wants a local phase-based implementation path.
+
+These skills may be provided repo-locally or globally; this contract does not assume a local skill path.
 
 ## Working agreement
 
@@ -13,8 +16,9 @@ The skill may be provided repo-locally or globally; this contract does not assum
 - Implement one phase at a time.
 - Use fan-out / fan-in / review / merge before implementing each phase.
 - Keep logs under `tmp/` in deterministic phase-scoped paths.
-- Use local branches and small commits only after local verification.
-- Do not assume GitHub PR or issue workflows.
+- Use feature branches and small commits only after local verification.
+- For public-facing or release-bound changes, prefer GitHub issues/PRs/CI over direct local-main finalization.
+- Do not merge directly to `main` without review when a PR-based remote loop is practical.
 
 ## Core guard rails
 

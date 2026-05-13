@@ -401,7 +401,26 @@ Acceptance criteria:
 - scripts prefer native `gh` watch support when possible and only use custom polling when necessary
 - scripts are testable with fixtures
 
-### Phase 6 — second-repo pilot
+### Phase 6 — public release hardening
+
+Now that the repository is public, add the minimum release-readiness pieces needed so outside users can evaluate and adopt it safely.
+
+Goals:
+
+- choose and add an explicit open-source license
+- add baseline GitHub Actions CI for the supported Node versions
+- make the public-repo quality gate explicit around the existing test suite
+- document the release-readiness expectations so later packaging/reuse work builds on a stable baseline
+
+Acceptance criteria:
+
+- a top-level `LICENSE` file exists with the chosen license text
+- `package.json` includes a matching SPDX `license` field
+- a GitHub Actions workflow runs the repository test suite on push and pull request
+- the initial CI baseline runs on an explicit Node 24 environment
+- the public release baseline is reflected in the roadmap and implementation state docs
+
+### Phase 7 — second-repo pilot
 
 Before polishing the extension or broadening the package surface further, prove reuse in at least one unrelated repository.
 
@@ -419,7 +438,7 @@ Acceptance criteria:
 - second-repo breakages are documented and fed back into the roadmap
 - the second-repo pilot produces concrete evidence about how local skill changes should coexist with upstream updates instead of being blindly overwritten
 
-### Phase 7 — agent generalization
+### Phase 8 — agent generalization
 
 Refactor the imported agent definitions so they work for both:
 
@@ -438,7 +457,7 @@ Acceptance criteria:
 - role agents are workflow-agnostic
 - loop-specific mechanics live outside the agent definitions
 
-### Phase 8 — package and reuse strategy
+### Phase 9 — package and reuse strategy
 
 Decide how this repo is consumed:
 
@@ -480,13 +499,13 @@ Examples:
 
 ## Open questions
 
-- Should agents remain as plain markdown definitions only, or should some shared prompt fragments also move into deterministic templates or generated prompt builders? _(target: Phase 7)_
+- Should agents remain as plain markdown definitions only, or should some shared prompt fragments also move into deterministic templates or generated prompt builders? _(target: Phase 8)_
 - How much of the GitHub/Copilot loop should stay skill-driven versus script-driven? _(target: Phase 5)_
 - What is the right minimum package/install contract for global Pi reuse? _(target: Phase 3)_
-- Should there be one generic coordinator, or a base coordinator plus loop-specific coordinator overlays? _(target: Phase 7)_
-- How should repo-local policy overlays be layered on top of these global defaults without duplicating the whole asset? _(target: Phase 8)_
-- How should dev-mode improvements discovered in downstream repos flow back into `pi-dev-loops`: local skill iteration only, patch exchange, or GitHub PRs to the source repo? _(target: Phases 6 and 8)_
-- What extension/package tooling is needed so downstream repos can carry local skill changes while still incorporating upstream updates intelligently instead of blindly overwriting them? _(target: Phase 8)_
+- Should there be one generic coordinator, or a base coordinator plus loop-specific coordinator overlays? _(target: Phase 8)_
+- How should repo-local policy overlays be layered on top of these global defaults without duplicating the whole asset? _(target: Phase 9)_
+- How should dev-mode improvements discovered in downstream repos flow back into `pi-dev-loops`: local skill iteration only, patch exchange, or GitHub PRs to the source repo? _(target: Phases 7 and 9)_
+- What extension/package tooling is needed so downstream repos can carry local skill changes while still incorporating upstream updates intelligently instead of blindly overwriting them? _(target: Phase 9)_
 
 ## Immediate next steps
 
@@ -496,8 +515,10 @@ Examples:
    - hardcoded reviewer identity in `agents/review.agent.md`
    - `repo-wiki`-specific assumptions in `skills/copilot-dev-loop/SKILL.md`
 4. design and integrate a dedicated refiner agent for phase-refinement work so planning/refinement can be delegated without overloading the coordinator
-5. finish documenting the runtime/build/test and install/override contract
-6. identify the first shared library modules to extract
-7. move the first deterministic helper into a shared npm support package with a thin skill-local wrapper
-8. add the first deterministic GitHub helper scripts
-9. refactor the first three generic agents: `developer`, `docs`, `quality`
+5. choose the public license and add `LICENSE` plus matching package metadata
+6. add baseline GitHub Actions CI for the existing test suite
+7. finish documenting the runtime/build/test and install/override contract
+8. identify the first shared library modules to extract
+9. move the first deterministic helper into a shared npm support package with a thin skill-local wrapper
+10. add the first deterministic GitHub helper scripts
+11. refactor the first three generic agents: `developer`, `docs`, `quality`
