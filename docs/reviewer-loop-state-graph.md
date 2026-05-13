@@ -10,6 +10,7 @@ Implementation:
 
 - Pure logic: `packages/core/src/loop/reviewer-loop-state.mjs`
 - Detector CLI: `scripts/loop/detect-reviewer-loop-state.mjs`
+- Draft-review staging helper: `scripts/github/stage-reviewer-draft.mjs`
 
 ## State Definitions
 
@@ -58,6 +59,13 @@ The contract separates observable current state (`submittedReviewPresent`, `draf
 - classifies findings into `inlineComments` vs `summaryFindings`
 - emits one deterministic verdict: `APPROVE`, `COMMENT`, or `REQUEST_CHANGES`
 - preserves `headSha`, `runsMerged`, and `totalFindings`
+
+`buildDraftReviewPayload` converts a merged review package into a deterministic pending-review payload:
+
+- pins the pending review to `headSha`
+- renders one deterministic summary body including verdict, totals, and summary findings
+- emits only bounded inline comments with `path`, `line`, `body`, and `side: "RIGHT"`
+- keeps draft-review creation separate from final review submission
 
 ## Detector CLI Contract
 

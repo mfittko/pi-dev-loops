@@ -9,6 +9,7 @@ import {
   REVIEWER_SUPPORTED_ANGLES,
   selectReviewerPlan,
   mergeReviewerResults,
+  buildDraftReviewPayload,
 } from "../src/loop/reviewer-loop-state.mjs";
 
 test("normalizeReviewerSnapshot rejects non-object input", () => {
@@ -201,4 +202,65 @@ test("mergeReviewerResults deduplicates findings and returns deterministic verdi
 
   const approve = mergeReviewerResults({ headSha: "abc", runResults: [] });
   assert.equal(approve.verdict, "APPROVE");
+});
+
+ test("buildDraftReviewPayload converts merged review results into a deterministic pending-review payload", () => {
+  const payload = buildDraftReviewPayload({
+    headSha: "abc123",
+    verdict: "REQUEST_CHANGES",
+    totalFindings: 2,
+    runsMerged: 2,
+    inlineComments: [
+      { path: "src/app.ts", line: 10, message: "Handle null", severity: "high" },
+      { path: "", line: 10, message: "skip me" },
+    ],
+    summaryFindings: [
+      { message: "Consider the stale draft-review cleanup path", severity: "low" },
+    ],
+  });
+
+  assert.deepEqual(payload, {
+    commit_id: "abc123",
+    body: [
+      "Reviewer-loop draft verdict: REQUEST_CHANGES",
+      "Total findings: 2",
+      "Review runs merged: 2",
+      "",
+      "Summary findings:",
+      "- [low] Consider the stale draft-review cleanup path",
+      "",
+    ].join("\n"),
+    comments: [
+      {
+        path: "src/app.ts",
+        line: 10,
+        body: "Handle null",
+        side: "RIGHT",
+      },
+    ],
+  });
+});
+
+ test("buildDraftReviewPayload renders a deterministic no-findings summary", () => {
+  const payload = buildDraftReviewPayload({
+    headSha: "abc123",
+    verdict: "APPROVE",
+    totalFindings: 0,
+    runsMerged: 3,
+    inlineComments: [],
+    summaryFindings: [],
+  });
+
+  assert.deepEqual(payload, {
+    commit_id: "abc123",
+    body: [
+      "Reviewer-loop draft verdict: APPROVE",
+      "Total findings: 0",
+      "Review runs merged: 3",
+      "",
+      "No summary-only findings were produced by the deterministic reviewer loop.",
+      "",
+    ].join("\n"),
+    comments: [],
+  });
 });

@@ -353,6 +353,38 @@ export function mergeReviewerResults(input = {}) {
   };
 }
 
+export function buildDraftReviewPayload(mergedResult = {}) {
+  const headSha = normalizeSha(mergedResult.headSha);
+  const verdict = normalizeDraftVerdict(mergedResult.verdict);
+  const inlineComments = Array.isArray(mergedResult.inlineComments) ? mergedResult.inlineComments : [];
+  const summaryFindings = Array.isArray(mergedResult.summaryFindings) ? mergedResult.summaryFindings : [];
+
+  const comments = inlineComments
+    .filter((finding) => finding && typeof finding === "object")
+    .map((finding) => ({
+      path: typeof finding.path === "string" && finding.path.trim().length > 0 ? finding.path.trim() : null,
+      line: typeof finding.line === "number" && finding.line > 0 ? Math.floor(finding.line) : null,
+      body: typeof finding.message === "string" ? finding.message.trim() : "",
+      side: "RIGHT",
+    }))
+    .filter((comment) => comment.path && comment.line && comment.body.length > 0);
+
+  return {
+    commit_id: headSha,
+    body: buildDraftReviewBody({
+      verdict,
+      summaryFindings,
+      totalFindings: typeof mergedResult.totalFindings === "number"
+        ? Math.max(0, Math.floor(mergedResult.totalFindings))
+        : comments.length + summaryFindings.length,
+      runsMerged: typeof mergedResult.runsMerged === "number"
+        ? Math.max(0, Math.floor(mergedResult.runsMerged))
+        : 0,
+    }),
+    comments,
+  };
+}
+
 export const REVIEWER_SUPPORTED_ANGLES = Object.freeze([...SUPPORTED_REVIEW_ANGLES]);
 
 /**
@@ -378,4 +410,31 @@ function determineReviewVerdict(dedupedFindings, hintRequestsChanges) {
   }
 
   return "COMMENT";
+}
+
+function normalizeDraftVerdict(value) {
+  return ["APPROVE", "COMMENT", "REQUEST_CHANGES"].includes(value) ? value : "COMMENT";
+}
+
+function buildDraftReviewBody({ verdict, summaryFindings, totalFindings, runsMerged }) {
+  const lines = [
+    `Reviewer-loop draft verdict: ${verdict}`,
+    `Total findings: ${totalFindings}`,
+    `Review runs merged: ${runsMerged}`,
+  ];
+
+  if (summaryFindings.length > 0) {
+    lines.push("", "Summary findings:");
+    for (const finding of summaryFindings) {
+      const message = typeof finding?.message === "string" && finding.message.trim().length > 0
+        ? finding.message.trim()
+        : "Review finding";
+      const severity = normalizeFindingSeverity(finding?.severity);
+      lines.push(`- [${severity}] ${message}`);
+    }
+  } else if (totalFindings === 0) {
+    lines.push("", "No summary-only findings were produced by the deterministic reviewer loop.");
+  }
+
+  return `${lines.join("\n")}\n`;
 }

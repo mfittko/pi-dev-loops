@@ -56,6 +56,32 @@ Success output shape:
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/github/stage-reviewer-draft.mjs`
+
+Stage a pending reviewer-side draft review from a merged deterministic review package.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+- `--review-file <path>`
+
+Optional:
+- `--local-state-output <path>` writes/merges deterministic draft-review metadata for later
+  `detect-reviewer-loop-state.mjs --local-state` use
+
+Contract:
+- reads a merged reviewer result JSON file (for example output derived from `mergeReviewerResults`)
+- builds a deterministic pending-review payload pinned to the review package `headSha`
+- posts the pending review to `repos/<owner>/<name>/pulls/<pr>/reviews` without an `event` field so GitHub keeps it pending
+- returns the draft review id/url/commit sha
+- optionally writes bounded local reviewer-loop metadata including `draftReviewPosted`, `draftReviewId`, `draftReviewUrl`, `draftReviewCommitSha`, and `draftReviewNotificationStatus`
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/name", "pr": 17, "reviewId": 456, "reviewUrl": "...", "reviewState": "PENDING", "commitSha": "abc123", "localStatePath": "..."|null }`
+
+Failure behavior:
+- malformed arguments, invalid review JSON, missing `headSha`, unexpected `gh` failures, and malformed review-create responses emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/github/reply-resolve-review-thread.mjs`
 
 Reply to a PR review comment and resolve the associated review thread deterministically.
