@@ -124,6 +124,20 @@ function parseJson(text) {
   }
 }
 
+function parseReplyPayload(payload) {
+  const replyId = payload?.id;
+  const replyUrl = payload?.html_url;
+
+  if (!Number.isFinite(replyId) || typeof replyUrl !== "string" || replyUrl.trim().length === 0) {
+    throw new Error("Reply payload from gh did not include both id and html_url");
+  }
+
+  return {
+    replyId,
+    replyUrl,
+  };
+}
+
 async function postReply({ repo, pr, commentId, body }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
@@ -185,7 +199,7 @@ export async function runCli(
     throw new Error("--body-file must contain non-empty text");
   }
 
-  const reply = await postReply(
+  const reply = parseReplyPayload(await postReply(
     {
       repo: options.repo,
       pr: options.pr,
@@ -193,7 +207,7 @@ export async function runCli(
       body,
     },
     { env, ghCommand },
-  );
+  ));
   const resolvedThread = await resolveThread(options.threadId, { env, ghCommand });
 
   if (!resolvedThread?.isResolved) {
@@ -206,8 +220,8 @@ export async function runCli(
     pr: options.pr,
     commentId: options.commentId,
     threadId: options.threadId,
-    replyId: reply?.id,
-    replyUrl: reply?.html_url,
+    replyId: reply.replyId,
+    replyUrl: reply.replyUrl,
     resolved: true,
   })}\n`);
 }

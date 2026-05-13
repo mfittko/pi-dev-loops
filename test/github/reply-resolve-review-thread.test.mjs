@@ -207,6 +207,23 @@ test("reply-resolve-review-thread reports reply and resolve failures determinist
       error: "gh command failed: gh: forbidden",
     });
 
+    const ghMissingReplyFields = await writeGhStub(tempDir, [
+      {
+        stdout: '{"id":456}\n',
+      },
+    ]);
+
+    const missingReplyFields = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: ghMissingReplyFields.env },
+    );
+    assert.equal(missingReplyFields.code, 1);
+    assert.equal(missingReplyFields.stdout, "");
+    assert.deepEqual(JSON.parse(missingReplyFields.stderr), {
+      ok: false,
+      error: "Reply payload from gh did not include both id and html_url",
+    });
+
     const ghResolve = await writeGhStub(tempDir, [
       {
         stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
