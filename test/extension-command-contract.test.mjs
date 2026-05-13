@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { access, mkdtemp, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 
 import registerExtension from "../extension/index.ts";
 
@@ -87,7 +87,7 @@ test("extension registers command and session_start wiring", async () => {
   assert.deepEqual(calls.statuses, [{ key: "pi-dev-loops", text: "pi-dev-loops" }]);
 });
 
-test("help is the default action and lists the command surface", async () => {
+test("help is the default action and malformed commands stay non-mutating", async () => {
   const pi = readyPi();
   registerExtension(pi);
   const { ctx, calls } = createCommandContext();
@@ -102,6 +102,11 @@ test("help is the default action and lists the command surface", async () => {
   assert(widget.lines.some((line) => /prompts for `repo` or `system`/i.test(line)));
   assert(widget.lines.some((line) => /skills are installed explicitly/i.test(line)));
   assert.equal(calls.notifications.at(-1).message, "pi-dev-loops help");
+
+  const invalidArgsContext = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("install moon", invalidArgsContext.ctx);
+  assert.match(invalidArgsContext.calls.widgets.at(-1).lines[0], /pi-dev-loops install: choose a target/);
+  assert.equal(invalidArgsContext.calls.notifications.at(-1).level, "error");
 });
 
 test("status keeps remote readiness blocked outside a git repo", async () => {
@@ -194,6 +199,26 @@ test("install repo copies packaged skills into the repository, repo errors stay 
   const fallbackContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("banana", fallbackContext.ctx);
   assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+});
+
+test("repo install refuses symlinked skill roots with a user-facing error", async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-repo-symlink-"));
+  const realSkillsRoot = path.join(repoRoot, "real-skills-root");
+  await mkdir(path.join(repoRoot, ".pi"), { recursive: true });
+  await mkdir(realSkillsRoot, { recursive: true });
+  await symlink(realSkillsRoot, path.join(repoRoot, ".pi", "skills"));
+
+  const pi = createPiDouble({
+    commandResults: new Map([["git rev-parse --show-toplevel", { code: 0, stdout: `${repoRoot}\n`, stderr: "" }]]),
+  });
+  registerExtension(pi);
+
+  const { ctx, calls } = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("install repo", ctx);
+
+  assert.match(calls.widgets.at(-1).lines[0], /pi-dev-loops install repo: failed/);
+  assert(calls.widgets.at(-1).lines.some((line) => /symlinked skill root/i.test(line)));
+  assert.equal(calls.notifications.at(-1).level, "error");
 });
 
 test("system install failures surface a user-facing error instead of throwing", async () => {

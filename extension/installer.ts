@@ -43,6 +43,52 @@ async function pathExists(targetPath: string): Promise<boolean> {
   }
 }
 
+async function pathKind(targetPath: string): Promise<"missing" | "directory" | "symlink" | "other"> {
+  try {
+    const stats = await lstat(targetPath);
+
+    if (stats.isSymbolicLink()) {
+      return "symlink";
+    }
+
+    if (stats.isDirectory()) {
+      return "directory";
+    }
+
+    return "other";
+  } catch {
+    return "missing";
+  }
+}
+
+async function assertWritableSkillRoot(targetRoot: string) {
+  const kind = await pathKind(targetRoot);
+
+  if (kind === "symlink") {
+    throw new Error(
+      `Refusing to install into symlinked skill root: ${targetRoot}. Use a real directory target or manage the symlink source directly.`,
+    );
+  }
+
+  if (kind === "other") {
+    throw new Error(`Skill root exists but is not a directory: ${targetRoot}`);
+  }
+}
+
+async function assertWritableSkillTarget(targetPath: string) {
+  const kind = await pathKind(targetPath);
+
+  if (kind === "symlink") {
+    throw new Error(
+      `Refusing to overwrite symlinked skill target: ${targetPath}. Use a real directory target or manage the symlink source directly.`,
+    );
+  }
+
+  if (kind === "other") {
+    throw new Error(`Skill target exists but is not a directory: ${targetPath}`);
+  }
+}
+
 export async function syncPackagedSkills({
   mode,
   scope,
@@ -54,6 +100,7 @@ export async function syncPackagedSkills({
   targetRoot: string;
   sourceRoot?: string;
 }): Promise<InstallResult> {
+  await assertWritableSkillRoot(targetRoot);
   await mkdir(targetRoot, { recursive: true });
 
   const results: SkillInstallResult[] = [];
@@ -61,6 +108,7 @@ export async function syncPackagedSkills({
   for (const skillName of PACKAGED_SKILL_NAMES) {
     const sourcePath = path.join(sourceRoot, skillName);
     const targetPath = path.join(targetRoot, skillName);
+    await assertWritableSkillTarget(targetPath);
     const exists = await pathExists(targetPath);
 
     if (mode === "install" && exists) {

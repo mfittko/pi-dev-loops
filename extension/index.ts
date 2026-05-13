@@ -21,10 +21,11 @@ const WIDGET_KEY = "pi-dev-loops.setup";
 
 type ParsedCommand =
   | { action: "help" | "status" | "doctor" | "hide" }
-  | { action: "install" | "update"; scope?: InstallScope };
+  | { action: "install" | "update"; scope?: InstallScope; invalidArgs?: boolean };
 
 function parseAction(args: string): ParsedCommand {
-  const [rawAction, rawScope] = args.trim().split(/\s+/).filter(Boolean);
+  const parts = args.trim().split(/\s+/).filter(Boolean);
+  const [rawAction, rawScope, ...rest] = parts;
   const action = rawAction?.toLowerCase();
 
   switch (action) {
@@ -39,11 +40,16 @@ function parseAction(args: string): ParsedCommand {
     case "hide":
       return { action: "hide" };
     case "install":
-    case "update":
+    case "update": {
+      const normalizedScope = rawScope?.toLowerCase();
+      const scope = normalizedScope === "repo" || normalizedScope === "system" ? normalizedScope : undefined;
+
       return {
         action,
-        scope: rawScope === "repo" || rawScope === "system" ? rawScope : undefined,
+        scope,
+        invalidArgs: rest.length > 0 || (rawScope !== undefined && scope === undefined),
       };
+    }
     default:
       return { action: "help" };
   }
@@ -138,6 +144,12 @@ export default function (pi: ExtensionAPI) {
 
       if (command.action === "status" || command.action === "doctor") {
         await renderStatus(ctx, pi, command.action);
+        return;
+      }
+
+      if (command.invalidArgs) {
+        ctx.ui.setWidget(WIDGET_KEY, buildInstallUsageLines(command.action), { placement: "belowEditor" });
+        ctx.ui.notify(`pi-dev-loops ${command.action}: invalid arguments`, "error");
         return;
       }
 

@@ -43,6 +43,8 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 
 `/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories only.
 
+These commands expect real directory targets. They intentionally refuse symlinked skill roots or symlinked skill directories so they do not accidentally mutate a shared source-of-truth directory through a symlink.
+
 They do **not**:
 - install `gh`
 - install `pi-subagents`
