@@ -21,9 +21,9 @@ Installing the package exposes the `/dev-loops` command surface only. It does **
 - `/dev-loops update`
   - prompts for `repo` or `system` when no target is provided
 - `/dev-loops update repo`
-  - refresh installed skills in the current repository from the packaged source
+  - refresh installed skills in the current repository from the packaged source when they were already installed there
 - `/dev-loops update system`
-  - refresh installed skills in `~/.pi/agent/skills` from the packaged source
+  - refresh installed skills in `~/.pi/agent/skills` from the packaged source when they were already installed there
 - `/dev-loops hide`
   - removes the readiness widget cleanly
 
@@ -42,6 +42,8 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 ## Install/update contract for this phase
 
 `/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories only.
+
+`install` is for first-time setup. `update` refreshes installed skills only, reports missing targets, and guides users back to `install` when first-time setup is still needed.
 
 These commands expect real directory targets. They intentionally refuse symlinked skill roots or symlinked skill directories so they do not accidentally mutate a shared source-of-truth directory through a symlink.
 

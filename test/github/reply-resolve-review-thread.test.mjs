@@ -55,11 +55,23 @@ async function writeGhStub(tempDir, entries) {
       'writeFileSync(counterPath, String(current + 1));',
       'appendFileSync(ghLogPath, `${JSON.stringify(process.argv.slice(2))}\\n`);',
       'const actual = process.argv.slice(2);',
+      'let stdin = "";',
+      'process.stdin.setEncoding("utf8");',
+      'process.stdin.on("data", (chunk) => { stdin += chunk; });',
       'if (entry.assertArgs) {',
       '  for (const expected of entry.assertArgs) {',
       '    if (!actual.includes(expected)) {',
       '      process.stderr.write(`missing expected gh arg: ${expected}\\n`);',
       '      process.exit(98);',
+      '    }',
+      '  }',
+      '}',
+      'process.stdin.on("end", () => {',
+      'if (entry.assertStdinIncludes) {',
+      '  for (const expected of entry.assertStdinIncludes) {',
+      '    if (!stdin.includes(expected)) {',
+      '      process.stderr.write(`missing expected stdin text: ${expected}\\n`);',
+      '      process.exit(97);',
       '    }',
       '  }',
       '}',
@@ -70,6 +82,7 @@ async function writeGhStub(tempDir, entries) {
       '  process.stdout.write(entry.stdout);',
       '}',
       'process.exit(entry.exitCode ?? 0);',
+      '});',
       "",
     ].join("\n"),
     "utf8",
@@ -96,7 +109,8 @@ test("reply-resolve-review-thread posts a reply then resolves the thread", async
   try {
     const gh = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies"],
+        assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies", "--input", "-"],
+        assertStdinIncludes: ['"body":"Fixed in 93cd7f8. Added the missing symlinked-ancestor guard and coverage."'],
         stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
       },
       {
@@ -125,7 +139,8 @@ test("reply-resolve-review-thread posts a reply then resolves the thread", async
 
     const ghLog = (await readFile(gh.ghLogPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
     assert.equal(ghLog.length, 2);
-    assert(ghLog[0].includes("body=Fixed in 93cd7f8. Added the missing symlinked-ancestor guard and coverage."));
+    assert(ghLog[0].includes("--input"));
+    assert.equal(ghLog[0].some((entry) => entry.startsWith("body=")), false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

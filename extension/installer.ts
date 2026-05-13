@@ -7,7 +7,7 @@ export const PACKAGED_SKILL_NAMES = ["dev-loop", "copilot-dev-loop"] as const;
 
 export type InstallScope = "repo" | "system";
 export type InstallMode = "install" | "update";
-export type InstallStatus = "installed" | "updated" | "already-installed";
+export type InstallStatus = "installed" | "updated" | "already-installed" | "missing";
 
 export type SkillInstallResult = {
   skillName: (typeof PACKAGED_SKILL_NAMES)[number];
@@ -160,7 +160,16 @@ export async function syncPackagedSkills({
       continue;
     }
 
-    if (mode === "update" && exists) {
+    if (mode === "update") {
+      if (!exists) {
+        results.push({
+          skillName,
+          status: "missing",
+          targetPath,
+        });
+        continue;
+      }
+
       await rm(targetPath, { recursive: true, force: true });
     }
 
@@ -168,7 +177,7 @@ export async function syncPackagedSkills({
 
     results.push({
       skillName,
-      status: mode === "update" && exists ? "updated" : "installed",
+      status: mode === "update" ? "updated" : "installed",
       targetPath,
     });
   }

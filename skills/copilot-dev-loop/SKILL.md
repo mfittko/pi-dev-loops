@@ -278,6 +278,7 @@ Preferred approach for Copilot review follow-up:
 - poll for new Copilot-authored reviews/comments
 - keep the watcher in the current Pi/TelePi session
 - after new review activity appears, launch an async Pi fixer in-session
+- do not report the loop complete while fresh Copilot comments remain unresolved; a new Copilot pass must flow back into fixer/reply/resolve work before completion when authorization exists
 - use explicit long timeouts from the timeout policy above rather than short defaults
 
 Use an existing repo-local async review-follow-up skill or deterministic watcher when available.
@@ -307,7 +308,8 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
 7. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
    - do not stop at a local fix if GitHub-side reply/resolve is authorized
-8. if scope has broadened, stop and ask before continuing
+8. after a re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
+9. if scope has broadened, stop and ask before continuing
 
 Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 

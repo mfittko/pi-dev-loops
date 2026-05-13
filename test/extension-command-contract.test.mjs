@@ -247,6 +247,30 @@ test("system install failures surface a user-facing error instead of throwing", 
   }
 });
 
+test("buildInstallResultLines reports missing update targets as not installed and guides first-time setup", () => {
+  const lines = buildInstallResultLines({
+    mode: "update",
+    scope: "repo",
+    targetRoot: "/tmp/repo/.pi/skills",
+    results: [
+      {
+        skillName: "dev-loop",
+        status: "updated",
+        targetPath: "/tmp/repo/.pi/skills/dev-loop",
+      },
+      {
+        skillName: "copilot-dev-loop",
+        status: "missing",
+        targetPath: "/tmp/repo/.pi/skills/copilot-dev-loop",
+      },
+    ],
+  });
+
+  assert.equal(lines[0], "pi-dev-loops update repo: 1/2 skill directories changed");
+  assert(lines.some((line) => /copilot-dev-loop: not installed/i.test(line)));
+  assert(lines.some((line) => /first-time setup/i.test(line)));
+});
+
 test("buildInstallResultLines throws for unknown install statuses instead of rendering undefined", () => {
   assert.throws(
     () => buildInstallResultLines({

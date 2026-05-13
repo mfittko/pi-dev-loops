@@ -85,11 +85,11 @@ export function parseReplyResolveCliArgs(argv) {
   return options;
 }
 
-function runChild(command, args, env) {
+function runChild(command, args, env, stdinText) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       env,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
     let stdout = "";
@@ -102,6 +102,12 @@ function runChild(command, args, env) {
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk);
     });
+
+    if (stdinText === undefined) {
+      child.stdin.end();
+    } else {
+      child.stdin.end(stdinText);
+    }
 
     child.on("error", reject);
     child.on("close", (code) => {
@@ -121,8 +127,16 @@ function parseJson(text) {
 async function postReply({ repo, pr, commentId, body }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
-    ["api", "-X", "POST", `repos/${repo}/pulls/${pr}/comments/${commentId}/replies`, "-f", `body=${body}`],
+    [
+      "api",
+      "-X",
+      "POST",
+      `repos/${repo}/pulls/${pr}/comments/${commentId}/replies`,
+      "--input",
+      "-",
+    ],
     env,
+    `${JSON.stringify({ body })}\n`,
   );
 
   if (result.code !== 0) {

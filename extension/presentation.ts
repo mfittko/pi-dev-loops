@@ -40,6 +40,8 @@ function formatInstallStatus(status: InstallStatus): string {
       return "updated";
     case "already-installed":
       return "already installed";
+    case "missing":
+      return "not installed";
     default:
       throw new Error(`Unknown install status: ${status}`);
   }
@@ -129,18 +131,31 @@ export function buildInstallUsageLines(action: Extract<DevLoopsAction, "install"
 }
 
 export function buildInstallResultLines(result: InstallResult): string[] {
-  const changedCount = result.results.filter((entry) => entry.status !== "already-installed").length;
+  const changedCount = result.results.filter((entry) => entry.status !== "already-installed" && entry.status !== "missing").length;
 
-  return [
+  const lines = [
     `pi-dev-loops ${result.mode} ${result.scope}: ${changedCount}/${result.results.length} skill directories changed`,
     `Target: ${result.targetRoot}`,
     ...result.results.map((entry) => `- ${entry.skillName}: ${formatInstallStatus(entry.status)} (${entry.targetPath})`),
-    "Restart Pi or refresh skill discovery before expecting `/skill:dev-loop` or `/skill:copilot-dev-loop` to appear in this session.",
   ];
+
+  if (result.mode === "update" && result.results.some((entry) => entry.status === "missing")) {
+    lines.push("Some packaged skills were not installed in this target yet; use `/dev-loops install repo|system` for first-time setup.");
+  }
+
+  lines.push("Restart Pi or refresh skill discovery before expecting `/skill:dev-loop` or `/skill:copilot-dev-loop` to appear in this session.");
+
+  return lines;
 }
 
 export function buildInstallNotificationMessage(result: InstallResult): string {
-  const changedCount = result.results.filter((entry) => entry.status !== "already-installed").length;
+  const changedCount = result.results.filter((entry) => entry.status !== "already-installed" && entry.status !== "missing").length;
+  const missingCount = result.results.filter((entry) => entry.status === "missing").length;
+
+  if (result.mode === "update" && missingCount > 0) {
+    return `pi-dev-loops ${result.mode} ${result.scope}: ${changedCount}/${result.results.length} skill directories changed, ${missingCount} not installed yet`;
+  }
+
   return `pi-dev-loops ${result.mode} ${result.scope}: ${changedCount}/${result.results.length} skill directories changed`;
 }
 

@@ -83,7 +83,14 @@ function isCopilotReviewer(login) {
 }
 
 function parseRequestedReviewersPayload(text) {
-  const payload = JSON.parse(text);
+  let payload;
+
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON from gh: ${text.trim() || "<empty>"}`);
+  }
+
   const users = Array.isArray(payload?.users) ? payload.users : [];
   const teams = Array.isArray(payload?.teams) ? payload.teams : [];
 
