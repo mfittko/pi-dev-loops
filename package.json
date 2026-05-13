@@ -19,9 +19,10 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "npm run test:assets && npm run test:extension && npm run test:core",
+    "test": "npm run test:assets && npm run test:extension && npm run test:scripts && npm run test:core",
     "test:assets": "node --test test/imported-assets-normalization.test.mjs test/refiner-agent-phase-planning.test.mjs test/dev-loop-init-phase-smoke.test.mjs",
     "test:extension": "node --test test/extension-checks.test.mjs test/extension-command-contract.test.mjs test/extension-package-contract.test.mjs",
+    "test:scripts": "node --test test/github/*.test.mjs test/loop/*.test.mjs",
     "test:core": "node --test packages/core/test/*.test.mjs",
     "test:dev-loop": "npm --prefix skills/dev-loop test"
   },
