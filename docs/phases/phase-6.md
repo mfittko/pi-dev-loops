@@ -17,7 +17,7 @@ The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a for
 - add a top-level MIT `LICENSE` file
 - add matching SPDX license metadata to the root `package.json`
 - add a baseline GitHub Actions CI workflow under `.github/workflows/ci.yml`
-- run the existing root test suite in CI on Node 24
+- run the existing root test suite in CI on the declared support floor and current public baseline (Node 20 and Node 24)
 - reflect the release-hardening phase in durable planning/state docs
 
 ## Explicit non-goals
@@ -35,7 +35,7 @@ The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a for
 - the root `package.json` declares `"license": "MIT"`
 - `.github/workflows/ci.yml` runs on `push` and `pull_request`
 - the workflow installs dependencies and runs `npm test`
-- the workflow uses Node 24
+- the workflow uses an explicit Node 20 / Node 24 matrix so CI covers the declared floor and the current public baseline
 - `PLAN.md` and `docs/IMPLEMENTATION_STATE.md` reflect the public-release hardening phase
 
 ## Definition of done
@@ -56,12 +56,11 @@ The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a for
 
 - MIT is the chosen initial public license for `pi-dev-loops`
 - the first public CI baseline should stay intentionally small and run the existing root test suite only
-- Node 24 is the initial CI environment for the public baseline
+- the initial public CI baseline should cover both the declared Node support floor (20) and the current baseline runtime (24)
 - broader release automation and repository-governance setup remain separate follow-up work
 
 ## Open questions
 
-- should CI expand to a multi-version Node matrix once the package/install contract is finalized more explicitly?
 - should a later release-hardening follow-up add branch protection, badges, or release/tag automation, or should those remain repository-local policy choices?
 
 ## Operational closure status

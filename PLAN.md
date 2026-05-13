@@ -417,7 +417,7 @@ Acceptance criteria:
 - a top-level `LICENSE` file exists with the chosen license text
 - `package.json` includes a matching SPDX `license` field
 - a GitHub Actions workflow runs the repository test suite on push and pull request
-- the initial CI baseline runs on an explicit Node 24 environment
+- the initial CI baseline runs on an explicit Node 20 / Node 24 matrix so it covers the declared support floor and the current public baseline
 - the public release baseline is reflected in the roadmap and implementation state docs
 
 ### Phase 7 — second-repo pilot
