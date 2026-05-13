@@ -32,11 +32,13 @@ For the active phase, require and produce:
 - explicit risks, watchpoints, and unresolved questions
 - validation steps and tests to write first
 - durable decisions that should be preserved in the phase doc
+- when the phase includes a bounded audit or scan: prioritized findings, the highest-value follow-up candidates, and an explicit statement of what the current phase will not rewrite or broaden
 
 ## Working style
 - Prefer parallel fresh-context fan-out/fan-in when it improves refinement quality or surfaces materially different variants.
 - Keep plan variants short, phase-bounded, and artifact-oriented.
 - Preserve KISS, SRP, and YAGNI.
+- When the phase introduces a new CLI surface, make the success output and malformed-argument/error-contract expectations explicit.
 - When information is missing, call out the ambiguity clearly instead of silently filling it with speculative detail.
 
 ## RFC escalation boundary

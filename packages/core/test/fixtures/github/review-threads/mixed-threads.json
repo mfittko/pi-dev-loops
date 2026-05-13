@@ -1,0 +1,65 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "reviewThreads": {
+          "nodes": [
+            {
+              "id": "t-3",
+              "isResolved": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "c-4",
+                    "body": "Thread metadata event.",
+                    "author": null
+                  },
+                  {
+                    "id": "c-3",
+                    "body": "Automated summary from Copilot.",
+                    "author": {
+                      "login": "copilot-pull-request-reviewer[bot]",
+                      "__typename": "Bot"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "t-2",
+              "isResolved": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "c-2",
+                    "body": "Resolve after the docs update lands.",
+                    "author": {
+                      "login": "maintainer",
+                      "__typename": "User"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "t-1",
+              "isResolved": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "c-1",
+                    "body": "Please add regression coverage.",
+                    "author": {
+                      "login": "reviewer",
+                      "__typename": "User"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
