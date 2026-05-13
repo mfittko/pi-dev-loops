@@ -6,6 +6,7 @@
   "exports": {
     "./bash-exit-one": "./src/bash-exit-one.mjs",
     "./loop/phase-files": "./src/loop/phase-files.mjs",
+    "./loop/copilot-loop-state": "./src/loop/copilot-loop-state.mjs",
     "./github/review-threads": "./src/github/review-threads.mjs"
   },
   "bin": {
