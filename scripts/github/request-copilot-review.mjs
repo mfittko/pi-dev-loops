@@ -6,11 +6,41 @@ import { fileURLToPath } from "node:url";
 import { formatCliError } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "./capture-review-threads.mjs";
 
+const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number>
+
+Request Copilot as a reviewer on a GitHub pull request.
+
+Required:
+  --repo <owner/name>   Repository slug (e.g. owner/repo)
+  --pr <number>         Pull request number
+
+Output (stdout, JSON):
+  { "ok": true, "status": "requested"|"already-requested"|"unavailable", "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "..." }
+
+Request statuses:
+  requested           Copilot review was successfully requested
+  already-requested   Copilot was already in requested reviewers; no change made
+  unavailable         Copilot review is not enabled for this repository
+
+Error output (stderr, JSON):
+  Argument/usage errors:
+    { "ok": false, "error": "...", "usage": "..." }
+  gh/runtime failures:
+    { "ok": false, "error": "..." }
+
+Exit codes:
+  0  Success (including unavailable)
+  1  Argument error or gh failure`.trim();
+
+function parseError(message) {
+  return Object.assign(new Error(message), { usage: USAGE });
+}
+
 function requireOptionValue(args, flag) {
   const value = args.shift();
 
   if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw new Error(`Missing value for ${flag}`);
+    throw parseError(`Missing value for ${flag}`);
   }
 
   return value;
@@ -18,7 +48,7 @@ function requireOptionValue(args, flag) {
 
 function parsePrNumber(value) {
   if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw new Error("--pr must be a positive integer");
+    throw parseError("--pr must be a positive integer");
   }
 
   return Number(value);
@@ -27,12 +57,18 @@ function parsePrNumber(value) {
 export function parseRequestCliArgs(argv) {
   const args = [...argv];
   const options = {
+    help: false,
     repo: undefined,
     pr: undefined,
   };
 
   while (args.length > 0) {
     const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
 
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo").trim();
@@ -44,14 +80,18 @@ export function parseRequestCliArgs(argv) {
       continue;
     }
 
-    throw new Error(`Unknown argument: ${token}`);
+    throw parseError(`Unknown argument: ${token}`);
   }
 
   if (options.repo === undefined || options.pr === undefined) {
-    throw new Error("Requesting Copilot review requires both --repo <owner/name> and --pr <number>");
+    throw parseError("Requesting Copilot review requires both --repo <owner/name> and --pr <number>");
   }
 
-  parseRepoSlug(options.repo);
+  try {
+    parseRepoSlug(options.repo);
+  } catch (error) {
+    throw parseError(error instanceof Error ? error.message : String(error));
+  }
 
   return options;
 }
@@ -212,33 +252,27 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
   };
 }
 
-export async function runCli(
-  argv = process.argv.slice(2),
-  {
-    stdout = process.stdout,
-    env = process.env,
-    ghCommand = "gh",
-  } = {},
-) {
-  const options = parseRequestCliArgs(argv);
+/**
+ * Perform the full Copilot review-request logic and return the result payload.
+ * Exported for use by higher-level orchestration helpers.
+ */
+export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
 
   if (before.requested) {
-    stdout.write(`${JSON.stringify({
+    return {
       ok: true,
       status: "already-requested",
       repo: options.repo,
       pr: options.pr,
       reviewer: "Copilot",
-    })}\n`);
-    return;
+    };
   }
 
   const requestResult = await requestCopilotReview(options, { env, ghCommand });
 
   if (requestResult.status === "unavailable") {
-    stdout.write(`${JSON.stringify(requestResult)}\n`);
-    return;
+    return requestResult;
   }
 
   const after = await fetchCopilotReviewState(options, { env, ghCommand });
@@ -248,7 +282,26 @@ export async function runCli(
     throw new Error("Copilot review request did not appear in requested reviewers or fresh Copilot reviews after gh pr edit");
   }
 
-  stdout.write(`${JSON.stringify(requestResult)}\n`);
+  return requestResult;
+}
+
+export async function runCli(
+  argv = process.argv.slice(2),
+  {
+    stdout = process.stdout,
+    env = process.env,
+    ghCommand = "gh",
+  } = {},
+) {
+  const options = parseRequestCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(`${USAGE}\n`);
+    return;
+  }
+
+  const result = await performCopilotReviewRequest(options, { env, ghCommand });
+  stdout.write(`${JSON.stringify(result)}\n`);
 }
 
 const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
+import { parseWatchCliArgs } from "../../scripts/github/watch-copilot-review.mjs";
+
 const scriptPath = path.resolve("scripts/github/watch-copilot-review.mjs");
 
 function runNode(args = [], options = {}) {
@@ -205,7 +207,7 @@ test("watch-copilot-review returns changed for fresh Copilot review-thread comme
       { stdout: `${JSON.stringify(changed)}\n` },
     ]);
 
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "5"], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "5", "--poll-interval-ms", "1"], { env });
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
@@ -244,7 +246,7 @@ test("watch-copilot-review returns changed for fresh Copilot review summaries", 
       { stdout: `${JSON.stringify(changed)}\n` },
     ]);
 
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "5"], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "5", "--poll-interval-ms", "1"], { env });
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
@@ -282,7 +284,7 @@ test("watch-copilot-review returns changed for fresh Copilot issue comments", as
       { stdout: `${JSON.stringify(changed)}\n` },
     ]);
 
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "5"], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "5", "--poll-interval-ms", "1"], { env });
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
@@ -367,24 +369,64 @@ test("watch-copilot-review rejects malformed arguments and invalid poll settings
   const missingPr = await runNode(["--repo", "owner/repo"]);
   assert.equal(missingPr.code, 1);
   assert.equal(missingPr.stdout, "");
-  assert.deepEqual(JSON.parse(missingPr.stderr), {
-    ok: false,
-    error: "Watching Copilot review requires both --repo <owner/name> and --pr <number>",
-  });
+  const missingPrErr = JSON.parse(missingPr.stderr);
+  assert.equal(missingPrErr.ok, false);
+  assert.equal(missingPrErr.error, "Watching Copilot review requires both --repo <owner/name> and --pr <number>");
+  assert.equal(typeof missingPrErr.usage, "string");
+  assert(missingPrErr.usage.length > 0);
 
   const invalidTimeout = await runNode(["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "-1"]);
   assert.equal(invalidTimeout.code, 1);
   assert.equal(invalidTimeout.stdout, "");
-  assert.deepEqual(JSON.parse(invalidTimeout.stderr), {
-    ok: false,
-    error: "--timeout-ms must be a non-negative integer",
-  });
+  const invalidTimeoutErr = JSON.parse(invalidTimeout.stderr);
+  assert.equal(invalidTimeoutErr.ok, false);
+  assert.equal(invalidTimeoutErr.error, "--timeout-ms must be a non-negative integer");
+  assert.equal(typeof invalidTimeoutErr.usage, "string");
+  assert(invalidTimeoutErr.usage.length > 0);
 
   const invalidInterval = await runNode(["--repo", "owner/repo", "--pr", "17", "--poll-interval-ms", "0"]);
   assert.equal(invalidInterval.code, 1);
   assert.equal(invalidInterval.stdout, "");
-  assert.deepEqual(JSON.parse(invalidInterval.stderr), {
-    ok: false,
-    error: "--poll-interval-ms must be a positive integer",
-  });
+  const invalidIntervalErr = JSON.parse(invalidInterval.stderr);
+  assert.equal(invalidIntervalErr.ok, false);
+  assert.equal(invalidIntervalErr.error, "--poll-interval-ms must be a positive integer");
+  assert.equal(typeof invalidIntervalErr.usage, "string");
+  assert(invalidIntervalErr.usage.length > 0);
+
+  const invalidRepo = await runNode(["--repo", " owner / repo ", "--pr", "17"]);
+  assert.equal(invalidRepo.code, 1);
+  assert.equal(invalidRepo.stdout, "");
+  const invalidRepoErr = JSON.parse(invalidRepo.stderr);
+  assert.equal(invalidRepoErr.ok, false);
+  assert.equal(invalidRepoErr.error, "--repo must match <owner/name>");
+  assert.equal(typeof invalidRepoErr.usage, "string");
+  assert(invalidRepoErr.usage.length > 0);
 });
+
+test("watch-copilot-review --help prints usage and exits 0", async () => {
+  const helpLong = await runNode(["--help"]);
+  assert.equal(helpLong.code, 0);
+  assert.equal(helpLong.stderr, "");
+  assert(helpLong.stdout.includes("watch-copilot-review.mjs"), `expected script name in help, got: ${helpLong.stdout}`);
+  assert(helpLong.stdout.includes("--repo"), `expected --repo in help`);
+  assert(helpLong.stdout.includes("--pr"), `expected --pr in help`);
+  assert(helpLong.stdout.includes("--poll-interval-ms"), `expected --poll-interval-ms in help`);
+  assert(helpLong.stdout.includes("--timeout-ms"), `expected --timeout-ms in help`);
+
+  const helpShort = await runNode(["-h"]);
+  assert.equal(helpShort.code, 0);
+  assert.equal(helpShort.stderr, "");
+  assert.equal(helpShort.stdout, helpLong.stdout);
+});
+
+test("watch-copilot-review uses production-safe defaults (1-minute poll, 24-hour timeout)", () => {
+  const options = parseWatchCliArgs(["--repo", "owner/repo", "--pr", "17"]);
+  assert.equal(options.pollIntervalMs, 60_000);
+  assert.equal(options.timeoutMs, 86_400_000);
+});
+
+test("watch-copilot-review trims surrounding whitespace from --repo", () => {
+  const options = parseWatchCliArgs(["--repo", " owner/repo ", "--pr", "17"]);
+  assert.equal(options.repo, "owner/repo");
+});
+

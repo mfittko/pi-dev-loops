@@ -208,7 +208,11 @@ export function parseJsonText(text) {
 }
 
 export function formatCliError(error) {
-  return JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) });
+  const payload = { ok: false, error: error instanceof Error ? error.message : String(error) };
+  if (error instanceof Error && typeof error.usage === "string") {
+    payload.usage = error.usage;
+  }
+  return JSON.stringify(payload);
 }
 
 export async function runCli(

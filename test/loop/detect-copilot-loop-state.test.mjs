@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
+import { autoDetectSnapshot } from "../../scripts/loop/detect-copilot-loop-state.mjs";
+
 const scriptPath = path.resolve("scripts/loop/detect-copilot-loop-state.mjs");
 const fixturePath = path.resolve("packages/core/test/fixtures/github/review-threads/mixed-threads.json");
 
@@ -350,6 +352,49 @@ test("detect-copilot-loop-state auto-detect returns unresolved_feedback_present 
   }
 });
 
+test("autoDetectSnapshot uses the default ghCommand when deps omit it", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-auto-detect-default-deps-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          reviews: [],
+          statusCheckRollup: [],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${emptyThreads}\n`,
+      },
+    ]);
+
+    const snapshot = await autoDetectSnapshot(
+      { repo: "owner/repo", pr: 17 },
+      { env },
+    );
+
+    assert.equal(snapshot.prExists, true);
+    assert.equal(snapshot.prNumber, 17);
+    assert.equal(snapshot.copilotReviewRequestStatus, "none");
+    assert.equal(snapshot.unresolvedThreadCount, 0);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-loop-state auto-detect returns waiting_for_copilot_review when Copilot is requested", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-waiting-"));
 
@@ -611,38 +656,43 @@ test("detect-copilot-loop-state rejects malformed arguments deterministically", 
   const missingPr = await runNode(["--repo", "owner/repo"]);
   assert.equal(missingPr.code, 1);
   assert.equal(missingPr.stdout, "");
-  assert.deepEqual(JSON.parse(missingPr.stderr), {
-    ok: false,
-    error: "Auto-detect mode requires both --repo <owner/name> and --pr <number>",
-  });
+  const missingPrErr = JSON.parse(missingPr.stderr);
+  assert.equal(missingPrErr.ok, false);
+  assert.equal(missingPrErr.error, "Auto-detect mode requires both --repo <owner/name> and --pr <number>");
+  assert.equal(typeof missingPrErr.usage, "string");
+  assert(missingPrErr.usage.length > 0);
 
   const zeroPr = await runNode(["--repo", "owner/repo", "--pr", "0"]);
   assert.equal(zeroPr.code, 1);
-  assert.deepEqual(JSON.parse(zeroPr.stderr), {
-    ok: false,
-    error: "--pr must be a positive integer",
-  });
+  const zeroPrErr = JSON.parse(zeroPr.stderr);
+  assert.equal(zeroPrErr.ok, false);
+  assert.equal(zeroPrErr.error, "--pr must be a positive integer");
+  assert.equal(typeof zeroPrErr.usage, "string");
+  assert(zeroPrErr.usage.length > 0);
 
   const noArgs = await runNode([]);
   assert.equal(noArgs.code, 1);
-  assert.deepEqual(JSON.parse(noArgs.stderr), {
-    ok: false,
-    error: "Provide either --input <path> or --repo <owner/name> --pr <number>",
-  });
+  const noArgsErr = JSON.parse(noArgs.stderr);
+  assert.equal(noArgsErr.ok, false);
+  assert.equal(noArgsErr.error, "Provide either --input <path> or --repo <owner/name> --pr <number>");
+  assert.equal(typeof noArgsErr.usage, "string");
+  assert(noArgsErr.usage.length > 0);
 
   const mixedSources = await runNode(["--input", "/tmp/snap.json", "--repo", "owner/repo", "--pr", "17"]);
   assert.equal(mixedSources.code, 1);
-  assert.deepEqual(JSON.parse(mixedSources.stderr), {
-    ok: false,
-    error: "Choose exactly one input source: --input <path> or --repo/--pr auto-detect",
-  });
+  const mixedErr = JSON.parse(mixedSources.stderr);
+  assert.equal(mixedErr.ok, false);
+  assert.equal(mixedErr.error, "Choose exactly one input source: --input <path> or --repo/--pr auto-detect");
+  assert.equal(typeof mixedErr.usage, "string");
+  assert(mixedErr.usage.length > 0);
 
   const unknown = await runNode(["--repo", "owner/repo", "--pr", "17", "--wat"]);
   assert.equal(unknown.code, 1);
-  assert.deepEqual(JSON.parse(unknown.stderr), {
-    ok: false,
-    error: "Unknown argument: --wat",
-  });
+  const unknownErr = JSON.parse(unknown.stderr);
+  assert.equal(unknownErr.ok, false);
+  assert.equal(unknownErr.error, "Unknown argument: --wat");
+  assert.equal(typeof unknownErr.usage, "string");
+  assert(unknownErr.usage.length > 0);
 
   const badOverride = await runNode(["--repo", "owner/repo", "--pr", "17", "--review-request-status", "bogus"]);
   assert.equal(badOverride.code, 1);
@@ -651,6 +701,21 @@ test("detect-copilot-loop-state rejects malformed arguments deterministically", 
   const overrideWithInput = await runNode(["--input", "/tmp/snap.json", "--review-request-status", "none"]);
   assert.equal(overrideWithInput.code, 1);
   assert.match(JSON.parse(overrideWithInput.stderr).error, /--review-request-status/);
+});
+
+test("detect-copilot-loop-state --help prints usage and exits 0", async () => {
+  const helpLong = await runNode(["--help"]);
+  assert.equal(helpLong.code, 0);
+  assert.equal(helpLong.stderr, "");
+  assert(helpLong.stdout.includes("detect-copilot-loop-state.mjs"), `expected script name in help, got: ${helpLong.stdout}`);
+  assert(helpLong.stdout.includes("--repo"), `expected --repo in help`);
+  assert(helpLong.stdout.includes("--pr"), `expected --pr in help`);
+  assert(helpLong.stdout.includes("--input"), `expected --input in help`);
+
+  const helpShort = await runNode(["-h"]);
+  assert.equal(helpShort.code, 0);
+  assert.equal(helpShort.stderr, "");
+  assert.equal(helpShort.stdout, helpLong.stdout);
 });
 
 test("detect-copilot-loop-state reports gh failures deterministically", async () => {

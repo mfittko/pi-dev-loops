@@ -24,8 +24,10 @@
  *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }
  *
  * Failure behavior:
- *   Malformed arguments, gh/GitHub failures, and incomplete review-thread detection
- *   emit { "ok": false, "error": "..." } on stderr and exit non-zero.
+ *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
+ *   on stderr and exit non-zero.
+ *   gh/GitHub failures and incomplete review-thread detection emit
+ *   { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -36,13 +38,53 @@ import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-help
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
+const USAGE = `Usage:
+  detect-copilot-loop-state.mjs --repo <owner/name> --pr <number> [--review-request-status <status>]
+  detect-copilot-loop-state.mjs --input <path>
+
+Detect or interpret the current Copilot-loop state.
+
+Modes:
+  Auto-detect  Fetch live PR/GitHub facts and interpret loop state.
+               Requires: --repo, --pr
+  Snapshot     Interpret a pre-built snapshot JSON without any gh calls.
+               Requires: --input
+
+Required (auto-detect mode):
+  --repo <owner/name>                        Repository slug (e.g. owner/repo)
+  --pr <number>                              Pull request number
+
+Required (snapshot mode):
+  --input <path>                             Path to snapshot JSON file
+
+Optional (auto-detect mode only):
+  --review-request-status <status>           Inject a known prior request result.
+                                             Values: requested|already-requested|unavailable|none|failed
+
+Output (stdout, JSON):
+  { "ok": true, "snapshot": {...}, "state": "...", "allowedTransitions": [...], "nextAction": "..." }
+
+Error output (stderr, JSON):
+  Argument/usage errors:
+    { "ok": false, "error": "...", "usage": "..." }
+  gh/runtime failures:
+    { "ok": false, "error": "..." }
+
+Exit codes:
+  0  Success
+  1  Argument error, gh failure, or indeterminate state`.trim();
+
 const VALID_OVERRIDE_STATUSES = new Set(["requested", "already-requested", "unavailable", "none", "failed"]);
+
+function parseError(message) {
+  return Object.assign(new Error(message), { usage: USAGE });
+}
 
 function requireOptionValue(args, flag) {
   const value = args.shift();
 
   if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw new Error(`Missing value for ${flag}`);
+    throw parseError(`Missing value for ${flag}`);
   }
 
   return value;
@@ -50,7 +92,7 @@ function requireOptionValue(args, flag) {
 
 function parsePrNumber(value) {
   if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw new Error("--pr must be a positive integer");
+    throw parseError("--pr must be a positive integer");
   }
 
   return Number(value);
@@ -59,6 +101,7 @@ function parsePrNumber(value) {
 export function parseDetectCliArgs(argv) {
   const args = [...argv];
   const options = {
+    help: false,
     inputPath: undefined,
     repo: undefined,
     pr: undefined,
@@ -67,6 +110,11 @@ export function parseDetectCliArgs(argv) {
 
   while (args.length > 0) {
     const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
 
     if (token === "--input") {
       options.inputPath = requireOptionValue(args, "--input");
@@ -86,21 +134,21 @@ export function parseDetectCliArgs(argv) {
     if (token === "--review-request-status") {
       const val = requireOptionValue(args, "--review-request-status");
       if (!VALID_OVERRIDE_STATUSES.has(val)) {
-        throw new Error(`--review-request-status must be one of: ${[...VALID_OVERRIDE_STATUSES].join(", ")}`);
+        throw parseError(`--review-request-status must be one of: ${[...VALID_OVERRIDE_STATUSES].join(", ")}`);
       }
       options.reviewRequestStatusOverride = val;
       continue;
     }
 
-    throw new Error(`Unknown argument: ${token}`);
+    throw parseError(`Unknown argument: ${token}`);
   }
 
   if (options.inputPath !== undefined) {
     if (options.repo !== undefined || options.pr !== undefined) {
-      throw new Error("Choose exactly one input source: --input <path> or --repo/--pr auto-detect");
+      throw parseError("Choose exactly one input source: --input <path> or --repo/--pr auto-detect");
     }
     if (options.reviewRequestStatusOverride !== undefined) {
-      throw new Error("--review-request-status cannot be combined with --input");
+      throw parseError("--review-request-status cannot be combined with --input");
     }
     return options;
   }
@@ -110,11 +158,15 @@ export function parseDetectCliArgs(argv) {
 
   if (hasRepo || hasPr) {
     if (!hasRepo || !hasPr) {
-      throw new Error("Auto-detect mode requires both --repo <owner/name> and --pr <number>");
+      throw parseError("Auto-detect mode requires both --repo <owner/name> and --pr <number>");
     }
-    parseRepoSlug(options.repo);
+    try {
+      parseRepoSlug(options.repo);
+    } catch (error) {
+      throw parseError(error instanceof Error ? error.message : String(error));
+    }
   } else {
-    throw new Error("Provide either --input <path> or --repo <owner/name> --pr <number>");
+    throw parseError("Provide either --input <path> or --repo <owner/name> --pr <number>");
   }
 
   return options;
@@ -238,8 +290,9 @@ function normalizeCiStatus(rollup) {
 
 /**
  * Auto-detect the current loop snapshot by querying GitHub.
+ * Exported for use by higher-level orchestration helpers.
  */
-async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride }, { env, ghCommand }) {
+export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride }, { env = process.env, ghCommand = "gh" } = {}) {
   const prData = await fetchPrView({ repo, pr }, { env, ghCommand });
 
   if (prData === null) {
@@ -313,6 +366,11 @@ export async function runCli(
   } = {},
 ) {
   const options = parseDetectCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(`${USAGE}\n`);
+    return;
+  }
 
   let snapshot;
 

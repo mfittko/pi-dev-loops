@@ -25,6 +25,52 @@ Typical triggers:
 - watch the Copilot PR and follow up
 - continue PR review/fix work for the current Copilot branch
 
+## Operational cookbook
+
+Quick reference for the common PR follow-up path. All commands use the resolved skill scripts directory (see [Skill asset path resolution](#skill-asset-path-resolution) below).
+
+**1. Detect current loop state**
+```sh
+node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>
+```
+Emits JSON including `{ ok: true, state, allowedTransitions, nextAction, snapshot }`. Follow `nextAction`.
+
+**2. Request Copilot review (if needed)**
+```sh
+node <resolved-skill-scripts>/github/request-copilot-review.mjs --repo <owner/name> --pr <number>
+```
+Emits JSON including `{ ok: true, status, repo, pr, reviewer, detail? }`.
+
+**3. Watch for fresh Copilot review activity**
+```sh
+node <resolved-skill-scripts>/github/watch-copilot-review.mjs \
+  --repo <owner/name> --pr <number> \
+  --poll-interval-ms 60000 --timeout-ms 86400000
+```
+Emits JSON including `{ ok: true, status, repo, pr, attempts, newComments, newReviews, newIssueComments }`.
+
+**4. One-step detect → request → emit watch params (preferred handoff)**
+```sh
+node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
+```
+Detects state, requests review when appropriate, and emits JSON including `{ ok: true, action, state, allowedTransitions, nextAction, snapshot, reviewRequestStatus?, watchArgs? }`.
+When `action` is `"watch"`, use the returned `watchArgs` with `watch-copilot-review.mjs` directly.
+
+**Request status reference**
+| Status | Meaning | Next step |
+| --- | --- | --- |
+| `requested` | Copilot added to reviewers | Baseline and watch |
+| `already-requested` | Copilot was already pending | Baseline and watch |
+| `unavailable` | Copilot review not enabled | Report and stop |
+
+**Pass `--help` to any helper for full usage:**
+```sh
+node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --help
+node <resolved-skill-scripts>/github/request-copilot-review.mjs --help
+node <resolved-skill-scripts>/github/watch-copilot-review.mjs --help
+node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --help
+```
+
 ## What this skill assumes about this repo
 
 This repository is **GitHub-first**, not local-phase-first.
@@ -282,11 +328,13 @@ This workflow is intentionally long-lived.
 Do not rely on short default timeouts for unattended Copilot loops.
 
 Preferred defaults for this repo:
-- poll interval for review/activity watchers: **1 minute**
-- unattended watch timeout: **24 hours**
-- if the user says to stay on it until done or avoid near-term timeout, prefer **72 hours**
+- poll interval for review/activity watchers: **1 minute** (`--poll-interval-ms 60000`)
+- unattended watch timeout: **24 hours** (`--timeout-ms 86400000`)
+- if the user says to stay on it until done or avoid near-term timeout, prefer **72 hours** (`--timeout-ms 259200000`)
 - parent/subagent no-activity threshold for watcher-style runs: at least **15 minutes**
 - active-long-running notice threshold for watcher-style runs: about **30 minutes**
+
+These are the defaults built into `watch-copilot-review.mjs` and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Pass them explicitly when overriding.
 
 A watcher sleeping between polls is expected behavior, not a blocker.
 

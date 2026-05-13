@@ -7,6 +7,37 @@ import { fileURLToPath } from "node:url";
 import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "./capture-review-threads.mjs";
 
+const USAGE = `Usage: watch-copilot-review.mjs --repo <owner/name> --pr <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
+
+Poll for fresh Copilot review activity on a GitHub pull request.
+
+Required:
+  --repo <owner/name>           Repository slug (e.g. owner/repo)
+  --pr <number>                 Pull request number
+
+Optional:
+  --poll-interval-ms <ms>       Milliseconds between polls (default: 60000, i.e. 1 minute)
+  --timeout-ms <ms>             Total watch budget in ms; 0 = single check (default: 86400000, i.e. 24 hours)
+
+Output (stdout, JSON):
+  { "ok": true, "status": "changed"|"timeout"|"idle", "repo": "...", "pr": N, "attempts": N,
+    "newComments": [...], "newReviews": [...], "newIssueComments": [...] }
+
+Activity statuses:
+  changed    Fresh Copilot review activity found (check newComments/newReviews/newIssueComments)
+  timeout    Watch period elapsed with no fresh Copilot activity
+  idle       Zero-timeout single check found no change
+
+Error output (stderr, JSON):
+  Argument/usage errors:
+    { "ok": false, "error": "...", "usage": "..." }
+  gh/runtime failures:
+    { "ok": false, "error": "..." }
+
+Exit codes:
+  0  Success
+  1  Argument error or gh failure`.trim();
+
 const COPILOT_ACTIVITY_QUERY = [
   "query($owner: String!, $name: String!, $pr: Int!) {",
   "  repository(owner: $owner, name: $name) {",
@@ -52,11 +83,15 @@ const COPILOT_ACTIVITY_QUERY = [
   "}",
 ].join("\n");
 
+function parseError(message) {
+  return Object.assign(new Error(message), { usage: USAGE });
+}
+
 function requireOptionValue(args, flag) {
   const value = args.shift();
 
   if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw new Error(`Missing value for ${flag}`);
+    throw parseError(`Missing value for ${flag}`);
   }
 
   return value;
@@ -64,7 +99,7 @@ function requireOptionValue(args, flag) {
 
 function parseNonNegativeInteger(value, flag) {
   if (!/^\d+$/.test(value)) {
-    throw new Error(`${flag} must be a non-negative integer`);
+    throw parseError(`${flag} must be a non-negative integer`);
   }
 
   return Number(value);
@@ -72,7 +107,7 @@ function parseNonNegativeInteger(value, flag) {
 
 function parsePositiveInteger(value, flag) {
   if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw new Error(`${flag} must be a positive integer`);
+    throw parseError(`${flag} must be a positive integer`);
   }
 
   return Number(value);
@@ -81,17 +116,23 @@ function parsePositiveInteger(value, flag) {
 export function parseWatchCliArgs(argv) {
   const args = [...argv];
   const options = {
+    help: false,
     repo: undefined,
     pr: undefined,
-    pollIntervalMs: 1000,
-    timeoutMs: 60_000,
+    pollIntervalMs: 60_000,
+    timeoutMs: 86_400_000,
   };
 
   while (args.length > 0) {
     const token = args.shift();
 
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
+
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo");
+      options.repo = requireOptionValue(args, "--repo").trim();
       continue;
     }
 
@@ -110,11 +151,17 @@ export function parseWatchCliArgs(argv) {
       continue;
     }
 
-    throw new Error(`Unknown argument: ${token}`);
+    throw parseError(`Unknown argument: ${token}`);
   }
 
   if (options.repo === undefined || options.pr === undefined) {
-    throw new Error("Watching Copilot review requires both --repo <owner/name> and --pr <number>");
+    throw parseError("Watching Copilot review requires both --repo <owner/name> and --pr <number>");
+  }
+
+  try {
+    parseRepoSlug(options.repo);
+  } catch (error) {
+    throw parseError(error instanceof Error ? error.message : String(error));
   }
 
   return options;
@@ -281,6 +328,12 @@ export async function runCli(
   } = {},
 ) {
   const options = parseWatchCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(`${USAGE}\n`);
+    return;
+  }
+
   const baseline = parseCopilotActivity(await fetchGithubCopilotActivityPayload(
     { repo: options.repo, pr: options.pr },
     { env, ghCommand },
