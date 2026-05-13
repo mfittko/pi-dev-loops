@@ -19,6 +19,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Use feature branches and small commits only after local verification.
 - For public-facing or release-bound changes, prefer GitHub issues/PRs/CI over direct local-main finalization.
 - Use detailed structured PR descriptions, not thin placeholder summaries. At minimum include: change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
+- In PR review/fix loops, do not stop at local code changes alone: after an accepted fix is pushed, reply to the addressed review comments with the resolving commit reference and resolve the corresponding threads when genuinely satisfied.
 - Do not merge directly to `main` without review when a PR-based remote loop is practical.
 
 ## Core guard rails

@@ -234,6 +234,10 @@ Inspect:
 - latest commits
 - CI results
 
+When confirming whether Copilot is requested as a reviewer, do not rely solely on `gh pr view --json reviewRequests`.
+
+Prefer `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers` or an equivalent GraphQL review-request query when reviewer-request confirmation matters.
+
 ## Step 6: Async watch behavior
 
 When the user wants Pi to wait for fresh Copilot review activity, prefer native GitHub watch behavior when `gh` supports the exact wait condition, and otherwise use a deterministic watcher rather than ad hoc polling.
@@ -277,7 +281,12 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - defer / non-blocking / disagree
 3. apply only the accepted narrow fixes
 4. run the smallest validation that honestly proves the fix
-5. if scope has broadened, stop and ask before continuing
+5. if files changed, push the resolving commit before any thread reply claims the fix is present
+6. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
+7. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
+8. if scope has broadened, stop and ask before continuing
+
+Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up.
 
 When helpful, run parallel review angles such as:
 - correctness/regressions
@@ -331,7 +340,7 @@ Always stop and ask before these actions unless explicitly authorized already:
 - editing repository files
 - assigning or reassigning an issue
 - changing labels or milestones
-- posting GitHub comments
+- posting GitHub comments or review replies
 - submitting a PR review
 - resolving review threads
 - committing local changes
