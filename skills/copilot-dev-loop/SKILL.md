@@ -179,6 +179,22 @@ When you do hand work to Copilot:
 - reference the issue number and acceptance criteria clearly
 - keep instructions implementation-focused and test-aware
 
+## PR description contract
+
+When opening or updating a PR through this workflow, do not use a thin placeholder body.
+
+The PR description should be detailed enough that a fresh reviewer can understand the intended change without reconstructing it from commits alone.
+
+At minimum include clearly labeled sections for:
+- summary of the shipped change
+- scope/context or why this PR exists now
+- explicit acceptance criteria
+- explicit definition of done
+- explicit non-goals
+- links to the relevant issue, durable phase doc, or other planning source when applicable
+
+Keep verdict status, pass/fail assessments, evidence tables, and changelog-style release notes out of the PR description; those belong in review output, validation logs, or release notes instead.
+
 ## Timeout and watch policy
 
 This workflow is intentionally long-lived.
@@ -211,11 +227,16 @@ Treat the PR as the main working artifact once it exists.
 
 Inspect:
 - PR body and title
+- whether the PR body actually satisfies the PR description contract above
 - PR author, because verdict handling differs for PRs not opened by the active GitHub user
 - review summaries
 - unresolved inline comments and issue comments
 - latest commits
 - CI results
+
+When confirming whether Copilot is requested as a reviewer, do not rely solely on `gh pr view --json reviewRequests`.
+
+Prefer `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers` or an equivalent GraphQL review-request query when reviewer-request confirmation matters.
 
 ## Step 6: Async watch behavior
 
@@ -260,7 +281,12 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - defer / non-blocking / disagree
 3. apply only the accepted narrow fixes
 4. run the smallest validation that honestly proves the fix
-5. if scope has broadened, stop and ask before continuing
+5. if files changed, push the resolving commit before any thread reply claims the fix is present
+6. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
+7. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
+8. if scope has broadened, stop and ask before continuing
+
+Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up.
 
 When helpful, run parallel review angles such as:
 - correctness/regressions
@@ -314,7 +340,7 @@ Always stop and ask before these actions unless explicitly authorized already:
 - editing repository files
 - assigning or reassigning an issue
 - changing labels or milestones
-- posting GitHub comments
+- posting GitHub comments or review replies
 - submitting a PR review
 - resolving review threads
 - committing local changes

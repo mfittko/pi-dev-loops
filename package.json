@@ -1,6 +1,7 @@
 {
   "name": "pi-dev-loops",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Shared Pi workflow infrastructure for reusable local and remote development loops",
   "keywords": [

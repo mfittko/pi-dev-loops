@@ -26,7 +26,6 @@ export const REVIEW_THREADS_QUERY = [
   "              author {",
   "                login",
   "                __typename",
-  "                ... on Bot { isBot }",
   "              }",
   "            }",
   "          }",

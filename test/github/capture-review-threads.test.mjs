@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile, chmod } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
 const scriptPath = path.resolve("scripts/github/capture-review-threads.mjs");
 const fixturePath = path.resolve("packages/core/test/fixtures/github/review-threads/mixed-threads.json");
+const { REVIEW_THREADS_QUERY } = await import(pathToFileURL(scriptPath).href);
 
 function runNode(args = [], options = {}) {
   return new Promise((resolve) => {
@@ -89,6 +91,10 @@ async function writeGhStub(tempDir, entries) {
     counterPath,
   };
 }
+
+test("capture-review-threads GraphQL query avoids unsupported Bot fields", () => {
+  assert.equal(REVIEW_THREADS_QUERY.includes("isBot"), false);
+});
 
 test("capture-review-threads emits deterministic JSON for --input", async () => {
   const result = await runNode(["--input", fixturePath]);
