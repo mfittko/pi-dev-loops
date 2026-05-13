@@ -61,29 +61,46 @@ async function pathKind(targetPath: string): Promise<"missing" | "directory" | "
   }
 }
 
-async function findSymlinkedAncestor(targetPath: string): Promise<string | undefined> {
-  let currentPath = path.resolve(targetPath);
+async function findSymlinkedAncestor(targetPath: string, anchorPath: string): Promise<string | undefined> {
+  const resolvedTargetPath = path.resolve(targetPath);
+  const resolvedAnchorPath = path.resolve(anchorPath);
+  const relativePath = path.relative(resolvedAnchorPath, resolvedTargetPath);
 
-  while (true) {
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    throw new Error(`Target path is outside the expected skill root anchor: ${targetPath}`);
+  }
+
+  let currentPath = resolvedAnchorPath;
+
+  for (const segment of [".", ...relativePath.split(path.sep).filter(Boolean)]) {
+    if (segment !== ".") {
+      currentPath = path.join(currentPath, segment);
+    }
+
     try {
       const stats = await lstat(currentPath);
-      return stats.isSymbolicLink() ? currentPath : undefined;
+
+      if (stats.isSymbolicLink()) {
+        return currentPath;
+      }
     } catch {
-      // Missing path segments are fine here; keep walking upward until the first existing ancestor.
-    }
-
-    const parentPath = path.dirname(currentPath);
-
-    if (parentPath === currentPath) {
       return undefined;
     }
-
-    currentPath = parentPath;
   }
+
+  return undefined;
 }
 
-async function assertWritableSkillRoot(targetRoot: string) {
-  const symlinkPath = await findSymlinkedAncestor(targetRoot);
+function resolveSymlinkCheckAnchor(scope: InstallScope, targetRoot: string) {
+  if (scope === "system") {
+    return path.resolve(targetRoot, "..", "..", "..");
+  }
+
+  return path.resolve(targetRoot, "..", "..");
+}
+
+async function assertWritableSkillRoot(scope: InstallScope, targetRoot: string) {
+  const symlinkPath = await findSymlinkedAncestor(targetRoot, resolveSymlinkCheckAnchor(scope, targetRoot));
 
   if (symlinkPath) {
     throw new Error(
@@ -123,7 +140,7 @@ export async function syncPackagedSkills({
   targetRoot: string;
   sourceRoot?: string;
 }): Promise<InstallResult> {
-  await assertWritableSkillRoot(targetRoot);
+  await assertWritableSkillRoot(scope, targetRoot);
   await mkdir(targetRoot, { recursive: true });
 
   const results: SkillInstallResult[] = [];
