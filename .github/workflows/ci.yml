@@ -20,7 +20,7 @@ jobs:
           node-version: 24
 
       - name: Install workspace dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run test suite
         run: npm test

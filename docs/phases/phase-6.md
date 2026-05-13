@@ -2,7 +2,7 @@
 
 ## Status
 
-Awaiting-finalization
+awaiting-finalization
 
 ## Objective
 
