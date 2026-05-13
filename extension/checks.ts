@@ -1,7 +1,18 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
+export const DEV_LOOP_CHECK_IDS = [
+  "gh-installed",
+  "gh-auth",
+  "subagent-tool",
+  "git-repo",
+  "local-dev-loop-skill",
+  "copilot-dev-loop-skill",
+] as const;
+
+export type DevLoopCheckId = (typeof DEV_LOOP_CHECK_IDS)[number];
+
 export type DevLoopCheck = {
-  id: string;
+  id: DevLoopCheckId;
   label: string;
   ok: boolean;
   detail: string;
