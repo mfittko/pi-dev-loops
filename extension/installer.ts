@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const PACKAGED_SKILL_NAMES = ["dev-loop", "copilot-dev-loop"] as const;
+const COPILOT_RUNTIME_DOCS = ["copilot-loop-state-graph.md", "reviewer-loop-state-graph.md"] as const;
 
 export type InstallScope = "repo" | "system";
 export type InstallMode = "install" | "update";
@@ -28,6 +29,18 @@ function repoRootFromInstaller() {
 
 export function resolvePackagedSkillsRoot() {
   return path.join(repoRootFromInstaller(), "skills");
+}
+
+export function resolvePackagedScriptsRoot() {
+  return path.join(repoRootFromInstaller(), "scripts");
+}
+
+export function resolvePackagedCoreSourceRoot() {
+  return path.join(repoRootFromInstaller(), "packages", "core", "src");
+}
+
+export function resolvePackagedDocsRoot() {
+  return path.join(repoRootFromInstaller(), "docs");
 }
 
 export function resolveSystemSkillsRoot(homeDirectory = os.homedir()) {
@@ -129,16 +142,43 @@ async function assertWritableSkillTarget(targetPath: string) {
   }
 }
 
+async function copyCopilotRuntimeSupport({
+  targetPath,
+  scriptsRoot,
+  coreSourceRoot,
+  docsRoot,
+}: {
+  targetPath: string;
+  scriptsRoot: string;
+  coreSourceRoot: string;
+  docsRoot: string;
+}) {
+  await cp(scriptsRoot, path.join(targetPath, "scripts"), { recursive: true });
+  await mkdir(path.join(targetPath, "packages", "core"), { recursive: true });
+  await cp(coreSourceRoot, path.join(targetPath, "packages", "core", "src"), { recursive: true });
+  await mkdir(path.join(targetPath, "docs"), { recursive: true });
+
+  for (const docName of COPILOT_RUNTIME_DOCS) {
+    await cp(path.join(docsRoot, docName), path.join(targetPath, "docs", docName));
+  }
+}
+
 export async function syncPackagedSkills({
   mode,
   scope,
   targetRoot,
   sourceRoot = resolvePackagedSkillsRoot(),
+  scriptsRoot = resolvePackagedScriptsRoot(),
+  coreSourceRoot = resolvePackagedCoreSourceRoot(),
+  docsRoot = resolvePackagedDocsRoot(),
 }: {
   mode: InstallMode;
   scope: InstallScope;
   targetRoot: string;
   sourceRoot?: string;
+  scriptsRoot?: string;
+  coreSourceRoot?: string;
+  docsRoot?: string;
 }): Promise<InstallResult> {
   await assertWritableSkillRoot(scope, targetRoot);
   await mkdir(targetRoot, { recursive: true });
@@ -174,6 +214,15 @@ export async function syncPackagedSkills({
     }
 
     await cp(sourcePath, targetPath, { recursive: true });
+
+    if (skillName === "copilot-dev-loop") {
+      await copyCopilotRuntimeSupport({
+        targetPath,
+        scriptsRoot,
+        coreSourceRoot,
+        docsRoot,
+      });
+    }
 
     results.push({
       skillName,
