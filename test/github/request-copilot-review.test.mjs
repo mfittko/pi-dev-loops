@@ -297,32 +297,50 @@ test("request-copilot-review rejects malformed arguments deterministically", asy
   const missingPr = await runNode(["--repo", "owner/repo"]);
   assert.equal(missingPr.code, 1);
   assert.equal(missingPr.stdout, "");
-  assert.deepEqual(JSON.parse(missingPr.stderr), {
-    ok: false,
-    error: "Requesting Copilot review requires both --repo <owner/name> and --pr <number>",
-  });
+  const missingPrErr = JSON.parse(missingPr.stderr);
+  assert.equal(missingPrErr.ok, false);
+  assert.equal(missingPrErr.error, "Requesting Copilot review requires both --repo <owner/name> and --pr <number>");
+  assert.equal(typeof missingPrErr.usage, "string");
+  assert(missingPrErr.usage.length > 0);
 
   const zeroPr = await runNode(["--repo", "owner/repo", "--pr", "0"]);
   assert.equal(zeroPr.code, 1);
   assert.equal(zeroPr.stdout, "");
-  assert.deepEqual(JSON.parse(zeroPr.stderr), {
-    ok: false,
-    error: "--pr must be a positive integer",
-  });
+  const zeroPrErr = JSON.parse(zeroPr.stderr);
+  assert.equal(zeroPrErr.ok, false);
+  assert.equal(zeroPrErr.error, "--pr must be a positive integer");
+  assert.equal(typeof zeroPrErr.usage, "string");
+  assert(zeroPrErr.usage.length > 0);
 
   const badRepo = await runNode(["--repo", " owner / repo ", "--pr", "17"]);
   assert.equal(badRepo.code, 1);
   assert.equal(badRepo.stdout, "");
-  assert.deepEqual(JSON.parse(badRepo.stderr), {
-    ok: false,
-    error: "--repo must match <owner/name>",
-  });
+  const badRepoErr = JSON.parse(badRepo.stderr);
+  assert.equal(badRepoErr.ok, false);
+  assert.equal(badRepoErr.error, "--repo must match <owner/name>");
+  assert.equal(typeof badRepoErr.usage, "string");
+  assert(badRepoErr.usage.length > 0);
 
   const unknown = await runNode(["--repo", "owner/repo", "--pr", "17", "--wat"]);
   assert.equal(unknown.code, 1);
   assert.equal(unknown.stdout, "");
-  assert.deepEqual(JSON.parse(unknown.stderr), {
-    ok: false,
-    error: "Unknown argument: --wat",
-  });
+  const unknownErr = JSON.parse(unknown.stderr);
+  assert.equal(unknownErr.ok, false);
+  assert.equal(unknownErr.error, "Unknown argument: --wat");
+  assert.equal(typeof unknownErr.usage, "string");
+  assert(unknownErr.usage.length > 0);
+});
+
+test("request-copilot-review --help prints usage and exits 0", async () => {
+  const helpLong = await runNode(["--help"]);
+  assert.equal(helpLong.code, 0);
+  assert.equal(helpLong.stderr, "");
+  assert(helpLong.stdout.includes("request-copilot-review.mjs"), `expected script name in help, got: ${helpLong.stdout}`);
+  assert(helpLong.stdout.includes("--repo"), `expected --repo in help`);
+  assert(helpLong.stdout.includes("--pr"), `expected --pr in help`);
+
+  const helpShort = await runNode(["-h"]);
+  assert.equal(helpShort.code, 0);
+  assert.equal(helpShort.stderr, "");
+  assert.equal(helpShort.stdout, helpLong.stdout);
 });
