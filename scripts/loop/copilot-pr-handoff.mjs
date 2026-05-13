@@ -21,8 +21,9 @@
  *     "pollIntervalMs": N, "timeoutMs": N } }
  *
  * Failure behavior:
- *   Malformed arguments or gh failures emit { "ok": false, "error": "..." }
+ *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
  *   on stderr and exit non-zero.
+ *   gh failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";

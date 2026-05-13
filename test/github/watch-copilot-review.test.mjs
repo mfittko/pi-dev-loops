@@ -424,3 +424,9 @@ test("watch-copilot-review uses production-safe defaults (1-minute poll, 24-hour
   assert.equal(options.pollIntervalMs, 60_000);
   assert.equal(options.timeoutMs, 86_400_000);
 });
+
+test("watch-copilot-review trims surrounding whitespace from --repo", () => {
+  const options = parseWatchCliArgs(["--repo", " owner/repo ", "--pr", "17"]);
+  assert.equal(options.repo, "owner/repo");
+});
+

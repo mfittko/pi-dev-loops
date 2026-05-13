@@ -24,8 +24,10 @@
  *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }
  *
  * Failure behavior:
- *   Malformed arguments, gh/GitHub failures, and incomplete review-thread detection
- *   emit { "ok": false, "error": "..." } on stderr and exit non-zero.
+ *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
+ *   on stderr and exit non-zero.
+ *   gh/GitHub failures and incomplete review-thread detection emit
+ *   { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -287,7 +289,7 @@ function normalizeCiStatus(rollup) {
  * Auto-detect the current loop snapshot by querying GitHub.
  * Exported for use by higher-level orchestration helpers.
  */
-export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride }, { env, ghCommand }) {
+export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride }, { env = process.env, ghCommand = "gh" } = {}) {
   const prData = await fetchPrView({ repo, pr }, { env, ghCommand });
 
   if (prData === null) {

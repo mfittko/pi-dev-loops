@@ -129,7 +129,7 @@ export function parseWatchCliArgs(argv) {
     }
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo");
+      options.repo = requireOptionValue(args, "--repo").trim();
       continue;
     }
 

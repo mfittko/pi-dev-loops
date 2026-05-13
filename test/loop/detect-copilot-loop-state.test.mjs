@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
+import { autoDetectSnapshot } from "../../scripts/loop/detect-copilot-loop-state.mjs";
+
 const scriptPath = path.resolve("scripts/loop/detect-copilot-loop-state.mjs");
 const fixturePath = path.resolve("packages/core/test/fixtures/github/review-threads/mixed-threads.json");
 
@@ -345,6 +347,49 @@ test("detect-copilot-loop-state auto-detect returns unresolved_feedback_present 
     assert.equal(output.snapshot.unresolvedThreadCount, 2);
     assert.equal(output.snapshot.actionableThreadCount, 1);
     assert.equal(output.snapshot.copilotReviewPresent, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("autoDetectSnapshot uses default deps when omitted", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-auto-detect-default-deps-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          reviews: [],
+          statusCheckRollup: [],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${emptyThreads}\n`,
+      },
+    ]);
+
+    const snapshot = await autoDetectSnapshot(
+      { repo: "owner/repo", pr: 17 },
+      { env },
+    );
+
+    assert.equal(snapshot.prExists, true);
+    assert.equal(snapshot.prNumber, 17);
+    assert.equal(snapshot.copilotReviewRequestStatus, "none");
+    assert.equal(snapshot.unresolvedThreadCount, 0);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
