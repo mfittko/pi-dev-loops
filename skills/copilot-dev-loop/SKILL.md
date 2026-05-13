@@ -257,8 +257,8 @@ If the explicit request fails because Copilot review is not enabled for the repo
 Do not treat an attempted request as equivalent to a confirmed request.
 
 For `scripts/github/request-copilot-review.mjs`, branch on the machine-readable result:
-- `requested`: baseline fresh state, then wait/watch when another Copilot pass is actually desired
-- `already-requested`: baseline fresh state, then wait/watch
+- `requested`: if another Copilot pass is actually desired, baseline fresh state and then wait/watch; otherwise report current state without waiting
+- `already-requested`: if another Copilot pass is actually desired, baseline fresh state and then wait/watch; otherwise report current state without waiting
 - `unavailable`: report the limitation and stop unless the user explicitly wants passive waiting without a fresh request
 - non-zero / unexpected failure: stop and report the error rather than entering a sleep/watch loop
 
@@ -286,6 +286,7 @@ Preferred approach for Copilot review follow-up:
 - baseline current Copilot review activity only after that confirmed request state, unless the user explicitly asked for passive waiting without a fresh request
 - poll for new Copilot-authored review activity across review-thread comments, review summaries, and PR issue comments
 - keep the watcher in the current Pi/TelePi session
+- for unattended or long-lived waiting, prefer a Pi async subagent or the designated async follow-up skill rather than inventing a new watcher mechanism
 - after new review activity appears, launch an async Pi fixer in-session
 - do not report the loop complete while fresh Copilot comments remain unresolved; a new Copilot pass must flow back into fixer/reply/resolve work before completion when authorization exists
 - use explicit long timeouts from the timeout policy above rather than short defaults
@@ -295,8 +296,10 @@ Use an existing repo-local async review-follow-up skill or deterministic watcher
 Key rules:
 - expected polling idle time is normal
 - do not restart watchers just because there has been a short quiet period
+- do not use `nohup`, detached shell jobs, tmux/screen sessions, or ad hoc `while`/`sleep` bash loops for this workflow
 - do not bypass session-based async notifications with detached shell automation unless explicitly asked
 - if a watcher is sleeping between polls, prefer raising the orchestration inactivity threshold over interrupting the child
+- if Pi async subagents or the designated async follow-up skill are not appropriate or available, stop and report rather than improvising a shell watcher
 
 ## Step 7: Pi review/fix follow-up loop
 

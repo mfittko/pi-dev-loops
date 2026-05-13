@@ -35,11 +35,21 @@ test("copilot skill still contains its core workflow guidance", async () => {
   assert.match(content, /Default validation should match or approximate/);
 });
 
-test("copilot skill requires github reply\/resolve follow-up and gates waiting on confirmed review-request state", async () => {
+test("copilot skill requires github reply/resolve follow-up and gates waiting on confirmed review-request state", async () => {
   const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
 
-  assert.match(content, /only after GitHub-side reply\/resolve work is done for the addressed threads, decide whether another Copilot pass is desired/);
-  assert.match(content, /only enter a wait\/watch loop if the request result is confirmed as `requested` or `already-requested`/);
-  assert.match(content, /if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway/);
-  assert.match(content, /stop and report the error rather than sleeping and hoping for a new review/);
+  assert.match(content, /reply\/resolve work is done for the addressed threads/);
+  assert.match(content, /wait\/watch loop if the request result is confirmed as `requested` or `already-requested`/);
+  assert.match(content, /`requested`: if another Copilot pass is actually desired/);
+  assert.match(content, /`already-requested`: if another Copilot pass is actually desired/);
+  assert.match(content, /`unavailable`: report the limitation and stop/);
+  assert.match(content, /stop and report the error rather than (?:entering a sleep\/watch loop|sleeping and hoping for a new review)/);
+});
+
+test("copilot skill forbids detached bash watcher loops for async follow-up", async () => {
+  const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(content, /Pi async subagent|designated async follow-up skill/);
+  assert.match(content, /do not use `nohup`, detached shell jobs, tmux\/screen sessions, or ad hoc `while`\/`sleep` bash loops/);
+  assert.match(content, /stop and report rather than improvising a shell watcher/);
 });
