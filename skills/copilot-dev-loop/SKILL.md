@@ -268,16 +268,16 @@ Practical rule for this repo:
 - prefer ordinary `gh pr view`, `gh issue view`, `gh api`, and `gh pr checks` snapshots for one-time inspection
 - use deterministic custom watchers for conditions that `gh` does not natively watch well, such as:
   - waiting for a Copilot-authored PR to appear
-  - waiting for new Copilot review-thread comments after a baseline
+  - waiting for new Copilot review activity after a baseline, including review-thread comments, review summaries, or PR issue comments
   - waiting for unresolved thread state to change in a review-aware way
 
 Preferred approach for Copilot review follow-up:
 - after a PR leaves draft, explicitly request Copilot review first, preferably through `scripts/github/request-copilot-review.mjs`
 - after any follow-up fix commit is pushed and another Copilot pass is wanted, explicitly request Copilot review again for the updated head before waiting
 - baseline current Copilot review activity
-- poll for new Copilot-authored review-thread comments
+- poll for new Copilot-authored review activity across review-thread comments, review summaries, and PR issue comments
 - keep the watcher in the current Pi/TelePi session
-- after new review-thread activity appears, launch an async Pi fixer in-session
+- after new review activity appears, launch an async Pi fixer in-session
 - do not report the loop complete while fresh Copilot comments remain unresolved; a new Copilot pass must flow back into fixer/reply/resolve work before completion when authorization exists
 - use explicit long timeouts from the timeout policy above rather than short defaults
 

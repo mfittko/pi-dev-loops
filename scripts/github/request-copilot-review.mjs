@@ -101,6 +101,25 @@ function parseRequestedReviewersPayload(text) {
   };
 }
 
+function parseReviewsPayload(text) {
+  let payload;
+
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON from gh: ${text.trim() || "<empty>"}`);
+  }
+
+  const reviews = Array.isArray(payload?.reviews) ? payload.reviews : [];
+  const copilotReviewIds = reviews
+    .filter((review) => isCopilotReviewer(review?.author?.login))
+    .map((review) => String(review.id));
+
+  return {
+    copilotReviewIds,
+  };
+}
+
 async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
@@ -114,6 +133,31 @@ async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghComm
   }
 
   return parseRequestedReviewersPayload(result.stdout);
+}
+
+async function fetchCopilotReviewIds({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    ["pr", "view", String(pr), "--repo", repo, "--json", "reviews"],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  return parseReviewsPayload(result.stdout);
+}
+
+async function fetchCopilotReviewState(options, runtime) {
+  const requestedReviewers = await fetchRequestedReviewers(options, runtime);
+  const reviews = await fetchCopilotReviewIds(options, runtime);
+
+  return {
+    requested: requestedReviewers.requested,
+    copilotReviewIds: reviews.copilotReviewIds,
+  };
 }
 
 function classifyRequestFailure(detail) {
@@ -174,7 +218,7 @@ export async function runCli(
   } = {},
 ) {
   const options = parseRequestCliArgs(argv);
-  const before = await fetchRequestedReviewers(options, { env, ghCommand });
+  const before = await fetchCopilotReviewState(options, { env, ghCommand });
 
   if (before.requested) {
     stdout.write(`${JSON.stringify({
@@ -194,10 +238,11 @@ export async function runCli(
     return;
   }
 
-  const after = await fetchRequestedReviewers(options, { env, ghCommand });
+  const after = await fetchCopilotReviewState(options, { env, ghCommand });
+  const reviewCountIncreased = after.copilotReviewIds.length > before.copilotReviewIds.length;
 
-  if (!after.requested) {
-    throw new Error("Copilot review request did not appear in requested reviewers after gh pr edit");
+  if (!after.requested && !reviewCountIncreased) {
+    throw new Error("Copilot review request did not appear in requested reviewers or fresh Copilot reviews after gh pr edit");
   }
 
   stdout.write(`${JSON.stringify(requestResult)}\n`);

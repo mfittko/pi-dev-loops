@@ -83,7 +83,7 @@ For new GitHub mutation helpers in this repo, do not stop at fixture-only confid
 
 ### `scripts/github/watch-copilot-review.mjs`
 
-Watch for fresh Copilot-authored review-thread comment activity on a PR.
+Watch for fresh Copilot-authored review activity on a PR.
 
 Required:
 - `--repo <owner/name>`
@@ -95,13 +95,12 @@ Optional:
 
 Contract:
 - captures a baseline snapshot, then performs a bounded number of follow-up polls
-- returns `changed` only for fresh Copilot-authored review-thread comments that were not present in the baseline snapshot
-- ignores fresh non-Copilot review-thread activity
+- returns `changed` for any fresh Copilot-authored review-thread comments, PR review summaries, or PR issue comments that were not present in the baseline snapshot
+- ignores fresh non-Copilot review activity across those same surfaces
 - `--timeout-ms 0` performs a single immediate recheck and returns `idle` if unchanged
 
 Success output shape:
-- `{ "ok": true, "status": "changed"|"timeout"|"idle", "repo": "owner/name", "pr": 17, "attempts": 1, "newComments": [...] }`
-- this helper does not currently watch general PR review summaries or issue comments; callers that need those signals should not overclaim that coverage
+- `{ "ok": true, "status": "changed"|"timeout"|"idle", "repo": "owner/name", "pr": 17, "attempts": 1, "newComments": [...], "newReviews": [...], "newIssueComments": [...] }`
 
 Failure behavior:
 - malformed arguments and `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero

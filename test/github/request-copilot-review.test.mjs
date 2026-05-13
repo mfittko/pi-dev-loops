@@ -90,12 +90,20 @@ test("request-copilot-review requests Copilot deterministically and verifies via
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
+      },
+      {
         assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
         stdout: "https://github.com/owner/repo/pull/17\n",
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
       },
     ]);
 
@@ -124,6 +132,10 @@ test("request-copilot-review recognizes Copilot under the requested reviewer log
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
       },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -151,6 +163,10 @@ test("request-copilot-review reports already-requested without mutating PR state
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[{"id":"r-1","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -169,6 +185,49 @@ test("request-copilot-review reports already-requested without mutating PR state
   }
 });
 
+test("request-copilot-review accepts an immediate Copilot review as proof the request succeeded", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-immediate-review-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stdout: "https://github.com/owner/repo/pull/17\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[{"id":"r-2","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "requested",
+      repo: "owner/repo",
+      pr: 17,
+      reviewer: "Copilot",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("request-copilot-review normalizes known unrequestable/unavailable failures", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-unavailable-"));
 
@@ -177,6 +236,10 @@ test("request-copilot-review normalizes known unrequestable/unavailable failures
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
       },
       {
         assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
@@ -210,6 +273,10 @@ test("request-copilot-review wraps invalid gh JSON deterministically", async () 
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: "not-json\n",
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
       },
     ]);
 
