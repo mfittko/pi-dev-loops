@@ -30,12 +30,11 @@ test("copilot skill still contains its core workflow guidance", async () => {
   const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
 
   assert.match(content, /Before planning, review, or automation:/);
+  assert.match(content, /Skill asset path resolution/);
+  assert.match(content, /Do not assume `scripts\/\.\.\.` is repo-local to the target codebase/i);
+  assert.match(content, /source repository the skill scripts directory is `\.\.\/scripts\//);
   assert.match(content, /Before any GitHub mutation/);
   assert.match(content, /Preferred defaults for this repo:/);
-  assert.match(content, /relative to this skill directory/i);
-  assert.match(content, /~\/\.pi\/agent\/skills/i);
-  assert.match(content, /1 minute/i);
-  assert.match(content, /24 hours/i);
   assert.match(content, /Default validation should match or approximate/);
 });
 
