@@ -96,7 +96,7 @@ export function isActionableThread(thread) {
   return extractRawComments(thread).some((comment) => isActionableComment(comment));
 }
 
-function normalizeComment(comment, threadId, index) {
+function normalizeComment(comment, threadId, index, { isResolved = false } = {}) {
   const author = normalizeAuthor(comment?.author);
   const body = normalizeBody(comment?.body ?? comment?.bodyText ?? comment?.bodyHTML ?? "");
 
@@ -105,7 +105,7 @@ function normalizeComment(comment, threadId, index) {
     threadId,
     author,
     body,
-    isActionable: body.length > 0 && author.login.length > 0 && author.type !== "System" && !author.isBot,
+    isActionable: !isResolved && body.length > 0 && author.login.length > 0 && author.type !== "System" && !author.isBot,
   };
 }
 
@@ -114,13 +114,12 @@ export function parseReviewThreads(payload) {
   const comments = [];
   const threads = rawThreads.map((thread, threadIndex) => {
     const threadId = normalizeId(thread?.id ?? thread?.databaseId, `thread-${threadIndex + 1}`);
+    const isResolved = Boolean(thread?.isResolved);
     const normalizedComments = extractRawComments(thread)
-      .map((comment, commentIndex) => normalizeComment(comment, threadId, commentIndex))
+      .map((comment, commentIndex) => normalizeComment(comment, threadId, commentIndex, { isResolved }))
       .sort((left, right) => compareIds(left.id, right.id));
 
     comments.push(...normalizedComments);
-
-    const isResolved = Boolean(thread?.isResolved);
     const actionableCommentIds = isResolved
       ? []
       : normalizedComments

@@ -93,7 +93,7 @@ test("parseReviewThreads normalizes fixture-backed review thread data", async ()
       threadId: "t-2",
       author: { login: "maintainer", type: "User", isBot: false },
       body: "Resolve after the docs update lands.",
-      isActionable: true,
+      isActionable: false,
     },
     {
       id: "c-3",

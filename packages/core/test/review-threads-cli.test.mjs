@@ -53,6 +53,8 @@ test("parse-review-threads CLI emits stable machine-readable success output", as
   });
   assert.equal(output.ok, true);
   assert.equal(output.threads[0].id, "t-1");
+  assert.equal(output.comments[1].id, "c-2");
+  assert.equal(output.comments[1].isActionable, false);
   assert.equal(output.comments[3].id, "c-4");
 });
 
