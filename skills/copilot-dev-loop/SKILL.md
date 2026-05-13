@@ -244,6 +244,10 @@ When confirming whether Copilot is requested as a reviewer, do not rely solely o
 
 Prefer `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers` or an equivalent GraphQL review-request query when reviewer-request confirmation matters.
 
+When a PR is moved from draft to ready, explicitly attempt to request Copilot review rather than assuming repository automation will do it.
+
+If the explicit request fails because Copilot review is not enabled for the repository, the reviewer identity is not requestable, or GitHub rejects the request because the reviewer is not a collaborator/requestable actor, record that exact limitation and continue with the documented watch/follow-up path rather than silently assuming review was requested.
+
 ## Step 6: Async watch behavior
 
 When the user wants Pi to wait for fresh Copilot review activity, prefer native GitHub watch behavior when `gh` supports the exact wait condition, and otherwise use a deterministic watcher rather than ad hoc polling.
@@ -262,6 +266,7 @@ Practical rule for this repo:
   - waiting for unresolved thread state to change in a review-aware way
 
 Preferred approach for Copilot review follow-up:
+- after a PR leaves draft, explicitly try to request Copilot review first
 - baseline current Copilot review activity
 - poll for new Copilot-authored reviews/comments
 - keep the watcher in the current Pi/TelePi session
