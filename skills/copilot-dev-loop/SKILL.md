@@ -123,7 +123,7 @@ for the full state graph and interpretation rules.
 **Key guarantees from the state machine:**
 
 - `unresolvedThreadCount > 0` always routes to fix/reply-resolve — never to a wait/watch state
-- `copilotReviewRequestStatus === "unavailable"` or `"failed"` routes to a terminal stop state — never to sleep or watch
+- `snapshot.copilotReviewRequestStatus === "unavailable"` or `snapshot.copilotReviewRequestStatus === "failed"` routes to a terminal stop state — never to sleep or watch
 - `agentFixStatus === "applied"` with unresolved threads routes to `already_fixed_needs_reply_resolve` — reply/resolve on GitHub is required before re-requesting review
 - Copilot being in `requested_reviewers` (`"requested"` or `"already-requested"`) routes to `waiting_for_copilot_review`
 

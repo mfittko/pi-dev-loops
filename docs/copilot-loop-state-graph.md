@@ -122,7 +122,7 @@ The interpreter applies rules in priority order. The first matching rule wins.
 6. `unresolvedThreadCount > 0 && agentFixStatus === "applied"` → `already_fixed_needs_reply_resolve`
 7. `unresolvedThreadCount > 0` → `unresolved_feedback_present`
    *(Unresolved feedback always takes priority over any wait/watch path)*
-8. `copilotReviewRequestStatus === "requested" || "already-requested"` → `waiting_for_copilot_review`
+8. `copilotReviewRequestStatus === "requested" || copilotReviewRequestStatus === "already-requested"` → `waiting_for_copilot_review`
 9. `copilotReviewPresent && ciStatus === "pending"` → `waiting_for_ci`
 10. `copilotReviewPresent && ciStatus === "failure"` → `blocked_needs_user_decision`
 11. `copilotReviewPresent` → `ready_to_rerequest_review`

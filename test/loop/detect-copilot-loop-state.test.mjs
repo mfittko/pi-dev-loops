@@ -9,7 +9,7 @@ const scriptPath = path.resolve("scripts/loop/detect-copilot-loop-state.mjs");
 const fixturePath = path.resolve("packages/core/test/fixtures/github/review-threads/mixed-threads.json");
 
 function runNode(args = [], options = {}) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [scriptPath, ...args], {
       cwd: options.cwd,
       env: options.env,
@@ -27,6 +27,7 @@ function runNode(args = [], options = {}) {
       stderr += String(chunk);
     });
 
+    child.on("error", reject);
     child.on("close", (code) => {
       resolve({ code, stdout, stderr });
     });
@@ -248,7 +249,6 @@ test("detect-copilot-loop-state --input returns done for merged PR snapshot", as
 
 test("detect-copilot-loop-state auto-detect returns pr_ready_no_feedback for open PR with no review", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-ready-"));
-  const fixtureText = await readFile(fixturePath, "utf8");
 
   try {
     // Fixture has unresolved threads, but we use a clean threads response here
