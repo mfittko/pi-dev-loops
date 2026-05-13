@@ -33,13 +33,13 @@ Quick reference for the common PR follow-up path. All commands use the resolved 
 ```sh
 node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>
 ```
-Emits `{ state, allowedTransitions, nextAction, snapshot }`. Follow `nextAction`.
+Emits JSON including `{ ok: true, state, allowedTransitions, nextAction, snapshot }`. Follow `nextAction`.
 
 **2. Request Copilot review (if needed)**
 ```sh
 node <resolved-skill-scripts>/github/request-copilot-review.mjs --repo <owner/name> --pr <number>
 ```
-Emits `{ status: "requested" | "already-requested" | "unavailable" }`.
+Emits JSON including `{ ok: true, status, repo, pr, reviewer, detail? }`.
 
 **3. Watch for fresh Copilot review activity**
 ```sh
@@ -47,13 +47,13 @@ node <resolved-skill-scripts>/github/watch-copilot-review.mjs \
   --repo <owner/name> --pr <number> \
   --poll-interval-ms 60000 --timeout-ms 86400000
 ```
-Emits `{ status: "changed" | "timeout" | "idle", newComments, newReviews, newIssueComments }`.
+Emits JSON including `{ ok: true, status, repo, pr, attempts, newComments, newReviews, newIssueComments }`.
 
 **4. One-step detect → request → emit watch params (preferred handoff)**
 ```sh
 node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
 ```
-Detects state, requests review when appropriate, and emits `{ action: "watch" | "fix" | "stop", watchArgs? }`.
+Detects state, requests review when appropriate, and emits JSON including `{ ok: true, action, state, allowedTransitions, nextAction, snapshot, reviewRequestStatus?, watchArgs? }`.
 When `action` is `"watch"`, use the returned `watchArgs` with `watch-copilot-review.mjs` directly.
 
 **Request status reference**
