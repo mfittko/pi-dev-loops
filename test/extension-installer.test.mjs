@@ -124,6 +124,18 @@ test("install refuses symlinked roots, symlinked ancestors, and skill targets to
     /Ancestor path is a symlink/i,
   );
 
+  await mkdir(path.join(realPiRoot, "skills"), { recursive: true });
+
+  await assert.rejects(
+    syncPackagedSkills({
+      mode: "update",
+      scope: "repo",
+      sourceRoot,
+      targetRoot: path.join(symlinkedAncestorRoot, ".pi", "skills"),
+    }),
+    /Ancestor path is a symlink/i,
+  );
+
   const realRepoRoot = path.join(tempDir, "real-repo-root");
   const linkedRepoRoot = path.join(tempDir, "linked-repo-root");
   await mkdir(path.join(realRepoRoot, ".pi"), { recursive: true });
