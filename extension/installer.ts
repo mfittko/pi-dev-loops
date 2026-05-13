@@ -61,14 +61,42 @@ async function pathKind(targetPath: string): Promise<"missing" | "directory" | "
   }
 }
 
-async function assertWritableSkillRoot(targetRoot: string) {
-  const kind = await pathKind(targetRoot);
+async function findSymlinkedAncestor(targetPath: string): Promise<string | undefined> {
+  let currentPath = path.resolve(targetPath);
 
-  if (kind === "symlink") {
+  while (true) {
+    try {
+      const stats = await lstat(currentPath);
+
+      if (stats.isSymbolicLink()) {
+        return currentPath;
+      }
+
+      return undefined;
+    } catch {
+      // Missing path segments are fine here; keep walking upward until the first existing ancestor.
+    }
+
+    const parentPath = path.dirname(currentPath);
+
+    if (parentPath === currentPath) {
+      return undefined;
+    }
+
+    currentPath = parentPath;
+  }
+}
+
+async function assertWritableSkillRoot(targetRoot: string) {
+  const symlinkPath = await findSymlinkedAncestor(targetRoot);
+
+  if (symlinkPath) {
     throw new Error(
-      `Refusing to install into symlinked skill root: ${targetRoot}. Use a real directory target or manage the symlink source directly.`,
+      `Refusing to install into symlinked skill root: ${targetRoot}. Ancestor path is a symlink: ${symlinkPath}. Use a real directory target or manage the symlink source directly.`,
     );
   }
+
+  const kind = await pathKind(targetRoot);
 
   if (kind === "other") {
     throw new Error(`Skill root exists but is not a directory: ${targetRoot}`);

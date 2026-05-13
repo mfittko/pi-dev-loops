@@ -40,6 +40,8 @@ function formatInstallStatus(status: InstallStatus): string {
       return "updated";
     case "already-installed":
       return "already installed";
+    default:
+      throw new Error(`Unknown install status: ${status}`);
   }
 }
 

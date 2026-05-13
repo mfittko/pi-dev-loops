@@ -86,7 +86,7 @@ test("update refreshes existing target directories from the packaged source", as
   assert.equal(await readFile(path.join(targetRoot, "copilot-dev-loop", "SKILL.md"), "utf8"), "copilot v2\n");
 });
 
-test("install refuses symlinked roots and skill targets to avoid mutating the symlink source unexpectedly", async () => {
+test("install refuses symlinked roots, symlinked ancestors, and skill targets to avoid mutating the symlink source unexpectedly", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-extension-symlink-"));
   const sourceRoot = path.join(tempDir, "source");
   const realRoot = path.join(tempDir, "real-root");
@@ -108,6 +108,22 @@ test("install refuses symlinked roots and skill targets to avoid mutating the sy
       targetRoot: linkedRoot,
     }),
     /symlinked skill root/i,
+  );
+
+  const symlinkedAncestorRoot = path.join(tempDir, "repo-root");
+  const realPiRoot = path.join(tempDir, "real-pi-root");
+  await mkdir(symlinkedAncestorRoot, { recursive: true });
+  await mkdir(realPiRoot, { recursive: true });
+  await symlink(realPiRoot, path.join(symlinkedAncestorRoot, ".pi"));
+
+  await assert.rejects(
+    syncPackagedSkills({
+      mode: "install",
+      scope: "repo",
+      sourceRoot,
+      targetRoot: path.join(symlinkedAncestorRoot, ".pi", "skills"),
+    }),
+    /Ancestor path is a symlink/i,
   );
 
   const targetRoot = path.join(tempDir, "target");

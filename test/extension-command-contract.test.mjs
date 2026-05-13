@@ -5,6 +5,7 @@ import path from "node:path";
 import { access, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 
 import registerExtension from "../extension/index.ts";
+import { buildInstallResultLines } from "../extension/presentation.ts";
 
 function createPiDouble({ commandResults = new Map(), tools = [], commands = [] } = {}) {
   const events = new Map();
@@ -244,4 +245,20 @@ test("system install failures surface a user-facing error instead of throwing", 
       process.env.HOME = previousHome;
     }
   }
+});
+
+test("buildInstallResultLines throws for unknown install statuses instead of rendering undefined", () => {
+  assert.throws(
+    () => buildInstallResultLines({
+      mode: "install",
+      scope: "repo",
+      targetRoot: "/tmp/repo/.pi/skills",
+      results: [{
+        skillName: "dev-loop",
+        status: "mystery-status",
+        targetPath: "/tmp/repo/.pi/skills/dev-loop",
+      }],
+    }),
+    /Unknown install status: mystery-status/,
+  );
 });
