@@ -39,14 +39,14 @@ async function writeJson(filePath, value) {
 }
 
 async function writeGhStub(tempDir, entries) {
-  const sequencePath = path.join(tempDir, "gh-sequence.json");
-  const counterPath = path.join(tempDir, "gh-counter.txt");
-  const ghPath = path.join(tempDir, "gh");
+  const ghSequenceFilePath = path.join(tempDir, "gh-sequence.json");
+  const ghCallCounterFilePath = path.join(tempDir, "gh-counter.txt");
+  const ghStubScriptPath = path.join(tempDir, "gh");
 
-  await writeFile(sequencePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
-  await writeFile(counterPath, "0\n", "utf8");
+  await writeFile(ghSequenceFilePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+  await writeFile(ghCallCounterFilePath, "0\n", "utf8");
   await writeFile(
-    ghPath,
+    ghStubScriptPath,
     [
       "#!/usr/bin/env node",
       'import { readFileSync, writeFileSync } from "node:fs";',
@@ -72,18 +72,17 @@ async function writeGhStub(tempDir, entries) {
       "if (entry.stderr) process.stderr.write(entry.stderr);",
       "if (entry.stdout) process.stdout.write(entry.stdout);",
       "process.exit(entry.exitCode ?? 0);",
-      "",
     ].join("\n"),
     "utf8",
   );
-  await chmod(ghPath, 0o755);
+  await chmod(ghStubScriptPath, 0o755);
 
   return {
     env: {
       ...process.env,
       PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
-      GH_SEQUENCE_PATH: sequencePath,
-      GH_COUNTER_PATH: counterPath,
+      GH_SEQUENCE_PATH: ghSequenceFilePath,
+      GH_COUNTER_PATH: ghCallCounterFilePath,
     },
   };
 }

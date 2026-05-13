@@ -270,8 +270,17 @@ export function selectReviewerPlan(options = {}) {
   };
 }
 
+/**
+ * Normalize free-form severity text to the bounded set:
+ * critical | high | medium | low | note.
+ * Unknown values are conservatively treated as medium.
+ *
+ * @param {unknown} value
+ * @returns {"critical"|"high"|"medium"|"low"|"note"}
+ */
 function normalizeFindingSeverity(value) {
-  // Unknown severities are treated as medium so merge synthesis stays fail-closed
+  // Unknown severities are treated as medium so merge synthesis stays conservative.
+  // Valid severities: critical, high, medium, low, note.
   // (non-empty findings remain reviewable and can still produce COMMENT/REQUEST_CHANGES).
   const severity = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (["critical", "high", "medium", "low", "note"].includes(severity)) {
@@ -280,6 +289,12 @@ function normalizeFindingSeverity(value) {
   return "medium";
 }
 
+/**
+ * Build a deterministic dedup key from finding location and message.
+ *
+ * @param {object} finding
+ * @returns {string}
+ */
 function findingDedupKey(finding) {
   const pathPart = typeof finding.path === "string" ? finding.path.trim() : "";
   const linePart = typeof finding.line === "number" && finding.line > 0 ? String(Math.floor(finding.line)) : "";
@@ -340,6 +355,16 @@ export function mergeReviewerResults(input = {}) {
 
 export const REVIEWER_SUPPORTED_ANGLES = Object.freeze([...SUPPORTED_REVIEW_ANGLES]);
 
+/**
+ * Determine one merged review verdict from deduplicated findings.
+ * - APPROVE when there are no findings
+ * - REQUEST_CHANGES when a run explicitly hints it, or high/critical severity exists
+ * - COMMENT otherwise
+ *
+ * @param {Array<{severity:string}>} dedupedFindings
+ * @param {boolean} hintRequestsChanges
+ * @returns {"APPROVE"|"REQUEST_CHANGES"|"COMMENT"}
+ */
 function determineReviewVerdict(dedupedFindings, hintRequestsChanges) {
   if (dedupedFindings.length === 0) {
     return "APPROVE";
