@@ -106,6 +106,45 @@ test("interpretReviewerLoopState distinguishes draft prepared, posted, submitted
   assert.equal(submitted.state, REVIEWER_STATE.SUBMITTED_REVIEW);
 });
 
+
+test("interpretReviewerLoopState keeps a fresh pending draft ahead of historical submitted review state", () => {
+  const result = interpretReviewerLoopState({
+    prExists: true,
+    prNumber: 17,
+    prHeadSha: "new",
+    draftReviewPosted: true,
+    draftReviewCommitSha: "new",
+    draftReviewNotificationStatus: "notified",
+    submittedReviewPresent: true,
+    submittedReviewCommitSha: "old",
+  });
+
+  assert.equal(result.state, REVIEWER_STATE.WAITING_FOR_USER_SUBMIT);
+});
+
+
+test("interpretReviewerLoopState lets current PR closure outrank stale local reviewer metadata", () => {
+  const merged = interpretReviewerLoopState({
+    prExists: true,
+    prNumber: 17,
+    prMerged: true,
+    reviewSubmissionStatus: "submitted",
+    draftReviewPrepared: true,
+  });
+  assert.equal(merged.state, REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST);
+
+  const submittedWinsOverPrepared = interpretReviewerLoopState({
+    prExists: true,
+    prNumber: 17,
+    prHeadSha: "def",
+    submittedReviewPresent: true,
+    submittedReviewCommitSha: "abc",
+    draftReviewPrepared: true,
+    reviewRequested: false,
+  });
+  assert.equal(submittedWinsOverPrepared.state, REVIEWER_STATE.WAITING_FOR_RE_REQUEST);
+});
+
 test("interpretReviewerLoopState distinguishes waiting_for_author_followup and waiting_for_re_request", () => {
   const waitingFollowup = interpretReviewerLoopState({
     prExists: true,

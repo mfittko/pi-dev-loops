@@ -238,6 +238,42 @@ test("stage-reviewer-draft merges into an existing local state file", async () =
   }
 });
 
+
+test("stage-reviewer-draft reports localStatePath as null when no output path is requested", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-stage-reviewer-null-local-state-"));
+
+  try {
+    const reviewFile = path.join(tempDir, "merged-review.json");
+    await writeJson(reviewFile, {
+      headSha: "abc123",
+      verdict: "COMMENT",
+      inlineComments: [],
+      summaryFindings: [],
+    });
+
+    const gh = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/reviews", "--input", "-"],
+        stdout: '{"id":446,"html_url":"https://github.com/owner/repo/pull/17#pullrequestreview-446","state":"PENDING","commit_id":"abc123"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo",
+      "owner/repo",
+      "--pr",
+      "17",
+      "--review-file",
+      reviewFile,
+    ], { env: gh.env });
+
+    assert.equal(result.code, 0);
+    assert.equal(JSON.parse(result.stdout).localStatePath, null);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("stage-reviewer-draft rejects malformed arguments and missing headSha deterministically", async () => {
   const missing = await runNode(["--repo", "owner/repo"]);
   assert.equal(missing.code, 1);
@@ -309,6 +345,46 @@ test("stage-reviewer-draft reports gh failures deterministically", async () => {
     assert.deepEqual(JSON.parse(result.stderr), {
       ok: false,
       error: "gh command failed: boom",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+test("stage-reviewer-draft rejects malformed success payloads from gh deterministically", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-stage-reviewer-bad-success-"));
+
+  try {
+    const reviewFile = path.join(tempDir, "merged-review.json");
+    await writeJson(reviewFile, {
+      headSha: "abc123",
+      verdict: "COMMENT",
+      inlineComments: [],
+      summaryFindings: [],
+    });
+
+    const gh = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/reviews", "--input", "-"],
+        stdout: '{"id":447,"html_url":"https://github.com/owner/repo/pull/17#pullrequestreview-447","state":"COMMENTED","commit_id":"abc123"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo",
+      "owner/repo",
+      "--pr",
+      "17",
+      "--review-file",
+      reviewFile,
+    ], { env: gh.env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "Draft review payload from gh did not include id, url, PENDING state, and commit_id",
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });

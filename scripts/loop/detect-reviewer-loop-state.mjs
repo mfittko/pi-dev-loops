@@ -280,7 +280,16 @@ async function readLocalState(pathname) {
     return {};
   }
 
-  const text = await readFile(pathname, "utf8");
+  let text;
+  try {
+    text = await readFile(pathname, "utf8");
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return {};
+    }
+    throw error;
+  }
+
   const parsed = parseJsonText(text);
 
   if (!parsed || typeof parsed !== "object") {

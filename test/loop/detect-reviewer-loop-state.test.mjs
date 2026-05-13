@@ -299,6 +299,106 @@ test("detect-reviewer-loop-state auto-detect returns waiting_for_user_submit for
   }
 });
 
+
+test("detect-reviewer-loop-state auto-detect treats missing local state as empty metadata", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reviewer-auto-missing-local-"));
+
+  try {
+    const missingLocalStatePath = path.join(tempDir, "missing-state.json");
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({ isDraft: false, state: "OPEN", number: 17, headRefOid: "abc123" }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/reviews"],
+        stdout: "[]\n",
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo",
+      "owner/repo",
+      "--pr",
+      "17",
+      "--local-state",
+      missingLocalStatePath,
+    ], { env });
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "waiting_for_review_request");
+    assert.equal(output.snapshot.prExists, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+test("detect-reviewer-loop-state auto-detect keeps fresh pending review ahead of historical submitted review", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reviewer-auto-rereview-draft-"));
+
+  try {
+    const localStatePath = path.join(tempDir, "local-state.json");
+    await writeJson(localStatePath, { draftReviewNotificationStatus: "notified" });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({ isDraft: false, state: "OPEN", number: 17, headRefOid: "newsha" }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/reviews"],
+        stdout: JSON.stringify([
+          {
+            id: 200,
+            state: "COMMENTED",
+            user: { login: "pi-reviewer" },
+            commit_id: "oldsha",
+            html_url: "https://github.test/review/200",
+          },
+          {
+            id: 201,
+            state: "PENDING",
+            user: { login: "pi-reviewer" },
+            commit_id: "newsha",
+            html_url: "https://github.test/review/201",
+          },
+        ]) + "\n",
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo",
+      "owner/repo",
+      "--pr",
+      "17",
+      "--reviewer-login",
+      "pi-reviewer",
+      "--local-state",
+      localStatePath,
+    ], { env });
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "waiting_for_user_submit");
+    assert.equal(output.snapshot.submittedReviewPresent, true);
+    assert.equal(output.snapshot.submittedReviewCommitSha, "oldsha");
+    assert.equal(output.snapshot.draftReviewCommitSha, "newsha");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-reviewer-loop-state auto-detect marks stale draft as review_invalidated", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reviewer-auto-invalidated-"));
 

@@ -145,7 +145,7 @@ async function postDraftReview({ repo, pr, reviewPayload }, { env = process.env,
 
 async function writeLocalState(pathname, fragment) {
   if (!pathname) {
-    return undefined;
+    return null;
   }
 
   let current = {};

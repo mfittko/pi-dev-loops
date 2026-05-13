@@ -178,35 +178,23 @@ export function interpretReviewerLoopState(snapshot) {
 
   let state;
 
-  if (s.reviewSubmissionStatus === "failed"
+  if (!s.prExists || s.prMerged || s.prClosed) {
+    state = REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST;
+  } else if (s.prDraft) {
+    state = REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST;
+  } else if (s.reviewSubmissionStatus === "failed"
       || s.localPlanningStatus === "failed"
       || s.localReviewRunsStatus === "failed"
       || s.localMergeStatus === "failed") {
     state = REVIEWER_STATE.BLOCKED_NEEDS_USER_DECISION;
-  } else if (s.reviewSubmissionStatus === "submitted") {
-    state = REVIEWER_STATE.SUBMITTED_REVIEW;
-  } else if (!s.prExists || s.prMerged || s.prClosed) {
-    state = REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST;
-  } else if (s.prDraft) {
-    state = REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST;
   } else if (draftIsStale) {
     state = REVIEWER_STATE.REVIEW_INVALIDATED;
   } else if (s.draftReviewPosted) {
-    if (s.submittedReviewPresent) {
-      state = REVIEWER_STATE.SUBMITTED_REVIEW;
-    } else if (s.draftReviewNotificationStatus === "notified") {
+    if (s.draftReviewNotificationStatus === "notified") {
       state = REVIEWER_STATE.WAITING_FOR_USER_SUBMIT;
     } else {
       state = REVIEWER_STATE.DRAFT_REVIEW_POSTED;
     }
-  } else if (s.draftReviewPrepared || s.localMergeStatus === "ready") {
-    state = REVIEWER_STATE.DRAFT_REVIEW_READY;
-  } else if (s.localReviewRunsStatus === "completed") {
-    state = REVIEWER_STATE.MERGE_RESULTS;
-  } else if (s.localReviewRunsStatus === "running") {
-    state = REVIEWER_STATE.REVIEWS_RUNNING;
-  } else if (s.localPlanningStatus === "determining") {
-    state = REVIEWER_STATE.DETERMINE_REVIEW_PLAN;
   } else if (s.submittedReviewPresent) {
     if (authorPushedSinceSubmit) {
       state = s.reviewRequested
@@ -215,6 +203,16 @@ export function interpretReviewerLoopState(snapshot) {
     } else {
       state = REVIEWER_STATE.WAITING_FOR_AUTHOR_FOLLOWUP;
     }
+  } else if (s.reviewSubmissionStatus === "submitted") {
+    state = REVIEWER_STATE.SUBMITTED_REVIEW;
+  } else if (s.draftReviewPrepared || s.localMergeStatus === "ready") {
+    state = REVIEWER_STATE.DRAFT_REVIEW_READY;
+  } else if (s.localReviewRunsStatus === "completed") {
+    state = REVIEWER_STATE.MERGE_RESULTS;
+  } else if (s.localReviewRunsStatus === "running") {
+    state = REVIEWER_STATE.REVIEWS_RUNNING;
+  } else if (s.localPlanningStatus === "determining") {
+    state = REVIEWER_STATE.DETERMINE_REVIEW_PLAN;
   } else if (s.reviewRequested) {
     state = REVIEWER_STATE.REVIEW_REQUESTED;
   } else {
