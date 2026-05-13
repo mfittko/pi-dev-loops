@@ -32,6 +32,28 @@ Failure behavior:
 - malformed arguments, invalid JSON, and `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - live capture is only allowed when both `--repo` and `--pr` are present
 
+### `scripts/github/request-copilot-review.mjs`
+
+Request Copilot review on a PR and verify the request deterministically.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Contract:
+- checks `requested_reviewers` first so an existing Copilot request is detected without mutating PR state again
+- requests Copilot via `gh pr edit <pr> --repo <owner/name> --add-reviewer @copilot`
+- verifies the result through `gh api repos/<owner>/<name>/pulls/<pr>/requested_reviewers`
+- does **not** rely on `gh pr view --json reviewRequests`, which can be incomplete for Copilot reviewer state
+- normalizes known repository/tooling limitations into a machine-readable `unavailable` result instead of forcing callers to parse ad hoc stderr
+
+Success output shape:
+- `{ "ok": true, "status": "requested"|"already-requested"|"unavailable", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
+- `unavailable` also includes a `detail` string with the normalized GitHub/CLI limitation
+
+Failure behavior:
+- malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/github/watch-copilot-review.mjs`
 
 Watch for fresh Copilot-authored review/comment activity on a PR.

@@ -64,6 +64,7 @@ Default operating mode:
 - Use pull requests as the default delivery mechanism for completed work, with reviewable commits and a clear description of code and documentation changes.
 - Default to draft pull requests first, then mark ready for review only after verification passes and the milestone is genuinely reviewable.
 - After moving a PR out of draft, explicitly attempt to request Copilot review instead of assuming repository automation will do it.
+- Prefer the deterministic helper `scripts/github/request-copilot-review.mjs` when it exists, rather than ad hoc CLI/API combinations or web research.
 - If that explicit review request fails because Copilot review is unavailable, not requestable, or rejected by GitHub (for example not a collaborator/requestable reviewer), record the exact blocker in the PR status summary rather than pretending the request succeeded.
 - If work started on `main` and has become non-trivial, move to a task branch before declaring the milestone complete unless the user explicitly requests a direct-to-`main` workflow.
 - When creating or editing issue/PR descriptions or comments, prefer `--body-file` / `-F` or stdin over inline shell strings; use heredocs or temp files for multi-line content and do not interpolate untrusted text directly into shell commands.

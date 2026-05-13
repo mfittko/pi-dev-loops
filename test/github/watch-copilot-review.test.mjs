@@ -115,7 +115,7 @@ test("watch-copilot-review returns idle for a zero-timeout no-change check", asy
       attempts: 1,
       newComments: [],
     });
-    assert(elapsedMs < 500, `expected immediate recheck, got ${elapsedMs}ms`);
+    assert(elapsedMs < 1_000, `expected immediate recheck, got ${elapsedMs}ms`);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

@@ -242,9 +242,11 @@ Inspect:
 
 When confirming whether Copilot is requested as a reviewer, do not rely solely on `gh pr view --json reviewRequests`.
 
-Prefer `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers` or an equivalent GraphQL review-request query when reviewer-request confirmation matters.
+Prefer the deterministic helper `scripts/github/request-copilot-review.mjs` when it exists. That helper verifies reviewer state through `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers`, which is more reliable here than `gh pr view --json reviewRequests`.
 
 When a PR is moved from draft to ready, explicitly attempt to request Copilot review rather than assuming repository automation will do it.
+
+Do not web-search or rediscover this behavior during normal operation. Treat the deterministic helper and the repository docs as the source of truth unless you are explicitly debugging the tooling itself.
 
 If the explicit request fails because Copilot review is not enabled for the repository, the reviewer identity is not requestable, or GitHub rejects the request because the reviewer is not a collaborator/requestable actor, record that exact limitation and continue with the documented watch/follow-up path rather than silently assuming review was requested.
 
@@ -266,7 +268,7 @@ Practical rule for this repo:
   - waiting for unresolved thread state to change in a review-aware way
 
 Preferred approach for Copilot review follow-up:
-- after a PR leaves draft, explicitly try to request Copilot review first
+- after a PR leaves draft, explicitly request Copilot review first, preferably through `scripts/github/request-copilot-review.mjs`
 - baseline current Copilot review activity
 - poll for new Copilot-authored reviews/comments
 - keep the watcher in the current Pi/TelePi session
