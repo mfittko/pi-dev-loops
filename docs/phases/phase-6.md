@@ -17,7 +17,7 @@ The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a for
 - add a top-level MIT `LICENSE` file
 - add matching SPDX license metadata to the root `package.json`
 - add a baseline GitHub Actions CI workflow under `.github/workflows/ci.yml`
-- run the existing root test suite in CI on the declared support floor and current public baseline (Node 20 and Node 24)
+- run the existing root test suite in CI on Node 24
 - reflect the release-hardening phase in durable planning/state docs
 
 ## Explicit non-goals
@@ -35,7 +35,7 @@ The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a for
 - the root `package.json` declares `"license": "MIT"`
 - `.github/workflows/ci.yml` runs on `push` and `pull_request`
 - the workflow installs dependencies and runs `npm test`
-- the workflow uses an explicit Node 20 / Node 24 matrix so CI covers the declared floor and the current public baseline
+- the workflow uses an explicit Node 24 environment
 - `PLAN.md` and `docs/IMPLEMENTATION_STATE.md` reflect the public-release hardening phase
 
 ## Definition of done
@@ -56,7 +56,7 @@ The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a for
 
 - MIT is the chosen initial public license for `pi-dev-loops`
 - the first public CI baseline should stay intentionally small and run the existing root test suite only
-- the initial public CI baseline should cover both the declared Node support floor (20) and the current baseline runtime (24)
+- the initial public CI baseline should default to Node 24 only
 - broader release automation and repository-governance setup remain separate follow-up work
 
 ## Open questions
