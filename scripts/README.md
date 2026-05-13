@@ -105,6 +105,59 @@ Success output shape:
 Failure behavior:
 - malformed arguments and `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/loop/detect-copilot-loop-state.mjs`
+
+Deterministic Copilot-loop state detector. Captures current loop state from observable PR/GitHub
+facts and interprets the snapshot into one explicit current state, allowed next transitions, and
+a recommended next action. This script is the orchestration authority for the async Copilot
+review/fix loop; see `docs/copilot-loop-state-graph.md` for the full state-graph design.
+
+Two modes:
+
+- **Auto-detect**: `--repo <owner/name> --pr <number>`
+  Fetches PR state, Copilot review request status, review threads, and CI checks from GitHub,
+  builds a snapshot, and interprets it.
+
+- **Snapshot interpretation**: `--input <path>`
+  Reads a pre-built snapshot JSON and interprets it without any `gh` calls. Use this mode when
+  the caller has already gathered facts — for example, to incorporate the `status` field from a
+  prior `scripts/github/request-copilot-review.mjs` run, which can report `unavailable` or
+  `failed` statuses that are not observable from static GitHub state alone.
+
+Optional (auto-detect mode only):
+- `--review-request-status <requested|already-requested|unavailable|none|failed>`
+  Override the Copilot review-request status with a known prior result. Skips the
+  `requested_reviewers` API call and injects the provided value directly into the snapshot.
+  Use when the caller already ran `request-copilot-review.mjs` and wants to inject its output
+  status without re-probing the reviewers endpoint.
+
+Snapshot schema (`--input` mode or `snapshot` field in success output):
+- `prExists` {boolean} — whether an open PR was found
+- `prNumber` {number|null} — PR number if prExists, otherwise null
+- `prDraft` {boolean} — whether the PR is in draft state
+- `prMerged` {boolean} — whether the PR has been merged
+- `prClosed` {boolean} — whether the PR was closed without merge
+- `copilotReviewRequestStatus` {"requested"|"already-requested"|"unavailable"|"none"|"failed"} — result of the most recent Copilot review-request attempt
+- `copilotReviewPresent` {boolean} — whether at least one Copilot review exists on the PR
+- `unresolvedThreadCount` {number} — total unresolved review-thread count
+- `actionableThreadCount` {number} — unresolved threads with non-bot actionable comments
+- `ciStatus` {"success"|"failure"|"pending"|"none"} — current CI check rollup
+- `agentFixStatus` {"applied"|null} — agent-provided: "applied" when code has been fixed
+
+Success output shape:
+- `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }`
+- `state` is one of the stable state names defined in `docs/copilot-loop-state-graph.md`
+- `allowedTransitions` is the list of states reachable from `state`
+- `nextAction` is a human-readable recommended next step
+
+Failure behavior:
+- Malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
+Key behavioral guarantees:
+- When `unresolvedThreadCount > 0`, the state is always in the fix/reply-resolve family — never `waiting_for_copilot_review` or any wait state
+- When `copilotReviewRequestStatus` is `unavailable` or `failed`, the state is a terminal stop/report state with no allowed transitions
+- When `agentFixStatus` is `"applied"` and unresolved threads exist, the state is `already_fixed_needs_reply_resolve`, requiring reply/resolve before re-request
+
 ### `scripts/loop/summarize-loop-state.mjs`
 
 Summarize stored loop state from `tmp/phases/index.json` and per-phase manifests.

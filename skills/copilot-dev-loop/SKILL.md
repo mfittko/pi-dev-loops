@@ -106,11 +106,56 @@ Goal:
 - apply only narrow fixes related to the current PR
 - validate and report readiness for the next GitHub action
 
+## Deterministic orchestration authority
+
+When operating in PR follow-up or async watch mode, use the deterministic state machine
+at `scripts/loop/detect-copilot-loop-state.mjs` as the authoritative source for:
+
+- what state the PR/loop is in right now
+- what transitions are currently allowed
+- what the next required action is
+- when to stop instead of guessing
+
+The state machine captures an observable snapshot from GitHub facts and interprets it into
+exactly one current state plus allowed next transitions. See `docs/copilot-loop-state-graph.md`
+for the full state graph and interpretation rules.
+
+**Key guarantees from the state machine:**
+
+- `unresolvedThreadCount > 0` always routes to fix/reply-resolve — never to a wait/watch state
+- `copilotReviewRequestStatus === "unavailable"` or `"failed"` routes to a terminal stop state — never to sleep or watch
+- `agentFixStatus === "applied"` with unresolved threads routes to `already_fixed_needs_reply_resolve` — reply/resolve on GitHub is required before re-requesting review
+- Copilot being in `requested_reviewers` (`"requested"` or `"already-requested"`) routes to `waiting_for_copilot_review`
+
+**How to use the state machine in practice:**
+
+1. Run `node scripts/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>`
+   to get the current state and recommended next action.
+
+2. If you already ran `scripts/github/request-copilot-review.mjs` and got a known status,
+   inject it without re-probing: add `--review-request-status <status>`.
+
+3. When the agent has applied a fix and wants to signal reply/resolve is next, build a snapshot
+   with `agentFixStatus: "applied"` and use `--input <snapshot.json>` for interpretation.
+
+4. Follow the `nextAction` from the machine output. For stop states (`review_request_unavailable`,
+   `blocked_needs_user_decision`), report to the user and do not proceed.
+
+**Judgment calls that remain in the agent layer (not encoded in the machine):**
+
+- Whether a comment should be accepted, deferred, or disagreed with
+- Whether the code change is already sufficient (→ sets `agentFixStatus: "applied"`)
+- What the narrowest valid fix is
+- Whether another Copilot pass is desired (→ triggers re-request or selects `done`)
+
 ## Workflow overview
 
 ```text
 ready issue -> confirm scope -> Copilot branch/PR -> async review/watch -> Pi follow-up fixes -> validation -> confirm verdict/action -> merge when authorized
 ```
+
+Use `scripts/loop/detect-copilot-loop-state.mjs` at each decision point in this flow to
+determine the current state and route to the correct next step deterministically.
 
 ## Step 1: Choose the work item
 
