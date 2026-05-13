@@ -108,17 +108,21 @@ Goal:
 
 ## Deterministic orchestration authority
 
-When operating in PR follow-up or async watch mode, use the deterministic state machine
-at `scripts/loop/detect-copilot-loop-state.mjs` as the authoritative source for:
+When operating in PR follow-up or async watch mode, use the deterministic state machines
+as the authoritative source for:
+
+- Copilot follow-up loop: `scripts/loop/detect-copilot-loop-state.mjs`
+- reviewer-side PR review loop: `scripts/loop/detect-reviewer-loop-state.mjs`
 
 - what state the PR/loop is in right now
 - what transitions are currently allowed
 - what the next required action is
 - when to stop instead of guessing
 
-The state machine captures an observable snapshot from GitHub facts and interprets it into
-exactly one current state plus allowed next transitions. See `docs/copilot-loop-state-graph.md`
-for the full state graph and interpretation rules.
+Each machine captures an observable snapshot from GitHub facts (plus explicit bounded local loop
+metadata when required) and interprets it into exactly one current state plus allowed next
+transitions. See `docs/copilot-loop-state-graph.md` and `docs/reviewer-loop-state-graph.md` for
+the full state graphs and interpretation rules.
 
 **Key guarantees from the state machine:**
 

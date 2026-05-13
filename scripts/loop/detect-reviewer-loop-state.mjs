@@ -1,0 +1,347 @@
+#!/usr/bin/env node
+/**
+ * Deterministic reviewer-loop state detector.
+ *
+ * Two modes:
+ * 1) --input <path> snapshot interpretation
+ * 2) --repo <owner/name> --pr <number> auto-detect from GitHub (+ optional local state file)
+ */
+import { readFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
+import { parseRepoSlug } from "../github/capture-review-threads.mjs";
+import {
+  interpretReviewerLoopState,
+  normalizeReviewerSnapshot,
+} from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+
+function requireOptionValue(args, flag) {
+  const value = args.shift();
+
+  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
+    throw new Error(`Missing value for ${flag}`);
+  }
+
+  return value;
+}
+
+function parsePrNumber(value) {
+  if (!/^\d+$/.test(value) || Number(value) === 0) {
+    throw new Error("--pr must be a positive integer");
+  }
+
+  return Number(value);
+}
+
+function parseBool(value, flag) {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`${flag} must be true or false`);
+}
+
+export function parseDetectReviewerCliArgs(argv) {
+  const args = [...argv];
+  const options = {
+    inputPath: undefined,
+    repo: undefined,
+    pr: undefined,
+    reviewerLogin: undefined,
+    reviewRequestedOverride: undefined,
+    localStatePath: undefined,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+
+    if (token === "--input") {
+      options.inputPath = requireOptionValue(args, "--input");
+      continue;
+    }
+
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo").trim();
+      continue;
+    }
+
+    if (token === "--pr") {
+      options.pr = parsePrNumber(requireOptionValue(args, "--pr"));
+      continue;
+    }
+
+    if (token === "--reviewer-login") {
+      options.reviewerLogin = requireOptionValue(args, "--reviewer-login").trim();
+      continue;
+    }
+
+    if (token === "--review-requested") {
+      options.reviewRequestedOverride = parseBool(
+        requireOptionValue(args, "--review-requested"),
+        "--review-requested",
+      );
+      continue;
+    }
+
+    if (token === "--local-state") {
+      options.localStatePath = requireOptionValue(args, "--local-state");
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${token}`);
+  }
+
+  if (options.inputPath !== undefined) {
+    if (options.repo !== undefined || options.pr !== undefined) {
+      throw new Error("Choose exactly one input source: --input <path> or --repo/--pr auto-detect");
+    }
+    if (options.localStatePath !== undefined || options.reviewRequestedOverride !== undefined || options.reviewerLogin !== undefined) {
+      throw new Error("--input cannot be combined with --reviewer-login, --review-requested, or --local-state");
+    }
+    return options;
+  }
+
+  const hasRepo = options.repo !== undefined;
+  const hasPr = options.pr !== undefined;
+
+  if (hasRepo || hasPr) {
+    if (!hasRepo || !hasPr) {
+      throw new Error("Auto-detect mode requires both --repo <owner/name> and --pr <number>");
+    }
+    parseRepoSlug(options.repo);
+  } else {
+    throw new Error("Provide either --input <path> or --repo <owner/name> --pr <number>");
+  }
+
+  return options;
+}
+
+function runChild(command, args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+async function runGhJson(args, { env, ghCommand }) {
+  const result = await runChild(ghCommand, args, env);
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Invalid JSON from gh: ${result.stdout.trim() || "<empty>"}`);
+  }
+}
+
+async function fetchPrView({ repo, pr }, deps) {
+  const result = await runChild(
+    deps.ghCommand,
+    ["pr", "view", String(pr), "--repo", repo, "--json", "isDraft,state,number,headRefOid"],
+    deps.env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    if (/no pull requests found/i.test(detail) || /could not find pull request/i.test(detail)) {
+      return null;
+    }
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Invalid JSON from gh: ${result.stdout.trim() || "<empty>"}`);
+  }
+}
+
+function reviewMatchesReviewer(review, reviewerLogin) {
+  if (!reviewerLogin) {
+    return true;
+  }
+  const login = typeof review?.user?.login === "string"
+    ? review.user.login
+    : (typeof review?.author?.login === "string" ? review.author.login : "");
+  return login.toLowerCase() === reviewerLogin.toLowerCase();
+}
+
+function isSubmittedReviewState(state) {
+  return ["APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"].includes(state);
+}
+
+function pickLatestById(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return null;
+  }
+  return items
+    .filter(Boolean)
+    .slice()
+    .sort((a, b) => {
+      const aid = typeof a.id === "number" ? a.id : -1;
+      const bid = typeof b.id === "number" ? b.id : -1;
+      return bid - aid;
+    })[0] ?? null;
+}
+
+async function fetchReviewRequested({ repo, pr, reviewerLogin, reviewRequestedOverride }, deps) {
+  if (typeof reviewRequestedOverride === "boolean") {
+    return reviewRequestedOverride;
+  }
+
+  const payload = await runGhJson(["api", `repos/${repo}/pulls/${pr}/requested_reviewers`], deps);
+  const users = Array.isArray(payload?.users) ? payload.users : [];
+
+  if (reviewerLogin) {
+    return users.some((user) => {
+      const login = typeof user?.login === "string" ? user.login : "";
+      return login.toLowerCase() === reviewerLogin.toLowerCase();
+    });
+  }
+
+  return users.length > 0;
+}
+
+async function fetchReviewState({ repo, pr, reviewerLogin }, deps) {
+  const payload = await runGhJson(["api", `repos/${repo}/pulls/${pr}/reviews`], deps);
+  const reviews = Array.isArray(payload) ? payload : [];
+  const scoped = reviews.filter((review) => reviewMatchesReviewer(review, reviewerLogin));
+
+  const pendingReview = pickLatestById(
+    scoped.filter((review) => String(review?.state || "").toUpperCase() === "PENDING"),
+  );
+  const submittedReview = pickLatestById(
+    scoped.filter((review) => isSubmittedReviewState(String(review?.state || "").toUpperCase())),
+  );
+
+  return {
+    draftReviewPosted: Boolean(pendingReview),
+    draftReviewId: typeof pendingReview?.id === "number" ? pendingReview.id : null,
+    draftReviewUrl: typeof pendingReview?.html_url === "string" ? pendingReview.html_url : null,
+    draftReviewCommitSha: typeof pendingReview?.commit_id === "string" ? pendingReview.commit_id : null,
+    submittedReviewPresent: Boolean(submittedReview),
+    submittedReviewCommitSha: typeof submittedReview?.commit_id === "string" ? submittedReview.commit_id : null,
+  };
+}
+
+async function readLocalState(pathname) {
+  if (!pathname) {
+    return {};
+  }
+
+  const text = await readFile(pathname, "utf8");
+  const parsed = parseJsonText(text);
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Local state file must contain a JSON object");
+  }
+
+  return parsed;
+}
+
+async function autoDetectSnapshot(
+  { repo, pr, reviewerLogin, reviewRequestedOverride, localStatePath },
+  deps,
+) {
+  const prView = await fetchPrView({ repo, pr }, deps);
+
+  if (prView === null) {
+    return normalizeReviewerSnapshot({ prExists: false });
+  }
+
+  const localState = await readLocalState(localStatePath);
+  const prState = typeof prView.state === "string" ? prView.state.toUpperCase() : "OPEN";
+  const prMerged = prState === "MERGED";
+  const prClosed = prState === "CLOSED";
+
+  if (prMerged || prClosed) {
+    return normalizeReviewerSnapshot({
+      ...localState,
+      prExists: true,
+      prNumber: typeof prView.number === "number" ? prView.number : pr,
+      prMerged,
+      prClosed,
+      prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null,
+    });
+  }
+
+  const reviewRequested = await fetchReviewRequested(
+    { repo, pr, reviewerLogin, reviewRequestedOverride },
+    deps,
+  );
+
+  const reviewState = await fetchReviewState({ repo, pr, reviewerLogin }, deps);
+
+  return normalizeReviewerSnapshot({
+    ...localState,
+    prExists: true,
+    prNumber: typeof prView.number === "number" ? prView.number : pr,
+    prDraft: Boolean(prView.isDraft),
+    prMerged: false,
+    prClosed: false,
+    prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null,
+    reviewRequested,
+    ...reviewState,
+  });
+}
+
+export async function runCli(
+  argv = process.argv.slice(2),
+  {
+    stdout = process.stdout,
+    env = process.env,
+    ghCommand = "gh",
+  } = {},
+) {
+  const options = parseDetectReviewerCliArgs(argv);
+
+  let snapshot;
+  if (options.inputPath) {
+    const text = await readFile(options.inputPath, "utf8");
+    snapshot = normalizeReviewerSnapshot(parseJsonText(text));
+  } else {
+    snapshot = await autoDetectSnapshot(options, { env, ghCommand });
+  }
+
+  const interpretation = interpretReviewerLoopState(snapshot);
+
+  stdout.write(`${JSON.stringify({
+    ok: true,
+    snapshot,
+    state: interpretation.state,
+    allowedTransitions: interpretation.allowedTransitions,
+    nextAction: interpretation.nextAction,
+  })}\n`);
+}
+
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  runCli().catch((error) => {
+    process.stderr.write(`${formatCliError(error)}\n`);
+    process.exitCode = 1;
+  });
+}
