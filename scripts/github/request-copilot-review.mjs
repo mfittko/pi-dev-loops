@@ -15,7 +15,7 @@ Required:
   --pr <number>         Pull request number
 
 Output (stdout, JSON):
-  { "ok": true, "status": "requested"|"already-requested"|"unavailable", "repo": "...", "pr": N, "reviewer": "Copilot" }
+  { "ok": true, "status": "requested"|"already-requested"|"unavailable", "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "..." }
 
 Request statuses:
   requested           Copilot review was successfully requested
@@ -23,7 +23,10 @@ Request statuses:
   unavailable         Copilot review is not enabled for this repository
 
 Error output (stderr, JSON):
-  { "ok": false, "error": "...", "usage": "..." }
+  Argument/usage errors:
+    { "ok": false, "error": "...", "usage": "..." }
+  gh/runtime failures:
+    { "ok": false, "error": "..." }
 
 Exit codes:
   0  Success (including unavailable)

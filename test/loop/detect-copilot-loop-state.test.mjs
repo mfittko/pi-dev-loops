@@ -352,7 +352,7 @@ test("detect-copilot-loop-state auto-detect returns unresolved_feedback_present 
   }
 });
 
-test("autoDetectSnapshot uses default deps when omitted", async () => {
+test("autoDetectSnapshot uses the default ghCommand when deps omit it", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-auto-detect-default-deps-"));
 
   try {
