@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
+import { access, mkdtemp } from "node:fs/promises";
 
 import registerExtension from "../extension/index.ts";
 
@@ -10,7 +13,13 @@ function createPiDouble({ commandResults = new Map(), tools = [], commands = [] 
   return {
     async exec(_tool, args) {
       const command = args[1];
-      return { code: commandResults.get(command) ?? 1 };
+      const result = commandResults.get(command);
+
+      if (typeof result === "number") {
+        return { code: result, stdout: "", stderr: "" };
+      }
+
+      return result ?? { code: 1, stdout: "", stderr: "" };
     },
     getAllTools() {
       return tools;
@@ -78,7 +87,7 @@ test("extension registers command and session_start wiring", async () => {
   assert.deepEqual(calls.statuses, [{ key: "pi-dev-loops", text: "pi-dev-loops" }]);
 });
 
-test("status is the default action and stays concise", async () => {
+test("help is the default action and lists the command surface", async () => {
   const pi = readyPi();
   registerExtension(pi);
   const { ctx, calls } = createCommandContext();
@@ -87,12 +96,12 @@ test("status is the default action and stays concise", async () => {
 
   const widget = calls.widgets.at(-1);
   assert.equal(widget.key, "pi-dev-loops.setup");
-  assert.match(widget.lines[0], /pi-dev-loops status: 6\/6 checks passed/);
-  assert(widget.lines.some((line) => /Local loop readiness: ready/i.test(line)));
-  assert(widget.lines.some((line) => /Remote GitHub\/Copilot readiness: ready/i.test(line)));
-  assert(widget.lines.some((line) => /Suggested next steps:/i.test(line)));
-  assert.equal(widget.lines.some((line) => /^✅ /.test(line)), false);
-  assert.equal(calls.notifications.at(-1).message, "pi-dev-loops status: 6/6 checks passed");
+  assert.match(widget.lines[0], /pi-dev-loops help/);
+  assert(widget.lines.some((line) => /\/dev-loops status/i.test(line)));
+  assert(widget.lines.some((line) => /^- \/dev-loops install$/i.test(line)));
+  assert(widget.lines.some((line) => /prompts for `repo` or `system`/i.test(line)));
+  assert(widget.lines.some((line) => /skills are installed explicitly/i.test(line)));
+  assert.equal(calls.notifications.at(-1).message, "pi-dev-loops help");
 });
 
 test("status keeps remote readiness blocked outside a git repo", async () => {
@@ -115,7 +124,7 @@ test("status keeps remote readiness blocked outside a git repo", async () => {
   assert(lines.some((line) => /Remote GitHub\/Copilot readiness: needs setup/i.test(line)));
 });
 
-test("doctor shows the full check report and setup adds ordered guidance", async () => {
+test("doctor shows the full check report and install without a target shows usage", async () => {
   const pi = createPiDouble({
     commandResults: new Map([
       ["command -v gh >/dev/null 2>&1", 1],
@@ -134,17 +143,30 @@ test("doctor shows the full check report and setup adds ordered guidance", async
   assert(doctorLines.some((line) => /^⚠️ GitHub CLI authenticated/.test(line)));
   assert.equal(doctorLines.some((line) => /Ordered setup steps:/i.test(line)), false);
 
-  const setupContext = createCommandContext();
-  await pi.registeredCommands.get("dev-loops").handler("setup", setupContext.ctx);
-  const setupLines = setupContext.calls.widgets.at(-1).lines;
-  assert(setupLines.some((line) => /Ordered setup steps:/i.test(line)));
-  assert(setupLines.some((line) => /Install GitHub CLI/i.test(line)));
-  assert(setupLines.some((line) => /Run `gh auth login`/i.test(line)));
+  const installContext = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("install", installContext.ctx);
+  const installLines = installContext.calls.widgets.at(-1).lines;
+  assert(installLines.some((line) => /Usage:/i.test(line)));
+  assert(installLines.some((line) => /\/dev-loops install repo/i.test(line)));
+  assert(installLines.some((line) => /\/dev-loops install system/i.test(line)));
 });
 
-test("hide clears the widget and invalid subcommands fall back to status", async () => {
-  const pi = readyPi();
+test("install repo copies packaged skills into the repository and hide still clears the widget", async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-repo-install-"));
+  const pi = createPiDouble({
+    commandResults: new Map([
+      ["git rev-parse --show-toplevel", { code: 0, stdout: `${repoRoot}\n`, stderr: "" }],
+    ]),
+  });
   registerExtension(pi);
+
+  const installContext = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("install repo", installContext.ctx);
+  const installLines = installContext.calls.widgets.at(-1).lines;
+  assert(installLines.some((line) => /skill directories changed/i.test(line)));
+  assert(installLines.some((line) => /Restart Pi or refresh skill discovery/i.test(line)));
+  await access(path.join(repoRoot, ".pi", "skills", "dev-loop", "SKILL.md"));
+  await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "SKILL.md"));
 
   const hideContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("hide", hideContext.ctx);
@@ -157,5 +179,5 @@ test("hide clears the widget and invalid subcommands fall back to status", async
 
   const fallbackContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("banana", fallbackContext.ctx);
-  assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /pi-dev-loops status:/);
+  assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
 });

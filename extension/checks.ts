@@ -108,7 +108,7 @@ export async function collectDevLoopChecks(pi: ExtensionAPI): Promise<DevLoopChe
       ok: localDevLoopAvailable,
       detail: localDevLoopAvailable
         ? "`/skill:dev-loop` is available."
-        : "The local dev-loop skill is not currently discoverable.",
+        : "Run `/dev-loops install repo` or `/dev-loops install system` to make `/skill:dev-loop` discoverable.",
     },
     {
       id: "copilot-dev-loop-skill",
@@ -116,7 +116,7 @@ export async function collectDevLoopChecks(pi: ExtensionAPI): Promise<DevLoopChe
       ok: copilotDevLoopAvailable,
       detail: copilotDevLoopAvailable
         ? "`/skill:copilot-dev-loop` is available."
-        : "The Copilot dev-loop skill is not currently discoverable.",
+        : "Run `/dev-loops install repo` or `/dev-loops install system` to make `/skill:copilot-dev-loop` discoverable.",
     },
   ];
 }
