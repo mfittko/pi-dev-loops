@@ -18,6 +18,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Keep logs under `tmp/` in deterministic phase-scoped paths.
 - Use feature branches and small commits only after local verification.
 - For public-facing or release-bound changes, prefer GitHub issues/PRs/CI over direct local-main finalization.
+- Use detailed structured PR descriptions, not thin placeholder summaries. At minimum include: change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
 - Do not merge directly to `main` without review when a PR-based remote loop is practical.
 
 ## Core guard rails

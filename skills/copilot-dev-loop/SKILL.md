@@ -179,6 +179,22 @@ When you do hand work to Copilot:
 - reference the issue number and acceptance criteria clearly
 - keep instructions implementation-focused and test-aware
 
+## PR description contract
+
+When opening or updating a PR through this workflow, do not use a thin placeholder body.
+
+The PR description should be detailed enough that a fresh reviewer can understand the intended change without reconstructing it from commits alone.
+
+At minimum include clearly labeled sections for:
+- summary of the shipped change
+- scope/context or why this PR exists now
+- explicit acceptance criteria
+- explicit definition of done
+- explicit non-goals
+- links to the relevant issue, durable phase doc, or other planning source when applicable
+
+Keep verdict status, pass/fail assessments, evidence tables, and changelog-style release notes out of the PR description; those belong in review output, validation logs, or release notes instead.
+
 ## Timeout and watch policy
 
 This workflow is intentionally long-lived.
@@ -211,6 +227,7 @@ Treat the PR as the main working artifact once it exists.
 
 Inspect:
 - PR body and title
+- whether the PR body actually satisfies the PR description contract above
 - PR author, because verdict handling differs for PRs not opened by the active GitHub user
 - review summaries
 - unresolved inline comments and issue comments
