@@ -151,12 +151,13 @@ Success output shape:
 - `nextAction` is a human-readable recommended next step
 
 Failure behavior:
-- Malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+- Malformed arguments, unexpected `gh` failures, and review-thread detection failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 Key behavioral guarantees:
 - When `unresolvedThreadCount > 0`, the state is always in the fix/reply-resolve family — never `waiting_for_copilot_review` or any wait state
 - When `copilotReviewRequestStatus` is `unavailable` or `failed`, the state is a terminal stop/report state with no allowed transitions
-- When `agentFixStatus` is `"applied"` and unresolved threads exist, the state is `already_fixed_needs_reply_resolve`, requiring reply/resolve before re-request
+- When `agentFixStatus` is `"applied"` and unresolved threads exist, the state is `already_fixed_needs_reply_resolve`, and `allowedTransitions` includes only `ready_to_rerequest_review`
+- If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
 
 ### `scripts/loop/summarize-loop-state.mjs`
 

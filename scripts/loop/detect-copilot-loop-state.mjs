@@ -23,8 +23,8 @@
  *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }
  *
  * Failure behavior:
- *   Malformed arguments and gh/GitHub failures emit { "ok": false, "error": "..." }
- *   on stderr and exit non-zero.
+ *   Malformed arguments, gh/GitHub failures, and incomplete review-thread detection
+ *   emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -270,7 +270,9 @@ async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride }, { e
     copilotReviewRequestStatus = copilotRequested ? "already-requested" : "none";
   }
 
-  // Fetch review threads for unresolved counts
+  // Fetch review threads for unresolved counts. This must fail closed: if we
+  // cannot determine thread state, the loop cannot safely choose a wait or
+  // re-request path.
   let unresolvedThreadCount = 0;
   let actionableThreadCount = 0;
 
@@ -281,10 +283,9 @@ async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride }, { e
     const parsed = parseReviewThreads(threadsPayload);
     unresolvedThreadCount = parsed.summary.unresolvedThreads;
     actionableThreadCount = parsed.summary.actionableThreads;
-  } catch {
-    // Non-fatal: if thread fetch fails, treat as 0 threads (conservative — will not hide real threads)
-    unresolvedThreadCount = 0;
-    actionableThreadCount = 0;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not determine review-thread state: ${detail}`);
   }
 
   return normalizeSnapshot({

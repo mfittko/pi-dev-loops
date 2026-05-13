@@ -193,7 +193,7 @@ test("detect-copilot-loop-state --input routes already-fixed threads to already_
     assert.equal(result.code, 0);
     const output = JSON.parse(result.stdout);
     assert.equal(output.state, "already_fixed_needs_reply_resolve");
-    assert.ok(output.allowedTransitions.includes("ready_to_rerequest_review"));
+    assert.deepEqual(output.allowedTransitions, ["ready_to_rerequest_review"]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -594,6 +594,45 @@ test("detect-copilot-loop-state reports gh failures deterministically", async ()
     assert.deepEqual(JSON.parse(result.stderr), {
       ok: false,
       error: "gh command failed: gh: authentication required",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state fails closed when review threads cannot be fetched", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-thread-failure-"));
+
+  try {
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stderr: "GraphQL error: reviewThreads unavailable\n",
+        exitCode: 1,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "Could not determine review-thread state: gh command failed: GraphQL error: reviewThreads unavailable",
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });

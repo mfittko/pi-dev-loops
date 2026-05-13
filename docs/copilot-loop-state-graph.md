@@ -50,7 +50,6 @@ unresolved_feedback_present
 
 already_fixed_needs_reply_resolve
   → ready_to_rerequest_review     (all threads replied to and resolved)
-  → waiting_for_copilot_review    (re-request after reply/resolve complete)
 
 ready_to_rerequest_review
   → waiting_for_copilot_review    (re-request another Copilot pass)
@@ -141,9 +140,13 @@ Rules 6 and 7 check `unresolvedThreadCount > 0` **before** checking review-reque
 
 Rules 4 and 5 check for terminal review-request failures before any other non-closed state. The loop never falls through to `waiting_for_copilot_review` or `waiting_for_ci` when the review request itself has failed.
 
+### Incomplete review-thread detection blocks auto-detect
+
+Auto-detect must fail closed when review-thread state cannot be captured or parsed. The detector must not synthesize `unresolvedThreadCount: 0` from a GitHub or parser failure, because that could hide unresolved feedback and produce an unsafe wait or re-request recommendation.
+
 ### Reply/resolve must precede re-request
 
-`already_fixed_needs_reply_resolve` transitions to `ready_to_rerequest_review`, not directly to `waiting_for_copilot_review`. The agent must explicitly resolve threads on GitHub (via `scripts/github/reply-resolve-review-thread.mjs`) before triggering the next Copilot pass.
+`already_fixed_needs_reply_resolve` transitions only to `ready_to_rerequest_review`, not directly to `waiting_for_copilot_review`. The agent must explicitly resolve threads on GitHub (via `scripts/github/reply-resolve-review-thread.mjs`) before triggering the next Copilot pass.
 
 ## Related Scripts
 

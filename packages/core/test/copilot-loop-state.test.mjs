@@ -235,10 +235,9 @@ test("interpretLoopState routes to already_fixed_needs_reply_resolve when agentF
     agentFixStatus: "applied",
   });
   assert.equal(result.state, STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE);
-  assert.ok(result.allowedTransitions.includes(STATE.READY_TO_REREQUEST_REVIEW));
-  assert.ok(!result.allowedTransitions.includes(STATE.WAITING_FOR_COPILOT_REVIEW) ||
-    result.allowedTransitions.includes(STATE.READY_TO_REREQUEST_REVIEW),
-    "reply/resolve must come before re-request");
+  assert.deepEqual(result.allowedTransitions, [STATE.READY_TO_REREQUEST_REVIEW]);
+  assert.ok(!result.allowedTransitions.includes(STATE.WAITING_FOR_COPILOT_REVIEW),
+    "reply/resolve must complete before re-request becomes allowed");
   assert.match(result.nextAction, /reply/i);
 });
 
@@ -254,6 +253,7 @@ test("interpretLoopState routes to already_fixed_needs_reply_resolve even with p
     agentFixStatus: "applied",
   });
   assert.equal(result.state, STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE);
+  assert.deepEqual(result.allowedTransitions, [STATE.READY_TO_REREQUEST_REVIEW]);
 });
 
 // ---------------------------------------------------------------------------
