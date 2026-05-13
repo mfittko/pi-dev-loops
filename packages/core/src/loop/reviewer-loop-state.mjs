@@ -94,6 +94,8 @@ const SUPPORTED_REVIEW_ANGLES = Object.freeze([
   "security",
   "scope",
 ]);
+const DEFAULT_REVIEW_MAX_PARALLEL = 3;
+const HARD_REVIEW_MAX_PARALLEL = 4;
 
 function normalizeSha(value) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -243,8 +245,8 @@ export function selectReviewerPlan(options = {}) {
   const maxParallel = typeof options.maxParallel === "number"
     && Number.isFinite(options.maxParallel)
     && options.maxParallel > 0
-    ? Math.min(4, Math.floor(options.maxParallel))
-    : 3;
+    ? Math.min(HARD_REVIEW_MAX_PARALLEL, Math.floor(options.maxParallel))
+    : DEFAULT_REVIEW_MAX_PARALLEL;
 
   const chosenAngles = [];
   const source = requestedAngles.length > 0 ? requestedAngles : SUPPORTED_REVIEW_ANGLES;
@@ -269,6 +271,8 @@ export function selectReviewerPlan(options = {}) {
 }
 
 function normalizeFindingSeverity(value) {
+  // Unknown severities are treated as medium so merge synthesis stays fail-closed
+  // (non-empty findings remain reviewable and can still produce COMMENT/REQUEST_CHANGES).
   const severity = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (["critical", "high", "medium", "low", "note"].includes(severity)) {
     return severity;
@@ -322,10 +326,7 @@ export function mergeReviewerResults(input = {}) {
   const inlineComments = deduped.filter((finding) => finding.path && finding.line && finding.message.length > 0);
   const summaryFindings = deduped.filter((finding) => !finding.path || !finding.line);
 
-  const hasBlockingSeverity = deduped.some((finding) => finding.severity === "critical" || finding.severity === "high");
-  const verdict = deduped.length === 0
-    ? "APPROVE"
-    : (hintRequestsChanges || hasBlockingSeverity ? "REQUEST_CHANGES" : "COMMENT");
+  const verdict = determineReviewVerdict(deduped, hintRequestsChanges);
 
   return {
     headSha,
@@ -338,3 +339,18 @@ export function mergeReviewerResults(input = {}) {
 }
 
 export const REVIEWER_SUPPORTED_ANGLES = Object.freeze([...SUPPORTED_REVIEW_ANGLES]);
+
+function determineReviewVerdict(dedupedFindings, hintRequestsChanges) {
+  if (dedupedFindings.length === 0) {
+    return "APPROVE";
+  }
+
+  const hasBlockingSeverity = dedupedFindings
+    .some((finding) => finding.severity === "critical" || finding.severity === "high");
+
+  if (hintRequestsChanges || hasBlockingSeverity) {
+    return "REQUEST_CHANGES";
+  }
+
+  return "COMMENT";
+}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -34,7 +34,6 @@ function runNode(args = [], options = {}) {
 }
 
 async function writeJson(filePath, value) {
-  const { mkdir } = await import("node:fs/promises");
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
@@ -89,8 +88,8 @@ async function writeGhStub(tempDir, entries) {
   };
 }
 
-test("detect-reviewer-loop-state --input interprets planning/running/merge states", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reviewer-input-"));
+test("detect-reviewer-loop-state --input returns correct states for planning/running/merge snapshots", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reviewer-state-detect-"));
 
   try {
     const snapshotPath = path.join(tempDir, "snapshot.json");

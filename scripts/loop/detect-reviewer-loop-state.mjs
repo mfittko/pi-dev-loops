@@ -96,7 +96,10 @@ export function parseDetectReviewerCliArgs(argv) {
     if (options.repo !== undefined || options.pr !== undefined) {
       throw new Error("Choose exactly one input source: --input <path> or --repo/--pr auto-detect");
     }
-    if (options.localStatePath !== undefined || options.reviewRequestedOverride !== undefined || options.reviewerLogin !== undefined) {
+    const hasInputOnlyConflict = options.localStatePath !== undefined
+      || options.reviewRequestedOverride !== undefined
+      || options.reviewerLogin !== undefined;
+    if (hasInputOnlyConflict) {
       throw new Error("--input cannot be combined with --reviewer-login, --review-requested, or --local-state");
     }
     return options;
@@ -179,10 +182,14 @@ async function fetchPrView({ repo, pr }, deps) {
   }
 }
 
-function reviewMatchesReviewer(review, reviewerLogin) {
+function isReviewInScope(review, reviewerLogin) {
   if (!reviewerLogin) {
+    // Without a reviewer scope, include all reviews so detector state reflects
+    // any pending/submitted review activity on the PR.
     return true;
   }
+  // REST `/pulls/{pr}/reviews` uses `user.login`, while some fixture-style payloads
+  // used elsewhere in this repo expose reviewer identity under `author.login`.
   const login = typeof review?.user?.login === "string"
     ? review.user.login
     : (typeof review?.author?.login === "string" ? review.author.login : "");
@@ -228,7 +235,7 @@ async function fetchReviewRequested({ repo, pr, reviewerLogin, reviewRequestedOv
 async function fetchReviewState({ repo, pr, reviewerLogin }, deps) {
   const payload = await runGhJson(["api", `repos/${repo}/pulls/${pr}/reviews`], deps);
   const reviews = Array.isArray(payload) ? payload : [];
-  const scoped = reviews.filter((review) => reviewMatchesReviewer(review, reviewerLogin));
+  const scoped = reviews.filter((review) => isReviewInScope(review, reviewerLogin));
 
   const pendingReview = pickLatestById(
     scoped.filter((review) => String(review?.state || "").toUpperCase() === "PENDING"),
