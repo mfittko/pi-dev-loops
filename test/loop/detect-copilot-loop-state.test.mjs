@@ -525,6 +525,50 @@ test("detect-copilot-loop-state auto-detect detects CI pending status", async ()
   }
 });
 
+test("detect-copilot-loop-state auto-detect prioritizes CI failure over pending checks", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-ci-failure-priority-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          reviews: [],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "FAILURE", name: "test" },
+            { status: "IN_PROGRESS", conclusion: null, name: "build" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.snapshot.ciStatus, "failure");
+    assert.equal(output.state, "blocked_needs_user_decision");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Argument validation
 // ---------------------------------------------------------------------------

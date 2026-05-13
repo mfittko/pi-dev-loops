@@ -31,7 +31,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
+import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
@@ -220,15 +220,18 @@ function normalizeCiStatus(rollup) {
     const status = typeof check.status === "string" ? check.status.toUpperCase() : "";
     const conclusion = typeof check.conclusion === "string" ? check.conclusion.toUpperCase() : "";
 
+    if (status === "COMPLETED" && FAILURE_CONCLUSIONS.has(conclusion)) {
+      hasFailure = true;
+      continue;
+    }
+
     if (status !== "COMPLETED") {
       hasPending = true;
-    } else if (FAILURE_CONCLUSIONS.has(conclusion)) {
-      hasFailure = true;
     }
   }
 
-  if (hasPending) return "pending";
   if (hasFailure) return "failure";
+  if (hasPending) return "pending";
   return "success";
 }
 
@@ -278,8 +281,6 @@ async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride }, { e
 
   try {
     const threadsPayload = await fetchGithubReviewThreadsPayload({ repo, pr }, { env, ghCommand });
-    // parseReviewThreads is available via the core package
-    const { parseReviewThreads } = await import("../../packages/core/src/github/review-threads.mjs");
     const parsed = parseReviewThreads(threadsPayload);
     unresolvedThreadCount = parsed.summary.unresolvedThreads;
     actionableThreadCount = parsed.summary.actionableThreads;

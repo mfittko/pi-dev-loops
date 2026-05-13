@@ -132,7 +132,7 @@ Optional (auto-detect mode only):
   status without re-probing the reviewers endpoint.
 
 Snapshot schema (`--input` mode or `snapshot` field in success output):
-- `prExists` {boolean} — whether an open PR was found
+- `prExists` {boolean} — whether a PR was found
 - `prNumber` {number|null} — PR number if prExists, otherwise null
 - `prDraft` {boolean} — whether the PR is in draft state
 - `prMerged` {boolean} — whether the PR has been merged

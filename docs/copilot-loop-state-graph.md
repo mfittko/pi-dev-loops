@@ -77,7 +77,7 @@ The snapshot is the set of observable facts that the interpreter uses to determi
 
 | Field | Type | Description |
 |---|---|---|
-| `prExists` | `boolean` | Whether an open PR was found |
+| `prExists` | `boolean` | Whether a PR was found |
 | `prNumber` | `number \| null` | PR number if `prExists`, otherwise `null` |
 | `prDraft` | `boolean` | Whether the PR is in draft state |
 | `prMerged` | `boolean` | Whether the PR has been merged |
