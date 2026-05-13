@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { access, mkdtemp } from "node:fs/promises";
+import { access, mkdtemp, writeFile } from "node:fs/promises";
 
 import registerExtension from "../extension/index.ts";
 
@@ -124,7 +124,7 @@ test("status keeps remote readiness blocked outside a git repo", async () => {
   assert(lines.some((line) => /Remote GitHub\/Copilot readiness: needs setup/i.test(line)));
 });
 
-test("doctor shows the full check report and install without a target shows usage", async () => {
+test("doctor shows the full check report and install/update without a target show action-specific usage", async () => {
   const pi = createPiDouble({
     commandResults: new Map([
       ["command -v gh >/dev/null 2>&1", 1],
@@ -148,10 +148,16 @@ test("doctor shows the full check report and install without a target shows usag
   const installLines = installContext.calls.widgets.at(-1).lines;
   assert(installLines.some((line) => /Usage:/i.test(line)));
   assert(installLines.some((line) => /\/dev-loops install repo/i.test(line)));
-  assert(installLines.some((line) => /\/dev-loops install system/i.test(line)));
+  assert(installLines.some((line) => /installs skills in the current git repository/i.test(line)));
+
+  const updateContext = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("update", updateContext.ctx);
+  const updateLines = updateContext.calls.widgets.at(-1).lines;
+  assert(updateLines.some((line) => /\/dev-loops update repo/i.test(line)));
+  assert(updateLines.some((line) => /updates skills in the current git repository/i.test(line)));
 });
 
-test("install repo copies packaged skills into the repository and hide still clears the widget", async () => {
+test("install repo copies packaged skills into the repository, repo errors stay action-specific, and hide still clears the widget", async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-repo-install-"));
   const pi = createPiDouble({
     commandResults: new Map([
@@ -168,6 +174,14 @@ test("install repo copies packaged skills into the repository and hide still cle
   await access(path.join(repoRoot, ".pi", "skills", "dev-loop", "SKILL.md"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "SKILL.md"));
 
+  const repoErrorContext = createCommandContext();
+  const noRepoPi = createPiDouble({
+    commandResults: new Map([["git rev-parse --show-toplevel", { code: 1, stdout: "", stderr: "" }]]),
+  });
+  registerExtension(noRepoPi);
+  await noRepoPi.registeredCommands.get("dev-loops").handler("update repo", repoErrorContext.ctx);
+  assert(repoErrorContext.calls.widgets.at(-1).lines.some((line) => /\/dev-loops update system/i.test(line)));
+
   const hideContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("hide", hideContext.ctx);
   assert.deepEqual(hideContext.calls.widgets.at(-1), {
@@ -180,4 +194,29 @@ test("install repo copies packaged skills into the repository and hide still cle
   const fallbackContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("banana", fallbackContext.ctx);
   assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+});
+
+test("system install failures surface a user-facing error instead of throwing", async () => {
+  const previousHome = process.env.HOME;
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-home-"));
+  process.env.HOME = tempHome;
+
+  try {
+    await writeFile(path.join(tempHome, ".pi"), "not a directory\n");
+
+    const pi = readyPi();
+    registerExtension(pi);
+
+    const { ctx, calls } = createCommandContext();
+    await pi.registeredCommands.get("dev-loops").handler("install system", ctx);
+
+    assert.match(calls.widgets.at(-1).lines[0], /pi-dev-loops install system: failed/);
+    assert.equal(calls.notifications.at(-1).level, "error");
+  } finally {
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
+  }
 });

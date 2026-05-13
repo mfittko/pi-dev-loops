@@ -6,7 +6,7 @@ This repo is intended to become a reusable **Pi package** that bundles:
 
 - generic role agents
 - reusable loop skills
-- a small extension for setup/doctor/dashboard UX
+- a small extension for status/doctor plus explicit skill install/update UX
 - deterministic helper scripts
 - shared library code for GitHub/review/watch state
 

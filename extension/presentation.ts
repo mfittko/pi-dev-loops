@@ -1,5 +1,5 @@
 import type { DevLoopCheck, DevLoopCheckId } from "./checks.ts";
-import type { InstallResult, InstallScope, InstallStatus } from "./installer.ts";
+import type { InstallResult, InstallStatus } from "./installer.ts";
 import { DEV_LOOP_CHECK_IDS, summarizeChecks, renderCheckLines } from "./checks.ts";
 
 export type DevLoopsAction = "doctor" | "help" | "install" | "status" | "update" | "hide";
@@ -114,13 +114,15 @@ export function buildNotificationMessage(action: Extract<DevLoopsAction, "doctor
 }
 
 export function buildInstallUsageLines(action: Extract<DevLoopsAction, "install" | "update">): string[] {
+  const actionVerb = action === "install" ? "installs" : "updates";
+
   return [
     `pi-dev-loops ${action}: choose a target`,
     "Usage:",
     `- /dev-loops ${action} repo`,
     `- /dev-loops ${action} system`,
-    "`repo` installs into the current git repository under `.pi/skills`.",
-    "`system` installs into `~/.pi/agent/skills`.",
+    `\`repo\` ${actionVerb} skills in the current git repository under \`.pi/skills\`.`,
+    `\`system\` ${actionVerb} skills in \`~/.pi/agent/skills\`.`,
   ];
 }
 
@@ -143,10 +145,19 @@ export function buildInstallNotificationMessage(result: InstallResult): string {
 export function buildRepoInstallErrorLines(action: Extract<DevLoopsAction, "install" | "update">): string[] {
   return [
     `pi-dev-loops ${action} repo: not inside a git repository`,
-    "Run the command from a git worktree, or use `/dev-loops install system` to install globally.",
+    `Run the command from a git worktree, or use \`/dev-loops ${action} system\` for the system-wide target.`,
   ];
 }
 
-export function buildScopeLabel(scope: InstallScope): string {
-  return scope;
+export function buildInstallFailureLines(
+  action: Extract<DevLoopsAction, "install" | "update">,
+  scope: "repo" | "system",
+  error: unknown,
+): string[] {
+  const detail = error instanceof Error ? error.message : String(error);
+
+  return [
+    `pi-dev-loops ${action} ${scope}: failed`,
+    detail,
+  ];
 }

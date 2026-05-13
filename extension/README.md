@@ -12,10 +12,14 @@ Installing the package exposes the `/dev-loops` command surface only. It does **
   - concise readiness summary plus lightweight next steps
 - `/dev-loops doctor`
   - full diagnostic report with explicit pass/fail detail
+- `/dev-loops install`
+  - prompts for `repo` or `system` when no target is provided
 - `/dev-loops install repo`
   - copies packaged skills into the current repository under `.pi/skills`
 - `/dev-loops install system`
   - copies packaged skills into `~/.pi/agent/skills`
+- `/dev-loops update`
+  - prompts for `repo` or `system` when no target is provided
 - `/dev-loops update repo`
   - refresh installed skills in the current repository from the packaged source
 - `/dev-loops update system`

@@ -6,6 +6,7 @@ import { collectDevLoopChecks } from "./checks.ts";
 import { resolveSystemSkillsRoot, syncPackagedSkills, type InstallScope } from "./installer.ts";
 import {
   buildHelpLines,
+  buildInstallFailureLines,
   buildInstallNotificationMessage,
   buildInstallResultLines,
   buildInstallUsageLines,
@@ -98,14 +99,19 @@ async function renderInstall(
     resolvedTargetRoot = path.join(repoRoot, ".pi", "skills");
   }
 
-  const result = await syncPackagedSkills({
-    mode: action,
-    scope,
-    targetRoot: resolvedTargetRoot,
-  });
+  try {
+    const result = await syncPackagedSkills({
+      mode: action,
+      scope,
+      targetRoot: resolvedTargetRoot,
+    });
 
-  ctx.ui.setWidget(WIDGET_KEY, buildInstallResultLines(result), { placement: "belowEditor" });
-  ctx.ui.notify(buildInstallNotificationMessage(result), "info");
+    ctx.ui.setWidget(WIDGET_KEY, buildInstallResultLines(result), { placement: "belowEditor" });
+    ctx.ui.notify(buildInstallNotificationMessage(result), "info");
+  } catch (error) {
+    ctx.ui.setWidget(WIDGET_KEY, buildInstallFailureLines(action, scope, error), { placement: "belowEditor" });
+    ctx.ui.notify(`pi-dev-loops ${action} ${scope}: failed`, "error");
+  }
 }
 
 export default function (pi: ExtensionAPI) {
@@ -114,7 +120,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("dev-loops", {
-    description: "Manage pi-dev-loops readiness and skill installation: /dev-loops [status|doctor|install repo|install system|update repo|update system|hide]",
+    description: "Manage pi-dev-loops readiness and explicit skill install/update flows: /dev-loops [help|status|doctor|install [repo|system]|update [repo|system]|hide]",
     handler: async (args, ctx) => {
       const command = parseAction(args);
 
