@@ -56,6 +56,17 @@ If the repo includes generated wiki or LLM context files, treat them as orientat
 
 Verify all material claims against source, tests, configuration, and CI.
 
+## Skill asset path resolution
+
+When this skill refers to helper paths such as `scripts/...` or `docs/...`, resolve them from the actual skill installation layout you are running, not from the active target repository checkout.
+
+Use this rule:
+- if the skill is installed as a normalized standalone copy, helper assets may live under `scripts/` and `docs/` inside the skill directory
+- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-dev-loop/`, so the same helper assets live one level up at `../scripts/` and `../docs/`
+- when in doubt, resolve helper paths relative to this `SKILL.md` file first, then verify the target file exists before running it
+
+Do not assume `scripts/...` is repo-local to the target codebase you are operating on.
+
 ## Authority and safety rules
 
 - Source code, tests, CI, and config are authoritative.
@@ -108,13 +119,15 @@ Goal:
 
 ## Deterministic orchestration authority
 
-Use deterministic helper scripts from `scripts/` and reference docs from `docs/` relative to this skill directory. Paths referenced from this skill are relative to the skill directory so the workflow works from project-local `.pi/skills/`, packaged global installs under `~/.pi/agent/skills/`, or other supported Pi skill locations rather than assuming the active repository has matching root-level helper files.
-
 When operating in PR follow-up or async watch mode, use the deterministic state machines
 as the authoritative source for:
 
-- Copilot follow-up loop: `scripts/loop/detect-copilot-loop-state.mjs`
-- reviewer-side PR review loop: `scripts/loop/detect-reviewer-loop-state.mjs`
+- Copilot follow-up loop: `detect-copilot-loop-state.mjs` from the resolved skill scripts directory
+- reviewer-side PR review loop: `detect-reviewer-loop-state.mjs` from the resolved skill scripts directory
+
+Resolve those helper paths from the skill asset layout described above. In the `pi-dev-loops`
+source repository the skill scripts directory is `../scripts/` relative to this file; in normalized
+installed copies it may instead be `scripts/` inside the installed skill directory.
 
 - what state the PR/loop is in right now
 - what transitions are currently allowed
@@ -123,8 +136,9 @@ as the authoritative source for:
 
 Each machine captures an observable snapshot from GitHub facts (plus explicit bounded local loop
 metadata when required) and interprets it into exactly one current state plus allowed next
-transitions. See `docs/copilot-loop-state-graph.md` and `docs/reviewer-loop-state-graph.md` for
-the full state graphs and interpretation rules.
+transitions. See `copilot-loop-state-graph.md` and `reviewer-loop-state-graph.md` in the resolved
+skill docs directory; in the `pi-dev-loops` source repository that docs directory is `../docs/`
+relative to this file.
 
 **Key guarantees from the state machine:**
 
@@ -135,19 +149,22 @@ the full state graphs and interpretation rules.
 
 **How to use the state machine in practice:**
 
-1. Run `node scripts/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>`
+1. Run `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>`
    to get the current Copilot-loop state and recommended next action.
 
-2. If you already ran `scripts/github/request-copilot-review.mjs` and got a known status,
+2. If you already ran `<resolved-skill-scripts>/github/request-copilot-review.mjs` and got a known status,
    inject it without re-probing: add `--review-request-status <status>`.
 
 3. When the agent has applied a fix and wants to signal reply/resolve is next, build a snapshot
    with `agentFixStatus: "applied"` and use `--input <snapshot.json>` for interpretation.
 
-4. For reviewer-side draft-review work, run `node scripts/loop/detect-reviewer-loop-state.mjs --repo <owner/name> --pr <number> [--reviewer-login <login>] [--local-state <path>]`.
+4. For reviewer-side draft-review work, run `node <resolved-skill-scripts>/loop/detect-reviewer-loop-state.mjs --repo <owner/name> --pr <number> [--reviewer-login <login>] [--local-state <path>]`.
    If the state reaches `draft_review_ready`, stage the pending review with
-   `node scripts/github/stage-reviewer-draft.mjs --repo <owner/name> --pr <number> --review-file <merged-review.json> --local-state-output <state.json>`,
+   `node <resolved-skill-scripts>/github/stage-reviewer-draft.mjs --repo <owner/name> --pr <number> --review-file <merged-review.json> --local-state-output <state.json>`,
    then re-run the detector with `--local-state <state.json>`.
+
+   In the `pi-dev-loops` source repository, `<resolved-skill-scripts>` is `../scripts` relative to this file.
+   In normalized installed skill copies, it may instead be `scripts` inside the installed skill directory.
 
 5. Follow the `nextAction` from the machine output. For stop states (`review_request_unavailable`,
    `blocked_needs_user_decision`), report to the user and do not proceed.
@@ -165,8 +182,9 @@ the full state graphs and interpretation rules.
 ready issue -> confirm scope -> Copilot branch/PR -> async review/watch -> Pi follow-up fixes -> validation -> confirm verdict/action -> merge when authorized
 ```
 
-Use `scripts/loop/detect-copilot-loop-state.mjs` at each decision point in this flow to
-determine the current state and route to the correct next step deterministically.
+Use the resolved `detect-copilot-loop-state.mjs` helper from the skill scripts directory at each
+decision point in this flow to determine the current state and route to the correct next step
+deterministically.
 
 ## Step 1: Choose the work item
 
@@ -298,7 +316,7 @@ Inspect:
 
 When confirming whether Copilot is requested as a reviewer, do not rely solely on `gh pr view --json reviewRequests`.
 
-Prefer the deterministic helper `scripts/github/request-copilot-review.mjs` when it exists. That helper verifies reviewer state through `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers`, which is more reliable here than `gh pr view --json reviewRequests`.
+Prefer the deterministic helper `request-copilot-review.mjs` from the resolved skill scripts directory when it exists. That helper verifies reviewer state through `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers`, which is more reliable here than `gh pr view --json reviewRequests`.
 
 When a PR is moved from draft to ready, explicitly attempt to request Copilot review rather than assuming repository automation will do it.
 
@@ -312,7 +330,7 @@ If the explicit request fails because Copilot review is not enabled for the repo
 
 Do not treat an attempted request as equivalent to a confirmed request.
 
-For `scripts/github/request-copilot-review.mjs`, branch on the machine-readable result:
+For the resolved `request-copilot-review.mjs` helper, branch on the machine-readable result:
 - `requested`: if another Copilot pass is actually desired, baseline fresh state and then wait/watch; otherwise report current state without waiting
 - `already-requested`: if another Copilot pass is actually desired, baseline fresh state and then wait/watch; otherwise report current state without waiting
 - `unavailable`: report the limitation and stop unless the user explicitly wants passive waiting without a fresh request
@@ -336,7 +354,7 @@ Practical rule for this repo:
   - waiting for unresolved thread state to change in a review-aware way
 
 Preferred approach for Copilot review follow-up:
-- after a PR leaves draft, explicitly request Copilot review first, preferably through `scripts/github/request-copilot-review.mjs`
+- after a PR leaves draft, explicitly request Copilot review first, preferably through the resolved `request-copilot-review.mjs` helper
 - after any follow-up fix commit is pushed and another Copilot pass is wanted, explicitly request Copilot review again for the updated head before waiting
 - only enter the watch loop after the request state is confirmed as `requested` or `already-requested`
 - baseline current Copilot review activity only after that confirmed request state, unless the user explicitly asked for passive waiting without a fresh request
@@ -370,7 +388,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
 4. run the smallest validation that honestly proves the fix
 5. if files changed, push the resolving commit before any thread reply claims the fix is present
 6. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
-   - prefer the deterministic helper `scripts/github/reply-resolve-review-thread.mjs` when it exists
+   - prefer the deterministic helper `reply-resolve-review-thread.mjs` from the resolved skill scripts directory when it exists
    - use a body file under `tmp/` rather than inline shell text for the reply body
    - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
 7. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
