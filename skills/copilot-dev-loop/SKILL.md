@@ -108,6 +108,8 @@ Goal:
 
 ## Deterministic orchestration authority
 
+Use deterministic helper scripts from `scripts/` and reference docs from `docs/` relative to this skill directory. Paths referenced from this skill are relative to the skill directory so the workflow works from project-local `.pi/skills/`, packaged global installs under `~/.pi/agent/skills/`, or other supported Pi skill locations rather than assuming the active repository has matching root-level helper files.
+
 When operating in PR follow-up or async watch mode, use the deterministic state machines
 as the authoritative source for:
 
