@@ -392,6 +392,15 @@ test("watch-copilot-review rejects malformed arguments and invalid poll settings
   assert.equal(invalidIntervalErr.error, "--poll-interval-ms must be a positive integer");
   assert.equal(typeof invalidIntervalErr.usage, "string");
   assert(invalidIntervalErr.usage.length > 0);
+
+  const invalidRepo = await runNode(["--repo", " owner / repo ", "--pr", "17"]);
+  assert.equal(invalidRepo.code, 1);
+  assert.equal(invalidRepo.stdout, "");
+  const invalidRepoErr = JSON.parse(invalidRepo.stderr);
+  assert.equal(invalidRepoErr.ok, false);
+  assert.equal(invalidRepoErr.error, "--repo must match <owner/name>");
+  assert.equal(typeof invalidRepoErr.usage, "string");
+  assert(invalidRepoErr.usage.length > 0);
 });
 
 test("watch-copilot-review --help prints usage and exits 0", async () => {

@@ -155,6 +155,12 @@ export function parseWatchCliArgs(argv) {
     throw parseError("Watching Copilot review requires both --repo <owner/name> and --pr <number>");
   }
 
+  try {
+    parseRepoSlug(options.repo);
+  } catch (error) {
+    throw parseError(error instanceof Error ? error.message : String(error));
+  }
+
   return options;
 }
 
