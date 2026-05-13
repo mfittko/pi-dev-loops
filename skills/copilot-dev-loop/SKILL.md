@@ -246,6 +246,8 @@ Prefer the deterministic helper `scripts/github/request-copilot-review.mjs` when
 
 When a PR is moved from draft to ready, explicitly attempt to request Copilot review rather than assuming repository automation will do it.
 
+After any follow-up fix commit is pushed to an open PR, explicitly decide whether another Copilot pass is desired. If yes, request Copilot review again rather than assuming GitHub will automatically re-request it for the new head.
+
 Do not web-search or rediscover this behavior during normal operation. Treat the deterministic helper and the repository docs as the source of truth unless you are explicitly debugging the tooling itself.
 
 When introducing or changing deterministic GitHub write helpers (for example review-request or reply/resolve helpers), do not rely on fixture tests alone if a real authorized PR is available. Run one bounded real-PR smoke check before entrusting a long-lived async loop to that helper.
@@ -271,6 +273,7 @@ Practical rule for this repo:
 
 Preferred approach for Copilot review follow-up:
 - after a PR leaves draft, explicitly request Copilot review first, preferably through `scripts/github/request-copilot-review.mjs`
+- after any follow-up fix commit is pushed and another Copilot pass is wanted, explicitly request Copilot review again for the updated head before waiting
 - baseline current Copilot review activity
 - poll for new Copilot-authored reviews/comments
 - keep the watcher in the current Pi/TelePi session
@@ -297,6 +300,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
 3. apply only the accepted narrow fixes
 4. run the smallest validation that honestly proves the fix
 5. if files changed, push the resolving commit before any thread reply claims the fix is present
+   - after the push, if another Copilot pass is desired, explicitly re-request Copilot review for the new head rather than assuming it remains requested
 6. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
    - prefer the deterministic helper `scripts/github/reply-resolve-review-thread.mjs` when it exists
    - use a body file under `tmp/` rather than inline shell text for the reply body

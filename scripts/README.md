@@ -43,6 +43,7 @@ Required:
 Contract:
 - checks `requested_reviewers` first so an existing Copilot request is detected without mutating PR state again
 - requests Copilot via `gh pr edit <pr> --repo <owner/name> --add-reviewer @copilot`
+- is suitable both for the first request after ready-for-review and for later explicit re-requests after follow-up fix commits land on the PR head
 - verifies the result through `gh api repos/<owner>/<name>/pulls/<pr>/requested_reviewers`
 - does **not** rely on `gh pr view --json reviewRequests`, which can be incomplete for Copilot reviewer state
 - normalizes known repository/tooling limitations into a machine-readable `unavailable` result instead of forcing callers to parse ad hoc stderr

@@ -126,6 +126,21 @@ test("install refuses symlinked roots, symlinked ancestors, and skill targets to
     /Ancestor path is a symlink/i,
   );
 
+  const realRepoRoot = path.join(tempDir, "real-repo-root");
+  const linkedRepoRoot = path.join(tempDir, "linked-repo-root");
+  await mkdir(path.join(realRepoRoot, ".pi"), { recursive: true });
+  await symlink(realRepoRoot, linkedRepoRoot);
+
+  await assert.rejects(
+    syncPackagedSkills({
+      mode: "install",
+      scope: "repo",
+      sourceRoot,
+      targetRoot: path.join(linkedRepoRoot, ".pi", "skills"),
+    }),
+    /Ancestor path is a symlink/i,
+  );
+
   const targetRoot = path.join(tempDir, "target");
   await mkdir(path.join(targetRoot, "copilot-dev-loop"), { recursive: true });
   await symlink(path.join(targetRoot, "copilot-dev-loop"), path.join(targetRoot, "dev-loop"));

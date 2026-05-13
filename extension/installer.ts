@@ -67,12 +67,7 @@ async function findSymlinkedAncestor(targetPath: string): Promise<string | undef
   while (true) {
     try {
       const stats = await lstat(currentPath);
-
-      if (stats.isSymbolicLink()) {
-        return currentPath;
-      }
-
-      return undefined;
+      return stats.isSymbolicLink() ? currentPath : undefined;
     } catch {
       // Missing path segments are fine here; keep walking upward until the first existing ancestor.
     }
