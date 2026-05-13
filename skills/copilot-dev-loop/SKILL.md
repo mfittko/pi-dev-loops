@@ -262,15 +262,15 @@ This workflow is intentionally long-lived.
 Do not rely on short default timeouts for unattended Copilot loops.
 
 Preferred defaults for this repo:
-- poll interval for review/activity watchers: **5 minutes**
-- unattended watch timeout: **72 hours**
-- if the user says to stay on it until done or avoid near-term timeout, prefer **168 hours**
+- poll interval for review/activity watchers: **1 minute**
+- unattended watch timeout: **24 hours**
+- if the user says to stay on it until done or avoid near-term timeout, prefer **72 hours**
 - parent/subagent no-activity threshold for watcher-style runs: at least **15 minutes**
 - active-long-running notice threshold for watcher-style runs: about **30 minutes**
 
 A watcher sleeping between polls is expected behavior, not a blocker.
 
-If the polling interval is 5 minutes, do not treat silence shorter than one full poll interval as suspicious, and do not configure needs-attention thresholds close to 60 seconds for this loop.
+If the polling interval is 1 minute, do not treat silence shorter than one full poll interval as suspicious, and do not configure needs-attention thresholds close to a few seconds for this loop.
 
 ## Step 5: PR discovery and interpretation
 

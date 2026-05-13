@@ -32,6 +32,8 @@ test("copilot skill still contains its core workflow guidance", async () => {
   assert.match(content, /Before planning, review, or automation:/);
   assert.match(content, /Before any GitHub mutation/);
   assert.match(content, /Preferred defaults for this repo:/);
+  assert.match(content, /1 minute/i);
+  assert.match(content, /24 hours/i);
   assert.match(content, /Default validation should match or approximate/);
 });
 

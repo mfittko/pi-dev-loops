@@ -41,7 +41,7 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 
 ## Install/update contract for this phase
 
-`/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories only.
+`/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories. For `copilot-dev-loop`, they also bundle an explicit allow-listed runtime support set under the installed skill directory: the required deterministic script files, the required `packages/core/src/` files, and both loop state-graph docs.
 
 `install` is for first-time setup. `update` refreshes installed skills only, reports missing targets, and guides users back to `install` when first-time setup is still needed.
 
@@ -51,7 +51,7 @@ They do **not**:
 - install `gh`
 - install `pi-subagents`
 - mutate GitHub authentication
-- bootstrap repositories beyond writing skill directories
+- bootstrap repositories beyond writing skill directories and the bundled support files nested under them
 - automatically refresh the current Pi session's already-loaded command list
 
 After install or update, restart Pi or refresh skill discovery before expecting `/skill:dev-loop` or `/skill:copilot-dev-loop` to appear in the current session.
