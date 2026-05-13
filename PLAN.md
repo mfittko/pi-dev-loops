@@ -403,13 +403,6 @@ Acceptance criteria:
 - scripts prefer native `gh` watch support when possible and only use custom polling when necessary
 - scripts are testable with fixtures
 
-Follow-on learnings from merged issue #5 / PR #6 that should shape reviewer-side deterministic loop work:
-
-- keep machine-readable state contracts explicit about the difference between observable current state and prior action-result state; do not overload one enum value to mean both
-- deterministic GitHub-helper tests should fail closed on unexpected extra `gh` calls instead of silently reusing the last scripted response
-- reply/resolve work should remain a first-class loop transition rather than an afterthought once code changes are pushed
-- watcher/detector flows should re-check current state after each GitHub mutation instead of assuming the intended edge succeeded
-
 ### Phase 6 — public release hardening
 
 Now that the repository is public, add the minimum release-readiness pieces needed so outside users can evaluate and adopt it safely.
