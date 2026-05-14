@@ -207,3 +207,19 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(planContent, /Proposal-first new-idea safety layer/i);
   assert.match(planContent, /stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`/i);
 });
+
+test("tracker-first MVP state graph is documented as adapter-agnostic and bounded", async () => {
+  const content = await readRepo("docs/tracker-first-mvp-state-graph.md");
+
+  assert.match(content, /story -> draft PR -> reviewable PR -> merged PR -> tracker sync/i);
+  assert.match(content, /issue `#17`/i);
+  assert.match(content, /complements? `#21`/i);
+  assert.match(content, /narrower than.*`#19`/i);
+  assert.match(content, /waiting_for_review/i);
+  assert.match(content, /waiting_for_ci/i);
+  assert.match(content, /blocked_missing_artifact/i);
+  assert.match(content, /blocked_sync_failed/i);
+  assert.match(content, /stopped_needs_user_decision/i);
+  assert.match(content, /Canonical vs derived vs temporary/i);
+  assert.doesNotMatch(content, /\bJira\b|\bShortcut\b/i);
+});

@@ -186,6 +186,10 @@ transitions. See `copilot-loop-state-graph.md` and `reviewer-loop-state-graph.md
 skill docs directory; in the `pi-dev-loops` source repository that docs directory is `../docs/`
 relative to this file.
 
+For tracker-first MVP `story -> PR -> tracker sync` work, also use
+`tracker-first-mvp-state-graph.md` in that same docs directory as the bounded workflow-family
+contract (under `#17`, complementary to `#21`, narrower than `#19`).
+
 **Key guarantees from the state machine:**
 
 - `unresolvedThreadCount > 0` always routes to fix/reply-resolve — never to a wait/watch state

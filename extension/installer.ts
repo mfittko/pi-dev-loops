@@ -21,7 +21,11 @@ const COPILOT_RUNTIME_CORE_FILES = [
   "loop/phase-files.mjs",
   "loop/reviewer-loop-state.mjs",
 ] as const;
-const COPILOT_RUNTIME_DOCS = ["copilot-loop-state-graph.md", "reviewer-loop-state-graph.md"] as const;
+const COPILOT_RUNTIME_DOCS = [
+  "copilot-loop-state-graph.md",
+  "reviewer-loop-state-graph.md",
+  "tracker-first-mvp-state-graph.md",
+] as const;
 
 export type InstallScope = "repo" | "system";
 export type InstallMode = "install" | "update";
