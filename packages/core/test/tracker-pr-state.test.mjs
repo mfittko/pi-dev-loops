@@ -1,0 +1,282 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  TRACKER_PR_STATE,
+  TRACKER_PR_TRANSITIONS,
+  REVERSE_SYNC_ACTION,
+  normalizeTrackerPrSnapshot,
+  interpretTrackerPrState,
+} from "../src/loop/tracker-pr-state.mjs";
+
+// ---------------------------------------------------------------------------
+// normalizeTrackerPrSnapshot
+// ---------------------------------------------------------------------------
+
+test("normalizeTrackerPrSnapshot rejects non-object input", () => {
+  assert.throws(() => normalizeTrackerPrSnapshot(null), /Snapshot must be a non-null object/);
+  assert.throws(() => normalizeTrackerPrSnapshot(undefined), /Snapshot must be a non-null object/);
+  assert.throws(() => normalizeTrackerPrSnapshot("string"), /Snapshot must be a non-null object/);
+  assert.throws(() => normalizeTrackerPrSnapshot(42), /Snapshot must be a non-null object/);
+});
+
+test("normalizeTrackerPrSnapshot returns safe defaults for an empty object", () => {
+  const result = normalizeTrackerPrSnapshot({});
+  assert.deepEqual(result, {
+    trackerItemExists: false,
+    trackerItemId: null,
+    prExists: false,
+    prNumber: null,
+    prDraft: false,
+    prMerged: false,
+    prClosed: false,
+  });
+});
+
+test("normalizeTrackerPrSnapshot coerces boolean-like fields", () => {
+  const result = normalizeTrackerPrSnapshot({
+    trackerItemExists: 1,
+    prExists: "yes",
+    prDraft: 0,
+    prMerged: "",
+    prClosed: "true",
+  });
+  assert.equal(result.trackerItemExists, true);
+  assert.equal(result.prExists, true);
+  assert.equal(result.prDraft, false);
+  assert.equal(result.prMerged, false);
+  assert.equal(result.prClosed, true);
+});
+
+test("normalizeTrackerPrSnapshot sets trackerItemId only when trackerItemExists is true and value is non-empty string", () => {
+  const withItem = normalizeTrackerPrSnapshot({ trackerItemExists: true, trackerItemId: "PROJ-42" });
+  assert.equal(withItem.trackerItemId, "PROJ-42");
+
+  const noItem = normalizeTrackerPrSnapshot({ trackerItemExists: false, trackerItemId: "PROJ-42" });
+  assert.equal(noItem.trackerItemId, null);
+
+  const emptyId = normalizeTrackerPrSnapshot({ trackerItemExists: true, trackerItemId: "  " });
+  assert.equal(emptyId.trackerItemId, null);
+
+  const numericId = normalizeTrackerPrSnapshot({ trackerItemExists: true, trackerItemId: 42 });
+  assert.equal(numericId.trackerItemId, null);
+});
+
+test("normalizeTrackerPrSnapshot trims whitespace from trackerItemId", () => {
+  const result = normalizeTrackerPrSnapshot({ trackerItemExists: true, trackerItemId: "  STORY-7  " });
+  assert.equal(result.trackerItemId, "STORY-7");
+});
+
+test("normalizeTrackerPrSnapshot normalizes prNumber only when prExists is true and value is a positive integer", () => {
+  const withPr = normalizeTrackerPrSnapshot({ prExists: true, prNumber: 17 });
+  assert.equal(withPr.prNumber, 17);
+
+  const noPr = normalizeTrackerPrSnapshot({ prExists: false, prNumber: 17 });
+  assert.equal(noPr.prNumber, null);
+
+  const negativeNumber = normalizeTrackerPrSnapshot({ prExists: true, prNumber: -5 });
+  assert.equal(negativeNumber.prNumber, null);
+
+  const zeroNumber = normalizeTrackerPrSnapshot({ prExists: true, prNumber: 0 });
+  assert.equal(zeroNumber.prNumber, null);
+
+  const floatNumber = normalizeTrackerPrSnapshot({ prExists: true, prNumber: 7.9 });
+  assert.equal(floatNumber.prNumber, 7);
+});
+
+// ---------------------------------------------------------------------------
+// TRACKER_PR_TRANSITIONS coverage
+// ---------------------------------------------------------------------------
+
+test("TRACKER_PR_TRANSITIONS covers every TRACKER_PR_STATE", () => {
+  const valid = new Set(Object.values(TRACKER_PR_STATE));
+  for (const state of valid) {
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(TRACKER_PR_TRANSITIONS, state),
+      `missing transition entry for state: ${state}`,
+    );
+  }
+  for (const [from, targets] of Object.entries(TRACKER_PR_TRANSITIONS)) {
+    assert.ok(valid.has(from), `transition key ${from} is not a known state`);
+    for (const target of targets) {
+      assert.ok(valid.has(target), `${from} -> ${target} references an unknown state`);
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// REVERSE_SYNC_ACTION coverage
+// ---------------------------------------------------------------------------
+
+test("REVERSE_SYNC_ACTION covers every TRACKER_PR_STATE", () => {
+  const valid = new Set(Object.values(TRACKER_PR_STATE));
+  for (const state of valid) {
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(REVERSE_SYNC_ACTION, state),
+      `missing reverse-sync action for state: ${state}`,
+    );
+    assert.equal(typeof REVERSE_SYNC_ACTION[state], "string");
+  }
+});
+
+test("REVERSE_SYNC_ACTION maps lifecycle states to correct canonical actions", () => {
+  assert.equal(REVERSE_SYNC_ACTION[TRACKER_PR_STATE.NO_TRACKER_ITEM], "none");
+  assert.equal(REVERSE_SYNC_ACTION[TRACKER_PR_STATE.READY_NO_PR], "none");
+  assert.equal(REVERSE_SYNC_ACTION[TRACKER_PR_STATE.DRAFT_PR_OPEN], "set_in_progress");
+  assert.equal(REVERSE_SYNC_ACTION[TRACKER_PR_STATE.PR_REVIEWABLE], "set_reviewable");
+  assert.equal(REVERSE_SYNC_ACTION[TRACKER_PR_STATE.PR_MERGED], "set_done");
+  assert.equal(REVERSE_SYNC_ACTION[TRACKER_PR_STATE.PR_CLOSED_UNMERGED], "none");
+  assert.equal(REVERSE_SYNC_ACTION[TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION], "none");
+});
+
+// ---------------------------------------------------------------------------
+// interpretTrackerPrState — routing
+// ---------------------------------------------------------------------------
+
+test("interpretTrackerPrState routes to no_tracker_item when trackerItemExists is false", () => {
+  const result = interpretTrackerPrState({ trackerItemExists: false });
+  assert.equal(result.state, TRACKER_PR_STATE.NO_TRACKER_ITEM);
+  assert.deepEqual(result.allowedTransitions, []);
+  assert.equal(result.reverseSyncAction, "none");
+});
+
+test("interpretTrackerPrState routes to no_tracker_item even when a PR exists but no tracker item", () => {
+  const result = interpretTrackerPrState({ trackerItemExists: false, prExists: true, prNumber: 5 });
+  assert.equal(result.state, TRACKER_PR_STATE.NO_TRACKER_ITEM);
+});
+
+test("interpretTrackerPrState routes to ready_no_pr when tracker item exists and no PR yet", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: false,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.READY_NO_PR);
+  assert.deepEqual(result.allowedTransitions, [TRACKER_PR_STATE.DRAFT_PR_OPEN]);
+  assert.equal(result.reverseSyncAction, "none");
+});
+
+test("interpretTrackerPrState routes to draft_pr_open when draft PR exists", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: true,
+    prNumber: 10,
+    prDraft: true,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.DRAFT_PR_OPEN);
+  assert.deepEqual(result.allowedTransitions, [TRACKER_PR_STATE.PR_REVIEWABLE]);
+  assert.equal(result.reverseSyncAction, "set_in_progress");
+});
+
+test("interpretTrackerPrState routes to pr_reviewable when PR is open and not draft", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: true,
+    prNumber: 10,
+    prDraft: false,
+    prMerged: false,
+    prClosed: false,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.PR_REVIEWABLE);
+  assert.ok(result.allowedTransitions.includes(TRACKER_PR_STATE.PR_MERGED));
+  assert.ok(result.allowedTransitions.includes(TRACKER_PR_STATE.PR_CLOSED_UNMERGED));
+  assert.ok(result.allowedTransitions.includes(TRACKER_PR_STATE.DRAFT_PR_OPEN));
+  assert.equal(result.reverseSyncAction, "set_reviewable");
+});
+
+test("interpretTrackerPrState routes to pr_merged when PR has been merged", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: true,
+    prNumber: 10,
+    prMerged: true,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.PR_MERGED);
+  assert.deepEqual(result.allowedTransitions, []);
+  assert.equal(result.reverseSyncAction, "set_done");
+});
+
+test("interpretTrackerPrState gives prMerged priority over prDraft", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: true,
+    prNumber: 10,
+    prMerged: true,
+    prDraft: true,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.PR_MERGED);
+});
+
+test("interpretTrackerPrState routes to pr_closed_unmerged when PR is closed without merge", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: true,
+    prNumber: 10,
+    prClosed: true,
+    prMerged: false,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.PR_CLOSED_UNMERGED);
+  assert.ok(result.allowedTransitions.includes(TRACKER_PR_STATE.READY_NO_PR));
+  assert.equal(result.reverseSyncAction, "none");
+});
+
+test("interpretTrackerPrState gives prMerged priority over prClosed", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: true,
+    prNumber: 10,
+    prMerged: true,
+    prClosed: true,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.PR_MERGED);
+});
+
+// ---------------------------------------------------------------------------
+// interpretTrackerPrState — output shape
+// ---------------------------------------------------------------------------
+
+test("interpretTrackerPrState always returns state, allowedTransitions, nextAction, reverseSyncAction", () => {
+  const snapshots = [
+    {},
+    { trackerItemExists: true },
+    { trackerItemExists: true, prExists: true, prDraft: true },
+    { trackerItemExists: true, prExists: true, prMerged: true },
+  ];
+  for (const snap of snapshots) {
+    const result = interpretTrackerPrState(snap);
+    assert.equal(typeof result.state, "string", "state must be a string");
+    assert.ok(Array.isArray(result.allowedTransitions), "allowedTransitions must be an array");
+    assert.equal(typeof result.nextAction, "string", "nextAction must be a string");
+    assert.ok(result.nextAction.length > 0, "nextAction must not be empty");
+    assert.equal(typeof result.reverseSyncAction, "string", "reverseSyncAction must be a string");
+  }
+});
+
+test("interpretTrackerPrState allowedTransitions array is a fresh copy each call", () => {
+  const snap = { trackerItemExists: true, prExists: false };
+  const r1 = interpretTrackerPrState(snap);
+  const r2 = interpretTrackerPrState(snap);
+  assert.notEqual(r1.allowedTransitions, r2.allowedTransitions);
+  assert.deepEqual(r1.allowedTransitions, r2.allowedTransitions);
+});
+
+test("interpretTrackerPrState is deterministic: same snapshot always yields same result", () => {
+  const snap = {
+    trackerItemExists: true,
+    trackerItemId: "BUG-99",
+    prExists: true,
+    prNumber: 7,
+    prDraft: false,
+    prMerged: false,
+    prClosed: false,
+  };
+  const r1 = interpretTrackerPrState(snap);
+  const r2 = interpretTrackerPrState(snap);
+  assert.deepEqual(r1, r2);
+});
