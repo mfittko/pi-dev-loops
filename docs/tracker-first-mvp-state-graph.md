@@ -6,7 +6,7 @@ This document defines the tracker-first MVP workflow-family contract for:
 story -> draft PR -> reviewable PR -> merged PR -> tracker sync
 ```
 
-This scope is intentionally bounded to the MVP family under issue `#17`, complements `#21`, and stays narrower than the broader umbrella model in `#19`.
+This scope is intentionally bounded to the MVP family under issue `#17`, complements `#21`, and stays narrower than the broader umbrella model in `#19`. It inherits the one-work-item -> one-PR invariant plus the source-of-truth, PR-projection, and minimal reverse-sync contracts from `#21`; this document does not redefine those rules.
 
 ## Workflow-family state machine
 
@@ -98,7 +98,7 @@ This scope is intentionally bounded to the MVP family under issue `#17`, complem
 
 Temporary artifacts are never required to establish final truth once permanent artifacts are present.
 
-## Canonical vs derived vs temporary
+### Canonical vs derived vs temporary
 
 - **Canonical**
   - tracker work item state
@@ -111,9 +111,9 @@ Temporary artifacts are never required to establish final truth once permanent a
 - **Temporary**
   - local `tmp/` artifacts used for bounded refinement/recovery only
 
-## Link model
+### Link model
 
-- work item -> (optional) epic/PRD/ADR
+- work item -> (optional) epic/PRD/ADR/RFC
 - work item -> PR
 - PR -> review threads
 - PR -> CI checks
@@ -121,7 +121,7 @@ Temporary artifacts are never required to establish final truth once permanent a
 - merge result -> tracker sync outcome
 - tracker sync outcome -> work item state update/annotation
 
-## Deterministic detection implications
+### Deterministic detection implications
 
 Implementations should be able to:
 

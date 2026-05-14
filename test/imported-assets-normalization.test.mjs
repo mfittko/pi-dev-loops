@@ -214,6 +214,9 @@ test("tracker-first MVP state graph is documented as adapter-agnostic and bounde
   assert.match(content, /story -> draft PR -> reviewable PR -> merged PR -> tracker sync/i);
   assert.match(content, /issue `#17`/i);
   assert.match(content, /complements? `#21`/i);
+  assert.match(content, /does not redefine those rules/i);
+  assert.match(content, /one-work-item -> one-PR invariant/i);
+  assert.match(content, /epic\/PRD\/ADR\/RFC/i);
   assert.match(content, /narrower than.*`#19`/i);
   assert.match(content, /waiting_for_review/i);
   assert.match(content, /waiting_for_ci/i);
