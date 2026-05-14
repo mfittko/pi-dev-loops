@@ -197,7 +197,8 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(skillContent, /If the intake state machine stops at `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub\./i);
   assert.match(skillContent, /start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact/i);
   assert.match(skillContent, /record what the mutation pass actually changed and verify the resulting issue\/artifact state/i);
-  assert.match(skillContent, /proposal\.md` and `tmp\/new-idea-intake\/<run-id>\/proposal\.json/i);
+  assert.match(skillContent, /tmp\/new-idea-intake\/<run-id>\/proposal\.md/i);
+  assert.match(skillContent, /tmp\/new-idea-intake\/<run-id>\/proposal\.json/i);
   assert.match(skillContent, /human-readable Markdown proposal/i);
   assert.match(skillContent, /machine-readable JSON snapshot/i);
   assert.match(skillContent, /run a second async coordinator mutation pass/i);
