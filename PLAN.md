@@ -14,12 +14,11 @@ This repo should eventually provide four layers:
    - workflow-agnostic
 
 2. **Loop skills**
-   - local phase-based dev loop
-   - async GitHub/Copilot dev loop
-   - issue-first intake and clarification gating ahead of GitHub/Copilot execution
+   - local phase-based dev loop (`dev-loop`)
+   - async GitHub/Copilot dev loop (`copilot-dev-loop`)
+   - issue-first intake, clarification gating, and full end-to-end autopilot loop (`copilot-autopilot`)
    - follow-up review/fix loops
    - re-review loops
-   - a future thin autopilot-style wrapper that can normalize broader inputs to a GitHub issue before handing off to the main GitHub/Copilot loop
 
 3. **Extension UX and package glue**
    - status/doctor commands
@@ -405,47 +404,67 @@ Acceptance criteria:
 - scripts prefer native `gh` watch support when possible and only use custom polling when necessary
 - scripts are testable with fixtures
 
-## Future GitHub-first intake and autopilot direction
+## GitHub-first intake and autopilot
 
-The existing `copilot-dev-loop` remains the primary GitHub-first workflow surface for this repository.
+The `copilot-autopilot` skill and its paired `copilot-autopilot` agent entry point are now part of the shared toolkit. They provide a single opinionated end-to-end workflow that starts from any of three entry types and drives the full GitHub/Copilot lifecycle through merge.
 
-A broader intake/autopilot direction is still part of the roadmap, but it should be delivered as staged slices rather than one oversized issue.
+### What `copilot-autopilot` delivers
 
-Preferred sequence:
+| Phase | Description |
+| --- | --- |
+| Preflight intake | Assesses input clarity; emits `proceed`, `proceed_with_assumptions`, or `pause_for_clarification` before any automation |
+| Input normalization | Converts a plan-doc path or abstract idea into a properly-scoped GitHub issue |
+| Async issue refinement | Runs 2–4 parallel specialist passes (scope, acceptance criteria, non-goals, risks, verification) and merges them into a tightened issue body |
+| Copilot handoff | Assigns `copilot-swe-agent` and waits for the draft PR |
+| PR tightening | Improves draft PR title and body to meet the PR description contract |
+| Local review/fix loop | Pi-driven review and fix pass before the PR leaves draft |
+| Copilot review loop | Requests Copilot review, drives fix/reply/resolve cycles, never merges while unresolved threads exist unless explicitly deferred |
+| Final independent review | Fresh-context Pi review; emits a clear verdict before any merge action |
+| Approve and merge | Formal review approval and squash merge after user confirmation |
 
-1. **Issue-first preflight gate**
-   - accept an existing GitHub issue number or URL
-   - assess whether the issue is narrow, explicit, and verifiable enough for one PR
-   - emit one of:
-     - `proceed`
-     - `proceed_with_assumptions`
-     - `pause_for_clarification`
-   - route issues with active PRs to the existing PR follow-up path instead of starting a new handoff
-   - keep any issue-body tightening or GitHub mutation behind explicit confirmation
+### Entry types
 
-2. **Plan-doc to issue normalization**
-   - accept a planning-doc path or bounded section reference
-   - find a matching GitHub issue when one already exists
-   - otherwise draft a properly scoped issue proposal for confirmation
-   - normalize execution to a GitHub issue before entering the main loop
+```
+copilot-autopilot 60                            # GitHub issue number
+copilot-autopilot docs/plans/doc-validation.md  # plan-doc path
+copilot-autopilot @docs/PLAN.md ADR validation  # abstract roadmap idea
+```
 
-3. **Abstract roadmap or idea intake**
-   - accept a higher-level roadmap idea only after the issue-first and plan-doc paths are stable
-   - require an explicit clarification/assumption step before issue creation or Copilot assignment
-   - keep ambiguity visible instead of pretending the idea is already implementation-ready
+### Design principles
 
-4. **Thin autopilot wrapper over the existing loop**
-   - chain preflight and normalization into the existing `copilot-dev-loop`
-   - reuse the shared GitHub/Copilot helper surface rather than duplicating draft-PR, review/fix, reply/resolve, re-request, and merge orchestration
-   - keep shared workflow logic separate from repo-local policy and validation commands
+- **Issue-first execution model**: all execution is anchored to a GitHub issue before Copilot is assigned
+- **Clarification gate**: ambiguous or underspecified inputs trigger questions, not blind automation
+- **Safe defaults**: any GitHub mutation (issue create/edit, Copilot assignment, PR changes, merge) requires explicit confirmation
+- **Reuse over duplication**: the full PR follow-up loop reuses `copilot-dev-loop` state machines and helpers rather than reimplementing them
+- **Separation of concerns**: shared workflow logic lives in the skill/agent; repo-local policy (validation commands, merge policy for deferred threads) is configured by the adopting repository
 
-Guard rails for this direction:
+### Guard rails that remain in effect
 
 - normalize to a GitHub issue before the main GitHub/Copilot execution loop starts
 - do not bypass the existing confirmation boundaries for GitHub, branch, or merge state changes
-- prefer deterministic helper outputs for fact collection and routing, while leaving judgment-heavy clarification decisions in the agent layer until the contract stabilizes
-- document adoption in downstream repositories' local planning/workflow docs when they decide this becomes part of their standard operating model
-- keep the first shipped slices fixture-testable and avoid claiming unattended end-to-end automation before the intermediate contracts are proven
+- prefer deterministic helper outputs for fact collection and routing, while leaving judgment-heavy clarification decisions in the agent layer
+- do not merge while Copilot review threads remain unresolved unless they are explicitly deferred with rationale
+
+### Adoption guidance
+
+When a repository decides to use `copilot-autopilot` as part of its standard execution model, record that decision in the repository's own `PLAN.md` (or equivalent planning doc) with at minimum:
+
+- which input types will be the primary entry point (issue, plan-doc, or abstract idea)
+- whether the preflight gate is operator-confirmed or semi-automated
+- any repo-specific validation commands that should run in the local review/fix phase
+- the merge policy for deferred Copilot review threads
+
+This documents the repository's operating contract with this workflow so the behavior is traceable and recoverable.
+
+### Remaining work
+
+The shipped skill and agent cover the full lifecycle but the following are not yet fixture-testable end-to-end:
+
+- preflight verdict logic (currently agent-layer judgment; no deterministic script yet)
+- issue-refinement fan-out orchestration (currently agent-driven; could be a deterministic helper)
+- input normalization from plan-doc to issue-search (currently agent-driven)
+
+These are candidates for future extraction into deterministic scripts as the intermediate contracts stabilize.
 
 ### Phase 6 — public release hardening
 

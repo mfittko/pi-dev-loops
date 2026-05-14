@@ -1,0 +1,375 @@
+---
+name: copilot-autopilot
+description: >-
+  Use for end-to-end GitHub-first execution that starts with preflight
+  clarification, normalizes any input (issue number, plan-doc path, or abstract
+  roadmap idea) to a GitHub issue, runs an async issue-refinement fan-out,
+  assigns Copilot, then drives the full draft-PR → local review/fix →
+  Copilot re-review → final review → merge cycle. Pauses for clarification
+  when input is ambiguous rather than proceeding blindly.
+compatibility: Pi skill for git+GitHub repositories. Requires gh auth and pi-subagents; async follow-up works best in Pi/TelePi sessions.
+allowed-tools: read bash edit write subagent review_loop
+user-invocable: true
+---
+
+# Copilot Autopilot
+
+This skill is an opinionated, issue-first GitHub/Copilot autopilot wrapper.
+
+It extends the `copilot-dev-loop` with:
+
+1. A **preflight intake phase** that clarifies ambiguous or underspecified inputs before any automation starts.
+2. An **input normalization phase** that converts plan-doc paths and abstract ideas into a properly-scoped GitHub issue.
+3. An **async issue-refinement phase** (fan-out / fan-in) that tightens the issue before Copilot assignment.
+4. The **full GitHub/Copilot lifecycle loop** from Copilot assignment through draft PR, review/fix, Copilot re-review, final review, and merge.
+
+Typical triggers:
+- `copilot-autopilot 60`
+- `copilot-autopilot docs/plans/doc-validation.md`
+- `copilot-autopilot @docs/PLAN.md ADR validation`
+- start autopilot from issue 42
+- run the full Copilot loop for this plan section
+
+## Skill asset path resolution
+
+When this skill refers to helper paths such as `scripts/...` or `docs/...`, resolve them from the actual skill installation layout you are running, not from the active target repository checkout.
+
+Use this rule:
+- if the skill is installed as a normalized standalone copy, helper assets may live under `scripts/` and `docs/` inside the skill directory
+- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-autopilot/`, so shared scripts live two levels up at `../../scripts/` and docs at `../../docs/`
+- when in doubt, resolve helper paths relative to this `SKILL.md` file first, then verify the target file exists before running it
+
+Do not assume `scripts/...` is repo-local to the target codebase you are operating on.
+
+## Authority and safety rules
+
+All authority and safety rules from `copilot-dev-loop` apply here.
+
+Additional rules:
+- Do not assign Copilot, create issues, or mutate GitHub state during the preflight or normalization phases without explicit confirmation.
+- Do not proceed past the preflight gate if the work item is ambiguous or underspecified.
+- Do not merge while Copilot review threads remain unresolved unless they are explicitly deferred with rationale by the user.
+- When the preflight verdict is `pause_for_clarification`, ask the user the clarifying questions and stop. Do not attempt to guess through them.
+- When the preflight verdict is `proceed_with_assumptions`, list all assumptions explicitly and get confirmation before continuing.
+
+## Phase 1 — Preflight intake
+
+Before any automation, run a preflight analysis of the input.
+
+### Accepted input types
+
+| Input type | Example |
+| --- | --- |
+| GitHub issue number or URL | `60`, `https://github.com/org/repo/issues/60` |
+| Plan-doc path | `docs/plans/doc-validation.md` |
+| Abstract roadmap idea | `@docs/PLAN.md ADR validation`, `"add rate limiting to the API"` |
+
+### Preflight analysis checklist
+
+For any input, answer these questions before proceeding:
+
+1. **Smallest executable work item**: Can this be scoped to one PR? If not, what is the smallest slice?
+2. **Existing issue check**: Does a matching GitHub issue already exist?
+3. **Scope clarity**: Are the boundaries and non-goals of the work item unambiguous?
+4. **Acceptance criteria**: Are there clear, verifiable acceptance criteria?
+5. **Verification path**: Is there a concrete way to verify the work is done?
+6. **Active PR check**: Is there already a PR for this work? If so, route to `copilot-dev-loop` PR follow-up mode instead.
+
+### Preflight verdict
+
+Choose one:
+
+| Verdict | Condition | Next step |
+| --- | --- | --- |
+| `proceed` | All checklist items pass; scope is clear and self-contained | Continue to Phase 2 |
+| `proceed_with_assumptions` | Minor gaps exist but reasonable assumptions are available | List assumptions explicitly; get confirmation; continue |
+| `pause_for_clarification` | Scope is too vague, acceptance criteria missing, or work cannot fit in one PR | Ask clarifying questions; stop until answered |
+
+Do not choose `proceed` or `proceed_with_assumptions` when:
+- the work spans more than one coherent PR
+- acceptance criteria are absent or unmeasurable
+- there are significant open questions about approach or scope
+- the input refers to a large roadmap section without a clear bounded slice
+
+## Phase 2 — Input normalization
+
+Normalize any non-issue input to a GitHub issue before entering the main execution loop.
+
+### From a GitHub issue number or URL
+
+1. Fetch the issue with `gh issue view <number> --json number,title,body,labels,assignees,milestone`.
+2. Confirm the issue exists and is open.
+3. Check whether a PR already exists for this issue (search for branches or PRs that reference the issue number).
+4. If a PR already exists, route to `copilot-dev-loop` PR follow-up mode with the PR number.
+5. Otherwise, proceed to Phase 3 with this issue as the execution entry point.
+
+### From a plan-doc path
+
+1. Read the planning document.
+2. Identify the most specific bounded work item described.
+3. Search GitHub issues for a matching title or reference: `gh issue list --search "<title keywords>"`.
+4. If a matching issue exists, confirm with the user and proceed with that issue.
+5. If no matching issue exists:
+   - Draft a properly scoped issue body following the PR description contract (see `copilot-dev-loop` PR description contract).
+   - At minimum include: title, summary, scope, acceptance criteria, non-goals, and verification.
+   - Show the draft to the user and get confirmation before creating the issue.
+   - Create the issue only after confirmation: `gh issue create --title "..." --body-file <tmpfile>`.
+6. Proceed to Phase 3 with the confirmed issue.
+
+### From an abstract roadmap idea
+
+1. Parse the idea into a bounded work item candidate.
+2. Run the preflight checklist (Phase 1) explicitly for this idea.
+3. If the verdict is `pause_for_clarification`, stop and ask.
+4. Once the scope is clear, follow the plan-doc normalization path above to find or create the issue.
+
+## Phase 3 — Async issue refinement
+
+Before assigning Copilot, tighten the issue through an async refinement fan-out.
+
+### Fan-out
+
+Launch 2–4 parallel refinement passes, each with a distinct specialist angle:
+
+| Pass | Focus |
+| --- | --- |
+| Scope | Are the boundaries tight? Is the scope the minimum needed? |
+| Acceptance criteria | Are all criteria specific, testable, and observable? |
+| Non-goals | Are the non-goals explicit enough to prevent scope creep? |
+| Implementation slices | Can this be implemented in one clear PR, or does it need sequencing? |
+| Risks | What are the edge cases, integration risks, or unknowns? |
+| Verification | Is the verification path clear and concrete? |
+
+For each pass:
+- start in fresh context
+- provide the issue number, current issue body, and a brief focus description
+- ask the refiner to emit a structured suggestion: what to add, change, or remove in each section
+
+### Fan-in
+
+After all passes complete:
+- merge the refinement suggestions into a single updated issue body
+- resolve contradictions in favor of the narrowest, most verifiable interpretation
+- keep the original author's intent intact; only tighten, do not rewrite the goal
+
+### Issue update
+
+Before updating the GitHub issue:
+- show the diff between the original and updated issue body
+- get explicit confirmation
+
+After confirmation:
+```sh
+gh issue edit <number> --body-file <updated-body-file>
+```
+
+## Phase 4 — Copilot handoff
+
+After refinement, assign `copilot-swe-agent` to the issue.
+
+Before assignment:
+- summarize the issue one more time: number, title, acceptance criteria, non-goals, verification
+- confirm the scope is still tight enough for one PR
+- get explicit confirmation before assigning
+
+Assignment:
+```sh
+gh issue edit <number> --add-assignee copilot-swe-agent
+```
+
+Verify assignment:
+```sh
+gh issue view <number> --json assignees
+```
+
+After assignment, wait for Copilot to open a draft PR. Use the deterministic watcher when available (see `copilot-dev-loop` async watch behavior for defaults).
+
+Useful check:
+```sh
+gh pr list --state open --search "copilot/"
+```
+
+## Phase 5 — PR tightening
+
+When the Copilot draft PR appears:
+
+1. Inspect the PR title and body.
+2. Apply the PR description contract from `copilot-dev-loop`:
+   - summary
+   - scope/context
+   - acceptance criteria
+   - definition of done
+   - non-goals
+   - link to the governing issue
+3. If the PR body is thin or missing required sections, propose an improved body and get confirmation before editing:
+   ```sh
+   gh pr edit <pr-number> --title "..." --body-file <body-file>
+   ```
+4. Inspect CI status and unresolved comments before leaving draft.
+
+## Phase 6 — Local review/fix loop
+
+Before marking the PR ready for review, run a local Pi review/fix pass.
+
+Follow the `copilot-dev-loop` Step 7 (Pi review/fix follow-up loop) exactly:
+
+1. Inspect unresolved comments/threads and failing checks.
+2. Classify findings: must fix / worth fixing / defer.
+3. Apply only accepted narrow fixes.
+4. Run narrowest honest validation.
+5. Push the resolving commit.
+6. Reply on GitHub with a resolution note referencing the commit.
+7. Resolve addressed threads after reply.
+
+Do not mark the PR ready until:
+- all must-fix findings are addressed or explicitly deferred with rationale
+- validation passes
+- no unrelated files are included
+
+Mark ready:
+```sh
+gh pr ready <pr-number>
+```
+
+## Phase 7 — Copilot review loop
+
+After marking the PR ready, drive the Copilot review → fix → re-review cycle.
+
+Use the deterministic helpers from the resolved skill scripts directory:
+
+**One-step detect → request → watch:**
+```sh
+node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
+```
+
+Follow `copilot-dev-loop` Steps 5–7 exactly for:
+- PR discovery and interpretation
+- async watch behavior
+- Pi review/fix follow-up loop
+
+### Loop exit conditions
+
+Exit the Copilot review loop only when **one** of:
+- all Copilot review threads are resolved (addressed or explicitly deferred with rationale)
+- the user explicitly authorizes merge despite unresolved threads and records the rationale
+- a `review_request_unavailable` or `blocked_needs_user_decision` stop state is reached
+
+Do **not** merge while Copilot review threads remain unresolved unless the user has explicitly deferred them with rationale.
+
+## Phase 8 — Final independent review
+
+Before merge, run a final independent Pi review:
+
+1. Start in fresh context.
+2. Inspect:
+   - all resolved Copilot threads (were they actually addressed?)
+   - all deferred threads (is the rationale recorded?)
+   - PR scope vs. issue acceptance criteria
+   - CI status
+   - final diff
+3. Emit a clear verdict:
+   - `approve` — issue satisfied, criteria met, threads resolved or deferred with rationale
+   - `request-changes` — blocking findings remain
+   - `needs-user-decision` — non-blocking concerns requiring user judgment
+
+Report the verdict and get confirmation before submitting any formal GitHub review action.
+
+## Phase 9 — Approve and merge
+
+After the final review verdict is `approve` and user has confirmed:
+
+1. Submit a formal GitHub review approval (if the PR was not opened by the active GitHub user):
+   ```sh
+   gh pr review <pr-number> --approve --body "..."
+   ```
+2. Merge:
+   ```sh
+   gh pr merge <pr-number> --squash --delete-branch
+   ```
+3. Verify the issue was closed by the merge (GitHub should close it automatically if the PR references the issue; otherwise close it manually).
+
+## Workflow state overview
+
+```text
+input
+  └─► preflight intake
+        ├─► pause_for_clarification → ask user → stop
+        ├─► proceed_with_assumptions → list assumptions → confirm → normalization
+        └─► proceed → normalization
+              └─► issue already has PR? → route to copilot-dev-loop PR follow-up mode
+              └─► normalize to GitHub issue (find or create)
+                    └─► async issue refinement (fan-out / fan-in)
+                          └─► update issue body (confirm first)
+                                └─► Copilot handoff (assign copilot-swe-agent)
+                                      └─► wait for draft PR
+                                            └─► PR tightening (title/body)
+                                                  └─► local review/fix loop
+                                                        └─► mark PR ready
+                                                              └─► Copilot review loop
+                                                                    └─► final independent review
+                                                                          └─► approve + merge
+```
+
+## Confirmation checkpoints
+
+Always stop and ask before:
+- assigning `copilot-swe-agent` to an issue
+- creating or editing a GitHub issue
+- editing a PR title or body
+- committing or pushing local fixes
+- resolving review threads
+- marking a PR ready for review
+- requesting Copilot review
+- submitting a formal GitHub review
+- merging a PR
+
+## Stop conditions
+
+Stop and report instead of acting when:
+- preflight verdict is `pause_for_clarification` (ask questions first)
+- input refers to a work item that spans more than one coherent PR
+- a PR already exists for the issue (route to `copilot-dev-loop` PR follow-up mode)
+- Copilot review requests are `unavailable` for the repository
+- the loop reaches `blocked_needs_user_decision`
+- scope has broadened beyond the original issue during execution
+- any GitHub mutation is required but not yet authorized
+
+## Anti-patterns
+
+Do not:
+- proceed past preflight with vague or underspecified input
+- create issues or assign Copilot without confirmation
+- merge while unresolved Copilot threads exist unless explicitly deferred with rationale
+- run the refinement fan-out without parallel passes (do all angles in one sequential pass)
+- skip the local review/fix loop before marking a PR ready
+- assume Copilot review will be auto-requested after draft-to-ready; always request explicitly
+- duplicate the state machine and watch logic from `copilot-dev-loop`; reuse it
+
+## Recommended companion skills
+
+- `copilot-dev-loop` — the core GitHub/Copilot loop this skill wraps; use it directly when you already have a refined, ready-to-assign issue
+- `dev-loop` — when the user explicitly wants a local phase-based implementation path
+
+## Adoption guidance
+
+When a repository adopts this workflow as part of its standard execution model, document that decision in the repository's own `PLAN.md` (or equivalent planning doc) with at minimum:
+
+- which input types will be the primary entry point (issue, plan-doc, or abstract idea)
+- whether the preflight gate is operator-confirmed or semi-automated
+- any repo-specific validation commands that should run in Phase 6 (local review/fix)
+- the merge policy for deferred Copilot threads
+
+This documents the repository's operating contract with this workflow so the behavior is traceable and recoverable.
+
+## Output expectations
+
+When using this skill, keep user-facing summaries concise and operational.
+
+A good phase-transition summary should say:
+- current phase and what was completed
+- preflight verdict and rationale (Phase 1)
+- which issue is the execution entry point and how it was found/created (Phase 2)
+- what was changed in the issue body and why (Phase 3)
+- current PR state and any blockers (Phases 5–8)
+- what the next recommended action is
+- whether authorization is needed before taking it
