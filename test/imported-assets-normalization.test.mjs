@@ -177,6 +177,8 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(skillContent, /run classification in fresh context by default/i);
   assert.match(skillContent, /async fan-out \/ fan-in proposal generation by default when practical/i);
   assert.match(skillContent, /default to create-new over overwrite\/update/i);
+  assert.match(skillContent, /Deterministic intake \+ mutation-gate state machine/i);
+
   const stopStatesMarkdownBlock = skillContent.match(/stop states:\s*\n((?:-\s+.+\n)+)/i)?.[1] ?? "";
   const stopStates = stopStatesMarkdownBlock
     .trim()
@@ -189,7 +191,10 @@ test("copilot-autopilot safety layer contract is documented", async () => {
     "stopped_low_confidence",
     "stopped_overlap_needs_decision",
   ]);
-  assert.match(skillContent, /If the verdict is `pause_for_clarification`, `stopped_overlap_needs_decision`, `stopped_low_confidence`, or `stopped_explicit_reject`, stop and ask\./);
+
+  assert.match(skillContent, /If the verdict is `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub\./i);
+  assert.match(skillContent, /start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact/i);
+  assert.match(skillContent, /record what the mutation pass actually changed and verify the resulting issue\/artifact state/i);
   assert.match(skillContent, /human-readable Markdown proposal/i);
   assert.match(skillContent, /machine-readable JSON snapshot/i);
   assert.match(skillContent, /run a second async coordinator mutation pass/i);

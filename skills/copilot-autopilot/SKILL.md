@@ -77,7 +77,7 @@ For **all new ideas** that are not already anchored to an existing issue (includ
 - after approval, run a second async coordinator mutation pass instead of mutating directly from inherited context
 - verify post-mutation artifact state and record what actually changed
 
-Deterministic intake state machine (proposal-first):
+Deterministic intake + mutation-gate state machine (proposal-first):
 
 ```text
 idea_received
@@ -242,14 +242,16 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 1. Parse the idea into a bounded work item candidate.
 2. Run the preflight checklist (Phase 1) explicitly for this idea.
 3. Run the **New-idea safety layer** state machine above (proposal-first, coordinator-owned) before any GitHub mutation.
-4. If the verdict is `pause_for_clarification`, `stopped_overlap_needs_decision`, `stopped_low_confidence`, or `stopped_explicit_reject`, stop and ask.
-5. Once the scope is clear and the user approves the proposal artifact:
+4. If the verdict is `pause_for_clarification`, `stopped_overlap_needs_decision`, or `stopped_low_confidence`, stop and ask.
+5. If the verdict is `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub.
+6. Once the scope is clear and the user approves the proposal artifact, start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact:
     - resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path (default current repo unless the input explicitly targets another repository)
     - if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above
     - otherwise search existing issues directly with `gh issue list --repo <resolved-repo> --state all --search "<title keywords>"`
     - if a matching issue exists, follow the issue-number/URL normalization path so open-state and existing-PR checks still run
     - if that matching issue turns out to be closed, stop for a user decision before reopening it or drafting follow-up work
     - if no matching issue exists, draft a properly scoped issue body using the same minimum sections required in the plan-doc path, show it to the user, and create the issue only after confirmation
+    - record what the mutation pass actually changed and verify the resulting issue/artifact state before continuing into the normal execution loop
 
 ## Phase 3 — Async issue refinement
 
