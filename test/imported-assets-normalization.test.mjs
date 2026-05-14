@@ -111,7 +111,7 @@ test("copilot-autopilot normalization docs require issue state checks and avoid 
   const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
   const planContent = await readRepo("PLAN.md");
 
-  assert.match(skillContent, /gh issue view <number> --json number,title,body,state,labels,assignees,milestone/);
+  assert.match(skillContent, /gh issue view <number> --repo <(?:owner\/name|resolved-repo)> --json number,title,body,state,labels,assignees,milestone/);
   assert.match(skillContent, /If a matching issue exists:[\s\S]*confirm it is still open[\s\S]*if a PR already exists, route immediately into the existing PR follow-up path/i);
   assert.doesNotMatch(planContent, /remain a mode of `copilot-dev-loop`, or become a separate top-level workflow/i);
 });
@@ -125,4 +125,16 @@ test("copilot-autopilot docs cover issue URLs, state-all issue search, and abstr
   assert.match(skillContent, /if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above/i);
   assert.match(skillContent, /otherwise search existing issues directly/i);
   assert.match(skillContent, /if a matching issue exists, follow the issue-number\/URL normalization path/i);
+});
+
+test("copilot-autopilot carries the resolved repo slug through later GitHub issue and PR commands", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+
+  assert.match(skillContent, /Carry that resolved repo slug through every later GitHub issue\/PR command/i);
+  assert.match(skillContent, /gh issue edit <number> --repo <resolved-repo> --body-file <updated-body-file>/);
+  assert.match(skillContent, /gh issue edit <number> --repo <resolved-repo> --add-assignee copilot-swe-agent/);
+  assert.match(skillContent, /gh pr edit <pr-number> --repo <resolved-repo> --title/);
+  assert.match(skillContent, /gh pr ready <pr-number> --repo <resolved-repo>/);
+  assert.match(skillContent, /gh pr review <pr-number> --repo <resolved-repo> --approve/);
+  assert.match(skillContent, /gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch/);
 });

@@ -133,6 +133,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    - Treat that detected state as the authoritative entrypoint for resumed execution.
    - Continue from that entrypoint rather than restarting earlier phases.
 6. Otherwise, proceed to Phase 3 with this issue as the execution entry point.
+7. Carry that resolved repo slug through every later GitHub issue/PR command for this execution so follow-up edits, PR actions, and merge steps stay scoped to the intended repository.
 
 ### From a plan-doc path
 
@@ -140,7 +141,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 2. Identify the most specific bounded work item described.
 3. Search GitHub issues for a matching title or reference: `gh issue list --state all --search "<title keywords>"`.
 4. If a matching issue exists:
-   - fetch it with `gh issue view <number> --json number,title,body,state,labels,assignees,milestone`
+   - fetch it with `gh issue view <number> --repo <resolved-repo> --json number,title,body,state,labels,assignees,milestone`
    - confirm it is still open
    - check whether a PR already exists for that issue
    - if a PR already exists, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
@@ -155,7 +156,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
      - **Verification** — concrete steps or commands to prove the work is done
      - **Link** to the governing plan doc or roadmap reference when applicable
    - Show the draft to the user and get confirmation before creating the issue.
-   - Create the issue only after confirmation: `gh issue create --title "..." --body-file <tmpfile>`.
+   - Create the issue only after confirmation: `gh issue create --repo <resolved-repo> --title "..." --body-file <tmpfile>`.
 6. Proceed to Phase 3 with the confirmed issue.
 
 ### From an abstract roadmap idea
@@ -206,7 +207,7 @@ Before updating the GitHub issue:
 
 After confirmation:
 ```sh
-gh issue edit <number> --body-file <updated-body-file>
+gh issue edit <number> --repo <resolved-repo> --body-file <updated-body-file>
 ```
 
 ## Phase 4 — Copilot handoff
@@ -220,12 +221,12 @@ Before assignment:
 
 Assignment:
 ```sh
-gh issue edit <number> --add-assignee copilot-swe-agent
+gh issue edit <number> --repo <resolved-repo> --add-assignee copilot-swe-agent
 ```
 
 Verify assignment:
 ```sh
-gh issue view <number> --json assignees
+gh issue view <number> --repo <resolved-repo> --json assignees
 ```
 
 After assignment, wait for Copilot to open a draft PR. Use the deterministic watcher when available (see `copilot-dev-loop` async watch behavior for defaults).
@@ -234,7 +235,7 @@ When the draft PR appears, do not stop just because it is draft. Enter the draft
 
 Useful check:
 ```sh
-gh pr list --state open --search "copilot/"
+gh pr list --repo <resolved-repo> --state open --search "copilot/"
 ```
 
 ## Phase 5 — PR tightening
@@ -251,7 +252,7 @@ When the Copilot draft PR appears:
    - link to the governing issue
 3. If the PR body is thin or missing required sections, propose an improved body and get confirmation before editing:
    ```sh
-   gh pr edit <pr-number> --title "..." --body-file <body-file>
+   gh pr edit <pr-number> --repo <resolved-repo> --title "..." --body-file <body-file>
    ```
 4. Inspect CI status and unresolved comments before leaving draft.
 
@@ -276,7 +277,7 @@ Do not mark the PR ready until:
 
 Mark ready:
 ```sh
-gh pr ready <pr-number>
+gh pr ready <pr-number> --repo <resolved-repo>
 ```
 
 ## Phase 7 — Copilot review loop
@@ -338,11 +339,11 @@ Only when merge has been explicitly authorized for this issue/PR scope:
 
 1. Submit a formal GitHub review approval (if the PR was not opened by the active GitHub user):
    ```sh
-   gh pr review <pr-number> --approve --body "..."
+   gh pr review <pr-number> --repo <resolved-repo> --approve --body "..."
    ```
 2. Merge:
    ```sh
-   gh pr merge <pr-number> --squash --delete-branch
+   gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch
    ```
 3. Verify the issue was closed by the merge (GitHub should close it automatically if the PR references the issue; otherwise close it manually).
 
