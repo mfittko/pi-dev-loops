@@ -47,6 +47,7 @@ The current state must be derived from durable observable facts, not intent or g
   - at least one unresolved review thread, unresolved change request, or equivalent review blocker exists
 - `fixCommitPushedAfterLatestFeedback`
   - the PR head SHA is newer than the latest actionable review feedback currently being addressed
+  - treat this as `false` whenever `actionableReviewFeedbackPresent` is `false`
 - `requiredCiPending`
 - `trackerReflectsMergedOutcome`
   - the tracker already reflects the inherited `#21` merged/done reverse-sync effect
@@ -76,7 +77,7 @@ If observable facts are contradictory or insufficient to decide safely, stop at 
    - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && reviewRequested && !reviewActivityPresent && !actionableReviewFeedbackPresent && !requiredCiPending`.
 5. `under_review`
    - Review activity or actionable review feedback is the active state.
-   - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && (actionableReviewFeedbackPresent || reviewActivityPresent) && !fixCommitPushedAfterLatestFeedback`.
+   - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && ((actionableReviewFeedbackPresent && !fixCommitPushedAfterLatestFeedback) || (reviewActivityPresent && !actionableReviewFeedbackPresent))`.
    - `under_review` wins over `waiting_for_ci` whenever review feedback is still active.
 6. `fixes_in_progress`
    - A follow-up fix commit has been pushed after the latest actionable feedback, but that feedback has not yet been replied/resolved or superseded by a fresh clean review.

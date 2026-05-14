@@ -220,6 +220,7 @@ test("tracker-first MVP state graph is documented as adapter-agnostic, mutually 
   assert.match(content, /source-of-truth ownership/i);
   assert.match(content, /required durable .*work item <-> PR link/i);
   assert.match(content, /reverse-sync semantics/i);
+  assert.match(content, /treat this as `false` whenever `actionableReviewFeedbackPresent` is `false`/i);
   assert.match(content, /prClosedUnmerged/i);
   assert.match(content, /PR closed without merge -> `blocked_needs_user_decision`/i);
   assert.match(content, /tracker work item missing -> `blocked_missing_artifact`/i);
