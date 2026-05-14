@@ -76,14 +76,14 @@ This scope is intentionally bounded to the MVP family under issue `#17`, complem
 
 ## Artifact graph
 
-## Permanent planning artifacts
+### Permanent planning artifacts
 
 - tracker work item (`story`/`task`/`bug`) — canonical planning root
 - optional epic reference
 - optional PRD reference
 - optional ADR/RFC reference
 
-## Permanent execution artifacts
+### Permanent execution artifacts
 
 - PR (single PR for the work item in MVP)
 - review threads
@@ -91,7 +91,7 @@ This scope is intentionally bounded to the MVP family under issue `#17`, complem
 - merge result (merge commit / merged PR metadata)
 - tracker sync outcome (status + timestamp + synced fields)
 
-## Temporary local artifacts (refinement/recovery only)
+### Temporary local artifacts (refinement/recovery only)
 
 - local refinement notes, snapshots, and handoff drafts under `tmp/`
 - temporary reconciliation notes used to recover when remote facts conflict
