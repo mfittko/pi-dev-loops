@@ -54,9 +54,9 @@ Required:
 
 Snapshot schema (all fields optional; unknown fields are ignored):
   trackerItemExists  boolean     Whether a tracker work item was found
-  trackerItemId      string      Opaque tracker item ID (e.g. "PROJ-123")
+  trackerItemId      string|null Opaque tracker item ID (e.g. "PROJ-123") when present
   prExists           boolean     Whether a GitHub PR exists for this item
-  prNumber           number      PR number if prExists, otherwise omit
+  prNumber           number|null PR number if prExists, otherwise null
   prDraft            boolean     Whether the PR is in draft state
   prMerged           boolean     Whether the PR has been merged
   prClosed           boolean     Whether the PR was closed without merge
