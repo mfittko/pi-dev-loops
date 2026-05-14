@@ -96,8 +96,9 @@ If observable facts are contradictory or insufficient to decide safely, stop at 
    - Detect when: `prMerged && trackerReflectsMergedOutcome && workItemPrLinkPresent`.
 11. `blocked_missing_artifact`
    - A required durable artifact for the otherwise-highest valid state is missing.
-   - Detect when: `prExists && !workItemPrLinkPresent`.
-   - Typical case:
+   - Detect when: `!trackerItemExists` or `prExists && !workItemPrLinkPresent`.
+   - Typical cases:
+     - the tracker work item / planning root for this workflow-family run is missing
      - PR exists but the inherited required work item <-> PR link is missing
 12. `blocked_sync_failed`
    - Tracker sync failed or verification contradicts the inherited `#21` merged/done expectation.
@@ -116,19 +117,20 @@ If observable facts are contradictory or insufficient to decide safely, stop at 
 Evaluate states in this order so the machine always returns exactly one state:
 
 1. contradictory or out-of-scope facts -> `blocked_needs_user_decision`
-2. PR closed without merge -> `blocked_needs_user_decision`
-3. merged PR + failed sync verification -> `blocked_sync_failed`
-4. merged PR + tracker reflects merged outcome + required work item <-> PR link present -> `done`
-5. required durable work item <-> PR link missing while a PR exists -> `blocked_missing_artifact`
-6. merged PR + sync explicitly underway -> `tracker_sync`
-7. merged PR with sync still pending but not yet started -> `merged`
-8. actionable review feedback + newer fix commit pushed -> `fixes_in_progress`
-9. actionable review feedback or submitted review activity -> `under_review`
-10. required CI pending with no active review-feedback blocker -> `waiting_for_ci`
-11. review requested, but no submitted review activity yet -> `waiting_for_review`
-12. ready-for-review PR with no waiting/review/fix signals yet -> `reviewable_pr`
-13. draft PR exists -> `draft_pr`
-14. tracker item selected and no PR exists -> `selected_ready`
+2. tracker work item missing -> `blocked_missing_artifact`
+3. PR closed without merge -> `blocked_needs_user_decision`
+4. merged PR + failed sync verification -> `blocked_sync_failed`
+5. merged PR + tracker reflects merged outcome + required work item <-> PR link present -> `done`
+6. required durable work item <-> PR link missing while a PR exists -> `blocked_missing_artifact`
+7. merged PR + sync explicitly underway -> `tracker_sync`
+8. merged PR with sync still pending but not yet started -> `merged`
+9. actionable review feedback + newer fix commit pushed -> `fixes_in_progress`
+10. actionable review feedback or submitted review activity -> `under_review`
+11. required CI pending with no active review-feedback blocker -> `waiting_for_ci`
+12. review requested, but no submitted review activity yet -> `waiting_for_review`
+13. ready-for-review PR with no waiting/review/fix signals yet -> `reviewable_pr`
+14. draft PR exists -> `draft_pr`
+15. tracker item selected and no PR exists -> `selected_ready`
 
 This priority order removes overlap between states such as:
 
