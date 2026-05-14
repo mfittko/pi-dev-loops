@@ -121,7 +121,7 @@ test("copilot-autopilot docs cover issue URLs, state-all issue search, and abstr
 
   assert.match(skillContent, /if the input is a full GitHub issue URL, parse `<owner\/name>` and `<number>`/i);
   assert.match(skillContent, /gh issue view <number> --repo <owner\/name> --json number,title,body,state,labels,assignees,milestone/);
-  assert.match(skillContent, /gh issue list --state all --search/);
+  assert.match(skillContent, /gh issue list --repo <resolved-repo> --state all --search/);
   assert.match(skillContent, /if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above/i);
   assert.match(skillContent, /otherwise search existing issues directly/i);
   assert.match(skillContent, /if a matching issue exists, follow the issue-number\/URL normalization path/i);
@@ -145,4 +145,13 @@ test("copilot-autopilot docs define closed-match handling and keep the handoff h
   assert.match(skillContent, /if the matching issue is closed, stop for a user decision before proceeding/i);
   assert.match(skillContent, /if that matching issue turns out to be closed, stop for a user decision/i);
   assert.match(skillContent, /copilot-pr-handoff\.mjs --repo <resolved-repo> --pr <number>/);
+});
+
+test("copilot-autopilot docs define the closed direct-issue branch and keep searches/discovery scoped to the target issue repo", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+
+  assert.match(skillContent, /If the issue is closed, stop for a user decision before proceeding/i);
+  assert.match(skillContent, /gh issue list --repo <resolved-repo> --state all --search/);
+  assert.match(skillContent, /gh pr list --repo <resolved-repo> --state open --search "copilot\/ <issue-number>"/);
+  assert.match(skillContent, /Verify that any selected PR actually references or closes the normalized issue before continuing/i);
 });
