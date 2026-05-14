@@ -71,7 +71,8 @@ Under that unattended authorization:
 - if a PR already exists for the issue, do **not** restart from assignment or earlier intake phases; interpret the current PR through the deterministic helper/state-machine surface and resume from that state
 - if the PR is draft, enter the draft-stage PR tightening / local review / fix path automatically rather than stopping just because it has not left draft yet
 - use the deterministic state graph as the authority for current-state routing and next-step selection, not ad hoc phase guessing
-- continue unattended until merge unless you hit a genuine stop condition: `pause_for_clarification`, `review_request_unavailable`, `blocked_needs_user_decision`, unrelated CI failure needing maintainer judgment, or another ambiguity the contract explicitly forbids guessing through
+- continue unattended until the final approval gate unless you hit a genuine stop condition: `pause_for_clarification`, `review_request_unavailable`, `blocked_needs_user_decision`, unrelated CI failure needing maintainer judgment, or another ambiguity the contract explicitly forbids guessing through
+- stop for human approval/merge by default once the final review verdict is ready; only merge unattended when the user has explicitly authorized unattended merge for the current issue/PR scope
 
 If unattended authorization has **not** been given, keep the normal confirmation checkpoints below.
 
@@ -308,9 +309,17 @@ Before merge, run a final independent Pi review:
 
 Report the verdict and get confirmation before submitting any formal GitHub review action.
 
-## Phase 9 — Approve and merge
+## Phase 9 — Final approval gate and merge
 
-After the final review verdict is `approve` and user has confirmed:
+After the final review verdict is `approve`, stop at the final approval gate by default.
+
+Default behavior:
+- report that the PR is ready for final human approval/merge
+- do **not** merge unattended unless the user has explicitly authorized unattended merge for the current issue/PR scope
+
+If final human approval is required, return a concise merge-ready summary and wait.
+
+Only when merge has been explicitly authorized for this issue/PR scope:
 
 1. Submit a formal GitHub review approval (if the PR was not opened by the active GitHub user):
    ```sh
@@ -341,7 +350,8 @@ input
                                                         └─► mark PR ready
                                                               └─► Copilot review loop
                                                                     └─► final independent review
-                                                                          └─► approve + merge
+                                                                          └─► final approval gate
+                                                                                └─► approve + merge (only with explicit merge authorization)
 ```
 
 ## Confirmation checkpoints
@@ -359,6 +369,8 @@ Always stop and ask before:
 
 If the user has already explicitly authorized unattended end-to-end execution for the current issue/PR scope, treat that authorization as covering the normal loop mutations above except where a stop condition below still requires user judgment.
 
+Unattended end-to-end execution does **not** imply unattended merge by default. Unless the user explicitly authorizes unattended merge for the current issue/PR scope, stop at the final approval gate for human approval/merge.
+
 ## Stop conditions
 
 Stop and report instead of acting when:
@@ -368,6 +380,7 @@ Stop and report instead of acting when:
 - the loop reaches `blocked_needs_user_decision`
 - scope has broadened beyond the original issue during execution
 - any GitHub mutation is required but not yet authorized
+- the run reaches the final approval gate and unattended merge was not explicitly authorized for the current issue/PR scope
 
 A pre-existing PR for the issue is **not** a stop-by-default condition for this skill. It is a resumed-execution entrypoint: detect the current PR state through the deterministic helper/state-machine surface and continue from that state.
 

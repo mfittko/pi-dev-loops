@@ -18,7 +18,7 @@ Load and follow the `copilot-autopilot` skill (`skills/copilot-autopilot/SKILL.m
 
 When that skill is not available at the expected path, resolve it from the skill installation layout (see the skill's "Skill asset path resolution" section).
 
-Interpret `autopilot` literally: when unattended execution is explicitly authorized for a specific issue/PR scope, resume from the current GitHub/PR state automatically and keep moving until merge or a genuine stop condition is reached.
+Interpret `autopilot` literally: when unattended execution is explicitly authorized for a specific issue/PR scope, resume from the current GitHub/PR state automatically and keep moving until the final approval gate or a genuine stop condition is reached.
 
 The deterministic state-machine/helper surface is the authority for choosing the current execution entrypoint. Do not restart from phase 1 when an issue or PR already exists and the current state can be detected.
 
@@ -42,7 +42,7 @@ Follow the `copilot-autopilot` skill phases in order:
 6. **Local review/fix loop** — fix before marking ready
 7. **Copilot review loop** — request Copilot review; fix/reply/resolve; repeat
 8. **Final independent review** — fresh-context review; emit verdict
-9. **Approve and merge** — formal review approval + merge after confirmation
+9. **Final approval gate and merge** — stop for human approval/merge by default; only perform formal approval + merge automatically when unattended merge was explicitly authorized for this issue/PR scope
 
 ## Constraints
 
@@ -54,6 +54,7 @@ Follow the `copilot-autopilot` skill phases in order:
 - When a PR already exists for the issue, route into the current PR follow-up state detected by the deterministic helper/state-machine surface instead of starting a new handoff.
 - If the PR is draft, continue into the draft-stage tightening/local-review/fix path automatically rather than stopping just because the PR has not left draft yet.
 - Do not stop at intermediate phase boundaries during unattended execution unless a real stop condition requires user judgment.
+- Treat the final approval gate as a required human-decision stop by default. Unattended end-to-end execution does not imply unattended merge unless the user explicitly authorized merge for the current issue/PR scope.
 
 ## Delegation
 

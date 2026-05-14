@@ -72,6 +72,9 @@ test("copilot-autopilot skill requires unattended resume-from-state behavior whe
   assert.match(content, /If a PR already exists, route to the existing PR follow-up path immediately/i);
   assert.match(content, /draft-stage PR tightening \/ local review \/ fix path automatically/i);
   assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
+  assert.match(content, /continue unattended until the final approval gate/i);
+  assert.match(content, /stop for human approval\/merge by default/i);
+  assert.match(content, /does \*\*not\*\* imply unattended merge by default/i);
 });
 
 test("copilot-autopilot agent treats autopilot as automatic resume from detected state", async () => {
@@ -81,5 +84,6 @@ test("copilot-autopilot agent treats autopilot as automatic resume from detected
   assert.match(content, /resume from the current GitHub\/PR state automatically/i);
   assert.match(content, /state-machine\/helper surface is the authority/i);
   assert.match(content, /If the PR is draft, continue into the draft-stage tightening\/local-review\/fix path automatically/i);
+  assert.match(content, /Treat the final approval gate as a required human-decision stop by default/i);
   assert.match(content, /not as a reason to halt at every intermediate state-changing step/i);
 });
