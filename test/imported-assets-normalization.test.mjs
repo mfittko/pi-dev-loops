@@ -167,3 +167,19 @@ test("copilot-autopilot docs resolve the target repo for non-issue inputs and RE
   assert.match(readmeContent, /generic role agents plus thin workflow entrypoint agents where needed/i);
   assert.match(readmeContent, /thin workflow entrypoint agents allowed when they only load a skill and defer policy to it/i);
 });
+
+test("copilot-autopilot docs define a proposal-first coordinator safety layer for new ideas", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+  const planContent = await readRepo("PLAN.md");
+
+  assert.match(skillContent, /New-idea safety layer \(default contract in this repo\)/);
+  assert.match(skillContent, /coordinator owns classification and mutation gating decisions/i);
+  assert.match(skillContent, /run classification in fresh context by default/i);
+  assert.match(skillContent, /async fan-out \/ fan-in proposal generation by default when practical/i);
+  assert.match(skillContent, /default to create-new over overwrite\/update/i);
+  assert.match(skillContent, /stop states:[\s\S]*stopped_overlap_needs_decision[\s\S]*stopped_low_confidence[\s\S]*stopped_explicit_reject/i);
+  assert.match(skillContent, /human-readable Markdown proposal[\s\S]*machine-readable JSON snapshot/i);
+  assert.match(skillContent, /run a second async coordinator mutation pass/i);
+  assert.match(skillContent, /emit a concise post-mutation verification artifact/i);
+  assert.match(planContent, /Proposal-first new-idea safety layer/i);
+});

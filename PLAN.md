@@ -438,6 +438,7 @@ copilot-autopilot @docs/PLAN.md ADR validation  # abstract roadmap idea
 
 - **Issue-first execution model**: all execution is anchored to a GitHub issue before Copilot is assigned
 - **Clarification gate**: ambiguous or underspecified inputs trigger questions, not blind automation
+- **Proposal-first new-idea safety layer**: for new ideas, use a coordinator-owned fresh-context intake path with async fan-out/fan-in proposal generation when practical, explicit stop states (`stopped_overlap_needs_decision`, `stopped_low_confidence`), and proposal artifact emission before any GitHub mutation
 - **Safe defaults**: any GitHub mutation (issue create/edit, Copilot assignment, PR changes, merge) requires explicit confirmation
 - **Reuse over duplication**: the full PR follow-up loop routes into `copilot-dev-loop` mechanics and deterministic helpers rather than inventing a second state machine
 - **Separation of concerns**: shared workflow logic lives in the skill, while any paired workflow entrypoint agent stays thin and defers sequencing/policy to that skill; repo-local policy (validation commands, merge policy for deferred threads) is configured by the adopting repository
@@ -445,6 +446,8 @@ copilot-autopilot @docs/PLAN.md ADR validation  # abstract roadmap idea
 ### Guard rails that remain in effect
 
 - normalize to a GitHub issue before the main GitHub/Copilot execution loop starts
+- for new-idea intake, default to create-new over overwrite/update unless repurposing an existing artifact is explicitly proposed and explicitly approved
+- after proposal approval, use a separate async coordinator mutation pass and emit post-mutation verification artifacts
 - do not bypass the existing confirmation boundaries for GitHub, branch, or merge state changes
 - prefer deterministic helper outputs for fact collection and routing, while leaving judgment-heavy clarification decisions in the agent layer
 - do not merge while Copilot review threads remain unresolved unless they are explicitly deferred with rationale
