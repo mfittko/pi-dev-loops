@@ -4,7 +4,7 @@ Shared Pi workflow infrastructure for reusable local and remote development loop
 
 This repo is intended to become a reusable **Pi package** that bundles:
 
-- generic role agents
+- generic role agents plus thin workflow entrypoint agents where needed
 - reusable loop skills
 - a small extension for status/doctor plus explicit skill install/update UX
 - deterministic helper scripts
@@ -59,7 +59,7 @@ For the first implementation phase, this repo may be opinionated and require:
 
 Turn these imported assets into a coherent, reusable toolkit where:
 
-- agents are workflow-agnostic role definitions
+- agents are primarily workflow-agnostic role definitions, with thin workflow entrypoint agents allowed when they only load a skill and defer policy to it
 - skills orchestrate loops
 - deterministic scripts and shared library code handle as much mechanical work as possible
 - the extension provides status/doctor plus explicit skill install/update UX and can grow into dashboard/installer widgets

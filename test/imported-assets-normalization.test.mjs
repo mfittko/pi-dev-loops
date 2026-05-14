@@ -155,3 +155,15 @@ test("copilot-autopilot docs define the closed direct-issue branch and keep sear
   assert.match(skillContent, /gh pr list --repo <resolved-repo> --state open --search "copilot\/ <issue-number>"/);
   assert.match(skillContent, /Verify that any selected PR actually references or closes the normalized issue before continuing/i);
 });
+
+test("copilot-autopilot docs resolve the target repo for non-issue inputs and README documents thin entrypoint agents", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+  const readmeContent = await readRepo("README.md");
+
+  assert.match(skillContent, /Resolve the target repository slug for this work item before any GitHub search or mutation/i);
+  assert.match(skillContent, /default to the current repository slug/i);
+  assert.match(skillContent, /if the plan-doc reference explicitly points at another GitHub repository/i);
+  assert.match(skillContent, /resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path/i);
+  assert.match(readmeContent, /generic role agents plus thin workflow entrypoint agents where needed/i);
+  assert.match(readmeContent, /thin workflow entrypoint agents allowed when they only load a skill and defer policy to it/i);
+});

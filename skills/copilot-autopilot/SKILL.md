@@ -137,16 +137,19 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 
 ### From a plan-doc path
 
-1. Read the planning document.
-2. Identify the most specific bounded work item described.
-3. Search GitHub issues for a matching title or reference: `gh issue list --repo <resolved-repo> --state all --search "<title keywords>"`.
-4. If a matching issue exists:
+1. Resolve the target repository slug for this work item before any GitHub search or mutation:
+   - default to the current repository slug
+   - if the plan-doc reference explicitly points at another GitHub repository, parse or confirm that `<resolved-repo>` first
+2. Read the planning document.
+3. Identify the most specific bounded work item described.
+4. Search GitHub issues for a matching title or reference: `gh issue list --repo <resolved-repo> --state all --search "<title keywords>"`.
+5. If a matching issue exists:
    - fetch it with `gh issue view <number> --repo <resolved-repo> --json number,title,body,state,labels,assignees,milestone`
    - if the matching issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a new follow-up issue)
    - if it is still open, check whether a PR already exists for that issue
    - if a PR already exists, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
    - otherwise confirm with the user and proceed with that issue
-5. If no matching issue exists:
+6. If no matching issue exists:
    - Draft a properly scoped issue body. At minimum include:
      - **Title** — concise and action-oriented
      - **Summary** — what the change does and why it is needed now
@@ -157,7 +160,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
      - **Link** to the governing plan doc or roadmap reference when applicable
    - Show the draft to the user and get confirmation before creating the issue.
    - Create the issue only after confirmation: `gh issue create --repo <resolved-repo> --title "..." --body-file <tmpfile>`.
-6. Proceed to Phase 3 with the confirmed issue.
+7. Proceed to Phase 3 with the confirmed issue.
 
 ### From an abstract roadmap idea
 
@@ -165,6 +168,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 2. Run the preflight checklist (Phase 1) explicitly for this idea.
 3. If the verdict is `pause_for_clarification`, stop and ask.
 4. Once the scope is clear:
+   - resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path (default current repo unless the input explicitly targets another repository)
    - if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above
    - otherwise search existing issues directly with `gh issue list --repo <resolved-repo> --state all --search "<title keywords>"`
    - if a matching issue exists, follow the issue-number/URL normalization path so open-state and existing-PR checks still run
