@@ -71,7 +71,7 @@ For **all new ideas** that are not already anchored to an existing issue (includ
 - run classification in fresh context by default
 - run classification asynchronously when practical
 - run async fan-out / fan-in proposal generation by default when practical
-- emit a proposal artifact before any GitHub create/edit/retitle/collapse/link mutation
+- emit a proposal artifact before any GitHub state-changing mutation, including create/edit/retitle/collapse/link operations
 - default to create-new over overwrite/update when a new tracked artifact is justified
 - do not repurpose/retitle/collapse/overwrite an existing issue unless that exact mutation is explicitly proposed and explicitly approved
 - after approval, run a second async coordinator mutation pass instead of mutating directly from inherited context

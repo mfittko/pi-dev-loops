@@ -175,6 +175,7 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(skillContent, /New-idea safety layer \(default contract in this repo\)/);
   assert.match(skillContent, /coordinator owns classification and mutation gating decisions/i);
   assert.match(skillContent, /run classification in fresh context by default/i);
+  assert.match(skillContent, /emit a proposal artifact before any GitHub state-changing mutation, including create\/edit\/retitle\/collapse\/link operations/i);
   assert.match(skillContent, /async fan-out \/ fan-in proposal generation by default when practical/i);
   assert.match(skillContent, /default to create-new over overwrite\/update/i);
   assert.match(skillContent, /Deterministic intake \+ mutation-gate state machine/i);
