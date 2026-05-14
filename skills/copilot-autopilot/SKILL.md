@@ -272,10 +272,12 @@ After marking the PR ready, drive the Copilot review → fix → re-review cycle
 
 Use the deterministic helpers from the resolved skill scripts directory:
 
-**One-step detect → request → watch:**
+**One-step detect → request → emit watch parameters:**
 ```sh
 node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
 ```
+
+When that helper returns `action: "watch"`, run `watch-copilot-review.mjs` with the emitted `watchArgs` rather than assuming the handoff command waited by itself.
 
 Follow `copilot-dev-loop` Steps 5–7 exactly for:
 - PR discovery and interpretation
