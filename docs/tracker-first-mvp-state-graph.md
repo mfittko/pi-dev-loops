@@ -126,7 +126,7 @@ Evaluate states in this order so the machine always returns exactly one state:
 7. merged PR + sync explicitly underway -> `tracker_sync`
 8. merged PR with sync still pending but not yet started -> `merged`
 9. actionable review feedback + newer fix commit pushed -> `fixes_in_progress`
-10. actionable review feedback or submitted review activity -> `under_review`
+10. actionable review feedback, or non-actionable review activity when CI is not pending -> `under_review`
 11. required CI pending with no active review-feedback blocker -> `waiting_for_ci`
 12. review requested, but no submitted review activity yet -> `waiting_for_review`
 13. ready-for-review PR with no waiting/review/fix signals yet -> `reviewable_pr`
@@ -156,8 +156,8 @@ This priority order removes overlap between states such as:
 
 ### Recovery edges
 
-- `blocked_missing_artifact -> selected_ready | draft_pr | reviewable_pr | merged`
-  - Reconstruct from permanent artifacts and return to the highest valid state.
+- `blocked_missing_artifact -> re-evaluate -> highest valid non-blocked state`
+  - Reconstruct from permanent artifacts, then re-run detection and return to the highest valid non-blocked state.
 - `blocked_sync_failed -> tracker_sync`
   - Retry sync after reconciling merged-PR facts with tracker facts already owned by `#21`.
 - `blocked_needs_user_decision -> selected_ready | reviewable_pr | tracker_sync`

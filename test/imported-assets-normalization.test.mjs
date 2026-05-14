@@ -224,6 +224,7 @@ test("tracker-first MVP state graph is documented as adapter-agnostic, mutually 
   assert.match(content, /prClosedUnmerged/i);
   assert.match(content, /PR closed without merge -> `blocked_needs_user_decision`/i);
   assert.match(content, /tracker work item missing -> `blocked_missing_artifact`/i);
+  assert.match(content, /highest valid non-blocked state/i);
   assert.match(content, /verification phase/i);
   assert.match(content, /not a new source of truth/i);
   assert.match(content, /Deterministic detection priority/i);
