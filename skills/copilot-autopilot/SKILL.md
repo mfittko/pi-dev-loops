@@ -63,6 +63,81 @@ Additional rules specific to this skill:
 - When the preflight verdict is `proceed_with_assumptions`, list all assumptions explicitly and get confirmation before continuing.
 - If the current issue/PR state is materially unclear, contradictory, off-trail, or not cleanly covered by the deterministic helper/state-machine guidance, stop and ask for human direction rather than guessing.
 
+## New-idea safety layer (default contract in this repo)
+
+For **all new ideas** that are not already anchored to an existing issue (including abstract ideas such as plain-language requests without an issue number or plan-doc path), apply this coordinator-owned intake contract before any GitHub mutation:
+
+- coordinator owns classification and mutation gating decisions
+- run classification in fresh context by default
+- run classification asynchronously when practical
+- run async fan-out / fan-in proposal generation by default when practical
+- emit a proposal artifact before any GitHub state-changing mutation, including create/edit/retitle/collapse/link operations
+- default to create-new over overwrite/update when a new tracked artifact is justified
+- do not repurpose/retitle/collapse/overwrite an existing issue unless that exact mutation is explicitly proposed and explicitly approved
+- after approval, run a second async coordinator mutation pass instead of mutating directly from inherited context
+- verify post-mutation artifact state and record what actually changed
+
+Deterministic intake + mutation-gate state machine (proposal-first):
+
+```text
+idea_received
+  -> fresh_context_started
+  -> fanout_started
+  -> fanin_complete
+  -> artifact_scan_complete
+  -> classified
+  -> proposal_emitted
+  -> awaiting_user_approval
+  -> ready_for_mutation
+  -> mutation_executed
+  -> mutation_verified
+  -> done
+
+stop states:
+- stopped_overlap_needs_decision
+- stopped_low_confidence
+- stopped_explicit_reject
+```
+
+`pause_for_clarification` remains the Phase 1 preflight gate and is evaluated before entering this intake state machine.
+
+Proposal artifact contract (must exist before mutation):
+
+- all proposal fields below are required before mutation
+- human-readable Markdown proposal with:
+  - idea summary
+  - proposed classification
+  - candidate target artifacts
+  - overlap assessment
+  - intended mutation
+  - create-new recommendation
+  - confidence/ambiguity notes
+  - recovery hints
+  - source inputs
+- machine-readable JSON snapshot of the same required classification/proposal facts for deterministic pickup and recovery
+
+Recoverability requirement:
+
+- temporary artifacts are run-scoped working outputs
+- write temporary artifacts under deterministic phase-scoped paths in `tmp/`
+- path examples: `tmp/new-idea-intake/<run-id>/proposal.md` and `tmp/new-idea-intake/<run-id>/proposal.json`
+- `<run-id>` should use a stable UTC execution identifier (`YYYYMMDDTHHMMSSZ`), such as:
+  - `20260514T143022Z-issue-42`
+  - `YYYYMMDDTHHMMSSZ-issue-<number>` when an issue exists
+  - `YYYYMMDDTHHMMSSZ-idea` before issue creation
+- temporary artifacts may be cleaned up after completion
+- permanent artifacts are durable GitHub or repository records that persist independently of local temp files
+- temporary artifacts (proposal markdown/json, fan-out outputs, fan-in output, local scans, mutation verification notes) should enable deterministic resume
+- permanent artifacts (issues/labels/links/docs) must still support degraded-confidence recovery if temporary artifacts are missing
+
+Mutation-pass contract after approval:
+
+- consume the approved proposal as the mutation input
+- perform only the approved mutation(s)
+- record which GitHub artifacts were actually changed
+- verify resulting artifact state
+- emit a concise post-mutation verification artifact
+
 ## Autopilot authorization and automatic re-entry
 
 Once the user has explicitly authorized unattended execution for a specific issue/PR scope, treat `copilot-autopilot` as permission to continue through the normal loop mutations for that scope without stopping at every intermediate phase boundary.
@@ -166,14 +241,18 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 
 1. Parse the idea into a bounded work item candidate.
 2. Run the preflight checklist (Phase 1) explicitly for this idea.
-3. If the verdict is `pause_for_clarification`, stop and ask.
-4. Once the scope is clear:
-   - resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path (default current repo unless the input explicitly targets another repository)
-   - if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above
-   - otherwise search existing issues directly with `gh issue list --repo <resolved-repo> --state all --search "<title keywords>"`
-   - if a matching issue exists, follow the issue-number/URL normalization path so open-state and existing-PR checks still run
-   - if that matching issue turns out to be closed, stop for a user decision before reopening it or drafting follow-up work
-   - if no matching issue exists, draft a properly scoped issue body using the same minimum sections required in the plan-doc path, show it to the user, and create the issue only after confirmation
+3. If the Phase 1 preflight verdict is `pause_for_clarification`, stop and ask.
+4. Run the **New-idea safety layer** state machine above (proposal-first, coordinator-owned) before any GitHub mutation.
+5. If the intake state machine stops at `stopped_overlap_needs_decision` or `stopped_low_confidence`, stop and ask.
+6. If the intake state machine stops at `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub.
+7. Once the Phase 1 preflight verdict allows continuation, the intake state machine reaches proposal approval, and the user approves the proposal artifact, start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact:
+    - resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path (default current repo unless the input explicitly targets another repository)
+    - if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above
+    - otherwise search existing issues directly with `gh issue list --repo <resolved-repo> --state all --search "<title keywords>"`
+    - if a matching issue exists, follow the issue-number/URL normalization path so open-state and existing-PR checks still run
+    - if that matching issue turns out to be closed, stop for a user decision before reopening it or drafting follow-up work
+    - if no matching issue exists, draft a properly scoped issue body using the same minimum sections required in the plan-doc path, show it to the user, and create the issue only after confirmation
+    - record what the mutation pass actually changed and verify the resulting issue/artifact state before continuing into the normal execution loop
 
 ## Phase 3 — Async issue refinement
 
