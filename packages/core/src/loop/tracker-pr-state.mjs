@@ -63,8 +63,9 @@ export const TRACKER_PR_STATE = Object.freeze({
   PR_CLOSED_UNMERGED: "pr_closed_unmerged",
 
   /**
-   * An unexpected or contradictory state was detected that requires an
-   * explicit user decision before the lifecycle can continue.
+   * Reserved stop state for future higher-level detectors that encounter an
+   * ambiguous or contradictory lifecycle snapshot and need an explicit user
+   * decision before the workflow can continue.
    */
   BLOCKED_NEEDS_USER_DECISION: "blocked_needs_user_decision",
 });
@@ -187,7 +188,10 @@ export function normalizeTrackerPrSnapshot(raw) {
  * 4. Draft PR exists -> draft_pr_open (in-progress)
  * 5. PR exists and not draft, not merged, not closed -> pr_reviewable
  * 6. No PR at all -> ready_no_pr (waiting to start)
- * 7. Contradictory state (PR exists but no tracker item) -> blocked_needs_user_decision
+ *
+ * The reserved blocked_needs_user_decision stop state is documented for
+ * higher-level detectors that choose to fail closed on contradictory tracker
+ * or PR facts before calling this interpreter.
  *
  * @param {object} snapshot - raw or normalized snapshot
  * @returns {{ state: string, allowedTransitions: string[], nextAction: string, reverseSyncAction: string }}

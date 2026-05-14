@@ -185,6 +185,34 @@ Key behavioral guarantees:
 - When `agentFixStatus` is `"applied"` and unresolved threads exist, the state is `already_fixed_needs_reply_resolve`, and `allowedTransitions` includes only `ready_to_rerequest_review`
 - If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
 
+### `scripts/loop/detect-tracker-pr-state.mjs`
+
+Deterministic tracker-first story-to-PR state detector. Interprets a pre-built
+tracker/PR lifecycle snapshot into one explicit current state, allowed next
+transitions, a recommended next action, and the canonical reverse-sync action.
+This helper is intentionally snapshot-only: tracker-adapter lookups and live
+GitHub discovery remain outside this CLI.
+
+Required:
+- `--input <path>`
+
+Snapshot schema (`--input` JSON):
+- `trackerItemExists` {boolean} — whether a tracker work item was found
+- `trackerItemId` {string|null} — tracker item identifier if present
+- `prExists` {boolean} — whether a PR exists for the tracker item
+- `prNumber` {number|null} — PR number if `prExists`, otherwise `null`
+- `prDraft` {boolean} — whether the PR is still draft
+- `prMerged` {boolean} — whether the PR has been merged
+- `prClosed` {boolean} — whether the PR was closed without merge
+
+Success output shape:
+- `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...", "reverseSyncAction": "..." }`
+
+Failure behavior:
+- malformed arguments, unreadable input files, invalid JSON, and invalid
+  snapshot objects emit `{ "ok": false, "error": "..." }` on stderr and
+  exit non-zero
+
 ### `scripts/loop/detect-reviewer-loop-state.mjs`
 
 Deterministic reviewer-loop state detector. Captures reviewer-side PR loop state from observable
