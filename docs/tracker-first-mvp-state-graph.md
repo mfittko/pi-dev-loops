@@ -160,8 +160,8 @@ This priority order removes overlap between states such as:
   - Reconstruct from permanent artifacts, then re-run detection and return to the highest valid non-blocked state.
 - `blocked_sync_failed -> tracker_sync`
   - Retry sync after reconciling merged-PR facts with tracker facts already owned by `#21`.
-- `blocked_needs_user_decision -> selected_ready | reviewable_pr | tracker_sync`
-  - Resume only after explicit user decision.
+- `blocked_needs_user_decision -> re-evaluate -> highest valid non-blocked state`
+  - Resume only after explicit user decision, then re-run detection and continue from the highest valid non-blocked state.
 - `under_review -> reviewable_pr`
   - If all review activity is cleared without new fix commits and no waiting state remains.
 
