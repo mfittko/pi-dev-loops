@@ -16,8 +16,10 @@ This repo should eventually provide four layers:
 2. **Loop skills**
    - local phase-based dev loop
    - async GitHub/Copilot dev loop
+   - issue-first intake and clarification gating ahead of GitHub/Copilot execution
    - follow-up review/fix loops
    - re-review loops
+   - a future thin autopilot-style wrapper that can normalize broader inputs to a GitHub issue before handing off to the main GitHub/Copilot loop
 
 3. **Extension UX and package glue**
    - status/doctor commands
@@ -403,6 +405,48 @@ Acceptance criteria:
 - scripts prefer native `gh` watch support when possible and only use custom polling when necessary
 - scripts are testable with fixtures
 
+## Future GitHub-first intake and autopilot direction
+
+The existing `copilot-dev-loop` remains the primary GitHub-first workflow surface for this repository.
+
+A broader intake/autopilot direction is still part of the roadmap, but it should be delivered as staged slices rather than one oversized issue.
+
+Preferred sequence:
+
+1. **Issue-first preflight gate**
+   - accept an existing GitHub issue number or URL
+   - assess whether the issue is narrow, explicit, and verifiable enough for one PR
+   - emit one of:
+     - `proceed`
+     - `proceed_with_assumptions`
+     - `pause_for_clarification`
+   - route issues with active PRs to the existing PR follow-up path instead of starting a new handoff
+   - keep any issue-body tightening or GitHub mutation behind explicit confirmation
+
+2. **Plan-doc to issue normalization**
+   - accept a planning-doc path or bounded section reference
+   - find a matching GitHub issue when one already exists
+   - otherwise draft a properly scoped issue proposal for confirmation
+   - normalize execution to a GitHub issue before entering the main loop
+
+3. **Abstract roadmap or idea intake**
+   - accept a higher-level roadmap idea only after the issue-first and plan-doc paths are stable
+   - require an explicit clarification/assumption step before issue creation or Copilot assignment
+   - keep ambiguity visible instead of pretending the idea is already implementation-ready
+
+4. **Thin autopilot wrapper over the existing loop**
+   - chain preflight and normalization into the existing `copilot-dev-loop`
+   - reuse the shared GitHub/Copilot helper surface rather than duplicating draft-PR, review/fix, reply/resolve, re-request, and merge orchestration
+   - keep shared workflow logic separate from repo-local policy and validation commands
+
+Guard rails for this direction:
+
+- normalize to a GitHub issue before the main GitHub/Copilot execution loop starts
+- do not bypass the existing confirmation boundaries for GitHub, branch, or merge state changes
+- prefer deterministic helper outputs for fact collection and routing, while leaving judgment-heavy clarification decisions in the agent layer until the contract stabilizes
+- document adoption in downstream repositories' local planning/workflow docs when they decide this becomes part of their standard operating model
+- keep the first shipped slices fixture-testable and avoid claiming unattended end-to-end automation before the intermediate contracts are proven
+
 ### Phase 6 — public release hardening
 
 Now that the repository is public, add the minimum release-readiness pieces needed so outside users can evaluate and adopt it safely.
@@ -503,6 +547,7 @@ Examples:
 
 - Should agents remain as plain markdown definitions only, or should some shared prompt fragments also move into deterministic templates or generated prompt builders? _(target: Phase 8)_
 - How much of the GitHub/Copilot loop should stay skill-driven versus script-driven? _(target: Phase 5)_
+- Should the broader intake/autopilot surface eventually remain a mode of `copilot-dev-loop`, or become a separate top-level workflow only after the intake and normalization contracts are proven stable? _(target: Phases 7 and 9)_
 - What is the right minimum package/install contract for global Pi reuse? _(target: Phase 3)_
 - Should there be one generic coordinator, or a base coordinator plus loop-specific coordinator overlays? _(target: Phase 8)_
 - How should repo-local policy overlays be layered on top of these global defaults without duplicating the whole asset? _(target: Phase 9)_
