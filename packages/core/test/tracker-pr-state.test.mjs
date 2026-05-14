@@ -33,19 +33,19 @@ test("normalizeTrackerPrSnapshot returns safe defaults for an empty object", () 
   });
 });
 
-test("normalizeTrackerPrSnapshot coerces boolean-like fields", () => {
+test("normalizeTrackerPrSnapshot parses only explicit boolean-like values", () => {
   const result = normalizeTrackerPrSnapshot({
     trackerItemExists: 1,
-    prExists: "yes",
+    prExists: " true ",
     prDraft: 0,
-    prMerged: "",
-    prClosed: "true",
+    prMerged: "false",
+    prClosed: "yes",
   });
   assert.equal(result.trackerItemExists, true);
   assert.equal(result.prExists, true);
   assert.equal(result.prDraft, false);
   assert.equal(result.prMerged, false);
-  assert.equal(result.prClosed, true);
+  assert.equal(result.prClosed, false);
 });
 
 test("normalizeTrackerPrSnapshot sets trackerItemId only when trackerItemExists is true and value is non-empty string", () => {
@@ -60,6 +60,26 @@ test("normalizeTrackerPrSnapshot sets trackerItemId only when trackerItemExists 
 
   const numericId = normalizeTrackerPrSnapshot({ trackerItemExists: true, trackerItemId: 42 });
   assert.equal(numericId.trackerItemId, null);
+});
+
+test("normalizeTrackerPrSnapshot treats junk boolean-like strings as safe false defaults", () => {
+  const result = normalizeTrackerPrSnapshot({
+    trackerItemExists: "nope",
+    prExists: "yes",
+    prDraft: "draft",
+    prMerged: "merged",
+    prClosed: "closed",
+  });
+
+  assert.deepEqual(result, {
+    trackerItemExists: false,
+    trackerItemId: null,
+    prExists: false,
+    prNumber: null,
+    prDraft: false,
+    prMerged: false,
+    prClosed: false,
+  });
 });
 
 test("normalizeTrackerPrSnapshot trims whitespace from trackerItemId", () => {

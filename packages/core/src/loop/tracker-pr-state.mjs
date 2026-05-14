@@ -111,6 +111,39 @@ export const REVERSE_SYNC_ACTION = Object.freeze({
   [TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION]: "none",
 });
 
+
+function normalizeBooleanLike(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    if (value === 1) {
+      return true;
+    }
+
+    if (value === 0) {
+      return false;
+    }
+
+    return false;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === "true" || normalized === "1") {
+      return true;
+    }
+
+    if (normalized === "false" || normalized === "0" || normalized.length === 0) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 /** Recommended next action for each state. */
 const NEXT_ACTIONS = Object.freeze({
   [TRACKER_PR_STATE.NO_TRACKER_ITEM]:
@@ -152,8 +185,8 @@ export function normalizeTrackerPrSnapshot(raw) {
     throw new Error("Snapshot must be a non-null object");
   }
 
-  const trackerItemExists = Boolean(raw.trackerItemExists);
-  const prExists = Boolean(raw.prExists);
+  const trackerItemExists = normalizeBooleanLike(raw.trackerItemExists);
+  const prExists = normalizeBooleanLike(raw.prExists);
 
   return {
     trackerItemExists,
@@ -166,9 +199,9 @@ export function normalizeTrackerPrSnapshot(raw) {
       prExists && typeof raw.prNumber === "number" && raw.prNumber > 0
         ? Math.floor(raw.prNumber)
         : null,
-    prDraft: Boolean(raw.prDraft),
-    prMerged: Boolean(raw.prMerged),
-    prClosed: Boolean(raw.prClosed),
+    prDraft: normalizeBooleanLike(raw.prDraft),
+    prMerged: normalizeBooleanLike(raw.prMerged),
+    prClosed: normalizeBooleanLike(raw.prClosed),
   };
 }
 

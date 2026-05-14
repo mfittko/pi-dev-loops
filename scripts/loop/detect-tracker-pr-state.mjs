@@ -127,49 +127,25 @@ export async function runCli(
   argv = process.argv.slice(2),
   {
     stdout = process.stdout,
-    env: _env = process.env,
   } = {},
 ) {
-  let options;
-
-  try {
-    options = parseDetectTrackerPrCliArgs(argv);
-  } catch (error) {
-    process.stderr.write(`${formatCliError(error)}\n`);
-    process.exitCode = 1;
-    return;
-  }
+  const options = parseDetectTrackerPrCliArgs(argv);
 
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return;
   }
 
-  let raw;
+  const text = await readFile(path.resolve(options.inputPath), "utf8");
 
+  let raw;
   try {
-    const text = await readFile(path.resolve(options.inputPath), "utf8");
     raw = JSON.parse(text);
   } catch (error) {
-    const message =
-      error instanceof SyntaxError
-        ? `Failed to parse snapshot JSON: ${error.message}`
-        : `Failed to read snapshot file: ${error instanceof Error ? error.message : String(error)}`;
-    process.stderr.write(`${formatCliError(new Error(message))}\n`);
-    process.exitCode = 1;
-    return;
+    throw new Error(`Failed to parse snapshot JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  let snapshot;
-
-  try {
-    snapshot = normalizeTrackerPrSnapshot(raw);
-  } catch (error) {
-    process.stderr.write(`${formatCliError(error)}\n`);
-    process.exitCode = 1;
-    return;
-  }
-
+  const snapshot = normalizeTrackerPrSnapshot(raw);
   const { state, allowedTransitions, nextAction, reverseSyncAction } = interpretTrackerPrState(snapshot);
 
   stdout.write(
