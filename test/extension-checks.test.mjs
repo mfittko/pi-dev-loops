@@ -27,7 +27,11 @@ test("collectDevLoopChecks returns stable ordering and pass/fail detail", async 
         ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 0],
       ]),
       tools: [{ name: "subagent" }],
-      commands: [{ name: "skill:dev-loop" }, { name: "skill:copilot-dev-loop" }],
+      commands: [
+        { name: "skill:dev-loop" },
+        { name: "skill:copilot-dev-loop" },
+        { name: "skill:copilot-autopilot" },
+      ],
     }),
   );
 
@@ -40,6 +44,7 @@ test("collectDevLoopChecks returns stable ordering and pass/fail detail", async 
       "git-repo",
       "local-dev-loop-skill",
       "copilot-dev-loop-skill",
+      "copilot-autopilot-skill",
     ],
   );
   assert.equal(checks.every((check) => check.ok), true);
@@ -78,6 +83,7 @@ test("collectDevLoopChecks uses Pi-discovered tools and commands for discoverabi
   assert.equal(byId["subagent-tool"].ok, true);
   assert.equal(byId["local-dev-loop-skill"].ok, true);
   assert.equal(byId["copilot-dev-loop-skill"].ok, false);
+  assert.equal(byId["copilot-autopilot-skill"].ok, false);
 });
 
 test("summarizeChecks and renderCheckLines return stable human-readable output", () => {

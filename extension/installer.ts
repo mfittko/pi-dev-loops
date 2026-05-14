@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const PACKAGED_SKILL_NAMES = ["dev-loop", "copilot-dev-loop"] as const;
+export const PACKAGED_SKILL_NAMES = ["dev-loop", "copilot-dev-loop", "copilot-autopilot"] as const;
 const COPILOT_RUNTIME_SCRIPT_FILES = [
   "_core-helpers.mjs",
   "github/capture-review-threads.mjs",
@@ -11,6 +11,7 @@ const COPILOT_RUNTIME_SCRIPT_FILES = [
   "github/request-copilot-review.mjs",
   "github/stage-reviewer-draft.mjs",
   "github/watch-copilot-review.mjs",
+  "loop/copilot-pr-handoff.mjs",
   "loop/detect-copilot-loop-state.mjs",
   "loop/detect-reviewer-loop-state.mjs",
 ] as const;
@@ -254,7 +255,7 @@ export async function syncPackagedSkills({
 
     await cp(sourcePath, targetPath, { recursive: true });
 
-    if (skillName === "copilot-dev-loop") {
+    if (skillName === "copilot-dev-loop" || skillName === "copilot-autopilot") {
       await copyCopilotRuntimeSupport({
         targetPath,
         scriptsRoot,

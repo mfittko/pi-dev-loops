@@ -36,12 +36,13 @@ The extension currently reports on:
 - inside a git repository
 - `/skill:dev-loop` discoverable
 - `/skill:copilot-dev-loop` discoverable
+- `/skill:copilot-autopilot` discoverable
 
 The messaging distinguishes between local loop readiness and remote GitHub/Copilot readiness. Missing `gh` or `gh auth` blocks remote-loop readiness, but does not imply that local phase-based work is completely unavailable.
 
 ## Install/update contract for this phase
 
-`/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories. For `copilot-dev-loop`, they also bundle an explicit allow-listed runtime support set under the installed skill directory: the required deterministic script files, the required `packages/core/src/` files, and both loop state-graph docs.
+`/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories. For `copilot-dev-loop` and `copilot-autopilot`, they also bundle an explicit allow-listed runtime support set under the installed skill directory: the required deterministic script files, the required `packages/core/src/` files, and both loop state-graph docs.
 
 `install` is for first-time setup. `update` refreshes installed skills only, reports missing targets, and guides users back to `install` when first-time setup is still needed.
 
@@ -54,7 +55,7 @@ They do **not**:
 - bootstrap repositories beyond writing skill directories and the bundled support files nested under them
 - automatically refresh the current Pi session's already-loaded command list
 
-After install or update, restart Pi or refresh skill discovery before expecting `/skill:dev-loop` or `/skill:copilot-dev-loop` to appear in the current session.
+After install or update, restart Pi or refresh skill discovery before expecting newly installed or updated skills to appear in the current session. If `update` reports a packaged skill as missing, run `/dev-loops install repo|system` first for that skill set; a refresh alone will not make a missing skill appear.
 
 ## Runtime / build / test contract
 

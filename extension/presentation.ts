@@ -13,6 +13,7 @@ const SETUP_GUIDANCE: Record<(typeof DEV_LOOP_CHECK_IDS)[number], string> = {
   "git-repo": "Open Pi inside a git repository checkout before using the shared loops.",
   "local-dev-loop-skill": INSTALL_GUIDANCE,
   "copilot-dev-loop-skill": INSTALL_GUIDANCE,
+  "copilot-autopilot-skill": INSTALL_GUIDANCE,
 };
 
 function readinessLabel(ready: boolean): string {
@@ -143,7 +144,10 @@ export function buildInstallResultLines(result: InstallResult): string[] {
     lines.push("Some packaged skills were not installed in this target yet; use `/dev-loops install repo|system` for first-time setup.");
   }
 
-  lines.push("Restart Pi or refresh skill discovery before expecting `/skill:dev-loop` or `/skill:copilot-dev-loop` to appear in this session.");
+  lines.push("Restart Pi or refresh skill discovery before expecting newly installed or updated skills to appear in this session.");
+  if (result.results.some((entry) => entry.status === "missing")) {
+    lines.push("A missing skill will not appear after refresh alone; run `/dev-loops install repo|system` first for any packaged skill reported as not installed.");
+  }
 
   return lines;
 }
