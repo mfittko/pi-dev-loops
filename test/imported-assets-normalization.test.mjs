@@ -200,4 +200,5 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(skillContent, /run a second async coordinator mutation pass/i);
   assert.match(skillContent, /emit a concise post-mutation verification artifact/i);
   assert.match(planContent, /Proposal-first new-idea safety layer/i);
+  assert.match(planContent, /stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`/i);
 });

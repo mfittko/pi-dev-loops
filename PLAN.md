@@ -438,7 +438,7 @@ copilot-autopilot @docs/PLAN.md ADR validation  # abstract roadmap idea
 
 - **Issue-first execution model**: all execution is anchored to a GitHub issue before Copilot is assigned
 - **Clarification gate**: ambiguous or underspecified inputs trigger questions, not blind automation
-- **Proposal-first new-idea safety layer**: for new ideas, use a coordinator-owned fresh-context intake path with async fan-out/fan-in proposal generation when practical, explicit stop states (`stopped_overlap_needs_decision`, `stopped_low_confidence`), and proposal artifact emission before any GitHub mutation
+- **Proposal-first new-idea safety layer**: for new ideas, use a coordinator-owned fresh-context intake path with async fan-out/fan-in proposal generation when practical, explicit stop states (`stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`), and proposal artifact emission before any GitHub mutation
 - **Safe defaults**: any GitHub mutation (issue create/edit, Copilot assignment, PR changes, merge) requires explicit confirmation
 - **Reuse over duplication**: the full PR follow-up loop routes into `copilot-dev-loop` mechanics and deterministic helpers rather than inventing a second state machine
 - **Separation of concerns**: shared workflow logic lives in the skill, while any paired workflow entrypoint agent stays thin and defers sequencing/policy to that skill; repo-local policy (validation commands, merge policy for deferred threads) is configured by the adopting repository
