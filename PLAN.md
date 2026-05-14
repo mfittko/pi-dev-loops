@@ -570,7 +570,6 @@ Examples:
 
 - Should agents remain as plain markdown definitions only, or should some shared prompt fragments also move into deterministic templates or generated prompt builders? _(target: Phase 8)_
 - How much of the GitHub/Copilot loop should stay skill-driven versus script-driven? _(target: Phase 5)_
-- Should the broader intake/autopilot surface eventually remain a mode of `copilot-dev-loop`, or become a separate top-level workflow only after the intake and normalization contracts are proven stable? _(target: Phases 7 and 9)_
 - What is the right minimum package/install contract for global Pi reuse? _(target: Phase 3)_
 - Should there be one generic coordinator, or a base coordinator plus loop-specific coordinator overlays? _(target: Phase 8)_
 - How should repo-local policy overlays be layered on top of these global defaults without duplicating the whole asset? _(target: Phase 9)_

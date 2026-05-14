@@ -122,7 +122,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 
 ### From a GitHub issue number or URL
 
-1. Fetch the issue with `gh issue view <number> --json number,title,body,labels,assignees,milestone`.
+1. Fetch the issue with `gh issue view <number> --json number,title,body,state,labels,assignees,milestone`.
 2. Confirm the issue exists and is open.
 3. Check whether a PR already exists for this issue (search for branches or PRs that reference the issue number).
 4. If a PR already exists, route to the existing PR follow-up path immediately with that PR number.
@@ -136,7 +136,12 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 1. Read the planning document.
 2. Identify the most specific bounded work item described.
 3. Search GitHub issues for a matching title or reference: `gh issue list --search "<title keywords>"`.
-4. If a matching issue exists, confirm with the user and proceed with that issue.
+4. If a matching issue exists:
+   - fetch it with `gh issue view <number> --json number,title,body,state,labels,assignees,milestone`
+   - confirm it is still open
+   - check whether a PR already exists for that issue
+   - if a PR already exists, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
+   - otherwise confirm with the user and proceed with that issue
 5. If no matching issue exists:
    - Draft a properly scoped issue body. At minimum include:
      - **Title** — concise and action-oriented

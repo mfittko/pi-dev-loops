@@ -106,3 +106,12 @@ test("copilot-autopilot docs keep issue refinement separate from the phase-scope
   assert.match(planContent, /Thin workflow entrypoint agents are still allowed/i);
   assert.match(planContent, /must stay thin, defer sequencing and workflow policy to the skill/i);
 });
+
+test("copilot-autopilot normalization docs require issue state checks and avoid the stale top-level-workflow roadmap question", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+  const planContent = await readRepo("PLAN.md");
+
+  assert.match(skillContent, /gh issue view <number> --json number,title,body,state,labels,assignees,milestone/);
+  assert.match(skillContent, /If a matching issue exists:[\s\S]*confirm it is still open[\s\S]*if a PR already exists, route immediately into the existing PR follow-up path/i);
+  assert.doesNotMatch(planContent, /remain a mode of `copilot-dev-loop`, or become a separate top-level workflow/i);
+});
