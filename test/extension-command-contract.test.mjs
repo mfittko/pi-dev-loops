@@ -72,7 +72,11 @@ function readyPi() {
       ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 0],
     ]),
     tools: [{ name: "subagent" }],
-    commands: [{ name: "skill:dev-loop" }, { name: "skill:copilot-dev-loop" }],
+    commands: [
+      { name: "skill:dev-loop" },
+      { name: "skill:copilot-dev-loop" },
+      { name: "skill:copilot-autopilot" },
+    ],
   });
 }
 
@@ -118,7 +122,11 @@ test("status keeps remote readiness blocked outside a git repo", async () => {
       ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 1],
     ]),
     tools: [{ name: "subagent" }],
-    commands: [{ name: "skill:dev-loop" }, { name: "skill:copilot-dev-loop" }],
+    commands: [
+      { name: "skill:dev-loop" },
+      { name: "skill:copilot-dev-loop" },
+      { name: "skill:copilot-autopilot" },
+    ],
   });
   registerExtension(pi);
 
@@ -179,9 +187,11 @@ test("install repo copies packaged skills into the repository, repo errors stay 
   assert(installLines.some((line) => /Restart Pi or refresh skill discovery/i.test(line)));
   await access(path.join(repoRoot, ".pi", "skills", "dev-loop", "SKILL.md"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "SKILL.md"));
+  await access(path.join(repoRoot, ".pi", "skills", "copilot-autopilot", "SKILL.md"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "scripts", "github", "request-copilot-review.mjs"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "packages", "core", "src", "loop", "copilot-loop-state.mjs"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "docs", "copilot-loop-state-graph.md"));
+  await access(path.join(repoRoot, ".pi", "skills", "copilot-autopilot", "scripts", "loop", "copilot-pr-handoff.mjs"));
 
   const repoErrorContext = createCommandContext();
   const noRepoPi = createPiDouble({
@@ -266,11 +276,17 @@ test("buildInstallResultLines reports missing update targets as not installed an
         status: "missing",
         targetPath: "/tmp/repo/.pi/skills/copilot-dev-loop",
       },
+      {
+        skillName: "copilot-autopilot",
+        status: "missing",
+        targetPath: "/tmp/repo/.pi/skills/copilot-autopilot",
+      },
     ],
   });
 
-  assert.equal(lines[0], "pi-dev-loops update repo: 1/2 skill directories changed");
+  assert.equal(lines[0], "pi-dev-loops update repo: 1/3 skill directories changed");
   assert(lines.some((line) => /copilot-dev-loop: not installed/i.test(line)));
+  assert(lines.some((line) => /copilot-autopilot: not installed/i.test(line)));
   assert(lines.some((line) => /first-time setup/i.test(line)));
 });
 

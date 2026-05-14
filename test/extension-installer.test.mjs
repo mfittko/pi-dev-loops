@@ -26,6 +26,7 @@ async function seedPackagedSupport(tempDir) {
     "github/request-copilot-review.mjs": "#!/usr/bin/env node\n",
     "github/stage-reviewer-draft.mjs": "export const stage = true;\n",
     "github/watch-copilot-review.mjs": "export const watch = true;\n",
+    "loop/copilot-pr-handoff.mjs": "export const handoff = true;\n",
     "loop/detect-copilot-loop-state.mjs": "#!/usr/bin/env node\n",
     "loop/detect-reviewer-loop-state.mjs": "export const reviewer = true;\n",
     "README.md": "scripts readme\n",
@@ -61,8 +62,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
 
   await mkdir(path.join(sourceRoot, "dev-loop"), { recursive: true });
   await mkdir(path.join(sourceRoot, "copilot-dev-loop"), { recursive: true });
+  await mkdir(path.join(sourceRoot, "copilot-autopilot"), { recursive: true });
   await writeFile(path.join(sourceRoot, "dev-loop", "SKILL.md"), "dev-loop v1\n");
   await writeFile(path.join(sourceRoot, "copilot-dev-loop", "SKILL.md"), "copilot v1\n");
+  await writeFile(path.join(sourceRoot, "copilot-autopilot", "SKILL.md"), "autopilot v1\n");
 
   const first = await syncPackagedSkills({
     mode: "install",
@@ -79,6 +82,7 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
     [
       ["dev-loop", "installed"],
       ["copilot-dev-loop", "installed"],
+      ["copilot-autopilot", "installed"],
     ],
   );
 
@@ -103,6 +107,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "scripts", "github", "extra-helper.mjs")));
   await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "packages", "core", "src", "other", "not-needed.mjs")));
   await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "docs", "IMPLEMENTATION_STATE.md")));
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "loop", "copilot-pr-handoff.mjs"), "utf8"),
+    "export const handoff = true;\n",
+  );
 
   await writeFile(path.join(targetRoot, "dev-loop", "SKILL.md"), "repo override\n");
 
@@ -121,6 +129,7 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
     [
       ["dev-loop", "already-installed"],
       ["copilot-dev-loop", "already-installed"],
+      ["copilot-autopilot", "already-installed"],
     ],
   );
   assert.equal(await readFile(path.join(targetRoot, "dev-loop", "SKILL.md"), "utf8"), "repo override\n");
@@ -134,9 +143,11 @@ test("update refreshes existing target directories from the packaged source and 
 
   await mkdir(path.join(sourceRoot, "dev-loop"), { recursive: true });
   await mkdir(path.join(sourceRoot, "copilot-dev-loop"), { recursive: true });
+  await mkdir(path.join(sourceRoot, "copilot-autopilot"), { recursive: true });
   await mkdir(path.join(targetRoot, "dev-loop"), { recursive: true });
   await writeFile(path.join(sourceRoot, "dev-loop", "SKILL.md"), "dev-loop v2\n");
   await writeFile(path.join(sourceRoot, "copilot-dev-loop", "SKILL.md"), "copilot v2\n");
+  await writeFile(path.join(sourceRoot, "copilot-autopilot", "SKILL.md"), "autopilot v2\n");
   await writeFile(path.join(targetRoot, "dev-loop", "SKILL.md"), "stale local copy\n");
 
   const result = await syncPackagedSkills({
@@ -154,10 +165,12 @@ test("update refreshes existing target directories from the packaged source and 
     [
       ["dev-loop", "updated"],
       ["copilot-dev-loop", "missing"],
+      ["copilot-autopilot", "missing"],
     ],
   );
   assert.equal(await readFile(path.join(targetRoot, "dev-loop", "SKILL.md"), "utf8"), "dev-loop v2\n");
   await assert.rejects(readFile(path.join(targetRoot, "copilot-dev-loop", "SKILL.md"), "utf8"));
+  await assert.rejects(readFile(path.join(targetRoot, "copilot-autopilot", "SKILL.md"), "utf8"));
 });
 
 test("install refuses symlinked roots, symlinked ancestors, and skill targets to avoid mutating the symlink source unexpectedly", async () => {
@@ -169,8 +182,10 @@ test("install refuses symlinked roots, symlinked ancestors, and skill targets to
 
   await mkdir(path.join(sourceRoot, "dev-loop"), { recursive: true });
   await mkdir(path.join(sourceRoot, "copilot-dev-loop"), { recursive: true });
+  await mkdir(path.join(sourceRoot, "copilot-autopilot"), { recursive: true });
   await writeFile(path.join(sourceRoot, "dev-loop", "SKILL.md"), "dev-loop v1\n");
   await writeFile(path.join(sourceRoot, "copilot-dev-loop", "SKILL.md"), "copilot v1\n");
+  await writeFile(path.join(sourceRoot, "copilot-autopilot", "SKILL.md"), "autopilot v1\n");
 
   await mkdir(realRoot, { recursive: true });
   await symlink(realRoot, linkedRoot);
