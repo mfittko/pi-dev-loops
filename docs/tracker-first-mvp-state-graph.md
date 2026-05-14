@@ -77,7 +77,7 @@ If observable facts are contradictory or insufficient to decide safely, stop at 
    - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && reviewRequested && !reviewActivityPresent && !actionableReviewFeedbackPresent && !requiredCiPending`.
 5. `under_review`
    - Review activity or actionable review feedback is the active state.
-   - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && ((actionableReviewFeedbackPresent && !fixCommitPushedAfterLatestFeedback) || (reviewActivityPresent && !actionableReviewFeedbackPresent))`.
+   - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && ((actionableReviewFeedbackPresent && !fixCommitPushedAfterLatestFeedback) || (reviewActivityPresent && !actionableReviewFeedbackPresent && !requiredCiPending))`.
    - `under_review` wins over `waiting_for_ci` whenever review feedback is still active.
 6. `fixes_in_progress`
    - A follow-up fix commit has been pushed after the latest actionable feedback, but that feedback has not yet been replied/resolved or superseded by a fresh clean review.
