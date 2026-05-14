@@ -311,6 +311,7 @@ test("buildInstallResultLines reports missing update targets as not installed an
   assert(lines.some((line) => /copilot-dev-loop: not installed/i.test(line)));
   assert(lines.some((line) => /copilot-autopilot: not installed/i.test(line)));
   assert(lines.some((line) => /first-time setup/i.test(line)));
+  assert(lines.some((line) => /missing skill will not appear after refresh alone/i.test(line)));
 });
 
 test("buildInstallResultLines throws for unknown install statuses instead of rendering undefined", () => {

@@ -142,8 +142,8 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 3. Search GitHub issues for a matching title or reference: `gh issue list --state all --search "<title keywords>"`.
 4. If a matching issue exists:
    - fetch it with `gh issue view <number> --repo <resolved-repo> --json number,title,body,state,labels,assignees,milestone`
-   - confirm it is still open
-   - check whether a PR already exists for that issue
+   - if the matching issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a new follow-up issue)
+   - if it is still open, check whether a PR already exists for that issue
    - if a PR already exists, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
    - otherwise confirm with the user and proceed with that issue
 5. If no matching issue exists:
@@ -168,6 +168,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    - if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above
    - otherwise search existing issues directly with `gh issue list --state all --search "<title keywords>"`
    - if a matching issue exists, follow the issue-number/URL normalization path so open-state and existing-PR checks still run
+   - if that matching issue turns out to be closed, stop for a user decision before reopening it or drafting follow-up work
    - if no matching issue exists, draft a properly scoped issue body using the same minimum sections required in the plan-doc path, show it to the user, and create the issue only after confirmation
 
 ## Phase 3 — Async issue refinement
@@ -288,7 +289,7 @@ Use the deterministic helpers from the resolved skill scripts directory:
 
 **One-step detect → request → emit watch parameters:**
 ```sh
-node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
+node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <resolved-repo> --pr <number>
 ```
 
 When that helper returns `action: "watch"`, run `watch-copilot-review.mjs` with the emitted `watchArgs` rather than assuming the handoff command waited by itself.

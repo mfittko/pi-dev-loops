@@ -55,7 +55,7 @@ They do **not**:
 - bootstrap repositories beyond writing skill directories and the bundled support files nested under them
 - automatically refresh the current Pi session's already-loaded command list
 
-After install or update, restart Pi or refresh skill discovery before expecting `/skill:dev-loop`, `/skill:copilot-dev-loop`, or `/skill:copilot-autopilot` to appear in the current session.
+After install or update, restart Pi or refresh skill discovery before expecting newly installed or updated skills to appear in the current session. If `update` reports a packaged skill as missing, run `/dev-loops install repo|system` first for that skill set; a refresh alone will not make a missing skill appear.
 
 ## Runtime / build / test contract
 

@@ -112,7 +112,7 @@ test("copilot-autopilot normalization docs require issue state checks and avoid 
   const planContent = await readRepo("PLAN.md");
 
   assert.match(skillContent, /gh issue view <number> --repo <(?:owner\/name|resolved-repo)> --json number,title,body,state,labels,assignees,milestone/);
-  assert.match(skillContent, /If a matching issue exists:[\s\S]*confirm it is still open[\s\S]*if a PR already exists, route immediately into the existing PR follow-up path/i);
+  assert.match(skillContent, /If a matching issue exists:[\s\S]*if the matching issue is closed, stop for a user decision[\s\S]*if a PR already exists, route immediately into the existing PR follow-up path/i);
   assert.doesNotMatch(planContent, /remain a mode of `copilot-dev-loop`, or become a separate top-level workflow/i);
 });
 
@@ -137,4 +137,12 @@ test("copilot-autopilot carries the resolved repo slug through later GitHub issu
   assert.match(skillContent, /gh pr ready <pr-number> --repo <resolved-repo>/);
   assert.match(skillContent, /gh pr review <pr-number> --repo <resolved-repo> --approve/);
   assert.match(skillContent, /gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch/);
+});
+
+test("copilot-autopilot docs define closed-match handling and keep the handoff helper on the resolved repo", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+
+  assert.match(skillContent, /if the matching issue is closed, stop for a user decision before proceeding/i);
+  assert.match(skillContent, /if that matching issue turns out to be closed, stop for a user decision/i);
+  assert.match(skillContent, /copilot-pr-handoff\.mjs --repo <resolved-repo> --pr <number>/);
 });
