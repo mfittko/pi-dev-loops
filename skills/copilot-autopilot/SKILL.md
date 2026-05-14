@@ -122,20 +122,23 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 
 ### From a GitHub issue number or URL
 
-1. Fetch the issue with `gh issue view <number> --json number,title,body,state,labels,assignees,milestone`.
-2. Confirm the issue exists and is open.
-3. Check whether a PR already exists for this issue (search for branches or PRs that reference the issue number).
-4. If a PR already exists, route to the existing PR follow-up path immediately with that PR number.
+1. Resolve the target repository and issue number first:
+   - if the input is a full GitHub issue URL, parse `<owner/name>` and `<number>` from the URL and use that repo slug for the subsequent GitHub commands
+   - if the input is a bare issue number, use the current repository slug
+2. Fetch the issue with `gh issue view <number> --repo <owner/name> --json number,title,body,state,labels,assignees,milestone`.
+3. Confirm the issue exists and is open.
+4. Check whether a PR already exists for this issue (search for branches or PRs that reference the issue number in that same repository).
+5. If a PR already exists, route to the existing PR follow-up path immediately with that PR number.
    - Use the deterministic helper/state-machine surface to detect the current PR lifecycle state.
    - Treat that detected state as the authoritative entrypoint for resumed execution.
    - Continue from that entrypoint rather than restarting earlier phases.
-5. Otherwise, proceed to Phase 3 with this issue as the execution entry point.
+6. Otherwise, proceed to Phase 3 with this issue as the execution entry point.
 
 ### From a plan-doc path
 
 1. Read the planning document.
 2. Identify the most specific bounded work item described.
-3. Search GitHub issues for a matching title or reference: `gh issue list --search "<title keywords>"`.
+3. Search GitHub issues for a matching title or reference: `gh issue list --state all --search "<title keywords>"`.
 4. If a matching issue exists:
    - fetch it with `gh issue view <number> --json number,title,body,state,labels,assignees,milestone`
    - confirm it is still open
@@ -160,7 +163,11 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 1. Parse the idea into a bounded work item candidate.
 2. Run the preflight checklist (Phase 1) explicitly for this idea.
 3. If the verdict is `pause_for_clarification`, stop and ask.
-4. Once the scope is clear, follow the plan-doc normalization path above to find or create the issue.
+4. Once the scope is clear:
+   - if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above
+   - otherwise search existing issues directly with `gh issue list --state all --search "<title keywords>"`
+   - if a matching issue exists, follow the issue-number/URL normalization path so open-state and existing-PR checks still run
+   - if no matching issue exists, draft a properly scoped issue body using the same minimum sections required in the plan-doc path, show it to the user, and create the issue only after confirmation
 
 ## Phase 3 — Async issue refinement
 

@@ -115,3 +115,14 @@ test("copilot-autopilot normalization docs require issue state checks and avoid 
   assert.match(skillContent, /If a matching issue exists:[\s\S]*confirm it is still open[\s\S]*if a PR already exists, route immediately into the existing PR follow-up path/i);
   assert.doesNotMatch(planContent, /remain a mode of `copilot-dev-loop`, or become a separate top-level workflow/i);
 });
+
+test("copilot-autopilot docs cover issue URLs, state-all issue search, and abstract ideas without plan docs", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+
+  assert.match(skillContent, /if the input is a full GitHub issue URL, parse `<owner\/name>` and `<number>`/i);
+  assert.match(skillContent, /gh issue view <number> --repo <owner\/name> --json number,title,body,state,labels,assignees,milestone/);
+  assert.match(skillContent, /gh issue list --state all --search/);
+  assert.match(skillContent, /if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above/i);
+  assert.match(skillContent, /otherwise search existing issues directly/i);
+  assert.match(skillContent, /if a matching issue exists, follow the issue-number\/URL normalization path/i);
+});

@@ -111,6 +111,14 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
     await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "loop", "copilot-pr-handoff.mjs"), "utf8"),
     "export const handoff = true;\n",
   );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "loop", "copilot-loop-state.mjs"), "utf8"),
+    "export const copilotState = true;\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "docs", "copilot-loop-state-graph.md"), "utf8"),
+    "copilot graph\n",
+  );
 
   await writeFile(path.join(targetRoot, "dev-loop", "SKILL.md"), "repo override\n");
 
