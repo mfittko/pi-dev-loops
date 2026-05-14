@@ -13,6 +13,7 @@ const SETUP_GUIDANCE: Record<(typeof DEV_LOOP_CHECK_IDS)[number], string> = {
   "git-repo": "Open Pi inside a git repository checkout before using the shared loops.",
   "local-dev-loop-skill": INSTALL_GUIDANCE,
   "copilot-dev-loop-skill": INSTALL_GUIDANCE,
+  "copilot-autopilot-skill": INSTALL_GUIDANCE,
 };
 
 function readinessLabel(ready: boolean): string {
@@ -30,6 +31,7 @@ const REMOTE_READINESS_IDS: DevLoopCheckId[] = [
   "subagent-tool",
   "git-repo",
   "copilot-dev-loop-skill",
+  "copilot-autopilot-skill",
 ];
 
 function formatInstallStatus(status: InstallStatus): string {
@@ -143,7 +145,7 @@ export function buildInstallResultLines(result: InstallResult): string[] {
     lines.push("Some packaged skills were not installed in this target yet; use `/dev-loops install repo|system` for first-time setup.");
   }
 
-  lines.push("Restart Pi or refresh skill discovery before expecting `/skill:dev-loop` or `/skill:copilot-dev-loop` to appear in this session.");
+  lines.push("Restart Pi or refresh skill discovery before expecting `/skill:dev-loop`, `/skill:copilot-dev-loop`, or `/skill:copilot-autopilot` to appear in this session.");
 
   return lines;
 }

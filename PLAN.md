@@ -406,7 +406,9 @@ Acceptance criteria:
 
 ## GitHub-first intake and autopilot
 
-The `copilot-autopilot` skill and its paired `copilot-autopilot` agent entry point are now part of the shared toolkit. They provide a single opinionated end-to-end workflow that starts from any of three entry types and drives the full GitHub/Copilot lifecycle through merge.
+The `copilot-autopilot` skill and its paired `copilot-autopilot` agent entry point are now available in this repository as the issue/plan intake wrapper for GitHub-first execution. They provide a single opinionated workflow that starts from any of three entry types and drives the GitHub/Copilot lifecycle through merge while reusing the existing PR follow-up loop.
+
+The existing `copilot-dev-loop` remains the primary PR follow-up and already-open-PR workflow surface for this repository. `copilot-autopilot` sits in front of it for issue/plan intake, normalization, and end-to-end orchestration when the user wants the broader wrapper.
 
 ### What `copilot-autopilot` delivers
 
@@ -435,7 +437,7 @@ copilot-autopilot @docs/PLAN.md ADR validation  # abstract roadmap idea
 - **Issue-first execution model**: all execution is anchored to a GitHub issue before Copilot is assigned
 - **Clarification gate**: ambiguous or underspecified inputs trigger questions, not blind automation
 - **Safe defaults**: any GitHub mutation (issue create/edit, Copilot assignment, PR changes, merge) requires explicit confirmation
-- **Reuse over duplication**: the full PR follow-up loop reuses `copilot-dev-loop` state machines and helpers rather than reimplementing them
+- **Reuse over duplication**: the full PR follow-up loop routes into `copilot-dev-loop` mechanics and deterministic helpers rather than inventing a second state machine
 - **Separation of concerns**: shared workflow logic lives in the skill/agent; repo-local policy (validation commands, merge policy for deferred threads) is configured by the adopting repository
 
 ### Guard rails that remain in effect
@@ -458,7 +460,7 @@ This documents the repository's operating contract with this workflow so the beh
 
 ### Remaining work
 
-The shipped skill and agent cover the full lifecycle but the following are not yet fixture-testable end-to-end:
+The shipped skill and agent cover the full operator workflow, but the following are still agent-judgment phases rather than fixture-testable end-to-end automation:
 
 - preflight verdict logic (currently agent-layer judgment; no deterministic script yet)
 - issue-refinement fan-out orchestration (currently agent-driven; could be a deterministic helper)

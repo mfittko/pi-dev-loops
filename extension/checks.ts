@@ -7,6 +7,7 @@ export const DEV_LOOP_CHECK_IDS = [
   "git-repo",
   "local-dev-loop-skill",
   "copilot-dev-loop-skill",
+  "copilot-autopilot-skill",
 ] as const;
 
 export type DevLoopCheckId = (typeof DEV_LOOP_CHECK_IDS)[number];
@@ -67,6 +68,9 @@ export async function collectDevLoopChecks(pi: ExtensionAPI): Promise<DevLoopChe
   const copilotDevLoopAvailable = commands.some(
     (command) => command.name === "skill:copilot-dev-loop",
   );
+  const copilotAutopilotAvailable = commands.some(
+    (command) => command.name === "skill:copilot-autopilot",
+  );
 
   return [
     {
@@ -117,6 +121,14 @@ export async function collectDevLoopChecks(pi: ExtensionAPI): Promise<DevLoopChe
       detail: copilotDevLoopAvailable
         ? "`/skill:copilot-dev-loop` is available."
         : "Run `/dev-loops install repo` or `/dev-loops install system` to make `/skill:copilot-dev-loop` discoverable.",
+    },
+    {
+      id: "copilot-autopilot-skill",
+      label: "Copilot autopilot skill discoverable",
+      ok: copilotAutopilotAvailable,
+      detail: copilotAutopilotAvailable
+        ? "`/skill:copilot-autopilot` is available."
+        : "Run `/dev-loops install repo` or `/dev-loops install system` to make `/skill:copilot-autopilot` discoverable.",
     },
   ];
 }
