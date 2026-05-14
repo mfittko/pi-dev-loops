@@ -55,7 +55,7 @@ The current state must be derived from durable observable facts, not intent or g
 - `trackerSyncVerificationFailed`
   - a sync attempt failed, or merged-PR facts and tracker facts still contradict the inherited `#21` terminal expectation
 
-If observable facts are contradictory or insufficient to decide safely, stop at `stopped_needs_user_decision` instead of guessing.
+If observable facts are contradictory or insufficient to decide safely, stop at `blocked_needs_user_decision` instead of guessing.
 
 ## Workflow-family state machine
 
@@ -102,19 +102,19 @@ If observable facts are contradictory or insufficient to decide safely, stop at 
 12. `blocked_sync_failed`
    - Tracker sync failed or verification contradicts the inherited `#21` merged/done expectation.
    - Detect when: `prMerged && trackerSyncVerificationFailed`.
-13. `stopped_needs_user_decision`
+13. `blocked_needs_user_decision`
    - Contradictory facts, out-of-scope requests, policy conflict, or unclear intent.
 
 ### Terminal states
 
 - `done`
-- `stopped_needs_user_decision`
+- `blocked_needs_user_decision`
 
 ### Deterministic detection priority
 
 Evaluate states in this order so the machine always returns exactly one state:
 
-1. contradictory or out-of-scope facts -> `stopped_needs_user_decision`
+1. contradictory or out-of-scope facts -> `blocked_needs_user_decision`
 2. merged PR + failed sync verification -> `blocked_sync_failed`
 3. merged PR + tracker reflects merged outcome + required work item <-> PR link present -> `done`
 4. required durable work item <-> PR link missing while a PR exists -> `blocked_missing_artifact`
@@ -155,7 +155,7 @@ This priority order removes overlap between states such as:
   - Reconstruct from permanent artifacts and return to the highest valid state.
 - `blocked_sync_failed -> tracker_sync`
   - Retry sync after reconciling merged-PR facts with tracker facts already owned by `#21`.
-- `stopped_needs_user_decision -> selected_ready | reviewable_pr | tracker_sync`
+- `blocked_needs_user_decision -> selected_ready | reviewable_pr | tracker_sync`
   - Resume only after explicit user decision.
 - `under_review -> reviewable_pr`
   - If all review activity is cleared without new fix commits and no waiting state remains.
