@@ -120,7 +120,7 @@ Recoverability requirement:
 
 - temporary artifacts are run-scoped working outputs
 - write temporary artifacts under deterministic phase-scoped paths in `tmp/`
-- path pattern example: `tmp/new-idea-intake/<run-id>/proposal.{md,json}`
+- path examples: `tmp/new-idea-intake/<run-id>/proposal.md` and `tmp/new-idea-intake/<run-id>/proposal.json`
 - `<run-id>` should use a stable UTC execution identifier (`YYYYMMDDTHHMMSSZ`), such as:
   - `20260514T143022Z-issue-42`
   - `YYYYMMDDTHHMMSSZ-issue-<number>` when an issue exists
@@ -241,10 +241,11 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 
 1. Parse the idea into a bounded work item candidate.
 2. Run the preflight checklist (Phase 1) explicitly for this idea.
-3. Run the **New-idea safety layer** state machine above (proposal-first, coordinator-owned) before any GitHub mutation.
-4. If the verdict is `pause_for_clarification`, `stopped_overlap_needs_decision`, or `stopped_low_confidence`, stop and ask.
-5. If the verdict is `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub.
-6. Once the scope is clear and the user approves the proposal artifact, start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact:
+3. If the Phase 1 preflight verdict is `pause_for_clarification`, stop and ask.
+4. Run the **New-idea safety layer** state machine above (proposal-first, coordinator-owned) before any GitHub mutation.
+5. If the intake state machine stops at `stopped_overlap_needs_decision` or `stopped_low_confidence`, stop and ask.
+6. If the intake state machine stops at `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub.
+7. Once the Phase 1 preflight verdict allows continuation, the intake state machine reaches proposal approval, and the user approves the proposal artifact, start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact:
     - resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path (default current repo unless the input explicitly targets another repository)
     - if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above
     - otherwise search existing issues directly with `gh issue list --repo <resolved-repo> --state all --search "<title keywords>"`

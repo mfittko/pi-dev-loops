@@ -192,9 +192,12 @@ test("copilot-autopilot safety layer contract is documented", async () => {
     "stopped_overlap_needs_decision",
   ]);
 
-  assert.match(skillContent, /If the verdict is `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub\./i);
+  assert.match(skillContent, /If the Phase 1 preflight verdict is `pause_for_clarification`, stop and ask\./i);
+  assert.match(skillContent, /If the intake state machine stops at `stopped_overlap_needs_decision` or `stopped_low_confidence`, stop and ask\./i);
+  assert.match(skillContent, /If the intake state machine stops at `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub\./i);
   assert.match(skillContent, /start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact/i);
   assert.match(skillContent, /record what the mutation pass actually changed and verify the resulting issue\/artifact state/i);
+  assert.match(skillContent, /proposal\.md` and `tmp\/new-idea-intake\/<run-id>\/proposal\.json/i);
   assert.match(skillContent, /human-readable Markdown proposal/i);
   assert.match(skillContent, /machine-readable JSON snapshot/i);
   assert.match(skillContent, /run a second async coordinator mutation pass/i);
