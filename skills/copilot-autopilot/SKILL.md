@@ -65,7 +65,7 @@ Additional rules specific to this skill:
 
 ## New-idea safety layer (default contract in this repo)
 
-For **new ideas** (especially abstract ideas that are not already anchored to an existing issue), apply this coordinator-owned intake contract before any GitHub mutation:
+For **all new ideas** that are not already anchored to an existing issue (including abstract ideas such as plain-language requests without an issue number or plan-doc path), apply this coordinator-owned intake contract before any GitHub mutation:
 
 - coordinator owns classification and mutation gating decisions
 - run classification in fresh context by default
@@ -99,13 +99,34 @@ stop states:
 - stopped_explicit_reject
 ```
 
+`pause_for_clarification` remains the Phase 1 preflight gate and is evaluated before entering this intake state machine.
+
 Proposal artifact contract (must exist before mutation):
 
-- human-readable Markdown proposal with: idea summary, proposed classification, candidate target artifacts, overlap assessment, intended mutation, create-new recommendation, confidence/ambiguity notes, recovery hints, and source inputs
-- machine-readable JSON snapshot of the same classification/proposal facts for deterministic pickup and recovery
+- all proposal fields below are required before mutation
+- human-readable Markdown proposal with:
+  - idea summary
+  - proposed classification
+  - candidate target artifacts
+  - overlap assessment
+  - intended mutation
+  - create-new recommendation
+  - confidence/ambiguity notes
+  - recovery hints
+  - source inputs
+- machine-readable JSON snapshot of the same required classification/proposal facts for deterministic pickup and recovery
 
 Recoverability requirement:
 
+- temporary artifacts are run-scoped working outputs
+- write temporary artifacts under deterministic phase-scoped paths in `tmp/`
+- path pattern example: `tmp/new-idea-intake/<run-id>/proposal.{md,json}`
+- `<run-id>` should use a stable UTC execution identifier (`YYYYMMDDTHHMMSSZ`), such as:
+  - `20260514T143022Z-issue-42`
+  - `YYYYMMDDTHHMMSSZ-issue-<number>` when an issue exists
+  - `YYYYMMDDTHHMMSSZ-idea` before issue creation
+- temporary artifacts may be cleaned up after completion
+- permanent artifacts are durable GitHub or repository records that persist independently of local temp files
 - temporary artifacts (proposal markdown/json, fan-out outputs, fan-in output, local scans, mutation verification notes) should enable deterministic resume
 - permanent artifacts (issues/labels/links/docs) must still support degraded-confidence recovery if temporary artifacts are missing
 
@@ -221,7 +242,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 1. Parse the idea into a bounded work item candidate.
 2. Run the preflight checklist (Phase 1) explicitly for this idea.
 3. Run the **New-idea safety layer** state machine above (proposal-first, coordinator-owned) before any GitHub mutation.
-4. If the verdict is `pause_for_clarification`, `stopped_overlap_needs_decision`, or `stopped_low_confidence`, stop and ask.
+4. If the verdict is `pause_for_clarification`, `stopped_overlap_needs_decision`, `stopped_low_confidence`, or `stopped_explicit_reject`, stop and ask.
 5. Once the scope is clear and the user approves the proposal artifact:
     - resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path (default current repo unless the input explicitly targets another repository)
     - if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above

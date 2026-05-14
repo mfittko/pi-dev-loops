@@ -168,7 +168,7 @@ test("copilot-autopilot docs resolve the target repo for non-issue inputs and RE
   assert.match(readmeContent, /thin workflow entrypoint agents allowed when they only load a skill and defer policy to it/i);
 });
 
-test("copilot-autopilot docs define a proposal-first coordinator safety layer for new ideas", async () => {
+test("copilot-autopilot safety layer contract is documented", async () => {
   const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
   const planContent = await readRepo("PLAN.md");
 
@@ -177,8 +177,21 @@ test("copilot-autopilot docs define a proposal-first coordinator safety layer fo
   assert.match(skillContent, /run classification in fresh context by default/i);
   assert.match(skillContent, /async fan-out \/ fan-in proposal generation by default when practical/i);
   assert.match(skillContent, /default to create-new over overwrite\/update/i);
-  assert.match(skillContent, /stop states:[\s\S]*stopped_overlap_needs_decision[\s\S]*stopped_low_confidence[\s\S]*stopped_explicit_reject/i);
-  assert.match(skillContent, /human-readable Markdown proposal[\s\S]*machine-readable JSON snapshot/i);
+  const stopStatesMarkdownBlock = skillContent.match(/stop states:\s*\n((?:-\s+.+\n)+)/i)?.[1] ?? "";
+  const stopStates = stopStatesMarkdownBlock
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.replace(/^-\s+/, "").trim())
+    .sort();
+  assert.deepEqual(stopStates, [
+    "stopped_explicit_reject",
+    "stopped_low_confidence",
+    "stopped_overlap_needs_decision",
+  ]);
+  assert.match(skillContent, /If the verdict is `pause_for_clarification`, `stopped_overlap_needs_decision`, `stopped_low_confidence`, or `stopped_explicit_reject`, stop and ask\./);
+  assert.match(skillContent, /human-readable Markdown proposal/i);
+  assert.match(skillContent, /machine-readable JSON snapshot/i);
   assert.match(skillContent, /run a second async coordinator mutation pass/i);
   assert.match(skillContent, /emit a concise post-mutation verification artifact/i);
   assert.match(planContent, /Proposal-first new-idea safety layer/i);
