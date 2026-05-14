@@ -21,6 +21,9 @@ test("refiner agent defines the approved phase-refinement contract", async () =>
   assert.match(content, /specialized dev/i);
   assert.match(content, /systems architect/i);
   assert.match(content, /parallel fresh-context fan-out\/fan-in/i);
+  assert.match(content, /variant-a.+variant-b|variant-b.+variant-a/is);
+  assert.match(content, /one persona or refinement angle/i);
+  assert.match(content, /different persona or angle/i);
   assert.doesNotMatch(content, /execute RFC work itself|run the RFC team|implement the RFC team/i);
 });
 
@@ -29,6 +32,10 @@ test("dev-loop skill uses the refiner for phase planning without replacing the c
 
   assert.match(content, /refiner/i);
   assert.match(content, /parallel fresh-context subagents/i);
+  assert.match(content, /concise written briefing summary|concise briefing summary/i);
+  assert.match(content, /do not fork the parent session/i);
+  assert.match(content, /stable inner fan-out shape|anchored to one persona or refinement angle/i);
+  assert.match(content, /different persona or angle/i);
   assert.match(content, /Definition of done/i);
   assert.match(content, /RFC-worthy technical decisions/i);
   assert.match(content, /through the coordinator/i);

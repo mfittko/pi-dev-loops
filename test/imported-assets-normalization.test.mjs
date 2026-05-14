@@ -20,10 +20,13 @@ test("review agent does not hardcode reviewer identity or stale plan path", asyn
   assert.doesNotMatch(content, /docs\/plans\//);
 });
 
-test("coordinator agent does not contain stale docs/plans path", async () => {
+test("coordinator agent does not contain stale docs/plans path and requires fresh-context review briefings", async () => {
   const content = await readRepo("agents/coordinator.agent.md");
 
   assert.doesNotMatch(content, /docs\/plans\//);
+  assert.match(content, /Do not fork the parent session for review subagents/i);
+  assert.match(content, /concise briefing summary/i);
+  assert.match(content, /fresh context/i);
 });
 
 test("copilot skill still contains its core workflow guidance", async () => {
@@ -36,6 +39,9 @@ test("copilot skill still contains its core workflow guidance", async () => {
   assert.match(content, /Before any GitHub mutation/);
   assert.match(content, /Preferred defaults for this repo:/);
   assert.match(content, /Default validation should match or approximate/);
+  assert.match(content, /start each reviewer in fresh context/i);
+  assert.match(content, /concise focus-specific briefing summary/i);
+  assert.match(content, /do not fork the parent session/i);
 });
 
 test("copilot skill requires github reply/resolve follow-up and gates waiting on confirmed review-request state", async () => {

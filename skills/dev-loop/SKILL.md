@@ -205,7 +205,9 @@ Write 2-3 short variants:
 - `variant-b.md` = best practical UX/developer-experience option within phase scope
 - `variant-c.md` = safest boundary/risk-reduction option when useful
 
-When subagents are available, the default refinement path should use the `refiner` role and **parallel fresh-context subagents** so the variants are independently generated rather than serially contaminated by one another.
+When subagents are available, the default refinement path should use the `refiner` role and **parallel fresh-context subagents** so the variants are independently generated rather than serially contaminated by one another. Pass each refiner a concise written briefing summary instead of relying on forked parent-session context.
+
+For future refinement hardening, treat the `variant-a` / `variant-b` pattern as the stable inner fan-out shape for a given persona or review angle. Do not switch personas halfway through one `a/b` pair. Instead, when more hardening is needed, run multiple fresh-context fan-out passes with different personas or angles, each with its own consistent `a/b` pair, and then merge across those persona-specific passes.
 
 Each refiner variant should make room for:
 - explicit non-goals
@@ -232,6 +234,10 @@ When a phase includes a bounded audit, inventory, or scan:
 
 If subagents generate the variants:
 - run them in parallel with clean context when practical
+- give each variant generator a concise briefing summary that includes phase objective, in-scope work, constraints, known risks, and required outputs
+- keep each `variant-a` / `variant-b` pair anchored to one persona or refinement angle so the alternatives are directly comparable
+- when you want broader hardening, add another fan-out pass with a different persona or angle and its own `variant-a` / `variant-b` pair instead of blending multiple personas into one pair
+- do not fork the parent session just to share planning context; summarize it instead
 - save raw subagent outputs under `tmp/phases/phase-x/subagents/raw/` only when keeping the raw capture is actually useful
 - then write the human-oriented `variant-a.md` / `variant-b.md` / `variant-c.md` files from those raw outputs when applicable
 
@@ -330,6 +336,8 @@ After the phase plan passes review:
 4. Review the implementation against the merged phase plan.
 5. Run a full parallel review / fix loop on the branch before merge readiness:
    - use at least two focused review passes in parallel when practical
+   - start each reviewer in fresh context with a concise reviewer-specific briefing summary covering the branch/phase, intended behavior, acceptance criteria, relevant files or artifacts, current validation status, and that reviewer's exact angle
+   - do not fork the parent session for parallel reviewers; if more context is needed, write a compact handoff artifact under `tmp/` and point the reviewer at it
    - when reviewer subagents stumble on raw source-tree reads (for example unresolved build artifacts or import assumptions), generate a deterministic diff/review artifact under `tmp/` and have reviewers inspect that artifact instead of the raw file set
    - synthesize actionable findings
    - apply accepted fixes on the same branch

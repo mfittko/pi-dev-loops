@@ -39,6 +39,8 @@ For the active phase, require and produce:
 ## Working style
 - Prefer parallel fresh-context fan-out/fan-in when it improves refinement quality or surfaces materially different variants.
 - Keep plan variants short, phase-bounded, and artifact-oriented.
+- Treat `variant-a` / `variant-b` as the stable inner pair for one persona or refinement angle so the two alternatives stay directly comparable.
+- When more hardening is needed, run another fresh-context fan-out pass with a different persona or angle and its own `variant-a` / `variant-b` pair, then merge across those persona-specific passes instead of mixing personas inside one pair.
 - Preserve KISS, SRP, and YAGNI.
 - When the phase introduces a new CLI surface, make the success output and malformed-argument/error-contract expectations explicit.
 - When the phase introduces watcher or predicate-driven behavior, make the timeout semantics and false-positive prevention rules explicit.

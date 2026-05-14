@@ -456,6 +456,12 @@ When helpful, run parallel review angles such as:
 - tests/validation
 - maintainability/scope control
 
+For any parallel review pass:
+- start each reviewer in fresh context
+- give each reviewer a concise focus-specific briefing summary instead of relying on inherited conversation state
+- include the PR/branch, intended scope, relevant issue or plan link, current validation/check status, key files or artifacts, and the exact review angle
+- do not fork the parent session just to preserve prior chat state; write a compact handoff artifact under `tmp/copilot-loop/` when a reviewer needs more shared context
+
 Do not make unrelated cleanup changes just because the branch is already open.
 
 ## Validation policy for this repo
