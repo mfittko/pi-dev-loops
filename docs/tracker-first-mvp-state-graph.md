@@ -8,116 +8,145 @@ story -> draft PR -> reviewable PR -> merged PR -> tracker sync
 
 This scope is intentionally bounded to the MVP family under issue `#17`, complements `#21`, and stays narrower than the broader umbrella model in `#19`.
 
-## Authority boundary (normative)
+## Inherited authority boundary from `#21`
 
-### Inherited from `#21` (not redefined here)
+This document is **not** the source of truth for tracker ownership, PR projection, or reverse-sync semantics. It inherits those rules from `#21` and applies them to a narrower workflow-family state machine.
 
-- one work-item -> one PR invariant
-- source-of-truth and deterministic PR-projection rules
-- reverse-sync semantics and tracker-link meaning
+Inherited from `#21` and **not** redefined here:
 
-### Defined in this document
+- the **one-work-item -> one-PR invariant**
+- **source-of-truth ownership**:
+  - tracker owns work-item identity, planning hierarchy, and tracker-native workflow state
+  - GitHub owns PR lifecycle, review, CI, and merge facts
+  - `pi-dev-loops` owns projection + sync logic only
+- the required durable **work item <-> PR link**
+- the canonical **reverse-sync semantics** that map draft/open, reviewable, merged, and closed-without-merge PR outcomes back to tracker-native state
 
-- tracker-first MVP workflow-family states for this bounded path
-- mutually exclusive state-detection predicates and ordered interpretation rules
-- blocker/wait/stop states, transitions, and recovery edges
-- artifact-role classification for state detection (canonical vs derived vs temporary)
+This document adds only:
 
-If any statement in this file appears to conflict with `#21` for source-of-truth or reverse-sync behavior, `#21` is authoritative.
+- mutually exclusive workflow-family states around the ready-for-review -> review/fix -> merge path
+- bounded post-merge `tracker_sync` / `done` detection for whether the inherited `#21` reverse-sync effect has been observed and verified
+- artifact/recovery expectations for this MVP slice
+
+`tracker_sync` in this document is therefore a **verification phase**, not a new source of truth. The authoritative post-merge facts remain the merged PR facts in GitHub plus the tracker-native state/link facts defined by `#21`.
+
+## Observable facts used for detection
+
+The current state must be derived from durable observable facts, not intent or guesswork. The minimal fact set for this MVP family is:
+
+- `trackerItemExists`
+- `workItemPrLinkPresent`
+- `prExists`
+- `prDraft`
+- `prMerged`
+- `prClosedUnmerged`
+- `reviewRequested`
+- `reviewActivityPresent`
+  - at least one submitted review and/or review thread exists
+- `actionableReviewFeedbackPresent`
+  - at least one unresolved review thread, unresolved change request, or equivalent review blocker exists
+- `fixCommitPushedAfterLatestFeedback`
+  - the PR head SHA is newer than the latest actionable review feedback currently being addressed
+- `requiredCiPending`
+- `trackerReflectsMergedOutcome`
+  - the tracker already reflects the inherited `#21` merged/done reverse-sync effect
+- `trackerSyncInProgress`
+  - a sync attempt is explicitly underway and has not yet been verified
+- `trackerSyncVerificationFailed`
+  - a sync attempt failed, or merged-PR facts and tracker facts still contradict the inherited `#21` terminal expectation
+
+If observable facts are contradictory or insufficient to decide safely, stop at `stopped_needs_user_decision` instead of guessing.
 
 ## Workflow-family state machine
 
-### Normal path states
+### State definitions
 
 1. `selected_ready`
    - A tracker work item (story/task/bug) is selected and ready.
    - Required execution target: one PR for this one work item (per `#21`).
+   - Detect when: `trackerItemExists && !prExists`.
 2. `draft_pr`
    - PR exists and is draft.
+   - Detect when: `prExists && prDraft && !prMerged && !prClosedUnmerged`.
 3. `reviewable_pr`
-   - PR exists and is ready-for-review.
-4. `under_review`
-   - Feedback is pending (review threads and/or CI checks still unresolved).
-5. `fixes_in_progress`
-   - Follow-up commits are being prepared/pushed for current review feedback.
-6. `merged`
-   - PR merged.
-7. `tracker_sync`
-   - Tracker update is being applied/verified from merged PR outcome.
-8. `done`
-   - Tracker reflects merged outcome and required links are present.
-
-### Waiting/blocker/stop states
-
-- `waiting_for_review`
-  - Review requested, no actionable feedback yet.
-- `waiting_for_ci`
-  - CI checks still running/pending.
-- `blocked_missing_artifact`
-  - Required artifact for current state is missing (for example PR missing for selected work item, or missing merge evidence before sync).
-- `blocked_sync_failed`
-  - Tracker sync attempt failed or produced inconsistent result.
-- `stopped_needs_user_decision`
-  - Contradictory facts, out-of-scope requests, policy conflict, or unclear intent.
+   - PR exists, is ready-for-review, and has **not** yet entered a waiting/review/fix substate.
+   - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && !reviewRequested && !reviewActivityPresent && !actionableReviewFeedbackPresent && !requiredCiPending`.
+4. `waiting_for_review`
+   - Review has been requested, but no submitted review/threads exist yet and CI is not the active blocker.
+   - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && reviewRequested && !reviewActivityPresent && !actionableReviewFeedbackPresent && !requiredCiPending`.
+5. `under_review`
+   - Review activity or actionable review feedback is the active state.
+   - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && (actionableReviewFeedbackPresent || reviewActivityPresent) && !fixCommitPushedAfterLatestFeedback`.
+   - `under_review` wins over `waiting_for_ci` whenever review feedback is still active.
+6. `fixes_in_progress`
+   - A follow-up fix commit has been pushed after the latest actionable feedback, but that feedback has not yet been replied/resolved or superseded by a fresh clean review.
+   - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && actionableReviewFeedbackPresent && fixCommitPushedAfterLatestFeedback`.
+7. `waiting_for_ci`
+   - Required CI checks are the only active blocker.
+   - Detect when: `prExists && !prDraft && !prMerged && !prClosedUnmerged && requiredCiPending && !actionableReviewFeedbackPresent && !fixCommitPushedAfterLatestFeedback`.
+   - `waiting_for_ci` does **not** overlap with `under_review`; if review feedback is active, the state is `under_review` or `fixes_in_progress` instead.
+8. `merged`
+   - PR merged, but post-merge tracker verification has not started yet.
+   - Detect when: `prMerged && !trackerReflectsMergedOutcome && !trackerSyncInProgress && !trackerSyncVerificationFailed`.
+9. `tracker_sync`
+   - The merged PR exists and the inherited `#21` reverse-sync effect is being applied or verified against tracker facts.
+   - Detect when: `prMerged && !trackerReflectsMergedOutcome && trackerSyncInProgress && !trackerSyncVerificationFailed`.
+10. `done`
+   - Tracker reflects the merged outcome and the inherited required work item <-> PR link remains present.
+   - Detect when: `prMerged && trackerReflectsMergedOutcome && workItemPrLinkPresent`.
+11. `blocked_missing_artifact`
+   - A required durable artifact for the otherwise-highest valid state is missing.
+   - Detect when: `prExists && !workItemPrLinkPresent`.
+   - Typical case:
+     - PR exists but the inherited required work item <-> PR link is missing
+12. `blocked_sync_failed`
+   - Tracker sync failed or verification contradicts the inherited `#21` merged/done expectation.
+   - Detect when: `prMerged && trackerSyncVerificationFailed`.
+13. `stopped_needs_user_decision`
+   - Contradictory facts, out-of-scope requests, policy conflict, or unclear intent.
 
 ### Terminal states
 
 - `done`
 - `stopped_needs_user_decision`
 
-### Snapshot schema (observable facts)
+### Deterministic detection priority
 
-The interpreter should use only observable durable facts plus bounded local recovery metadata:
+Evaluate states in this order so the machine always returns exactly one state:
 
-| Field | Type | Description |
-|---|---|---|
-| `workItemReady` | `boolean` | Tracker work item is selected/ready for execution |
-| `prExists` | `boolean` | PR exists for the work item |
-| `prDraft` | `boolean` | PR is currently draft |
-| `prReviewRequested` | `boolean` | A review request is currently outstanding |
-| `actionableFeedbackPresent` | `boolean` | Unresolved review feedback requires follow-up |
-| `localFixInProgress` | `boolean` | Optional local marker that fixes are currently being prepared |
-| `ciStatus` | `"none" \| "pending" \| "passing" \| "failing"` | Aggregate CI status for the current head |
-| `prMerged` | `boolean` | PR is merged |
-| `trackerSyncStatus` | `"none" \| "pending" \| "succeeded" \| "failed"` | Sync attempt status for merged outcome |
-| `requiredSyncLinksPresent` | `boolean` | Required tracker/PR linkage evidence exists (as defined by `#21`) |
-| `factsConflict` | `boolean` | Contradictory or non-reconcilable observed facts |
-| `requiredArtifactMissing` | `boolean` | Required artifact for current phase is missing |
+1. contradictory or out-of-scope facts -> `stopped_needs_user_decision`
+2. merged PR + failed sync verification -> `blocked_sync_failed`
+3. merged PR + tracker reflects merged outcome + required work item <-> PR link present -> `done`
+4. required durable work item <-> PR link missing while a PR exists -> `blocked_missing_artifact`
+5. merged PR + sync explicitly underway -> `tracker_sync`
+6. merged PR with sync still pending but not yet started -> `merged`
+7. actionable review feedback + newer fix commit pushed -> `fixes_in_progress`
+8. actionable review feedback or submitted review activity -> `under_review`
+9. required CI pending with no active review-feedback blocker -> `waiting_for_ci`
+10. review requested, but no submitted review activity yet -> `waiting_for_review`
+11. ready-for-review PR with no waiting/review/fix signals yet -> `reviewable_pr`
+12. draft PR exists -> `draft_pr`
+13. tracker item selected and no PR exists -> `selected_ready`
 
-### Ordered interpretation rules (first match wins)
+This priority order removes overlap between states such as:
 
-Rules are evaluated top-to-bottom. The first satisfied rule selects the **one current state**.
-
-1. `factsConflict === true` -> `stopped_needs_user_decision`
-2. `requiredArtifactMissing === true` -> `blocked_missing_artifact`
-3. `prMerged && trackerSyncStatus === "failed"` -> `blocked_sync_failed`
-4. `prMerged && trackerSyncStatus === "succeeded" && requiredSyncLinksPresent` -> `done`
-5. `prMerged && trackerSyncStatus === "pending"` -> `tracker_sync`
-6. `prMerged && trackerSyncStatus === "none"` -> `merged`
-7. `prExists && prDraft && !prMerged` -> `draft_pr`
-8. `actionableFeedbackPresent && localFixInProgress && !prMerged` -> `fixes_in_progress`
-9. `actionableFeedbackPresent && !prMerged` -> `under_review`
-10. `prExists && !prDraft && !prMerged && !actionableFeedbackPresent && ciStatus === "pending"` -> `waiting_for_ci`
-11. `prExists && !prDraft && !prMerged && !actionableFeedbackPresent && ciStatus !== "pending" && prReviewRequested` -> `waiting_for_review`
-12. `prExists && !prDraft && !prMerged && !actionableFeedbackPresent && ciStatus !== "pending" && !prReviewRequested` -> `reviewable_pr`
-13. `workItemReady && !prExists` -> `selected_ready`
-14. otherwise -> `stopped_needs_user_decision`
-
-In degraded recovery when `localFixInProgress` is unavailable, rule 8 cannot match and the interpreter falls back to `under_review` via rule 9.
+- `reviewable_pr` vs `waiting_for_review`
+  - `reviewable_pr` requires **no** review request yet.
+  - `waiting_for_review` requires `reviewRequested`.
+- `under_review` vs `waiting_for_ci`
+  - `waiting_for_ci` applies only when CI is the **only** active blocker.
+  - active review feedback always routes to `under_review` or `fixes_in_progress` first.
 
 ### Allowed transitions
 
 - `selected_ready -> draft_pr`
 - `draft_pr -> reviewable_pr`
-- `reviewable_pr -> waiting_for_review`
-- `waiting_for_review -> under_review`
-- `under_review -> fixes_in_progress`
-- `fixes_in_progress -> reviewable_pr`
-- `under_review -> waiting_for_ci`
-- `waiting_for_ci -> under_review`
-- `reviewable_pr -> merged`
-- `under_review -> merged`
-- `merged -> tracker_sync`
+- `reviewable_pr -> waiting_for_review | waiting_for_ci | under_review | merged`
+- `waiting_for_review -> waiting_for_ci | under_review | merged`
+- `under_review -> fixes_in_progress | waiting_for_ci | merged`
+- `fixes_in_progress -> waiting_for_review | waiting_for_ci | under_review | merged`
+- `waiting_for_ci -> waiting_for_review | under_review | merged`
+- `merged -> tracker_sync | done`
 - `tracker_sync -> done`
 
 ### Recovery edges
@@ -125,11 +154,11 @@ In degraded recovery when `localFixInProgress` is unavailable, rule 8 cannot mat
 - `blocked_missing_artifact -> selected_ready | draft_pr | reviewable_pr | merged`
   - Reconstruct from permanent artifacts and return to the highest valid state.
 - `blocked_sync_failed -> tracker_sync`
-  - Retry sync after reconciling merge/tracker facts.
+  - Retry sync after reconciling merged-PR facts with tracker facts already owned by `#21`.
 - `stopped_needs_user_decision -> selected_ready | reviewable_pr | tracker_sync`
   - Resume only after explicit user decision.
 - `under_review -> reviewable_pr`
-  - If all feedback is resolved without new fix commits.
+  - If all review activity is cleared without new fix commits and no waiting state remains.
 
 ## Artifact graph
 
@@ -143,40 +172,50 @@ In degraded recovery when `localFixInProgress` is unavailable, rule 8 cannot mat
 ### Permanent execution artifacts
 
 - PR (single PR for the work item in MVP)
-- review threads
+- required work item <-> PR link inherited from `#21`
+- review threads / submitted review metadata
 - CI checks
 - merge result (merge commit / merged PR metadata)
-- tracker sync outcome evidence (status + timestamp + references required by `#21`)
+- tracker-native post-merge state visible through the adapter
 
 ### Temporary local artifacts (refinement/recovery only)
 
 - local refinement notes, snapshots, and handoff drafts under `tmp/`
 - temporary reconciliation notes used to recover when remote facts conflict
+- optional local sync logs or audit notes used to explain why verification failed
 
 Temporary artifacts are never required to establish final truth once permanent artifacts are present.
 
 ### Canonical vs derived vs temporary
 
 - **Canonical**
-  - tracker work item state/links (authority inherited from `#21`)
-  - PR and merge outcome
+  - tracker work item identity/state (per `#21`)
+  - GitHub PR/review/CI/merge facts (per `#21`)
+  - required work item <-> PR link (per `#21`)
 - **Derived**
   - current workflow state interpretation from observable artifacts
   - transition advice (`allowedTransitions`, next valid actions)
   - missing-artifact diagnostics
-  - sync-readiness checks derived from merged outcome + required link evidence
+  - whether the inherited `#21` reverse-sync effect is still pending, verified, or failed
 - **Temporary**
   - local `tmp/` artifacts used for bounded refinement/recovery only
 
 ### Link model
 
-- work item -> (optional) epic/PRD/ADR/RFC
-- work item -> PR
-- PR -> review threads
+Inherited required durable link from `#21`:
+
+- work item <-> PR
+
+Optional reference links in this MVP slice:
+
+- work item -> epic/PRD/ADR/RFC
+
+Execution links/facts derived around the PR:
+
+- PR -> review threads / submitted reviews
 - PR -> CI checks
 - PR -> merge result
-- merge result -> tracker sync outcome
-- tracker sync outcome -> work item state update/annotation
+- merged PR + work item <-> PR link + tracker-native state -> tracker sync verification outcome
 
 ### Deterministic detection implications
 
@@ -185,5 +224,5 @@ Implementations should be able to:
 1. Detect one current state from durable observable facts.
 2. Explain valid next transitions from that state.
 3. Report missing required artifacts for the state.
-4. Distinguish normal waiting (`waiting_for_review`, `waiting_for_ci`) from blockers/stops.
-5. Recover in degraded mode using only permanent artifacts when temporary local artifacts are absent.
+4. Distinguish waiting-for-review, active review, fixes-in-progress, and waiting-for-CI without overlap.
+5. Reconstruct `done` using only merged-PR facts plus the inherited `#21` tracker/link facts when temporary local artifacts are absent.

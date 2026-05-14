@@ -188,9 +188,10 @@ relative to this file.
 
 For tracker-first MVP `story -> PR -> tracker sync` work, also use
 `tracker-first-mvp-state-graph.md` in that same docs directory as the bounded workflow-family
-contract (under `#17`, complementary to `#21`, narrower than `#19`). For source-of-truth and
-reverse-sync semantics, treat `#21` as authoritative and use this tracker-first graph for
-state-detection/transition logic only.
+contract (under `#17`, complementary to `#21`, narrower than `#19`). That document inherits
+source-of-truth ownership, the required work item <-> PR link, and reverse-sync semantics from
+`#21`; it only adds the mutually exclusive workflow-family states and post-merge sync-verification
+states for this narrower MVP slice.
 
 **Key guarantees from the state machine:**
 
