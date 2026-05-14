@@ -440,7 +440,7 @@ copilot-autopilot @docs/PLAN.md ADR validation  # abstract roadmap idea
 - **Clarification gate**: ambiguous or underspecified inputs trigger questions, not blind automation
 - **Safe defaults**: any GitHub mutation (issue create/edit, Copilot assignment, PR changes, merge) requires explicit confirmation
 - **Reuse over duplication**: the full PR follow-up loop routes into `copilot-dev-loop` mechanics and deterministic helpers rather than inventing a second state machine
-- **Separation of concerns**: shared workflow logic lives in the skill/agent; repo-local policy (validation commands, merge policy for deferred threads) is configured by the adopting repository
+- **Separation of concerns**: shared workflow logic lives in the skill, while any paired workflow entrypoint agent stays thin and defers sequencing/policy to that skill; repo-local policy (validation commands, merge policy for deferred threads) is configured by the adopting repository
 
 ### Guard rails that remain in effect
 

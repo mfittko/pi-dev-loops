@@ -253,9 +253,9 @@ Follow the `copilot-dev-loop` Step 7 (Pi review/fix follow-up loop) exactly:
 2. Classify findings: must fix / worth fixing / defer.
 3. Apply only accepted narrow fixes.
 4. Run narrowest honest validation.
-5. Push the resolving commit.
-6. Reply on GitHub with a resolution note referencing the commit.
-7. Resolve addressed threads after reply.
+5. If files changed, push the resolving commit.
+6. When a GitHub comment or thread was actually addressed, reply on GitHub with a resolution note referencing the commit.
+7. Resolve addressed threads after the reply is attached successfully.
 
 Do not mark the PR ready until:
 - all must-fix findings are addressed or explicitly deferred with rationale

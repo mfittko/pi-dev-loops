@@ -86,8 +86,9 @@ test("copilot-autopilot agent treats autopilot as automatic resume from detected
   assert.match(content, /Interpret `autopilot` literally/i);
   assert.match(content, /resume from the current GitHub\/PR state automatically/i);
   assert.match(content, /state-machine\/helper surface is the authority/i);
-  assert.match(content, /If the PR is draft, continue into the draft-stage tightening\/local-review\/fix path automatically/i);
-  assert.match(content, /Treat the final approval gate as a required human-decision stop by default/i);
+  assert.match(content, /must stay thin/i);
+  assert.match(content, /do not restate the skill's phase sequencing or workflow policy here/i);
+  assert.match(content, /final approval gate remains a required human-decision stop by default/i);
   assert.match(content, /materially unclear, contradictory, off-trail/i);
   assert.match(content, /stop and ask for human direction rather than guessing/i);
   assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
@@ -101,7 +102,7 @@ test("copilot-autopilot docs keep issue refinement separate from the phase-scope
 
   assert.doesNotMatch(skillContent, /ask the refiner to emit/i);
   assert.doesNotMatch(agentContent, /Use the `refiner` agent for issue-refinement fan-out/i);
-  assert.match(agentContent, /dedicated issue-refinement specialist/i);
+  assert.match(skillContent, /issue-refinement specialist/i);
   assert.match(planContent, /Thin workflow entrypoint agents are still allowed/i);
   assert.match(planContent, /must stay thin, defer sequencing and workflow policy to the skill/i);
 });
