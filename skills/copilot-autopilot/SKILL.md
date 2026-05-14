@@ -43,9 +43,19 @@ Do not assume `scripts/...` is repo-local to the target codebase you are operati
 
 ## Authority and safety rules
 
-All authority and safety rules from `copilot-dev-loop` apply here.
+Core safety rules (authoritative):
 
-Additional rules:
+- Source code, tests, CI, and config are authoritative. The generated wiki is a navigation aid, not the source of truth.
+- GitHub Issues are the backlog. Do not invent a parallel backlog file.
+- Before any state-changing action, get explicit confirmation unless the user's latest message already clearly authorizes that action.
+- Questions, preferences, future-tense statements, and implied approval are not confirmation. The bare response `ok` is not confirmation.
+- State-changing actions include: local edits, commits, pushes, merges, rebases, branch deletion, issue assignment, label or milestone changes, PR reviews, thread resolution, workflow triggers, and publication.
+- When handing work to Copilot, assign `copilot-swe-agent` directly, not `copilot`.
+- Prefer single commands where practical. If the logic is too involved, write a temporary `.mjs` script under `tmp/` instead of building fragile shell sequences.
+- For GitHub issue or PR comments, prefer `--body-file` / `-F` or stdin via `-F -` over inline shell strings.
+- Keep scope tight to the issue/PR at hand.
+
+Additional rules specific to this skill:
 - Do not assign Copilot, create issues, or mutate GitHub state during the preflight or normalization phases without explicit confirmation.
 - Do not proceed past the preflight gate if the work item is ambiguous or underspecified.
 - Do not merge while Copilot review threads remain unresolved unless they are explicitly deferred with rationale by the user.
@@ -110,8 +120,14 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 3. Search GitHub issues for a matching title or reference: `gh issue list --search "<title keywords>"`.
 4. If a matching issue exists, confirm with the user and proceed with that issue.
 5. If no matching issue exists:
-   - Draft a properly scoped issue body following the PR description contract (see `copilot-dev-loop` PR description contract).
-   - At minimum include: title, summary, scope, acceptance criteria, non-goals, and verification.
+   - Draft a properly scoped issue body. At minimum include:
+     - **Title** — concise and action-oriented
+     - **Summary** — what the change does and why it is needed now
+     - **Scope / context** — which files, components, or behaviors are in scope
+     - **Acceptance criteria** — specific, testable, and observable conditions for done
+     - **Non-goals** — explicit statements of what is out of scope
+     - **Verification** — concrete steps or commands to prove the work is done
+     - **Link** to the governing plan doc or roadmap reference when applicable
    - Show the draft to the user and get confirmation before creating the issue.
    - Create the issue only after confirmation: `gh issue create --title "..." --body-file <tmpfile>`.
 6. Proceed to Phase 3 with the confirmed issue.
@@ -340,7 +356,7 @@ Do not:
 - proceed past preflight with vague or underspecified input
 - create issues or assign Copilot without confirmation
 - merge while unresolved Copilot threads exist unless explicitly deferred with rationale
-- run the refinement fan-out without parallel passes (do all angles in one sequential pass)
+- run the refinement fan-out as a single sequential pass instead of using parallel specialist passes
 - skip the local review/fix loop before marking a PR ready
 - assume Copilot review will be auto-requested after draft-to-ready; always request explicitly
 - duplicate the state machine and watch logic from `copilot-dev-loop`; reuse it

@@ -16,7 +16,7 @@ This repo should eventually provide four layers:
 2. **Loop skills**
    - local phase-based dev loop (`dev-loop`)
    - async GitHub/Copilot dev loop (`copilot-dev-loop`)
-   - issue-first intake, clarification gating, and full end-to-end autopilot loop (`copilot-autopilot`)
+   - issue-first intake and full end-to-end autopilot loop (`copilot-autopilot`)
    - follow-up review/fix loops
    - re-review loops
 
