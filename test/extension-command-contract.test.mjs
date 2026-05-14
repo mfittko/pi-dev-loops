@@ -114,6 +114,29 @@ test("help is the default action and malformed commands stay non-mutating", asyn
   assert.equal(invalidArgsContext.calls.notifications.at(-1).level, "error");
 });
 
+test("status keeps existing remote readiness ready when copilot-dev-loop is installed but copilot-autopilot is not", async () => {
+  const pi = createPiDouble({
+    commandResults: new Map([
+      ["command -v gh >/dev/null 2>&1", 0],
+      ["gh auth status >/dev/null 2>&1", 0],
+      ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 0],
+    ]),
+    tools: [{ name: "subagent" }],
+    commands: [
+      { name: "skill:dev-loop" },
+      { name: "skill:copilot-dev-loop" },
+    ],
+  });
+  registerExtension(pi);
+
+  const { ctx, calls } = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("status", ctx);
+
+  const lines = calls.widgets.at(-1).lines;
+  assert(lines.some((line) => /Local loop readiness: ready/i.test(line)));
+  assert(lines.some((line) => /Remote GitHub\/Copilot readiness: ready/i.test(line)));
+});
+
 test("status keeps remote readiness blocked outside a git repo", async () => {
   const pi = createPiDouble({
     commandResults: new Map([

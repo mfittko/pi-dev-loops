@@ -102,6 +102,8 @@ Agents should **not** hardcode repository workflow policy such as:
 - specific reviewer identity
 - repo-specific documentation paths
 
+Thin workflow entrypoint agents are still allowed when they exist only to load one skill and expose that skill as an invocable entry command. Those entrypoint agents must stay thin, defer sequencing and workflow policy to the skill, and must not replace the generic role agents.
+
 ### 2. Skills own the loop
 
 Skills should define:

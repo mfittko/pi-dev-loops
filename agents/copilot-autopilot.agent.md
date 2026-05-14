@@ -55,10 +55,12 @@ Follow the `copilot-autopilot` skill phases in order:
 - If the PR is draft, continue into the draft-stage tightening/local-review/fix path automatically rather than stopping just because the PR has not left draft yet.
 - Do not stop at intermediate phase boundaries during unattended execution unless a real stop condition requires user judgment.
 - Treat the final approval gate as a required human-decision stop by default. Unattended end-to-end execution does not imply unattended merge unless the user explicitly authorized merge for the current issue/PR scope.
+- If the current issue/PR state is materially unclear, contradictory, off-trail, or not cleanly covered by the deterministic helper/state-machine guidance, stop and ask for human direction rather than guessing.
+- If local facts, GitHub facts, and helper/state-machine output do not agree well enough to choose the next step confidently, stop and ask for human direction.
 
 ## Delegation
 
-- Use the `refiner` agent for issue-refinement fan-out passes when subagents are available.
+- Use a dedicated issue-refinement specialist for issue-body fan-out passes when subagents are available; do not assume the phase-scoped `refiner` agent is suitable unless it has been explicitly generalized for issue refinement in this repository.
 - Use the `review` agent for the final independent review pass.
 - Use the `fixer` agent for local review/fix loop passes when subagents are available.
 - Keep the `copilot-autopilot` agent as the orchestration owner; do not recursively invoke it from a subagent.

@@ -61,6 +61,7 @@ Additional rules specific to this skill:
 - Do not merge while Copilot review threads remain unresolved unless they are explicitly deferred with rationale by the user.
 - When the preflight verdict is `pause_for_clarification`, ask the user the clarifying questions and stop. Do not attempt to guess through them.
 - When the preflight verdict is `proceed_with_assumptions`, list all assumptions explicitly and get confirmation before continuing.
+- If the current issue/PR state is materially unclear, contradictory, off-trail, or not cleanly covered by the deterministic helper/state-machine guidance, stop and ask for human direction rather than guessing.
 
 ## Autopilot authorization and automatic re-entry
 
@@ -176,7 +177,7 @@ Launch 2–4 parallel refinement passes, each with a distinct specialist angle:
 For each pass:
 - start in fresh context
 - provide the issue number, current issue body, and a brief focus description
-- ask the refiner to emit a structured suggestion: what to add, change, or remove in each section
+- ask the refinement pass (or an issue-refinement specialist, when available) to emit a structured suggestion: what to add, change, or remove in each section
 
 ### Fan-in
 
@@ -383,6 +384,8 @@ Stop and report instead of acting when:
 - scope has broadened beyond the original issue during execution
 - any GitHub mutation is required but not yet authorized
 - the run reaches the final approval gate and unattended merge was not explicitly authorized for the current issue/PR scope
+- the workflow state is materially unclear, contradictory, off the expected trail, or not cleanly covered by the deterministic helper/state-machine guidance
+- local facts, GitHub facts, and helper/state-machine output do not agree well enough to choose the next step confidently
 
 A pre-existing PR for the issue is **not** a stop-by-default condition for this skill. It is a resumed-execution entrypoint: detect the current PR state through the deterministic helper/state-machine surface and continue from that state.
 

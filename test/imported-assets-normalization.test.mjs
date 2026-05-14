@@ -75,6 +75,9 @@ test("copilot-autopilot skill requires unattended resume-from-state behavior whe
   assert.match(content, /continue unattended until the final approval gate/i);
   assert.match(content, /stop for human approval\/merge by default/i);
   assert.match(content, /does \*\*not\*\* imply unattended merge by default/i);
+  assert.match(content, /materially unclear, contradictory, off-trail/i);
+  assert.match(content, /stop and ask for human direction rather than guessing/i);
+  assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
 });
 
 test("copilot-autopilot agent treats autopilot as automatic resume from detected state", async () => {
@@ -85,5 +88,20 @@ test("copilot-autopilot agent treats autopilot as automatic resume from detected
   assert.match(content, /state-machine\/helper surface is the authority/i);
   assert.match(content, /If the PR is draft, continue into the draft-stage tightening\/local-review\/fix path automatically/i);
   assert.match(content, /Treat the final approval gate as a required human-decision stop by default/i);
+  assert.match(content, /materially unclear, contradictory, off-trail/i);
+  assert.match(content, /stop and ask for human direction rather than guessing/i);
+  assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
   assert.match(content, /not as a reason to halt at every intermediate state-changing step/i);
+});
+
+test("copilot-autopilot docs keep issue refinement separate from the phase-scoped refiner and explain thin entrypoint agents", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+  const agentContent = await readRepo("agents/copilot-autopilot.agent.md");
+  const planContent = await readRepo("PLAN.md");
+
+  assert.doesNotMatch(skillContent, /ask the refiner to emit/i);
+  assert.doesNotMatch(agentContent, /Use the `refiner` agent for issue-refinement fan-out/i);
+  assert.match(agentContent, /dedicated issue-refinement specialist/i);
+  assert.match(planContent, /Thin workflow entrypoint agents are still allowed/i);
+  assert.match(planContent, /must stay thin, defer sequencing and workflow policy to the skill/i);
 });

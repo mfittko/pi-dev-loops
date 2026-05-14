@@ -31,7 +31,6 @@ const REMOTE_READINESS_IDS: DevLoopCheckId[] = [
   "subagent-tool",
   "git-repo",
   "copilot-dev-loop-skill",
-  "copilot-autopilot-skill",
 ];
 
 function formatInstallStatus(status: InstallStatus): string {
