@@ -6,7 +6,24 @@ This document defines the tracker-first MVP workflow-family contract for:
 story -> draft PR -> reviewable PR -> merged PR -> tracker sync
 ```
 
-This scope is intentionally bounded to the MVP family under issue `#17`, complements `#21`, and stays narrower than the broader umbrella model in `#19`. It inherits the one-work-item -> one-PR invariant plus the source-of-truth, PR-projection, and minimal reverse-sync contracts from `#21`; this document does not redefine those rules.
+This scope is intentionally bounded to the MVP family under issue `#17`, complements `#21`, and stays narrower than the broader umbrella model in `#19`.
+
+## Authority boundary (normative)
+
+### Inherited from `#21` (not redefined here)
+
+- one work-item -> one PR invariant
+- source-of-truth and deterministic PR-projection rules
+- reverse-sync semantics and tracker-link meaning
+
+### Defined in this document
+
+- tracker-first MVP workflow-family states for this bounded path
+- mutually exclusive state-detection predicates and ordered interpretation rules
+- blocker/wait/stop states, transitions, and recovery edges
+- artifact-role classification for state detection (canonical vs derived vs temporary)
+
+If any statement in this file appears to conflict with `#21` for source-of-truth or reverse-sync behavior, `#21` is authoritative.
 
 ## Workflow-family state machine
 
@@ -47,6 +64,46 @@ This scope is intentionally bounded to the MVP family under issue `#17`, complem
 
 - `done`
 - `stopped_needs_user_decision`
+
+### Snapshot schema (observable facts)
+
+The interpreter should use only observable durable facts plus bounded local recovery metadata:
+
+| Field | Type | Description |
+|---|---|---|
+| `workItemReady` | `boolean` | Tracker work item is selected/ready for execution |
+| `prExists` | `boolean` | PR exists for the work item |
+| `prDraft` | `boolean` | PR is currently draft |
+| `prReviewRequested` | `boolean` | A review request is currently outstanding |
+| `actionableFeedbackPresent` | `boolean` | Unresolved review feedback requires follow-up |
+| `localFixInProgress` | `boolean` | Optional local marker that fixes are currently being prepared |
+| `ciStatus` | `"none" \| "pending" \| "passing" \| "failing"` | Aggregate CI status for the current head |
+| `prMerged` | `boolean` | PR is merged |
+| `trackerSyncStatus` | `"none" \| "pending" \| "succeeded" \| "failed"` | Sync attempt status for merged outcome |
+| `requiredSyncLinksPresent` | `boolean` | Required tracker/PR linkage evidence exists (as defined by `#21`) |
+| `factsConflict` | `boolean` | Contradictory or non-reconcilable observed facts |
+| `requiredArtifactMissing` | `boolean` | Required artifact for current phase is missing |
+
+### Ordered interpretation rules (first match wins)
+
+Rules are evaluated top-to-bottom. The first satisfied rule selects the **one current state**.
+
+1. `factsConflict === true` -> `stopped_needs_user_decision`
+2. `requiredArtifactMissing === true` -> `blocked_missing_artifact`
+3. `prMerged && trackerSyncStatus === "failed"` -> `blocked_sync_failed`
+4. `prMerged && trackerSyncStatus === "succeeded" && requiredSyncLinksPresent` -> `done`
+5. `prMerged && trackerSyncStatus === "pending"` -> `tracker_sync`
+6. `prMerged && trackerSyncStatus === "none"` -> `merged`
+7. `prExists && prDraft && !prMerged` -> `draft_pr`
+8. `actionableFeedbackPresent && localFixInProgress && !prMerged` -> `fixes_in_progress`
+9. `actionableFeedbackPresent && !prMerged` -> `under_review`
+10. `prExists && !prDraft && !prMerged && !actionableFeedbackPresent && ciStatus === "pending"` -> `waiting_for_ci`
+11. `prExists && !prDraft && !prMerged && !actionableFeedbackPresent && ciStatus !== "pending" && prReviewRequested` -> `waiting_for_review`
+12. `prExists && !prDraft && !prMerged && !actionableFeedbackPresent && ciStatus !== "pending" && !prReviewRequested` -> `reviewable_pr`
+13. `workItemReady && !prExists` -> `selected_ready`
+14. otherwise -> `stopped_needs_user_decision`
+
+In degraded recovery when `localFixInProgress` is unavailable, rule 8 cannot match and the interpreter falls back to `under_review` via rule 9.
 
 ### Allowed transitions
 
@@ -89,7 +146,7 @@ This scope is intentionally bounded to the MVP family under issue `#17`, complem
 - review threads
 - CI checks
 - merge result (merge commit / merged PR metadata)
-- tracker sync outcome (status + timestamp + synced fields)
+- tracker sync outcome evidence (status + timestamp + references required by `#21`)
 
 ### Temporary local artifacts (refinement/recovery only)
 
@@ -101,13 +158,13 @@ Temporary artifacts are never required to establish final truth once permanent a
 ### Canonical vs derived vs temporary
 
 - **Canonical**
-  - tracker work item state
-  - merged PR outcome
-  - tracker sync outcome for this workflow family
+  - tracker work item state/links (authority inherited from `#21`)
+  - PR and merge outcome
 - **Derived**
   - current workflow state interpretation from observable artifacts
   - transition advice (`allowedTransitions`, next valid actions)
   - missing-artifact diagnostics
+  - sync-readiness checks derived from merged outcome + required link evidence
 - **Temporary**
   - local `tmp/` artifacts used for bounded refinement/recovery only
 
