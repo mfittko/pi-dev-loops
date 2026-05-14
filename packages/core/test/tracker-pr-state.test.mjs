@@ -18,6 +18,8 @@ test("normalizeTrackerPrSnapshot rejects non-object input", () => {
   assert.throws(() => normalizeTrackerPrSnapshot(undefined), /Snapshot must be a non-null object/);
   assert.throws(() => normalizeTrackerPrSnapshot("string"), /Snapshot must be a non-null object/);
   assert.throws(() => normalizeTrackerPrSnapshot(42), /Snapshot must be a non-null object/);
+  assert.throws(() => normalizeTrackerPrSnapshot([]), /Snapshot must be a non-null object/);
+  assert.throws(() => normalizeTrackerPrSnapshot([{ trackerItemExists: true }]), /Snapshot must be a non-null object/);
 });
 
 test("normalizeTrackerPrSnapshot returns safe defaults for an empty object", () => {
@@ -255,6 +257,38 @@ test("interpretTrackerPrState gives prMerged priority over prClosed", () => {
     prClosed: true,
   });
   assert.equal(result.state, TRACKER_PR_STATE.PR_MERGED);
+});
+
+test("interpretTrackerPrState routes contradictory prExists=false+prMerged=true to blocked_needs_user_decision", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: false,
+    prMerged: true,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.deepEqual(result.allowedTransitions, []);
+  assert.equal(result.reverseSyncAction, "none");
+});
+
+test("interpretTrackerPrState routes contradictory prExists=false+prClosed=true to blocked_needs_user_decision", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: false,
+    prClosed: true,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
+});
+
+test("interpretTrackerPrState routes contradictory prExists=false+prDraft=true to blocked_needs_user_decision", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: false,
+    prDraft: true,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
 });
 
 // ---------------------------------------------------------------------------

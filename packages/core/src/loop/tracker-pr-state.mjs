@@ -181,7 +181,7 @@ const NEXT_ACTIONS = Object.freeze({
  * @returns {object} normalized snapshot
  */
 export function normalizeTrackerPrSnapshot(raw) {
-  if (!raw || typeof raw !== "object") {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("Snapshot must be a non-null object");
   }
 
@@ -216,15 +216,12 @@ export function normalizeTrackerPrSnapshot(raw) {
  *
  * Routing priority:
  * 1. No tracker item -> no_tracker_item (nothing to anchor a PR to)
- * 2. PR merged -> pr_merged (terminal success)
- * 3. PR closed without merge -> pr_closed_unmerged (terminal, no auto-sync)
- * 4. Draft PR exists -> draft_pr_open (in-progress)
- * 5. PR exists and not draft, not merged, not closed -> pr_reviewable
- * 6. No PR at all -> ready_no_pr (waiting to start)
- *
- * The reserved blocked_needs_user_decision stop state is documented for
- * higher-level detectors that choose to fail closed on contradictory tracker
- * or PR facts before calling this interpreter.
+ * 2. Contradictory snapshot (prExists=false but PR state flags set) -> blocked_needs_user_decision
+ * 3. PR merged -> pr_merged (terminal success)
+ * 4. PR closed without merge -> pr_closed_unmerged (terminal, no auto-sync)
+ * 5. Draft PR exists -> draft_pr_open (in-progress)
+ * 6. PR exists and not draft, not merged, not closed -> pr_reviewable
+ * 7. No PR at all -> ready_no_pr (waiting to start)
  *
  * @param {object} snapshot - raw or normalized snapshot
  * @returns {{ state: string, allowedTransitions: string[], nextAction: string, reverseSyncAction: string }}
@@ -236,6 +233,9 @@ export function interpretTrackerPrState(snapshot) {
 
   if (!s.trackerItemExists) {
     state = TRACKER_PR_STATE.NO_TRACKER_ITEM;
+  } else if (!s.prExists && (s.prMerged || s.prClosed || s.prDraft)) {
+    // prExists=false but PR state flags are set — contradictory snapshot
+    state = TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION;
   } else if (s.prExists && s.prMerged) {
     state = TRACKER_PR_STATE.PR_MERGED;
   } else if (s.prExists && s.prClosed) {

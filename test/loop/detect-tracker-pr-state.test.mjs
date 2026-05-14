@@ -259,6 +259,44 @@ test("detect-tracker-pr-state CLI exits 1 for invalid JSON in input file", async
   }
 });
 
+test("detect-tracker-pr-state CLI exits 1 when snapshot is an array (invalid object)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "tracker-pr-state-test-"));
+  try {
+    const arrayPath = await writeTempJson(tempDir, "array.json", []);
+
+    const result = await runNode(["--input", arrayPath]);
+    assert.equal(result.code, 1);
+    const parsed = JSON.parse(result.stderr.trim());
+    assert.equal(parsed.ok, false);
+    assert.ok(typeof parsed.error === "string");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-tracker-pr-state CLI emits blocked_needs_user_decision for contradictory snapshot", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "tracker-pr-state-test-"));
+  try {
+    const snapshotPath = await writeTempJson(tempDir, "snapshot.json", {
+      trackerItemExists: true,
+      trackerItemId: "PROJ-X",
+      prExists: false,
+      prMerged: true,
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+    assert.equal(result.code, 0, `expected exit 0, got: ${result.stderr}`);
+
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.state, "blocked_needs_user_decision");
+    assert.equal(parsed.reverseSyncAction, "none");
+    assert.deepEqual(parsed.allowedTransitions, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-tracker-pr-state CLI --help prints usage and exits 0", async () => {
   const result = await runNode(["--help"]);
   assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
