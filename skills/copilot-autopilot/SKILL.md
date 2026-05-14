@@ -62,6 +62,19 @@ Additional rules specific to this skill:
 - When the preflight verdict is `pause_for_clarification`, ask the user the clarifying questions and stop. Do not attempt to guess through them.
 - When the preflight verdict is `proceed_with_assumptions`, list all assumptions explicitly and get confirmation before continuing.
 
+## Autopilot authorization and automatic re-entry
+
+Once the user has explicitly authorized unattended execution for a specific issue/PR scope, treat `copilot-autopilot` as permission to continue through the normal loop mutations for that scope without stopping at every intermediate phase boundary.
+
+Under that unattended authorization:
+- automatically detect the current lifecycle entrypoint from existing GitHub state before choosing a phase
+- if a PR already exists for the issue, do **not** restart from assignment or earlier intake phases; interpret the current PR through the deterministic helper/state-machine surface and resume from that state
+- if the PR is draft, enter the draft-stage PR tightening / local review / fix path automatically rather than stopping just because it has not left draft yet
+- use the deterministic state graph as the authority for current-state routing and next-step selection, not ad hoc phase guessing
+- continue unattended until merge unless you hit a genuine stop condition: `pause_for_clarification`, `review_request_unavailable`, `blocked_needs_user_decision`, unrelated CI failure needing maintainer judgment, or another ambiguity the contract explicitly forbids guessing through
+
+If unattended authorization has **not** been given, keep the normal confirmation checkpoints below.
+
 ## Phase 1 — Preflight intake
 
 Before any automation, run a preflight analysis of the input.
@@ -110,7 +123,10 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 1. Fetch the issue with `gh issue view <number> --json number,title,body,labels,assignees,milestone`.
 2. Confirm the issue exists and is open.
 3. Check whether a PR already exists for this issue (search for branches or PRs that reference the issue number).
-4. If a PR already exists, route to `copilot-dev-loop` PR follow-up mode with the PR number.
+4. If a PR already exists, route to the existing PR follow-up path immediately with that PR number.
+   - Use the deterministic helper/state-machine surface to detect the current PR lifecycle state.
+   - Treat that detected state as the authoritative entrypoint for resumed execution.
+   - Continue from that entrypoint rather than restarting earlier phases.
 5. Otherwise, proceed to Phase 3 with this issue as the execution entry point.
 
 ### From a plan-doc path
@@ -199,6 +215,8 @@ gh issue view <number> --json assignees
 ```
 
 After assignment, wait for Copilot to open a draft PR. Use the deterministic watcher when available (see `copilot-dev-loop` async watch behavior for defaults).
+
+When the draft PR appears, do not stop just because it is draft. Enter the draft-stage PR tightening and local review/fix path automatically unless a real stop condition applies.
 
 Useful check:
 ```sh
@@ -339,16 +357,19 @@ Always stop and ask before:
 - submitting a formal GitHub review
 - merging a PR
 
+If the user has already explicitly authorized unattended end-to-end execution for the current issue/PR scope, treat that authorization as covering the normal loop mutations above except where a stop condition below still requires user judgment.
+
 ## Stop conditions
 
 Stop and report instead of acting when:
 - preflight verdict is `pause_for_clarification` (ask questions first)
 - input refers to a work item that spans more than one coherent PR
-- a PR already exists for the issue (route to `copilot-dev-loop` PR follow-up mode)
 - Copilot review requests are `unavailable` for the repository
 - the loop reaches `blocked_needs_user_decision`
 - scope has broadened beyond the original issue during execution
 - any GitHub mutation is required but not yet authorized
+
+A pre-existing PR for the issue is **not** a stop-by-default condition for this skill. It is a resumed-execution entrypoint: detect the current PR state through the deterministic helper/state-machine surface and continue from that state.
 
 ## Anti-patterns
 

@@ -62,3 +62,24 @@ test("copilot skill forbids detached bash watcher loops for async follow-up", as
   assert.match(content, /do not use `nohup`, detached shell jobs, tmux\/screen sessions, or ad hoc `while`\/`sleep` bash loops/);
   assert.match(content, /stop and report rather than improvising a shell watcher/);
 });
+
+test("copilot-autopilot skill requires unattended resume-from-state behavior when authorized", async () => {
+  const content = await readRepo("skills/copilot-autopilot/SKILL.md");
+
+  assert.match(content, /unattended execution/i);
+  assert.match(content, /automatically detect the current lifecycle entrypoint/i);
+  assert.match(content, /deterministic helper\/state-machine surface/i);
+  assert.match(content, /If a PR already exists, route to the existing PR follow-up path immediately/i);
+  assert.match(content, /draft-stage PR tightening \/ local review \/ fix path automatically/i);
+  assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
+});
+
+test("copilot-autopilot agent treats autopilot as automatic resume from detected state", async () => {
+  const content = await readRepo("agents/copilot-autopilot.agent.md");
+
+  assert.match(content, /Interpret `autopilot` literally/i);
+  assert.match(content, /resume from the current GitHub\/PR state automatically/i);
+  assert.match(content, /state-machine\/helper surface is the authority/i);
+  assert.match(content, /If the PR is draft, continue into the draft-stage tightening\/local-review\/fix path automatically/i);
+  assert.match(content, /not as a reason to halt at every intermediate state-changing step/i);
+});

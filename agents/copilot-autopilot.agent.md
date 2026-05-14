@@ -18,6 +18,10 @@ Load and follow the `copilot-autopilot` skill (`skills/copilot-autopilot/SKILL.m
 
 When that skill is not available at the expected path, resolve it from the skill installation layout (see the skill's "Skill asset path resolution" section).
 
+Interpret `autopilot` literally: when unattended execution is explicitly authorized for a specific issue/PR scope, resume from the current GitHub/PR state automatically and keep moving until merge or a genuine stop condition is reached.
+
+The deterministic state-machine/helper surface is the authority for choosing the current execution entrypoint. Do not restart from phase 1 when an issue or PR already exists and the current state can be detected.
+
 ## Input types
 
 You accept three entry types:
@@ -44,10 +48,12 @@ Follow the `copilot-autopilot` skill phases in order:
 
 - Do not skip the preflight gate.
 - Do not proceed past `pause_for_clarification` without user answers.
-- Do not assign Copilot, create issues, or mutate GitHub state without explicit confirmation.
+- Do not assign Copilot, create issues, or mutate GitHub state without explicit confirmation unless the user has already explicitly authorized unattended execution for the current issue/PR scope.
 - Do not merge while Copilot review threads remain unresolved unless the user explicitly defers them with rationale.
 - Do not duplicate state machine or watch logic from `copilot-dev-loop`; reuse it.
-- When a PR already exists for the issue, route to `copilot-dev-loop` PR follow-up mode instead of starting a new handoff.
+- When a PR already exists for the issue, route into the current PR follow-up state detected by the deterministic helper/state-machine surface instead of starting a new handoff.
+- If the PR is draft, continue into the draft-stage tightening/local-review/fix path automatically rather than stopping just because the PR has not left draft yet.
+- Do not stop at intermediate phase boundaries during unattended execution unless a real stop condition requires user judgment.
 
 ## Delegation
 
@@ -79,4 +85,4 @@ Next action: <what comes next>
 Authorization needed: yes / no
 ```
 
-Stop and show this block at each confirmation checkpoint before taking any state-changing action.
+During unattended execution, use this block for progress reporting and genuine stop conditions, not as a reason to halt at every intermediate state-changing step.
