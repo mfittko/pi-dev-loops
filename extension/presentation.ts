@@ -66,7 +66,7 @@ export function buildHelpLines(): string[] {
     "- /dev-loops update",
     "  prompts for `repo` or `system` when no target is provided",
     "- /dev-loops hide",
-    "The package install exposes `/dev-loops` in Pi and `pi-dev-loops` in the shell; skills are installed explicitly through the install/update commands.",
+    "The package install expose `/dev-loops` in Pi and `pi-dev-loops` in the shell; skills are installed explicitly through the install/update commands.",
   ];
 }
 

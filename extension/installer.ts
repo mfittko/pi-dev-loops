@@ -1,4 +1,12 @@
-import { PACKAGED_SKILL_NAMES } from "../lib/dev-loops-installer.mjs";
+import {
+  PACKAGED_SKILL_NAMES,
+  resolvePackagedCoreSourceRoot,
+  resolvePackagedDocsRoot,
+  resolvePackagedScriptsRoot,
+  resolvePackagedSkillsRoot,
+  resolveSystemSkillsRoot,
+  syncPackagedSkills,
+} from "../lib/dev-loops-installer.mjs";
 
 export {
   PACKAGED_SKILL_NAMES,
@@ -8,7 +16,7 @@ export {
   resolvePackagedSkillsRoot,
   resolveSystemSkillsRoot,
   syncPackagedSkills,
-} from "../lib/dev-loops-installer.mjs";
+};
 
 export type InstallScope = "repo" | "system";
 export type InstallMode = "install" | "update";
