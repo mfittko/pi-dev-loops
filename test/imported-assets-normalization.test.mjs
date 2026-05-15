@@ -166,6 +166,7 @@ test("copilot-autopilot uses CONNECTED_EVENT linkage checks to prevent duplicate
   assert.match(skillContent, /including `CONNECTED_EVENT` and `CROSS_REFERENCED_EVENT`/i);
   assert.match(skillContent, /continue paging with `pageInfo\.endCursor` until `hasNextPage` is false/i);
   assert.match(skillContent, /repository\.nameWithOwner` still matches `<resolved-repo>`/i);
+  assert.match(skillContent, /filter linked PR candidates to `<resolved-repo>` by validating `repository\.nameWithOwner`/i);
   assert.match(skillContent, /prefer a same-repo `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR/i);
   assert.match(skillContent, /do not rely only on PR title\/body containing a literal issue number/i);
   assert.match(skillContent, /treat an open linked PR as the active implementation for this issue/i);
