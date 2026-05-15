@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -214,7 +214,8 @@ test("watch-copilot-review rounds up attempt budget so non-divisible timeout sti
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
-    assert.deepEqual(JSON.parse(result.stdout), {
+    const output = JSON.parse(result.stdout);
+    assert.deepEqual(output, {
       ok: true,
       status: "changed",
       repo: "owner/repo",
@@ -230,6 +231,7 @@ test("watch-copilot-review rounds up attempt budget so non-divisible timeout sti
       ],
       newIssueComments: [],
     });
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 4);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
