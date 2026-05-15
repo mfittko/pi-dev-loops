@@ -375,7 +375,8 @@ Prefer the deterministic helper `request-copilot-review.mjs` from the resolved s
 
 When a PR is moved from draft to ready, explicitly attempt to request Copilot review rather than assuming repository automation will do it.
 
-After any follow-up fix commit is pushed to an open PR, explicitly decide whether another Copilot pass is desired. If yes, first return the updated head to a green or credibly green validation posture (smallest honest local validation is green and there is no known fixable CI-red state), then request Copilot review again rather than assuming GitHub will automatically re-request it for the new head.
+After any follow-up fix commit is pushed to an open PR, explicitly decide whether another Copilot pass is desired.
+If yes, first return the updated head to a green or credibly green validation posture (smallest honest local validation is green and there is no known fixable CI-red state). Then request Copilot review again rather than assuming GitHub will automatically re-request it for the new head.
 
 Do not web-search or rediscover this behavior during normal operation. Treat the deterministic helper and the repository docs as the source of truth unless you are explicitly debugging the tooling itself.
 
