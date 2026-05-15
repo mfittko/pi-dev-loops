@@ -39,20 +39,46 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
     readRepo("docs/reviewer-loop-state-graph.md"),
   ]);
 
-  for (const content of [devLoopSkill, copilotSkill, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph]) {
-    assert.match(content, /DRY/i);
-    assert.match(content, /KISS/i);
-    assert.match(content, /YAGNI/i);
+  const gateDocuments = [
+    ["skills/dev-loop/SKILL.md", devLoopSkill, /default pre-approval gate/i],
+    ["skills/copilot-dev-loop/SKILL.md", copilotSkill, /default pre-approval gate/i],
+    ["agents/review.agent.md", reviewAgent, /default pre-approval gate contract/i],
+    ["agents/coordinator.agent.md", coordinatorAgent, /default pre-approval review fan-out/i],
+    ["skills/dev-loop/templates/review.md", reviewTemplate, /^## Default pre-approval gate \(DRY \/ KISS \/ YAGNI\)$/m],
+    ["docs/reviewer-loop-state-graph.md", reviewerGraph, /default pre-approval gate/i],
+  ];
+
+  for (const [label, content, gatePhrase] of gateDocuments) {
+    assert.match(content, gatePhrase, `${label} should assert the gate phrasing explicitly`);
+    assert.match(content, /DRY/i, `${label} should mention the DRY lens`);
+    assert.match(content, /KISS/i, `${label} should mention the KISS lens`);
+    assert.match(content, /YAGNI/i, `${label} should mention the YAGNI lens`);
   }
 
-  assert.match(devLoopSkill, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
-  assert.match(copilotSkill, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
-  assert.match(reviewAgent, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
-  assert.match(coordinatorAgent, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
-  assert.match(reviewerGraph, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
+  for (const [label, content] of [
+    ["skills/dev-loop/SKILL.md", devLoopSkill],
+    ["skills/copilot-dev-loop/SKILL.md", copilotSkill],
+    ["agents/review.agent.md", reviewAgent],
+    ["agents/coordinator.agent.md", coordinatorAgent],
+    ["docs/reviewer-loop-state-graph.md", reviewerGraph],
+  ]) {
+    assert.match(
+      content,
+      /review-complete, approval-ready, merge-ready, or ready for final handoff/i,
+      `${label} should keep the gate boundary wording aligned`,
+    );
+  }
+
+  assert.match(reviewTemplate, /^## Default pre-approval gate \(DRY \/ KISS \/ YAGNI\)$/m);
+  assert.match(reviewTemplate, /fallback note:[^\n]*if parallel execution of the three review lenses is impractical/i);
+  assert.match(devLoopSkill, /if parallel execution is impractical[\s\S]*run all three lenses sequentially and explicitly record why parallel execution was impractical/i);
   assert.match(copilotSkill, /fresh context and in parallel when practical/i);
   assert.match(copilotSkill, /if parallel execution is impractical[\s\S]*still run all three lenses and explicitly record the limitation/i);
+  assert.match(reviewAgent, /if parallel execution is impractical[\s\S]*still cover all three lenses and explicitly record the limitation/i);
   assert.match(coordinatorAgent, /default pre-approval review fan-out must use the DRY, KISS, and YAGNI lenses/i);
+  assert.match(coordinatorAgent, /if parallel execution is impractical[\s\S]*still run all three lenses and record that limitation explicitly/i);
+  assert.match(reviewerGraph, /workflow lenses for how reviewer runs must cover the change/i);
+  assert.match(reviewerGraph, /do not replace the state machine's supported review-angle taxonomy/i);
 });
 
 test("copilot skill still contains its core workflow guidance", async () => {
