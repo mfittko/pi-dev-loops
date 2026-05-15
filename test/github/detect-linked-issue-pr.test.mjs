@@ -10,8 +10,8 @@ import { selectLinkedIssuePr } from "../../scripts/github/detect-linked-issue-pr
 const scriptPath = path.resolve("scripts/github/detect-linked-issue-pr.mjs");
 
 function runNode(args = [], options = {}) {
-  return new Promise((resolve) => {
-    const child = spawn(process.execPath, [scriptPath, ...args], {
+  return new Promise((resolve, reject) => {
+    const child = spawn(options.execPath ?? process.execPath, [scriptPath, ...args], {
       cwd: options.cwd,
       env: options.env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -19,6 +19,23 @@ function runNode(args = [], options = {}) {
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    const resolveOnce = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
+
+    const rejectOnce = (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(error);
+    };
 
     child.stdout.on("data", (chunk) => {
       stdout += String(chunk);
@@ -28,8 +45,9 @@ function runNode(args = [], options = {}) {
       stderr += String(chunk);
     });
 
+    child.on("error", rejectOnce);
     child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
+      resolveOnce({ code, stdout, stderr });
     });
   });
 }
@@ -50,7 +68,11 @@ async function writeGhStub(tempDir, entries) {
       "const counterPath = process.env.GH_COUNTER_PATH;",
       'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
       'const current = Number(readFileSync(counterPath, "utf8").trim() || "0");',
-      'const entry = entries[Math.min(current, entries.length - 1)] ?? { stdout: "{}\\n" };',
+      'if (current >= entries.length) {',
+      '  process.stderr.write(`unexpected extra gh call #${current + 1}: ${process.argv.slice(2).join(" ")}\\n`);',
+      '  process.exit(97);',
+      '}',
+      'const entry = entries[current] ?? { stdout: "{}\\n" };',
       'writeFileSync(counterPath, String(current + 1));',
       'const actual = process.argv.slice(2);',
       'if (entry.assertArgs) {',
@@ -173,6 +195,71 @@ test("detect-linked-issue-pr paginates and applies deterministic event-type prio
   }
 });
 
+test("detect-linked-issue-pr matches same-repo linked PRs case-insensitively", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-case-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=85", "owner=Owner", "name=Repo"],
+        stdout: graphqlPayload({
+          hasNextPage: false,
+          endCursor: null,
+          nodes: [
+            connectedNode({ createdAt: "2026-05-12T10:00:00Z", number: 90, repo: "owner/repo" }),
+          ],
+        }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "Owner/Repo", "--issue", "85"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      repo: "Owner/Repo",
+      issue: 85,
+      hasOpenLinkedPr: true,
+      prNumber: 90,
+      prUrl: "https://github.com/owner/repo/pull/90",
+      selection: {
+        eventType: "CONNECTED_EVENT",
+        eventCreatedAt: "2026-05-12T10:00:00Z",
+      },
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-linked-issue-pr tests fail fast on unexpected extra gh calls", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-overcall-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=85", "owner=owner", "name=repo"],
+        stdout: graphqlPayload({
+          hasNextPage: true,
+          endCursor: "cursor-1",
+          nodes: [],
+        }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "85"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /unexpected extra gh call #2/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-linked-issue-pr filters cross-repo/closed candidates and picks newest createdAt within event type", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-filter-"));
 
@@ -287,4 +374,11 @@ test("detect-linked-issue-pr rejects malformed arguments deterministically", asy
   assert.equal(badIssueErr.error, "--issue must be a positive integer");
   assert.equal(typeof badIssueErr.usage, "string");
   assert(badIssueErr.usage.length > 0);
+});
+
+test("runNode rejects deterministically when the child process cannot spawn", async () => {
+  await assert.rejects(
+    runNode(["--help"], { execPath: path.join(os.tmpdir(), "missing-node-binary") }),
+    /ENOENT/,
+  );
 });

@@ -236,6 +236,10 @@ function compareStableStrings(left, right) {
   return left < right ? -1 : 1;
 }
 
+function normalizeRepoSlugForComparison(repo) {
+  return typeof repo === "string" ? repo.trim().toLowerCase() : "";
+}
+
 function normalizeOpenSameRepoCandidate(candidate, repo) {
   const pr = candidate?.pr;
   const number = pr?.number;
@@ -247,7 +251,10 @@ function normalizeOpenSameRepoCandidate(candidate, repo) {
     return null;
   }
 
-  if (state !== "OPEN" || nameWithOwner !== repo) {
+  if (
+    state !== "OPEN"
+    || normalizeRepoSlugForComparison(nameWithOwner) !== normalizeRepoSlugForComparison(repo)
+  ) {
     return null;
   }
 
