@@ -243,7 +243,7 @@ function normalizeOpenSameRepoCandidate(candidate, repo) {
     return null;
   }
 
-  const createdAtMs = Number.parseInt(String(Date.parse(candidate.eventCreatedAt)), 10);
+  const createdAtMs = Date.parse(candidate.eventCreatedAt);
 
   return {
     prNumber: number,

@@ -129,7 +129,7 @@ test("detect-linked-issue-pr paginates and applies deterministic event-type prio
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "graphql", "-F", "owner=owner", "name=repo", "issue=85"],
+        assertArgs: ["api", "graphql", "-F", "issue=85", "owner=owner", "name=repo"],
         stdout: graphqlPayload({
           hasNextPage: true,
           endCursor: "cursor-1",
@@ -177,7 +177,7 @@ test("detect-linked-issue-pr filters cross-repo/closed candidates and picks newe
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "graphql", "-F", "owner=owner", "name=repo", "issue=85"],
+        assertArgs: ["api", "graphql", "-F", "issue=85", "owner=owner", "name=repo"],
         stdout: graphqlPayload({
           hasNextPage: false,
           endCursor: null,
@@ -219,7 +219,7 @@ test("detect-linked-issue-pr returns no match when no open same-repo linked PR e
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "graphql", "-F", "owner=owner", "name=repo", "issue=85"],
+        assertArgs: ["api", "graphql", "-F", "issue=85", "owner=owner", "name=repo"],
         stdout: graphqlPayload({
           hasNextPage: false,
           endCursor: null,
