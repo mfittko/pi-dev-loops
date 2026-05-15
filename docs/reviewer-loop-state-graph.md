@@ -51,6 +51,18 @@ The contract separates observable current state (`submittedReviewPresent`, `draf
 - default fan-out is 3
 - output is deterministic (`runId` sequence + angle ordering)
 
+For `pi-dev-loops`, the default pre-approval gate before calling a branch/PR
+review-complete, approval-ready, merge-ready, or ready for final handoff is three
+focused lenses: `DRY`, `KISS`, and `YAGNI`. These are workflow lenses that reviewer
+runs must cover for the change; they do not replace the state machine's supported
+review-angle taxonomy (`correctness`, `tests`, `maintainability`, `security`,
+`scope`). Instead, map the DRY/KISS/YAGNI passes onto that existing taxonomy when
+planning or merging reviewer runs so the workflow gate stays aligned with the
+deterministic review-plan contract. Run those lens passes in fresh context and in
+parallel when practical. If true parallelism is impractical, all three lenses still
+require coverage and the limitation must be explicitly recorded in the merged review
+artifact/verdict.
+
 ## Deterministic Merge/Synthesis Contract
 
 `mergeReviewerResults` merges parallel review run outputs into one bounded machine-readable package:

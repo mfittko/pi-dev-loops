@@ -458,10 +458,15 @@ When actionable review feedback exists, use a narrow follow-up loop:
 
 Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 
-When helpful, run parallel review angles such as:
-- correctness/regressions
-- tests/validation
-- maintainability/scope control
+Before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate using three focused review lenses:
+- DRY
+- KISS
+- YAGNI
+
+Run these three lens-focused passes in fresh context and in parallel when practical.
+If parallel execution is impractical (for example due to tooling or resource constraints),
+still run all three lenses and explicitly record the limitation in the review verdict summary
+or a `tmp/copilot-loop/` handoff artifact.
 
 For any parallel review pass:
 - start each reviewer in fresh context
