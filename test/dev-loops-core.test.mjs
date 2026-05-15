@@ -35,7 +35,7 @@ function createRuntime(overrides = {}) {
   };
 }
 
-test("shared parser keeps extension and CLI commands aligned while preserving the hide exception", () => {
+test("parser maintains extension and CLI parity with the hide exception", () => {
   const sharedInputs = [
     [[], "help"],
     [["help"], "help"],
