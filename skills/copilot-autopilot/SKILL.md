@@ -321,7 +321,7 @@ When the draft PR appears, do not stop just because it is draft. Enter the draft
 
 Useful check:
 ```sh
-# use `-F issue=...` so GraphQL gets an Int for `$issue:Int!`; `-f` sends a string and can trigger a GraphQL type mismatch
+# use `-F issue=...` to pass an integer for `$issue:Int!`; `-f` passes a string and can cause a GraphQL type mismatch
 gh api graphql -f owner=<owner> -f name=<repo> -F issue=<issue-number> -f query='
 query($owner:String!, $name:String!, $issue:Int!) {
   repository(owner:$owner, name:$name) {
