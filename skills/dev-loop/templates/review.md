@@ -4,7 +4,13 @@
 
 ## Scope overreach check
 
-## KISS / SRP / YAGNI check
+## Default pre-approval gate (DRY / KISS / YAGNI)
+- DRY check:
+- KISS check:
+- YAGNI check:
+- fallback note: if true parallel lens execution was impractical, record why and confirm all three lenses were still covered
+
+## Additional design-principle check (SRP, etc.)
 
 ## Test and validation check
 

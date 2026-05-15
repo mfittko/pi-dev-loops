@@ -29,6 +29,29 @@ test("coordinator agent does not contain stale docs/plans path and requires fres
   assert.match(content, /fresh context/i);
 });
 
+test("review-related workflow surfaces default pre-approval gate to DRY/KISS/YAGNI with explicit fallback", async () => {
+  const [devLoopSkill, copilotSkill, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph] = await Promise.all([
+    readRepo("skills/dev-loop/SKILL.md"),
+    readRepo("skills/copilot-dev-loop/SKILL.md"),
+    readRepo("agents/review.agent.md"),
+    readRepo("agents/coordinator.agent.md"),
+    readRepo("skills/dev-loop/templates/review.md"),
+    readRepo("docs/reviewer-loop-state-graph.md"),
+  ]);
+
+  for (const content of [devLoopSkill, copilotSkill, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph]) {
+    assert.match(content, /DRY/i);
+    assert.match(content, /KISS/i);
+    assert.match(content, /YAGNI/i);
+  }
+
+  assert.match(devLoopSkill, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
+  assert.match(copilotSkill, /review-complete, approval-ready, merge-ready, or ready for final review handoff/i);
+  assert.match(copilotSkill, /fresh context and in parallel when practical/i);
+  assert.match(copilotSkill, /if true parallelism is impractical, still run all three lenses and explicitly record the limitation/i);
+  assert.match(coordinatorAgent, /default pre-approval review fan-out must use the DRY, KISS, and YAGNI lenses/i);
+});
+
 test("copilot skill still contains its core workflow guidance", async () => {
   const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
 
