@@ -162,7 +162,7 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `prNumber` {number|null} — PR number if prExists, otherwise null
 - `prDraft` {boolean} — whether the PR is in draft state
 - `prMerged` {boolean} — whether the PR has been merged
-- `prClosed` {boolean} — whether the PR is closed on GitHub (merged PRs are also closed); `pr_closed_unmerged` is derived from `prClosed && !prMerged`
+- `prClosed` {boolean} — whether the PR was closed without merge; merged PRs set `prMerged=true` instead of reusing `prClosed`
 - `copilotReviewRequestStatus` {"requested"|"already-requested"|"unavailable"|"none"|"failed"} — current known Copilot review-request state
 - `copilotReviewPresent` {boolean} — whether at least one Copilot review exists on the PR
 - `unresolvedThreadCount` {number} — total unresolved review-thread count
