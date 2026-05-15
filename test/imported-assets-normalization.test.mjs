@@ -158,7 +158,7 @@ test("copilot-autopilot docs define the closed direct-issue branch and keep sear
   assert.doesNotMatch(skillContent, /gh pr list --repo <resolved-repo> --state open --search "copilot\/ <issue-number>"/);
 });
 
-test("copilot-autopilot uses CONNECTED_EVENT linkage checks to prevent duplicate PR retriggers", async () => {
+test("copilot-autopilot delegates linked-PR detection mechanics to deterministic helper tooling", async () => {
   const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
 
   assert.match(skillContent, /deterministic linked-PR helper/i);

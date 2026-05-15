@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "./capture-review-threads.mjs";
+import { parseRepoSlug } from "./_github-helpers.mjs";
 
 export const LINKED_ISSUE_PR_QUERY = [
   "query($owner:String!, $name:String!, $issue:Int!, $after:String) {",
@@ -174,7 +174,7 @@ function buildQueryArgs({ owner, name, issue, after }) {
     `owner=${owner}`,
     "--field",
     `name=${name}`,
-    "--field",
+    "-F",
     `issue=${issue}`,
     "--field",
     `query=${LINKED_ISSUE_PR_QUERY}`,
