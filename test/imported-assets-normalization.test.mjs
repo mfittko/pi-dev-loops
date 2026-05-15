@@ -96,6 +96,9 @@ test("copilot skill requires github reply/resolve follow-up and gates waiting on
   const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
 
   assert.match(content, /reply\/resolve work is done for the addressed threads/);
+  assert.match(content, /if that local validation is still known red, continue remediation instead of re-requesting Copilot/);
+  assert.match(content, /if GitHub CI\/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot/);
+  assert.match(content, /only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head/);
   assert.match(content, /wait\/watch loop if the request result is confirmed as `requested` or `already-requested`/);
   assert.match(content, /`requested`: if another Copilot pass is actually desired/);
   assert.match(content, /`already-requested`: if another Copilot pass is actually desired/);

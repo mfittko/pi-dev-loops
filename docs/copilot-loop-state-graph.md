@@ -21,7 +21,7 @@ The implementation lives in:
 | `waiting_for_copilot_review` | Copilot is in `requested_reviewers`; waiting for review activity |
 | `unresolved_feedback_present` | Unresolved review threads exist that require fix and/or reply/resolve |
 | `already_fixed_needs_reply_resolve` | Agent has applied a fix; threads still need reply/resolve on GitHub before re-request |
-| `ready_to_rerequest_review` | All threads resolved; Copilot has reviewed at least once; ready for next pass or done |
+| `ready_to_rerequest_review` | All threads resolved; Copilot has reviewed at least once; only re-request once the updated head is green or credibly green |
 | `review_request_unavailable` | Copilot review request returned `unavailable`; must stop/report |
 | `waiting_for_ci` | CI checks are in progress; wait before proceeding |
 | `blocked_needs_user_decision` | Unexpected failure (CI failure, bad request result); requires user decision |
@@ -147,6 +147,10 @@ Auto-detect must fail closed when review-thread state cannot be captured or pars
 ### Reply/resolve must precede re-request
 
 `already_fixed_needs_reply_resolve` transitions only to `ready_to_rerequest_review`, not directly to `waiting_for_copilot_review`. The agent must explicitly resolve threads on GitHub (via `scripts/github/reply-resolve-review-thread.mjs`) before triggering the next Copilot pass.
+
+### Green validation precondition before follow-up re-request
+
+Re-requesting Copilot after a follow-up fix is gated on the updated head being green or credibly green. In practice: run the smallest honest local validation for the accepted fix scope, continue remediation if that validation is still known red, and continue remediation if CI/checks for the current head are known red for a fixable issue.
 
 ## Related Scripts
 

@@ -375,7 +375,8 @@ Prefer the deterministic helper `request-copilot-review.mjs` from the resolved s
 
 When a PR is moved from draft to ready, explicitly attempt to request Copilot review rather than assuming repository automation will do it.
 
-After any follow-up fix commit is pushed to an open PR, explicitly decide whether another Copilot pass is desired. If yes, request Copilot review again rather than assuming GitHub will automatically re-request it for the new head.
+After any follow-up fix commit is pushed to an open PR, explicitly decide whether another Copilot pass is desired.
+If yes, first return the updated head to a green or credibly green validation posture (smallest honest local validation is green and there is no known fixable CI-red state). Then request Copilot review again rather than assuming GitHub will automatically re-request it for the new head.
 
 Do not web-search or rediscover this behavior during normal operation. Treat the deterministic helper and the repository docs as the source of truth unless you are explicitly debugging the tooling itself.
 
@@ -410,7 +411,7 @@ Practical rule for this repo:
 
 Preferred approach for Copilot review follow-up:
 - after a PR leaves draft, explicitly request Copilot review first, preferably through the resolved `request-copilot-review.mjs` helper
-- after any follow-up fix commit is pushed and another Copilot pass is wanted, explicitly request Copilot review again for the updated head before waiting
+- after any follow-up fix commit is pushed and another Copilot pass is wanted, first return the updated head to a green or credibly green validation posture, then explicitly request Copilot review again for that head before waiting
 - only enter the watch loop after the request state is confirmed as `requested` or `already-requested`
 - baseline current Copilot review activity only after that confirmed request state, unless the user explicitly asked for passive waiting without a fresh request
 - poll for new Copilot-authored review activity across review-thread comments, review summaries, and PR issue comments
@@ -449,7 +450,10 @@ When actionable review feedback exists, use a narrow follow-up loop:
 7. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
    - do not stop at a local fix if GitHub-side reply/resolve is authorized
 8. only after GitHub-side reply/resolve work is done for the addressed threads, decide whether another Copilot pass is desired
-   - if yes, explicitly re-request Copilot review for the new head rather than assuming it remains requested
+   - if yes, run the smallest honest local validation for the accepted fix scope
+   - if that local validation is still known red, continue remediation instead of re-requesting Copilot
+   - if GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot
+   - only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head rather than assuming it remains requested
    - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
    - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
    - if the request command fails unexpectedly, stop and report the error rather than sleeping and hoping for a new review
