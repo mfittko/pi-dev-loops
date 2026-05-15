@@ -175,7 +175,7 @@ const NEXT_ACTIONS = Object.freeze({
  * - trackerItemExists {boolean}      — whether a tracker work item was found
  * - trackerItemId {string|null}      — opaque tracker item identifier (e.g. "PROJ-123")
  * - prExists {boolean}               — whether a GitHub PR exists for this item
- * - prNumber {number|null}           — PR number if prExists, otherwise null
+ * - prNumber {number|null}           — PR number if known; treat `prNumber` with `prExists=false` as contradictory input
  * - prDraft {boolean}                — whether the PR is in draft state
  * - prMerged {boolean}               — whether the PR has been merged
  * - prClosed {boolean}               — whether the PR is closed on GitHub (merged PRs are also closed)
@@ -190,6 +190,10 @@ export function normalizeTrackerPrSnapshot(raw) {
 
   const trackerItemExists = normalizeBooleanLike(raw.trackerItemExists);
   const prExists = normalizeBooleanLike(raw.prExists);
+  const prNumber =
+    typeof raw.prNumber === "number" && Number.isInteger(raw.prNumber) && raw.prNumber > 0
+      ? raw.prNumber
+      : null;
 
   return {
     trackerItemExists,
@@ -198,10 +202,7 @@ export function normalizeTrackerPrSnapshot(raw) {
         ? raw.trackerItemId.trim()
         : null,
     prExists,
-    prNumber:
-      prExists && typeof raw.prNumber === "number" && Number.isInteger(raw.prNumber) && raw.prNumber > 0
-        ? raw.prNumber
-        : null,
+    prNumber,
     prDraft: normalizeBooleanLike(raw.prDraft),
     prMerged: normalizeBooleanLike(raw.prMerged),
     prClosed: normalizeBooleanLike(raw.prClosed),
@@ -234,7 +235,7 @@ export function interpretTrackerPrState(snapshot) {
 
   const contradictorySnapshot =
     (!s.trackerItemExists && (s.prExists || s.prNumber !== null || s.prDraft || s.prMerged || s.prClosed)) ||
-    (!s.prExists && (s.prDraft || s.prMerged || s.prClosed)) ||
+    (!s.prExists && (s.prNumber !== null || s.prDraft || s.prMerged || s.prClosed)) ||
     (s.prMerged && s.prDraft) ||
     (s.prClosed && s.prDraft);
 

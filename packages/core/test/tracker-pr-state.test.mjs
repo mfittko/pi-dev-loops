@@ -89,12 +89,13 @@ test("normalizeTrackerPrSnapshot trims whitespace from trackerItemId", () => {
   assert.equal(result.trackerItemId, "STORY-7");
 });
 
-test("normalizeTrackerPrSnapshot normalizes prNumber only when prExists is true and value is a positive integer", () => {
+test("normalizeTrackerPrSnapshot normalizes prNumber independently as a positive integer", () => {
   const withPr = normalizeTrackerPrSnapshot({ prExists: true, prNumber: 17 });
   assert.equal(withPr.prNumber, 17);
 
-  const noPr = normalizeTrackerPrSnapshot({ prExists: false, prNumber: 17 });
-  assert.equal(noPr.prNumber, null);
+  const contradictoryRaw = normalizeTrackerPrSnapshot({ prExists: false, prNumber: 17 });
+  assert.equal(contradictoryRaw.prNumber, 17);
+  assert.equal(contradictoryRaw.prExists, false);
 
   const negativeNumber = normalizeTrackerPrSnapshot({ prExists: true, prNumber: -5 });
   assert.equal(negativeNumber.prNumber, null);
@@ -269,6 +270,18 @@ test("interpretTrackerPrState routes contradictory prExists=false+prMerged=true 
     trackerItemId: "PROJ-1",
     prExists: false,
     prMerged: true,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.deepEqual(result.allowedTransitions, []);
+  assert.equal(result.reverseSyncAction, "none");
+});
+
+test("interpretTrackerPrState routes contradictory prExists=false+prNumber-present snapshots to blocked_needs_user_decision", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: false,
+    prNumber: 10,
   });
   assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
   assert.deepEqual(result.allowedTransitions, []);

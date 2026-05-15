@@ -200,7 +200,7 @@ Snapshot schema (`--input` JSON):
 - `trackerItemExists` {boolean} — whether a tracker work item was found
 - `trackerItemId` {string|null} — tracker item identifier if present
 - `prExists` {boolean} — whether a PR exists for the tracker item
-- `prNumber` {number|null} — PR number if `prExists`, otherwise `null`
+- `prNumber` {number|null} — PR number if known; `prNumber` with `prExists=false` is contradictory and blocked
 - `prDraft` {boolean} — whether the PR is still draft
 - `prMerged` {boolean} — whether the PR has been merged
 - `prClosed` {boolean} — whether the PR is closed on GitHub (merged PRs are also closed); `pr_closed_unmerged` is derived from `prClosed && !prMerged`

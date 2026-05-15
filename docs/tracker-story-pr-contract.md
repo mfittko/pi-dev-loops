@@ -203,7 +203,7 @@ blocked_needs_user_decision
 | `trackerItemExists` | `boolean` | Whether a tracker work item was found |
 | `trackerItemId` | `string \| null` | Opaque tracker item identifier (e.g. `"PROJ-123"`) |
 | `prExists` | `boolean` | Whether a GitHub PR exists for this tracker item |
-| `prNumber` | `number \| null` | PR number if `prExists`, otherwise `null` |
+| `prNumber` | `number \| null` | PR number if known. Canonical no-PR snapshots should set this to `null`; `prNumber` with `prExists=false` is treated as contradictory and blocked. |
 | `prDraft` | `boolean` | Whether the PR is in draft state |
 | `prMerged` | `boolean` | Whether the PR has been merged |
 | `prClosed` | `boolean` | Whether the PR is closed on GitHub. Merged PRs are also closed, so `pr_closed_unmerged` is derived from `prClosed && !prMerged`. |
