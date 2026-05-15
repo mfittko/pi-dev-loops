@@ -362,7 +362,7 @@ query($owner:String!, $name:String!, $issue:Int!, $after:String) {
   }
 }'
 ```
-Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope. On long issue timelines, continue paging with `pageInfo.endCursor` until `hasNextPage` is false so older linked PR events are not missed. Before resuming from a linked PR number, confirm that `repository.nameWithOwner` still matches `<resolved-repo>` (unless the work item explicitly targets another repo) so cross-referenced PRs from a different repository do not get mistaken for the active implementation.
+Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope. On long issue timelines, continue paging with `pageInfo.endCursor` until `hasNextPage` is false so older linked PR events are not missed. Before resuming from a linked PR number, confirm that `repository.nameWithOwner` still matches `<resolved-repo>` (unless the work item explicitly targets another repo) so cross-referenced PRs from a different repository do not get mistaken for the active implementation. If multiple linked PRs remain open after that repo filter, prefer a same-repo `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR, and if there is still more than one candidate choose the newest matching linked timeline event deterministically.
 
 ## Phase 5 — PR tightening
 
