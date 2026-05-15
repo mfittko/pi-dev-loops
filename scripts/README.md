@@ -205,6 +205,8 @@ Snapshot schema (`--input` JSON):
 - `prMerged` {boolean} — whether the PR has been merged
 - `prClosed` {boolean} — whether the PR is closed on GitHub (merged PRs are also closed); `pr_closed_unmerged` is derived from `prClosed && !prMerged`
 
+Unlike the Copilot/reviewer loop snapshots, this tracker snapshot uses `prClosed` for the raw GitHub closed state. Merged PRs therefore set both `prMerged=true` and `prClosed=true`, while `pr_closed_unmerged` is derived from `prClosed && !prMerged`.
+
 This snapshot surface is intentionally limited to tracker identity plus PR lifecycle facts. It does not encode tracker-native workflow readiness/blocking/done state; higher-level callers must combine tracker-owned state separately when deciding whether opening a PR is appropriate.
 
 Success output shape:

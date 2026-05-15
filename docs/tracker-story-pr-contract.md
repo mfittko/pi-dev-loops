@@ -208,6 +208,8 @@ blocked_needs_user_decision
 | `prMerged` | `boolean` | Whether the PR has been merged |
 | `prClosed` | `boolean` | Whether the PR is closed on GitHub. Merged PRs are also closed, so `pr_closed_unmerged` is derived from `prClosed && !prMerged`. |
 
+Unlike the Copilot/reviewer loop snapshots, this tracker contract uses `prClosed` for the raw GitHub closed state. Merged PRs therefore set both `prMerged=true` and `prClosed=true`, while `pr_closed_unmerged` remains the derived terminal state for `prClosed && !prMerged`.
+
 This snapshot intentionally omits tracker-native workflow fields such as selected/ready, blocked, or done. Higher-level callers must combine tracker-owned readiness/state separately when deciding whether opening a PR is appropriate.
 
 ## 6. Scope Boundaries
