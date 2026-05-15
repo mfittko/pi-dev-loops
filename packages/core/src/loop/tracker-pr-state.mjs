@@ -178,7 +178,7 @@ const NEXT_ACTIONS = Object.freeze({
  * - prNumber {number|null}           — PR number if prExists, otherwise null
  * - prDraft {boolean}                — whether the PR is in draft state
  * - prMerged {boolean}               — whether the PR has been merged
- * - prClosed {boolean}               — whether the PR was closed without merge
+ * - prClosed {boolean}               — whether the PR is closed on GitHub (merged PRs are also closed)
  *
  * @param {object} raw - raw snapshot input
  * @returns {object} normalized snapshot
@@ -221,7 +221,7 @@ export function normalizeTrackerPrSnapshot(raw) {
  * 1. Contradictory snapshot -> blocked_needs_user_decision
  * 2. No tracker item and no PR facts -> no_tracker_item (nothing to anchor a PR to)
  * 3. PR merged -> pr_merged (terminal success)
- * 4. PR closed without merge -> pr_closed_unmerged (terminal, no auto-sync)
+ * 4. PR closed without merge -> pr_closed_unmerged (terminal, no auto-sync; `prClosed && !prMerged`)
  * 5. Draft PR exists -> draft_pr_open (in-progress)
  * 6. PR exists and not draft, not merged, not closed -> pr_reviewable
  * 7. Tracker item exists and no PR exists -> ready_no_pr (no-PR execution state)
@@ -235,7 +235,7 @@ export function interpretTrackerPrState(snapshot) {
   const contradictorySnapshot =
     (!s.trackerItemExists && (s.prExists || s.prNumber !== null || s.prDraft || s.prMerged || s.prClosed)) ||
     (!s.prExists && (s.prDraft || s.prMerged || s.prClosed)) ||
-    (s.prMerged && (s.prClosed || s.prDraft)) ||
+    (s.prMerged && s.prDraft) ||
     (s.prClosed && s.prDraft);
 
   let state;

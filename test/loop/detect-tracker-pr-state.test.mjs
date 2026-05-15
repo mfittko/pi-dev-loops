@@ -319,7 +319,7 @@ test("detect-tracker-pr-state CLI emits blocked_needs_user_decision for orphan P
   }
 });
 
-test("detect-tracker-pr-state CLI emits blocked_needs_user_decision for merged-plus-closed snapshot", async () => {
+test("detect-tracker-pr-state CLI emits pr_merged for merged-plus-closed snapshot", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "tracker-pr-state-test-"));
   try {
     const snapshotPath = await writeTempJson(tempDir, "snapshot.json", {
@@ -336,8 +336,8 @@ test("detect-tracker-pr-state CLI emits blocked_needs_user_decision for merged-p
 
     const parsed = JSON.parse(result.stdout.trim());
     assert.equal(parsed.ok, true);
-    assert.equal(parsed.state, "blocked_needs_user_decision");
-    assert.equal(parsed.reverseSyncAction, "none");
+    assert.equal(parsed.state, "pr_merged");
+    assert.equal(parsed.reverseSyncAction, "set_done");
     assert.deepEqual(parsed.allowedTransitions, []);
   } finally {
     await rm(tempDir, { recursive: true, force: true });

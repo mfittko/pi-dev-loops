@@ -249,7 +249,7 @@ test("interpretTrackerPrState routes to pr_closed_unmerged when PR is closed wit
   assert.equal(result.reverseSyncAction, "none");
 });
 
-test("interpretTrackerPrState routes contradictory prMerged=true+prClosed=true to blocked_needs_user_decision", () => {
+test("interpretTrackerPrState treats prMerged=true+prClosed=true as pr_merged because GitHub merged PRs are also closed", () => {
   const result = interpretTrackerPrState({
     trackerItemExists: true,
     trackerItemId: "PROJ-1",
@@ -258,9 +258,9 @@ test("interpretTrackerPrState routes contradictory prMerged=true+prClosed=true t
     prMerged: true,
     prClosed: true,
   });
-  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.state, TRACKER_PR_STATE.PR_MERGED);
   assert.deepEqual(result.allowedTransitions, []);
-  assert.equal(result.reverseSyncAction, "none");
+  assert.equal(result.reverseSyncAction, "set_done");
 });
 
 test("interpretTrackerPrState routes contradictory prExists=false+prMerged=true to blocked_needs_user_decision", () => {

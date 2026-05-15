@@ -59,7 +59,7 @@ Snapshot schema (all fields optional; unknown fields are ignored):
   prNumber           number|null PR number if prExists, otherwise null
   prDraft            boolean     Whether the PR is in draft state
   prMerged           boolean     Whether the PR has been merged
-  prClosed           boolean     Whether the PR was closed without merge
+  prClosed           boolean     Whether the PR is closed on GitHub (merged PRs are also closed)
 
 This snapshot intentionally excludes tracker-native workflow readiness/blocking
 state. Callers must combine tracker-owned workflow state separately when

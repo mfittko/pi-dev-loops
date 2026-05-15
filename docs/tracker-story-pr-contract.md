@@ -206,7 +206,7 @@ blocked_needs_user_decision
 | `prNumber` | `number \| null` | PR number if `prExists`, otherwise `null` |
 | `prDraft` | `boolean` | Whether the PR is in draft state |
 | `prMerged` | `boolean` | Whether the PR has been merged |
-| `prClosed` | `boolean` | Whether the PR was closed without merge |
+| `prClosed` | `boolean` | Whether the PR is closed on GitHub. Merged PRs are also closed, so `pr_closed_unmerged` is derived from `prClosed && !prMerged`. |
 
 This snapshot intentionally omits tracker-native workflow fields such as selected/ready, blocked, or done. Higher-level callers must combine tracker-owned readiness/state separately when deciding whether opening a PR is appropriate.
 
