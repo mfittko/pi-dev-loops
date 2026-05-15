@@ -112,6 +112,11 @@ test("help is the default action and malformed commands stay non-mutating", asyn
   await pi.registeredCommands.get("dev-loops").handler("install moon", invalidArgsContext.ctx);
   assert.match(invalidArgsContext.calls.widgets.at(-1).lines[0], /pi-dev-loops install: choose a target/);
   assert.equal(invalidArgsContext.calls.notifications.at(-1).level, "error");
+
+  const malformedStatusContext = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("status extra", malformedStatusContext.ctx);
+  assert.match(malformedStatusContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.equal(malformedStatusContext.calls.notifications.at(-1).message, "pi-dev-loops status: invalid arguments");
 });
 
 test("status keeps existing remote readiness ready when copilot-dev-loop is installed but copilot-autopilot is not", async () => {

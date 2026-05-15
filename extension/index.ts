@@ -67,19 +67,21 @@ export default function (pi: ExtensionAPI) {
           ctx.ui.notify(`pi-dev-loops ${result.action} ${result.scope}: failed`, "error");
           return;
         case "malformed":
-          if (result.usageAction) {
+          if (result.usageAction === "install" || result.usageAction === "update") {
             ctx.ui.setWidget(WIDGET_KEY, buildInstallUsageLines(result.usageAction), { placement: "belowEditor" });
             ctx.ui.notify(`pi-dev-loops ${result.usageAction}: invalid arguments`, "error");
             return;
           }
 
           ctx.ui.setWidget(WIDGET_KEY, buildHelpLines(), { placement: "belowEditor" });
-          ctx.ui.notify("pi-dev-loops help", "info");
+          ctx.ui.notify(`pi-dev-loops ${result.usageAction ?? "help"}: invalid arguments`, "error");
           return;
-        case "unsupported":
-          ctx.ui.setWidget(WIDGET_KEY, [result.message, ...buildHelpLines()], { placement: "belowEditor" });
-          ctx.ui.notify(result.message, "error");
+        case "unsupported": {
+          const message = result.message || "This command is not supported here.";
+          ctx.ui.setWidget(WIDGET_KEY, [message, ...buildHelpLines()], { placement: "belowEditor" });
+          ctx.ui.notify(message, "error");
           return;
+        }
         default: {
           const exhaustiveCheck: never = result;
           throw new Error(`Unhandled extension result: ${JSON.stringify(exhaustiveCheck)}`);

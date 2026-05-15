@@ -174,6 +174,7 @@ test("createCliRuntime honors PATHEXT lookups when simulating Windows PATH resol
   await mkdir(binDir, { recursive: true });
   await writeFile(path.join(binDir, "gh.exe"), "");
   await writeFile(path.join(binDir, "pi-subagents.cmd"), "");
+  await writeFile(path.join(binDir, "git"), "");
 
   try {
     const runtime = createCliRuntime({

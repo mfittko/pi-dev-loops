@@ -39,12 +39,16 @@ function spawnResult(command, args, options = {}) {
 }
 
 function executableCandidates(command, platform, pathExt) {
-  if (platform !== "win32" || path.extname(command)) {
+  if (platform !== "win32") {
+    return [command];
+  }
+
+  if (path.extname(command)) {
     return [command];
   }
 
   const extensions = [...new Set(pathExt.split(";").map((entry) => entry.trim()).filter(Boolean))];
-  return [command, ...extensions.map((extension) => `${command}${extension}`)];
+  return extensions.map((extension) => `${command}${extension}`);
 }
 
 async function commandExists(
@@ -246,7 +250,7 @@ export function createCliRuntime({
         return {
           ok,
           availableDetail: `Packaged skill is installed in this repository (${repoSkillPath}).`,
-          unavailableDetail: installDetail,
+          unavailableDetail: `Packaged skill is already installed in this repository (${repoSkillPath}).`,
         };
       }
 
@@ -254,7 +258,7 @@ export function createCliRuntime({
         return {
           ok,
           availableDetail: `Packaged skill is installed in the system skill root (${systemSkillPath}).`,
-          unavailableDetail: installDetail,
+          unavailableDetail: `Packaged skill is already installed in the system skill root (${systemSkillPath}).`,
         };
       }
 
