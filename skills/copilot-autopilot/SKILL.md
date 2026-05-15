@@ -223,7 +223,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 5. If a matching issue exists:
    - fetch it with `gh issue view <number> --repo <resolved-repo> --json number,title,body,state,labels,assignees,milestone`
    - if the matching issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a new follow-up issue)
-   - if it is still open, check whether a PR already exists for that issue using authoritative issue-linkage data (including `CONNECTED_EVENT`), not only title/body number matching
+   - if it is still open, check whether a PR already exists for that issue using authoritative issue-linkage data (including `CONNECTED_EVENT` and `CROSS_REFERENCED_EVENT`), not only title/body number matching
    - if a PR already exists, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
    - otherwise confirm with the user and proceed with that issue
 6. If no matching issue exists:
@@ -321,12 +321,13 @@ When the draft PR appears, do not stop just because it is draft. Enter the draft
 
 Useful check:
 ```sh
-# use `-F issue=...` to pass an integer for `$issue:Int!`; `-f` passes a string and can cause a GraphQL type mismatch
+# use `-F issue=...` to pass an integer for `$issue:Int!`; `-f` passes strings and is fine for the optional cursor variable
+# omit `-f after=...` on the first page; on later pages add `-f after=<previous pageInfo.endCursor>`
 gh api graphql -f owner=<owner> -f name=<repo> -F issue=<issue-number> -f query='
-query($owner:String!, $name:String!, $issue:Int!) {
+query($owner:String!, $name:String!, $issue:Int!, $after:String) {
   repository(owner:$owner, name:$name) {
     issue(number:$issue) {
-      timelineItems(first:100, itemTypes:[CONNECTED_EVENT, CROSS_REFERENCED_EVENT]) {
+      timelineItems(first:100, after:$after, itemTypes:[CONNECTED_EVENT, CROSS_REFERENCED_EVENT]) {
         pageInfo {
           hasNextPage
           endCursor
@@ -336,13 +337,23 @@ query($owner:String!, $name:String!, $issue:Int!) {
           ... on ConnectedEvent {
             subject {
               __typename
-              ... on PullRequest { number state }
+              ... on PullRequest {
+                number
+                state
+                url
+                repository { nameWithOwner }
+              }
             }
           }
           ... on CrossReferencedEvent {
             source {
               __typename
-              ... on PullRequest { number state }
+              ... on PullRequest {
+                number
+                state
+                url
+                repository { nameWithOwner }
+              }
             }
           }
         }
@@ -351,7 +362,7 @@ query($owner:String!, $name:String!, $issue:Int!) {
   }
 }'
 ```
-Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope. On long issue timelines, continue paging with `pageInfo.endCursor` until `hasNextPage` is false so older linked PR events are not missed.
+Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope. On long issue timelines, continue paging with `pageInfo.endCursor` until `hasNextPage` is false so older linked PR events are not missed. Before resuming from a linked PR number, confirm that `repository.nameWithOwner` still matches `<resolved-repo>` (unless the work item explicitly targets another repo) so cross-referenced PRs from a different repository do not get mistaken for the active implementation.
 
 ## Phase 5 — PR tightening
 
