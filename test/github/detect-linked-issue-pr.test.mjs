@@ -1,0 +1,269 @@
+import assert from "node:assert/strict";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import test from "node:test";
+
+const scriptPath = path.resolve("scripts/github/detect-linked-issue-pr.mjs");
+
+function runNode(args = [], options = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [scriptPath, ...args], {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+async function writeGhStub(tempDir, entries) {
+  const sequencePath = path.join(tempDir, "gh-sequence.json");
+  const counterPath = path.join(tempDir, "gh-counter.txt");
+  const ghPath = path.join(tempDir, "gh");
+
+  await writeFile(sequencePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+  await writeFile(counterPath, "0\n", "utf8");
+  await writeFile(
+    ghPath,
+    [
+      "#!/usr/bin/env node",
+      'import { readFileSync, writeFileSync } from "node:fs";',
+      "const sequencePath = process.env.GH_SEQUENCE_PATH;",
+      "const counterPath = process.env.GH_COUNTER_PATH;",
+      'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
+      'const current = Number(readFileSync(counterPath, "utf8").trim() || "0");',
+      'const entry = entries[Math.min(current, entries.length - 1)] ?? { stdout: "{}\\n" };',
+      'writeFileSync(counterPath, String(current + 1));',
+      'const actual = process.argv.slice(2);',
+      'if (entry.assertArgs) {',
+      '  for (const expected of entry.assertArgs) {',
+      '    if (!actual.includes(expected)) {',
+      '      process.stderr.write(`missing expected gh arg: ${expected}\\nactual: ${actual.join(" ")}\\n`);',
+      "      process.exit(98);",
+      "    }",
+      "  }",
+      "}",
+      'if (entry.stderr) {',
+      "  process.stderr.write(entry.stderr);",
+      "}",
+      'if (entry.stdout) {',
+      "  process.stdout.write(entry.stdout);",
+      "}",
+      "process.exit(entry.exitCode ?? 0);",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(ghPath, 0o755);
+
+  return {
+    ...process.env,
+    PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
+    GH_SEQUENCE_PATH: sequencePath,
+    GH_COUNTER_PATH: counterPath,
+  };
+}
+
+function graphqlPayload({ hasNextPage, endCursor, nodes }) {
+  return `${JSON.stringify({
+    data: {
+      repository: {
+        issue: {
+          timelineItems: {
+            pageInfo: { hasNextPage, endCursor },
+            nodes,
+          },
+        },
+      },
+    },
+  })}\n`;
+}
+
+function connectedNode({ createdAt, number, state = "OPEN", repo = "owner/repo", url = `https://github.com/${repo}/pull/${number}` }) {
+  return {
+    __typename: "ConnectedEvent",
+    createdAt,
+    subject: {
+      __typename: "PullRequest",
+      number,
+      state,
+      url,
+      repository: { nameWithOwner: repo },
+    },
+  };
+}
+
+function crossNode({ createdAt, number, state = "OPEN", repo = "owner/repo", url = `https://github.com/${repo}/pull/${number}` }) {
+  return {
+    __typename: "CrossReferencedEvent",
+    createdAt,
+    source: {
+      __typename: "PullRequest",
+      number,
+      state,
+      url,
+      repository: { nameWithOwner: repo },
+    },
+  };
+}
+
+test("detect-linked-issue-pr paginates and applies deterministic event-type priority", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-page-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "owner=owner", "name=repo", "issue=85"],
+        stdout: graphqlPayload({
+          hasNextPage: true,
+          endCursor: "cursor-1",
+          nodes: [
+            crossNode({ createdAt: "2026-05-01T10:00:00Z", number: 91 }),
+          ],
+        }),
+      },
+      {
+        assertArgs: ["api", "graphql", "after=cursor-1"],
+        stdout: graphqlPayload({
+          hasNextPage: false,
+          endCursor: null,
+          nodes: [
+            connectedNode({ createdAt: "2026-04-30T10:00:00Z", number: 90 }),
+          ],
+        }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "85"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      repo: "owner/repo",
+      issue: 85,
+      hasOpenLinkedPr: true,
+      prNumber: 90,
+      prUrl: "https://github.com/owner/repo/pull/90",
+      selection: {
+        eventType: "CONNECTED_EVENT",
+        eventCreatedAt: "2026-04-30T10:00:00Z",
+      },
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-linked-issue-pr filters cross-repo/closed candidates and picks newest createdAt within event type", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-filter-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "owner=owner", "name=repo", "issue=85"],
+        stdout: graphqlPayload({
+          hasNextPage: false,
+          endCursor: null,
+          nodes: [
+            connectedNode({ createdAt: "2026-05-10T10:00:00Z", number: 120, repo: "other/repo" }),
+            connectedNode({ createdAt: "2026-05-11T10:00:00Z", number: 121, state: "CLOSED" }),
+            connectedNode({ createdAt: "2026-05-09T10:00:00Z", number: 88 }),
+            connectedNode({ createdAt: "2026-05-12T10:00:00Z", number: 90 }),
+            crossNode({ createdAt: "2026-05-13T10:00:00Z", number: 130 }),
+          ],
+        }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "85"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      repo: "owner/repo",
+      issue: 85,
+      hasOpenLinkedPr: true,
+      prNumber: 90,
+      prUrl: "https://github.com/owner/repo/pull/90",
+      selection: {
+        eventType: "CONNECTED_EVENT",
+        eventCreatedAt: "2026-05-12T10:00:00Z",
+      },
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-linked-issue-pr returns no match when no open same-repo linked PR exists", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-none-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "owner=owner", "name=repo", "issue=85"],
+        stdout: graphqlPayload({
+          hasNextPage: false,
+          endCursor: null,
+          nodes: [
+            crossNode({ createdAt: "2026-05-12T10:00:00Z", number: 90, repo: "other/repo" }),
+            connectedNode({ createdAt: "2026-05-12T10:00:00Z", number: 91, state: "MERGED" }),
+          ],
+        }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "85"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      repo: "owner/repo",
+      issue: 85,
+      hasOpenLinkedPr: false,
+      prNumber: null,
+      prUrl: null,
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-linked-issue-pr rejects malformed arguments deterministically", async () => {
+  const missingIssue = await runNode(["--repo", "owner/repo"]);
+  assert.equal(missingIssue.code, 1);
+  assert.equal(missingIssue.stdout, "");
+  const missingIssueErr = JSON.parse(missingIssue.stderr);
+  assert.equal(missingIssueErr.ok, false);
+  assert.equal(missingIssueErr.error, "Linked PR detection requires both --repo <owner/name> and --issue <number>");
+  assert.equal(typeof missingIssueErr.usage, "string");
+  assert(missingIssueErr.usage.length > 0);
+
+  const badIssue = await runNode(["--repo", "owner/repo", "--issue", "0"]);
+  assert.equal(badIssue.code, 1);
+  assert.equal(badIssue.stdout, "");
+  const badIssueErr = JSON.parse(badIssue.stderr);
+  assert.equal(badIssueErr.ok, false);
+  assert.equal(badIssueErr.error, "--issue must be a positive integer");
+  assert.equal(typeof badIssueErr.usage, "string");
+  assert(badIssueErr.usage.length > 0);
+});

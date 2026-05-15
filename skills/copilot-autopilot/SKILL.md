@@ -202,12 +202,15 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    - if the input is a bare issue number, use the current repository slug
 2. Fetch the issue with `gh issue view <number> --repo <owner/name> --json number,title,body,state,labels,assignees,milestone`.
 3. If the issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a follow-up issue).
-4. If it is open, check whether a PR already exists for this issue using issue-linkage data as the authority (issue timeline linked PR events, including `CONNECTED_EVENT` and `CROSS_REFERENCED_EVENT`).
+4. If it is open, check whether a PR already exists for this issue via the deterministic linked-PR helper:
+   ```sh
+   node <resolved-skill-scripts>/github/detect-linked-issue-pr.mjs --repo <resolved-repo> --issue <number>
+   ```
+   - treat the helper output as authoritative for linked-PR detection/selection
+   - do not re-implement linked-event query behavior, pagination, repo filtering, or tie-break logic in ad hoc markdown/prompt logic
    - do not rely only on PR title/body containing a literal issue number
-   - treat an open linked PR as the active implementation for this issue
+   - treat an open linked PR reported by the helper as the active implementation for this issue
 5. If a PR already exists, route to the existing PR follow-up path immediately with that PR number.
-   - before selecting that PR, filter linked PR candidates to `<resolved-repo>` by validating `repository.nameWithOwner`
-   - if multiple same-repo linked PRs remain open, prefer a `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR, then choose the candidate with the newest linked-event `createdAt` value deterministically
    - Use the deterministic helper/state-machine surface to detect the current PR lifecycle state.
    - Treat that detected state as the authoritative entrypoint for resumed execution.
    - Continue from that entrypoint rather than restarting earlier phases.
@@ -225,8 +228,11 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 5. If a matching issue exists:
    - fetch it with `gh issue view <number> --repo <resolved-repo> --json number,title,body,state,labels,assignees,milestone`
    - if the matching issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a new follow-up issue)
-   - if it is still open, check whether a PR already exists for that issue using authoritative issue-linkage data (including `CONNECTED_EVENT` and `CROSS_REFERENCED_EVENT`), not only title/body number matching
-   - before selecting that PR, filter linked PR candidates to `<resolved-repo>` by validating `repository.nameWithOwner`, then apply the same deterministic tie-breaker (`CONNECTED_EVENT` before `CROSS_REFERENCED_EVENT`, then newest linked-event `createdAt`) when more than one same-repo PR is open
+   - if it is still open, run the same deterministic helper:
+     ```sh
+     node <resolved-skill-scripts>/github/detect-linked-issue-pr.mjs --repo <resolved-repo> --issue <number>
+     ```
+   - rely on that helper output rather than title/body number heuristics or re-implementing linked-event selection details in this skill text
    - if a PR already exists, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
    - otherwise confirm with the user and proceed with that issue
 6. If no matching issue exists:
@@ -324,50 +330,9 @@ When the draft PR appears, do not stop just because it is draft. Enter the draft
 
 Useful check:
 ```sh
-# use `-F issue=...` to pass an integer for `$issue:Int!`; `-f` passes strings and is fine for the optional cursor variable
-# omit `-f after=...` on the first page; on later pages add `-f after=<previous pageInfo.endCursor>`
-gh api graphql -f owner=<owner> -f name=<repo> -F issue=<issue-number> -f query='
-query($owner:String!, $name:String!, $issue:Int!, $after:String) {
-  repository(owner:$owner, name:$name) {
-    issue(number:$issue) {
-      timelineItems(first:100, after:$after, itemTypes:[CONNECTED_EVENT, CROSS_REFERENCED_EVENT]) {
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
-        nodes {
-          __typename
-          ... on ConnectedEvent {
-            createdAt
-            subject {
-              __typename
-              ... on PullRequest {
-                number
-                state
-                url
-                repository { nameWithOwner }
-              }
-            }
-          }
-          ... on CrossReferencedEvent {
-            createdAt
-            source {
-              __typename
-              ... on PullRequest {
-                number
-                state
-                url
-                repository { nameWithOwner }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}'
+node <resolved-skill-scripts>/github/detect-linked-issue-pr.mjs --repo <resolved-repo> --issue <number>
 ```
-Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope. On long issue timelines, continue paging with `pageInfo.endCursor` until `hasNextPage` is false so older linked PR events are not missed. Before resuming from a linked PR number, confirm that `repository.nameWithOwner` still matches `<resolved-repo>` (unless the work item explicitly targets another repo) so cross-referenced PRs from a different repository do not get mistaken for the active implementation. If multiple linked PRs remain open after that repo filter, prefer a same-repo `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR, and if there is still more than one candidate choose the one with the newest linked-event `createdAt` value deterministically.
+If the helper returns an open linked PR in `<resolved-repo>`, resume from that PR and do not retrigger Copilot for the same scope.
 
 ## Phase 5 — PR tightening
 

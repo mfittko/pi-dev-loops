@@ -152,30 +152,20 @@ test("copilot-autopilot docs define the closed direct-issue branch and keep sear
 
   assert.match(skillContent, /If the issue is closed, stop for a user decision before proceeding/i);
   assert.match(skillContent, /gh issue list --repo <resolved-repo> --state all --search/);
-  assert.match(skillContent, /timelineItems\(/);
-  assert.match(skillContent, /CONNECTED_EVENT/);
-  assert.match(skillContent, /CROSS_REFERENCED_EVENT/);
-  assert.match(skillContent, /pageInfo/);
-  assert.match(skillContent, /hasNextPage/);
-  assert.match(skillContent, /endCursor/);
-  assert.match(skillContent, /after\s*:\s*\$after/);
-  assert.match(skillContent, /createdAt/);
-  assert.match(skillContent, /repository\s*\{\s*nameWithOwner\s*\}/);
-  assert.match(skillContent, /if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope/i);
+  assert.match(skillContent, /detect-linked-issue-pr\.mjs --repo <resolved-repo> --issue <number>/);
+  assert.match(skillContent, /treat the helper output as authoritative for linked-PR detection\/selection/i);
+  assert.match(skillContent, /If the helper returns an open linked PR in `<resolved-repo>`, resume from that PR and do not retrigger Copilot for the same scope/i);
   assert.doesNotMatch(skillContent, /gh pr list --repo <resolved-repo> --state open --search "copilot\/ <issue-number>"/);
 });
 
 test("copilot-autopilot uses CONNECTED_EVENT linkage checks to prevent duplicate PR retriggers", async () => {
   const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
 
-  assert.match(skillContent, /including `CONNECTED_EVENT` and `CROSS_REFERENCED_EVENT`/i);
-  assert.match(skillContent, /continue paging with `pageInfo\.endCursor` until `hasNextPage` is false/i);
-  assert.match(skillContent, /repository\.nameWithOwner` still matches `<resolved-repo>`/i);
-  assert.match(skillContent, /filter linked PR candidates to `<resolved-repo>` by validating `repository\.nameWithOwner`/i);
-  assert.match(skillContent, /prefer a same-repo `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR/i);
-  assert.match(skillContent, /newest linked-event `createdAt`/i);
+  assert.match(skillContent, /deterministic linked-PR helper/i);
+  assert.match(skillContent, /do not re-implement linked-event query behavior, pagination, repo filtering, or tie-break logic/i);
+  assert.match(skillContent, /<resolved-skill-scripts>\/github\/detect-linked-issue-pr\.mjs/i);
   assert.match(skillContent, /do not rely only on PR title\/body containing a literal issue number/i);
-  assert.match(skillContent, /treat an open linked PR as the active implementation for this issue/i);
+  assert.match(skillContent, /treat an open linked PR(?: reported by the helper)? as the active implementation for this issue/i);
 });
 
 test("copilot-autopilot docs resolve the target repo for non-issue inputs and README documents thin entrypoint agents", async () => {
