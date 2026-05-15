@@ -95,7 +95,7 @@ function graphqlPayload({ hasNextPage, endCursor, nodes }) {
   })}\n`;
 }
 
-function connectedNode({ createdAt, number, state = "OPEN", repo = "owner/repo", url = `https://github.com/${repo}/pull/${number}` }) {
+function connectedNode({ createdAt, number, state = "OPEN", repo = "owner/repo", url }) {
   return {
     __typename: "ConnectedEvent",
     createdAt,
@@ -103,13 +103,13 @@ function connectedNode({ createdAt, number, state = "OPEN", repo = "owner/repo",
       __typename: "PullRequest",
       number,
       state,
-      url,
+      url: url ?? `https://github.com/${repo}/pull/${number}`,
       repository: { nameWithOwner: repo },
     },
   };
 }
 
-function crossNode({ createdAt, number, state = "OPEN", repo = "owner/repo", url = `https://github.com/${repo}/pull/${number}` }) {
+function crossNode({ createdAt, number, state = "OPEN", repo = "owner/repo", url }) {
   return {
     __typename: "CrossReferencedEvent",
     createdAt,
@@ -117,7 +117,7 @@ function crossNode({ createdAt, number, state = "OPEN", repo = "owner/repo", url
       __typename: "PullRequest",
       number,
       state,
-      url,
+      url: url ?? `https://github.com/${repo}/pull/${number}`,
       repository: { nameWithOwner: repo },
     },
   };

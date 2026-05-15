@@ -245,12 +245,16 @@ function normalizeOpenSameRepoCandidate(candidate, repo) {
 
   const createdAtMs = Date.parse(candidate.eventCreatedAt);
 
+  if (!Number.isFinite(createdAtMs)) {
+    return null;
+  }
+
   return {
     prNumber: number,
     prUrl: typeof url === "string" ? url : null,
     eventType: candidate.eventType,
     eventCreatedAt: typeof candidate.eventCreatedAt === "string" ? candidate.eventCreatedAt : null,
-    createdAtMs: Number.isFinite(createdAtMs) ? createdAtMs : Number.NEGATIVE_INFINITY,
+    createdAtMs,
   };
 }
 
