@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { chmod, mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { Writable } from "node:stream";
 
-import { runCli } from "../cli/index.mjs";
+import { createCliRuntime, runCli } from "../cli/index.mjs";
 
 const repoRoot = path.resolve(new URL("..", import.meta.url).pathname);
 
@@ -105,4 +107,40 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
   assert.equal(invalidStdout.read(), "");
   assert.match(invalidStderr.read(), /`install` accepts only the optional target `repo` or `system`/);
   assert.match(invalidStderr.read(), /pi-dev-loops install: choose a target/);
+});
+
+
+test("createCliRuntime probes PATH commands and git repositories without a login shell", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-runtime-"));
+  const binDir = path.join(tempRoot, "bin");
+  const repoDir = path.join(tempRoot, "repo");
+  await mkdir(binDir, { recursive: true });
+  await mkdir(repoDir, { recursive: true });
+  await writeFile(path.join(binDir, "gh"), "#!/bin/sh\nexit 0\n");
+  await writeFile(path.join(binDir, "pi-subagents"), "#!/bin/sh\nexit 0\n");
+  await chmod(path.join(binDir, "gh"), 0o755);
+  await chmod(path.join(binDir, "pi-subagents"), 0o755);
+
+  const init = spawnSync("git", ["init", "-q"], {
+    cwd: repoDir,
+    encoding: "utf8",
+  });
+  assert.equal(init.status, 0, init.stderr);
+
+  const previousPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
+
+  try {
+    const runtime = createCliRuntime({ cwd: repoDir, homeDirectory: tempRoot });
+    assert.equal(await runtime.commandExists("pi-subagents"), true);
+    assert.equal(await runtime.ghAuthOk(), true);
+    assert.equal(await runtime.insideGitRepo(), true);
+    assert.equal(await runtime.resolveRepoRoot(), await realpath(repoDir));
+  } finally {
+    if (previousPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = previousPath;
+    }
+  }
 });

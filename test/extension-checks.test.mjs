@@ -1,13 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { collectDevLoopChecks, renderCheckLines, summarizeChecks } from "../extension/checks.ts";
+import { collectDevLoopChecks, createExtensionCoreRuntime, renderCheckLines, summarizeChecks } from "../extension/checks.ts";
 
 function createFakePi({ commandResults = new Map(), tools = [], commands = [] } = {}) {
   return {
     async exec(_tool, args) {
       const command = args[1];
-      return { code: commandResults.get(command) ?? 1 };
+      const result = commandResults.get(command);
+
+      if (typeof result === "number") {
+        return { code: result, stdout: "", stderr: "" };
+      }
+
+      return result ?? { code: 1, stdout: "", stderr: "" };
     },
     getAllTools() {
       return tools;
@@ -99,4 +105,15 @@ test("summarizeChecks and renderCheckLines return stable human-readable output",
     "⚠️ Needs setup",
     "   Do the thing.",
   ]);
+});
+
+
+test("createExtensionCoreRuntime resolves the current repo root when git is available", async () => {
+  const runtime = createExtensionCoreRuntime(
+    createFakePi({
+      commandResults: new Map([["git rev-parse --show-toplevel", { code: 0, stdout: "/tmp/repo\n", stderr: "" }]]),
+    }),
+  );
+
+  assert.equal(await runtime.resolveRepoRoot(), "/tmp/repo");
 });

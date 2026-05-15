@@ -144,9 +144,9 @@ export function buildInstallNotificationMessage(result: InstallResult): string {
   return `pi-dev-loops ${result.mode} ${result.scope}: ${changedCount}/${result.results.length} skill directories changed`;
 }
 
-export function buildRepoInstallErrorLines(action: Extract<DevLoopsAction, "install" | "update">): string[] {
+export function buildRepoInstallErrorLines(action: Extract<DevLoopsAction, "install" | "update">, message: string): string[] {
   return [
-    `pi-dev-loops ${action} repo: not inside a git repository`,
+    message,
     `Run the command from a git worktree, or use \`/dev-loops ${action} system\` for the system-wide target.`,
   ];
 }

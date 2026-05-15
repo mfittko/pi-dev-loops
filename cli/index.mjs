@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { access } from "node:fs/promises";
+import { access, constants as fsConstants } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -22,9 +22,12 @@ const CLI_SETUP_GUIDANCE = {
   "copilot-autopilot-skill": "Run `pi-dev-loops install repo` for this repository or `pi-dev-loops install system` for `~/.pi/agent/skills`.",
 };
 
-function shellResult(command) {
+function spawnResult(command, args, options = {}) {
   try {
-    const result = spawnSync("bash", ["-lc", command], { encoding: "utf8" });
+    const result = spawnSync(command, args, {
+      encoding: "utf8",
+      ...options,
+    });
     return {
       ok: result.status === 0,
       stdout: result.stdout ?? "",
@@ -33,6 +36,25 @@ function shellResult(command) {
   } catch {
     return { ok: false, stdout: "", stderr: "" };
   }
+}
+
+async function commandExists(command, searchPath = process.env.PATH ?? "") {
+  for (const entry of searchPath.split(path.delimiter)) {
+    if (!entry) {
+      continue;
+    }
+
+    const candidate = path.join(entry, command);
+
+    try {
+      await access(candidate, fsConstants.X_OK);
+      return true;
+    } catch {
+      // Keep searching PATH entries.
+    }
+  }
+
+  return false;
 }
 
 async function pathExists(targetPath) {
@@ -82,9 +104,9 @@ function buildCliUsageLines(action) {
   ];
 }
 
-function buildCliBlockedLines(action) {
+function buildCliBlockedLines(action, message) {
   return [
-    `pi-dev-loops ${action} repo: not inside a git repository`,
+    message,
     `Run the command from a git worktree, or use \`pi-dev-loops ${action} system\` for the system-wide target.`,
   ];
 }
@@ -138,7 +160,7 @@ export function createCliRuntime({ cwd = process.cwd(), homeDirectory = os.homed
   async function resolveRepoRoot() {
     if (!repoRootPromise) {
       repoRootPromise = Promise.resolve().then(() => {
-        const result = shellResult(`cd ${JSON.stringify(cwd)} && git rev-parse --show-toplevel`);
+        const result = spawnResult("git", ["rev-parse", "--show-toplevel"], { cwd });
         return result.ok ? result.stdout.trim() || undefined : undefined;
       });
     }
@@ -148,13 +170,13 @@ export function createCliRuntime({ cwd = process.cwd(), homeDirectory = os.homed
 
   return {
     async commandExists(command) {
-      return shellResult(`cd ${JSON.stringify(cwd)} && command -v ${command} >/dev/null 2>&1`).ok;
+      return commandExists(command);
     },
     async ghAuthOk() {
-      return shellResult(`cd ${JSON.stringify(cwd)} && gh auth status >/dev/null 2>&1`).ok;
+      return spawnResult("gh", ["auth", "status"], { cwd }).ok;
     },
     async insideGitRepo() {
-      return shellResult(`cd ${JSON.stringify(cwd)} && git rev-parse --is-inside-work-tree >/dev/null 2>&1`).ok;
+      return spawnResult("git", ["rev-parse", "--is-inside-work-tree"], { cwd }).ok;
     },
     resolveRepoRoot,
     async getSubagentAvailability() {
@@ -239,7 +261,7 @@ export async function runCli({
       writeLines(stderr, buildCliUsageLines(result.action));
       return 1;
     case "blocked":
-      writeLines(stderr, buildCliBlockedLines(result.action));
+      writeLines(stderr, buildCliBlockedLines(result.action, result.message));
       return 1;
     case "install-result":
       writeLines(stdout, buildCliInstallResultLines(result.result));

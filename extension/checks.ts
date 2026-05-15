@@ -7,7 +7,7 @@ import {
   summarizeChecks,
 } from "../lib/dev-loops-core.mjs";
 
-export { DEV_LOOP_CHECK_IDS, renderCheckLines, summarizeChecks } from "../lib/dev-loops-core.mjs";
+export { DEV_LOOP_CHECK_IDS, renderCheckLines, summarizeChecks };
 
 export type DevLoopCheckId = (typeof DEV_LOOP_CHECK_IDS)[number];
 
@@ -77,7 +77,19 @@ export function createExtensionCoreRuntime(pi: ExtensionAPI) {
       };
     },
     async resolveRepoRoot() {
-      return undefined;
+      try {
+        const result = await pi.exec("bash", ["-lc", "git rev-parse --show-toplevel"], {
+          timeout: 5_000,
+        });
+
+        if (result.code !== 0) {
+          return undefined;
+        }
+
+        return result.stdout.trim() || undefined;
+      } catch {
+        return undefined;
+      }
     },
   };
 }

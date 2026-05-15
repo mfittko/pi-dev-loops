@@ -18,22 +18,6 @@ import {
 const STATUS_KEY = "pi-dev-loops";
 const WIDGET_KEY = "pi-dev-loops.setup";
 
-async function resolveRepoRoot(pi: ExtensionAPI): Promise<string | undefined> {
-  try {
-    const result = await pi.exec("bash", ["-lc", "git rev-parse --show-toplevel"], {
-      timeout: 5_000,
-    });
-
-    if (result.code !== 0) {
-      return undefined;
-    }
-
-    return result.stdout.trim() || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     ctx.ui.setStatus(STATUS_KEY, undefined);
@@ -45,10 +29,7 @@ export default function (pi: ExtensionAPI) {
       const result = await executeDevLoopsCommand({
         input: args,
         surface: "extension",
-        runtime: {
-          ...createExtensionCoreRuntime(pi),
-          resolveRepoRoot: () => resolveRepoRoot(pi),
-        },
+        runtime: createExtensionCoreRuntime(pi),
         homeDirectory: os.homedir(),
       });
 
@@ -72,8 +53,8 @@ export default function (pi: ExtensionAPI) {
           ctx.ui.notify(`pi-dev-loops ${result.action}: choose repo or system`, "info");
           return;
         case "blocked":
-          ctx.ui.setWidget(WIDGET_KEY, buildRepoInstallErrorLines(result.action), { placement: "belowEditor" });
-          ctx.ui.notify(`pi-dev-loops ${result.action} repo: not inside a git repository`, "error");
+          ctx.ui.setWidget(WIDGET_KEY, buildRepoInstallErrorLines(result.action, result.message), { placement: "belowEditor" });
+          ctx.ui.notify(result.message, "error");
           return;
         case "install-result":
           ctx.ui.setWidget(WIDGET_KEY, buildInstallResultLines(result.result), { placement: "belowEditor" });
@@ -95,8 +76,10 @@ export default function (pi: ExtensionAPI) {
           ctx.ui.setWidget(WIDGET_KEY, buildHelpLines(), { placement: "belowEditor" });
           ctx.ui.notify("pi-dev-loops help", "info");
           return;
-        default:
-          throw new Error(`Unhandled extension result: ${result satisfies never}`);
+        default: {
+          const exhaustiveCheck: never = result;
+          throw new Error(`Unhandled extension result: ${JSON.stringify(exhaustiveCheck)}`);
+        }
       }
     },
   });
