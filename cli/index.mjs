@@ -170,7 +170,7 @@ function buildCliInstallResultLines(result) {
     lines.push("Some packaged skills were not installed in this target yet; use `pi-dev-loops install repo|system` for first-time setup.");
   }
 
-  lines.push("Restart Pi or refresh skill discovery before expecting newly installed or updated skills to appear in this session.");
+  lines.push("Newly installed or updated skills will be available the next time Pi starts; if Pi is already running, refresh skill discovery in that session first.");
   if (result.results.some((entry) => entry.status === "missing")) {
     lines.push("A missing skill will not appear after refresh alone; run `pi-dev-loops install repo|system` first for any packaged skill reported as not installed.");
   }
@@ -218,6 +218,8 @@ export function createCliRuntime({
   }
 
   return {
+    cwd,
+    homeDirectory,
     async commandExists(command) {
       return commandExists(command, { searchPath, platform, pathExt });
     },
@@ -229,7 +231,7 @@ export function createCliRuntime({
     },
     resolveRepoRoot,
     async getSubagentAvailability() {
-      const ok = await this.commandExists("pi-subagents");
+      const ok = await commandExists("pi-subagents", { searchPath, platform, pathExt });
       return {
         ok,
         availableDetail: "`pi-subagents` is available on PATH.",
@@ -276,9 +278,18 @@ export async function runCli({
   stdout = process.stdout,
   stderr = process.stderr,
   runtime,
+  cwd = process.cwd(),
   homeDirectory = os.homedir(),
 } = {}) {
-  const activeRuntime = runtime ?? createCliRuntime({ homeDirectory });
+  if (runtime && homeDirectory !== os.homedir() && runtime.homeDirectory !== homeDirectory) {
+    throw new Error(
+      runtime.homeDirectory === undefined
+        ? "runCli cannot combine a custom runtime with an explicit homeDirectory unless runtime.homeDirectory matches that value."
+        : `runCli received mismatched homeDirectory values: runtime.homeDirectory=${runtime.homeDirectory} option.homeDirectory=${homeDirectory}`,
+    );
+  }
+
+  const activeRuntime = runtime ?? createCliRuntime({ cwd, homeDirectory });
   const result = await executeDevLoopsCommand({
     input: argv,
     surface: "cli",

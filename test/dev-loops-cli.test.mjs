@@ -26,7 +26,10 @@ function createBufferStream() {
 }
 
 function createRuntime(overrides = {}) {
+  const { homeDirectory = "/tmp/home", ...rest } = overrides;
+
   return {
+    homeDirectory,
     async commandExists(command) {
       return command === "gh";
     },
@@ -53,7 +56,7 @@ function createRuntime(overrides = {}) {
         unavailableDetail: `skill missing: ${skillName}`,
       };
     },
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -204,7 +207,7 @@ test("CLI update output preserves missing-skill guidance parity", async () => {
   try {
     const exitCode = await runCli({
       argv: ["update", "system"],
-      runtime: createRuntime(),
+      runtime: createRuntime({ homeDirectory: tempRoot }),
       stdout: stdout.stream,
       stderr: stderr.stream,
       homeDirectory: tempRoot,
@@ -217,6 +220,17 @@ test("CLI update output preserves missing-skill guidance parity", async () => {
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
+});
+
+test("runCli rejects explicit homeDirectory overrides that do not match a custom runtime", async () => {
+  await assert.rejects(
+    runCli({
+      argv: ["status"],
+      runtime: createRuntime({ homeDirectory: "/tmp/runtime-home" }),
+      homeDirectory: "/tmp/other-home",
+    }),
+    /runCli received mismatched homeDirectory values/,
+  );
 });
 
 test("runCli uses the supplied homeDirectory when building its default runtime", async () => {
@@ -250,14 +264,13 @@ exit 0
   assert.equal(init.status, 0, init.stderr);
 
   const previousPath = process.env.PATH;
-  const previousCwd = process.cwd();
 
   try {
     process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
-    process.chdir(repoDir);
 
     const exitCode = await runCli({
       argv: ["status"],
+      cwd: repoDir,
       stdout: statusStdout.stream,
       stderr: statusStderr.stream,
       homeDirectory: tempRoot,
@@ -268,8 +281,6 @@ exit 0
     assert.match(statusStdout.read(), /Remote GitHub\/Copilot readiness: ready/);
     assert.equal(statusStderr.read(), "");
   } finally {
-    process.chdir(previousCwd);
-
     if (previousPath === undefined) {
       delete process.env.PATH;
     } else {
