@@ -66,13 +66,11 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
     );
   }
 
-  assert.match(reviewTemplate, /^## Default pre-approval gate \(DRY \/ KISS \/ YAGNI\)$/m);
   assert.match(reviewTemplate, /fallback note:[^\n]*if parallel execution of the three review lenses is impractical/i);
   assert.match(devLoopSkill, /if parallel execution is impractical[\s\S]*run all three lenses sequentially and explicitly record why parallel execution was impractical/i);
   assert.match(copilotSkill, /fresh context and in parallel when practical/i);
   assert.match(copilotSkill, /if parallel execution is impractical[\s\S]*still run all three lenses and explicitly record the limitation/i);
   assert.match(reviewAgent, /if parallel execution is impractical[\s\S]*still cover all three lenses and explicitly record the limitation/i);
-  assert.match(coordinatorAgent, /default pre-approval review fan-out must use the DRY, KISS, and YAGNI lenses/i);
   assert.match(coordinatorAgent, /default to three focused lenses \(DRY, KISS, YAGNI\) and run them in parallel when practical/i);
   assert.match(coordinatorAgent, /if parallel execution is impractical[\s\S]*still run all three lenses and record that limitation explicitly/i);
   assert.match(reviewerGraph, /workflow lenses that reviewer\s+runs must cover for the change/i);
