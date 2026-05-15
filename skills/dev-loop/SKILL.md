@@ -337,7 +337,7 @@ After the phase plan passes review:
    - `npm run test:coverage`
 4. Review the implementation against the merged phase plan.
 5. Run the default pre-approval gate as a full review / fix loop on the branch before calling it review-complete, approval-ready, merge-ready, or ready for final handoff:
-   - cover exactly three focused review lenses by default: DRY, KISS, and YAGNI
+   - use DRY, KISS, and YAGNI as the default three focused review lenses
    - run those three lens-focused passes in parallel with fresh context when practical
    - if parallel execution is impractical (for example due to tooling or resource constraints), run all three lenses sequentially and explicitly record why parallel execution was impractical in `tmp/phases/phase-x/review.md` (or the equivalent merged review artifact)
    - start each reviewer in fresh context with a concise reviewer-specific briefing summary covering the branch/phase, intended behavior, acceptance criteria, relevant files or artifacts, current validation status, and that reviewer's exact angle
