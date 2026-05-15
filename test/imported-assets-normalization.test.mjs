@@ -156,7 +156,7 @@ test("copilot-autopilot docs define the closed direct-issue branch and keep sear
   assert.match(skillContent, /if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope/i);
 });
 
-test("copilot-autopilot docs require authoritative CONNECTED_EVENT linkage checks to avoid duplicate PR retriggers", async () => {
+test("copilot-autopilot uses CONNECTED_EVENT linkage checks to prevent duplicate PR retriggers", async () => {
   const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
 
   assert.match(skillContent, /including `CONNECTED_EVENT`/i);

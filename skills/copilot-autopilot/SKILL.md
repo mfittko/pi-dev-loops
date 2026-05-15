@@ -321,6 +321,7 @@ When the draft PR appears, do not stop just because it is draft. Enter the draft
 
 Useful check:
 ```sh
+# use `-F issue=...` so GraphQL receives an Int for `$issue:Int!`
 gh api graphql -f owner=<owner> -f name=<repo> -F issue=<issue-number> -f query='
 query($owner:String!, $name:String!, $issue:Int!) {
   repository(owner:$owner, name:$name) {
