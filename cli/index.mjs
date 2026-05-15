@@ -195,11 +195,13 @@ export function createCliRuntime({ cwd = process.cwd(), homeDirectory = os.homed
       const systemInstalled = await pathExists(systemSkillPath);
       const ok = repoInstalled || systemInstalled;
 
+      const installDetail = `Install the packaged skill under ${repoRoot ? "`.pi/skills` or " : ""}\`${resolveSystemSkillsRoot(homeDirectory)}\` to make it discoverable.`;
+
       if (repoInstalled && repoSkillPath) {
         return {
           ok,
           availableDetail: `Packaged skill is installed in this repository (${repoSkillPath}).`,
-          unavailableDetail: "",
+          unavailableDetail: installDetail,
         };
       }
 
@@ -207,14 +209,14 @@ export function createCliRuntime({ cwd = process.cwd(), homeDirectory = os.homed
         return {
           ok,
           availableDetail: `Packaged skill is installed in the system skill root (${systemSkillPath}).`,
-          unavailableDetail: "",
+          unavailableDetail: installDetail,
         };
       }
 
       return {
         ok: false,
-        availableDetail: "",
-        unavailableDetail: `Install the packaged skill under ${repoRoot ? "`.pi/skills` or " : ""}\`${resolveSystemSkillsRoot(homeDirectory)}\` to make it discoverable.`,
+        availableDetail: "Packaged skill is not installed yet.",
+        unavailableDetail: installDetail,
       };
     },
   };
@@ -224,13 +226,14 @@ export async function runCli({
   argv = process.argv.slice(2),
   stdout = process.stdout,
   stderr = process.stderr,
-  runtime = createCliRuntime(),
+  runtime,
   homeDirectory = os.homedir(),
 } = {}) {
+  const activeRuntime = runtime ?? createCliRuntime({ homeDirectory });
   const result = await executeDevLoopsCommand({
     input: argv,
     surface: "cli",
-    runtime,
+    runtime: activeRuntime,
     homeDirectory,
   });
 

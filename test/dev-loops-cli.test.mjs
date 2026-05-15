@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { Writable } from "node:stream";
 
 import { createCliRuntime, runCli } from "../cli/index.mjs";
@@ -116,8 +116,12 @@ test("createCliRuntime probes PATH commands and git repositories without a login
   const repoDir = path.join(tempRoot, "repo");
   await mkdir(binDir, { recursive: true });
   await mkdir(repoDir, { recursive: true });
-  await writeFile(path.join(binDir, "gh"), "#!/bin/sh\nexit 0\n");
-  await writeFile(path.join(binDir, "pi-subagents"), "#!/bin/sh\nexit 0\n");
+  await writeFile(path.join(binDir, "gh"), `#!/bin/sh
+exit 0
+`);
+  await writeFile(path.join(binDir, "pi-subagents"), `#!/bin/sh
+exit 0
+`);
   await chmod(path.join(binDir, "gh"), 0o755);
   await chmod(path.join(binDir, "pi-subagents"), 0o755);
 
@@ -128,9 +132,10 @@ test("createCliRuntime probes PATH commands and git repositories without a login
   assert.equal(init.status, 0, init.stderr);
 
   const previousPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
 
   try {
+    process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
+
     const runtime = createCliRuntime({ cwd: repoDir, homeDirectory: tempRoot });
     assert.equal(await runtime.commandExists("pi-subagents"), true);
     assert.equal(await runtime.ghAuthOk(), true);
@@ -142,5 +147,69 @@ test("createCliRuntime probes PATH commands and git repositories without a login
     } else {
       process.env.PATH = previousPath;
     }
+
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+
+test("runCli uses the supplied homeDirectory when building its default runtime", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-home-"));
+  const binDir = path.join(tempRoot, "bin");
+  const repoDir = path.join(tempRoot, "repo");
+  const skillsRoot = path.join(tempRoot, ".pi", "agent", "skills");
+  const statusStdout = createBufferStream();
+  const statusStderr = createBufferStream();
+  await mkdir(binDir, { recursive: true });
+  await mkdir(repoDir, { recursive: true });
+  await writeFile(path.join(binDir, "gh"), `#!/bin/sh
+exit 0
+`);
+  await writeFile(path.join(binDir, "pi-subagents"), `#!/bin/sh
+exit 0
+`);
+  await chmod(path.join(binDir, "gh"), 0o755);
+  await chmod(path.join(binDir, "pi-subagents"), 0o755);
+
+  for (const skillName of ["dev-loop", "copilot-dev-loop", "copilot-autopilot"]) {
+    await mkdir(path.join(skillsRoot, skillName), { recursive: true });
+    await writeFile(path.join(skillsRoot, skillName, "SKILL.md"), `# ${skillName}
+`);
+  }
+
+  const init = spawnSync("git", ["init", "-q"], {
+    cwd: repoDir,
+    encoding: "utf8",
+  });
+  assert.equal(init.status, 0, init.stderr);
+
+  const previousPath = process.env.PATH;
+  const previousCwd = process.cwd();
+
+  try {
+    process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
+    process.chdir(repoDir);
+
+    const exitCode = await runCli({
+      argv: ["status"],
+      stdout: statusStdout.stream,
+      stderr: statusStderr.stream,
+      homeDirectory: tempRoot,
+    });
+
+    assert.equal(exitCode, 0);
+    assert.match(statusStdout.read(), /Local loop readiness: ready/);
+    assert.match(statusStdout.read(), /Remote GitHub\/Copilot readiness: ready/);
+    assert.equal(statusStderr.read(), "");
+  } finally {
+    process.chdir(previousCwd);
+
+    if (previousPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = previousPath;
+    }
+
+    await rm(tempRoot, { recursive: true, force: true });
   }
 });

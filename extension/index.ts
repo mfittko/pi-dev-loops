@@ -76,6 +76,10 @@ export default function (pi: ExtensionAPI) {
           ctx.ui.setWidget(WIDGET_KEY, buildHelpLines(), { placement: "belowEditor" });
           ctx.ui.notify("pi-dev-loops help", "info");
           return;
+        case "unsupported":
+          ctx.ui.setWidget(WIDGET_KEY, [result.message, ...buildHelpLines()], { placement: "belowEditor" });
+          ctx.ui.notify(result.message, "error");
+          return;
         default: {
           const exhaustiveCheck: never = result;
           throw new Error(`Unhandled extension result: ${JSON.stringify(exhaustiveCheck)}`);
