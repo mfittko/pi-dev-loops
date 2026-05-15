@@ -62,6 +62,8 @@ The extension currently reports on:
 
 The messaging distinguishes between local loop readiness and remote GitHub/Copilot readiness. Missing `gh` or `gh auth` blocks remote-loop readiness, but does not imply that local phase-based work is completely unavailable.
 
+The shell CLI currently treats packaged-skill discoverability as a filesystem check against the canonical repo (`.pi/skills`) and system (`~/.pi/agent/skills`) install roots. That can differ from Pi's live `/skill:*` registration state until Pi refreshes/restarts, or if a user relies on additional custom skill roots.
+
 ## Install/update contract for this phase
 
 `/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories. For `copilot-dev-loop` and `copilot-autopilot`, they also bundle an explicit allow-listed runtime support set under the installed skill directory: the required deterministic script files, the required `packages/core/src/` files, and both loop state-graph docs.

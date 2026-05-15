@@ -65,4 +65,5 @@ Turn these imported assets into a coherent, reusable toolkit where:
 - skills orchestrate loops
 - deterministic scripts and shared library code handle as much mechanical work as possible
 - the extension provides status/doctor plus explicit skill install/update UX while the package CLI exposes the same deterministic command family for shell users
+- the CLI's packaged-skill readiness checks currently inspect the canonical repo/system install roots, while the extension can reflect Pi's live `/skill:*` registrations after refresh/restart
 - repo-local overlays can specialize behavior without forking the core workflow stack

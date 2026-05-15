@@ -73,7 +73,7 @@ export default function (pi: ExtensionAPI) {
             return;
           }
 
-          ctx.ui.setWidget(WIDGET_KEY, buildHelpLines(), { placement: "belowEditor" });
+          ctx.ui.setWidget(WIDGET_KEY, [result.message, ...buildHelpLines()], { placement: "belowEditor" });
           ctx.ui.notify(`pi-dev-loops ${result.usageAction ?? "help"}: invalid arguments`, "error");
           return;
         case "unsupported": {
