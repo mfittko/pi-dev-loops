@@ -311,12 +311,21 @@ function buildNoChangePayload(status, repo, pr, attempts) {
   };
 }
 
-function buildAttemptBudget(timeoutMs, pollIntervalMs) {
+export function buildAttemptBudget(timeoutMs, pollIntervalMs) {
   if (timeoutMs === 0) {
     return 1;
   }
 
-  return Math.max(1, Math.floor(timeoutMs / pollIntervalMs));
+  return Math.max(1, Math.ceil(timeoutMs / pollIntervalMs));
+}
+
+export function buildPollDelayMs(watchStartedAtMs, timeoutMs, pollIntervalMs, attempt, nowMs = Date.now()) {
+  if (timeoutMs === 0) {
+    return 0;
+  }
+
+  const scheduledAtMs = watchStartedAtMs + Math.min(timeoutMs, attempt * pollIntervalMs);
+  return Math.max(0, scheduledAtMs - nowMs);
 }
 
 export async function runCli(
@@ -339,10 +348,19 @@ export async function runCli(
     { env, ghCommand },
   ));
   const attemptBudget = buildAttemptBudget(options.timeoutMs, options.pollIntervalMs);
+  const watchStartedAtMs = Date.now();
 
   for (let attempt = 1; attempt <= attemptBudget; attempt += 1) {
     if (!(options.timeoutMs === 0 && attempt === 1)) {
-      await delay(options.pollIntervalMs);
+      const pollDelayMs = buildPollDelayMs(
+        watchStartedAtMs,
+        options.timeoutMs,
+        options.pollIntervalMs,
+        attempt,
+      );
+      if (pollDelayMs > 0) {
+        await delay(pollDelayMs);
+      }
     }
 
     const current = parseCopilotActivity(await fetchGithubCopilotActivityPayload(

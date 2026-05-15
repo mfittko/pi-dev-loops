@@ -140,8 +140,8 @@ Required:
 - `--pr <number>`
 
 Optional:
-- `--poll-interval-ms <positive-integer>` (default `1000`)
-- `--timeout-ms <non-negative-integer>` (default `60000`)
+- `--poll-interval-ms <positive-integer>` (default `60000`, i.e. 1 minute)
+- `--timeout-ms <non-negative-integer>` (default `86400000`, i.e. 24 hours)
 
 Contract:
 - captures a baseline snapshot, then performs a bounded number of follow-up polls

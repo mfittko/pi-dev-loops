@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
-import { parseWatchCliArgs } from "../../scripts/github/watch-copilot-review.mjs";
+import { buildAttemptBudget, buildPollDelayMs, parseWatchCliArgs } from "../../scripts/github/watch-copilot-review.mjs";
 
 const scriptPath = path.resolve("scripts/github/watch-copilot-review.mjs");
 
@@ -144,6 +144,19 @@ function noChangePayload(status, attempts) {
   };
 }
 
+
+test("buildAttemptBudget rounds up non-divisible timeout windows", () => {
+  assert.equal(buildAttemptBudget(0, 60_000), 1);
+  assert.equal(buildAttemptBudget(250, 100), 3);
+  assert.equal(buildAttemptBudget(200, 100), 2);
+});
+
+test("buildPollDelayMs schedules polls on the requested watch timeline", () => {
+  assert.equal(buildPollDelayMs(1_000, 250, 100, 1, 1_000), 100);
+  assert.equal(buildPollDelayMs(1_000, 250, 100, 3, 1_200), 50);
+  assert.equal(buildPollDelayMs(1_000, 250, 100, 3, 1_260), 0);
+});
+
 test("watch-copilot-review returns idle for a zero-timeout no-change check", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-idle-"));
   const baseline = createActivityPayload({ threads: [createThread("c-1", "reviewer", "Please add a test.")] });
@@ -154,14 +167,15 @@ test("watch-copilot-review returns idle for a zero-timeout no-change check", asy
       { stdout: `${JSON.stringify(baseline)}\n` },
     ]);
 
-    const startedAt = Date.now();
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "0"], { env });
-    const elapsedMs = Date.now() - startedAt;
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "0", "--poll-interval-ms", "5000"],
+      { env },
+    );
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
     assert.deepEqual(JSON.parse(result.stdout), noChangePayload("idle", 1));
-    assert(elapsedMs < 1_000, `expected immediate recheck, got ${elapsedMs}ms`);
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 2);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -186,6 +200,53 @@ test("watch-copilot-review returns timeout after bounded polling with no fresh C
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
     assert.deepEqual(JSON.parse(result.stdout), noChangePayload("timeout", 2));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("watch-copilot-review rounds up attempt budget so non-divisible timeout still covers full window", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-timeout-round-up-"));
+  const baseline = createActivityPayload();
+  const stillQuiet = createActivityPayload();
+  const changedLate = createActivityPayload({
+    reviews: [createReview("r-3", "copilot-pull-request-reviewer[bot]", "Late Copilot summary.", "Bot")],
+  });
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      { stdout: `${JSON.stringify(baseline)}\n` },
+      { stdout: `${JSON.stringify(stillQuiet)}\n` },
+      { stdout: `${JSON.stringify(stillQuiet)}\n` },
+      { stdout: `${JSON.stringify(changedLate)}\n` },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "25", "--poll-interval-ms", "10"],
+      { env },
+    );
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const output = JSON.parse(result.stdout);
+    assert.deepEqual(output, {
+      ok: true,
+      status: "changed",
+      repo: "owner/repo",
+      pr: 17,
+      attempts: 3,
+      newComments: [],
+      newReviews: [
+        {
+          id: "r-3",
+          authorLogin: "copilot-pull-request-reviewer[bot]",
+          body: "Late Copilot summary.",
+        },
+      ],
+      newIssueComments: [],
+    });
+    const expectedTotalGhCalls = 4; // 1 baseline capture + 3 polling checks
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), expectedTotalGhCalls);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -429,4 +490,3 @@ test("watch-copilot-review trims surrounding whitespace from --repo", () => {
   const options = parseWatchCliArgs(["--repo", " owner/repo ", "--pr", "17"]);
   assert.equal(options.repo, "owner/repo");
 });
-
