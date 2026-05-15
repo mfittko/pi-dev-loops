@@ -202,7 +202,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    - if the input is a bare issue number, use the current repository slug
 2. Fetch the issue with `gh issue view <number> --repo <owner/name> --json number,title,body,state,labels,assignees,milestone`.
 3. If the issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a follow-up issue).
-4. If it is open, check whether a PR already exists for this issue using issue-linkage data as the authority (issue timeline linked PR events, including `CONNECTED_EVENT`).
+4. If it is open, check whether a PR already exists for this issue using issue-linkage data as the authority (issue timeline linked PR events, including `CONNECTED_EVENT` and `CROSS_REFERENCED_EVENT`).
    - do not rely only on PR title/body containing a literal issue number
    - treat an open linked PR as the active implementation for this issue
 5. If a PR already exists, route to the existing PR follow-up path immediately with that PR number.
@@ -327,6 +327,10 @@ query($owner:String!, $name:String!, $issue:Int!) {
   repository(owner:$owner, name:$name) {
     issue(number:$issue) {
       timelineItems(first:100, itemTypes:[CONNECTED_EVENT, CROSS_REFERENCED_EVENT]) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         nodes {
           __typename
           ... on ConnectedEvent {
@@ -347,7 +351,7 @@ query($owner:String!, $name:String!, $issue:Int!) {
   }
 }'
 ```
-Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope.
+Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope. On long issue timelines, continue paging with `pageInfo.endCursor` until `hasNextPage` is false so older linked PR events are not missed.
 
 ## Phase 5 — PR tightening
 
