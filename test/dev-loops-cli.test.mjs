@@ -107,6 +107,21 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
   assert.equal(invalidStdout.read(), "");
   assert.match(invalidStderr.read(), /`install` accepts only the optional target `repo` or `system`/);
   assert.match(invalidStderr.read(), /pi-dev-loops install: choose a target/);
+
+  const malformedStdout = createBufferStream();
+  const malformedStderr = createBufferStream();
+  const malformedExitCode = await runCli({
+    argv: ["status", "extra"],
+    runtime: createRuntime(),
+    stdout: malformedStdout.stream,
+    stderr: malformedStderr.stream,
+    homeDirectory: "/tmp/home",
+  });
+
+  assert.equal(malformedExitCode, 1);
+  assert.equal(malformedStdout.read(), "");
+  assert.match(malformedStderr.read(), /`status` does not accept additional arguments\./);
+  assert.match(malformedStderr.read(), /Usage:\n- pi-dev-loops status/);
 });
 
 
@@ -152,6 +167,56 @@ exit 0
   }
 });
 
+
+test("createCliRuntime honors PATHEXT lookups when simulating Windows PATH resolution", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-win-runtime-"));
+  const binDir = path.join(tempRoot, "bin");
+  await mkdir(binDir, { recursive: true });
+  await writeFile(path.join(binDir, "gh.exe"), "");
+  await writeFile(path.join(binDir, "pi-subagents.cmd"), "");
+
+  try {
+    const runtime = createCliRuntime({
+      cwd: tempRoot,
+      homeDirectory: tempRoot,
+      searchPath: binDir,
+      platform: "win32",
+      pathExt: ".EXE;.CMD",
+    });
+
+    assert.equal(await runtime.commandExists("gh"), true);
+    assert.equal(await runtime.commandExists("pi-subagents"), true);
+    assert.equal(await runtime.commandExists("git"), false);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("CLI update output preserves missing-skill guidance parity", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-update-"));
+  const skillsRoot = path.join(tempRoot, ".pi", "agent", "skills");
+  const stdout = createBufferStream();
+  const stderr = createBufferStream();
+  await mkdir(path.join(skillsRoot, "dev-loop"), { recursive: true });
+  await writeFile(path.join(skillsRoot, "dev-loop", "SKILL.md"), "# dev-loop\n");
+
+  try {
+    const exitCode = await runCli({
+      argv: ["update", "system"],
+      runtime: createRuntime(),
+      stdout: stdout.stream,
+      stderr: stderr.stream,
+      homeDirectory: tempRoot,
+    });
+
+    assert.equal(exitCode, 0);
+    assert.equal(stderr.read(), "");
+    assert.match(stdout.read(), /Some packaged skills were not installed in this target yet/);
+    assert.match(stdout.read(), /A missing skill will not appear after refresh alone/);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test("runCli uses the supplied homeDirectory when building its default runtime", async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-home-"));

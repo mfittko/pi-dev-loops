@@ -38,19 +38,39 @@ function spawnResult(command, args, options = {}) {
   }
 }
 
-async function commandExists(command, searchPath = process.env.PATH ?? "") {
+function executableCandidates(command, platform, pathExt) {
+  if (platform !== "win32" || path.extname(command)) {
+    return [command];
+  }
+
+  const extensions = [...new Set(pathExt.split(";").map((entry) => entry.trim()).filter(Boolean))];
+  return [command, ...extensions.map((extension) => `${command}${extension}`)];
+}
+
+async function commandExists(
+  command,
+  {
+    searchPath = process.env.PATH ?? "",
+    platform = process.platform,
+    pathExt = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
+  } = {},
+) {
+  const accessMode = platform === "win32" ? fsConstants.F_OK : fsConstants.X_OK;
+
   for (const entry of searchPath.split(path.delimiter)) {
     if (!entry) {
       continue;
     }
 
-    const candidate = path.join(entry, command);
+    for (const candidateName of executableCandidates(command, platform, pathExt)) {
+      const candidate = path.join(entry, candidateName);
 
-    try {
-      await access(candidate, fsConstants.X_OK);
-      return true;
-    } catch {
-      // Keep searching PATH entries.
+      try {
+        await access(candidate, accessMode);
+        return true;
+      } catch {
+        // Keep searching PATH entries.
+      }
     }
   }
 
@@ -96,12 +116,28 @@ function buildCliHelpLines() {
 }
 
 function buildCliUsageLines(action) {
-  return [
-    `pi-dev-loops ${action}: choose a target`,
-    "Usage:",
-    `- pi-dev-loops ${action} repo`,
-    `- pi-dev-loops ${action} system`,
-  ];
+  switch (action) {
+    case "help":
+    case "status":
+    case "doctor":
+      return ["Usage:", `- pi-dev-loops ${action}`];
+    case "hide":
+      return [
+        "Usage:",
+        "- pi-dev-loops hide",
+        "`hide` is only supported without extra arguments, and only inside the Pi extension.",
+      ];
+    case "install":
+    case "update":
+      return [
+        `pi-dev-loops ${action}: choose a target`,
+        "Usage:",
+        `- pi-dev-loops ${action} repo`,
+        `- pi-dev-loops ${action} system`,
+      ];
+    default:
+      throw new Error(`Unknown CLI usage action: ${action}`);
+  }
 }
 
 function buildCliBlockedLines(action, message) {
@@ -131,6 +167,9 @@ function buildCliInstallResultLines(result) {
   }
 
   lines.push("Restart Pi or refresh skill discovery before expecting newly installed or updated skills to appear in this session.");
+  if (result.results.some((entry) => entry.status === "missing")) {
+    lines.push("A missing skill will not appear after refresh alone; run `pi-dev-loops install repo|system` first for any packaged skill reported as not installed.");
+  }
   return lines;
 }
 
@@ -154,7 +193,13 @@ function writeLines(stream, lines) {
   stream.write(`${lines.join("\n")}\n`);
 }
 
-export function createCliRuntime({ cwd = process.cwd(), homeDirectory = os.homedir() } = {}) {
+export function createCliRuntime({
+  cwd = process.cwd(),
+  homeDirectory = os.homedir(),
+  searchPath = process.env.PATH ?? "",
+  platform = process.platform,
+  pathExt = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
+} = {}) {
   let repoRootPromise;
 
   async function resolveRepoRoot() {
@@ -170,7 +215,7 @@ export function createCliRuntime({ cwd = process.cwd(), homeDirectory = os.homed
 
   return {
     async commandExists(command) {
-      return commandExists(command);
+      return commandExists(command, { searchPath, platform, pathExt });
     },
     async ghAuthOk() {
       return spawnResult("gh", ["auth", "status"], { cwd }).ok;

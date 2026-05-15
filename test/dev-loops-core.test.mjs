@@ -67,6 +67,18 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
     usageAction: "install",
     tokens: ["install", "moon"],
   });
+  assert.deepEqual(parseDevLoopsCommand(["status", "extra"], { surface: "cli" }), {
+    kind: "malformed",
+    message: "`status` does not accept additional arguments.",
+    usageAction: "status",
+    tokens: ["status", "extra"],
+  });
+  assert.deepEqual(parseDevLoopsCommand(["help", "extra"], { surface: "cli" }), {
+    kind: "malformed",
+    message: "`help` does not accept additional arguments.",
+    usageAction: "help",
+    tokens: ["help", "extra"],
+  });
 });
 
 test("shared executor returns deterministic status and blocked install results", async () => {
