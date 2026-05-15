@@ -29,7 +29,7 @@ test("coordinator agent does not contain stale docs/plans path and requires fres
   assert.match(content, /fresh context/i);
 });
 
-test("review-related workflow surfaces default pre-approval gate to DRY/KISS/YAGNI with explicit fallback", async () => {
+test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with explicit fallback requirement", async () => {
   const [devLoopSkill, copilotSkill, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph] = await Promise.all([
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
@@ -46,9 +46,12 @@ test("review-related workflow surfaces default pre-approval gate to DRY/KISS/YAG
   }
 
   assert.match(devLoopSkill, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
-  assert.match(copilotSkill, /review-complete, approval-ready, merge-ready, or ready for final review handoff/i);
+  assert.match(copilotSkill, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
+  assert.match(reviewAgent, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
+  assert.match(coordinatorAgent, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
+  assert.match(reviewerGraph, /review-complete, approval-ready, merge-ready, or ready for final handoff/i);
   assert.match(copilotSkill, /fresh context and in parallel when practical/i);
-  assert.match(copilotSkill, /if true parallelism is impractical, still run all three lenses and explicitly record the limitation/i);
+  assert.match(copilotSkill, /if parallel execution is impractical[\s\S]*still run all three lenses and explicitly record the limitation/i);
   assert.match(coordinatorAgent, /default pre-approval review fan-out must use the DRY, KISS, and YAGNI lenses/i);
 });
 

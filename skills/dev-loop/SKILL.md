@@ -63,8 +63,10 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 - Do implementation work on a dedicated local branch, not directly on `main`.
 - If the repo has no commits yet, still create the working branch first so the first commits land off `main`; only move `main` forward after review and validation.
 - Use small atomic local commits as progress checkpoints whenever a coherent slice is green and reviewable.
-- Before a branch is considered review-complete, approval-ready, or merge-ready, run the default pre-approval gate as a full review / fix loop with focused DRY, KISS, and YAGNI lenses, apply accepted fixes, rerun validation, and then merge the reviewed branch back into local `main` when authorized.
-- A phase is only fully complete when its scoped work, required support files, artifacts, validation, review/fix pass, commit(s), and merge back to local `main` are done, or when the only remaining step is an explicitly noted authorization-gated finalization action.- When subagents are used, log what each subagent was asked to do and what it concluded.
+- Before a branch is considered review-complete, approval-ready, or merge-ready, run the default pre-approval gate as a full review / fix loop with focused DRY, KISS, and YAGNI lenses.
+  - Then apply accepted fixes, rerun validation, and merge the reviewed branch back into local `main` when authorized.
+- A phase is only fully complete when its scoped work, required support files, artifacts, validation, review/fix pass, commit(s), and merge back to local `main` are done, or when the only remaining step is an explicitly noted authorization-gated finalization action.
+- When subagents are used, log what each subagent was asked to do and what it concluded.
 - If `PLAN.md` is too rough or ambiguous to safely start the current phase, do not guess: run a clarification/interview step with the user first.
 
 ## Deterministic logging structure
@@ -337,7 +339,7 @@ After the phase plan passes review:
 5. Run the default pre-approval gate as a full review / fix loop on the branch before calling it review-complete, approval-ready, merge-ready, or ready for final handoff:
    - cover exactly three focused review lenses by default: DRY, KISS, and YAGNI
    - run those three lens-focused passes in parallel with fresh context when practical
-   - if true parallelism is impractical, still run all three lenses and explicitly record the limitation instead of collapsing to one generic review
+   - if parallel execution is impractical (for example due to tooling or resource constraints), run all three lenses sequentially and explicitly record why parallel execution was impractical in `tmp/phases/phase-x/review.md` (or the equivalent merged review artifact)
    - start each reviewer in fresh context with a concise reviewer-specific briefing summary covering the branch/phase, intended behavior, acceptance criteria, relevant files or artifacts, current validation status, and that reviewer's exact angle
    - do not fork the parent session for parallel reviewers; if more context is needed, write a compact handoff artifact under `tmp/` and point the reviewer at it
    - when reviewer subagents stumble on raw source-tree reads (for example unresolved build artifacts or import assumptions), generate a deterministic diff/review artifact under `tmp/` and have reviewers inspect that artifact instead of the raw file set

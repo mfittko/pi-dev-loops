@@ -8,7 +8,7 @@
 - DRY check:
 - KISS check:
 - YAGNI check:
-- fallback note: if true parallel lens execution was impractical, record why and confirm all three lenses were still covered
+- fallback note: if parallel execution of the three review lenses is impractical, record why and confirm all three lenses were still covered
 
 ## Additional design-principle check (SRP, etc.)
 
