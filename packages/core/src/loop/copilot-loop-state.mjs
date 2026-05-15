@@ -94,7 +94,7 @@ const NEXT_ACTIONS = Object.freeze({
   [STATE.WAITING_FOR_COPILOT_REVIEW]: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
   [STATE.UNRESOLVED_FEEDBACK_PRESENT]: "Address unresolved review feedback, then reply to and resolve each thread on GitHub",
   [STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE]: "Reply to and resolve addressed threads on GitHub via scripts/github/reply-resolve-review-thread.mjs before re-requesting review",
-  [STATE.READY_TO_REREQUEST_REVIEW]: "Re-request Copilot review via scripts/github/request-copilot-review.mjs, or confirm the PR is done",
+  [STATE.READY_TO_REREQUEST_REVIEW]: "Re-request Copilot review via scripts/github/request-copilot-review.mjs only when the updated head is green or credibly green (smallest honest local validation + no known fixable CI-red state), or confirm the PR is done",
   [STATE.REVIEW_REQUEST_UNAVAILABLE]: "Report that Copilot review is unavailable and stop; do not sleep or watch as if review were requested",
   [STATE.WAITING_FOR_CI]: "Wait for CI checks to complete",
   [STATE.BLOCKED_NEEDS_USER_DECISION]: "Report the blocked state to the user and stop; do not proceed without explicit authorization",
