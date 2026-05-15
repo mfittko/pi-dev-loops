@@ -5,10 +5,11 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { Writable } from "node:stream";
+import { fileURLToPath } from "node:url";
 
 import { createCliRuntime, runCli } from "../cli/index.mjs";
 
-const repoRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
 function createBufferStream() {
   let output = "";
