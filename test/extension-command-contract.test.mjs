@@ -113,10 +113,10 @@ test("help is the default action and malformed commands stay non-mutating", asyn
   assert.match(invalidArgsContext.calls.widgets.at(-1).lines[0], /pi-dev-loops install: choose a target/);
   assert.equal(invalidArgsContext.calls.notifications.at(-1).level, "error");
 
-  const malformedStatusContext = createCommandContext();
-  await pi.registeredCommands.get("dev-loops").handler("status extra", malformedStatusContext.ctx);
-  assert.match(malformedStatusContext.calls.widgets.at(-1).lines[0], /pi-dev-loops status:/);
-  assert.equal(malformedStatusContext.calls.notifications.at(-1).message, "pi-dev-loops status: 7/7 checks passed");
+  const statusWithExtraArgsContext = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("status extra", statusWithExtraArgsContext.ctx);
+  assert.match(statusWithExtraArgsContext.calls.widgets.at(-1).lines[0], /pi-dev-loops status:/);
+  assert.equal(statusWithExtraArgsContext.calls.notifications.at(-1).message, "pi-dev-loops status: 7/7 checks passed");
 
   const helpArgsContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("help extra", helpArgsContext.ctx);
