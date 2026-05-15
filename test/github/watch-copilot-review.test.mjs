@@ -168,13 +168,17 @@ test("watch-copilot-review returns idle for a zero-timeout no-change check", asy
     ]);
 
     const startedAt = Date.now();
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "0"], { env });
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "0", "--poll-interval-ms", "5000"],
+      { env },
+    );
     const elapsedMs = Date.now() - startedAt;
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
     assert.deepEqual(JSON.parse(result.stdout), noChangePayload("idle", 1));
-    assert(elapsedMs < 1_000, `expected immediate recheck, got ${elapsedMs}ms`);
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 2);
+    assert(elapsedMs < 4_000, `expected zero-timeout recheck to skip the 5000ms poll sleep, got ${elapsedMs}ms`);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
