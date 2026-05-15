@@ -61,6 +61,10 @@ Snapshot schema (all fields optional; unknown fields are ignored):
   prMerged           boolean     Whether the PR has been merged
   prClosed           boolean     Whether the PR was closed without merge
 
+This snapshot intentionally excludes tracker-native workflow readiness/blocking
+state. Callers must combine tracker-owned workflow state separately when
+interpreting whether opening a PR is appropriate.
+
 Output (stdout, JSON):
   {
     "ok": true,

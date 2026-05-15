@@ -107,7 +107,7 @@ implementations map canonical action names to tracker-native field updates.
 
 | Lifecycle state | `reverseSyncAction` | Tracker effect |
 |---|---|---|
-| `ready_no_pr` — no PR exists yet | `none` | Tracker remains in selected/ready state; no mutation |
+| `ready_no_pr` — tracker item exists, no PR exists yet | `none` | No automatic mutation. Tracker-native readiness remains tracker-owned and is outside this snapshot-only helper. |
 | `draft_pr_open` — draft PR created or open | `set_in_progress` | Tracker moves to in-progress (or nearest equivalent) |
 | `pr_reviewable` — PR marked ready for review | `set_reviewable` | Tracker moves to reviewable / in-review (or nearest equivalent) |
 | `pr_merged` — PR merged | `set_done` | Tracker moves to done/completed terminal state |
@@ -140,18 +140,20 @@ Each tracker adapter maps the four canonical action names to its native API:
 
 The full lifecycle path for this MVP slice is:
 
-```
-selected/ready (tracker)
+```text
+selected/ready (tracker-owned precondition; not encoded directly in this snapshot)
+  -> tracker item exists, no PR   [ready_no_pr]
   -> draft PR created             [draft_pr_open]   -> tracker: set_in_progress
   -> PR marked ready for review   [pr_reviewable]   -> tracker: set_reviewable
-  -> PR merged                    [pr_merged]        -> tracker: set_done
+  -> PR merged                    [pr_merged]       -> tracker: set_done
 ```
 
 Alternate paths:
 
-```
-PR closed without merge   [pr_closed_unmerged]  -> tracker: no automatic action
-No tracker item           [no_tracker_item]      -> blocked; report and stop
+```text
+PR closed without merge   [pr_closed_unmerged]          -> tracker: no automatic action
+No tracker item, no PR    [no_tracker_item]             -> blocked; report and stop
+Contradictory snapshot    [blocked_needs_user_decision] -> stop and report
 ```
 
 ### 5.1 State Definitions
@@ -159,7 +161,7 @@ No tracker item           [no_tracker_item]      -> blocked; report and stop
 | State | Meaning |
 |---|---|
 | `no_tracker_item` | No tracker work item was found; lifecycle cannot proceed |
-| `ready_no_pr` | Tracker item in selected/ready; no PR has been created yet |
+| `ready_no_pr` | Tracker item exists and no PR has been created yet. This helper does not infer tracker-native readiness beyond that no-PR fact. |
 | `draft_pr_open` | Draft PR exists; tracker should reflect in-progress |
 | `pr_reviewable` | PR is open and not draft; tracker should reflect reviewable / in-review |
 | `pr_merged` | PR has been merged; tracker should be moved to done/completed |
@@ -205,6 +207,8 @@ blocked_needs_user_decision
 | `prDraft` | `boolean` | Whether the PR is in draft state |
 | `prMerged` | `boolean` | Whether the PR has been merged |
 | `prClosed` | `boolean` | Whether the PR was closed without merge |
+
+This snapshot intentionally omits tracker-native workflow fields such as selected/ready, blocked, or done. Higher-level callers must combine tracker-owned readiness/state separately when deciding whether opening a PR is appropriate.
 
 ## 6. Scope Boundaries
 

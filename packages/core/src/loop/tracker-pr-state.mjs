@@ -15,6 +15,10 @@
  * next transitions, a recommended next action, and the canonical reverse-sync action
  * that should be applied to the tracker when entering that state.
  *
+ * This snapshot intentionally does not encode tracker-native workflow readiness.
+ * Higher-level callers may combine tracker-owned readiness or blocked/done state
+ * with this helper when deciding whether PR creation is appropriate.
+ *
  * Source-of-truth ownership:
  * - Tracker:        work-item identity, planning hierarchy, and tracker-native state
  * - GitHub:         PR lifecycle, review state, CI/check results, and merge facts
@@ -31,9 +35,9 @@ export const TRACKER_PR_STATE = Object.freeze({
   NO_TRACKER_ITEM: "no_tracker_item",
 
   /**
-   * A tracker work item exists in the selected/ready state and no PR has
-   * been created for it yet. The tracker item remains in its current state
-   * until a draft PR is opened.
+   * A tracker work item exists and no PR has been created for it yet.
+   * This helper does not infer tracker-native readiness beyond that no-PR
+   * execution fact.
    */
   READY_NO_PR: "ready_no_pr",
 
@@ -63,9 +67,8 @@ export const TRACKER_PR_STATE = Object.freeze({
   PR_CLOSED_UNMERGED: "pr_closed_unmerged",
 
   /**
-   * Reserved stop state for future higher-level detectors that encounter an
-   * ambiguous or contradictory lifecycle snapshot and need an explicit user
-   * decision before the workflow can continue.
+   * Stop state for ambiguous or contradictory lifecycle snapshots that need
+   * an explicit user decision before the workflow can continue.
    */
   BLOCKED_NEEDS_USER_DECISION: "blocked_needs_user_decision",
 });
@@ -149,7 +152,7 @@ const NEXT_ACTIONS = Object.freeze({
   [TRACKER_PR_STATE.NO_TRACKER_ITEM]:
     "Obtain a valid tracker work item before creating a PR",
   [TRACKER_PR_STATE.READY_NO_PR]:
-    "Create a draft PR with required tracker metadata (identifier link, title pattern, body sections, labels)",
+    "If tracker workflow says the item is ready, create a draft PR with required tracker metadata (identifier link, title pattern, body sections, labels)",
   [TRACKER_PR_STATE.DRAFT_PR_OPEN]:
     "Complete development work, then mark the draft PR as ready for review",
   [TRACKER_PR_STATE.PR_REVIEWABLE]:
@@ -196,8 +199,8 @@ export function normalizeTrackerPrSnapshot(raw) {
         : null,
     prExists,
     prNumber:
-      prExists && typeof raw.prNumber === "number" && raw.prNumber > 0
-        ? Math.floor(raw.prNumber)
+      prExists && typeof raw.prNumber === "number" && Number.isInteger(raw.prNumber) && raw.prNumber > 0
+        ? raw.prNumber
         : null,
     prDraft: normalizeBooleanLike(raw.prDraft),
     prMerged: normalizeBooleanLike(raw.prMerged),
@@ -215,13 +218,13 @@ export function normalizeTrackerPrSnapshot(raw) {
  * inputs are accepted.
  *
  * Routing priority:
- * 1. No tracker item -> no_tracker_item (nothing to anchor a PR to)
- * 2. Contradictory snapshot (prExists=false but PR state flags set) -> blocked_needs_user_decision
+ * 1. Contradictory snapshot -> blocked_needs_user_decision
+ * 2. No tracker item and no PR facts -> no_tracker_item (nothing to anchor a PR to)
  * 3. PR merged -> pr_merged (terminal success)
  * 4. PR closed without merge -> pr_closed_unmerged (terminal, no auto-sync)
  * 5. Draft PR exists -> draft_pr_open (in-progress)
  * 6. PR exists and not draft, not merged, not closed -> pr_reviewable
- * 7. No PR at all -> ready_no_pr (waiting to start)
+ * 7. Tracker item exists and no PR exists -> ready_no_pr (no-PR execution state)
  *
  * @param {object} snapshot - raw or normalized snapshot
  * @returns {{ state: string, allowedTransitions: string[], nextAction: string, reverseSyncAction: string }}
@@ -229,13 +232,18 @@ export function normalizeTrackerPrSnapshot(raw) {
 export function interpretTrackerPrState(snapshot) {
   const s = normalizeTrackerPrSnapshot(snapshot);
 
+  const contradictorySnapshot =
+    (!s.trackerItemExists && (s.prExists || s.prNumber !== null || s.prDraft || s.prMerged || s.prClosed)) ||
+    (!s.prExists && (s.prDraft || s.prMerged || s.prClosed)) ||
+    (s.prMerged && (s.prClosed || s.prDraft)) ||
+    (s.prClosed && s.prDraft);
+
   let state;
 
-  if (!s.trackerItemExists) {
-    state = TRACKER_PR_STATE.NO_TRACKER_ITEM;
-  } else if (!s.prExists && (s.prMerged || s.prClosed || s.prDraft)) {
-    // prExists=false but PR state flags are set — contradictory snapshot
+  if (contradictorySnapshot) {
     state = TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION;
+  } else if (!s.trackerItemExists) {
+    state = TRACKER_PR_STATE.NO_TRACKER_ITEM;
   } else if (s.prExists && s.prMerged) {
     state = TRACKER_PR_STATE.PR_MERGED;
   } else if (s.prExists && s.prClosed) {

@@ -103,7 +103,7 @@ test("normalizeTrackerPrSnapshot normalizes prNumber only when prExists is true 
   assert.equal(zeroNumber.prNumber, null);
 
   const floatNumber = normalizeTrackerPrSnapshot({ prExists: true, prNumber: 7.9 });
-  assert.equal(floatNumber.prNumber, 7);
+  assert.equal(floatNumber.prNumber, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -162,9 +162,11 @@ test("interpretTrackerPrState routes to no_tracker_item when trackerItemExists i
   assert.equal(result.reverseSyncAction, "none");
 });
 
-test("interpretTrackerPrState routes to no_tracker_item even when a PR exists but no tracker item", () => {
+test("interpretTrackerPrState routes tracker-missing + PR-present snapshots to blocked_needs_user_decision", () => {
   const result = interpretTrackerPrState({ trackerItemExists: false, prExists: true, prNumber: 5 });
-  assert.equal(result.state, TRACKER_PR_STATE.NO_TRACKER_ITEM);
+  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.deepEqual(result.allowedTransitions, []);
+  assert.equal(result.reverseSyncAction, "none");
 });
 
 test("interpretTrackerPrState routes to ready_no_pr when tracker item exists and no PR yet", () => {
@@ -221,7 +223,7 @@ test("interpretTrackerPrState routes to pr_merged when PR has been merged", () =
   assert.equal(result.reverseSyncAction, "set_done");
 });
 
-test("interpretTrackerPrState gives prMerged priority over prDraft", () => {
+test("interpretTrackerPrState routes contradictory prMerged=true+prDraft=true to blocked_needs_user_decision", () => {
   const result = interpretTrackerPrState({
     trackerItemExists: true,
     trackerItemId: "PROJ-1",
@@ -230,7 +232,7 @@ test("interpretTrackerPrState gives prMerged priority over prDraft", () => {
     prMerged: true,
     prDraft: true,
   });
-  assert.equal(result.state, TRACKER_PR_STATE.PR_MERGED);
+  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
 });
 
 test("interpretTrackerPrState routes to pr_closed_unmerged when PR is closed without merge", () => {
@@ -247,7 +249,7 @@ test("interpretTrackerPrState routes to pr_closed_unmerged when PR is closed wit
   assert.equal(result.reverseSyncAction, "none");
 });
 
-test("interpretTrackerPrState gives prMerged priority over prClosed", () => {
+test("interpretTrackerPrState routes contradictory prMerged=true+prClosed=true to blocked_needs_user_decision", () => {
   const result = interpretTrackerPrState({
     trackerItemExists: true,
     trackerItemId: "PROJ-1",
@@ -256,7 +258,9 @@ test("interpretTrackerPrState gives prMerged priority over prClosed", () => {
     prMerged: true,
     prClosed: true,
   });
-  assert.equal(result.state, TRACKER_PR_STATE.PR_MERGED);
+  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.deepEqual(result.allowedTransitions, []);
+  assert.equal(result.reverseSyncAction, "none");
 });
 
 test("interpretTrackerPrState routes contradictory prExists=false+prMerged=true to blocked_needs_user_decision", () => {
@@ -286,6 +290,18 @@ test("interpretTrackerPrState routes contradictory prExists=false+prDraft=true t
     trackerItemExists: true,
     trackerItemId: "PROJ-1",
     prExists: false,
+    prDraft: true,
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
+});
+
+test("interpretTrackerPrState routes contradictory prClosed=true+prDraft=true to blocked_needs_user_decision", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: true,
+    prNumber: 10,
+    prClosed: true,
     prDraft: true,
   });
   assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);

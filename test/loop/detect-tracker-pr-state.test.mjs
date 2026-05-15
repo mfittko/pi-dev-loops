@@ -297,6 +297,53 @@ test("detect-tracker-pr-state CLI emits blocked_needs_user_decision for contradi
   }
 });
 
+test("detect-tracker-pr-state CLI emits blocked_needs_user_decision for orphan PR snapshot", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "tracker-pr-state-test-"));
+  try {
+    const snapshotPath = await writeTempJson(tempDir, "snapshot.json", {
+      trackerItemExists: false,
+      prExists: true,
+      prNumber: 42,
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+    assert.equal(result.code, 0, `expected exit 0, got: ${result.stderr}`);
+
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.state, "blocked_needs_user_decision");
+    assert.equal(parsed.reverseSyncAction, "none");
+    assert.deepEqual(parsed.allowedTransitions, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-tracker-pr-state CLI emits blocked_needs_user_decision for merged-plus-closed snapshot", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "tracker-pr-state-test-"));
+  try {
+    const snapshotPath = await writeTempJson(tempDir, "snapshot.json", {
+      trackerItemExists: true,
+      trackerItemId: "PROJ-Y",
+      prExists: true,
+      prNumber: 77,
+      prMerged: true,
+      prClosed: true,
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+    assert.equal(result.code, 0, `expected exit 0, got: ${result.stderr}`);
+
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.state, "blocked_needs_user_decision");
+    assert.equal(parsed.reverseSyncAction, "none");
+    assert.deepEqual(parsed.allowedTransitions, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-tracker-pr-state CLI --help prints usage and exits 0", async () => {
   const result = await runNode(["--help"]);
   assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);

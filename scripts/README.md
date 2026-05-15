@@ -205,6 +205,8 @@ Snapshot schema (`--input` JSON):
 - `prMerged` {boolean} — whether the PR has been merged
 - `prClosed` {boolean} — whether the PR was closed without merge
 
+This snapshot surface is intentionally limited to tracker identity plus PR lifecycle facts. It does not encode tracker-native workflow readiness/blocking/done state; higher-level callers must combine tracker-owned state separately when deciding whether opening a PR is appropriate.
+
 Success output shape:
 - `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...", "reverseSyncAction": "..." }`
 
