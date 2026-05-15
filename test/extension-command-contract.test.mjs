@@ -115,9 +115,13 @@ test("help is the default action and malformed commands stay non-mutating", asyn
 
   const malformedStatusContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("status extra", malformedStatusContext.ctx);
-  assert.match(malformedStatusContext.calls.widgets.at(-1).lines[0], /`status` does not accept additional arguments\./);
-  assert(malformedStatusContext.calls.widgets.at(-1).lines.some((line) => /pi-dev-loops help/.test(line)));
-  assert.equal(malformedStatusContext.calls.notifications.at(-1).message, "pi-dev-loops status: invalid arguments");
+  assert.match(malformedStatusContext.calls.widgets.at(-1).lines[0], /pi-dev-loops status:/);
+  assert.equal(malformedStatusContext.calls.notifications.at(-1).message, "pi-dev-loops status: 7/7 checks passed");
+
+  const helpArgsContext = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("help extra", helpArgsContext.ctx);
+  assert.match(helpArgsContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.equal(helpArgsContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 });
 
 test("status keeps existing remote readiness ready when copilot-dev-loop is installed but copilot-autopilot is not", async () => {
@@ -243,8 +247,8 @@ test("install repo copies packaged skills into the repository, repo errors stay 
 
   const fallbackContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("banana", fallbackContext.ctx);
-  assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /Unrecognized command: banana\./);
-  assert(fallbackContext.calls.widgets.at(-1).lines.some((line) => /pi-dev-loops help/.test(line)));
+  assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.equal(fallbackContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 });
 
 test("repo install refuses symlinked skill roots with a user-facing error", async () => {

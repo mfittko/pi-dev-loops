@@ -67,11 +67,21 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
     usageAction: "install",
     tokens: ["install", "moon"],
   });
+  assert.deepEqual(parseDevLoopsCommand(["status", "extra"], { surface: "extension" }), {
+    kind: "action",
+    action: "status",
+    tokens: ["status", "extra"],
+  });
   assert.deepEqual(parseDevLoopsCommand(["status", "extra"], { surface: "cli" }), {
     kind: "malformed",
     message: "`status` does not accept additional arguments.",
     usageAction: "status",
     tokens: ["status", "extra"],
+  });
+  assert.deepEqual(parseDevLoopsCommand(["banana"], { surface: "extension" }), {
+    kind: "action",
+    action: "help",
+    tokens: ["banana"],
   });
   assert.deepEqual(parseDevLoopsCommand(["help", "extra"], { surface: "cli" }), {
     kind: "malformed",
