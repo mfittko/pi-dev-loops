@@ -128,6 +128,30 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
 });
 
 
+test("createCliRuntime rejects path-like command probes", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-path-guard-"));
+  const binDir = path.join(tempRoot, "bin");
+  const nestedDir = path.join(binDir, "foo");
+  await mkdir(nestedDir, { recursive: true });
+  await writeFile(path.join(nestedDir, "bar"), `#!/bin/sh
+exit 0
+`);
+  await chmod(path.join(nestedDir, "bar"), 0o755);
+
+  try {
+    const runtime = createCliRuntime({
+      cwd: tempRoot,
+      homeDirectory: tempRoot,
+      searchPath: binDir,
+    });
+
+    assert.equal(await runtime.commandExists("foo/bar"), false);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+
 test("createCliRuntime probes PATH commands and git repositories without a login shell", async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-runtime-"));
   const binDir = path.join(tempRoot, "bin");

@@ -59,6 +59,10 @@ async function commandExists(
     pathExt = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
   } = {},
 ) {
+  if (/[\\/]/.test(command)) {
+    return false;
+  }
+
   const accessMode = platform === "win32" ? fsConstants.F_OK : fsConstants.X_OK;
 
   for (const entry of searchPath.split(path.delimiter)) {
@@ -273,6 +277,13 @@ export function createCliRuntime({
   };
 }
 
+/**
+ * Run the shell CLI and return the intended process exit code.
+ *
+ * Callers are responsible for forwarding the returned code to
+ * `process.exitCode` or `process.exit()`; this helper does not mutate
+ * process exit state on its own.
+ */
 export async function runCli({
   argv = process.argv.slice(2),
   stdout = process.stdout,
