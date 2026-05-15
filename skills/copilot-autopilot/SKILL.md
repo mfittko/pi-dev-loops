@@ -207,7 +207,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    - treat an open linked PR as the active implementation for this issue
 5. If a PR already exists, route to the existing PR follow-up path immediately with that PR number.
    - before selecting that PR, filter linked PR candidates to `<resolved-repo>` by validating `repository.nameWithOwner`
-   - if multiple same-repo linked PRs remain open, prefer a `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR, then choose the newest matching linked timeline event deterministically
+   - if multiple same-repo linked PRs remain open, prefer a `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR, then choose the candidate with the newest linked-event `createdAt` value deterministically
    - Use the deterministic helper/state-machine surface to detect the current PR lifecycle state.
    - Treat that detected state as the authoritative entrypoint for resumed execution.
    - Continue from that entrypoint rather than restarting earlier phases.
@@ -226,7 +226,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    - fetch it with `gh issue view <number> --repo <resolved-repo> --json number,title,body,state,labels,assignees,milestone`
    - if the matching issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a new follow-up issue)
    - if it is still open, check whether a PR already exists for that issue using authoritative issue-linkage data (including `CONNECTED_EVENT` and `CROSS_REFERENCED_EVENT`), not only title/body number matching
-   - before selecting that PR, filter linked PR candidates to `<resolved-repo>` by validating `repository.nameWithOwner`, then apply the same deterministic tie-breaker (`CONNECTED_EVENT` before `CROSS_REFERENCED_EVENT`, then newest matching linked timeline event) when more than one same-repo PR is open
+   - before selecting that PR, filter linked PR candidates to `<resolved-repo>` by validating `repository.nameWithOwner`, then apply the same deterministic tie-breaker (`CONNECTED_EVENT` before `CROSS_REFERENCED_EVENT`, then newest linked-event `createdAt`) when more than one same-repo PR is open
    - if a PR already exists, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
    - otherwise confirm with the user and proceed with that issue
 6. If no matching issue exists:
@@ -338,6 +338,7 @@ query($owner:String!, $name:String!, $issue:Int!, $after:String) {
         nodes {
           __typename
           ... on ConnectedEvent {
+            createdAt
             subject {
               __typename
               ... on PullRequest {
@@ -349,6 +350,7 @@ query($owner:String!, $name:String!, $issue:Int!, $after:String) {
             }
           }
           ... on CrossReferencedEvent {
+            createdAt
             source {
               __typename
               ... on PullRequest {
@@ -365,7 +367,7 @@ query($owner:String!, $name:String!, $issue:Int!, $after:String) {
   }
 }'
 ```
-Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope. On long issue timelines, continue paging with `pageInfo.endCursor` until `hasNextPage` is false so older linked PR events are not missed. Before resuming from a linked PR number, confirm that `repository.nameWithOwner` still matches `<resolved-repo>` (unless the work item explicitly targets another repo) so cross-referenced PRs from a different repository do not get mistaken for the active implementation. If multiple linked PRs remain open after that repo filter, prefer a same-repo `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR, and if there is still more than one candidate choose the newest matching linked timeline event deterministically.
+Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope. On long issue timelines, continue paging with `pageInfo.endCursor` until `hasNextPage` is false so older linked PR events are not missed. Before resuming from a linked PR number, confirm that `repository.nameWithOwner` still matches `<resolved-repo>` (unless the work item explicitly targets another repo) so cross-referenced PRs from a different repository do not get mistaken for the active implementation. If multiple linked PRs remain open after that repo filter, prefer a same-repo `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR, and if there is still more than one candidate choose the one with the newest linked-event `createdAt` value deterministically.
 
 ## Phase 5 — PR tightening
 

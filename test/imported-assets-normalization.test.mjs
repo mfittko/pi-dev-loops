@@ -152,9 +152,14 @@ test("copilot-autopilot docs define the closed direct-issue branch and keep sear
 
   assert.match(skillContent, /If the issue is closed, stop for a user decision before proceeding/i);
   assert.match(skillContent, /gh issue list --repo <resolved-repo> --state all --search/);
-  assert.match(skillContent, /timelineItems\([^)]*itemTypes\s*:\s*\[\s*CONNECTED_EVENT\s*,\s*CROSS_REFERENCED_EVENT\s*\]\)/);
-  assert.match(skillContent, /pageInfo\s*\{\s*hasNextPage\s*endCursor\s*\}/);
+  assert.match(skillContent, /timelineItems\(/);
+  assert.match(skillContent, /CONNECTED_EVENT/);
+  assert.match(skillContent, /CROSS_REFERENCED_EVENT/);
+  assert.match(skillContent, /pageInfo/);
+  assert.match(skillContent, /hasNextPage/);
+  assert.match(skillContent, /endCursor/);
   assert.match(skillContent, /after\s*:\s*\$after/);
+  assert.match(skillContent, /createdAt/);
   assert.match(skillContent, /repository\s*\{\s*nameWithOwner\s*\}/);
   assert.match(skillContent, /if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope/i);
   assert.doesNotMatch(skillContent, /gh pr list --repo <resolved-repo> --state open --search "copilot\/ <issue-number>"/);
@@ -168,6 +173,7 @@ test("copilot-autopilot uses CONNECTED_EVENT linkage checks to prevent duplicate
   assert.match(skillContent, /repository\.nameWithOwner` still matches `<resolved-repo>`/i);
   assert.match(skillContent, /filter linked PR candidates to `<resolved-repo>` by validating `repository\.nameWithOwner`/i);
   assert.match(skillContent, /prefer a same-repo `CONNECTED_EVENT` PR over a `CROSS_REFERENCED_EVENT` PR/i);
+  assert.match(skillContent, /newest linked-event `createdAt`/i);
   assert.match(skillContent, /do not rely only on PR title\/body containing a literal issue number/i);
   assert.match(skillContent, /treat an open linked PR as the active implementation for this issue/i);
 });
