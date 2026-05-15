@@ -216,6 +216,7 @@ test("install repo copies packaged skills into the repository, repo errors stay 
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "docs", "copilot-loop-state-graph.md"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-autopilot", "scripts", "loop", "copilot-pr-handoff.mjs"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-autopilot", "scripts", "github", "detect-linked-issue-pr.mjs"));
+  await access(path.join(repoRoot, ".pi", "skills", "copilot-autopilot", "scripts", "github", "_github-helpers.mjs"));
 
   const repoErrorContext = createCommandContext();
   const noRepoPi = createPiDouble({

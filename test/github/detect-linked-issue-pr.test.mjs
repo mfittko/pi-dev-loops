@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
+import { selectLinkedIssuePr } from "../../scripts/github/detect-linked-issue-pr.mjs";
+
 const scriptPath = path.resolve("scripts/github/detect-linked-issue-pr.mjs");
 
 function runNode(args = [], options = {}) {
@@ -246,6 +248,25 @@ test("detect-linked-issue-pr returns no match when no open same-repo linked PR e
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("selectLinkedIssuePr uses locale-independent url fallback ordering", () => {
+  const winner = selectLinkedIssuePr([
+    {
+      eventType: "CONNECTED_EVENT",
+      createdAtMs: 123,
+      prNumber: 90,
+      prUrl: "https://github.com/owner/repo/pull/90?b=1",
+    },
+    {
+      eventType: "CONNECTED_EVENT",
+      createdAtMs: 123,
+      prNumber: 90,
+      prUrl: "https://github.com/owner/repo/pull/90?a=1",
+    },
+  ]);
+
+  assert.equal(winner?.prUrl, "https://github.com/owner/repo/pull/90?a=1");
 });
 
 test("detect-linked-issue-pr rejects malformed arguments deterministically", async () => {

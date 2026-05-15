@@ -21,6 +21,7 @@ async function seedPackagedSupport(tempDir) {
 
   await seedFiles(scriptsRoot, {
     "_core-helpers.mjs": "export const helper = true;\n",
+    "github/_github-helpers.mjs": "export const repoHelper = true;\n",
     "github/capture-review-threads.mjs": "export const capture = true;\n",
     "github/detect-linked-issue-pr.mjs": "export const linkedPr = true;\n",
     "github/reply-resolve-review-thread.mjs": "export const reply = true;\n",
@@ -120,6 +121,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "github", "detect-linked-issue-pr.mjs"), "utf8"),
     "export const linkedPr = true;\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "github", "_github-helpers.mjs"), "utf8"),
+    "export const repoHelper = true;\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "loop", "copilot-loop-state.mjs"), "utf8"),

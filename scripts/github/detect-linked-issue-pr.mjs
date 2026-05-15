@@ -228,6 +228,14 @@ function normalizeLinkedPrNode(node) {
   return null;
 }
 
+function compareStableStrings(left, right) {
+  if (left === right) {
+    return 0;
+  }
+
+  return left < right ? -1 : 1;
+}
+
 function normalizeOpenSameRepoCandidate(candidate, repo) {
   const pr = candidate?.pr;
   const number = pr?.number;
@@ -279,7 +287,7 @@ export function selectLinkedIssuePr(candidates) {
       return right.prNumber - left.prNumber;
     }
 
-    return String(left.prUrl ?? "").localeCompare(String(right.prUrl ?? ""));
+    return compareStableStrings(String(left.prUrl ?? ""), String(right.prUrl ?? ""));
   });
 
   return sorted[0] ?? null;

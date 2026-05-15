@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 export const PACKAGED_SKILL_NAMES = ["dev-loop", "copilot-dev-loop", "copilot-autopilot"] as const;
 const COPILOT_RUNTIME_SCRIPT_FILES = [
   "_core-helpers.mjs",
+  "github/_github-helpers.mjs",
   "github/capture-review-threads.mjs",
   "github/detect-linked-issue-pr.mjs",
   "github/reply-resolve-review-thread.mjs",
