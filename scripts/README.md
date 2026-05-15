@@ -56,6 +56,30 @@ Success output shape:
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/github/detect-linked-issue-pr.mjs`
+
+Detect whether an issue already has an open linked PR in the same repository.
+
+Required:
+- `--repo <owner/name>`
+- `--issue <number>`
+
+Contract:
+- queries issue timeline linked-PR events (`CONNECTED_EVENT`, `CROSS_REFERENCED_EVENT`)
+- pages through timeline items until `hasNextPage=false`
+- keeps only open linked PRs in the same repository (`repository.nameWithOwner === <repo>`)
+- chooses deterministically when multiple candidates remain:
+  1. prefer `CONNECTED_EVENT` candidates over `CROSS_REFERENCED_EVENT`
+  2. then choose newest linked-event `createdAt`
+  3. then stable fallback by PR number/url
+- returns a machine-readable selection payload for skills/workflows; callers should not re-implement query/pagination/tie-break logic in markdown policy text
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/name", "issue": 85, "hasOpenLinkedPr": true|false, "prNumber": 90|null, "prUrl": "..."|null, "selection"?: { "eventType": "...", "eventCreatedAt": "..." } }`
+
+Failure behavior:
+- malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/github/stage-reviewer-draft.mjs`
 
 Stage a pending reviewer-side draft review from a merged deterministic review package.

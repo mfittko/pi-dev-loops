@@ -10,6 +10,7 @@ import {
   parseReviewThreads,
   readInput,
 } from "../_core-helpers.mjs";
+import { parseRepoSlug } from "./_github-helpers.mjs";
 
 export const REVIEW_THREADS_QUERY = [
   "query($owner: String!, $name: String!, $pr: Int!) {",
@@ -103,14 +104,7 @@ export function parseCaptureCliArgs(argv) {
   return options;
 }
 
-export function parseRepoSlug(repo) {
-  if (typeof repo !== "string" || !/^[^/\s]+\/[^/\s]+$/.test(repo)) {
-    throw new Error("--repo must match <owner/name>");
-  }
-
-  const [owner, name] = repo.split("/");
-  return { owner, name };
-}
+export { parseRepoSlug };
 
 function runChild(command, args, env) {
   return new Promise((resolve, reject) => {
