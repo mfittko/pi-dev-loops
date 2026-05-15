@@ -283,9 +283,7 @@ export async function runCli({
 } = {}) {
   if (runtime && runtime.homeDirectory !== undefined && runtime.homeDirectory !== homeDirectory) {
     throw new Error(
-      runtime.homeDirectory === undefined
-        ? "runCli cannot combine a custom runtime with an explicit homeDirectory unless runtime.homeDirectory matches that value."
-        : `runCli received mismatched homeDirectory values: runtime.homeDirectory=${runtime.homeDirectory} option.homeDirectory=${homeDirectory}`,
+      `runCli received mismatched homeDirectory values: runtime.homeDirectory=${runtime.homeDirectory} option.homeDirectory=${homeDirectory}`,
     );
   }
 
