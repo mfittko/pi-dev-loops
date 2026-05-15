@@ -44,6 +44,7 @@ async function seedPackagedSupport(tempDir) {
   await seedFiles(docsRoot, {
     "copilot-loop-state-graph.md": "copilot graph\n",
     "reviewer-loop-state-graph.md": "reviewer graph\n",
+    "tracker-first-mvp-state-graph.md": "tracker graph\n",
     "IMPLEMENTATION_STATE.md": "not bundled\n",
   });
 
@@ -102,6 +103,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
     await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "copilot-loop-state-graph.md"), "utf8"),
     "copilot graph\n",
   );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "tracker-first-mvp-state-graph.md"), "utf8"),
+    "tracker graph\n",
+  );
 
   await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "scripts", "README.md")));
   await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "scripts", "github", "extra-helper.mjs")));
@@ -118,6 +123,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "docs", "copilot-loop-state-graph.md"), "utf8"),
     "copilot graph\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "docs", "tracker-first-mvp-state-graph.md"), "utf8"),
+    "tracker graph\n",
   );
 
   await writeFile(path.join(targetRoot, "dev-loop", "SKILL.md"), "repo override\n");

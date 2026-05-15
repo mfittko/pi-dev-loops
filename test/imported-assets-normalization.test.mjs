@@ -207,3 +207,34 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(planContent, /Proposal-first new-idea safety layer/i);
   assert.match(planContent, /stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`/i);
 });
+
+test("tracker-first MVP state graph is documented as adapter-agnostic, mutually exclusive, and bounded by #21", async () => {
+  const content = await readRepo("docs/tracker-first-mvp-state-graph.md");
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(content, /story -> draft PR -> reviewable PR -> merged PR -> tracker sync/i);
+  assert.match(content, /issue `#17`/i);
+  assert.match(content, /complements? `#21`/i);
+  assert.match(content, /one-work-item -> one-PR invariant/i);
+  assert.match(content, /Inherited authority boundary from `#21`/i);
+  assert.match(content, /source-of-truth ownership/i);
+  assert.match(content, /required durable .*work item <-> PR link/i);
+  assert.match(content, /reverse-sync semantics/i);
+  assert.match(content, /treat this as `false` whenever `actionableReviewFeedbackPresent` is `false`/i);
+  assert.match(content, /prClosedUnmerged/i);
+  assert.match(content, /PR closed without merge -> `blocked_needs_user_decision`/i);
+  assert.match(content, /tracker work item missing -> `blocked_missing_artifact`/i);
+  assert.match(content, /highest valid non-blocked state/i);
+  assert.match(content, /verification phase/i);
+  assert.match(content, /not a new source of truth/i);
+  assert.match(content, /Deterministic detection priority/i);
+  assert.match(content, /reviewable_pr` vs `waiting_for_review/i);
+  assert.match(content, /under_review` vs `waiting_for_ci/i);
+  assert.match(content, /waiting_for_ci` applies only when CI is the \*\*only\*\* active blocker/i);
+  assert.match(content, /Canonical vs derived vs temporary/i);
+  assert.match(content, /epic\/PRD\/ADR\/RFC/i);
+  assert.match(content, /narrower than.*`#19`/i);
+  assert.doesNotMatch(content, /\bJira\b|\bShortcut\b/i);
+
+  assert.match(skillContent, /inherits[\s\S]*source-of-truth ownership[\s\S]*work item <-> PR link[\s\S]*reverse-sync semantics from\s*`#21`/i);
+});
