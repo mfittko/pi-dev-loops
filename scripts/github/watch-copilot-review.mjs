@@ -316,7 +316,7 @@ function buildAttemptBudget(timeoutMs, pollIntervalMs) {
     return 1;
   }
 
-  return Math.max(1, Math.floor(timeoutMs / pollIntervalMs));
+  return Math.max(1, Math.ceil(timeoutMs / pollIntervalMs));
 }
 
 export async function runCli(

@@ -191,6 +191,50 @@ test("watch-copilot-review returns timeout after bounded polling with no fresh C
   }
 });
 
+test("watch-copilot-review rounds up attempt budget so non-divisible timeout still covers full window", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-timeout-round-up-"));
+  const baseline = createActivityPayload();
+  const stillQuiet = createActivityPayload();
+  const changedLate = createActivityPayload({
+    reviews: [createReview("r-3", "copilot-pull-request-reviewer[bot]", "Late Copilot summary.", "Bot")],
+  });
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      { stdout: `${JSON.stringify(baseline)}\n` },
+      { stdout: `${JSON.stringify(stillQuiet)}\n` },
+      { stdout: `${JSON.stringify(stillQuiet)}\n` },
+      { stdout: `${JSON.stringify(changedLate)}\n` },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "250", "--poll-interval-ms", "100"],
+      { env },
+    );
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "changed",
+      repo: "owner/repo",
+      pr: 17,
+      attempts: 3,
+      newComments: [],
+      newReviews: [
+        {
+          id: "r-3",
+          authorLogin: "copilot-pull-request-reviewer[bot]",
+          body: "Late Copilot summary.",
+        },
+      ],
+      newIssueComments: [],
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("watch-copilot-review returns changed for fresh Copilot review-thread comments", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-thread-"));
   const baseline = createActivityPayload({ threads: [createThread("c-1", "reviewer", "Please add a test.")] });
@@ -429,4 +473,3 @@ test("watch-copilot-review trims surrounding whitespace from --repo", () => {
   const options = parseWatchCliArgs(["--repo", " owner/repo ", "--pr", "17"]);
   assert.equal(options.repo, "owner/repo");
 });
-
