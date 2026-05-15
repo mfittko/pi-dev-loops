@@ -162,7 +162,7 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `prNumber` {number|null} — PR number if prExists, otherwise null
 - `prDraft` {boolean} — whether the PR is in draft state
 - `prMerged` {boolean} — whether the PR has been merged
-- `prClosed` {boolean} — whether the PR was closed without merge
+- `prClosed` {boolean} — whether the PR was closed without merge; merged PRs set `prMerged=true` instead of reusing `prClosed`
 - `copilotReviewRequestStatus` {"requested"|"already-requested"|"unavailable"|"none"|"failed"} — current known Copilot review-request state
 - `copilotReviewPresent` {boolean} — whether at least one Copilot review exists on the PR
 - `unresolvedThreadCount` {number} — total unresolved review-thread count
@@ -184,6 +184,39 @@ Key behavioral guarantees:
 - When `copilotReviewRequestStatus` is `unavailable` or `failed`, the state is a terminal stop/report state with no allowed transitions
 - When `agentFixStatus` is `"applied"` and unresolved threads exist, the state is `already_fixed_needs_reply_resolve`, and `allowedTransitions` includes only `ready_to_rerequest_review`
 - If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
+
+### `scripts/loop/detect-tracker-pr-state.mjs`
+
+Deterministic tracker-first story-to-PR state detector. Interprets a pre-built
+tracker/PR lifecycle snapshot into one explicit current state, allowed next
+transitions, a recommended next action, and the canonical reverse-sync action.
+This helper is intentionally snapshot-only: tracker-adapter lookups and live
+GitHub discovery remain outside this CLI.
+
+Required:
+- `--input <path>`
+
+Snapshot schema (`--input` JSON):
+- `trackerItemExists` {boolean} — whether a tracker work item was found
+- `trackerItemId` {string|null} — tracker item identifier if present
+- `prExists` {boolean} — whether a PR exists for the tracker item
+- `prNumber` {number|null} — PR number if known; `prNumber` with `prExists=false` is contradictory and blocked
+- `prDraft` {boolean} — whether the PR is still draft
+- `prMerged` {boolean} — whether the PR has been merged
+- `prClosed` {boolean} — whether the PR is closed on GitHub (merged PRs are also closed); `pr_closed_unmerged` is derived from `prClosed && !prMerged`
+
+Unlike the Copilot/reviewer loop snapshots, this tracker snapshot uses `prClosed` for the raw GitHub closed state. Merged PRs therefore set both `prMerged=true` and `prClosed=true`, while `pr_closed_unmerged` is derived from `prClosed && !prMerged`.
+
+This snapshot surface is intentionally limited to tracker identity plus PR lifecycle facts. It does not encode tracker-native workflow readiness/blocking/done state; higher-level callers must combine tracker-owned state separately when deciding whether opening a PR is appropriate.
+
+Success output shape:
+- `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...", "reverseSyncAction": "..." }`
+
+Failure behavior:
+- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }`
+  on stderr and exit non-zero
+- unreadable input files, invalid JSON, and invalid snapshot objects emit
+  `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/loop/detect-reviewer-loop-state.mjs`
 
