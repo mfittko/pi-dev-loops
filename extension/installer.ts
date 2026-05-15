@@ -1,3 +1,5 @@
+import { PACKAGED_SKILL_NAMES } from "../lib/dev-loops-installer.mjs";
+
 export {
   PACKAGED_SKILL_NAMES,
   resolvePackagedCoreSourceRoot,
@@ -13,7 +15,7 @@ export type InstallMode = "install" | "update";
 export type InstallStatus = "installed" | "updated" | "already-installed" | "missing";
 
 export type SkillInstallResult = {
-  skillName: "dev-loop" | "copilot-dev-loop" | "copilot-autopilot";
+  skillName: (typeof PACKAGED_SKILL_NAMES)[number];
   status: InstallStatus;
   targetPath: string;
 };
