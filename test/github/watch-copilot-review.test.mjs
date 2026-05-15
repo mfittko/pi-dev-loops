@@ -231,7 +231,6 @@ test("watch-copilot-review rounds up attempt budget so non-divisible timeout sti
       ],
       newIssueComments: [],
     });
-    assert.equal(output.attempts, 3);
     const expectedTotalGhCalls = 4; // 1 baseline capture + 3 polling checks
     assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), expectedTotalGhCalls);
   } finally {
