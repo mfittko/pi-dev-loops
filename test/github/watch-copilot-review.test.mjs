@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
-import { parseWatchCliArgs } from "../../scripts/github/watch-copilot-review.mjs";
+import { buildAttemptBudget, buildPollDelayMs, parseWatchCliArgs } from "../../scripts/github/watch-copilot-review.mjs";
 
 const scriptPath = path.resolve("scripts/github/watch-copilot-review.mjs");
 
@@ -144,6 +144,19 @@ function noChangePayload(status, attempts) {
   };
 }
 
+
+test("buildAttemptBudget rounds up non-divisible timeout windows", () => {
+  assert.equal(buildAttemptBudget(0, 60_000), 1);
+  assert.equal(buildAttemptBudget(250, 100), 3);
+  assert.equal(buildAttemptBudget(200, 100), 2);
+});
+
+test("buildPollDelayMs schedules polls on the requested watch timeline", () => {
+  assert.equal(buildPollDelayMs(1_000, 250, 100, 1, 1_000), 100);
+  assert.equal(buildPollDelayMs(1_000, 250, 100, 3, 1_200), 50);
+  assert.equal(buildPollDelayMs(1_000, 250, 100, 3, 1_260), 0);
+});
+
 test("watch-copilot-review returns idle for a zero-timeout no-change check", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-idle-"));
   const baseline = createActivityPayload({ threads: [createThread("c-1", "reviewer", "Please add a test.")] });
@@ -208,7 +221,7 @@ test("watch-copilot-review rounds up attempt budget so non-divisible timeout sti
     ]);
 
     const result = await runNode(
-      ["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "250", "--poll-interval-ms", "100"],
+      ["--repo", "owner/repo", "--pr", "17", "--timeout-ms", "25", "--poll-interval-ms", "10"],
       { env },
     );
 
