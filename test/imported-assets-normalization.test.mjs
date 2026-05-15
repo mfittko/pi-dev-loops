@@ -77,7 +77,7 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
   assert.match(reviewAgent, /if parallel execution is impractical[\s\S]*still cover all three lenses and explicitly record the limitation/i);
   assert.match(coordinatorAgent, /default pre-approval review fan-out must use the DRY, KISS, and YAGNI lenses/i);
   assert.match(coordinatorAgent, /if parallel execution is impractical[\s\S]*still run all three lenses and record that limitation explicitly/i);
-  assert.match(reviewerGraph, /workflow lenses for how reviewer runs must cover the change/i);
+  assert.match(reviewerGraph, /workflow lenses that reviewer runs must cover for the change/i);
   assert.match(reviewerGraph, /do not replace the state machine's supported review-angle taxonomy/i);
 });
 
