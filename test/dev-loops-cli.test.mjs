@@ -175,8 +175,8 @@ test("createCliRuntime honors PATHEXT lookups when simulating Windows PATH resol
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-win-runtime-"));
   const binDir = path.join(tempRoot, "bin");
   await mkdir(binDir, { recursive: true });
-  await writeFile(path.join(binDir, "gh.exe"), "");
-  await writeFile(path.join(binDir, "pi-subagents.cmd"), "");
+  await writeFile(path.join(binDir, "gh.EXE"), "");
+  await writeFile(path.join(binDir, "pi-subagents.CMD"), "");
   await writeFile(path.join(binDir, "git"), "");
 
   try {
@@ -222,12 +222,20 @@ test("CLI update output preserves missing-skill guidance parity", async () => {
   }
 });
 
-test("runCli rejects explicit homeDirectory overrides that do not match a custom runtime", async () => {
+test("runCli rejects custom runtime/homeDirectory mismatches", async () => {
   await assert.rejects(
     runCli({
       argv: ["status"],
       runtime: createRuntime({ homeDirectory: "/tmp/runtime-home" }),
       homeDirectory: "/tmp/other-home",
+    }),
+    /runCli received mismatched homeDirectory values/,
+  );
+
+  await assert.rejects(
+    runCli({
+      argv: ["status"],
+      runtime: createRuntime({ homeDirectory: "/tmp/runtime-home" }),
     }),
     /runCli received mismatched homeDirectory values/,
   );

@@ -281,7 +281,7 @@ export async function runCli({
   cwd = process.cwd(),
   homeDirectory = os.homedir(),
 } = {}) {
-  if (runtime && homeDirectory !== os.homedir() && runtime.homeDirectory !== homeDirectory) {
+  if (runtime && runtime.homeDirectory !== undefined && runtime.homeDirectory !== homeDirectory) {
     throw new Error(
       runtime.homeDirectory === undefined
         ? "runCli cannot combine a custom runtime with an explicit homeDirectory unless runtime.homeDirectory matches that value."
