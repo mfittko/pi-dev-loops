@@ -1,6 +1,7 @@
 import type { DevLoopCheck, DevLoopCheckId } from "./checks.ts";
 import type { InstallResult, InstallStatus } from "./installer.ts";
 import { DEV_LOOP_CHECK_IDS, summarizeChecks, renderCheckLines } from "./checks.ts";
+import { describeReadiness } from "../lib/dev-loops-core.mjs";
 
 export type DevLoopsAction = "doctor" | "help" | "install" | "status" | "update" | "hide";
 
@@ -24,15 +25,6 @@ function checkMap(checks: DevLoopCheck[]): Map<DevLoopCheckId, DevLoopCheck> {
   return new Map(checks.map((check) => [check.id, check]));
 }
 
-const LOCAL_READINESS_IDS: DevLoopCheckId[] = ["subagent-tool", "git-repo", "local-dev-loop-skill"];
-const REMOTE_READINESS_IDS: DevLoopCheckId[] = [
-  "gh-installed",
-  "gh-auth",
-  "subagent-tool",
-  "git-repo",
-  "copilot-dev-loop-skill",
-];
-
 function formatInstallStatus(status: InstallStatus): string {
   switch (status) {
     case "installed":
@@ -46,17 +38,6 @@ function formatInstallStatus(status: InstallStatus): string {
     default:
       throw new Error(`Unknown install status: ${status}`);
   }
-}
-
-export function describeReadiness(checks: DevLoopCheck[]) {
-  const byId = checkMap(checks);
-  const localReady = LOCAL_READINESS_IDS.every((id) => byId.get(id)?.ok);
-  const remoteReady = REMOTE_READINESS_IDS.every((id) => byId.get(id)?.ok);
-
-  return {
-    localReady,
-    remoteReady,
-  };
 }
 
 export function orderedSetupSteps(checks: DevLoopCheck[]): string[] {
@@ -85,7 +66,7 @@ export function buildHelpLines(): string[] {
     "- /dev-loops update",
     "  prompts for `repo` or `system` when no target is provided",
     "- /dev-loops hide",
-    "The package install exposes `/dev-loops` only; skills are installed explicitly through the install/update commands.",
+    "The package install exposes `/dev-loops` in Pi and `pi-dev-loops` in the shell; skills are installed explicitly through the install/update commands.",
   ];
 }
 

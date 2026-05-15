@@ -38,14 +38,16 @@ For the first implementation phase, this repo may be opinionated and require:
 `pi-dev-loops` should eventually install as a Pi package that exposes:
 
 - `skills/` for local and remote loop orchestration
-- `extension/` for status, doctor, explicit skill install/update commands, and future dashboard/installer UI
+- `extension/` for the `/dev-loops` Pi command plus shared status/doctor/install/update presentation
+- `bin/pi-dev-loops.mjs` for the matching `pi-dev-loops` shell CLI
 - deterministic `lib/` and `scripts/` shared by multiple skills
 
 ## Layout
 
 - `agents/` — candidate global role agents
 - `skills/` — local and remote dev-loop skills
-- `extension/` — package extension and UI/doctor helpers
+- `extension/` — package extension and Pi-facing UI/doctor helpers
+- `cli/` and `bin/` — shell CLI wrapper for the shared deterministic dev-loops core
 - `lib/` — shared deterministic library code
 - `scripts/` — deterministic workflow helpers
 
@@ -62,5 +64,5 @@ Turn these imported assets into a coherent, reusable toolkit where:
 - agents are primarily workflow-agnostic role definitions, with thin workflow entrypoint agents allowed when they only load a skill and defer policy to it
 - skills orchestrate loops
 - deterministic scripts and shared library code handle as much mechanical work as possible
-- the extension provides status/doctor plus explicit skill install/update UX and can grow into dashboard/installer widgets
+- the extension provides status/doctor plus explicit skill install/update UX while the package CLI exposes the same deterministic command family for shell users
 - repo-local overlays can specialize behavior without forking the core workflow stack

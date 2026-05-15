@@ -9,10 +9,12 @@ test("package metadata exposes the extension entrypoint and root extension test 
   const packageJson = JSON.parse(await readRepo("package.json"));
 
   assert.deepEqual(packageJson.pi.extensions, ["./extension/index.ts"]);
+  assert.equal(packageJson.bin["pi-dev-loops"], "./bin/pi-dev-loops.mjs");
   assert.match(packageJson.engines.node, />=20/);
   assert.equal(typeof packageJson.peerDependencies["@mariozechner/pi-coding-agent"], "string");
   assert.equal(typeof packageJson.peerDependencies["@mariozechner/pi-tui"], "string");
   assert.equal(typeof packageJson.scripts["test:extension"], "string");
+  assert.match(packageJson.scripts["test:extension"], /--import tsx/);
   assert.match(packageJson.scripts["test:extension"], /extension-checks/);
   assert.match(packageJson.scripts["test:extension"], /extension-installer/);
   assert.match(packageJson.scripts["test:extension"], /extension-command-contract/);
@@ -25,6 +27,7 @@ test("extension README documents the command surface and runtime/build/test cont
 
   assert.match(readme, /defaults to help output/i);
   assert.match(readme, /\/dev-loops status/i);
+  assert.match(readme, /pi-dev-loops status/i);
   assert.match(readme, /concise readiness summary/i);
   assert.match(readme, /\/dev-loops doctor/i);
   assert.match(readme, /full diagnostic report/i);
@@ -38,6 +41,7 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.match(readme, /Node[^\n]*>=20/i);
   assert.match(readme, /source-loaded/i);
   assert.match(readme, /does not automatically install skills/i);
+  assert.match(readme, /node --import tsx --test/i);
   assert.match(readme, /does not yet claim a specific supported `gh` version/i);
   assert.match(readme, /npm run test:extension/i);
   assert.match(readme, /npm run test:dev-loop/i);

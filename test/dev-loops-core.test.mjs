@@ -1,0 +1,119 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { executeDevLoopsCommand, parseDevLoopsCommand } from "../lib/dev-loops-core.mjs";
+
+function createRuntime(overrides = {}) {
+  return {
+    async commandExists(command) {
+      return command === "gh";
+    },
+    async ghAuthOk() {
+      return true;
+    },
+    async insideGitRepo() {
+      return true;
+    },
+    async resolveRepoRoot() {
+      return "/tmp/repo";
+    },
+    async getSubagentAvailability() {
+      return {
+        ok: true,
+        availableDetail: "`subagent` tool is available.",
+        unavailableDetail: "missing subagent",
+      };
+    },
+    async getSkillAvailability(skillName) {
+      return {
+        ok: true,
+        availableDetail: `skill available: ${skillName}`,
+        unavailableDetail: `skill missing: ${skillName}`,
+      };
+    },
+    ...overrides,
+  };
+}
+
+test("shared parser keeps extension and CLI commands aligned while preserving the hide exception", () => {
+  const sharedInputs = [
+    [[], "help"],
+    [["help"], "help"],
+    [["status"], "status"],
+    [["doctor"], "doctor"],
+    [["install", "repo"], "install"],
+    [["update", "system"], "update"],
+  ];
+
+  for (const [argv, action] of sharedInputs) {
+    assert.deepEqual(parseDevLoopsCommand(argv, { surface: "extension" }), parseDevLoopsCommand(argv, { surface: "cli" }));
+    assert.equal(parseDevLoopsCommand(argv, { surface: "cli" }).action, action);
+  }
+
+  assert.deepEqual(parseDevLoopsCommand(["hide"], { surface: "extension" }), {
+    kind: "action",
+    action: "hide",
+    tokens: ["hide"],
+  });
+  assert.deepEqual(parseDevLoopsCommand(["hide"], { surface: "cli" }), {
+    kind: "unsupported",
+    action: "hide",
+    message: "`pi-dev-loops hide` is not supported outside the Pi extension; use `/dev-loops hide` inside Pi instead.",
+    tokens: ["hide"],
+  });
+  assert.deepEqual(parseDevLoopsCommand(["install", "moon"], { surface: "cli" }), {
+    kind: "malformed",
+    message: "`install` accepts only the optional target `repo` or `system`.",
+    usageAction: "install",
+    tokens: ["install", "moon"],
+  });
+});
+
+test("shared executor returns deterministic status and blocked install results", async () => {
+  const status = await executeDevLoopsCommand({
+    input: ["status"],
+    surface: "cli",
+    runtime: createRuntime({
+      async getSkillAvailability(skillName) {
+        if (skillName === "copilot-autopilot") {
+          return {
+            ok: false,
+            availableDetail: "",
+            unavailableDetail: "skill missing",
+          };
+        }
+
+        return {
+          ok: true,
+          availableDetail: `skill available: ${skillName}`,
+          unavailableDetail: `skill missing: ${skillName}`,
+        };
+      },
+    }),
+    homeDirectory: "/tmp/home",
+  });
+
+  assert.equal(status.kind, "checks");
+  assert.equal(status.action, "status");
+  assert.equal(status.checks[0].id, "gh-installed");
+  assert.equal(status.checks[6].id, "copilot-autopilot-skill");
+  assert.equal(status.checks[6].ok, false);
+
+  const blocked = await executeDevLoopsCommand({
+    input: ["install", "repo"],
+    surface: "cli",
+    runtime: createRuntime({
+      async resolveRepoRoot() {
+        return undefined;
+      },
+    }),
+    homeDirectory: "/tmp/home",
+  });
+
+  assert.deepEqual(blocked, {
+    kind: "blocked",
+    action: "install",
+    scope: "repo",
+    message: "pi-dev-loops install repo: not inside a git repository",
+  });
+});
