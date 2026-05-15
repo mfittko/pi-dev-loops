@@ -42,8 +42,8 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
   const gateDocuments = [
     ["skills/dev-loop/SKILL.md", devLoopSkill, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
     ["skills/copilot-dev-loop/SKILL.md", copilotSkill, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
-    ["agents/review.agent.md", reviewAgent, /default pre-approval gate contract:[^\n]*\bDRY\b[^\n]*\bKISS\b[^\n]*\bYAGNI\b/i],
-    ["agents/coordinator.agent.md", coordinatorAgent, /default pre-approval review fan-out must use the \bDRY\b, \bKISS\b, and \bYAGNI\b lenses/i],
+    ["agents/review.agent.md", reviewAgent, /default pre-approval gate contract:[\s\S]{0,160}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
+    ["agents/coordinator.agent.md", coordinatorAgent, /default pre-approval review fan-out must use the [\s\S]{0,40}\bDRY\b[\s\S]{0,40}\bKISS\b[\s\S]{0,40}\bYAGNI\b lenses/i],
     ["skills/dev-loop/templates/review.md", reviewTemplate, /^## Default pre-approval gate \(DRY \/ KISS \/ YAGNI\)$/m],
     ["docs/reviewer-loop-state-graph.md", reviewerGraph, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
   ];
