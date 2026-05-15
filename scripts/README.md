@@ -213,9 +213,10 @@ Success output shape:
 - `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...", "reverseSyncAction": "..." }`
 
 Failure behavior:
-- malformed arguments, unreadable input files, invalid JSON, and invalid
-  snapshot objects emit `{ "ok": false, "error": "..." }` on stderr and
-  exit non-zero
+- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }`
+  on stderr and exit non-zero
+- unreadable input files, invalid JSON, and invalid snapshot objects emit
+  `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/loop/detect-reviewer-loop-state.mjs`
 

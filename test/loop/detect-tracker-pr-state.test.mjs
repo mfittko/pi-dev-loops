@@ -198,6 +198,32 @@ test("detect-tracker-pr-state CLI emits stable output for pr_closed_unmerged sta
   }
 });
 
+test("detect-tracker-pr-state CLI treats closed draft PR snapshots as pr_closed_unmerged", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "tracker-pr-state-test-"));
+  try {
+    const snapshotPath = await writeTempJson(tempDir, "snapshot.json", {
+      trackerItemExists: true,
+      trackerItemId: "PROJ-5",
+      prExists: true,
+      prNumber: 13,
+      prClosed: true,
+      prDraft: true,
+      prMerged: false,
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+    assert.equal(result.code, 0, `expected exit 0, got: ${result.stderr}`);
+
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.state, "pr_closed_unmerged");
+    assert.equal(parsed.reverseSyncAction, "none");
+    assert.equal(parsed.snapshot.prDraft, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-tracker-pr-state CLI emits stable output for no_tracker_item state", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "tracker-pr-state-test-"));
   try {

@@ -308,7 +308,7 @@ test("interpretTrackerPrState routes contradictory prExists=false+prDraft=true t
   assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
 });
 
-test("interpretTrackerPrState routes contradictory prClosed=true+prDraft=true to blocked_needs_user_decision", () => {
+test("interpretTrackerPrState routes closed draft PR snapshots to pr_closed_unmerged", () => {
   const result = interpretTrackerPrState({
     trackerItemExists: true,
     trackerItemId: "PROJ-1",
@@ -317,7 +317,8 @@ test("interpretTrackerPrState routes contradictory prClosed=true+prDraft=true to
     prClosed: true,
     prDraft: true,
   });
-  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.state, TRACKER_PR_STATE.PR_CLOSED_UNMERGED);
+  assert.equal(result.reverseSyncAction, "none");
 });
 
 // ---------------------------------------------------------------------------
