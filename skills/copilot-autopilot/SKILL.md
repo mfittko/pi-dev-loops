@@ -202,7 +202,9 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    - if the input is a bare issue number, use the current repository slug
 2. Fetch the issue with `gh issue view <number> --repo <owner/name> --json number,title,body,state,labels,assignees,milestone`.
 3. If the issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a follow-up issue).
-4. If it is open, check whether a PR already exists for this issue (search for branches or PRs that reference the issue number in that same repository).
+4. If it is open, check whether a PR already exists for this issue using issue-linkage data as the authority (issue timeline linked PR events, including `CONNECTED_EVENT`).
+   - do not rely only on PR title/body containing a literal issue number
+   - treat an open linked PR as the active implementation for this issue
 5. If a PR already exists, route to the existing PR follow-up path immediately with that PR number.
    - Use the deterministic helper/state-machine surface to detect the current PR lifecycle state.
    - Treat that detected state as the authoritative entrypoint for resumed execution.
@@ -221,7 +223,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 5. If a matching issue exists:
    - fetch it with `gh issue view <number> --repo <resolved-repo> --json number,title,body,state,labels,assignees,milestone`
    - if the matching issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a new follow-up issue)
-   - if it is still open, check whether a PR already exists for that issue
+   - if it is still open, check whether a PR already exists for that issue using authoritative issue-linkage data (including `CONNECTED_EVENT`), not only title/body number matching
    - if a PR already exists, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
    - otherwise confirm with the user and proceed with that issue
 6. If no matching issue exists:
@@ -319,9 +321,32 @@ When the draft PR appears, do not stop just because it is draft. Enter the draft
 
 Useful check:
 ```sh
-gh pr list --repo <resolved-repo> --state open --search "copilot/ <issue-number>"
+gh api graphql -f owner=<owner> -f name=<repo> -F issue=<issue-number> -f query='
+query($owner:String!, $name:String!, $issue:Int!) {
+  repository(owner:$owner, name:$name) {
+    issue(number:$issue) {
+      timelineItems(first:100, itemTypes:[CONNECTED_EVENT, CROSS_REFERENCED_EVENT]) {
+        nodes {
+          __typename
+          ... on ConnectedEvent {
+            subject {
+              __typename
+              ... on PullRequest { number state }
+            }
+          }
+          ... on CrossReferencedEvent {
+            source {
+              __typename
+              ... on PullRequest { number state }
+            }
+          }
+        }
+      }
+    }
+  }
+}'
 ```
-Verify that any selected PR actually references or closes the normalized issue before continuing.
+Prefer this issue-linked event surface over text heuristics; if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope.
 
 ## Phase 5 — PR tightening
 

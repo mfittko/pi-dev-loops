@@ -152,8 +152,16 @@ test("copilot-autopilot docs define the closed direct-issue branch and keep sear
 
   assert.match(skillContent, /If the issue is closed, stop for a user decision before proceeding/i);
   assert.match(skillContent, /gh issue list --repo <resolved-repo> --state all --search/);
-  assert.match(skillContent, /gh pr list --repo <resolved-repo> --state open --search "copilot\/ <issue-number>"/);
-  assert.match(skillContent, /Verify that any selected PR actually references or closes the normalized issue before continuing/i);
+  assert.match(skillContent, /timelineItems\(first:100, itemTypes:\[CONNECTED_EVENT, CROSS_REFERENCED_EVENT\]\)/i);
+  assert.match(skillContent, /if any linked PR is open, resume work from that PR and do not retrigger Copilot for the same scope/i);
+});
+
+test("copilot-autopilot docs require authoritative CONNECTED_EVENT linkage checks to avoid duplicate PR retriggers", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+
+  assert.match(skillContent, /including `CONNECTED_EVENT`/i);
+  assert.match(skillContent, /do not rely only on PR title\/body containing a literal issue number/i);
+  assert.match(skillContent, /treat an open linked PR as the active implementation for this issue/i);
 });
 
 test("copilot-autopilot docs resolve the target repo for non-issue inputs and README documents thin entrypoint agents", async () => {
