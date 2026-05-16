@@ -51,8 +51,8 @@ Current commands:
 
 Important install/update contract:
 
-- installing the package exposes the extension command surface only
-- packaged skills are installed explicitly with `/dev-loops install ...`
+- installing the package exposes both the `/dev-loops` extension command surface and the `pi-dev-loops` shell CLI
+- packaged skills are still installed explicitly with `/dev-loops install ...`
 - `update` refreshes existing installed copies but does not create first-time installs
 - installed copies of `copilot-dev-loop` and `copilot-autopilot` include the allow-listed runtime support they need from `scripts/`, `packages/core/src/`, and `docs/`
 - restart Pi or refresh skill discovery after install/update before expecting newly copied skills to appear in the current session
@@ -71,6 +71,7 @@ Current exported areas include:
 - `./loop/phase-files`
 - `./loop/copilot-loop-state`
 - `./loop/reviewer-loop-state`
+- `./loop/tracker-pr-state`
 - `./github/review-threads`
 
 It also exposes these CLI binaries:
@@ -114,7 +115,7 @@ Current code and docs assume:
 - `agents/` — reusable role-agent definitions
 - `docs/` — implementation state, workflow docs, state graphs, and durable phase plans
 - `extension/` — `/dev-loops` extension implementation and docs
-- `lib/` — reserved shared-library area
+- `lib/` — shared deterministic library layer used by the extension and shell CLI
 - `packages/core/` — private deterministic support package
 - `scripts/` — deterministic CLI helpers for GitHub/review/loop mechanics
 - `skills/` — packaged workflow skills
