@@ -10,18 +10,33 @@ mdc: true
 layout: cover
 ---
 
-# A state-machine-driven shipping process
-## Reduce delivery latency by owning the work between steps
-
-<div class="pt-6 text-lg opacity-90 max-w-3xl mx-auto leading-7">
-The biggest waste in software delivery is often the gap between one state change and the next action.
-</div>
-
-<div class="pt-8 flex justify-center gap-3 flex-wrap">
-  <span class="pill">state machine</span>
-  <span class="pill">owned waiting states</span>
-  <span class="pill">review loops</span>
-  <span class="pill">human approval gates</span>
+<div class="hero-shell text-left">
+  <div class="hero-grid">
+    <div class="hero-main">
+      <div class="kicker">Stakeholder presentation</div>
+      <h1>A state-machine-driven shipping process</h1>
+      <h2>Reduce delivery latency by owning the work between steps</h2>
+      <div class="pt-5 text-lg opacity-90 max-w-2xl leading-7 text-slate-300">
+        The biggest waste in software delivery is often the gap between one state change and the next action.
+      </div>
+      <div class="chip-row pt-7">
+        <span class="pill">state machine</span>
+        <span class="pill">owned waiting states</span>
+        <span class="pill">review loops</span>
+        <span class="pill">human approval gates</span>
+      </div>
+    </div>
+    <div class="hero-side">
+      <div class="mini-stat">
+        <div class="mini-stat-label">Main claim</div>
+        <div class="mini-stat-value">Compress the delay between state change and next action.</div>
+      </div>
+      <div class="mini-stat">
+        <div class="mini-stat-label">Operating model</div>
+        <div class="mini-stat-value">A conductor-linked chain of loops from intake through merge.</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -31,10 +46,39 @@ The biggest waste in software delivery is often the gap between one state change
 
 .slidev-layout {
   background:
-    radial-gradient(circle at top right, rgba(139, 92, 246, 0.20), transparent 28%),
-    radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 24%),
-    linear-gradient(180deg, #0b1020 0%, #0f172a 46%, #111827 100%);
+    radial-gradient(circle at 85% 12%, rgba(139, 92, 246, 0.24), transparent 24%),
+    radial-gradient(circle at 15% 8%, rgba(59, 130, 246, 0.18), transparent 20%),
+    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.08), transparent 26%),
+    linear-gradient(180deg, #08101f 0%, #0b1220 42%, #0f172a 100%);
   color: #e5e7eb;
+  position: relative;
+  overflow: hidden;
+}
+
+.slidev-layout::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(180deg, rgba(255,255,255,0.28), transparent 72%);
+}
+
+.slidev-layout::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.035) 44%, transparent 58%);
+  opacity: 0.65;
+}
+
+.slidev-layout > * {
+  position: relative;
+  z-index: 1;
 }
 
 .slidev-layout h1,
@@ -64,21 +108,121 @@ The biggest waste in software delivery is often the gap between one state change
 .pill {
   display: inline-flex;
   align-items: center;
-  padding: 0.35rem 0.8rem;
+  padding: 0.4rem 0.85rem;
   border-radius: 9999px;
   background: rgba(15, 23, 42, 0.72);
   border: 1px solid rgba(167, 139, 250, 0.35);
   color: #ddd6fe;
   font-size: 0.9rem;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 24px rgba(15, 23, 42, 0.18);
+}
+
+.chip-row {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
 }
 
 .glass-card {
-  background: rgba(15, 23, 42, 0.68);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(15, 23, 42, 0.64));
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 22px;
   padding: 1.15rem 1.25rem;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(10px);
+}
+
+.hero-shell {
+  padding-top: 1.6rem;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 0.9fr;
+  gap: 1.2rem;
+  align-items: stretch;
+}
+
+.hero-main,
+.hero-side,
+.section-panel,
+.diagram-card {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(15, 23, 42, 0.62));
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
+}
+
+.hero-main {
+  border-radius: 28px;
+  padding: 1.9rem 2rem;
+}
+
+.hero-side {
+  border-radius: 28px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hero-main h1 {
+  font-size: 2.55rem;
+  line-height: 1.02;
+  margin-top: 0.1rem;
+}
+
+.hero-main h2 {
+  margin-top: 0.7rem;
+  color: #cbd5e1;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.mini-stat {
+  border-radius: 20px;
+  padding: 1rem;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.72));
+  border: 1px solid rgba(96, 165, 250, 0.16);
+  text-align: left;
+}
+
+.mini-stat-label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  color: #93c5fd;
+  margin-bottom: 0.45rem;
+}
+
+.mini-stat-value {
+  color: #e2e8f0;
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+
+.section-panel {
+  max-width: 44rem;
+  margin: 4.2rem auto 0;
+  border-radius: 30px;
+  padding: 2.1rem 2.4rem;
+  text-align: left;
+}
+
+.section-panel h1 {
+  margin-bottom: 0.55rem;
+}
+
+.section-panel p {
+  color: #cbd5e1;
+  font-size: 1.08rem;
+}
+
+.diagram-card {
+  max-width: 52rem;
+  margin: 0.9rem auto 0;
+  border-radius: 26px;
+  padding: 1rem 1.2rem 0.5rem;
 }
 
 .soft-note {
@@ -104,8 +248,11 @@ The biggest waste in software delivery is often the gap between one state change
 layout: section
 ---
 
-# Why this matters
-## Faster shipping through owned waiting states
+<div class="section-panel">
+  <div class="kicker">Opening case</div>
+  <h1>Why this matters</h1>
+  <p>Faster shipping through owned waiting states.</p>
+</div>
 
 ---
 
@@ -201,8 +348,11 @@ The process carries predictable coordination work so people can focus on judgmen
 layout: section
 ---
 
-# The required loops
-## Shipping work means guiding it through the right loops at the right time
+<div class="section-panel">
+  <div class="kicker">Operating model</div>
+  <h1>The required loops</h1>
+  <p>Shipping work means guiding it through the right loops at the right time.</p>
+</div>
 
 ---
 
@@ -229,6 +379,8 @@ Each loop solves a different delivery problem. The conductor keeps them connecte
 
 # Flow 1: from intake to draft PR
 
+<div class="diagram-card">
+
 ```mermaid {scale: 0.76}
 flowchart TD
     A[Intake] --> B[Refinement]
@@ -237,6 +389,8 @@ flowchart TD
     D --> E[Draft PR]
 ```
 
+</div>
+
 <div class="soft-note">
 This first half turns raw work into a bounded slice that is ready for formal review.
 </div>
@@ -244,6 +398,8 @@ This first half turns raw work into a bounded slice that is ready for formal rev
 ---
 
 # Flow 2: from draft PR to shipped work
+
+<div class="diagram-card">
 
 ```mermaid {scale: 0.72}
 flowchart TD
@@ -255,6 +411,8 @@ flowchart TD
     F --> G[Merge]
     G --> H[Closeout or resume]
 ```
+
+</div>
 
 <div class="soft-note">
 The full operating model is a chain of loops rather than one flat automation step.
@@ -332,8 +490,11 @@ Without that, the process may look autonomous while staying unreliable.
 layout: section
 ---
 
-# Why this matters in a company
-## The win is latency compression at scale
+<div class="section-panel">
+  <div class="kicker">Business view</div>
+  <h1>Why this matters in a company</h1>
+  <p>The win is latency compression at scale.</p>
+</div>
 
 ---
 
