@@ -30,6 +30,8 @@ in subsequent work.
 | CLI entry-point | `scripts/loop/steer-loop.mjs` |
 | Core unit tests | `packages/core/test/steering.test.mjs` |
 | CLI integration tests | `test/loop/steer-loop.test.mjs` |
+| **Loop integration** | `scripts/loop/detect-copilot-loop-state.mjs` (via `--steering-state-file`) |
+| Loop integration tests | `test/loop/detect-copilot-loop-state.test.mjs` (steering section) |
 
 ---
 
@@ -248,6 +250,59 @@ node scripts/loop/steer-loop.mjs status \
     "nextSeq": 3
   }
 }
+```
+
+---
+
+## Live loop integration — detect-copilot-loop-state.mjs
+
+The async Copilot review/fix loop's existing state detector
+(`detect-copilot-loop-state.mjs`) is the first execution surface wired to the
+steering contract. Pass `--steering-state-file <path>` to make the detector
+resolve the loop state through any active steering directives.
+
+### How it changes behavior
+
+When `--steering-state-file` is provided:
+
+- The snapshot is interpreted through `resolveEffectiveLoopState` instead of
+  `interpretLoopState` directly.
+- If a `stop_at_next_safe_gate` directive is on the effective stack **and** the
+  loop is currently at an IMMEDIATE safe point, `nextAction` is overridden to
+  direct the loop to stop instead of continuing to the next step.
+- The output includes `steeringApplied` and `effectiveConstraints` so downstream
+  consumers can inject hard constraints into agent context or check the stop flag.
+- When the steering file does not exist (ENOENT), the detector treats it as an
+  empty steering state — no error, no change to base behavior.
+
+Without `--steering-state-file`, output is identical to the pre-steering behavior
+(no `steeringApplied` or `effectiveConstraints` fields).
+
+### End-to-end workflow
+
+```sh
+# 1. Submit steering mid-flight (loop is waiting for Copilot review)
+node scripts/loop/steer-loop.mjs submit \
+  --run-id pr-42 \
+  --kind stop_at_next_safe_gate \
+  --directive "Stop before next review cycle" \
+  --seq 1 \
+  --loop-state waiting_for_copilot_review \
+  --state-file .pi/steering/pr-42.json
+
+# 2. On the next loop iteration, detect state with the steering file
+node scripts/loop/detect-copilot-loop-state.mjs \
+  --input snapshot.json \
+  --steering-state-file .pi/steering/pr-42.json
+
+# Output (nextAction is now overridden at the safe point):
+# {
+#   "ok": true,
+#   "state": "ready_to_rerequest_review",
+#   "nextAction": "Stop at this safe gate: a stop_at_next_safe_gate steering directive is active...",
+#   "steeringApplied": true,
+#   "effectiveConstraints": { "stopAtNextSafeGate": true, "hardConstraints": [], ... }
+# }
 ```
 
 ---

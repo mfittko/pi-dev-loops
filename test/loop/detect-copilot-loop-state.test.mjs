@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
-import { autoDetectSnapshot } from "../../scripts/loop/detect-copilot-loop-state.mjs";
+import { autoDetectSnapshot, parseDetectCliArgs } from "../../scripts/loop/detect-copilot-loop-state.mjs";
 
 const scriptPath = path.resolve("scripts/loop/detect-copilot-loop-state.mjs");
 const fixturePath = path.resolve("packages/core/test/fixtures/github/review-threads/mixed-threads.json");
@@ -777,6 +777,372 @@ test("detect-copilot-loop-state fails closed when review threads cannot be fetch
       ok: false,
       error: "Could not determine review-thread state: gh command failed: GraphQL error: reviewThreads unavailable",
     });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Steering integration — real loop surface changes behavior after steering
+// ---------------------------------------------------------------------------
+
+test("parseDetectCliArgs accepts --steering-state-file flag", () => {
+  const opts = parseDetectCliArgs(["--input", "/tmp/snap.json", "--steering-state-file", "/tmp/st.json"]);
+  assert.equal(opts.steeringStateFile, "/tmp/st.json");
+  assert.equal(opts.inputPath, "/tmp/snap.json");
+});
+
+test("parseDetectCliArgs leaves steeringStateFile undefined when flag is absent", () => {
+  const opts = parseDetectCliArgs(["--input", "/tmp/snap.json"]);
+  assert.equal(opts.steeringStateFile, undefined);
+});
+
+test("detect-copilot-loop-state without --steering-state-file omits steeringApplied from output (backward-compatible)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-compat-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.ok(!Object.prototype.hasOwnProperty.call(output, "steeringApplied"),
+      "steeringApplied must not appear when no steering file is provided");
+    assert.ok(!Object.prototype.hasOwnProperty.call(output, "effectiveConstraints"),
+      "effectiveConstraints must not appear when no steering file is provided");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state with empty steering file adds steering fields but keeps original nextAction", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-empty-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    const steeringPath = path.join(tempDir, "steering.json");
+
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+
+    // Steering file exists but has no effective events (fresh state)
+    await writeJson(steeringPath, {
+      runId: "run-17",
+      schemaVersion: 1,
+      events: [],
+      effectiveStack: [],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 1,
+    });
+
+    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.steeringApplied, false, "steeringApplied must be false when no effective steering");
+    assert.ok(output.effectiveConstraints, "effectiveConstraints must be present");
+    assert.deepEqual(output.effectiveConstraints.hardConstraints, []);
+    assert.equal(output.effectiveConstraints.stopAtNextSafeGate, false);
+    // nextAction unchanged from base interpretation
+    assert.ok(!/Stop at this safe gate/.test(output.nextAction));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state: stop_at_next_safe_gate steering overrides nextAction on the real loop surface", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-stop-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    const steeringPath = path.join(tempDir, "steering.json");
+
+    // Loop is at ready_to_rerequest_review (an IMMEDIATE safe point)
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+
+    // Steering state with a stop_at_next_safe_gate directive in effect
+    await writeJson(steeringPath, {
+      runId: "run-17",
+      schemaVersion: 1,
+      events: [{
+        eventId: "evt-001",
+        runId: "run-17",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review cycle",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-16T09:00:00.000Z",
+      }],
+      effectiveStack: [{
+        eventId: "evt-001",
+        runId: "run-17",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review cycle",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-16T09:00:00.000Z",
+      }],
+      queuedEvents: [],
+      resultHistory: [{
+        eventId: "evt-001",
+        seq: 1,
+        result: "applied_now",
+        reason: null,
+        acknowledgedAt: "2026-05-16T09:00:00.000Z",
+      }],
+      latestResult: {
+        eventId: "evt-001",
+        seq: 1,
+        result: "applied_now",
+        reason: null,
+        acknowledgedAt: "2026-05-16T09:00:00.000Z",
+      },
+      nextSeq: 2,
+    });
+
+    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    // Loop state is still ready_to_rerequest_review — steering doesn't change the state
+    assert.equal(output.state, "ready_to_rerequest_review");
+    // But nextAction IS overridden by the stop_at_next_safe_gate directive
+    assert.equal(output.steeringApplied, true);
+    assert.match(output.nextAction, /Stop at this safe gate/);
+    assert.match(output.nextAction, /stop_at_next_safe_gate/);
+    assert.equal(output.effectiveConstraints.stopAtNextSafeGate, true);
+    assert.deepEqual(output.effectiveConstraints.hardConstraints, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state: hard_constraint steering is visible in effectiveConstraints on the real loop surface", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-hard-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    const steeringPath = path.join(tempDir, "steering.json");
+
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 42,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+    });
+
+    await writeJson(steeringPath, {
+      runId: "run-42",
+      schemaVersion: 1,
+      events: [{
+        eventId: "evt-001",
+        runId: "run-42",
+        kind: "hard_constraint",
+        directive: "Do not add new npm dependencies",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-16T09:00:00.000Z",
+      }],
+      effectiveStack: [{
+        eventId: "evt-001",
+        runId: "run-42",
+        kind: "hard_constraint",
+        directive: "Do not add new npm dependencies",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-16T09:00:00.000Z",
+      }],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 2,
+    });
+
+    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.steeringApplied, true);
+    assert.deepEqual(output.effectiveConstraints.hardConstraints, ["Do not add new npm dependencies"]);
+    assert.equal(output.effectiveConstraints.stopAtNextSafeGate, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state: stop_at_next_safe_gate does NOT override nextAction when loop is not at a safe point", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-nogate-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    const steeringPath = path.join(tempDir, "steering.json");
+
+    // Loop is in unresolved_feedback_present (a NEXT_POINT state, not a safe point)
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 2,
+      actionableThreadCount: 2,
+    });
+
+    await writeJson(steeringPath, {
+      runId: "run-17",
+      schemaVersion: 1,
+      events: [{
+        eventId: "evt-001",
+        runId: "run-17",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop at next gate",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-16T09:00:00.000Z",
+      }],
+      effectiveStack: [{
+        eventId: "evt-001",
+        runId: "run-17",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop at next gate",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-16T09:00:00.000Z",
+      }],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 2,
+    });
+
+    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.state, "unresolved_feedback_present");
+    assert.equal(output.steeringApplied, true);
+    // nextAction should NOT be overridden since we are not at a safe point
+    assert.ok(!/Stop at this safe gate/.test(output.nextAction),
+      "nextAction must not be overridden when loop is not at a safe point");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state: missing --steering-state-file path returns steering-free output (ENOENT tolerant)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-missing-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+
+    // Point to a non-existent steering file; should not error
+    const result = await runNode([
+      "--input", snapshotPath,
+      "--steering-state-file", path.join(tempDir, "nonexistent-steering.json"),
+    ]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.state, "ready_to_rerequest_review");
+    // With a missing file, treated as empty steering
+    assert.equal(output.steeringApplied, false);
+    assert.equal(output.effectiveConstraints.stopAtNextSafeGate, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state: durable reload — steering applied after steer-loop submit is reflected on real loop surface", async () => {
+  const steerScriptPath = path.resolve("scripts/loop/steer-loop.mjs");
+
+  function runSteerNode(args) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [steerScriptPath, ...args], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      child.stdout.on("data", (chunk) => { stdout += String(chunk); });
+      child.on("error", reject);
+      child.on("close", (code) => { resolve({ code, stdout }); });
+    });
+  }
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-reload-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    const steeringPath = path.join(tempDir, "steering.json");
+
+    // Snapshot: loop is at ready_to_rerequest_review
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 77,
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+
+    // Step 1: submit stop_at_next_safe_gate via steer-loop CLI
+    const submitResult = await runSteerNode([
+      "submit",
+      "--run-id", "run-77",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before next review pass",
+      "--seq", "1",
+      "--loop-state", "waiting_for_copilot_review",
+      "--state-file", steeringPath,
+    ]);
+    assert.equal(submitResult.code, 0, `steer-loop submit failed: ${submitResult.stdout}`);
+    const submitOut = JSON.parse(submitResult.stdout);
+    assert.equal(submitOut.result.result, "applied_now");
+
+    // Step 2: detect loop state with the durable steering file
+    const detectResult = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+
+    assert.equal(detectResult.code, 0, `detect failed: ${detectResult.stdout}`);
+    const detectOut = JSON.parse(detectResult.stdout);
+    assert.equal(detectOut.ok, true);
+    assert.equal(detectOut.state, "ready_to_rerequest_review");
+    // The real loop surface now returns an overridden nextAction
+    assert.equal(detectOut.steeringApplied, true);
+    assert.match(detectOut.nextAction, /Stop at this safe gate/);
+    assert.equal(detectOut.effectiveConstraints.stopAtNextSafeGate, true);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
