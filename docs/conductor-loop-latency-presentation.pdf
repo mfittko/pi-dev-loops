@@ -189,7 +189,7 @@ endobj
 >>
 endobj
 19 0 obj
-<< /Length 806 >>
+<< /Length 798 >>
 stream
 BT /F1 10 Tf 710 585 Td (8/22) Tj ET
 BT /F2 24 Tf 54 560 Td (Workflow pattern) Tj ET
@@ -204,7 +204,7 @@ BT /F1 11 Tf 64 398 Td (? final DIY DRY/KISS/YAGNI gate) Tj ET
 BT /F1 11 Tf 64 380 Td (? human approval wait) Tj ET
 BT /F1 11 Tf 64 362 Td (? merge) Tj ET
 BT /F1 11 Tf 64 344 Td (? stop or resume next slice) Tj ET
-BT /F1 11 Tf 54 326 Td (The key is that waiting states are real states, not invisible idle time.) Tj ET
+BT /F1 11 Tf 54 326 Td (Treat waiting states as real states, not as invisible idle time.) Tj ET
 endstream
 endobj
 20 0 obj
@@ -518,11 +518,11 @@ endobj
 >>
 endobj
 43 0 obj
-<< /Length 733 >>
+<< /Length 748 >>
 stream
 BT /F1 10 Tf 710 585 Td (20/22) Tj ET
 BT /F2 24 Tf 54 560 Td (Why this is worth doing now) Tj ET
-BT /F1 11 Tf 54 524 Td (If we solve this well, we do not just save a few minutes.) Tj ET
+BT /F1 11 Tf 54 524 Td (If we solve this well, the gain is much larger than a few saved minutes.) Tj ET
 BT /F1 11 Tf 54 502 Td (We reduce one of the most expensive hidden problems in software delivery:) Tj ET
 BT /F1 16 Tf 54 480 Td (passive delay after a state change) Tj ET
 BT /F1 11 Tf 54 454 Td (That means:) Tj ET
@@ -612,37 +612,37 @@ xref
 0000006406 00000 n 
 0000007149 00000 n 
 0000007287 00000 n 
-0000008145 00000 n 
-0000008283 00000 n 
-0000009324 00000 n 
-0000009462 00000 n 
-0000010334 00000 n 
-0000010472 00000 n 
-0000011347 00000 n 
-0000011485 00000 n 
-0000012433 00000 n 
-0000012571 00000 n 
-0000013389 00000 n 
-0000013527 00000 n 
-0000014473 00000 n 
-0000014611 00000 n 
-0000015550 00000 n 
-0000015688 00000 n 
-0000016750 00000 n 
-0000016888 00000 n 
-0000017845 00000 n 
-0000017983 00000 n 
-0000018912 00000 n 
-0000019050 00000 n 
-0000019917 00000 n 
-0000020055 00000 n 
-0000020840 00000 n 
-0000020978 00000 n 
-0000021965 00000 n 
-0000022103 00000 n 
-0000022727 00000 n 
+0000008137 00000 n 
+0000008275 00000 n 
+0000009316 00000 n 
+0000009454 00000 n 
+0000010326 00000 n 
+0000010464 00000 n 
+0000011339 00000 n 
+0000011477 00000 n 
+0000012425 00000 n 
+0000012563 00000 n 
+0000013381 00000 n 
+0000013519 00000 n 
+0000014465 00000 n 
+0000014603 00000 n 
+0000015542 00000 n 
+0000015680 00000 n 
+0000016742 00000 n 
+0000016880 00000 n 
+0000017837 00000 n 
+0000017975 00000 n 
+0000018904 00000 n 
+0000019042 00000 n 
+0000019909 00000 n 
+0000020047 00000 n 
+0000020847 00000 n 
+0000020985 00000 n 
+0000021972 00000 n 
+0000022110 00000 n 
+0000022734 00000 n 
 trailer
 << /Size 49 /Root 1 0 R >>
 startxref
-22865
+22872
 %%EOF

@@ -135,7 +135,7 @@ The conductor keeps the orchestration truth.
 10. merge
 11. stop or resume next slice
 
-The key is that **waiting states are real states**, not invisible idle time.
+Treat **waiting states as real states**, not as invisible idle time.
 
 ---
 
@@ -350,7 +350,7 @@ It means the missing pieces are now concrete and fixable.
 
 # Why this is worth doing now
 
-If we solve this well, we do not just save a few minutes.
+If we solve this well, the gain is much larger than a few saved minutes.
 
 We reduce one of the most expensive hidden problems in software delivery:
 

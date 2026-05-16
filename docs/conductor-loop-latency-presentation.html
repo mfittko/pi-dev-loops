@@ -39,7 +39,7 @@
 <p>The conductor keeps the orchestration truth.</p></div></section>
 <section class="slide" data-slide="8"><div class="slide-inner"><h1>Workflow pattern</h1>
 <ol><li>intake and refinement</li><li>bounded slice planning</li><li>local implementation</li><li>draft PR</li><li>initial local fan-out review</li><li>ready-for-review transition</li><li>explicit Copilot request and review loop</li><li>final DIY DRY/KISS/YAGNI gate</li><li>human approval wait</li><li>merge</li><li>stop or resume next slice</li></ol>
-<p>The key is that <strong>waiting states are real states</strong>, not invisible idle time.</p></div></section>
+<p>Treat <strong>waiting states as real states</strong>, not as invisible idle time.</p></div></section>
 <section class="slide" data-slide="9"><div class="slide-inner"><h1>Full walkthrough: before coding starts</h1>
 <p>The conductor loop should begin before implementation.</p>
 <p>It should own:</p>
@@ -103,7 +103,7 @@
 <p>This is good evidence.</p>
 <p>It means the missing pieces are now concrete and fixable.</p></div></section>
 <section class="slide" data-slide="20"><div class="slide-inner"><h1>Why this is worth doing now</h1>
-<p>If we solve this well, we do not just save a few minutes.</p>
+<p>If we solve this well, the gain is much larger than a few saved minutes.</p>
 <p>We reduce one of the most expensive hidden problems in software delivery:</p>
 <h2>passive delay after a state change</h2>
 <p>That means:</p>
