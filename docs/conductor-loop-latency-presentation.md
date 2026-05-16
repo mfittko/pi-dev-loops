@@ -67,9 +67,13 @@ The shipping process is the product.
 
 ---
 
-# What the process owns
+# Process ownership and human ownership
 
-A shipping process should own:
+<div class="grid grid-cols-2 gap-10 pt-4 text-left">
+<div>
+
+### Process ownership
+
 - intake and shaping
 - local implementation flow
 - review choreography
@@ -77,13 +81,11 @@ A shipping process should own:
 - resume and continue decisions
 - merge closeout and next-step routing
 
-That is how work keeps moving without constant babysitting.
+</div>
+<div>
 
----
+### Human ownership
 
-# What humans should own
-
-Humans stay focused on work that needs judgment:
 - architecture
 - PRD and requirement shaping
 - acceptance criteria and definition of done
@@ -91,7 +93,10 @@ Humans stay focused on work that needs judgment:
 - business tradeoffs
 - final approval and accountability
 
-The process owns the predictable coordination work around those points.
+</div>
+</div>
+
+The process carries the predictable coordination work so people can focus on judgment.
 
 ---
 layout: section
@@ -167,17 +172,28 @@ Owning those states is where the speedup comes from.
 
 The process uses different review loops for different questions.
 
-## Early review loop
+<div class="grid grid-cols-2 gap-10 pt-4 text-left">
+<div>
+
+### Early review loop
+
 - scope fit
 - SRP / boundaries
 - AC and DoD coverage
 - architecture fit
 - test adequacy
 
-## Final review loop
+</div>
+<div>
+
+### Final review loop
+
 - DRY
 - KISS
 - YAGNI
+
+</div>
+</div>
 
 That separation keeps the flow disciplined.
 
@@ -207,32 +223,59 @@ layout: section
 
 # Company impact
 
-A company-scale process like this should reduce:
+<div class="grid grid-cols-2 gap-10 pt-4 text-left">
+<div>
+
+### Costs reduced
+
 - idle PR time
 - dropped handoffs
 - delayed resumes after reviews and CI
 - context reload overhead
 - manual status polling
 
-Expected gains:
+</div>
+<div>
+
+### Expected gains
+
 - shorter cycle time
 - higher throughput
 - faster review response
 - better developer focus
 - more predictable delivery
 
+</div>
+</div>
+
 ---
 
 # Tracker-first hybrid model
 
-In a company, this usually becomes a **tracker-first hybrid loop**:
-- tracker holds planning and status truth
+<div class="grid grid-cols-2 gap-10 pt-4 text-left">
+<div>
+
+### Tracker side
+
+- planning truth
+- status truth
+- priority and dependency context
+- next bounded slice
+
+</div>
+<div>
+
+### Execution side
+
 - local worktrees handle implementation
 - PRs handle review and merge
 - merge updates tracker state
-- the process continues from the tracker state
+- the process resumes from tracker state
 
-That is how planning, execution, and review stay connected.
+</div>
+</div>
+
+That keeps planning, execution, and review connected.
 
 ---
 
