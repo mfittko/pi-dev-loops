@@ -63,6 +63,31 @@ It is about automating the **dead time around coding**.
 
 ---
 
+# The state machine is the core product
+
+The most important idea is not “we added some AI loops.”
+
+The core idea is:
+- model the workflow explicitly as states and transitions
+- make the transitions deterministic
+- keep ownership alive through waiting states
+- route work back into the right loop automatically
+
+Without the state machine, the workflow becomes:
+- prompt conventions
+- memory
+- manual babysitting
+- hidden handoff gaps
+
+With the state machine, the workflow becomes:
+- visible
+- testable
+- inspectable
+- resumable
+- optimizable
+
+---
+
 # What humans should focus on
 
 Humans should spend attention where human judgment matters most:
@@ -116,6 +141,119 @@ The key is that **waiting states are real states**, not invisible idle time.
 
 ---
 
+# Full walkthrough: before coding starts
+
+The conductor loop should begin before implementation.
+
+It should own:
+- intake
+- overlap / duplicate scan
+- issue refinement
+- scope clarification
+- slice shaping
+- proposal / execution-plan freeze
+- readiness to start a bounded slice
+
+This matters because a lot of waste starts even before code:
+- the issue is vague
+- the slice is too broad
+- the acceptance criteria are incomplete
+- the team starts implementation before the work is actually shaped
+
+---
+
+# Full walkthrough: local implementation loop
+
+Once a bounded slice is ready, the conductor moves into the local execution loop:
+
+1. activate a local worktree / owned slice
+2. implement locally
+3. validate locally
+4. keep ownership while the slice is still local
+5. only open a PR once the slice is integration-ready
+
+The goal is:
+- local-first work
+- GitHub only when the slice is ready enough
+- no half-shaped PR churn
+
+---
+
+# Full walkthrough: draft PR loop
+
+A draft PR is not just a placeholder.
+
+It should trigger the first real PR-stage loop:
+- open PR in draft
+- run the **initial draft-stage fan-out**
+- review against:
+  - SRP / cohesion / boundary quality
+  - issue scope fit
+  - AC compliance
+  - DoD compliance
+  - architecture fit
+  - test adequacy
+- if needed, route back into the local fix loop
+- only move to ready when the draft gate is clean
+
+---
+
+# Full walkthrough: ready-state review loop
+
+Once the PR is marked ready:
+- the loop must explicitly request or confirm Copilot review
+- the conductor must enter the Copilot review state
+- if Copilot comments appear:
+  - run the fix loop
+  - validate
+  - push
+  - re-request
+  - repeat
+
+This is important because:
+- ready-for-review is not just a UI toggle
+- it is a real state transition in the workflow
+
+---
+
+# Full walkthrough: final approval loop
+
+After Copilot converges:
+- run the final DIY fan-out
+- use the final lenses:
+  - DRY
+  - KISS
+  - YAGNI
+- if clean, enter the human approval wait
+- if not clean, route back into the local fix loop
+
+Then:
+- wait for human approval
+- wait for merge
+- detect whether merge is terminal or resumable
+
+---
+
+# The loops inside the loop
+
+The conductor is not one single flat flow.
+
+It coordinates multiple nested loops:
+- refinement loop
+- slice-shaping loop
+- local implementation loop
+- draft-stage review loop
+- Copilot review/fix loop
+- final DIY approval loop
+- merge / closeout / resume loop
+
+The state machine matters because it tells us:
+- which loop is currently active
+- what event ends that loop
+- where the work returns next
+
+---
+
 # Review choreography matters
 
 The loop should distinguish between two different local fan-out gates.
@@ -143,12 +281,14 @@ These are different gates with different purposes.
 
 To make this trustworthy, the loop needs deterministic tooling for:
 - explicit conductor states and transitions
+- intake / refinement / shaping transitions
 - draft / ready / Copilot / approval / merge transitions
 - live conductor plus watcher ownership
 - visible PR comments on meaningful local state changes
 - durable local state and closeout artifacts
 - terminal vs resumable merge decisions
 - mid-flight steering and safe-point handling
+- reliable latest-turn / active-question grounding
 
 Without these, the loop feels autonomous but is not actually reliable.
 
@@ -237,7 +377,7 @@ That is why this can be a real game changer.
 Start with bounded slices and prove the loop on real work:
 - one conductor
 - bounded workers
-- explicit review gates
+- explicit refinement and review gates
 - visible PR-side state comments
 - manual approval retained
 - deterministic closeout artifacts
@@ -248,6 +388,7 @@ Aim for:
 - trustworthy state ownership
 - reliable waiting-state handling
 - faster resume after every state change
+- a state machine that can be inspected and improved over time
 
 ---
 
