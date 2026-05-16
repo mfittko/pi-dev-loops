@@ -105,13 +105,13 @@ layout: section
 # The loop architecture
 
 A real shipping process needs multiple loops:
-- refinement loop
-- slice-shaping loop
-- local implementation loop
-- draft-stage review loop
-- Copilot review and fix loop
-- final local approval loop
-- merge closeout or resume loop
+- refinement
+- shaping
+- implementation
+- draft review
+- Copilot review and fix
+- final approval
+- closeout or resume
 
 Each loop solves a different delivery problem.
 The conductor keeps them connected.
@@ -120,15 +120,12 @@ The conductor keeps them connected.
 
 # Flow 1: from intake to draft PR
 
-```mermaid {scale: 0.9}
+```mermaid {scale: 0.76}
 flowchart TD
-    A[Intake]
-    B[Refinement loop]
-    C[Slice-planning loop]
-    D[Local implementation loop]
-    E[Draft PR]
-
-    A --> B --> C --> D --> E
+    A[Intake] --> B[Refinement]
+    B --> C[Slice plan]
+    C --> D[Local implementation]
+    D --> E[Draft PR]
 ```
 
 This first half turns raw work into a bounded slice that is ready for formal review.
@@ -137,17 +134,15 @@ This first half turns raw work into a bounded slice that is ready for formal rev
 
 # Flow 2: from draft PR to shipped work
 
-```mermaid {scale: 0.82}
+```mermaid {scale: 0.72}
 flowchart TD
-    A[Draft-stage review loop]
-    B[Ready for review]
-    C[Copilot review and fix loop]
-    D[Final local approval loop]
-    E[Human approval wait]
-    F[Merge]
-    G[Closeout or next-slice resume]
-
-    A --> B --> C --> D --> E --> F --> G
+    A[Draft review] --> B[Ready]
+    B --> C[Copilot request]
+    C --> D[Copilot loop]
+    D --> E[Final local gate]
+    E --> F[Human approval wait]
+    F --> G[Merge]
+    G --> H[Closeout or resume]
 ```
 
 The full operating model is a chain of loops rather than one flat automation step.
@@ -158,11 +153,11 @@ The full operating model is a chain of loops rather than one flat automation ste
 
 Most wasted time comes from the gaps around active work.
 
-It comes from states like:
-- waiting for review
-- waiting for CI
-- waiting for approval
-- waiting for somebody to notice that waiting is over
+Typical waiting states:
+- review waiting
+- CI waiting
+- approval waiting
+- waiting for somebody to notice the state change
 
 Owning those states is where the speedup comes from.
 
@@ -219,12 +214,12 @@ A company-scale process like this should reduce:
 - context reload overhead
 - manual status polling
 
-That should improve:
-- cycle time
-- throughput
-- review responsiveness
-- developer focus
-- predictability of delivery
+Expected gains:
+- shorter cycle time
+- higher throughput
+- faster review response
+- better developer focus
+- more predictable delivery
 
 ---
 
