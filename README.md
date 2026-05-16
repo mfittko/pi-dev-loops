@@ -1,69 +1,152 @@
 # pi-dev-loops
 
-Shared Pi workflow infrastructure for reusable local and remote development loops.
+`pi-dev-loops` is a source-loaded workspace for reusable Pi development loops. It combines generic role agents, local and GitHub-first workflow skills, a thin `/dev-loops` extension, and deterministic support code for the parts of planning, review, GitHub, and Copilot workflows that should not depend on ad hoc shell glue.
 
-This repo is intended to become a reusable **Pi package** that bundles:
+## What this repository provides
 
-- generic role agents plus thin workflow entrypoint agents where needed
-- reusable loop skills
-- a small extension for status/doctor plus explicit skill install/update UX
-- deterministic helper scripts
-- shared library code for GitHub/review/watch state
+This repo currently contains four main layers. The design goal is generic role agents plus thin workflow entrypoint agents where needed, with thin workflow entrypoint agents allowed when they only load a skill and defer policy to it.
 
-Initial imported sources:
+1. **Role agents** in `agents/`
+   - reusable prompts such as coordinator, developer, docs, quality, review, fixer, and refiner
+2. **Workflow skills** in `skills/`
+   - `dev-loop` for docs-first local phase planning and implementation
+   - `copilot-dev-loop` for GitHub/Copilot PR execution, watch, and follow-up loops
+   - `copilot-autopilot` for issue-first GitHub intake through refinement, handoff, review, and merge
+3. **Extension UX** in `extension/`
+   - `/dev-loops` readiness checks plus explicit skill install/update flows
+4. **Deterministic support code** in `packages/core/` and `scripts/`
+   - shared state machines, review-thread parsing, phase-file helpers, and CLI entrypoints
 
-- local phased dev loop from `pi-image-drop`
-- Copilot/GitHub loop from `repo-wiki`
-- agent definitions from `repo-wiki`
+This means the repo is no longer just a bootstrap import area. It is an active workflow toolkit with current tests, CI, and durable workflow docs.
 
 ## Current status
 
-This is a bootstrap repo, not yet a polished reusable package.
+A few important current-state facts from the repo itself:
 
-The current contents are intentionally copied in with minimal normalization so they can be consolidated here without losing working behavior.
+- the root package `pi-dev-loops` is currently `private: true`
+- the shared workspace package `@pi-dev-loops/core` is also `private: true`
+- the repo is currently documented as a source-loaded workspace, not a published npm package workflow
+- MIT is the current license
+- current implementation/phase status lives in `docs/IMPLEMENTATION_STATE.md`
 
-See `PLAN.md` for the migration and generalization plan.
+For the latest durable status and roadmap, start with:
 
-## Initial assumptions
+- `docs/IMPLEMENTATION_STATE.md`
+- `docs/IMPLEMENTATION_WORKFLOW.md`
+- `PLAN.md`
 
-For the first implementation phase, this repo may be opinionated and require:
+## `/dev-loops` extension surface
 
-- `pi`
-- `pi-subagents`
-- `gh`
-- GitHub-based workflows for remote loops
+The root `package.json` loads `./extension/index.ts` through `pi.extensions`.
 
-## Package intent
+Current commands:
 
-`pi-dev-loops` should eventually install as a Pi package that exposes:
+- `/dev-loops` — help output
+- `/dev-loops status` — concise readiness summary
+- `/dev-loops doctor` — full diagnostics
+- `/dev-loops install` — prompt for `repo` or `system` when no target is provided
+- `/dev-loops install repo` — copy packaged skills into the current repository under `.pi/skills`
+- `/dev-loops install system` — copy packaged skills into `~/.pi/agent/skills`
+- `/dev-loops update` — prompt for `repo` or `system` when no target is provided
+- `/dev-loops update repo|system` — refresh previously installed packaged skills
+- `/dev-loops hide` — clear the readiness widget
 
-- `skills/` for local and remote loop orchestration
-- `extension/` for the `/dev-loops` Pi command plus shared status/doctor/install/update presentation
-- `bin/pi-dev-loops.mjs` for the matching `pi-dev-loops` shell CLI
-- deterministic `lib/` and `scripts/` shared by multiple skills
+Important install/update contract:
 
-## Layout
+- installing the package exposes both the `/dev-loops` extension command surface and the `pi-dev-loops` shell CLI
+- packaged skills are still installed explicitly with `/dev-loops install ...`
+- `update` refreshes existing installed copies but does not create first-time installs
+- installed copies of `copilot-dev-loop` and `copilot-autopilot` include the allow-listed runtime support they need from `scripts/`, `packages/core/src/`, and the selected loop state-graph docs under `docs/`
+- restart Pi or refresh skill discovery after install/update before expecting newly copied skills to appear in the current session
 
-- `agents/` — candidate global role agents
-- `skills/` — local and remote dev-loop skills
-- `extension/` — package extension and Pi-facing UI/doctor helpers
-- `cli/` and `bin/` — shell CLI wrapper for the shared deterministic dev-loops core
-- `lib/` — shared deterministic library code
-- `scripts/` — deterministic workflow helpers
+See `extension/README.md` for the full command and install/update contract.
 
-## Imported assets
+## Deterministic support surfaces
 
-- `skills/dev-loop/` — copied from `pi-image-drop/.pi/skills/dev-loop/` without `node_modules/`
-- `skills/copilot-dev-loop/SKILL.md` — copied from `repo-wiki/.pi/skills/copilot-dev-loop/SKILL.md`
-- `agents/*.agent.md` — copied from `repo-wiki/.pi/agents/`
+### Shared workspace package
 
-## Near-term goal
+`packages/core/` contains the current reusable support package, `@pi-dev-loops/core`.
 
-Turn these imported assets into a coherent, reusable toolkit where:
+Current exported areas include:
 
-- agents are primarily workflow-agnostic role definitions, with thin workflow entrypoint agents allowed when they only load a skill and defer policy to it
-- skills orchestrate loops
-- deterministic scripts and shared library code handle as much mechanical work as possible
-- the extension provides status/doctor plus explicit skill install/update UX while the package CLI exposes the same deterministic command family for shell users
-- the CLI's packaged-skill readiness checks currently inspect the canonical repo/system install roots, while the extension can reflect Pi's live `/skill:*` registrations after refresh/restart
-- repo-local overlays can specialize behavior without forking the core workflow stack
+- `./bash-exit-one`
+- `./loop/phase-files`
+- `./loop/copilot-loop-state`
+- `./loop/reviewer-loop-state`
+- `./loop/tracker-pr-state`
+- `./github/review-threads`
+
+It also exposes these CLI binaries:
+
+- `pi-dev-loops-log-bash-exit-1`
+- `pi-dev-loops-ensure-phase-files`
+- `pi-dev-loops-parse-review-threads`
+
+### Root script entrypoints
+
+Current script entrypoints include:
+
+- `scripts/github/capture-review-threads.mjs`
+- `scripts/github/request-copilot-review.mjs`
+- `scripts/github/watch-copilot-review.mjs`
+- `scripts/github/stage-reviewer-draft.mjs`
+- `scripts/github/reply-resolve-review-thread.mjs`
+- `scripts/github/detect-linked-issue-pr.mjs`
+- `scripts/loop/detect-copilot-loop-state.mjs`
+- `scripts/loop/detect-reviewer-loop-state.mjs`
+- `scripts/loop/detect-tracker-pr-state.mjs`
+- `scripts/loop/copilot-pr-handoff.mjs`
+- `scripts/loop/summarize-loop-state.mjs`
+
+Reference docs:
+
+- `scripts/README.md`
+- `docs/copilot-loop-state-graph.md`
+- `docs/reviewer-loop-state-graph.md`
+- `docs/tracker-first-mvp-state-graph.md`
+
+## Requirements and assumptions
+
+Current code and docs assume:
+
+- Node `>=20`
+- a Pi host that satisfies peer dependencies on `@mariozechner/pi-coding-agent` and `@mariozechner/pi-tui`
+- `pi-subagents` for the current workflow assumptions
+- `gh` installed and authenticated for GitHub/Copilot workflows
+- a git repository checkout for the normal local and remote loop paths
+
+## Repository layout
+
+- `agents/` — reusable role-agent definitions
+- `docs/` — implementation state, workflow docs, state graphs, and durable phase plans
+- `bin/` — shell entrypoints exposed by the root package
+- `cli/` — shell-facing command wrappers used by the root CLI
+- `extension/` — `/dev-loops` extension implementation and docs
+- `lib/` — shared deterministic library layer used by the extension and shell CLI
+- `packages/core/` — private deterministic support package
+- `scripts/` — deterministic CLI helpers for GitHub/review/loop mechanics
+- `skills/` — packaged workflow skills
+- `test/` — root contract and regression tests
+- `tmp/` — gitignored local execution artifacts and resumable temporary state
+
+## Development and validation
+
+Root test commands from `package.json`:
+
+- `npm test`
+- `npm run test:assets`
+- `npm run test:extension`
+- `npm run test:scripts`
+- `npm run test:core`
+- `npm run test:dev-loop`
+
+CI currently runs `npm ci` and `npm test` on Node 24 in `.github/workflows/ci.yml`.
+
+## Where to read next
+
+- `PLAN.md` — product intent and roadmap
+- `docs/IMPLEMENTATION_STATE.md` — current implementation snapshot
+- `docs/IMPLEMENTATION_WORKFLOW.md` — local workflow contract
+- `extension/README.md` — `/dev-loops` command and install/update contract
+- `scripts/README.md` — deterministic script contracts
+- `skills/*/SKILL.md` — workflow-specific operating instructions
