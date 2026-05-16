@@ -141,7 +141,7 @@ The operating model is a chain of loops rather than one flat automation step.
 
 # Waiting states are the real bottleneck
 
-Most wasted time does not come from active work.
+Most wasted time comes from the gaps around active work.
 
 It comes from states like:
 - waiting for review
@@ -228,9 +228,9 @@ That is how planning, execution, and review stay connected.
 
 # Why this differs from generic AI automation
 
-The goal here is not judgment automation.
-
 The real target is the dead time around judgment.
+
+Judgment stays with people. The process removes the waiting around those decisions.
 
 That means:
 - humans spend more time deciding
