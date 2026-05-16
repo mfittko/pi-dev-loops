@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conductor loops and waiting-state automation</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121933;
+      --panel-2: #1a2345;
+      --text: #ecf0ff;
+      --muted: #aab4d6;
+      --accent: #7cc4ff;
+      --accent-2: #9b8cff;
+      --border: rgba(255,255,255,0.12);
+      --shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(124,196,255,0.18), transparent 34%),
+        radial-gradient(circle at top right, rgba(155,140,255,0.14), transparent 30%),
+        linear-gradient(180deg, #0b1020 0%, #090d1a 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .deck {
+      width: min(1200px, calc(100vw - 48px));
+      margin: 24px auto 16px;
+      position: relative;
+    }
+    .slide {
+      display: none;
+      min-height: min(78vh, 820px);
+      background: linear-gradient(180deg, rgba(18,25,51,0.95), rgba(15,20,40,0.95));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .slide.active { display: block; }
+    .slide-inner {
+      padding: 54px 68px 58px;
+      max-width: 100%;
+    }
+    h1 {
+      font-size: clamp(2.4rem, 4vw, 4rem);
+      line-height: 1.05;
+      margin: 0 0 12px;
+      letter-spacing: -0.04em;
+    }
+    h2 {
+      font-size: clamp(1.25rem, 2.2vw, 1.9rem);
+      line-height: 1.25;
+      margin: 0 0 28px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    p {
+      font-size: clamp(1.12rem, 1.6vw, 1.5rem);
+      line-height: 1.6;
+      margin: 0 0 18px;
+      color: var(--text);
+      max-width: 58em;
+    }
+    ul, ol {
+      font-size: clamp(1.08rem, 1.45vw, 1.38rem);
+      line-height: 1.55;
+      margin: 0 0 20px 0;
+      padding-left: 1.4em;
+      max-width: 54em;
+    }
+    li { margin: 0 0 8px; }
+    strong { color: white; }
+    code {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.09);
+      padding: 0.08em 0.35em;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.92em;
+    }
+    .chrome {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .controls { display: flex; gap: 10px; align-items: center; }
+    button {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button:hover { background: rgba(255,255,255,0.12); }
+    .counter { min-width: 5.5em; text-align: center; }
+    .hint { opacity: 0.85; }
+    @media (max-width: 900px) {
+      .deck { width: calc(100vw - 20px); margin: 10px auto; }
+      .slide-inner { padding: 32px 24px 36px; }
+      h1 { margin-bottom: 10px; }
+      h2 { margin-bottom: 20px; }
+      .chrome { flex-direction: column; align-items: stretch; gap: 12px; }
+      .controls { justify-content: center; flex-wrap: wrap; }
+      .hint { text-align: center; }
+    }
+    @media print {
+      body { background: white; color: black; }
+      .deck { width: 100%; margin: 0; }
+      .slide { display: block !important; min-height: auto; border: none; box-shadow: none; page-break-after: always; border-radius: 0; background: white; color: black; }
+      .slide-inner { padding: 36px; }
+      .chrome { display: none; }
+      h2 { color: #2457d6; }
+      p, ul, ol { color: black; }
+      code { background: #f3f4f8; border-color: #d7dbe8; color: black; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck">
+    <section class="slide" data-slide="1"><div class="slide-inner"><h1>Conductor loops</h1>
+<h2>Reduce delivery latency by owning waiting states</h2>
+<ul><li>Why the biggest waste is often <strong>not coding time</strong></li><li>Why a deterministic conductor can cut <strong>dead time between state changes</strong></li><li>Why humans should focus on <strong>judgment</strong>, not on babysitting workflow transitions</li></ul></div></section>
+<section class="slide" data-slide="2"><div class="slide-inner"><h1>The real problem</h1>
+<p>Most teams do not mainly lose time because every step is hard.</p>
+<p>They lose time because the next step is already obvious, but nobody notices the state change quickly enough.</p>
+<p>Examples:</p>
+<ul><li>a review landed, but nobody resumed for hours</li><li>CI turned green, but the PR stayed idle</li><li>a fix was obvious, but the remediation loop stalled</li><li>a draft was ready, but the ready-state transition never happened</li><li>an approval happened, but the next slice did not start</li></ul></div></section>
+<section class="slide" data-slide="3"><div class="slide-inner"><h1>The hidden tax is waiting</h1>
+<p>The expensive part is often:</p>
+<ul><li>waiting</li><li>missing that waiting is over</li><li>reloading context after idle gaps</li><li>manually shepherding the next predictable transition</li></ul>
+<p>Each delay looks small in isolation.</p>
+<p>Across many PRs, reviews, and loops, it compounds into:</p>
+<ul><li>slower throughput</li><li>more interrupted focus</li><li>more stale work</li><li>longer lead time with no real quality gain</li></ul></div></section>
+<section class="slide" data-slide="4"><div class="slide-inner"><h1>Core idea</h1>
+<p>Use a <strong>conductor-led state machine</strong> with deterministic tooling so that waiting states are explicitly owned.</p>
+<p>The conductor should:</p>
+<ul><li>know the current state</li><li>know the next safe transition</li><li>resume immediately when the state changes</li><li>keep ownership through waits instead of silently dropping it</li></ul>
+<p>This is not just about automating coding.</p>
+<p>It is about automating the <strong>dead time around coding</strong>.</p></div></section>
+<section class="slide" data-slide="5"><div class="slide-inner"><h1>The state machine is the core product</h1>
+<p>The most important idea is not “we added some AI loops.”</p>
+<p>The core idea is:</p>
+<ul><li>model the workflow explicitly as states and transitions</li><li>make the transitions deterministic</li><li>keep ownership alive through waiting states</li><li>route work back into the right loop automatically</li></ul>
+<p>Without the state machine, the workflow becomes:</p>
+<ul><li>prompt conventions</li><li>memory</li><li>manual babysitting</li><li>hidden handoff gaps</li></ul>
+<p>With the state machine, the workflow becomes:</p>
+<ul><li>visible</li><li>testable</li><li>inspectable</li><li>resumable</li><li>optimizable</li></ul></div></section>
+<section class="slide" data-slide="6"><div class="slide-inner"><h1>What humans should focus on</h1>
+<p>Humans should spend attention where human judgment matters most:</p>
+<ul><li>architecture</li><li>requirements and PRD shaping</li><li>acceptance criteria and definition of done</li><li>manual testing and exploratory validation</li><li>business tradeoffs</li><li>final approval and accountability gates</li></ul>
+<p>Humans should not have to spend most of their time on:</p>
+<ul><li>polling status</li><li>re-requesting predictable transitions</li><li>watching CI turn green</li><li>noticing routine review-state changes</li><li>babysitting loops that already know the next step</li></ul></div></section>
+<section class="slide" data-slide="7"><div class="slide-inner"><h1>What the conductor should own</h1>
+<p>The conductor should own:</p>
+<ul><li>state transitions</li><li>waiting-state monitoring</li><li>deterministic review choreography</li><li>resume / attach / continue decisions</li><li>visible state projection back to PRs and trackers</li><li>safe stop vs resume decisions after merge</li></ul>
+<p>Workers can stay bounded.</p>
+<p>The conductor keeps the orchestration truth.</p></div></section>
+<section class="slide" data-slide="8"><div class="slide-inner"><h1>Workflow pattern</h1>
+<ol><li>intake and refinement</li><li>bounded slice planning</li><li>local implementation</li><li>draft PR</li><li>initial local fan-out review</li><li>ready-for-review transition</li><li>explicit Copilot request and review loop</li><li>final DIY DRY/KISS/YAGNI gate</li><li>human approval wait</li><li>merge</li><li>stop or resume next slice</li></ol>
+<p>The key is that <strong>waiting states are real states</strong>, not invisible idle time.</p></div></section>
+<section class="slide" data-slide="9"><div class="slide-inner"><h1>Full walkthrough: before coding starts</h1>
+<p>The conductor loop should begin before implementation.</p>
+<p>It should own:</p>
+<ul><li>intake</li><li>overlap / duplicate scan</li><li>issue refinement</li><li>scope clarification</li><li>slice shaping</li><li>proposal / execution-plan freeze</li><li>readiness to start a bounded slice</li></ul>
+<p>This matters because a lot of waste starts even before code:</p>
+<ul><li>the issue is vague</li><li>the slice is too broad</li><li>the acceptance criteria are incomplete</li><li>the team starts implementation before the work is actually shaped</li></ul></div></section>
+<section class="slide" data-slide="10"><div class="slide-inner"><h1>Full walkthrough: local implementation loop</h1>
+<p>Once a bounded slice is ready, the conductor moves into the local execution loop:</p>
+<ol><li>activate a local worktree / owned slice</li><li>implement locally</li><li>validate locally</li><li>keep ownership while the slice is still local</li><li>only open a PR once the slice is integration-ready</li></ol>
+<p>The goal is:</p>
+<ul><li>local-first work</li><li>GitHub only when the slice is ready enough</li><li>no half-shaped PR churn</li></ul></div></section>
+<section class="slide" data-slide="11"><div class="slide-inner"><h1>Full walkthrough: draft PR loop</h1>
+<p>A draft PR is not just a placeholder.</p>
+<p>It should trigger the first real PR-stage loop:</p>
+<ul><li>open PR in draft</li><li>run the <strong>initial draft-stage fan-out</strong></li><li>review against:</li><li>SRP / cohesion / boundary quality</li><li>issue scope fit</li><li>AC compliance</li><li>DoD compliance</li><li>architecture fit</li><li>test adequacy</li><li>if needed, route back into the local fix loop</li><li>only move to ready when the draft gate is clean</li></ul></div></section>
+<section class="slide" data-slide="12"><div class="slide-inner"><h1>Full walkthrough: ready-state review loop</h1>
+<p>Once the PR is marked ready:</p>
+<ul><li>the loop must explicitly request or confirm Copilot review</li><li>the conductor must enter the Copilot review state</li><li>if Copilot comments appear:</li><li>run the fix loop</li><li>validate</li><li>push</li><li>re-request</li><li>repeat</li></ul>
+<p>This is important because:</p>
+<ul><li>ready-for-review is not just a UI toggle</li><li>it is a real state transition in the workflow</li></ul></div></section>
+<section class="slide" data-slide="13"><div class="slide-inner"><h1>Full walkthrough: final approval loop</h1>
+<p>After Copilot converges:</p>
+<ul><li>run the final DIY fan-out</li><li>use the final lenses:</li><li>DRY</li><li>KISS</li><li>YAGNI</li><li>if clean, enter the human approval wait</li><li>if not clean, route back into the local fix loop</li></ul>
+<p>Then:</p>
+<ul><li>wait for human approval</li><li>wait for merge</li><li>detect whether merge is terminal or resumable</li></ul></div></section>
+<section class="slide" data-slide="14"><div class="slide-inner"><h1>The loops inside the loop</h1>
+<p>The conductor is not one single flat flow.</p>
+<p>It coordinates multiple nested loops:</p>
+<ul><li>refinement loop</li><li>slice-shaping loop</li><li>local implementation loop</li><li>draft-stage review loop</li><li>Copilot review/fix loop</li><li>final DIY approval loop</li><li>merge / closeout / resume loop</li></ul>
+<p>The state machine matters because it tells us:</p>
+<ul><li>which loop is currently active</li><li>what event ends that loop</li><li>where the work returns next</li></ul></div></section>
+<section class="slide" data-slide="15"><div class="slide-inner"><h1>Review choreography matters</h1>
+<p>The loop should distinguish between two different local fan-out gates.</p>
+<h2>Draft-stage fan-out</h2>
+<p>Focus on:</p>
+<ul><li>SRP / cohesion / boundaries</li><li>issue scope fit</li><li>AC compliance</li><li>DoD compliance</li><li>architecture fit</li><li>test adequacy</li></ul>
+<h2>Final pre-approval fan-out</h2>
+<p>Focus on:</p>
+<ul><li>DRY</li><li>KISS</li><li>YAGNI</li></ul>
+<p>These are different gates with different purposes.</p></div></section>
+<section class="slide" data-slide="16"><div class="slide-inner"><h1>Deterministic tooling required</h1>
+<p>To make this trustworthy, the loop needs deterministic tooling for:</p>
+<ul><li>explicit conductor states and transitions</li><li>intake / refinement / shaping transitions</li><li>draft / ready / Copilot / approval / merge transitions</li><li>live conductor plus watcher ownership</li><li>visible PR comments on meaningful local state changes</li><li>durable local state and closeout artifacts</li><li>terminal vs resumable merge decisions</li><li>mid-flight steering and safe-point handling</li><li>reliable latest-turn / active-question grounding</li></ul>
+<p>Without these, the loop feels autonomous but is not actually reliable.</p></div></section>
+<section class="slide" data-slide="17"><div class="slide-inner"><h1>Why this is a company-scale gain</h1>
+<p>In a company setting, people context-switch constantly.</p>
+<p>That means the cost of missed state changes is much higher:</p>
+<ul><li>more PRs in flight</li><li>more reviewers</li><li>more queues</li><li>more partial waits</li><li>more delays between a state change and the next obvious action</li></ul>
+<p>A conductor reduces that latency tax.</p>
+<p>That can produce:</p>
+<ul><li>shorter cycle time</li><li>less idle PR time</li><li>fewer dropped handoffs</li><li>better developer focus</li></ul></div></section>
+<section class="slide" data-slide="18"><div class="slide-inner"><h1>The human value proposition</h1>
+<p>This is not:</p>
+<ul><li>“AI replaces developers.”</li></ul>
+<p>This is:</p>
+<ul><li>“AI owns the predictable coordination gaps.”</li></ul>
+<p>Humans keep:</p>
+<ul><li>judgment</li><li>design</li><li>risk evaluation</li><li>ambiguous decision points</li><li>final accountability</li></ul>
+<p>The conductor owns:</p>
+<ul><li>transitions</li><li>waiting-state detection</li><li>routine follow-through</li><li>deterministic next-step orchestration</li></ul></div></section>
+<section class="slide" data-slide="19"><div class="slide-inner"><h1>Pilot evidence already shows the shape</h1>
+<p>Early pilot runs exposed real orchestration gaps, including:</p>
+<ul><li>kickoff that created owned state but did not stay live</li><li>watcher-only ownership not being enough</li><li>draft / ready / approval states being misclassified</li><li>missing mandatory review gates</li><li>merge detection without clear stop vs resume semantics</li><li>weak post-merge visibility in some slices</li></ul>
+<p>This is good evidence.</p>
+<p>It means the missing pieces are now concrete and fixable.</p></div></section>
+<section class="slide" data-slide="20"><div class="slide-inner"><h1>Why this is worth doing now</h1>
+<p>If we solve this well, we do not just save a few minutes.</p>
+<p>We reduce one of the most expensive hidden problems in software delivery:</p>
+<h2>passive delay after a state change</h2>
+<p>That means:</p>
+<ul><li>fewer lost hours</li><li>less human polling</li><li>faster flow through reviews and fixes</li><li>better use of expert attention</li></ul>
+<p>That is why this can be a real game changer.</p></div></section>
+<section class="slide" data-slide="21"><div class="slide-inner"><h1>Practical rollout idea</h1>
+<p>Start with bounded slices and prove the loop on real work:</p>
+<ul><li>one conductor</li><li>bounded workers</li><li>explicit refinement and review gates</li><li>visible PR-side state comments</li><li>manual approval retained</li><li>deterministic closeout artifacts</li></ul>
+<p>Do not aim for magic autonomy first.</p>
+<p>Aim for:</p>
+<ul><li>trustworthy state ownership</li><li>reliable waiting-state handling</li><li>faster resume after every state change</li><li>a state machine that can be inspected and improved over time</li></ul></div></section>
+<section class="slide" data-slide="22"><div class="slide-inner"><h1>Bottom line</h1>
+<p>The goal is not just to automate implementation.</p>
+<p>The goal is to eliminate the dead time between implementation steps.</p>
+<p>If we do that well:</p>
+<ul><li>developers focus on the work only humans should do</li><li>the conductor owns the predictable coordination work</li><li>delivery becomes faster without lowering quality</li></ul>
+<h2>The biggest win is latency compression.</h2></div></section>
+    <div class="chrome">
+      <div class="hint">Use ←/→ or space. Press Home/End to jump.</div>
+      <div class="controls">
+        <button id="prevBtn" type="button">← Prev</button>
+        <div class="counter"><span id="currentSlide">1</span> / <span id="totalSlides">22</span></div>
+        <button id="nextBtn" type="button">Next →</button>
+      </div>
+    </div>
+  </main>
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const currentEl = document.getElementById('currentSlide');
+    const totalEl = document.getElementById('totalSlides');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    let index = 0;
+    totalEl.textContent = slides.length;
+
+    function render() {
+      slides.forEach((slide, i) => slide.classList.toggle('active', i === index));
+      currentEl.textContent = String(index + 1);
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index === slides.length - 1;
+      history.replaceState(null, '', `#slide-${index + 1}`);
+    }
+
+    function go(delta) {
+      index = Math.max(0, Math.min(slides.length - 1, index + delta));
+      render();
+    }
+
+    prevBtn.addEventListener('click', () => go(-1));
+    nextBtn.addEventListener('click', () => go(1));
+
+    document.addEventListener('keydown', (event) => {
+      if (['ArrowRight', 'PageDown', ' '].includes(event.key)) { event.preventDefault(); go(1); }
+      else if (['ArrowLeft', 'PageUp'].includes(event.key)) { event.preventDefault(); go(-1); }
+      else if (event.key === 'Home') { index = 0; render(); }
+      else if (event.key === 'End') { index = slides.length - 1; render(); }
+    });
+
+    const match = location.hash.match(/slide-(\d+)/);
+    if (match) {
+      const requested = parseInt(match[1], 10) - 1;
+      if (!Number.isNaN(requested)) index = Math.max(0, Math.min(slides.length - 1, requested));
+    }
+    render();
+  </script>
+</body>
+</html>
