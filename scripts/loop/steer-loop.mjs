@@ -1,0 +1,375 @@
+#!/usr/bin/env node
+/**
+ * Mid-flight operator steering CLI for active dev loops.
+ *
+ * Supports two subcommands:
+ *
+ * 1. submit — Submit a steering directive to a specific active run.
+ *    steer-loop.mjs submit --run-id <id> --kind <kind> --directive <text>
+ *      --seq <n> [--state-file <path>] [--loop-state <state>] [--apply-mode <mode>]
+ *
+ * 2. status — Inspect the steering state for a run.
+ *    steer-loop.mjs status --run-id <id> [--state-file <path>]
+ *
+ * State is persisted to / loaded from a JSON file (--state-file, default:
+ * .pi/steering/<run-id>.json relative to the current working directory).
+ *
+ * The --loop-state flag accepts a current copilot loop state value (e.g.
+ * "ready_to_rerequest_review") so that callers can inject the loop state
+ * without this script needing to query GitHub directly. This is the model
+ * used for deterministic testing and for integration with orchestration layers
+ * that already have the loop state in scope.
+ *
+ * Success output shape:
+ *   submit: { "ok": true, "result": { ... }, "steeringState": { ... } }
+ *   status: { "ok": true, "status": { ... } }
+ *
+ * Failure behavior:
+ *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
+ *   on stderr and exit non-zero.
+ *   Runtime failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
+ */
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  STEERING_KIND,
+  normalizeSteeringEvent,
+  normalizeSteeringState,
+  createSteeringState,
+  submitSteering,
+  getSteeringStatus,
+} from "../../packages/core/src/loop/steering.mjs";
+
+import { formatCliError } from "../_core-helpers.mjs";
+
+// ---------------------------------------------------------------------------
+// Usage text
+// ---------------------------------------------------------------------------
+
+const SUBMIT_USAGE = `Usage:
+  steer-loop.mjs submit --run-id <id> --kind <kind> --directive <text> --seq <n>
+    [--state-file <path>] [--loop-state <loop-state>] [--apply-mode <mode>]
+    [--event-id <id>]
+
+Submit a mid-flight steering directive to an active dev loop run.
+
+Required:
+  --run-id <id>           Target run identifier
+  --kind <kind>           Steering kind: hard_constraint | preference | clarification | stop_at_next_safe_gate
+  --directive <text>      Operator payload / directive text
+  --seq <n>               Positive integer sequence number (monotonically increasing per run)
+
+Optional:
+  --state-file <path>     Path to steering state JSON file (default: .pi/steering/<run-id>.json)
+  --loop-state <state>    Current copilot loop state (default: "ready_to_rerequest_review")
+  --apply-mode <mode>     Application mode: immediate | next_safe_point (default: immediate)
+  --event-id <id>         Unique event ID (default: auto-generated)
+
+Output (stdout, JSON):
+  { "ok": true, "result": { ... }, "steeringState": { ... } }
+
+Error output (stderr, JSON):
+  { "ok": false, "error": "...", "usage": "..." }`.trim();
+
+const STATUS_USAGE = `Usage:
+  steer-loop.mjs status --run-id <id> [--state-file <path>]
+
+Inspect the steering state for a run.
+
+Required:
+  --run-id <id>           Target run identifier
+
+Optional:
+  --state-file <path>     Path to steering state JSON file (default: .pi/steering/<run-id>.json)
+
+Output (stdout, JSON):
+  { "ok": true, "status": { ... } }
+
+Error output (stderr, JSON):
+  { "ok": false, "error": "...", "usage": "..." }`.trim();
+
+const TOP_USAGE = `Usage:
+  steer-loop.mjs <subcommand> [options]
+
+Subcommands:
+  submit   Submit a steering directive to an active dev loop run
+  status   Inspect the steering state for a run
+
+Run steer-loop.mjs <subcommand> --help for subcommand-specific help.`.trim();
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const VALID_KINDS = new Set(Object.values(STEERING_KIND));
+const VALID_APPLY_MODES = new Set(["immediate", "next_safe_point"]);
+
+// ---------------------------------------------------------------------------
+// Argument parsing
+// ---------------------------------------------------------------------------
+
+function parseError(message, usage) {
+  return Object.assign(new Error(message), { usage });
+}
+
+function requireOptionValue(args, flag, usage) {
+  const value = args.shift();
+  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
+    throw parseError(`Missing value for ${flag}`, usage);
+  }
+  return value;
+}
+
+export function parseSubmitCliArgs(argv) {
+  const args = [...argv];
+  const options = {
+    help: false,
+    runId: undefined,
+    kind: undefined,
+    directive: undefined,
+    seq: undefined,
+    stateFile: undefined,
+    loopState: "ready_to_rerequest_review",
+    applyMode: "immediate",
+    eventId: undefined,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
+
+    if (token === "--run-id") {
+      options.runId = requireOptionValue(args, "--run-id", SUBMIT_USAGE).trim();
+      continue;
+    }
+    if (token === "--kind") {
+      const val = requireOptionValue(args, "--kind", SUBMIT_USAGE);
+      if (!VALID_KINDS.has(val)) {
+        throw parseError(`--kind must be one of: ${[...VALID_KINDS].join(", ")}`, SUBMIT_USAGE);
+      }
+      options.kind = val;
+      continue;
+    }
+    if (token === "--directive") {
+      options.directive = requireOptionValue(args, "--directive", SUBMIT_USAGE).trim();
+      continue;
+    }
+    if (token === "--seq") {
+      const raw = requireOptionValue(args, "--seq", SUBMIT_USAGE);
+      if (!/^\d+$/.test(raw) || Number(raw) === 0) {
+        throw parseError("--seq must be a positive integer", SUBMIT_USAGE);
+      }
+      options.seq = Number(raw);
+      continue;
+    }
+    if (token === "--state-file") {
+      options.stateFile = requireOptionValue(args, "--state-file", SUBMIT_USAGE);
+      continue;
+    }
+    if (token === "--loop-state") {
+      options.loopState = requireOptionValue(args, "--loop-state", SUBMIT_USAGE);
+      continue;
+    }
+    if (token === "--apply-mode") {
+      const val = requireOptionValue(args, "--apply-mode", SUBMIT_USAGE);
+      if (!VALID_APPLY_MODES.has(val)) {
+        throw parseError(`--apply-mode must be one of: ${[...VALID_APPLY_MODES].join(", ")}`, SUBMIT_USAGE);
+      }
+      options.applyMode = val;
+      continue;
+    }
+    if (token === "--event-id") {
+      options.eventId = requireOptionValue(args, "--event-id", SUBMIT_USAGE);
+      continue;
+    }
+
+    throw parseError(`Unknown argument: ${token}`, SUBMIT_USAGE);
+  }
+
+  if (!options.help) {
+    if (!options.runId) {
+      throw parseError("--run-id is required", SUBMIT_USAGE);
+    }
+    if (!options.kind) {
+      throw parseError("--kind is required", SUBMIT_USAGE);
+    }
+    if (!options.directive || options.directive.length === 0) {
+      throw parseError("--directive is required and must be non-empty", SUBMIT_USAGE);
+    }
+    if (options.seq === undefined) {
+      throw parseError("--seq is required", SUBMIT_USAGE);
+    }
+  }
+
+  return options;
+}
+
+export function parseStatusCliArgs(argv) {
+  const args = [...argv];
+  const options = {
+    help: false,
+    runId: undefined,
+    stateFile: undefined,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
+
+    if (token === "--run-id") {
+      options.runId = requireOptionValue(args, "--run-id", STATUS_USAGE).trim();
+      continue;
+    }
+    if (token === "--state-file") {
+      options.stateFile = requireOptionValue(args, "--state-file", STATUS_USAGE);
+      continue;
+    }
+
+    throw parseError(`Unknown argument: ${token}`, STATUS_USAGE);
+  }
+
+  if (!options.help && !options.runId) {
+    throw parseError("--run-id is required", STATUS_USAGE);
+  }
+
+  return options;
+}
+
+// ---------------------------------------------------------------------------
+// State file I/O
+// ---------------------------------------------------------------------------
+
+function defaultStateFilePath(runId, cwd = process.cwd()) {
+  return path.join(cwd, ".pi", "steering", `${runId}.json`);
+}
+
+async function loadStateFile(filePath) {
+  try {
+    const text = await readFile(filePath, "utf8");
+    return JSON.parse(text);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return null;
+    }
+    throw new Error(`Failed to read steering state file '${filePath}': ${error.message}`);
+  }
+}
+
+async function saveStateFile(filePath, steeringState) {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(steeringState, null, 2)}\n`, "utf8");
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand handlers
+// ---------------------------------------------------------------------------
+
+export async function runSubmit(argv = [], { stdout = process.stdout, cwd = process.cwd() } = {}) {
+  const options = parseSubmitCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(`${SUBMIT_USAGE}\n`);
+    return;
+  }
+
+  const stateFilePath = options.stateFile ?? defaultStateFilePath(options.runId, cwd);
+
+  // Load or create steering state
+  const raw = await loadStateFile(stateFilePath);
+  const steeringState = raw !== null
+    ? normalizeSteeringState(raw)
+    : createSteeringState(options.runId);
+
+  // Build and validate the event
+  const eventId = options.eventId ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const event = normalizeSteeringEvent({
+    eventId,
+    runId: options.runId,
+    kind: options.kind,
+    directive: options.directive,
+    seq: options.seq,
+    applyMode: options.applyMode,
+    submittedAt: new Date().toISOString(),
+  });
+
+  // Submit
+  const { steeringState: newState, result } = submitSteering(event, steeringState, options.loopState);
+
+  // Persist
+  await saveStateFile(stateFilePath, newState);
+
+  stdout.write(`${JSON.stringify({ ok: true, result, steeringState: newState })}\n`);
+}
+
+export async function runStatus(argv = [], { stdout = process.stdout, cwd = process.cwd() } = {}) {
+  const options = parseStatusCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(`${STATUS_USAGE}\n`);
+    return;
+  }
+
+  const stateFilePath = options.stateFile ?? defaultStateFilePath(options.runId, cwd);
+
+  const raw = await loadStateFile(stateFilePath);
+  if (raw === null) {
+    const emptyState = createSteeringState(options.runId);
+    const status = getSteeringStatus(emptyState);
+    stdout.write(`${JSON.stringify({ ok: true, status })}\n`);
+    return;
+  }
+
+  const steeringState = normalizeSteeringState(raw);
+  const status = getSteeringStatus(steeringState);
+  stdout.write(`${JSON.stringify({ ok: true, status })}\n`);
+}
+
+// ---------------------------------------------------------------------------
+// Top-level CLI dispatch
+// ---------------------------------------------------------------------------
+
+export async function runCli(
+  argv = process.argv.slice(2),
+  { stdout = process.stdout, cwd = process.cwd() } = {},
+) {
+  const [subcommand, ...rest] = argv;
+
+  if (!subcommand || subcommand === "--help" || subcommand === "-h") {
+    stdout.write(`${TOP_USAGE}\n`);
+    return;
+  }
+
+  if (subcommand === "submit") {
+    return runSubmit(rest, { stdout, cwd });
+  }
+
+  if (subcommand === "status") {
+    return runStatus(rest, { stdout, cwd });
+  }
+
+  const error = parseError(`Unknown subcommand: ${subcommand}`, TOP_USAGE);
+  throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Direct run
+// ---------------------------------------------------------------------------
+
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  runCli().catch((error) => {
+    process.stderr.write(`${formatCliError(error)}\n`);
+    process.exitCode = 1;
+  });
+}
