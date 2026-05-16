@@ -16,9 +16,9 @@ title: Conductor loops and waiting-state automation
 
 # The real problem
 
-Most teams do not lose time because every step is hard.
+A lot of delivery time disappears after the hard part is already done.
 
-They lose time because the next step is already obvious, but nobody notices the state change quickly enough.
+The next step is often obvious. The delay comes from noticing the state change too late and resuming too slowly.
 
 Examples:
 - a review landed, but nobody resumed for hours

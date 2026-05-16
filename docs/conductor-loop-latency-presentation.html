@@ -4,8 +4,8 @@
 <h2>Reduce delivery latency by owning waiting states</h2>
 <ul><li>The biggest waste is often <strong>waiting time around coding work</strong></li><li>A deterministic conductor can cut <strong>dead time between state changes</strong></li><li>Humans should focus on <strong>judgment</strong> instead of babysitting workflow transitions</li></ul></div></section>
 <section class="slide" data-slide="2"><div class="slide-inner"><h1>The real problem</h1>
-<p>Most teams do not lose time because every step is hard.</p>
-<p>They lose time because the next step is already obvious, but nobody notices the state change quickly enough.</p>
+<p>A lot of delivery time disappears after the hard part is already done.</p>
+<p>The next step is often obvious. The delay comes from noticing the state change too late and resuming too slowly.</p>
 <p>Examples:</p>
 <ul><li>a review landed, but nobody resumed for hours</li><li>CI turned green, but the PR stayed idle</li><li>a fix was obvious, but the remediation loop stalled</li><li>a draft was ready, but the ready-state transition never happened</li><li>an approval happened, but the next slice did not start</li></ul></div></section>
 <section class="slide" data-slide="3"><div class="slide-inner"><h1>The hidden tax is waiting</h1>
