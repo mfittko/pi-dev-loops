@@ -13,14 +13,14 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
 endobj
 5 0 obj
-<< /Length 444 >>
+<< /Length 463 >>
 stream
 BT /F1 10 Tf 710 585 Td (1/22) Tj ET
 BT /F2 24 Tf 54 560 Td (Conductor loops) Tj ET
 BT /F1 16 Tf 54 524 Td (Reduce delivery latency by owning waiting states) Tj ET
-BT /F1 11 Tf 64 498 Td (? The biggest waste is often not coding time) Tj ET
+BT /F1 11 Tf 64 498 Td (? The biggest waste is often waiting time around coding work) Tj ET
 BT /F1 11 Tf 64 480 Td (? A deterministic conductor can cut dead time between state changes) Tj ET
-BT /F1 11 Tf 64 462 Td (? Humans should focus on judgment, not on babysitting workflow transitions) Tj ET
+BT /F1 11 Tf 64 462 Td (? Humans should focus on judgment instead of babysitting workflow transitions) Tj ET
 endstream
 endobj
 6 0 obj
@@ -82,7 +82,7 @@ endobj
 >>
 endobj
 11 0 obj
-<< /Length 742 >>
+<< /Length 665 >>
 stream
 BT /F1 10 Tf 710 585 Td (4/22) Tj ET
 BT /F2 24 Tf 54 560 Td (Core idea) Tj ET
@@ -93,8 +93,7 @@ BT /F1 11 Tf 64 464 Td (? know the current state) Tj ET
 BT /F1 11 Tf 64 446 Td (? know the next safe transition) Tj ET
 BT /F1 11 Tf 64 428 Td (? resume immediately when the state changes) Tj ET
 BT /F1 11 Tf 64 410 Td (? keep ownership through waits instead of silently dropping it) Tj ET
-BT /F1 11 Tf 54 392 Td (This is not just about automating coding.) Tj ET
-BT /F1 11 Tf 54 370 Td (It is about automating the dead time around coding.) Tj ET
+BT /F1 11 Tf 54 392 Td (The real target is the dead time around coding.) Tj ET
 endstream
 endobj
 12 0 obj
@@ -272,23 +271,22 @@ endobj
 >>
 endobj
 25 0 obj
-<< /Length 884 >>
+<< /Length 823 >>
 stream
 BT /F1 10 Tf 710 585 Td (11/22) Tj ET
 BT /F2 24 Tf 54 560 Td (Full walkthrough: draft PR loop) Tj ET
-BT /F1 11 Tf 54 524 Td (A draft PR is not just a placeholder.) Tj ET
-BT /F1 11 Tf 54 502 Td (It should trigger the first real PR-stage loop:) Tj ET
-BT /F1 11 Tf 64 480 Td (? open PR in draft) Tj ET
-BT /F1 11 Tf 64 462 Td (? run the initial draft-stage fan-out) Tj ET
-BT /F1 11 Tf 64 444 Td (? review against:) Tj ET
-BT /F1 11 Tf 64 426 Td (? SRP / cohesion / boundary quality) Tj ET
-BT /F1 11 Tf 64 408 Td (? issue scope fit) Tj ET
-BT /F1 11 Tf 64 390 Td (? AC compliance) Tj ET
-BT /F1 11 Tf 64 372 Td (? DoD compliance) Tj ET
-BT /F1 11 Tf 64 354 Td (? architecture fit) Tj ET
-BT /F1 11 Tf 64 336 Td (? test adequacy) Tj ET
-BT /F1 11 Tf 64 318 Td (? if needed, route back into the local fix loop) Tj ET
-BT /F1 11 Tf 64 300 Td (? only move to ready when the draft gate is clean) Tj ET
+BT /F1 11 Tf 54 524 Td (A draft PR should trigger the first real PR-stage loop:) Tj ET
+BT /F1 11 Tf 64 502 Td (? open PR in draft) Tj ET
+BT /F1 11 Tf 64 484 Td (? run the initial draft-stage fan-out) Tj ET
+BT /F1 11 Tf 64 466 Td (? review against:) Tj ET
+BT /F1 11 Tf 64 448 Td (? SRP / cohesion / boundary quality) Tj ET
+BT /F1 11 Tf 64 430 Td (? issue scope fit) Tj ET
+BT /F1 11 Tf 64 412 Td (? AC compliance) Tj ET
+BT /F1 11 Tf 64 394 Td (? DoD compliance) Tj ET
+BT /F1 11 Tf 64 376 Td (? architecture fit) Tj ET
+BT /F1 11 Tf 64 358 Td (? test adequacy) Tj ET
+BT /F1 11 Tf 64 340 Td (? if needed, route back into the local fix loop) Tj ET
+BT /F1 11 Tf 64 322 Td (? only move to ready when the draft gate is clean) Tj ET
 endstream
 endobj
 26 0 obj
@@ -300,7 +298,7 @@ endobj
 >>
 endobj
 27 0 obj
-<< /Length 857 >>
+<< /Length 896 >>
 stream
 BT /F1 10 Tf 710 585 Td (12/22) Tj ET
 BT /F2 24 Tf 54 560 Td (Full walkthrough: ready-state review) Tj ET
@@ -315,8 +313,8 @@ BT /F1 11 Tf 64 382 Td (? push) Tj ET
 BT /F1 11 Tf 64 364 Td (? re-request) Tj ET
 BT /F1 11 Tf 64 346 Td (? repeat) Tj ET
 BT /F1 11 Tf 54 328 Td (This matters because:) Tj ET
-BT /F1 11 Tf 64 306 Td (? ready-for-review is not just a UI toggle) Tj ET
-BT /F1 11 Tf 64 288 Td (? it is a real state transition in the workflow) Tj ET
+BT /F1 11 Tf 64 306 Td (? ready-for-review marks a real workflow transition) Tj ET
+BT /F1 11 Tf 64 288 Td (? the loop should treat it as the entry into the explicit Copilot review gate) Tj ET
 endstream
 endobj
 28 0 obj
@@ -467,25 +465,24 @@ endobj
 >>
 endobj
 39 0 obj
-<< /Length 885 >>
+<< /Length 877 >>
 stream
 BT /F1 10 Tf 710 585 Td (18/22) Tj ET
 BT /F2 24 Tf 54 560 Td (The human value proposition) Tj ET
-BT /F1 11 Tf 54 524 Td (This is not:) Tj ET
-BT /F1 11 Tf 64 502 Td (? ?AI replaces developers.?) Tj ET
-BT /F1 11 Tf 54 484 Td (This is:) Tj ET
-BT /F1 11 Tf 64 462 Td (? ?AI owns the predictable coordination gaps.?) Tj ET
-BT /F1 11 Tf 54 444 Td (Humans keep:) Tj ET
-BT /F1 11 Tf 64 422 Td (? judgment) Tj ET
-BT /F1 11 Tf 64 404 Td (? design) Tj ET
-BT /F1 11 Tf 64 386 Td (? risk evaluation) Tj ET
-BT /F1 11 Tf 64 368 Td (? ambiguous decision points) Tj ET
-BT /F1 11 Tf 64 350 Td (? final accountability) Tj ET
-BT /F1 11 Tf 54 332 Td (The conductor owns:) Tj ET
-BT /F1 11 Tf 64 310 Td (? transitions) Tj ET
-BT /F1 11 Tf 64 292 Td (? waiting-state detection) Tj ET
-BT /F1 11 Tf 64 274 Td (? routine follow-through) Tj ET
-BT /F1 11 Tf 64 256 Td (? deterministic next-step orchestration) Tj ET
+BT /F1 11 Tf 54 524 Td (Better framing:) Tj ET
+BT /F1 11 Tf 64 502 Td (? AI owns the predictable coordination gaps) Tj ET
+BT /F1 11 Tf 64 484 Td (? humans keep judgment, ambiguity, and final accountability) Tj ET
+BT /F1 11 Tf 54 466 Td (Humans keep:) Tj ET
+BT /F1 11 Tf 64 444 Td (? judgment) Tj ET
+BT /F1 11 Tf 64 426 Td (? design) Tj ET
+BT /F1 11 Tf 64 408 Td (? risk evaluation) Tj ET
+BT /F1 11 Tf 64 390 Td (? ambiguous decision points) Tj ET
+BT /F1 11 Tf 64 372 Td (? final accountability) Tj ET
+BT /F1 11 Tf 54 354 Td (The conductor owns:) Tj ET
+BT /F1 11 Tf 64 332 Td (? transitions) Tj ET
+BT /F1 11 Tf 64 314 Td (? waiting-state detection) Tj ET
+BT /F1 11 Tf 64 296 Td (? routine follow-through) Tj ET
+BT /F1 11 Tf 64 278 Td (? deterministic next-step orchestration) Tj ET
 endstream
 endobj
 40 0 obj
@@ -573,17 +570,16 @@ endobj
 >>
 endobj
 47 0 obj
-<< /Length 652 >>
+<< /Length 572 >>
 stream
 BT /F1 10 Tf 710 585 Td (22/22) Tj ET
 BT /F2 24 Tf 54 560 Td (Bottom line) Tj ET
-BT /F1 11 Tf 54 524 Td (The goal is not just to automate implementation.) Tj ET
-BT /F1 11 Tf 54 502 Td (The goal is to eliminate the dead time between implementation steps.) Tj ET
-BT /F1 11 Tf 54 480 Td (If we do that well:) Tj ET
-BT /F1 11 Tf 64 458 Td (? developers focus on the work only humans should do) Tj ET
-BT /F1 11 Tf 64 440 Td (? the conductor owns the predictable coordination work) Tj ET
-BT /F1 11 Tf 64 422 Td (? delivery becomes faster without lowering quality) Tj ET
-BT /F1 16 Tf 54 404 Td (The biggest win is cutting latency between state changes.) Tj ET
+BT /F1 11 Tf 54 524 Td (The goal is to eliminate the dead time between implementation steps.) Tj ET
+BT /F1 11 Tf 54 502 Td (If we do that well:) Tj ET
+BT /F1 11 Tf 64 480 Td (? developers focus on the work only humans should do) Tj ET
+BT /F1 11 Tf 64 462 Td (? the conductor owns the predictable coordination work) Tj ET
+BT /F1 11 Tf 64 444 Td (? delivery becomes faster without lowering quality) Tj ET
+BT /F1 16 Tf 54 426 Td (The biggest win is cutting latency between state changes.) Tj ET
 endstream
 endobj
 48 0 obj
@@ -602,51 +598,51 @@ xref
 0000000268 00000 n 
 0000000338 00000 n 
 0000000413 00000 n 
-0000000908 00000 n 
-0000001044 00000 n 
-0000001901 00000 n 
-0000002037 00000 n 
-0000002874 00000 n 
-0000003011 00000 n 
-0000003805 00000 n 
-0000003943 00000 n 
-0000005141 00000 n 
-0000005279 00000 n 
-0000006307 00000 n 
-0000006445 00000 n 
-0000007188 00000 n 
-0000007326 00000 n 
-0000008184 00000 n 
-0000008322 00000 n 
-0000009363 00000 n 
-0000009501 00000 n 
-0000010373 00000 n 
-0000010511 00000 n 
-0000011447 00000 n 
-0000011585 00000 n 
-0000012494 00000 n 
-0000012632 00000 n 
-0000013450 00000 n 
-0000013588 00000 n 
-0000014534 00000 n 
-0000014672 00000 n 
-0000015611 00000 n 
-0000015749 00000 n 
-0000016811 00000 n 
-0000016949 00000 n 
-0000017906 00000 n 
-0000018044 00000 n 
-0000018981 00000 n 
-0000019119 00000 n 
-0000019986 00000 n 
-0000020124 00000 n 
-0000020909 00000 n 
-0000021047 00000 n 
-0000022034 00000 n 
-0000022172 00000 n 
-0000022876 00000 n 
+0000000927 00000 n 
+0000001063 00000 n 
+0000001920 00000 n 
+0000002056 00000 n 
+0000002893 00000 n 
+0000003030 00000 n 
+0000003747 00000 n 
+0000003885 00000 n 
+0000005083 00000 n 
+0000005221 00000 n 
+0000006249 00000 n 
+0000006387 00000 n 
+0000007130 00000 n 
+0000007268 00000 n 
+0000008126 00000 n 
+0000008264 00000 n 
+0000009305 00000 n 
+0000009443 00000 n 
+0000010315 00000 n 
+0000010453 00000 n 
+0000011328 00000 n 
+0000011466 00000 n 
+0000012414 00000 n 
+0000012552 00000 n 
+0000013370 00000 n 
+0000013508 00000 n 
+0000014454 00000 n 
+0000014592 00000 n 
+0000015531 00000 n 
+0000015669 00000 n 
+0000016731 00000 n 
+0000016869 00000 n 
+0000017826 00000 n 
+0000017964 00000 n 
+0000018893 00000 n 
+0000019031 00000 n 
+0000019898 00000 n 
+0000020036 00000 n 
+0000020821 00000 n 
+0000020959 00000 n 
+0000021946 00000 n 
+0000022084 00000 n 
+0000022708 00000 n 
 trailer
 << /Size 49 /Root 1 0 R >>
 startxref
-23014
+22846
 %%EOF

@@ -8,9 +8,9 @@ title: Conductor loops and waiting-state automation
 # Conductor loops
 ## Reduce delivery latency by owning waiting states
 
-- The biggest waste is often **not coding time**
+- The biggest waste is often **waiting time around coding work**
 - A deterministic conductor can cut **dead time between state changes**
-- Humans should focus on **judgment**, not on babysitting workflow transitions
+- Humans should focus on **judgment** instead of babysitting workflow transitions
 
 ---
 
@@ -57,9 +57,7 @@ The conductor should:
 - resume immediately when the state changes
 - keep ownership through waits instead of silently dropping it
 
-This is not just about automating coding.
-
-It is about automating the **dead time around coding**.
+The real target is the **dead time around coding**.
 
 ---
 
@@ -181,9 +179,7 @@ The goal is:
 
 # Full walkthrough: draft PR loop
 
-A draft PR is not just a placeholder.
-
-It should trigger the first real PR-stage loop:
+A draft PR should trigger the first real PR-stage loop:
 - open PR in draft
 - run the **initial draft-stage fan-out**
 - review against:
@@ -211,8 +207,8 @@ Once the PR is marked ready:
   - repeat
 
 This matters because:
-- ready-for-review is not just a UI toggle
-- it is a real state transition in the workflow
+- ready-for-review marks a real workflow transition
+- the loop should treat it as the entry into the explicit Copilot review gate
 
 ---
 
@@ -317,11 +313,9 @@ That can produce:
 
 # The human value proposition
 
-This is not:
-- “AI replaces developers.”
-
-This is:
-- “AI owns the predictable coordination gaps.”
+Better framing:
+- AI owns the predictable coordination gaps
+- humans keep judgment, ambiguity, and final accountability
 
 Humans keep:
 - judgment
@@ -393,8 +387,6 @@ Aim for:
 ---
 
 # Bottom line
-
-The goal is not just to automate implementation.
 
 The goal is to eliminate the dead time between implementation steps.
 
