@@ -1,16 +1,28 @@
 ---
-marp: true
 theme: default
-paginate: true
 title: Conductor loops and waiting-state automation
+info: |
+  A presentation about latency compression through conductor-led deterministic workflow orchestration.
+class: text-center
+transition: slide-left
+mdc: true
+layout: cover
+background: https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1600&q=80
 ---
 
 # Conductor loops
 ## Reduce delivery latency by owning waiting states
 
-- The biggest waste is often **waiting time around coding work**
-- A deterministic conductor can cut **dead time between state changes**
-- Humans should focus on **judgment** instead of babysitting workflow transitions
+<div class="pt-6 text-lg opacity-90">
+The biggest waste is often not implementation effort. It is the dead time between state changes and the next action.
+</div>
+
+---
+layout: section
+---
+
+# The problem
+## Teams lose hours in the gaps between obvious next steps
 
 ---
 
@@ -46,62 +58,35 @@ Across many PRs, reviews, and loops, it turns into:
 - longer lead time with no real quality gain
 
 ---
+layout: section
+---
 
-# Core idea
-
-Use a **conductor-led state machine** with deterministic tooling so that waiting states are explicitly owned.
-
-The conductor should:
-- know the current state
-- know the next safe transition
-- resume immediately when the state changes
-- keep ownership through waits instead of silently dropping it
-
-The real target is the **dead time around coding**.
+# The core idea
+## The state machine is the product
 
 ---
 
 # The state machine is the core product
 
-The most important idea is not “we added some AI loops.”
+The key move is to model the workflow explicitly as states and transitions.
 
-The core idea is simple:
-- model the workflow explicitly as states and transitions
-- make the transitions deterministic
-- keep ownership alive through waiting states
-- route work back into the right loop automatically
+That means:
+- states are visible
+- transitions are deterministic
+- waits remain owned
+- the loop knows the next safe action
 
-Without the state machine, the workflow depends on:
-- prompt conventions
+Without a state machine, the workflow depends on:
 - memory
+- prompt conventions
 - manual babysitting
 - hidden handoff gaps
 
-With the state machine, the workflow becomes:
-- visible
-- testable
+With a state machine, the workflow becomes:
 - inspectable
 - resumable
-- easier to improve
-
----
-
-# What humans should focus on
-
-Humans should spend attention where judgment matters most:
-- architecture
-- requirements and PRD shaping
-- acceptance criteria and definition of done
-- manual testing and exploratory validation
-- business tradeoffs
-- final approval and accountability gates
-
-Humans should not spend most of their time on:
-- polling status
-- re-requesting predictable transitions
-- watching CI turn green
-- noticing routine review-state changes
-- babysitting loops that already know the next step
+- testable
+- improvable
 
 ---
 
@@ -115,124 +100,62 @@ The conductor should own:
 - visible state projection back to PRs and trackers
 - safe stop vs resume decisions after merge
 
-Workers can stay bounded.
+Workers stay bounded.
 
 The conductor keeps the orchestration truth.
 
 ---
 
-# Workflow pattern
+# Human work becomes more valuable
 
-1. intake and refinement
-2. bounded slice planning
-3. local implementation
-4. draft PR
-5. initial local fan-out review
-6. ready-for-review transition
-7. explicit Copilot request and review loop
-8. final DIY DRY/KISS/YAGNI gate
-9. human approval wait
-10. merge
-11. stop or resume next slice
+Humans should spend attention where judgment matters most:
+- architecture
+- PRD and requirement shaping
+- acceptance criteria and definition of done
+- manual testing and exploratory validation
+- business tradeoffs
+- final approval and accountability gates
 
-Treat **waiting states as real states**, not as invisible idle time.
+Humans should not spend most of their time on:
+- polling status
+- re-requesting predictable transitions
+- watching CI turn green
+- noticing routine review-state changes
+- babysitting loops that already know the next step
+
+---
+layout: section
+---
+
+# Full walkthrough
+## The conductor loop starts before coding and ends after merge closeout
 
 ---
 
-# Full walkthrough: before coding starts
+# Full workflow walkthrough
 
-The conductor loop should begin before implementation.
+The conductor-led pattern should cover the whole path:
 
-It should own:
-- intake
-- overlap / duplicate scan
-- issue refinement
-- scope clarification
-- slice shaping
-- proposal / execution-plan freeze
-- readiness to start a bounded slice
+1. intake and overlap scan
+2. issue refinement and shaping
+3. bounded slice planning
+4. local implementation
+5. draft PR
+6. initial local fan-out review
+7. ready-for-review transition
+8. explicit Copilot request and review loop
+9. final DIY DRY/KISS/YAGNI gate
+10. human approval wait
+11. merge
+12. stop or resume the next slice
 
-This matters because a lot of waste starts even before code:
-- the issue is vague
-- the slice is too broad
-- the acceptance criteria are incomplete
-- the team starts implementation before the work is shaped enough
-
----
-
-# Full walkthrough: local implementation loop
-
-Once a bounded slice is ready, the conductor moves into the local execution loop:
-
-1. activate a local worktree / owned slice
-2. implement locally
-3. validate locally
-4. keep ownership while the slice is still local
-5. only open a PR once the slice is integration-ready
-
-The goal is:
-- local-first work
-- GitHub only when the slice is ready enough
-- no half-shaped PR churn
-
----
-
-# Full walkthrough: draft PR loop
-
-A draft PR should trigger the first real PR-stage loop:
-- open PR in draft
-- run the **initial draft-stage fan-out**
-- review against:
-  - SRP / cohesion / boundary quality
-  - issue scope fit
-  - AC compliance
-  - DoD compliance
-  - architecture fit
-  - test adequacy
-- if needed, route back into the local fix loop
-- only move to ready when the draft gate is clean
-
----
-
-# Full walkthrough: ready-state review loop
-
-Once the PR is marked ready:
-- the loop must explicitly request or confirm Copilot review
-- the conductor must enter the Copilot review state
-- if Copilot comments appear:
-  - run the fix loop
-  - validate
-  - push
-  - re-request
-  - repeat
-
-This matters because:
-- ready-for-review marks a real workflow transition
-- the loop should treat it as the entry into the explicit Copilot review gate
-
----
-
-# Full walkthrough: final approval loop
-
-After Copilot converges:
-- run the final DIY fan-out
-- use the final lenses:
-  - DRY
-  - KISS
-  - YAGNI
-- if clean, enter the human approval wait
-- if not clean, route back into the local fix loop
-
-Then:
-- wait for human approval
-- wait for merge
-- detect whether merge is terminal or resumable
+Treat waiting states as real states, not as invisible idle time.
 
 ---
 
 # The loops inside the loop
 
-The conductor is not one single flat flow.
+The conductor is not one flat flow.
 
 It coordinates multiple nested loops:
 - refinement loop
@@ -244,19 +167,19 @@ It coordinates multiple nested loops:
 - merge / closeout / resume loop
 
 The state machine matters because it tells us:
-- which loop is currently active
+- which loop is active now
 - what event ends that loop
-- where the work returns next
+- where work returns next
 
 ---
 
 # Review choreography matters
 
-The loop should distinguish between two different local fan-out gates.
+Two local fan-out gates do different jobs.
 
-## Draft-stage fan-out
+## Initial draft-stage fan-out
 Focus on:
-- SRP / cohesion / boundaries
+- SRP / cohesion / boundary quality
 - issue scope fit
 - AC compliance
 - DoD compliance
@@ -269,11 +192,78 @@ Focus on:
 - KISS
 - YAGNI
 
-These are different gates with different purposes.
+The gate order matters.
 
 ---
 
-# Deterministic tooling required
+# Full conductor state machine
+
+```mermaid {scale: 0.72}
+stateDiagram-v2
+    [*] --> intake_received
+
+    intake_received --> overlap_scan_running
+    overlap_scan_running --> issue_refinement_running: no blocking duplicate
+    overlap_scan_running --> blocked_needs_human_decision: conflicting duplicate / unclear ownership
+
+    issue_refinement_running --> proposal_or_slice_plan_running: scope understandable enough to shape
+    issue_refinement_running --> waiting_for_scope_decision: issue too ambiguous / needs decision
+
+    proposal_or_slice_plan_running --> ready_to_start_local_slice: bounded slice frozen
+    proposal_or_slice_plan_running --> waiting_for_scope_decision: slice cannot be safely shaped
+
+    waiting_for_scope_decision --> issue_refinement_running: clarification received
+    waiting_for_scope_decision --> [*]: stop until human decision
+
+    ready_to_start_local_slice --> kickoff
+    kickoff --> active_local: kickoff continuity preserved
+    kickoff --> blocked_needs_human_decision: missing authorization / tooling failure
+
+    active_local --> draft_pr_open: slice integration-ready for draft PR
+    active_local --> blocked_needs_human_decision: cannot safely continue
+
+    draft_pr_open --> draft_stage_initial_local_fanout_running
+    draft_stage_initial_local_fanout_running --> local_fix_loop: draft fan-out finds issues
+    draft_stage_initial_local_fanout_running --> waiting_to_mark_ready_for_review: draft fan-out clean
+
+    local_fix_loop --> active_local: fixes complete, re-verify locally
+    local_fix_loop --> blocked_needs_human_decision: fix path blocked
+
+    waiting_to_mark_ready_for_review --> ready_for_review_transition
+    ready_for_review_transition --> waiting_for_copilot_review: explicit ready-state Copilot request
+    ready_for_review_transition --> blocked_needs_human_decision: cannot safely request review
+
+    waiting_for_copilot_review --> copilot_fix_loop: actionable Copilot feedback
+    waiting_for_copilot_review --> final_local_fanout_running: bounded convergence with no more actionable feedback
+    waiting_for_copilot_review --> blocked_needs_human_decision: failed / contradictory review state
+
+    copilot_fix_loop --> local_fix_loop: apply narrow fixes on current slice
+    copilot_fix_loop --> blocked_needs_human_decision: feedback cannot be resolved safely
+
+    final_local_fanout_running --> waiting_for_human_pr_approval: final gate clean
+    final_local_fanout_running --> local_fix_loop: final fan-out finds issues
+
+    waiting_for_human_pr_approval --> waiting_for_merge: human approves
+    waiting_for_human_pr_approval --> draft_stage_initial_local_fanout_running: PR reset to draft
+    waiting_for_human_pr_approval --> copilot_fix_loop: fresh actionable feedback appears
+    waiting_for_human_pr_approval --> blocked_needs_human_decision: contradictory/manual intervention state
+
+    waiting_for_merge --> post_merge_reconcile: merge detected
+    waiting_for_merge --> copilot_fix_loop: approval displaced by fresh feedback
+
+    post_merge_reconcile --> terminal_slice_complete: merged PR was last planned step
+    post_merge_reconcile --> post_merge_resume: concrete next owned step already planned
+
+    post_merge_resume --> ready_to_start_local_slice: activate next bounded slice
+    post_merge_resume --> blocked_needs_human_decision: next-step routing cannot be inferred safely
+
+    terminal_slice_complete --> [*]
+    blocked_needs_human_decision --> [*]
+```
+
+---
+
+# Deterministic tooling we need
 
 To make this trustworthy, the loop needs deterministic tooling for:
 - explicit conductor states and transitions
@@ -289,12 +279,19 @@ To make this trustworthy, the loop needs deterministic tooling for:
 Without these pieces, the loop looks autonomous but is not actually reliable.
 
 ---
+layout: section
+---
 
-# Why this is a company-scale gain
+# Why this matters in a company
+## The gain is latency compression, not AI theater
+
+---
+
+# Why this matters in a company
 
 In a company setting, people context-switch constantly.
 
-That means the cost of missed state changes is much higher:
+That makes missed state changes far more expensive:
 - more PRs in flight
 - more reviewers
 - more queues
@@ -311,58 +308,33 @@ That can produce:
 
 ---
 
-# The human value proposition
+# The presentation point
 
-Better framing:
-- AI owns the predictable coordination gaps
-- humans keep judgment, ambiguity, and final accountability
+This should not be framed as:
+- “look, we built a clever AI loop.”
 
-Humans keep:
-- judgment
-- design
-- risk evaluation
-- ambiguous decision points
-- final accountability
+It should be framed as:
+- the system cuts passive delay after state changes
+- humans focus on architecture, requirements, testing, and approval
+- the conductor owns predictable coordination work
 
-The conductor owns:
-- transitions
-- waiting-state detection
-- routine follow-through
-- deterministic next-step orchestration
+That is the real business value.
 
 ---
 
 # Pilot evidence already shows the shape
 
-Early pilot runs exposed real orchestration gaps, including:
+The live pilot already exposed concrete orchestration gaps:
 - kickoff that created owned state but did not stay live
 - watcher-only ownership not being enough
-- draft / ready / approval states being misclassified
+- stale or wrong state classification across draft / ready / approval transitions
 - missing mandatory review gates
-- merge detection without clear stop vs resume semantics
+- merge detection without clear terminal vs resumable semantics
 - weak post-merge visibility in some slices
+- latest-turn grounding failures in the operator conversation layer
 
-This is good evidence.
-
+That is useful evidence.
 It means the missing pieces are now concrete and fixable.
-
----
-
-# Why this is worth doing now
-
-If we solve this well, the gain is much larger than a few saved minutes.
-
-We reduce one of the most expensive hidden problems in software delivery:
-
-## passive delay after a state change
-
-That means:
-- fewer lost hours
-- less human polling
-- faster flow through reviews and fixes
-- better use of expert attention
-
-That is why this could change how teams actually work day to day.
 
 ---
 
@@ -376,7 +348,7 @@ Start with bounded slices and prove the loop on real work:
 - manual approval retained
 - deterministic closeout artifacts
 
-Do not aim for magic autonomy first.
+Do not chase magic autonomy first.
 
 Aim for:
 - trustworthy state ownership
@@ -385,6 +357,8 @@ Aim for:
 - a state machine that can be inspected and improved over time
 
 ---
+layout: end
+---
 
 # Bottom line
 
@@ -392,7 +366,7 @@ The goal is to eliminate the dead time between implementation steps.
 
 If we do that well:
 - developers focus on the work only humans should do
-- the conductor owns the predictable coordination work
-- delivery becomes faster without lowering quality
+- the conductor owns predictable coordination work
+- delivery gets faster without lowering quality
 
 ## The biggest win is cutting latency between state changes.
