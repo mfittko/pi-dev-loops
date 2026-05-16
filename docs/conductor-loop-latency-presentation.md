@@ -14,7 +14,7 @@ background: https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=fo
 ## Reduce delivery latency by owning waiting states
 
 <div class="pt-6 text-lg opacity-90">
-The biggest waste is often not implementation effort. It is the dead time between state changes and the next action.
+The biggest waste is usually the gap between one state change and the next action.
 </div>
 
 ---
@@ -26,36 +26,28 @@ layout: section
 
 ---
 
-# The real problem
+# Where the time goes
 
-A lot of delivery time disappears after the hard part is already done.
+- review landed, nobody resumed
+- CI turned green, PR stayed idle
+- obvious fix, loop stalled
+- draft was ready, transition never happened
+- approval happened, next slice never started
 
-The next step is often obvious. The delay comes from noticing the state change too late and resuming too slowly.
-
-Examples:
-- a review landed, but nobody resumed for hours
-- CI turned green, but the PR stayed idle
-- a fix was obvious, but the remediation loop stalled
-- a draft was ready, but the ready-state transition never happened
-- an approval happened, but the next slice did not start
+The delay is rarely hard work.
+The delay is usually missed state change.
 
 ---
 
-# The hidden tax is waiting
+# The hidden tax
 
-The expensive part is often:
 - waiting
-- missing that waiting is over
-- reloading context after idle gaps
-- manually pushing the next predictable transition
+- noticing too late
+- reloading context
+- pushing the next routine transition by hand
 
-Each delay looks small on its own.
-
-Across many PRs, reviews, and loops, it turns into:
-- slower throughput
-- more interrupted focus
-- more stale work
-- longer lead time with no real quality gain
+Small gaps stack up.
+Across many PRs, they become lead time.
 
 ---
 layout: section
@@ -66,98 +58,74 @@ layout: section
 
 ---
 
-# The state machine is the core product
+# Why the state machine matters
 
-The key move is to model the workflow explicitly as states and transitions.
+A conductor loop works only when the workflow is explicit.
 
-That means:
-- states are visible
-- transitions are deterministic
-- waits remain owned
-- the loop knows the next safe action
+- visible states
+- deterministic transitions
+- owned waits
+- known next safe action
 
-Without a state machine, the workflow depends on:
-- memory
-- prompt conventions
-- manual babysitting
-- hidden handoff gaps
-
-With a state machine, the workflow becomes:
-- inspectable
-- resumable
-- testable
-- improvable
+That is the real product surface.
 
 ---
 
-# What the conductor should own
+# What the conductor owns
 
-The conductor should own:
 - state transitions
 - waiting-state monitoring
-- deterministic review choreography
+- review choreography
 - resume / attach / continue decisions
-- visible state projection back to PRs and trackers
-- safe stop vs resume decisions after merge
+- PR and tracker state projection
+- stop vs resume after merge
 
 Workers stay bounded.
-
-The conductor keeps the orchestration truth.
+The conductor keeps orchestration truth.
 
 ---
 
-# Human work becomes more valuable
+# What humans should own
 
-Humans should spend attention where judgment matters most:
 - architecture
 - PRD and requirement shaping
-- acceptance criteria and definition of done
-- manual testing and exploratory validation
+- acceptance criteria and DoD
+- manual testing
 - business tradeoffs
-- final approval and accountability gates
+- final approval
 
-Humans should not spend most of their time on:
-- polling status
-- re-requesting predictable transitions
-- watching CI turn green
-- noticing routine review-state changes
-- babysitting loops that already know the next step
+Human time should go to judgment, not babysitting.
 
 ---
 layout: section
 ---
 
 # Full walkthrough
-## The conductor loop starts before coding and ends after merge closeout
+## The loop starts before coding and ends after closeout
 
 ---
 
-# Full workflow walkthrough
-
-The conductor-led pattern should cover the whole path:
+# Full workflow
 
 1. intake and overlap scan
 2. issue refinement and shaping
 3. bounded slice planning
 4. local implementation
 5. draft PR
-6. initial local fan-out review
+6. initial local fan-out
 7. ready-for-review transition
 8. explicit Copilot request and review loop
 9. final DIY DRY/KISS/YAGNI gate
 10. human approval wait
 11. merge
-12. stop or resume the next slice
+12. stop or resume next slice
 
-Treat waiting states as real states, not as invisible idle time.
+Treat waiting states as real states.
 
 ---
 
-# The loops inside the loop
+# Loops inside the loop
 
-The conductor is not one flat flow.
-
-It coordinates multiple nested loops:
 - refinement loop
 - slice-shaping loop
 - local implementation loop
@@ -166,39 +134,52 @@ It coordinates multiple nested loops:
 - final DIY approval loop
 - merge / closeout / resume loop
 
-The state machine matters because it tells us:
-- which loop is active now
-- what event ends that loop
-- where work returns next
+The state machine tells us which loop is active and what ends it.
 
 ---
 
-# Review choreography matters
+# Draft-stage gate
 
-Two local fan-out gates do different jobs.
-
-## Initial draft-stage fan-out
-Focus on:
-- SRP / cohesion / boundary quality
-- issue scope fit
+Use the first local fan-out for:
+- SRP / cohesion / boundaries
+- scope fit
 - AC compliance
 - DoD compliance
 - architecture fit
 - test adequacy
 
-## Final pre-approval fan-out
-Focus on:
-- DRY
-- KISS
-- YAGNI
+Goal: decide whether this is the right PR.
 
-The gate order matters.
+---
+
+# Ready-state Copilot gate
+
+When the PR becomes ready:
+- request or confirm Copilot review
+- enter the Copilot review state
+- fix, validate, push, and re-request if needed
+- repeat until convergence
+
+Ready-for-review is a real workflow transition.
+
+---
+
+# Final approval gate
+
+After Copilot converges:
+- run DRY
+- run KISS
+- run YAGNI
+- fix if needed
+- then wait for human approval
+
+This is the last local quality gate before approval.
 
 ---
 
 # Full conductor state machine
 
-```mermaid {scale: 0.72}
+```mermaid {scale: 0.64}
 stateDiagram-v2
     [*] --> intake_received
 
@@ -263,84 +244,72 @@ stateDiagram-v2
 
 ---
 
-# Deterministic tooling we need
+# Deterministic tooling required
 
-To make this trustworthy, the loop needs deterministic tooling for:
 - explicit conductor states and transitions
-- intake / refinement / shaping transitions
+- refinement and shaping transitions
 - draft / ready / Copilot / approval / merge transitions
 - live conductor plus watcher ownership
-- visible PR comments on meaningful local state changes
+- visible PR comments on local state changes
 - durable local state and closeout artifacts
-- terminal vs resumable merge decisions
-- mid-flight steering and safe-point handling
-- reliable latest-turn / active-question grounding
+- terminal vs resumable merge behavior
+- mid-flight steering and safe points
+- reliable latest-turn grounding
 
-Without these pieces, the loop looks autonomous but is not actually reliable.
+Without these, the loop is fragile.
 
 ---
 layout: section
 ---
 
 # Why this matters in a company
-## The gain is latency compression, not AI theater
+## The gain is latency compression
 
 ---
 
-# Why this matters in a company
+# Company-scale impact
 
-In a company setting, people context-switch constantly.
-
-That makes missed state changes far more expensive:
-- more PRs in flight
+In a company setting:
+- more PRs
 - more reviewers
 - more queues
-- more partial waits
-- more delays between a state change and the next obvious action
+- more context switching
+- more missed transitions
 
-A conductor reduces that latency tax.
-
-That can produce:
-- shorter cycle time
-- less idle PR time
-- fewer dropped handoffs
-- better developer focus
+A conductor cuts the latency tax after each state change.
 
 ---
 
-# The presentation point
+# The actual pitch
 
-This should not be framed as:
-- “look, we built a clever AI loop.”
-
-It should be framed as:
-- the system cuts passive delay after state changes
+Use this framing:
 - humans focus on architecture, requirements, testing, and approval
 - the conductor owns predictable coordination work
+- the state machine removes idle time between steps
 
-That is the real business value.
-
----
-
-# Pilot evidence already shows the shape
-
-The live pilot already exposed concrete orchestration gaps:
-- kickoff that created owned state but did not stay live
-- watcher-only ownership not being enough
-- stale or wrong state classification across draft / ready / approval transitions
-- missing mandatory review gates
-- merge detection without clear terminal vs resumable semantics
-- weak post-merge visibility in some slices
-- latest-turn grounding failures in the operator conversation layer
-
-That is useful evidence.
-It means the missing pieces are now concrete and fixable.
+That is the value story.
 
 ---
 
-# Practical rollout idea
+# Pilot evidence already helps
 
-Start with bounded slices and prove the loop on real work:
+The pilot already exposed concrete gaps:
+- kickoff created owned state but did not stay live
+- watcher-only ownership was not enough
+- draft / ready / approval states were misclassified
+- mandatory review gates were skipped
+- merge handling lacked clear stop vs resume rules
+- post-merge visibility varied by slice
+- latest-turn grounding failed in the operator layer
+
+That evidence is useful because it is specific.
+
+---
+
+# Rollout idea
+
+Start with bounded slices on real work.
+
 - one conductor
 - bounded workers
 - explicit refinement and review gates
@@ -348,13 +317,7 @@ Start with bounded slices and prove the loop on real work:
 - manual approval retained
 - deterministic closeout artifacts
 
-Do not chase magic autonomy first.
-
-Aim for:
-- trustworthy state ownership
-- reliable waiting-state handling
-- faster resume after every state change
-- a state machine that can be inspected and improved over time
+First target: trustworthy ownership and fast resume.
 
 ---
 layout: end
@@ -362,11 +325,8 @@ layout: end
 
 # Bottom line
 
-The goal is to eliminate the dead time between implementation steps.
+The goal is simple:
 
-If we do that well:
-- developers focus on the work only humans should do
-- the conductor owns predictable coordination work
-- delivery gets faster without lowering quality
+## cut the dead time between one state change and the next action
 
-## The biggest win is cutting latency between state changes.
+That gives developers more time for the work only humans should do.
