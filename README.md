@@ -44,8 +44,10 @@ Current commands:
 - `/dev-loops` — help output
 - `/dev-loops status` — concise readiness summary
 - `/dev-loops doctor` — full diagnostics
+- `/dev-loops install` — prompt for `repo` or `system` when no target is provided
 - `/dev-loops install repo` — copy packaged skills into the current repository under `.pi/skills`
 - `/dev-loops install system` — copy packaged skills into `~/.pi/agent/skills`
+- `/dev-loops update` — prompt for `repo` or `system` when no target is provided
 - `/dev-loops update repo|system` — refresh previously installed packaged skills
 - `/dev-loops hide` — clear the readiness widget
 
@@ -54,7 +56,7 @@ Important install/update contract:
 - installing the package exposes both the `/dev-loops` extension command surface and the `pi-dev-loops` shell CLI
 - packaged skills are still installed explicitly with `/dev-loops install ...`
 - `update` refreshes existing installed copies but does not create first-time installs
-- installed copies of `copilot-dev-loop` and `copilot-autopilot` include the allow-listed runtime support they need from `scripts/`, `packages/core/src/`, and `docs/`
+- installed copies of `copilot-dev-loop` and `copilot-autopilot` include the allow-listed runtime support they need from `scripts/`, `packages/core/src/`, and the selected loop state-graph docs under `docs/`
 - restart Pi or refresh skill discovery after install/update before expecting newly copied skills to appear in the current session
 
 See `extension/README.md` for the full command and install/update contract.
@@ -89,8 +91,10 @@ Current script entrypoints include:
 - `scripts/github/watch-copilot-review.mjs`
 - `scripts/github/stage-reviewer-draft.mjs`
 - `scripts/github/reply-resolve-review-thread.mjs`
+- `scripts/github/detect-linked-issue-pr.mjs`
 - `scripts/loop/detect-copilot-loop-state.mjs`
 - `scripts/loop/detect-reviewer-loop-state.mjs`
+- `scripts/loop/detect-tracker-pr-state.mjs`
 - `scripts/loop/copilot-pr-handoff.mjs`
 - `scripts/loop/summarize-loop-state.mjs`
 
@@ -99,6 +103,7 @@ Reference docs:
 - `scripts/README.md`
 - `docs/copilot-loop-state-graph.md`
 - `docs/reviewer-loop-state-graph.md`
+- `docs/tracker-first-mvp-state-graph.md`
 
 ## Requirements and assumptions
 
@@ -114,13 +119,15 @@ Current code and docs assume:
 
 - `agents/` — reusable role-agent definitions
 - `docs/` — implementation state, workflow docs, state graphs, and durable phase plans
+- `bin/` — shell entrypoints exposed by the root package
+- `cli/` — shell-facing command wrappers used by the root CLI
 - `extension/` — `/dev-loops` extension implementation and docs
 - `lib/` — shared deterministic library layer used by the extension and shell CLI
 - `packages/core/` — private deterministic support package
 - `scripts/` — deterministic CLI helpers for GitHub/review/loop mechanics
 - `skills/` — packaged workflow skills
 - `test/` — root contract and regression tests
-- `tmp/` — local execution artifacts and resumable temporary state
+- `tmp/` — gitignored local execution artifacts and resumable temporary state
 
 ## Development and validation
 
