@@ -22,7 +22,7 @@ layout: section
 ---
 
 # Executive summary
-## The value is faster shipping, not more workflow theater
+## Faster shipping through owned waiting states
 
 ---
 
@@ -49,15 +49,13 @@ It combines:
 - review and control surfaces
 - conductor-led orchestration
 
-The goal is to move work from intake to shipped outcome with a process that stays visible, resumable, and improvable.
+It exists to move work from intake to shipped outcome with a process that stays visible, resumable, and improvable.
 
 ---
 
-# What this actually is
+# The core concept
 
-This is bigger than a coordinator bot.
-
-The core idea is a **shipping process** built from explicit loops that move work forward:
+Think of this as a **shipping process** built from explicit loops:
 - refinement loops
 - shaping loops
 - implementation loops
@@ -65,7 +63,7 @@ The core idea is a **shipping process** built from explicit loops that move work
 - approval and closeout loops
 
 The conductor keeps those loops connected.
-The process is the real product.
+The shipping process is the product.
 
 ---
 
@@ -137,15 +135,15 @@ flowchart TD
     A --> B --> C --> D --> E --> F --> G --> H --> I
 ```
 
-This is the operating model: a chain of loops, not one flat automation step.
+The operating model is a chain of loops rather than one flat automation step.
 
 ---
 
 # Waiting states are the real bottleneck
 
-The process matters because most wasted time is not active work.
+Most wasted time does not come from active work.
 
-It is time spent in states like:
+It comes from states like:
 - waiting for review
 - waiting for CI
 - waiting for approval
@@ -186,7 +184,7 @@ The system needs deterministic tooling for:
 - stop versus resume decisions after merge
 - mid-flight steering
 
-Without that, the process looks autonomous but is not reliable.
+Without that, the process may look autonomous while staying unreliable.
 
 ---
 layout: section
@@ -228,11 +226,11 @@ That is how planning, execution, and review stay connected.
 
 ---
 
-# Why this is different from generic AI automation
+# Why this differs from generic AI automation
 
-The point is not to automate judgment.
+The goal here is not judgment automation.
 
-The point is to automate the dead time around judgment.
+The real target is the dead time around judgment.
 
 That means:
 - humans spend more time deciding
@@ -252,8 +250,8 @@ Start with bounded slices on real work.
 - manual approval retained
 - deterministic closeout artifacts
 
-The first goal is not magic autonomy.
 The first goal is trustworthy flow through the loops.
+Magic autonomy can wait.
 
 ---
 layout: end
@@ -261,7 +259,7 @@ layout: end
 
 # Bottom line
 
-The opportunity is simple:
+The opportunity is straightforward:
 
 ## cut the dead time between one state change and the next action
 
