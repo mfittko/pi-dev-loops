@@ -8,15 +8,15 @@ title: Conductor loops and waiting-state automation
 # Conductor loops
 ## Reduce delivery latency by owning waiting states
 
-- Why the biggest waste is often **not coding time**
-- Why a deterministic conductor can cut **dead time between state changes**
-- Why humans should focus on **judgment**, not on babysitting workflow transitions
+- The biggest waste is often **not coding time**
+- A deterministic conductor can cut **dead time between state changes**
+- Humans should focus on **judgment**, not on babysitting workflow transitions
 
 ---
 
 # The real problem
 
-Most teams do not mainly lose time because every step is hard.
+Most teams do not lose time because every step is hard.
 
 They lose time because the next step is already obvious, but nobody notices the state change quickly enough.
 
@@ -35,11 +35,11 @@ The expensive part is often:
 - waiting
 - missing that waiting is over
 - reloading context after idle gaps
-- manually shepherding the next predictable transition
+- manually pushing the next predictable transition
 
-Each delay looks small in isolation.
+Each delay looks small on its own.
 
-Across many PRs, reviews, and loops, it compounds into:
+Across many PRs, reviews, and loops, it turns into:
 - slower throughput
 - more interrupted focus
 - more stale work
@@ -67,13 +67,13 @@ It is about automating the **dead time around coding**.
 
 The most important idea is not “we added some AI loops.”
 
-The core idea is:
+The core idea is simple:
 - model the workflow explicitly as states and transitions
 - make the transitions deterministic
 - keep ownership alive through waiting states
 - route work back into the right loop automatically
 
-Without the state machine, the workflow becomes:
+Without the state machine, the workflow depends on:
 - prompt conventions
 - memory
 - manual babysitting
@@ -84,13 +84,13 @@ With the state machine, the workflow becomes:
 - testable
 - inspectable
 - resumable
-- optimizable
+- easier to improve
 
 ---
 
 # What humans should focus on
 
-Humans should spend attention where human judgment matters most:
+Humans should spend attention where judgment matters most:
 - architecture
 - requirements and PRD shaping
 - acceptance criteria and definition of done
@@ -98,7 +98,7 @@ Humans should spend attention where human judgment matters most:
 - business tradeoffs
 - final approval and accountability gates
 
-Humans should not have to spend most of their time on:
+Humans should not spend most of their time on:
 - polling status
 - re-requesting predictable transitions
 - watching CI turn green
@@ -158,7 +158,7 @@ This matters because a lot of waste starts even before code:
 - the issue is vague
 - the slice is too broad
 - the acceptance criteria are incomplete
-- the team starts implementation before the work is actually shaped
+- the team starts implementation before the work is shaped enough
 
 ---
 
@@ -210,7 +210,7 @@ Once the PR is marked ready:
   - re-request
   - repeat
 
-This is important because:
+This matters because:
 - ready-for-review is not just a UI toggle
 - it is a real state transition in the workflow
 
@@ -290,7 +290,7 @@ To make this trustworthy, the loop needs deterministic tooling for:
 - mid-flight steering and safe-point handling
 - reliable latest-turn / active-question grounding
 
-Without these, the loop feels autonomous but is not actually reliable.
+Without these pieces, the loop looks autonomous but is not actually reliable.
 
 ---
 
@@ -368,7 +368,7 @@ That means:
 - faster flow through reviews and fixes
 - better use of expert attention
 
-That is why this can be a real game changer.
+That is why this could change how teams actually work day to day.
 
 ---
 
@@ -403,4 +403,4 @@ If we do that well:
 - the conductor owns the predictable coordination work
 - delivery becomes faster without lowering quality
 
-## The biggest win is latency compression.
+## The biggest win is cutting latency between state changes.
