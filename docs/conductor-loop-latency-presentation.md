@@ -118,24 +118,39 @@ The conductor keeps them connected.
 
 ---
 
-# End-to-end view
+# Flow 1: from intake to draft PR
 
-```mermaid {scale: 0.8}
+```mermaid {scale: 0.9}
 flowchart TD
     A[Intake]
     B[Refinement loop]
     C[Slice-planning loop]
     D[Local implementation loop]
-    E[Draft-stage review loop]
-    F[Copilot review/fix loop]
-    G[Final approval loop]
-    H[Human approval wait]
-    I[Merge closeout or next-slice resume]
+    E[Draft PR]
 
-    A --> B --> C --> D --> E --> F --> G --> H --> I
+    A --> B --> C --> D --> E
 ```
 
-The operating model is a chain of loops rather than one flat automation step.
+This first half turns raw work into a bounded slice that is ready for formal review.
+
+---
+
+# Flow 2: from draft PR to shipped work
+
+```mermaid {scale: 0.82}
+flowchart TD
+    A[Draft-stage review loop]
+    B[Ready for review]
+    C[Copilot review and fix loop]
+    D[Final local approval loop]
+    E[Human approval wait]
+    F[Merge]
+    G[Closeout or next-slice resume]
+
+    A --> B --> C --> D --> E --> F --> G
+```
+
+The full operating model is a chain of loops rather than one flat automation step.
 
 ---
 
