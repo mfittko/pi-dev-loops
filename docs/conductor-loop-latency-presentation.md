@@ -144,56 +144,37 @@ Checks:
 
 ---
 
-# State machine view
+# Example flow: from idea to local execution
 
-```mermaid {scale: 0.62}
-stateDiagram-v2
-    [*] --> intake_received
-
-    intake_received --> overlap_scan_running
-    overlap_scan_running --> issue_refinement_running: no blocking duplicate
-    overlap_scan_running --> blocked_needs_human_decision: conflicting duplicate / unclear ownership
-
-    issue_refinement_running --> proposal_or_slice_plan_running: scope understandable enough to shape
-    issue_refinement_running --> waiting_for_scope_decision: issue too ambiguous / needs decision
-
-    proposal_or_slice_plan_running --> ready_to_start_local_slice: bounded slice frozen
-    proposal_or_slice_plan_running --> waiting_for_scope_decision: slice cannot be safely shaped
-
-    waiting_for_scope_decision --> issue_refinement_running: clarification received
-    waiting_for_scope_decision --> [*]: stop until human decision
-
-    ready_to_start_local_slice --> kickoff
-    kickoff --> active_local: kickoff continuity preserved
-    kickoff --> blocked_needs_human_decision: missing authorization / tooling failure
-
-    active_local --> draft_pr_open: slice integration-ready for draft PR
-    draft_pr_open --> draft_stage_initial_local_fanout_running
-    draft_stage_initial_local_fanout_running --> local_fix_loop: draft fan-out finds issues
-    draft_stage_initial_local_fanout_running --> waiting_to_mark_ready_for_review: draft fan-out clean
-
-    local_fix_loop --> active_local: fixes complete, re-verify locally
-    waiting_to_mark_ready_for_review --> ready_for_review_transition
-    ready_for_review_transition --> waiting_for_copilot_review: explicit ready-state Copilot request
-
-    waiting_for_copilot_review --> copilot_fix_loop: actionable Copilot feedback
-    waiting_for_copilot_review --> final_local_fanout_running: bounded convergence
-
-    copilot_fix_loop --> local_fix_loop: apply narrow fixes
-    final_local_fanout_running --> waiting_for_human_pr_approval: final gate clean
-    final_local_fanout_running --> local_fix_loop: final fan-out finds issues
-
-    waiting_for_human_pr_approval --> waiting_for_merge: human approves
-    waiting_for_human_pr_approval --> draft_stage_initial_local_fanout_running: PR reset to draft
-
-    waiting_for_merge --> post_merge_reconcile: merge detected
-    post_merge_reconcile --> terminal_slice_complete: last planned step
-    post_merge_reconcile --> post_merge_resume: concrete next step exists
-
-    post_merge_resume --> ready_to_start_local_slice
-    terminal_slice_complete --> [*]
-    blocked_needs_human_decision --> [*]
+```mermaid {scale: 0.9}
+flowchart LR
+    A[Intake] --> B[Overlap scan]
+    B --> C[Refinement]
+    C --> D[Slice plan]
+    D --> E[Local implementation]
+    E --> F[Local validation]
+    F --> G[Draft PR]
 ```
+
+The conductor owns this path so the team does not lose time between shaping, implementation, and the first PR state.
+
+---
+
+# Example flow: from PR to closeout
+
+```mermaid {scale: 0.88}
+flowchart LR
+    A[Draft PR] --> B[Initial local fan-out]
+    B --> C[Ready for review]
+    C --> D[Explicit Copilot request]
+    D --> E[Copilot review or fix loop]
+    E --> F[Final DIY DRY KISS YAGNI gate]
+    F --> G[Human approval wait]
+    G --> H[Merge]
+    H --> I[Stop or resume next slice]
+```
+
+The main value is simple: every waiting state stays owned until the next action happens.
 
 ---
 
@@ -234,21 +215,6 @@ That should improve:
 - review responsiveness
 - slice-to-slice flow
 - developer focus
-
----
-
-# Pilot evidence already supports the direction
-
-The live pilot already surfaced concrete gaps:
-- owned state created without a live continuation path
-- watcher-only ownership was insufficient
-- draft / ready / approval states were misclassified
-- mandatory review gates were skipped
-- merge handling needed clearer terminal vs resume rules
-- post-merge visibility varied by slice
-- operator-question grounding failed in one case
-
-That evidence is useful because it is specific and actionable.
 
 ---
 
