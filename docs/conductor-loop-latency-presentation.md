@@ -119,16 +119,13 @@ Without it, teams fall back to memory, polling, and manual babysitting.
 11. merge
 12. stop or resume the next slice
 
-Waiting states remain part of the workflow, not gaps outside it.
+Waiting states remain part of the workflow.
 
 ---
 
-# Key review choreography
+# Draft-stage review gate
 
-The loop uses two different local review gates.
-
-## Draft-stage fan-out
-Checks:
+Use the initial local fan-out for:
 - scope fit
 - SRP / cohesion / boundaries
 - acceptance criteria
@@ -136,24 +133,34 @@ Checks:
 - architecture fit
 - test adequacy
 
-## Final gate before approval
-Checks:
+Goal: confirm this is the right PR before it moves forward.
+
+---
+
+# Final review gate
+
+Use the last local fan-out for:
 - DRY
 - KISS
 - YAGNI
+
+Goal: remove avoidable complexity before approval.
 
 ---
 
 # Example flow: from idea to local execution
 
-```mermaid {scale: 0.9}
-flowchart LR
-    A[Intake] --> B[Overlap scan]
-    B --> C[Refinement]
-    C --> D[Slice plan]
-    D --> E[Local implementation]
-    E --> F[Local validation]
-    F --> G[Draft PR]
+```mermaid {scale: 0.82}
+flowchart TD
+    A[Intake]
+    B[Overlap scan]
+    C[Refinement]
+    D[Slice plan]
+    E[Local implementation]
+    F[Local validation]
+    G[Draft PR]
+
+    A --> B --> C --> D --> E --> F --> G
 ```
 
 The conductor owns this path so the team does not lose time between shaping, implementation, and the first PR state.
@@ -162,16 +169,19 @@ The conductor owns this path so the team does not lose time between shaping, imp
 
 # Example flow: from PR to closeout
 
-```mermaid {scale: 0.88}
-flowchart LR
-    A[Draft PR] --> B[Initial local fan-out]
-    B --> C[Ready for review]
-    C --> D[Explicit Copilot request]
-    D --> E[Copilot review or fix loop]
-    E --> F[Final DIY DRY KISS YAGNI gate]
-    F --> G[Human approval wait]
-    G --> H[Merge]
-    H --> I[Stop or resume next slice]
+```mermaid {scale: 0.8}
+flowchart TD
+    A[Draft PR]
+    B[Initial local fan-out]
+    C[Ready for review]
+    D[Explicit Copilot request]
+    E[Copilot review or fix loop]
+    F[Final DIY gate]
+    G[Human approval wait]
+    H[Merge]
+    I[Stop or resume next slice]
+
+    A --> B --> C --> D --> E --> F --> G --> H --> I
 ```
 
 The main value is simple: every waiting state stays owned until the next action happens.
