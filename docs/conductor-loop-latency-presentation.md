@@ -43,13 +43,14 @@ Across a company, they become a large delivery tax.
 
 This is bigger than a coordinator bot.
 
-The core idea is a **shipping process** that:
-- models work as explicit states
-- runs the loops required to move work forward
-- keeps waiting states owned
-- hands humans only the decisions that need judgment
+The core idea is a **shipping process** built from explicit loops that move work forward:
+- refinement loops
+- shaping loops
+- implementation loops
+- review and fix loops
+- approval and closeout loops
 
-The conductor is one part of that system.
+The conductor keeps those loops connected.
 The process is the real product.
 
 ---
@@ -89,7 +90,7 @@ layout: section
 
 ---
 
-# The loops inside the process
+# The loop architecture
 
 A real shipping process needs multiple loops:
 - refinement loop
@@ -100,7 +101,8 @@ A real shipping process needs multiple loops:
 - final local approval loop
 - merge closeout or resume loop
 
-The state machine keeps those loops connected.
+Each loop solves a different delivery problem.
+The conductor keeps them connected.
 
 ---
 
@@ -108,21 +110,20 @@ The state machine keeps those loops connected.
 
 ```mermaid {scale: 0.8}
 flowchart TD
-    A[Intake] --> B[Refinement]
-    B --> C[Slice plan]
-    C --> D[Local implementation]
-    D --> E[Draft PR]
-    E --> F[Initial local fan-out]
-    F --> G[Ready for review]
-    G --> H[Explicit Copilot request]
-    H --> I[Copilot review and fix loop]
-    I --> J[Final local gate]
-    J --> K[Human approval wait]
-    K --> L[Merge]
-    L --> M[Stop or resume next slice]
+    A[Intake]
+    B[Refinement loop]
+    C[Slice-planning loop]
+    D[Local implementation loop]
+    E[Draft-stage review loop]
+    F[Copilot review/fix loop]
+    G[Final approval loop]
+    H[Human approval wait]
+    I[Merge closeout or next-slice resume]
+
+    A --> B --> C --> D --> E --> F --> G --> H --> I
 ```
 
-This is the core operating model.
+This is the operating model: a chain of loops, not one flat automation step.
 
 ---
 
@@ -142,16 +143,16 @@ Owning those states is where the speedup comes from.
 
 # Review choreography matters
 
-The process uses different gates for different questions.
+The process uses different review loops for different questions.
 
-## Early gate
+## Early review loop
 - scope fit
 - SRP / boundaries
 - AC and DoD coverage
 - architecture fit
 - test adequacy
 
-## Final gate
+## Final review loop
 - DRY
 - KISS
 - YAGNI
@@ -232,13 +233,13 @@ Start with bounded slices on real work.
 
 - one conductor
 - bounded workers
-- explicit review gates
+- explicit loops and review gates
 - visible PR-side state comments
 - manual approval retained
 - deterministic closeout artifacts
 
 The first goal is not magic autonomy.
-The first goal is trustworthy flow.
+The first goal is trustworthy flow through the loops.
 
 ---
 layout: end
