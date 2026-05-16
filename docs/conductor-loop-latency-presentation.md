@@ -21,7 +21,7 @@ The biggest waste in software delivery is often the gap between one state change
 layout: section
 ---
 
-# Executive summary
+# Why this matters
 ## Faster shipping through owned waiting states
 
 ---
