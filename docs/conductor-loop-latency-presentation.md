@@ -39,6 +39,20 @@ Across a company, they become a large delivery tax.
 
 ---
 
+# What is pi-dev-loops?
+
+`pi-dev-loops` is a repository for reusable development loops.
+
+It combines:
+- deterministic tooling
+- workflow skills
+- review and control surfaces
+- conductor-led orchestration
+
+The goal is to move work from intake to shipped outcome with a process that stays visible, resumable, and improvable.
+
+---
+
 # What this actually is
 
 This is bigger than a coordinator bot.
