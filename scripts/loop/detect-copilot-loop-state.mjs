@@ -229,6 +229,11 @@ function isCopilotLogin(login) {
   return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
 }
 
+function deriveRunIdFromSteeringFile(filePath) {
+  const basename = path.basename(filePath, path.extname(filePath)).trim();
+  return basename.length > 0 ? basename : "ephemeral-steering-state";
+}
+
 /**
  * Fetch basic PR info: isDraft, state (OPEN/CLOSED/MERGED), number, reviews, statusCheckRollup.
  */
@@ -432,12 +437,13 @@ export async function runCli(
 
     const steeringState = rawSteering !== null
       ? normalizeSteeringState(rawSteering)
-      : createSteeringState("none");
+      : createSteeringState(deriveRunIdFromSteeringFile(options.steeringStateFile));
 
     const resolved = resolveEffectiveLoopState(snapshot, steeringState);
     interpretation = resolved;
     steeringFields = {
       steeringApplied: resolved.steeringApplied,
+      pendingStopAtNextSafeGate: resolved.pendingStopAtNextSafeGate,
       effectiveConstraints: resolved.effectiveConstraints,
     };
   } else {

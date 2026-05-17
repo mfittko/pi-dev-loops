@@ -64,6 +64,7 @@ export const SAFE_POINT_CATEGORY = Object.freeze({
 });
 
 const VALID_STEERING_KINDS = new Set(Object.values(STEERING_KIND));
+const VALID_STEERING_RESULTS = new Set(Object.values(STEERING_RESULT));
 const VALID_APPLY_MODES = new Set(["immediate", "next_safe_point"]);
 
 // ---------------------------------------------------------------------------
@@ -204,6 +205,76 @@ export function normalizeSteeringEvent(raw) {
  * @returns {object} normalized steering state
  * @throws {Error} if required fields are missing
  */
+function normalizeResultEntry(raw, fieldName) {
+  if (!raw || typeof raw !== "object") {
+    throw new Error(`${fieldName} entry must be an object`);
+  }
+
+  const eventId = typeof raw.eventId === "string" && raw.eventId.trim().length > 0
+    ? raw.eventId.trim()
+    : null;
+  if (!eventId) {
+    throw new Error(`${fieldName} entry requires a non-empty eventId`);
+  }
+
+  const seq = typeof raw.seq === "number" && Number.isFinite(raw.seq) && raw.seq > 0
+    ? Math.floor(raw.seq)
+    : null;
+  if (seq === null) {
+    throw new Error(`${fieldName} entry requires a positive integer seq`);
+  }
+
+  const result = VALID_STEERING_RESULTS.has(raw.result) ? raw.result : null;
+  if (!result) {
+    throw new Error(`${fieldName} entry result must be one of: ${[...VALID_STEERING_RESULTS].join(", ")}`);
+  }
+
+  const acknowledgedAt = typeof raw.acknowledgedAt === "string" && raw.acknowledgedAt.trim().length > 0
+    ? raw.acknowledgedAt.trim()
+    : null;
+  if (!acknowledgedAt) {
+    throw new Error(`${fieldName} entry requires a non-empty acknowledgedAt timestamp`);
+  }
+
+  let reason = null;
+  if (raw.reason !== null && raw.reason !== undefined) {
+    if (typeof raw.reason !== "string") {
+      throw new Error(`${fieldName} entry reason must be a string or null`);
+    }
+    reason = raw.reason;
+  }
+
+  return { eventId, seq, result, reason, acknowledgedAt };
+}
+
+function normalizeEventList(rawList, fieldName) {
+  if (!Array.isArray(rawList)) {
+    return [];
+  }
+  return rawList.map((entry, index) => {
+    try {
+      return normalizeSteeringEvent(entry);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`${fieldName}[${index}] is invalid: ${detail}`);
+    }
+  });
+}
+
+function normalizeResultList(rawList, fieldName) {
+  if (!Array.isArray(rawList)) {
+    return [];
+  }
+  return rawList.map((entry, index) => {
+    try {
+      return normalizeResultEntry(entry, `${fieldName}[${index}]`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(detail);
+    }
+  });
+}
+
 export function normalizeSteeringState(raw) {
   if (!raw || typeof raw !== "object") {
     throw new Error("Steering state must be a non-null object");
@@ -216,14 +287,24 @@ export function normalizeSteeringState(raw) {
     throw new Error("Steering state requires a non-empty runId");
   }
 
+  const events = normalizeEventList(raw.events, "events");
+  const effectiveStack = normalizeEventList(raw.effectiveStack, "effectiveStack");
+  const queuedEvents = normalizeEventList(raw.queuedEvents, "queuedEvents");
+  const resultHistory = normalizeResultList(raw.resultHistory, "resultHistory");
+
+  let latestResult = null;
+  if (raw.latestResult !== null && raw.latestResult !== undefined) {
+    latestResult = normalizeResultEntry(raw.latestResult, "latestResult");
+  }
+
   return {
     runId,
     schemaVersion: 1,
-    events: Array.isArray(raw.events) ? raw.events : [],
-    effectiveStack: Array.isArray(raw.effectiveStack) ? raw.effectiveStack : [],
-    queuedEvents: Array.isArray(raw.queuedEvents) ? raw.queuedEvents : [],
-    resultHistory: Array.isArray(raw.resultHistory) ? raw.resultHistory : [],
-    latestResult: raw.latestResult && typeof raw.latestResult === "object" ? raw.latestResult : null,
+    events,
+    effectiveStack,
+    queuedEvents,
+    resultHistory,
+    latestResult,
     nextSeq: typeof raw.nextSeq === "number" && Number.isFinite(raw.nextSeq) && raw.nextSeq > 0
       ? Math.floor(raw.nextSeq)
       : 1,
@@ -488,12 +569,13 @@ export function promoteQueuedSteering(steeringState, loopState) {
  * Returns a structured view over the effective stack, split by kind.
  *
  * @param {object} steeringState
- * @returns {{ hardConstraints: string[], preferences: string[], clarifications: string[], stopAtNextSafeGate: boolean }}
+ * @returns {{ hardConstraints: string[], preferences: string[], clarifications: string[], stopAtNextSafeGate: boolean, unknownConstraints: object[] }}
  */
 export function getEffectiveConstraints(steeringState) {
   const hardConstraints = [];
   const preferences = [];
   const clarifications = [];
+  const unknownConstraints = [];
   let stopAtNextSafeGate = false;
 
   for (const event of steeringState.effectiveStack) {
@@ -510,10 +592,17 @@ export function getEffectiveConstraints(steeringState) {
       case STEERING_KIND.STOP_AT_NEXT_SAFE_GATE:
         stopAtNextSafeGate = true;
         break;
+      default:
+        unknownConstraints.push({
+          kind: event.kind,
+          directive: event.directive,
+          seq: event.seq,
+        });
+        break;
     }
   }
 
-  return { hardConstraints, preferences, clarifications, stopAtNextSafeGate };
+  return { hardConstraints, preferences, clarifications, stopAtNextSafeGate, unknownConstraints };
 }
 
 // ---------------------------------------------------------------------------
@@ -539,7 +628,7 @@ export function getEffectiveConstraints(steeringState) {
  *
  * @param {object} snapshot - raw or normalized loop snapshot
  * @param {object} steeringState - current steering state for this run
- * @returns {{ state: string, allowedTransitions: string[], nextAction: string, steeringApplied: boolean, effectiveConstraints: object }}
+ * @returns {{ state: string, allowedTransitions: string[], nextAction: string, steeringApplied: boolean, pendingStopAtNextSafeGate: boolean, effectiveConstraints: object }}
  */
 export function resolveEffectiveLoopState(snapshot, steeringState) {
   const base = interpretLoopState(snapshot);
@@ -549,18 +638,23 @@ export function resolveEffectiveLoopState(snapshot, steeringState) {
   const steeringApplied = constraints.stopAtNextSafeGate
     || constraints.hardConstraints.length > 0
     || constraints.preferences.length > 0
-    || constraints.clarifications.length > 0;
+    || constraints.clarifications.length > 0
+    || constraints.unknownConstraints.length > 0;
+  const pendingStopAtNextSafeGate = constraints.stopAtNextSafeGate && category === SAFE_POINT_CATEGORY.NEXT_POINT;
 
   let nextAction = base.nextAction;
 
   if (constraints.stopAtNextSafeGate && category === SAFE_POINT_CATEGORY.IMMEDIATE) {
     nextAction = "Stop at this safe gate: a stop_at_next_safe_gate steering directive is active. Do not proceed to the next loop step.";
+  } else if (pendingStopAtNextSafeGate) {
+    nextAction = `Pending stop_at_next_safe_gate: stop at the next safe gate. Until then, current state remains '${base.state}' and the immediate action is: ${base.nextAction}`;
   }
 
   return {
     ...base,
     nextAction,
     steeringApplied,
+    pendingStopAtNextSafeGate,
     effectiveConstraints: constraints,
   };
 }

@@ -29,7 +29,7 @@
  *   on stderr and exit non-zero.
  *   Runtime failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -41,6 +41,7 @@ import {
   submitSteering,
   getSteeringStatus,
 } from "../../packages/core/src/loop/steering.mjs";
+import { STATE } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
 import { formatCliError } from "../_core-helpers.mjs";
 
@@ -105,6 +106,10 @@ Run steer-loop.mjs <subcommand> --help for subcommand-specific help.`.trim();
 
 const VALID_KINDS = new Set(Object.values(STEERING_KIND));
 const VALID_APPLY_MODES = new Set(["immediate", "next_safe_point"]);
+const VALID_LOOP_STATES = new Set(Object.values(STATE));
+const SAFE_RUN_ID_RE = /^[A-Za-z0-9._-]+$/;
+const STATE_FILE_LOCK_TIMEOUT_MS = 5000;
+const STATE_FILE_LOCK_RETRY_MS = 50;
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -114,12 +119,19 @@ function parseError(message, usage) {
   return Object.assign(new Error(message), { usage });
 }
 
-function requireOptionValue(args, flag, usage) {
+function requireOptionValue(args, flag, usage, { allowFlagLike = false } = {}) {
   const value = args.shift();
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
+  const missing = typeof value !== "string" || value.length === 0 || (!allowFlagLike && value.startsWith("--"));
+  if (missing) {
     throw parseError(`Missing value for ${flag}`, usage);
   }
   return value;
+}
+
+function validateSafeRunId(runId, usage) {
+  if (!SAFE_RUN_ID_RE.test(runId)) {
+    throw parseError("--run-id must contain only letters, numbers, dot, underscore, or hyphen", usage);
+  }
 }
 
 export function parseSubmitCliArgs(argv) {
@@ -146,6 +158,7 @@ export function parseSubmitCliArgs(argv) {
 
     if (token === "--run-id") {
       options.runId = requireOptionValue(args, "--run-id", SUBMIT_USAGE).trim();
+      validateSafeRunId(options.runId, SUBMIT_USAGE);
       continue;
     }
     if (token === "--kind") {
@@ -157,7 +170,7 @@ export function parseSubmitCliArgs(argv) {
       continue;
     }
     if (token === "--directive") {
-      options.directive = requireOptionValue(args, "--directive", SUBMIT_USAGE).trim();
+      options.directive = requireOptionValue(args, "--directive", SUBMIT_USAGE, { allowFlagLike: true }).trim();
       continue;
     }
     if (token === "--seq") {
@@ -173,7 +186,11 @@ export function parseSubmitCliArgs(argv) {
       continue;
     }
     if (token === "--loop-state") {
-      options.loopState = requireOptionValue(args, "--loop-state", SUBMIT_USAGE);
+      const val = requireOptionValue(args, "--loop-state", SUBMIT_USAGE);
+      if (!VALID_LOOP_STATES.has(val)) {
+        throw parseError(`--loop-state must be one of: ${[...VALID_LOOP_STATES].join(", ")}`, SUBMIT_USAGE);
+      }
+      options.loopState = val;
       continue;
     }
     if (token === "--apply-mode") {
@@ -228,6 +245,7 @@ export function parseStatusCliArgs(argv) {
 
     if (token === "--run-id") {
       options.runId = requireOptionValue(args, "--run-id", STATUS_USAGE).trim();
+      validateSafeRunId(options.runId, STATUS_USAGE);
       continue;
     }
     if (token === "--state-file") {
@@ -265,9 +283,41 @@ async function loadStateFile(filePath) {
   }
 }
 
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withStateFileLock(filePath, callback) {
+  const lockPath = `${filePath}.lock`;
+  const deadline = Date.now() + STATE_FILE_LOCK_TIMEOUT_MS;
+
+  while (true) {
+    try {
+      await mkdir(lockPath);
+      break;
+    } catch (error) {
+      if (error.code !== "EEXIST") {
+        throw new Error(`Failed to acquire steering state lock '${lockPath}': ${error.message}`);
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for steering state lock '${lockPath}'`);
+      }
+      await sleep(STATE_FILE_LOCK_RETRY_MS);
+    }
+  }
+
+  try {
+    return await callback();
+  } finally {
+    await rm(lockPath, { recursive: true, force: true });
+  }
+}
+
 async function saveStateFile(filePath, steeringState) {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(steeringState, null, 2)}\n`, "utf8");
+  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  await writeFile(tempPath, `${JSON.stringify(steeringState, null, 2)}\n`, "utf8");
+  await rename(tempPath, filePath);
 }
 
 // ---------------------------------------------------------------------------
@@ -284,29 +334,32 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
 
   const stateFilePath = options.stateFile ?? defaultStateFilePath(options.runId, cwd);
 
-  // Load or create steering state
-  const raw = await loadStateFile(stateFilePath);
-  const steeringState = raw !== null
-    ? normalizeSteeringState(raw)
-    : createSteeringState(options.runId);
+  const { steeringState: newState, result } = await withStateFileLock(stateFilePath, async () => {
+    // Load or create steering state
+    const raw = await loadStateFile(stateFilePath);
+    const steeringState = raw !== null
+      ? normalizeSteeringState(raw)
+      : createSteeringState(options.runId);
 
-  // Build and validate the event
-  const eventId = options.eventId ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const event = normalizeSteeringEvent({
-    eventId,
-    runId: options.runId,
-    kind: options.kind,
-    directive: options.directive,
-    seq: options.seq,
-    applyMode: options.applyMode,
-    submittedAt: new Date().toISOString(),
+    // Build and validate the event
+    const eventId = options.eventId ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const event = normalizeSteeringEvent({
+      eventId,
+      runId: options.runId,
+      kind: options.kind,
+      directive: options.directive,
+      seq: options.seq,
+      applyMode: options.applyMode,
+      submittedAt: new Date().toISOString(),
+    });
+
+    // Submit
+    const submission = submitSteering(event, steeringState, options.loopState);
+
+    // Persist atomically while still holding the lock
+    await saveStateFile(stateFilePath, submission.steeringState);
+    return submission;
   });
-
-  // Submit
-  const { steeringState: newState, result } = submitSteering(event, steeringState, options.loopState);
-
-  // Persist
-  await saveStateFile(stateFilePath, newState);
 
   stdout.write(`${JSON.stringify({ ok: true, result, steeringState: newState })}\n`);
 }

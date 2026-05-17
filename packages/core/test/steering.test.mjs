@@ -200,10 +200,39 @@ test("normalizeSteeringState returns safe defaults for minimal input", () => {
 });
 
 test("normalizeSteeringState preserves existing arrays", () => {
-  const events = [makeEvent()];
-  const state = normalizeSteeringState({ runId: "run-1", events, nextSeq: 2 });
+  const event = makeEvent();
+  const resultEntry = {
+    eventId: event.eventId,
+    seq: event.seq,
+    result: STEERING_RESULT.APPLIED_NOW,
+    reason: null,
+    acknowledgedAt: "2026-01-01T00:00:01.000Z",
+  };
+  const state = normalizeSteeringState({
+    runId: "run-1",
+    events: [event],
+    effectiveStack: [event],
+    queuedEvents: [],
+    resultHistory: [resultEntry],
+    latestResult: resultEntry,
+    nextSeq: 2,
+  });
   assert.equal(state.events.length, 1);
+  assert.equal(state.effectiveStack.length, 1);
+  assert.equal(state.resultHistory.length, 1);
+  assert.equal(state.latestResult.result, STEERING_RESULT.APPLIED_NOW);
   assert.equal(state.nextSeq, 2);
+});
+
+
+test("normalizeSteeringState rejects malformed persisted event entries", () => {
+  assert.throws(
+    () => normalizeSteeringState({
+      runId: "run-1",
+      events: [{ eventId: "evt-1", runId: "run-1", directive: "x", seq: 1 }],
+    }),
+    /events\[0\] is invalid/,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -643,7 +672,7 @@ test("resolveEffectiveLoopState overrides nextAction when stop_at_next_safe_gate
   assert.match(result.nextAction, /stop_at_next_safe_gate/);
 });
 
-test("resolveEffectiveLoopState does NOT override nextAction when stop_at_next_safe_gate is active but loop is not at a safe point", () => {
+test("resolveEffectiveLoopState surfaces pending stop_at_next_safe_gate when loop is not yet at a safe point", () => {
   const event = makeEvent({ seq: 1, kind: STEERING_KIND.STOP_AT_NEXT_SAFE_GATE });
   let state = makeState();
   const { steeringState: withStop } = submitSteering(event, state, STATE.WAITING_FOR_COPILOT_REVIEW);
@@ -653,8 +682,9 @@ test("resolveEffectiveLoopState does NOT override nextAction when stop_at_next_s
   const result = resolveEffectiveLoopState(snapshot, withStop);
 
   assert.equal(result.state, STATE.UNRESOLVED_FEEDBACK_PRESENT);
-  assert.equal(result.steeringApplied, true); // steering is present even if not overriding action
-  assert.ok(!/Stop at this safe gate/.test(result.nextAction), "nextAction must not contain stop gate message");
+  assert.equal(result.steeringApplied, true);
+  assert.equal(result.pendingStopAtNextSafeGate, true);
+  assert.match(result.nextAction, /Pending stop_at_next_safe_gate/);
 });
 
 test("resolveEffectiveLoopState sets steeringApplied when hard constraint is effective", () => {
@@ -667,6 +697,7 @@ test("resolveEffectiveLoopState sets steeringApplied when hard constraint is eff
 
   assert.equal(result.steeringApplied, true);
   assert.deepEqual(result.effectiveConstraints.hardConstraints, ["No new deps"]);
+  assert.deepEqual(result.effectiveConstraints.unknownConstraints, []);
 });
 
 test("resolveEffectiveLoopState returns a fresh object each call", () => {
@@ -724,4 +755,18 @@ test("getSteeringStatus for fresh state shows all zeros and no latest result", (
   assert.deepEqual(status.history, []);
   assert.equal(status.nextSeq, 1);
   assert.equal(status.effectiveConstraints.stopAtNextSafeGate, false);
+  assert.deepEqual(status.effectiveConstraints.unknownConstraints, []);
+});
+
+
+test("getEffectiveConstraints surfaces unknown kinds instead of dropping them silently", () => {
+  const constraints = getEffectiveConstraints({
+    effectiveStack: [{ kind: "future_kind", directive: "Future event", seq: 9 }],
+  });
+
+  assert.deepEqual(constraints.unknownConstraints, [{
+    kind: "future_kind",
+    directive: "Future event",
+    seq: 9,
+  }]);
 });

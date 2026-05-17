@@ -998,7 +998,7 @@ test("detect-copilot-loop-state: hard_constraint steering is visible in effectiv
   }
 });
 
-test("detect-copilot-loop-state: stop_at_next_safe_gate does NOT override nextAction when loop is not at a safe point", async () => {
+test("detect-copilot-loop-state: stop_at_next_safe_gate is visible as pending when loop is not at a safe point", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-nogate-"));
 
   try {
@@ -1048,9 +1048,8 @@ test("detect-copilot-loop-state: stop_at_next_safe_gate does NOT override nextAc
     assert.equal(output.ok, true);
     assert.equal(output.state, "unresolved_feedback_present");
     assert.equal(output.steeringApplied, true);
-    // nextAction should NOT be overridden since we are not at a safe point
-    assert.ok(!/Stop at this safe gate/.test(output.nextAction),
-      "nextAction must not be overridden when loop is not at a safe point");
+    assert.equal(output.pendingStopAtNextSafeGate, true);
+    assert.match(output.nextAction, /Pending stop_at_next_safe_gate/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

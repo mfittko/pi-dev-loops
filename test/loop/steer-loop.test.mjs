@@ -98,6 +98,17 @@ test("parseSubmitCliArgs parses optional flags", () => {
   assert.equal(opts.stateFile, "/tmp/state.json");
 });
 
+
+test("parseSubmitCliArgs allows directive values that begin with double dashes", () => {
+  const opts = parseSubmitCliArgs([
+    "--run-id", "run-1",
+    "--kind", "hard_constraint",
+    "--directive", "--foo must not appear in code",
+    "--seq", "2",
+  ]);
+  assert.equal(opts.directive, "--foo must not appear in code");
+});
+
 test("parseSubmitCliArgs throws on missing --run-id", () => {
   assert.throws(
     () => parseSubmitCliArgs(["--kind", "preference", "--directive", "x", "--seq", "1"]),
@@ -116,6 +127,14 @@ test("parseSubmitCliArgs throws on invalid --kind", () => {
   assert.throws(
     () => parseSubmitCliArgs(["--run-id", "r", "--kind", "bogus", "--directive", "x", "--seq", "1"]),
     /--kind must be one of/,
+  );
+});
+
+
+test("parseSubmitCliArgs throws on unsafe --run-id", () => {
+  assert.throws(
+    () => parseSubmitCliArgs(["--run-id", "../bad", "--kind", "preference", "--directive", "x", "--seq", "1"]),
+    /--run-id must contain only/,
   );
 });
 
@@ -154,6 +173,14 @@ test("parseSubmitCliArgs throws on invalid --apply-mode", () => {
   );
 });
 
+
+test("parseSubmitCliArgs throws on invalid --loop-state", () => {
+  assert.throws(
+    () => parseSubmitCliArgs(["--run-id", "r", "--kind", "preference", "--directive", "x", "--seq", "1", "--loop-state", "waiting_for_review"]),
+    /--loop-state must be one of/,
+  );
+});
+
 test("parseSubmitCliArgs sets help flag on --help", () => {
   const opts = parseSubmitCliArgs(["--help"]);
   assert.equal(opts.help, true);
@@ -175,6 +202,11 @@ test("parseStatusCliArgs throws on missing --run-id", () => {
 test("parseStatusCliArgs accepts --state-file", () => {
   const opts = parseStatusCliArgs(["--run-id", "r", "--state-file", "/tmp/s.json"]);
   assert.equal(opts.stateFile, "/tmp/s.json");
+});
+
+
+test("parseStatusCliArgs throws on unsafe --run-id", () => {
+  assert.throws(() => parseStatusCliArgs(["--run-id", "../../bad"]), /--run-id must contain only/);
 });
 
 test("parseStatusCliArgs throws on unknown argument", () => {
