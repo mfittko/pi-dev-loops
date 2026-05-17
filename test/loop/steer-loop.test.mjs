@@ -474,6 +474,28 @@ test("runSubmit persists state that survives reload across calls", async () => {
   });
 });
 
+
+test("runSubmit creates the default steering directory before acquiring the lock", async () => {
+  await withTempDir(async (dir) => {
+    const { stream, read } = makeStdout();
+
+    await runSubmit([
+      "--run-id", "default-path-run",
+      "--kind", "hard_constraint",
+      "--directive", "Constraint A",
+      "--seq", "1",
+      "--loop-state", "ready_to_rerequest_review",
+    ], { stdout: stream, cwd: dir });
+
+    const output = read();
+    assert.equal(output.ok, true);
+
+    const defaultStatePath = path.join(dir, ".pi", "steering", "default-path-run.json");
+    const saved = JSON.parse(await readFile(defaultStatePath, "utf8"));
+    assert.equal(saved.events.length, 1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // runStatus
 // ---------------------------------------------------------------------------

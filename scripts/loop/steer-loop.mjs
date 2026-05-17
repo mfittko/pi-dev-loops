@@ -288,6 +288,8 @@ async function sleep(ms) {
 }
 
 async function withStateFileLock(filePath, callback) {
+  await mkdir(path.dirname(filePath), { recursive: true });
+
   const lockPath = `${filePath}.lock`;
   const deadline = Date.now() + STATE_FILE_LOCK_TIMEOUT_MS;
 
