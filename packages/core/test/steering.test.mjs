@@ -495,6 +495,20 @@ test("submitSteering still records rejected events in events and resultHistory",
   assert.equal(steeringState.resultHistory[0].result, STEERING_RESULT.REJECTED_UNSAFE_NOW);
 });
 
+
+test("submitSteering does not append out-of-order events to the durable events log", () => {
+  const accepted = makeEvent({ seq: 5 });
+  const rejected = makeEvent({ eventId: "evt-002", seq: 3 });
+  const state = makeState();
+
+  const { steeringState: afterAccepted } = submitSteering(accepted, state, STATE.READY_TO_REREQUEST_REVIEW);
+  const { steeringState: afterRejected, result } = submitSteering(rejected, afterAccepted, STATE.READY_TO_REREQUEST_REVIEW);
+
+  assert.equal(result.result, STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING);
+  assert.deepEqual(afterRejected.events.map((event) => event.seq), [5]);
+  assert.equal(afterRejected.resultHistory.length, 2);
+});
+
 // ---------------------------------------------------------------------------
 // promoteQueuedSteering — durable state reload / resume behavior
 // ---------------------------------------------------------------------------
@@ -696,7 +710,27 @@ test("resolveEffectiveLoopState surfaces pending stop_at_next_safe_gate when loo
   assert.equal(result.state, STATE.UNRESOLVED_FEEDBACK_PRESENT);
   assert.equal(result.steeringApplied, true);
   assert.equal(result.pendingStopAtNextSafeGate, true);
+  assert.equal(result.terminalStopAtNextSafeGate, false);
   assert.match(result.nextAction, /Pending stop_at_next_safe_gate/);
+});
+
+
+test("resolveEffectiveLoopState surfaces terminal stop_at_next_safe_gate when the loop cannot resume", () => {
+  const event = makeEvent({ seq: 1, kind: STEERING_KIND.STOP_AT_NEXT_SAFE_GATE });
+  let state = makeState();
+  const { steeringState: withStop } = submitSteering(event, state, STATE.WAITING_FOR_COPILOT_REVIEW);
+
+  const snapshot = {
+    prExists: true,
+    prNumber: 1,
+    copilotReviewRequestStatus: "failed",
+  };
+  const result = resolveEffectiveLoopState(snapshot, withStop);
+
+  assert.equal(result.state, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.pendingStopAtNextSafeGate, false);
+  assert.equal(result.terminalStopAtNextSafeGate, true);
+  assert.match(result.nextAction, /inactive because the loop is in terminal state/);
 });
 
 test("resolveEffectiveLoopState sets steeringApplied when hard constraint is effective", () => {

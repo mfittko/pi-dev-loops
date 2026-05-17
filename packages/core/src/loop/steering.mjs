@@ -410,7 +410,6 @@ export function submitSteering(event, steeringState, loopState) {
         ...steeringState,
         latestResult: ackResult,
         resultHistory: [...steeringState.resultHistory, ackResult],
-        events: [...steeringState.events, event],
       },
       result: ackResult,
     };
@@ -632,7 +631,7 @@ export function getEffectiveConstraints(steeringState) {
  *
  * @param {object} snapshot - raw or normalized loop snapshot
  * @param {object} steeringState - current steering state for this run
- * @returns {{ state: string, allowedTransitions: string[], nextAction: string, steeringApplied: boolean, pendingStopAtNextSafeGate: boolean, effectiveConstraints: object }}
+ * @returns {{ state: string, allowedTransitions: string[], nextAction: string, steeringApplied: boolean, pendingStopAtNextSafeGate: boolean, terminalStopAtNextSafeGate: boolean, effectiveConstraints: object }}
  */
 export function resolveEffectiveLoopState(snapshot, steeringState) {
   const base = interpretLoopState(snapshot);
@@ -645,6 +644,7 @@ export function resolveEffectiveLoopState(snapshot, steeringState) {
     || constraints.clarifications.length > 0
     || constraints.unknownConstraints.length > 0;
   const pendingStopAtNextSafeGate = constraints.stopAtNextSafeGate && category === SAFE_POINT_CATEGORY.NEXT_POINT;
+  const terminalStopAtNextSafeGate = constraints.stopAtNextSafeGate && category === SAFE_POINT_CATEGORY.TERMINAL;
 
   let nextAction = base.nextAction;
 
@@ -652,6 +652,8 @@ export function resolveEffectiveLoopState(snapshot, steeringState) {
     nextAction = "Stop at this safe gate: a stop_at_next_safe_gate steering directive is active. Do not proceed to the next loop step.";
   } else if (pendingStopAtNextSafeGate) {
     nextAction = `Pending stop_at_next_safe_gate: stop at the next safe gate. Until then, current state remains '${base.state}' and the immediate action is: ${base.nextAction}`;
+  } else if (terminalStopAtNextSafeGate) {
+    nextAction = `stop_at_next_safe_gate is currently inactive because the loop is in terminal state '${base.state}'. Current action remains: ${base.nextAction}`;
   }
 
   return {
@@ -659,6 +661,7 @@ export function resolveEffectiveLoopState(snapshot, steeringState) {
     nextAction,
     steeringApplied,
     pendingStopAtNextSafeGate,
+    terminalStopAtNextSafeGate,
     effectiveConstraints: constraints,
   };
 }

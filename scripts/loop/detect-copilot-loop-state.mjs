@@ -444,6 +444,7 @@ export async function runCli(
     steeringFields = {
       steeringApplied: resolved.steeringApplied,
       pendingStopAtNextSafeGate: resolved.pendingStopAtNextSafeGate,
+      terminalStopAtNextSafeGate: resolved.terminalStopAtNextSafeGate,
       effectiveConstraints: resolved.effectiveConstraints,
     };
   } else {
