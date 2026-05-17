@@ -30,6 +30,7 @@
  *   Runtime failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
 import { readFile, writeFile, mkdir, rename, rm } from "node:fs/promises";
+import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -287,6 +288,15 @@ async function sleep(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function readLockMetadata(lockPath) {
+  try {
+    const text = await readFile(path.join(lockPath, "owner.json"), "utf8");
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 async function withStateFileLock(filePath, callback) {
   await mkdir(path.dirname(filePath), { recursive: true });
 
@@ -296,13 +306,22 @@ async function withStateFileLock(filePath, callback) {
   while (true) {
     try {
       await mkdir(lockPath);
+      await writeFile(
+        path.join(lockPath, "owner.json"),
+        `${JSON.stringify({ pid: process.pid, acquiredAt: new Date().toISOString() }, null, 2)}\n`,
+        "utf8",
+      );
       break;
     } catch (error) {
       if (error.code !== "EEXIST") {
         throw new Error(`Failed to acquire steering state lock '${lockPath}': ${error.message}`);
       }
       if (Date.now() >= deadline) {
-        throw new Error(`Timed out waiting for steering state lock '${lockPath}'`);
+        const metadata = await readLockMetadata(lockPath);
+        const ownerSuffix = metadata
+          ? ` (current lock owner pid=${metadata.pid ?? "unknown"}, acquiredAt=${metadata.acquiredAt ?? "unknown"})`
+          : "";
+        throw new Error(`Timed out waiting for steering state lock '${lockPath}'${ownerSuffix}. If the owning process crashed, remove the stale lock directory and retry.`);
       }
       await sleep(STATE_FILE_LOCK_RETRY_MS);
     }

@@ -63,6 +63,7 @@ export const SAFE_POINT_CATEGORY = Object.freeze({
   TERMINAL: "terminal",
 });
 
+const CURRENT_SCHEMA_VERSION = 1;
 const VALID_STEERING_KINDS = new Set(Object.values(STEERING_KIND));
 const VALID_STEERING_RESULTS = new Set(Object.values(STEERING_RESULT));
 const VALID_APPLY_MODES = new Set(["immediate", "next_safe_point"]);
@@ -287,6 +288,10 @@ export function normalizeSteeringState(raw) {
     throw new Error("Steering state requires a non-empty runId");
   }
 
+  if (raw.schemaVersion !== undefined && raw.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+    throw new Error(`Unsupported steering state schemaVersion '${raw.schemaVersion}'; expected ${CURRENT_SCHEMA_VERSION}`);
+  }
+
   const events = normalizeEventList(raw.events, "events");
   const effectiveStack = normalizeEventList(raw.effectiveStack, "effectiveStack");
   const queuedEvents = normalizeEventList(raw.queuedEvents, "queuedEvents");
@@ -299,7 +304,7 @@ export function normalizeSteeringState(raw) {
 
   return {
     runId,
-    schemaVersion: 1,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     events,
     effectiveStack,
     queuedEvents,
@@ -323,7 +328,7 @@ export function createSteeringState(runId) {
   }
   return {
     runId: runId.trim(),
-    schemaVersion: 1,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     events: [],
     effectiveStack: [],
     queuedEvents: [],

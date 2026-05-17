@@ -199,6 +199,14 @@ test("normalizeSteeringState returns safe defaults for minimal input", () => {
   assert.equal(state.nextSeq, 1);
 });
 
+
+test("normalizeSteeringState rejects unsupported schemaVersion values", () => {
+  assert.throws(
+    () => normalizeSteeringState({ runId: "run-1", schemaVersion: 2 }),
+    /Unsupported steering state schemaVersion/,
+  );
+});
+
 test("normalizeSteeringState preserves existing arrays", () => {
   const event = makeEvent();
   const resultEntry = {
