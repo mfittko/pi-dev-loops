@@ -346,18 +346,22 @@ export function createSteeringState(runId) {
  *
  * @param {object} event - normalized steering event
  * @param {object[]} effectiveStack - current effective steering events
+ * @param {object[]} queuedEvents - current queued steering events
  * @returns {string|null} conflict reason string, or null if no conflict
  */
-function detectConflict(event, effectiveStack) {
+function detectConflict(event, effectiveStack, queuedEvents = []) {
   if (event.kind !== STEERING_KIND.HARD_CONSTRAINT) {
     return null;
   }
-  for (const existing of effectiveStack) {
+
+  const existingEvents = [...effectiveStack, ...queuedEvents];
+  for (const existing of existingEvents) {
     if (
       existing.kind === STEERING_KIND.HARD_CONSTRAINT
       && existing.directive.toLowerCase() === event.directive.toLowerCase()
     ) {
-      return `Duplicate hard_constraint directive already in effective stack (seq ${existing.seq})`;
+      const location = effectiveStack.includes(existing) ? "effective stack" : "queued events";
+      return `Duplicate hard_constraint directive already present in ${location} (seq ${existing.seq})`;
     }
   }
   return null;
@@ -413,7 +417,7 @@ export function submitSteering(event, steeringState, loopState) {
   }
 
   // Check for conflicts with existing effective stack
-  const conflictReason = detectConflict(event, steeringState.effectiveStack);
+  const conflictReason = detectConflict(event, steeringState.effectiveStack, steeringState.queuedEvents);
   if (conflictReason) {
     const ackResult = {
       eventId: event.eventId,

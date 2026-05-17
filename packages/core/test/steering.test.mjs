@@ -446,6 +446,18 @@ test("submitSteering rejects duplicate hard_constraint directive (case-insensiti
   assert.match(result.reason, /[Dd]uplicate/);
 });
 
+test("submitSteering rejects duplicate hard_constraint already present in queued events", () => {
+  const event1 = makeEvent({ seq: 1, directive: "No new dependencies" });
+  const event2 = makeEvent({ eventId: "evt-002", seq: 2, directive: "no new dependencies" });
+  const state = makeState();
+
+  const { steeringState: state1 } = submitSteering(event1, state, STATE.UNRESOLVED_FEEDBACK_PRESENT);
+  const { result } = submitSteering(event2, state1, STATE.UNRESOLVED_FEEDBACK_PRESENT);
+
+  assert.equal(result.result, STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING);
+  assert.match(result.reason, /queued events/i);
+});
+
 test("submitSteering does not reject non-duplicate hard_constraint directives", () => {
   const event1 = makeEvent({ seq: 1, directive: "No new dependencies" });
   const event2 = makeEvent({ eventId: "evt-002", seq: 2, directive: "Use TypeScript only" });
@@ -548,8 +560,8 @@ test("promoteQueuedSteering is a no-op when queue is empty", () => {
 test("promoteQueuedSteering preserves ordering of multiple queued events", () => {
   let state = makeState();
 
-  const event1 = makeEvent({ eventId: "e1", seq: 1 });
-  const event2 = makeEvent({ eventId: "e2", seq: 2 });
+  const event1 = makeEvent({ eventId: "e1", seq: 1, directive: "No new dependencies" });
+  const event2 = makeEvent({ eventId: "e2", seq: 2, directive: "Keep docs unchanged" });
 
   const { steeringState: s1 } = submitSteering(event1, state, STATE.UNRESOLVED_FEEDBACK_PRESENT);
   const { steeringState: s2 } = submitSteering(event2, s1, STATE.UNRESOLVED_FEEDBACK_PRESENT);
