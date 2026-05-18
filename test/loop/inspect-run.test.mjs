@@ -700,7 +700,7 @@ test("parseInspectRunCliArgs: invalid repo slug throws", () => {
 // CLI integration tests: happy path with snapshot input files
 // ---------------------------------------------------------------------------
 
-test("inspect-run CLI: complete snapshot inputs → live-detector-backed snapshot", async () => {
+test("inspect-run CLI: complete snapshot inputs -> partial sourceMode (degraded trust)", async () => {
   await withTempDir(async (tempDir) => {
     const copilotPath = path.join(tempDir, "copilot.json");
     const reviewerPath = path.join(tempDir, "reviewer.json");
