@@ -12,15 +12,17 @@
  * Contract guarantees:
  * - One effective owner per normalized orchestration scope
  * - `watch` is non-owning by default; watcher presence alone cannot satisfy conductor ownership
- * - Provisional local state never overrides authoritative live/remote state for final routing
+ * - Provisional local state never overrides authoritative live/remote state for final routing,
+ *   once duplicate-local-owner ambiguity has been ruled out
  * - Caller-supplied authoritative/live signals are the authority boundary;
  *   backend discovery, transport, and remote polling semantics remain out of scope here
  *
  * Integration boundary (see docs/conductor-ownership-contract.md):
  * - Callers use evaluateOwnershipAction as the single policy entrypoint
- * - Local singleton coordination is sufficient when no non-terminal local record exists
- * - Authoritative live state must be consulted before routing or mutation decisions
- *   whenever local state is ambiguous or a live-owner signal is needed
+ * - Local singleton coordination is sufficient for start/resume-style owner creation when
+ *   no non-terminal local owner record exists (or only watcher records exist)
+ * - Authoritative live state must be consulted before routing or mutation decisions whenever
+ *   local state is ambiguous, duplicate, or an action needs confirmation of a live owner
  */
 
 // ---------------------------------------------------------------------------
@@ -55,7 +57,7 @@ export const ACTION = Object.freeze({
  * - `stale_local_record` — only stale/superseded records exist; no non-terminal owner
  * - `duplicate_local_owners` — multiple non-terminal non-watcher local records for the same scope
  * - `watcher_only` — records exist but all are watchers; no owning record present
- * - `no_record` — no records of any kind for this scope
+ * - `no_record` — no records that affect current ownership remain for this scope
  */
 export const OWNERSHIP_STATE = Object.freeze({
   /** An active live owner exists (authoritative or local active record). */
