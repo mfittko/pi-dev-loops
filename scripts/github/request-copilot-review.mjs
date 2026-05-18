@@ -125,6 +125,13 @@ function isCopilotReviewer(login) {
   return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
 }
 
+function extractReviewCommitSha(review) {
+  const graphqlSha = typeof review?.commit?.oid === "string" ? review.commit.oid.trim() : "";
+  const restSha = typeof review?.commit_id === "string" ? review.commit_id.trim() : "";
+  const sha = graphqlSha || restSha;
+  return sha.length > 0 ? sha : null;
+}
+
 function parseRequestedReviewersPayload(text) {
   let payload;
 
@@ -153,14 +160,23 @@ function parseReviewsPayload(text) {
     throw new Error(`Invalid JSON from gh: ${text.trim() || "<empty>"}`);
   }
 
+  const headSha = typeof payload?.headRefOid === "string" && payload.headRefOid.trim().length > 0
+    ? payload.headRefOid.trim()
+    : null;
   const reviews = Array.isArray(payload?.reviews) ? payload.reviews : [];
   const copilotReviews = reviews.filter((review) => isCopilotReviewer(review?.author?.login));
   const copilotReviewIds = copilotReviews.map((review) => String(review.id));
-  const hasCopilotPendingReview = copilotReviews.some(
-    (review) => typeof review?.state === "string" && review.state.toUpperCase() === "PENDING",
-  );
+  const hasCopilotPendingReview = copilotReviews.some((review) => {
+    if (typeof review?.state !== "string" || review.state.toUpperCase() !== "PENDING") {
+      return false;
+    }
+
+    const reviewCommitSha = extractReviewCommitSha(review);
+    return headSha !== null && reviewCommitSha === headSha;
+  });
 
   return {
+    headSha,
     copilotReviewIds,
     hasCopilotPendingReview,
   };
@@ -184,7 +200,7 @@ async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghComm
 async function fetchCopilotReviewIds({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
-    ["pr", "view", String(pr), "--repo", repo, "--json", "reviews"],
+    ["pr", "view", String(pr), "--repo", repo, "--json", "headRefOid,reviews"],
     env,
   );
 

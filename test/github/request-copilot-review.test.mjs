@@ -90,7 +90,7 @@ test("request-copilot-review requests Copilot deterministically and verifies via
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
       {
@@ -102,7 +102,7 @@ test("request-copilot-review requests Copilot deterministically and verifies via
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -133,7 +133,7 @@ test("request-copilot-review recognizes Copilot under the requested reviewer log
         stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -164,7 +164,7 @@ test("request-copilot-review reports already-requested without mutating PR state
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[{"id":"r-1","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
       },
     ]);
@@ -196,8 +196,8 @@ test("request-copilot-review treats a pending Copilot review as already-requeste
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
-        stdout: '{"reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        stdout: '{"headRefOid":"abc123","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}}]}\n',
       },
     ]);
 
@@ -227,7 +227,7 @@ test("request-copilot-review accepts an immediate Copilot review as proof the re
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
       {
@@ -239,7 +239,7 @@ test("request-copilot-review accepts an immediate Copilot review as proof the re
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[{"id":"r-2","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
       },
     ]);
@@ -270,7 +270,7 @@ test("request-copilot-review normalizes known unrequestable/unavailable failures
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
       {
@@ -285,7 +285,7 @@ test("request-copilot-review normalizes known unrequestable/unavailable failures
       },
       // post-failure verification: no pending Copilot review
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -318,7 +318,7 @@ test("request-copilot-review returns already-requested when 422 but Copilot is i
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
       // request: GitHub returns 422
@@ -333,7 +333,7 @@ test("request-copilot-review returns already-requested when 422 but Copilot is i
         stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -365,7 +365,7 @@ test("request-copilot-review returns already-requested when 422 but Copilot has 
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
       // request: GitHub returns 422
@@ -380,8 +380,8 @@ test("request-copilot-review returns already-requested when 422 but Copilot has 
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
-        stdout: '{"reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        stdout: '{"headRefOid":"abc123","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}}]}\n',
       },
     ]);
 
@@ -401,6 +401,94 @@ test("request-copilot-review returns already-requested when 422 but Copilot has 
   }
 });
 
+test("request-copilot-review does not treat a stale pending Copilot review as already-requested before mutating", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-stale-pending-before-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
+      },
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stdout: "https://github.com/owner/repo/pull/17\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "requested",
+      repo: "owner/repo",
+      pr: 17,
+      reviewer: "Copilot",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("request-copilot-review ignores a stale pending Copilot review after 422 and stays unavailable", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-stale-pending-422-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
+      },
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stderr: "gh: Reviews may only be requested from collaborators.\n",
+        exitCode: 1,
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "unavailable",
+      repo: "owner/repo",
+      pr: 17,
+      reviewer: "Copilot",
+      detail: "gh: Reviews may only be requested from collaborators.",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("request-copilot-review wraps invalid gh JSON deterministically", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-json-"));
 
@@ -411,7 +499,7 @@ test("request-copilot-review wraps invalid gh JSON deterministically", async () 
         stdout: "not-json\n",
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
         stdout: '{"reviews":[]}\n',
       },
     ]);

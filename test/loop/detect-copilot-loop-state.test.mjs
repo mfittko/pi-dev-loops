@@ -452,10 +452,12 @@ test("detect-copilot-loop-state auto-detect treats a pending Copilot review as i
           isDraft: false,
           state: "OPEN",
           number: 17,
+          headRefOid: "abc123",
           reviews: [
             {
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "PENDING",
+              commit: { oid: "abc123" },
             },
           ],
           statusCheckRollup: [],
@@ -477,6 +479,61 @@ test("detect-copilot-loop-state auto-detect treats a pending Copilot review as i
     assert.equal(output.state, "waiting_for_copilot_review");
     assert.equal(output.snapshot.copilotReviewPresent, true);
     assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state auto-detect ignores stale pending Copilot reviews from older commits", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-stale-pending-copilot-review-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "oldsha" },
+            },
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "PENDING",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [],
+        }) + "\n",
+      },
+      {
+        // Stale pending review must not short-circuit the requested_reviewers probe.
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${emptyThreads}\n`,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.snapshot.copilotReviewPresent, true);
+    assert.equal(output.snapshot.copilotReviewRequestStatus, "none");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

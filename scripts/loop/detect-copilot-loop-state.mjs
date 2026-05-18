@@ -229,6 +229,13 @@ function isCopilotLogin(login) {
   return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
 }
 
+function extractReviewCommitSha(review) {
+  const graphqlSha = typeof review?.commit?.oid === "string" ? review.commit.oid.trim() : "";
+  const restSha = typeof review?.commit_id === "string" ? review.commit_id.trim() : "";
+  const sha = graphqlSha || restSha;
+  return sha.length > 0 ? sha : null;
+}
+
 function deriveRunIdFromSteeringFile(filePath) {
   const basename = path.basename(filePath, path.extname(filePath)).trim();
   return basename.length > 0 ? basename : "ephemeral-steering-state";
@@ -240,7 +247,7 @@ function deriveRunIdFromSteeringFile(filePath) {
 async function fetchPrView({ repo, pr }, { env, ghCommand }) {
   const result = await runChild(
     ghCommand,
-    ["pr", "view", String(pr), "--repo", repo, "--json", "isDraft,state,number,reviews,statusCheckRollup"],
+    ["pr", "view", String(pr), "--repo", repo, "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
     env,
   );
 
@@ -347,12 +354,20 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
   }
 
   const isDraft = Boolean(prData.isDraft);
+  const prHeadSha = typeof prData.headRefOid === "string" && prData.headRefOid.trim().length > 0
+    ? prData.headRefOid.trim()
+    : null;
   const reviews = Array.isArray(prData.reviews) ? prData.reviews : [];
   const copilotReviews = reviews.filter((review) => isCopilotLogin(review?.author?.login));
   const copilotReviewPresent = copilotReviews.length > 0;
-  const copilotPendingReview = copilotReviews.some(
-    (review) => typeof review?.state === "string" && review.state.toUpperCase() === "PENDING",
-  );
+  const copilotPendingReview = copilotReviews.some((review) => {
+    if (typeof review?.state !== "string" || review.state.toUpperCase() !== "PENDING") {
+      return false;
+    }
+
+    const reviewCommitSha = extractReviewCommitSha(review);
+    return prHeadSha !== null && reviewCommitSha === prHeadSha;
+  });
   const ciStatus = normalizeCiStatus(prData.statusCheckRollup);
 
   // Determine review request status
