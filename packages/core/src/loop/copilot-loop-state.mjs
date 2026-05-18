@@ -174,7 +174,7 @@ export function normalizeSnapshot(raw) {
  * - unresolvedThreadCount > 0 always routes into fix/reply-resolve flow, never into wait
  * - "unavailable" or "failed" review-request status routes into stop/report states
  * - agentFixStatus "applied" distinguishes fix-needed from already-fixed-needs-reply/resolve
- * - Copilot review request pending (in requested_reviewers) routes into waiting_for_copilot_review
+ * - Copilot review still in progress (via requested_reviewers or a PENDING current-head Copilot review) routes into waiting_for_copilot_review
  *   UNLESS a submitted Copilot review already exists on the current head (copilotReviewOnCurrentHead),
  *   which means the wait is done and the loop can advance to ready_to_rerequest_review
  *
