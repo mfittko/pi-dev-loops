@@ -39,7 +39,7 @@
   },
   "pi": {
     "extensions": [
-      "./extension/index.ts"
+      "./index.ts"
     ]
   }
 }
