@@ -29,6 +29,7 @@ test("normalizeSnapshot returns safe defaults for an empty object", () => {
     prClosed: false,
     copilotReviewRequestStatus: "none",
     copilotReviewPresent: false,
+    copilotReviewOnCurrentHead: false,
     unresolvedThreadCount: 0,
     actionableThreadCount: 0,
     ciStatus: "none",
@@ -312,10 +313,62 @@ test("interpretLoopState returns waiting_for_copilot_review when Copilot is in r
       prNumber: 17,
       copilotReviewRequestStatus: status,
       copilotReviewPresent: false,
+      copilotReviewOnCurrentHead: false,
       unresolvedThreadCount: 0,
     });
     assert.equal(result.state, STATE.WAITING_FOR_COPILOT_REVIEW, `failed for status=${status}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Regression: fresh Copilot review on current head should exit waiting_for_copilot_review
+// ---------------------------------------------------------------------------
+
+test("interpretLoopState exits waiting_for_copilot_review when Copilot has a submitted review on current head", () => {
+  // Even if requested_reviewers still lists Copilot, a submitted review on the current
+  // head means the wait is done.
+  for (const status of ["requested", "already-requested"]) {
+    const result = interpretLoopState({
+      prExists: true,
+      prNumber: 17,
+      copilotReviewRequestStatus: status,
+      copilotReviewPresent: true,
+      copilotReviewOnCurrentHead: true,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+    assert.notEqual(result.state, STATE.WAITING_FOR_COPILOT_REVIEW,
+      `must not remain in waiting_for_copilot_review when copilotReviewOnCurrentHead=true (status=${status})`);
+    assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW,
+      `expected ready_to_rerequest_review when copilotReviewOnCurrentHead=true (status=${status})`);
+  }
+});
+
+test("interpretLoopState stays in waiting_for_copilot_review when review is not yet on current head", () => {
+  // Copilot is in requested_reviewers but has NOT submitted a review on this head yet
+  const result = interpretLoopState({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "requested",
+    copilotReviewPresent: false,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+  });
+  assert.equal(result.state, STATE.WAITING_FOR_COPILOT_REVIEW);
+});
+
+test("interpretLoopState routes to waiting_for_ci when copilotReviewOnCurrentHead and CI is pending", () => {
+  const result = interpretLoopState({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "requested",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: true,
+    unresolvedThreadCount: 0,
+    ciStatus: "pending",
+  });
+  assert.equal(result.state, STATE.WAITING_FOR_CI);
+  assert.notEqual(result.state, STATE.WAITING_FOR_COPILOT_REVIEW);
 });
 
 test("interpretLoopState returns ready_to_rerequest_review when Copilot has reviewed and all threads resolved", () => {

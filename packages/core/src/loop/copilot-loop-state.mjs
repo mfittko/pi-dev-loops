@@ -119,6 +119,9 @@ const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
  * - copilotReviewRequestStatus {"requested"|"already-requested"|"unavailable"|"none"|"failed"}
  *     — current known Copilot review-request state, or "none" if unknown
  * - copilotReviewPresent {boolean} — whether at least one Copilot review exists on the PR
+ * - copilotReviewOnCurrentHead {boolean} — whether a submitted (non-PENDING) Copilot review
+ *     exists for the current head commit; when true, the review is done even if
+ *     requested_reviewers has not yet cleared
  * - unresolvedThreadCount {number} — total unresolved review-thread count
  * - actionableThreadCount {number} — unresolved threads with non-bot actionable comments
  * - ciStatus {"success"|"failure"|"pending"|"none"} — current CI check rollup status
@@ -134,6 +137,8 @@ export function normalizeSnapshot(raw) {
 
   const prExists = Boolean(raw.prExists);
 
+  const copilotReviewOnCurrentHead = Boolean(raw.copilotReviewOnCurrentHead);
+
   return {
     prExists,
     prNumber: prExists && typeof raw.prNumber === "number" && raw.prNumber > 0
@@ -145,7 +150,8 @@ export function normalizeSnapshot(raw) {
     copilotReviewRequestStatus: VALID_REVIEW_REQUEST_STATUSES.has(raw.copilotReviewRequestStatus)
       ? raw.copilotReviewRequestStatus
       : "none",
-    copilotReviewPresent: Boolean(raw.copilotReviewPresent),
+    copilotReviewPresent: Boolean(raw.copilotReviewPresent) || copilotReviewOnCurrentHead,
+    copilotReviewOnCurrentHead,
     unresolvedThreadCount: typeof raw.unresolvedThreadCount === "number" && raw.unresolvedThreadCount >= 0
       ? Math.floor(raw.unresolvedThreadCount)
       : 0,
@@ -168,7 +174,9 @@ export function normalizeSnapshot(raw) {
  * - unresolvedThreadCount > 0 always routes into fix/reply-resolve flow, never into wait
  * - "unavailable" or "failed" review-request status routes into stop/report states
  * - agentFixStatus "applied" distinguishes fix-needed from already-fixed-needs-reply/resolve
- * - Copilot review request pending (in requested_reviewers) routes into waiting_for_copilot_review
+ * - Copilot review still in progress (via requested_reviewers or a PENDING current-head Copilot review) routes into waiting_for_copilot_review
+ *   UNLESS a submitted Copilot review already exists on the current head (copilotReviewOnCurrentHead),
+ *   which means the wait is done and the loop can advance to ready_to_rerequest_review
  *
  * @param {object} snapshot - raw or normalized snapshot
  * @returns {{ state: string, allowedTransitions: string[], nextAction: string }}
@@ -194,11 +202,11 @@ export function interpretLoopState(snapshot) {
   } else if (s.unresolvedThreadCount > 0) {
     // Unresolved feedback exists — do not wait; enter fix/reply-resolve handling
     state = STATE.UNRESOLVED_FEEDBACK_PRESENT;
-  } else if (s.copilotReviewRequestStatus === "requested" || s.copilotReviewRequestStatus === "already-requested") {
-    // Copilot is currently in requested_reviewers — waiting for their response
+  } else if ((s.copilotReviewRequestStatus === "requested" || s.copilotReviewRequestStatus === "already-requested") && !s.copilotReviewOnCurrentHead) {
+    // Copilot is in requested_reviewers but has not yet submitted a review on the current head
     state = STATE.WAITING_FOR_COPILOT_REVIEW;
   } else if (s.copilotReviewPresent) {
-    // Copilot has reviewed at least once; all threads resolved; not currently requested
+    // Copilot has reviewed at least once; all threads resolved
     if (s.ciStatus === "pending") {
       state = STATE.WAITING_FOR_CI;
     } else if (s.ciStatus === "failure") {

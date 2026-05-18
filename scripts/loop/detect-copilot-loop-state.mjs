@@ -45,7 +45,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
+import { formatCliError, isCopilotLogin, parseJsonText, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import { createSteeringState, normalizeSteeringState, resolveEffectiveLoopState } from "../../packages/core/src/loop/steering.mjs";
@@ -225,22 +225,18 @@ function runChild(command, args, env) {
   });
 }
 
-function isCopilotLogin(login) {
-  return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
-}
-
 function deriveRunIdFromSteeringFile(filePath) {
   const basename = path.basename(filePath, path.extname(filePath)).trim();
   return basename.length > 0 ? basename : "ephemeral-steering-state";
 }
 
 /**
- * Fetch basic PR info: isDraft, state (OPEN/CLOSED/MERGED), number, reviews, statusCheckRollup.
+ * Fetch basic PR info: isDraft, state (OPEN/CLOSED/MERGED), number, headRefOid, reviews, statusCheckRollup.
  */
 async function fetchPrView({ repo, pr }, { env, ghCommand }) {
   const result = await runChild(
     ghCommand,
-    ["pr", "view", String(pr), "--repo", repo, "--json", "isDraft,state,number,reviews,statusCheckRollup"],
+    ["pr", "view", String(pr), "--repo", repo, "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
     env,
   );
 
@@ -347,14 +343,22 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
   }
 
   const isDraft = Boolean(prData.isDraft);
-  const reviews = Array.isArray(prData.reviews) ? prData.reviews : [];
-  const copilotReviewPresent = reviews.some((review) => isCopilotLogin(review?.author?.login));
+  const prHeadSha = typeof prData.headRefOid === "string" && prData.headRefOid.trim().length > 0
+    ? prData.headRefOid.trim()
+    : null;
+  const reviewSummary = summarizeCopilotReviews(prData.reviews, { headSha: prHeadSha });
+  const copilotReviewPresent = reviewSummary.copilotReviewPresent;
+  const copilotReviewOnCurrentHead = reviewSummary.hasSubmittedReviewOnCurrentHead;
   const ciStatus = normalizeCiStatus(prData.statusCheckRollup);
 
   // Determine review request status
   let copilotReviewRequestStatus;
   if (reviewRequestStatusOverride !== undefined) {
     copilotReviewRequestStatus = reviewRequestStatusOverride;
+  } else if (reviewSummary.hasPendingReviewOnCurrentHead) {
+    // A PENDING Copilot review is observable evidence that review is already in progress,
+    // so no additional requested_reviewers API probe is needed.
+    copilotReviewRequestStatus = "requested";
   } else {
     const copilotRequested = await fetchCopilotRequested({ repo, pr }, { env, ghCommand });
     copilotReviewRequestStatus = copilotRequested ? "requested" : "none";
@@ -384,6 +388,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     prClosed: false,
     copilotReviewRequestStatus,
     copilotReviewPresent,
+    copilotReviewOnCurrentHead,
     unresolvedThreadCount,
     actionableThreadCount,
     ciStatus,

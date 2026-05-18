@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatCliError } from "../_core-helpers.mjs";
+import { formatCliError, isCopilotLogin, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "./capture-review-threads.mjs";
 
 const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number>
@@ -19,8 +19,8 @@ Output (stdout, JSON):
 
 Request statuses:
   requested           Copilot review was successfully requested
-  already-requested   Copilot was already in requested reviewers; no change made
-  unavailable         Copilot review is not enabled for this repository
+  already-requested   Copilot review was already observably in progress; no new request needed
+  unavailable         Copilot review is not enabled/requestable and no in-progress evidence was found
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -121,10 +121,6 @@ function runChild(command, args, env) {
   });
 }
 
-function isCopilotReviewer(login) {
-  return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
-}
-
 function parseRequestedReviewersPayload(text) {
   let payload;
 
@@ -140,7 +136,7 @@ function parseRequestedReviewersPayload(text) {
   return {
     users,
     teams,
-    requested: users.some((user) => isCopilotReviewer(user?.login)),
+    requested: users.some((user) => isCopilotLogin(user?.login)),
   };
 }
 
@@ -153,13 +149,15 @@ function parseReviewsPayload(text) {
     throw new Error(`Invalid JSON from gh: ${text.trim() || "<empty>"}`);
   }
 
-  const reviews = Array.isArray(payload?.reviews) ? payload.reviews : [];
-  const copilotReviewIds = reviews
-    .filter((review) => isCopilotReviewer(review?.author?.login))
-    .map((review) => String(review.id));
+  const headSha = typeof payload?.headRefOid === "string" && payload.headRefOid.trim().length > 0
+    ? payload.headRefOid.trim()
+    : null;
+  const reviewSummary = summarizeCopilotReviews(payload?.reviews, { headSha });
 
   return {
-    copilotReviewIds,
+    headSha,
+    copilotReviewIds: reviewSummary.copilotReviewIds,
+    hasCopilotPendingReviewOnCurrentHead: reviewSummary.hasPendingReviewOnCurrentHead,
   };
 }
 
@@ -181,7 +179,7 @@ async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghComm
 async function fetchCopilotReviewIds({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
-    ["pr", "view", String(pr), "--repo", repo, "--json", "reviews"],
+    ["pr", "view", String(pr), "--repo", repo, "--json", "headRefOid,reviews"],
     env,
   );
 
@@ -200,6 +198,7 @@ async function fetchCopilotReviewState(options, runtime) {
   return {
     requested: requestedReviewers.requested,
     copilotReviewIds: reviews.copilotReviewIds,
+    hasPendingReviewOnCurrentHead: reviews.hasCopilotPendingReviewOnCurrentHead,
   };
 }
 
@@ -259,7 +258,7 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
 
-  if (before.requested) {
+  if (before.requested || before.hasPendingReviewOnCurrentHead) {
     return {
       ok: true,
       status: "already-requested",
@@ -272,14 +271,28 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   const requestResult = await requestCopilotReview(options, { env, ghCommand });
 
   if (requestResult.status === "unavailable") {
+    // Post-failure verification: even when the explicit request path is rejected,
+    // Copilot review may already be in progress if GitHub internally queued it.
+    // Check for observable in-progress evidence before treating this as a terminal stop.
+    const after = await fetchCopilotReviewState(options, { env, ghCommand });
+    if (after.requested || after.hasPendingReviewOnCurrentHead) {
+      return {
+        ok: true,
+        status: "already-requested",
+        repo: options.repo,
+        pr: options.pr,
+        reviewer: "Copilot",
+      };
+    }
     return requestResult;
   }
 
   const after = await fetchCopilotReviewState(options, { env, ghCommand });
   const reviewCountIncreased = after.copilotReviewIds.length > before.copilotReviewIds.length;
+  const reviewNowObservablyInProgress = after.requested || after.hasPendingReviewOnCurrentHead || reviewCountIncreased;
 
-  if (!after.requested && !reviewCountIncreased) {
-    throw new Error("Copilot review request did not appear in requested reviewers or fresh Copilot reviews after gh pr edit");
+  if (!reviewNowObservablyInProgress) {
+    throw new Error("Copilot review request did not appear in requested reviewers or fresh/in-progress Copilot reviews after gh pr edit");
   }
 
   return requestResult;
