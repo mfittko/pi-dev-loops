@@ -534,6 +534,71 @@ test("detect-copilot-loop-state auto-detect ignores stale pending Copilot review
     assert.equal(output.state, "ready_to_rerequest_review");
     assert.equal(output.snapshot.copilotReviewPresent, true);
     assert.equal(output.snapshot.copilotReviewRequestStatus, "none");
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Regression: submitted Copilot review on current head exits waiting_for_copilot_review
+// ---------------------------------------------------------------------------
+
+test("detect-copilot-loop-state auto-detect exits waiting_for_copilot_review when Copilot submitted review on current head", async () => {
+  // The blocking bug: requested_reviewers still lists Copilot (stale GitHub state),
+  // but Copilot has already posted a submitted review on the current head.
+  // The loop must route to ready_to_rerequest_review, not stay in waiting_for_copilot_review.
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-review-on-head-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "currentsha",
+          reviews: [
+            {
+              // Copilot submitted a COMMENTED review on the current head
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "currentsha" },
+            },
+          ],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        // GitHub's requested_reviewers still lists Copilot (stale — not yet cleared)
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.notEqual(output.state, "waiting_for_copilot_review",
+      "must not stay in waiting_for_copilot_review when Copilot has submitted a review on the current head");
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.snapshot.copilotReviewPresent, true);
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, true);
+    // copilotReviewRequestStatus is still "requested" from the stale requested_reviewers entry
+    assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

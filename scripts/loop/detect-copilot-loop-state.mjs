@@ -242,7 +242,7 @@ function deriveRunIdFromSteeringFile(filePath) {
 }
 
 /**
- * Fetch basic PR info: isDraft, state (OPEN/CLOSED/MERGED), number, reviews, statusCheckRollup.
+ * Fetch basic PR info: isDraft, state (OPEN/CLOSED/MERGED), number, headRefOid, reviews, statusCheckRollup.
  */
 async function fetchPrView({ repo, pr }, { env, ghCommand }) {
   const result = await runChild(
@@ -368,6 +368,14 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     const reviewCommitSha = extractReviewCommitSha(review);
     return prHeadSha !== null && reviewCommitSha === prHeadSha;
   });
+  // A submitted (non-PENDING) Copilot review on the current head means the wait is done
+  // even if requested_reviewers hasn't cleared yet.
+  const copilotReviewOnCurrentHead = prHeadSha !== null && copilotReviews.some((review) => {
+    const reviewState = typeof review?.state === "string" ? review.state.toUpperCase() : "";
+    if (reviewState === "PENDING" || reviewState === "") return false;
+    const reviewCommitSha = extractReviewCommitSha(review);
+    return reviewCommitSha === prHeadSha;
+  });
   const ciStatus = normalizeCiStatus(prData.statusCheckRollup);
 
   // Determine review request status
@@ -407,6 +415,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     prClosed: false,
     copilotReviewRequestStatus,
     copilotReviewPresent,
+    copilotReviewOnCurrentHead,
     unresolvedThreadCount,
     actionableThreadCount,
     ciStatus,

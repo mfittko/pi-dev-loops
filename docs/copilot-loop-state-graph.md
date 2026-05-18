@@ -18,7 +18,7 @@ The implementation lives in:
 | `no_pr` | No open PR exists for the current work |
 | `pr_draft` | PR exists but is in draft state |
 | `pr_ready_no_feedback` | PR is ready-for-review; no Copilot review requested or received yet |
-| `waiting_for_copilot_review` | Copilot is in `requested_reviewers` or has a pending review on the current head commit; waiting for review activity |
+| `waiting_for_copilot_review` | Copilot is in `requested_reviewers` or has a pending review on the current head commit, and has not yet submitted a review on the current head; waiting for review activity |
 | `unresolved_feedback_present` | Unresolved review threads exist that require fix and/or reply/resolve |
 | `already_fixed_needs_reply_resolve` | Agent has applied a fix; threads still need reply/resolve on GitHub before re-request |
 | `ready_to_rerequest_review` | All threads resolved; Copilot has reviewed at least once; only re-request once the updated head is green or credibly green |
@@ -84,6 +84,7 @@ The snapshot is the set of observable facts that the interpreter uses to determi
 | `prClosed` | `boolean` | Whether the PR was closed without merge |
 | `copilotReviewRequestStatus` | `"requested" \| "already-requested" \| "unavailable" \| "none" \| "failed"` | Current known Copilot review-request state |
 | `copilotReviewPresent` | `boolean` | Whether at least one Copilot review exists on the PR |
+| `copilotReviewOnCurrentHead` | `boolean` | Whether a submitted (non-PENDING) Copilot review exists for the current head commit; when true the wait is done even if `requested_reviewers` has not yet cleared |
 | `unresolvedThreadCount` | `number` | Total unresolved review-thread count |
 | `actionableThreadCount` | `number` | Unresolved threads with non-bot actionable comments |
 | `ciStatus` | `"success" \| "failure" \| "pending" \| "none"` | Current CI check rollup |
@@ -123,8 +124,8 @@ The interpreter applies rules in priority order. The first matching rule wins.
 6. `unresolvedThreadCount > 0 && agentFixStatus === "applied"` → `already_fixed_needs_reply_resolve`
 7. `unresolvedThreadCount > 0` → `unresolved_feedback_present`
    *(Unresolved feedback always takes priority over any wait/watch path)*
-8. `copilotReviewRequestStatus === "requested" || copilotReviewRequestStatus === "already-requested"` → `waiting_for_copilot_review`
-   *(includes: Copilot in `requested_reviewers`, a PENDING Copilot review pinned to the current head commit, or 422 rejected but Copilot review observably in progress)*
+8. `(copilotReviewRequestStatus === "requested" || copilotReviewRequestStatus === "already-requested") && !copilotReviewOnCurrentHead` → `waiting_for_copilot_review`
+   *(Copilot is in `requested_reviewers` or a pending review is in progress, and has not yet submitted a submitted review on the current head; when `copilotReviewOnCurrentHead === true` the wait is concluded and the loop falls through to rule 9+)*
 9. `copilotReviewPresent && ciStatus === "pending"` → `waiting_for_ci`
 10. `copilotReviewPresent && ciStatus === "failure"` → `blocked_needs_user_decision`
 11. `copilotReviewPresent` → `ready_to_rerequest_review`
@@ -137,6 +138,10 @@ The interpreter applies rules in priority order. The first matching rule wins.
 ### Unresolved feedback always routes to fix/reply-resolve — never to wait
 
 Rules 6 and 7 check `unresolvedThreadCount > 0` **before** checking review-request status (rule 8). Even if Copilot is currently in `requested_reviewers`, unresolved threads from a prior review take priority and route the loop into fix/reply-resolve work.
+
+### Fresh Copilot review on current head concludes the wait state
+
+Rule 8 only routes to `waiting_for_copilot_review` when `copilotReviewOnCurrentHead === false`. When a submitted (non-PENDING) Copilot review is detected for the current head commit, that review is complete and the wait is over, even if `requested_reviewers` still lists Copilot (GitHub does not always clear this immediately after a review is submitted). The loop falls through to rule 9+ and reaches `ready_to_rerequest_review` or another appropriate next state.
 
 ### `unavailable` stops the loop only when no in-progress evidence exists
 
