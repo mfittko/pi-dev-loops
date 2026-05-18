@@ -85,7 +85,7 @@ Outer actions:
   done                   PR is merged or closed; loop complete
 
 Stop reasons:
-  pr_not_ready                         PR is draft or does not exist
+  pr_not_ready                         PR does not exist
   copilot_blocked                      Copilot loop is blocked
   reviewer_blocked                     Reviewer loop is blocked
   review_unavailable                   Copilot review is unavailable
@@ -140,8 +140,9 @@ const COPILOT_WEAK_ACTIVE_STATES = new Set([
   STATE.READY_TO_REREQUEST_REVIEW,
 ]);
 
-// Copilot states that need local code mutation
-const COPILOT_NEEDS_LOCAL_MUTATION = new Set([
+// Copilot states that need local execution or mutation before the next GitHub wait
+const COPILOT_NEEDS_LOCAL_EXECUTION = new Set([
+  STATE.PR_DRAFT,
   STATE.UNRESOLVED_FEEDBACK_PRESENT,
 ]);
 
@@ -344,7 +345,7 @@ async function writeCheckpoint(checkpointDir, checkpoint) {
  * Decide the outer-loop action from the two inner-machine states.
  *
  * Priority order (first match wins):
- *   1. Terminal / PR-not-ready
+ *   1. Terminal / missing-PR stop
  *   2. Hard stops (blocked, unavailable)
  *   3. Reviewer active work → reenter_reviewer_loop (with dirty check)
  *   4. Copilot active work → reenter_copilot_loop (with dirty check)
@@ -360,8 +361,15 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
     return { outerAction: "done" };
   }
 
-  if (copilotState === STATE.NO_PR || copilotState === STATE.PR_DRAFT) {
+  if (copilotState === STATE.NO_PR) {
     return { outerAction: "stop", reason: "pr_not_ready" };
+  }
+
+  if (copilotState === STATE.PR_DRAFT) {
+    if (gitStatus.isDirty || gitStatus.isDetached) {
+      return { outerAction: "stop", reason: "unsafe_local_edit_requires_isolation" };
+    }
+    return { outerAction: "reenter_copilot_loop" };
   }
 
   // 2. Hard stops
@@ -388,7 +396,7 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
 
   // 4a. Strong copilot fix/reply states take priority over reviewer wait states
   if (COPILOT_STRONG_ACTIVE_STATES.has(copilotState)) {
-    const needsIsolation = COPILOT_NEEDS_LOCAL_MUTATION.has(copilotState) && (gitStatus.isDirty || gitStatus.isDetached);
+    const needsIsolation = COPILOT_NEEDS_LOCAL_EXECUTION.has(copilotState) && (gitStatus.isDirty || gitStatus.isDetached);
     if (needsIsolation) {
       return { outerAction: "stop", reason: "unsafe_local_edit_requires_isolation" };
     }
