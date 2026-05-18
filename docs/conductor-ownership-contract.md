@@ -103,7 +103,7 @@ The `requiresAuthoritativeConsultation` field on each outcome explicitly encodes
 **Provisional local state never overrides authoritative live/remote state** for final routing
 or mutation decisions. Concretely:
 
-- If `authoritativeLiveState.hasLiveOwner === true`, the scope has a live owner **after** duplicate-local-owner ambiguity is ruled out. Duplicate active local owners still classify as `duplicate_local_owners` until reconciled.
+- If `authoritativeLiveState.hasLiveOwner === true`, the scope has a live owner **after** duplicate-local-owner ambiguity is ruled out. Duplicate non-terminal local owner records still classify as `duplicate_local_owners` until reconciled.
 - If `authoritativeLiveState.hasLiveOwner === false`, the scope has no live owner — even if
   a local `active` record exists. The local record is reclassified as
   `recorded_no_live_owner`.
@@ -119,7 +119,7 @@ or mutation decisions. Concretely:
 | `stale_local_record` | Only `stale`/superseded records exist; no non-terminal owner record |
 | `duplicate_local_owners` | Multiple non-terminal non-watcher local records exist for the same scope |
 | `watcher_only` | Records exist but all are watchers (`isWatcher: true`); no owning record |
-| `no_record` | No records of any kind for this scope |
+| `no_record` | No records that affect current ownership remain for this scope (for example, empty input or terminal-only owner records) |
 
 ### Local record states
 

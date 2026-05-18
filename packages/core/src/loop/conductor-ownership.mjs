@@ -254,12 +254,13 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
       throw new Error("authoritativeLiveState.hasLiveOwner must be a boolean when provided");
     }
 
-    const activeOwners = normalized.filter(r => !r.isWatcher && r.state === "active");
+    const nonTerminalOwners = normalized.filter(
+      r => !r.isWatcher && (r.state === "active" || r.state === "inactive"),
+    );
 
-    if (activeOwners.length > 1) {
-      // Multiple local active records remain a duplicate-owner condition even when
-      // authoritative state reports a live owner somewhere for the scope. The
-      // caller still needs reconciliation before treating the scope as singly owned.
+    if (nonTerminalOwners.length > 1) {
+      // Multiple non-terminal local owner records remain a duplicate-owner condition
+      // even when authoritative state reports a live owner somewhere for the scope.
       return OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS;
     }
 
@@ -273,13 +274,6 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
     // already been ruled out above.
 
     // Authoritative overrides any local "active" record: treat as recorded-but-not-live
-    const nonTerminalOwners = normalized.filter(
-      r => !r.isWatcher && (r.state === "active" || r.state === "inactive"),
-    );
-    if (nonTerminalOwners.length > 1) {
-      return OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS;
-    }
-
     if (nonTerminalOwners.length === 1) {
       return OWNERSHIP_STATE.RECORDED_NO_LIVE_OWNER;
     }
@@ -296,11 +290,15 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
     return OWNERSHIP_STATE.NO_RECORD;
   }
 
-  const activeOwners = ownerRecords.filter(r => r.state === "active");
+  const nonTerminalOwners = ownerRecords.filter(
+    r => r.state === "active" || r.state === "inactive",
+  );
 
-  if (activeOwners.length > 1) {
+  if (nonTerminalOwners.length > 1) {
     return OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS;
   }
+
+  const activeOwners = ownerRecords.filter(r => r.state === "active");
 
   if (activeOwners.length === 1) {
     // One active local owner — live by local evidence, but authoritative confirmation
@@ -309,10 +307,6 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
   }
 
   const inactiveOwners = ownerRecords.filter(r => r.state === "inactive");
-  if (inactiveOwners.length > 1) {
-    return OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS;
-  }
-
   if (inactiveOwners.length === 1) {
     return OWNERSHIP_STATE.RECORDED_NO_LIVE_OWNER;
   }
@@ -529,7 +523,7 @@ function routeOutcome(action, ownershipState, hasAuthoritativeSignal) {
     case OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS:
       return {
         outcome: OUTCOME.REJECT_DUPLICATE_OWNER,
-        reason: "Multiple active local owner records exist for this scope; resolve duplicate owners before routing new requests",
+        reason: "Multiple non-terminal local owner records exist for this scope; resolve duplicate owners before routing new requests",
         allowOwnerCreation: false,
         requiresAuthoritativeConsultation: true,
       };

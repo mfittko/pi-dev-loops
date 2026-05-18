@@ -229,6 +229,15 @@ test("classifyOwnershipState keeps duplicate-local-owner state when authoritativ
   );
 });
 
+test("classifyOwnershipState treats mixed active + inactive non-terminal records as duplicate owners", () => {
+  const records = [
+    makeRecord({ ownerId: "owner-1", state: "active" }),
+    makeRecord({ ownerId: "owner-2", state: "inactive" }),
+  ];
+  assert.equal(classifyOwnershipState(records), OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS);
+  assert.equal(classifyOwnershipState(records, makeAuth(true, "owner-remote")), OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS);
+});
+
 test("classifyOwnershipState returns DUPLICATE_LOCAL_OWNERS for two active non-watcher records", () => {
   const records = [
     makeRecord({ ownerId: "owner-1", state: "active" }),
@@ -408,6 +417,18 @@ test("multiple inactive resume candidates are rejected as duplicate owners", () 
     makeRecord({ ownerId: "owner-2", state: "inactive" }),
   ];
   const result = evaluateOwnershipAction(ACTION.RESUME, key, records, makeAuth(false));
+
+  assert.equal(result.outcome, OUTCOME.REJECT_DUPLICATE_OWNER);
+  assert.equal(result.requiresAuthoritativeConsultation, true);
+});
+
+test("mixed active and inactive owner records are rejected as duplicate owners", () => {
+  const key = makeKey();
+  const records = [
+    makeRecord({ ownerId: "owner-1", state: "active" }),
+    makeRecord({ ownerId: "owner-2", state: "inactive" }),
+  ];
+  const result = evaluateOwnershipAction(ACTION.START, key, records, makeAuth(true, "owner-remote"));
 
   assert.equal(result.outcome, OUTCOME.REJECT_DUPLICATE_OWNER);
   assert.equal(result.requiresAuthoritativeConsultation, true);
