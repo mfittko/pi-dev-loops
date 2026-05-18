@@ -187,7 +187,9 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   }
 
   let action;
-  if (WATCH_STATES.has(interpretation.state)) {
+  if (reviewRequestStatus === "requested" || reviewRequestStatus === "already-requested") {
+    action = "watch";
+  } else if (WATCH_STATES.has(interpretation.state)) {
     action = "watch";
   } else if (FIX_STATES.has(interpretation.state)) {
     action = "fix";

@@ -171,6 +171,7 @@ Contract:
 - requests Copilot review automatically for `pr_ready_no_feedback`
 - requests Copilot review automatically for `ready_to_rerequest_review` only when `autoRerequestEligible=true`
 - suppresses automatic same-head clean re-request when `sameHeadCleanConverged=true`, unless `--force-rerequest-review` is used
+- when a review request is successfully issued or confirmed (including the explicit force path), emits `action: "watch"` with exact `watchArgs` even if the interpreted state remains `ready_to_rerequest_review`
 - emits one machine-readable action: `watch`, `fix`, or `stop`
 - when the action is `watch`, emits exact `watchArgs` for `watch-copilot-review.mjs`
 

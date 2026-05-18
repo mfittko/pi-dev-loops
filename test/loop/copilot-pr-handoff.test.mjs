@@ -724,10 +724,11 @@ test("copilot-pr-handoff allows explicit operator same-head re-request via --for
 
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    assert.equal(output.action, "stop");
+    assert.equal(output.action, "watch");
     assert.equal(output.state, "ready_to_rerequest_review");
     assert.equal(output.reviewRequestStatus, "requested");
     assert.equal(output.sameHeadCleanConverged, true);
+    assert.ok(output.watchArgs, "expected watchArgs after explicit force re-request");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
