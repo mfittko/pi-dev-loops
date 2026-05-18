@@ -101,6 +101,8 @@ const NEXT_ACTIONS = Object.freeze({
   [STATE.DONE]: "Loop is complete; confirm merge-readiness or close",
 });
 
+const SAME_HEAD_CLEAN_CONVERGED_NEXT_ACTION = "Current head already has a clean submitted Copilot review; suppress automatic same-head re-request unless a meaningful remediation event occurs, or explicitly request another Copilot pass";
+
 const VALID_REVIEW_REQUEST_STATUSES = new Set(["requested", "already-requested", "unavailable", "none", "failed"]);
 const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
 
@@ -247,7 +249,7 @@ export function interpretLoopState(snapshot) {
 
   let nextAction = NEXT_ACTIONS[state];
   if (sameHeadCleanConverged) {
-    nextAction = "Current head already has a clean submitted Copilot review; suppress automatic same-head re-request unless a meaningful remediation event occurs, or explicitly request another Copilot pass";
+    nextAction = SAME_HEAD_CLEAN_CONVERGED_NEXT_ACTION;
   }
 
   return {

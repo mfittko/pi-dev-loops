@@ -172,10 +172,8 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   let reviewRequestStatus;
 
   const shouldRequestReview = interpretation.state === STATE.PR_READY_NO_FEEDBACK
-    || (
-      interpretation.state === STATE.READY_TO_REREQUEST_REVIEW
-      && (interpretation.autoRerequestEligible || options.forceRerequestReview)
-    );
+    || interpretation.state === STATE.READY_TO_REREQUEST_REVIEW
+    && (interpretation.autoRerequestEligible || options.forceRerequestReview);
 
   if (shouldRequestReview) {
     const requestResult = await performCopilotReviewRequest(
