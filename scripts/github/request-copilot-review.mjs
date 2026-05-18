@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatCliError } from "../_core-helpers.mjs";
+import { formatCliError, isCopilotLogin, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "./capture-review-threads.mjs";
 
 const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number>
@@ -121,17 +121,6 @@ function runChild(command, args, env) {
   });
 }
 
-function isCopilotReviewer(login) {
-  return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
-}
-
-function extractReviewCommitSha(review) {
-  const graphqlSha = typeof review?.commit?.oid === "string" ? review.commit.oid.trim() : "";
-  const restSha = typeof review?.commit_id === "string" ? review.commit_id.trim() : "";
-  const sha = graphqlSha || restSha;
-  return sha.length > 0 ? sha : null;
-}
-
 function parseRequestedReviewersPayload(text) {
   let payload;
 
@@ -147,7 +136,7 @@ function parseRequestedReviewersPayload(text) {
   return {
     users,
     teams,
-    requested: users.some((user) => isCopilotReviewer(user?.login)),
+    requested: users.some((user) => isCopilotLogin(user?.login)),
   };
 }
 
@@ -163,22 +152,12 @@ function parseReviewsPayload(text) {
   const headSha = typeof payload?.headRefOid === "string" && payload.headRefOid.trim().length > 0
     ? payload.headRefOid.trim()
     : null;
-  const reviews = Array.isArray(payload?.reviews) ? payload.reviews : [];
-  const copilotReviews = reviews.filter((review) => isCopilotReviewer(review?.author?.login));
-  const copilotReviewIds = copilotReviews.map((review) => String(review.id));
-  const hasCopilotPendingReview = copilotReviews.some((review) => {
-    if (typeof review?.state !== "string" || review.state.toUpperCase() !== "PENDING") {
-      return false;
-    }
-
-    const reviewCommitSha = extractReviewCommitSha(review);
-    return headSha !== null && reviewCommitSha === headSha;
-  });
+  const reviewSummary = summarizeCopilotReviews(payload?.reviews, { headSha });
 
   return {
     headSha,
-    copilotReviewIds,
-    hasCopilotPendingReview,
+    copilotReviewIds: reviewSummary.copilotReviewIds,
+    hasCopilotPendingReview: reviewSummary.hasPendingReviewOnCurrentHead,
   };
 }
 

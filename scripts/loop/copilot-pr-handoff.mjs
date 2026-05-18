@@ -71,11 +71,6 @@ Exit codes:
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 86_400_000;
 
-const STATES_THAT_REQUEST_REVIEW = new Set([
-  STATE.PR_READY_NO_FEEDBACK,
-  STATE.READY_TO_REREQUEST_REVIEW,
-]);
-
 const WATCH_STATES = new Set([
   STATE.WAITING_FOR_COPILOT_REVIEW,
 ]);
@@ -161,7 +156,10 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   let interpretation = interpretLoopState(snapshot);
   let reviewRequestStatus;
 
-  if (STATES_THAT_REQUEST_REVIEW.has(interpretation.state)) {
+  const shouldRequestReview = interpretation.state === STATE.PR_READY_NO_FEEDBACK
+    || (interpretation.state === STATE.READY_TO_REREQUEST_REVIEW && !snapshot.copilotReviewOnCurrentHead);
+
+  if (shouldRequestReview) {
     const requestResult = await performCopilotReviewRequest(
       { repo: options.repo, pr: options.pr },
       { env, ghCommand },

@@ -45,7 +45,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
+import { extractReviewCommitSha, formatCliError, isCopilotLogin, parseJsonText, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import { createSteeringState, normalizeSteeringState, resolveEffectiveLoopState } from "../../packages/core/src/loop/steering.mjs";
@@ -225,17 +225,6 @@ function runChild(command, args, env) {
   });
 }
 
-function isCopilotLogin(login) {
-  return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
-}
-
-function extractReviewCommitSha(review) {
-  const graphqlSha = typeof review?.commit?.oid === "string" ? review.commit.oid.trim() : "";
-  const restSha = typeof review?.commit_id === "string" ? review.commit_id.trim() : "";
-  const sha = graphqlSha || restSha;
-  return sha.length > 0 ? sha : null;
-}
-
 function deriveRunIdFromSteeringFile(filePath) {
   const basename = path.basename(filePath, path.extname(filePath)).trim();
   return basename.length > 0 ? basename : "ephemeral-steering-state";
@@ -357,32 +346,16 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
   const prHeadSha = typeof prData.headRefOid === "string" && prData.headRefOid.trim().length > 0
     ? prData.headRefOid.trim()
     : null;
-  const reviews = Array.isArray(prData.reviews) ? prData.reviews : [];
-  const copilotReviews = reviews.filter((review) => isCopilotLogin(review?.author?.login));
-  const copilotReviewPresent = copilotReviews.length > 0;
-  const copilotPendingReview = copilotReviews.some((review) => {
-    if (typeof review?.state !== "string" || review.state.toUpperCase() !== "PENDING") {
-      return false;
-    }
-
-    const reviewCommitSha = extractReviewCommitSha(review);
-    return prHeadSha !== null && reviewCommitSha === prHeadSha;
-  });
-  // A submitted (non-PENDING) Copilot review on the current head means the wait is done
-  // even if requested_reviewers hasn't cleared yet.
-  const copilotReviewOnCurrentHead = prHeadSha !== null && copilotReviews.some((review) => {
-    const reviewState = typeof review?.state === "string" ? review.state.toUpperCase() : "";
-    if (reviewState === "PENDING" || reviewState === "") return false;
-    const reviewCommitSha = extractReviewCommitSha(review);
-    return reviewCommitSha === prHeadSha;
-  });
+  const reviewSummary = summarizeCopilotReviews(prData.reviews, { headSha: prHeadSha });
+  const copilotReviewPresent = reviewSummary.copilotReviewPresent;
+  const copilotReviewOnCurrentHead = reviewSummary.hasSubmittedReviewOnCurrentHead;
   const ciStatus = normalizeCiStatus(prData.statusCheckRollup);
 
   // Determine review request status
   let copilotReviewRequestStatus;
   if (reviewRequestStatusOverride !== undefined) {
     copilotReviewRequestStatus = reviewRequestStatusOverride;
-  } else if (copilotPendingReview) {
+  } else if (reviewSummary.hasPendingReviewOnCurrentHead) {
     // A PENDING Copilot review is observable evidence that review is already in progress,
     // so no additional requested_reviewers API probe is needed.
     copilotReviewRequestStatus = "requested";

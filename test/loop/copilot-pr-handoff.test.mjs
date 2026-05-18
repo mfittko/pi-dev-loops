@@ -543,6 +543,56 @@ test("copilot-pr-handoff stops when 422 only finds a stale pending Copilot revie
   }
 });
 
+test("copilot-pr-handoff stops after a current-head Copilot review even if requested_reviewers lingers", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-current-head-review-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-1",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "newsha" },
+            },
+          ],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.reviewRequestStatus, undefined);
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, true);
+    assert.equal(output.watchArgs, undefined);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Handoff: unresolved feedback → fix
 // ---------------------------------------------------------------------------
