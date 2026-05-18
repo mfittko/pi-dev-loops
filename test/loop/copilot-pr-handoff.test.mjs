@@ -335,7 +335,7 @@ test("copilot-pr-handoff emits stop action when Copilot review is unavailable", 
 // Handoff: 422 + Copilot review in progress → watch
 // ---------------------------------------------------------------------------
 
-test("copilot-pr-handoff emits watch action when 422 but Copilot review is already in progress", async () => {
+test("copilot-pr-handoff emits watch action when 422 but Copilot is in requested_reviewers", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-422-in-progress-"));
 
   try {
@@ -378,6 +378,72 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot review is alrea
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
         stdout: '{"reviews":[]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "watch");
+    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.reviewRequestStatus, "already-requested");
+    assert.ok(output.watchArgs, "expected watchArgs in watch action");
+    assert.equal(output.watchArgs.repo, "owner/repo");
+    assert.equal(output.watchArgs.pr, 17);
+    assert.equal(output.watchArgs.pollIntervalMs, 60_000);
+    assert.equal(output.watchArgs.timeoutMs, 86_400_000);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("copilot-pr-handoff emits watch action when 422 but Copilot has a pending review in progress", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-422-pending-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      // detect: pr view (pr_ready_no_feedback triggers request attempt)
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: OPEN_PR + "\n",
+      },
+      // detect: Copilot not in requested_reviewers
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      // detect: threads empty
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+      // request: check before
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
+      },
+      // request: gh returns 422
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stderr: "gh: Reviews may only be requested from collaborators.\n",
+        exitCode: 1,
+      },
+      // post-failure verification: Copilot not in requested_reviewers but has a PENDING review
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
       },
     ]);
 
