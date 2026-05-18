@@ -94,6 +94,7 @@ Current script entrypoints include:
 - `scripts/github/detect-linked-issue-pr.mjs`
 - `scripts/loop/detect-copilot-loop-state.mjs`
 - `scripts/loop/detect-reviewer-loop-state.mjs`
+- `scripts/loop/outer-loop.mjs`
 - `scripts/loop/detect-tracker-pr-state.mjs`
 - `scripts/loop/copilot-pr-handoff.mjs`
 - `scripts/loop/summarize-loop-state.mjs`

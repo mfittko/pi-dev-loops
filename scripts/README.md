@@ -274,6 +274,41 @@ Failure behavior:
 - malformed arguments, unexpected `gh` failures, and invalid input/local-state JSON emit
   `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/loop/outer-loop.mjs`
+
+Thin deterministic outer-loop wrapper for the Copilot PR remediation path. It combines
+the existing Copilot and reviewer inner-loop detectors into one machine-readable outer
+action so bounded external waits remain owned by the same remediation family instead of
+looking like terminal run endpoints.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Optional:
+- `--reviewer-login <login>`
+- `--checkpoint-dir <path>`
+- `--copilot-input <path>`
+- `--reviewer-input <path>`
+
+Contract:
+- auto-detect mode calls both inner detectors, interprets their current states, and emits one
+  outer action: `continue_wait`, `reenter_copilot_loop`, `reenter_reviewer_loop`, `stop`, or `done`
+- treats `waiting_for_copilot_review`, `waiting_for_ci`, reviewer `waiting_for_author_followup`,
+  and reviewer `waiting_for_re_request` as outer-loop-owned `continue_wait` states
+- stops with `unsafe_local_edit_requires_isolation` when the next step needs local execution or
+  mutation and the checkout is dirty or detached
+- persists bounded checkpoint state to `tmp/copilot-loop/pr-<n>/outer-loop-state.json` for
+  async continuation and false-positive wakeup detection
+- supports snapshot-input mode for deterministic gh-free testing
+
+Success output shape:
+- `{ "ok": true, "outerAction": "...", "copilotState": "...", "reviewerState": "...", "reason"?: "...", "checkpoint": { ... } }`
+
+Failure behavior:
+- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- unexpected `gh` or `git` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/loop/summarize-loop-state.mjs`
 
 Summarize stored loop state from `tmp/phases/index.json` and per-phase manifests.
