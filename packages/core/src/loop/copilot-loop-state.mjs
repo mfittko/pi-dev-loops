@@ -204,8 +204,7 @@ export function interpretLoopState(snapshot) {
     // Copilot is in requested_reviewers but has not yet submitted a review on the current head
     state = STATE.WAITING_FOR_COPILOT_REVIEW;
   } else if (s.copilotReviewPresent || s.copilotReviewOnCurrentHead) {
-    // Copilot has reviewed; all threads resolved; review done on current head or not currently pending
-    // Copilot has reviewed at least once; all threads resolved; not currently requested
+    // Copilot has reviewed (at least once, or specifically on the current head); all threads resolved
     if (s.ciStatus === "pending") {
       state = STATE.WAITING_FOR_CI;
     } else if (s.ciStatus === "failure") {
