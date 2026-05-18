@@ -188,14 +188,14 @@ For this contract, `kickoff` is treated as a `start` alias. The ownership policy
 
 ---
 
-## Reconcile classification rules
+## Reconcile and duplicate-owner classification rules
 
-The `needs_reconcile_before_resume` outcome is returned when the evaluator detects a
-condition that requires authoritative reconciliation before routing is safe:
+The evaluator distinguishes between reconcile-needed states and explicit duplicate-owner
+rejection:
 
 | Condition | Rule |
 |---|---|
-| Duplicate local records | Two or more `active` non-watcher records for the same scope — collapse to one surviving owner using authoritative state |
+| Duplicate local records | Two or more `active` non-watcher records for the same scope — return `reject_duplicate_owner` and reconcile to one surviving owner using authoritative state before routing again |
 | Stale local records with `request-review`/`assign` | Stale records cannot satisfy actions requiring an active owner |
 | Recorded non-terminal without authoritative confirmation | Cannot safely distinguish "inactive resumable" from "still live" without authoritative signal |
 | Watcher-only for `request-review`/`assign` | Watcher presence does not satisfy ownership for actions that require an active owner |

@@ -240,6 +240,10 @@ function normalizeLocalRecord(raw, index) {
  * @returns {string} one of the OWNERSHIP_STATE values
  */
 export function classifyOwnershipState(localRecords, authoritativeLiveState) {
+  if (localRecords !== null && localRecords !== undefined && !Array.isArray(localRecords)) {
+    throw new Error("localRecords must be an array when provided");
+  }
+
   const normalized = (Array.isArray(localRecords) ? localRecords : [])
     .map((r, i) => normalizeLocalRecord(r, i));
 
@@ -264,11 +268,8 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
       return OWNERSHIP_STATE.LIVE_OWNER;
     }
 
-    // Authoritative confirms no live owner; check for duplicate local records
-    if (activeOwners.length > 1) {
-      // Multiple local active records while authoritative says none live — duplicate confusion
-      return OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS;
-    }
+    // Authoritative confirms no live owner; duplicate-local-owner ambiguity has
+    // already been ruled out above.
 
     // Authoritative overrides any local "active" record: treat as recorded-but-not-live
     const nonTerminalOwners = normalized.filter(
@@ -424,7 +425,7 @@ function routeOutcome(action, ownershipState, hasAuthoritativeSignal) {
           outcome: OUTCOME.NOOP_ALREADY_SATISFIED,
           reason: "A live owner already exists for this scope; action is already satisfied",
           allowOwnerCreation: false,
-          requiresAuthoritativeConsultation: false,
+          requiresAuthoritativeConsultation: !hasAuthoritativeSignal,
         };
       }
       // start / resume: attach to the existing live owner

@@ -201,6 +201,10 @@ test("classifyOwnershipState returns NO_RECORD for empty records", () => {
   assert.equal(classifyOwnershipState(undefined), OWNERSHIP_STATE.NO_RECORD);
 });
 
+test("classifyOwnershipState rejects non-array localRecords input", () => {
+  assert.throws(() => classifyOwnershipState({ ownerId: "x", state: "active" }), /localRecords must be an array/);
+});
+
 test("classifyOwnershipState returns LIVE_OWNER for one active non-watcher record", () => {
   const records = [makeRecord({ state: "active" })];
   assert.equal(classifyOwnershipState(records), OWNERSHIP_STATE.LIVE_OWNER);
@@ -516,6 +520,15 @@ test("[scenario] request-review against live owner → noop_already_satisfied", 
 
   assert.equal(result.outcome, OUTCOME.NOOP_ALREADY_SATISFIED);
   assert.equal(result.allowOwnerCreation, false);
+});
+
+test("request-review against local-only live owner still requires authoritative consultation", () => {
+  const key = makeKey();
+  const records = [makeRecord({ state: "active" })];
+  const result = evaluateOwnershipAction(ACTION.REQUEST_REVIEW, key, records, null);
+
+  assert.equal(result.outcome, OUTCOME.NOOP_ALREADY_SATISFIED);
+  assert.equal(result.requiresAuthoritativeConsultation, true);
 });
 
 test("[scenario] assign against live owner → noop_already_satisfied", () => {
