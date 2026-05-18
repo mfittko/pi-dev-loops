@@ -14,14 +14,25 @@
  *    historical request-attempt outcomes like "already-requested", "unavailable",
  *    or "failed" that are not fully observable from static state alone).
  *
+ * Optional (both modes):
+ *   --steering-state-file <path>
+ *     Path to a durable steering state JSON file (as written by steer-loop.mjs).
+ *     When provided, the detected state is resolved through the active steering
+ *     contract: nextAction may be overridden by an active stop_at_next_safe_gate
+ *     directive, and the output includes steeringApplied and effectiveConstraints.
+ *
  * Optional (auto-detect mode only):
  *   --review-request-status <requested|already-requested|unavailable|none|failed>
  *     Override the Copilot review request status with a known prior result.
  *     Useful when the caller already ran request-copilot-review.mjs and wants
  *     to inject its output status without re-probing the reviewers endpoint.
  *
- * Success output shape:
+ * Success output shape (no steering file):
  *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }
+ *
+ * Success output shape (with steering file):
+ *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...",
+ *     "steeringApplied": true|false, "effectiveConstraints": { ... } }
  *
  * Failure behavior:
  *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
@@ -37,6 +48,7 @@ import { fileURLToPath } from "node:url";
 import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import { createSteeringState, normalizeSteeringState, resolveEffectiveLoopState } from "../../packages/core/src/loop/steering.mjs";
 
 const USAGE = `Usage:
   detect-copilot-loop-state.mjs --repo <owner/name> --pr <number> [--review-request-status <status>]
@@ -57,12 +69,22 @@ Required (auto-detect mode):
 Required (snapshot mode):
   --input <path>                             Path to snapshot JSON file
 
+Optional (both modes):
+  --steering-state-file <path>               Path to a durable steering state JSON file.
+                                             When provided, nextAction is resolved through
+                                             the active steering contract (e.g. overridden
+                                             by stop_at_next_safe_gate). Output includes
+                                             steeringApplied and effectiveConstraints.
+
 Optional (auto-detect mode only):
   --review-request-status <status>           Inject a known prior request result.
                                              Values: requested|already-requested|unavailable|none|failed
 
 Output (stdout, JSON):
   { "ok": true, "snapshot": {...}, "state": "...", "allowedTransitions": [...], "nextAction": "..." }
+
+  When --steering-state-file is provided, also includes:
+  "steeringApplied": true|false, "effectiveConstraints": { ... }
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -106,6 +128,7 @@ export function parseDetectCliArgs(argv) {
     repo: undefined,
     pr: undefined,
     reviewRequestStatusOverride: undefined,
+    steeringStateFile: undefined,
   };
 
   while (args.length > 0) {
@@ -137,6 +160,11 @@ export function parseDetectCliArgs(argv) {
         throw parseError(`--review-request-status must be one of: ${[...VALID_OVERRIDE_STATUSES].join(", ")}`);
       }
       options.reviewRequestStatusOverride = val;
+      continue;
+    }
+
+    if (token === "--steering-state-file") {
+      options.steeringStateFile = requireOptionValue(args, "--steering-state-file");
       continue;
     }
 
@@ -199,6 +227,11 @@ function runChild(command, args, env) {
 
 function isCopilotLogin(login) {
   return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
+}
+
+function deriveRunIdFromSteeringFile(filePath) {
+  const basename = path.basename(filePath, path.extname(filePath)).trim();
+  return basename.length > 0 ? basename : "ephemeral-steering-state";
 }
 
 /**
@@ -384,7 +417,39 @@ export async function runCli(
     );
   }
 
-  const interpretation = interpretLoopState(snapshot);
+  // Load steering state if a file was provided; use resolveEffectiveLoopState
+  // so that active steering directives (e.g. stop_at_next_safe_gate) change the
+  // detected next action on this real loop surface.
+  let interpretation;
+  let steeringFields = {};
+
+  if (options.steeringStateFile !== undefined) {
+    let rawSteering;
+    try {
+      rawSteering = JSON.parse(await readFile(options.steeringStateFile, "utf8"));
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        rawSteering = null;
+      } else {
+        throw new Error(`Failed to read steering state file '${options.steeringStateFile}': ${error.message}`);
+      }
+    }
+
+    const steeringState = rawSteering !== null
+      ? normalizeSteeringState(rawSteering)
+      : createSteeringState(deriveRunIdFromSteeringFile(options.steeringStateFile));
+
+    const resolved = resolveEffectiveLoopState(snapshot, steeringState);
+    interpretation = resolved;
+    steeringFields = {
+      steeringApplied: resolved.steeringApplied,
+      pendingStopAtNextSafeGate: resolved.pendingStopAtNextSafeGate,
+      terminalStopAtNextSafeGate: resolved.terminalStopAtNextSafeGate,
+      effectiveConstraints: resolved.effectiveConstraints,
+    };
+  } else {
+    interpretation = interpretLoopState(snapshot);
+  }
 
   stdout.write(`${JSON.stringify({
     ok: true,
@@ -392,6 +457,7 @@ export async function runCli(
     state: interpretation.state,
     allowedTransitions: interpretation.allowedTransitions,
     nextAction: interpretation.nextAction,
+    ...steeringFields,
   })}\n`);
 }
 
