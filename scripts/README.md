@@ -155,6 +155,31 @@ Success output shape:
 Failure behavior:
 - malformed arguments and `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/loop/copilot-pr-handoff.mjs`
+
+Thin high-level helper for the common Copilot PR follow-up handoff path.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Optional:
+- `--force-rerequest-review` — explicit operator/manual override that forces another Copilot request even when automatic same-head suppression is active
+
+Contract:
+- detects the current Copilot-loop state for the PR
+- requests Copilot review automatically for `pr_ready_no_feedback`
+- requests Copilot review automatically for `ready_to_rerequest_review` only when `autoRerequestEligible=true`
+- suppresses automatic same-head clean re-request when `sameHeadCleanConverged=true`, unless `--force-rerequest-review` is used
+- emits one machine-readable action: `watch`, `fix`, or `stop`
+- when the action is `watch`, emits exact `watchArgs` for `watch-copilot-review.mjs`
+
+Success output shape:
+- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... } }`
+
+Failure behavior:
+- malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/loop/detect-copilot-loop-state.mjs`
 
 Deterministic Copilot-loop state detector. Captures current loop state from observable PR/GitHub
@@ -189,16 +214,19 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `prClosed` {boolean} — whether the PR was closed without merge; merged PRs set `prMerged=true` instead of reusing `prClosed`
 - `copilotReviewRequestStatus` {"requested"|"already-requested"|"unavailable"|"none"|"failed"} — current known Copilot review-request state
 - `copilotReviewPresent` {boolean} — whether at least one Copilot review exists on the PR
+- `copilotReviewOnCurrentHead` {boolean} — whether a submitted (non-PENDING) Copilot review exists for the current head commit
 - `unresolvedThreadCount` {number} — total unresolved review-thread count
 - `actionableThreadCount` {number} — unresolved threads with non-bot actionable comments
 - `ciStatus` {"success"|"failure"|"pending"|"none"} — current CI check rollup
 - `agentFixStatus` {"applied"|null} — agent-provided: "applied" when code has been fixed
 
 Success output shape:
-- `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }`
+- `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false }`
 - `state` is one of the stable state names defined in `docs/copilot-loop-state-graph.md`
 - `allowedTransitions` is the list of states reachable from `state`
 - `nextAction` is a human-readable recommended next step
+- `autoRerequestEligible` is `true` only when a meaningful remediation event has made automatic re-request valid again
+- `sameHeadCleanConverged` is `true` when the current head already has a clean submitted Copilot review and automatic same-head re-request must be suppressed
 
 Failure behavior:
 - Malformed arguments, unexpected `gh` failures, and review-thread detection failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
@@ -207,6 +235,7 @@ Key behavioral guarantees:
 - When `unresolvedThreadCount > 0`, the state is always in the fix/reply-resolve family — never `waiting_for_copilot_review` or any wait state
 - When `copilotReviewRequestStatus` is `unavailable` or `failed`, the state is a terminal stop/report state with no allowed transitions
 - When `agentFixStatus` is `"applied"` and unresolved threads exist, the state is `already_fixed_needs_reply_resolve`, and `allowedTransitions` includes only `ready_to_rerequest_review`
+- When the current head already has a clean submitted Copilot review, `sameHeadCleanConverged=true` and automatic same-head re-request is suppressed until a meaningful remediation event occurs
 - If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
 
 ### `scripts/loop/detect-tracker-pr-state.mjs`
