@@ -73,6 +73,7 @@ Current exported areas include:
 - `./loop/phase-files`
 - `./loop/copilot-loop-state`
 - `./loop/reviewer-loop-state`
+- `./loop/conductor-ownership`
 - `./loop/tracker-pr-state`
 - `./github/review-threads`
 

@@ -8,6 +8,7 @@
     "./loop/phase-files": "./src/loop/phase-files.mjs",
     "./loop/copilot-loop-state": "./src/loop/copilot-loop-state.mjs",
     "./loop/reviewer-loop-state": "./src/loop/reviewer-loop-state.mjs",
+    "./loop/conductor-ownership": "./src/loop/conductor-ownership.mjs",
     "./loop/tracker-pr-state": "./src/loop/tracker-pr-state.mjs",
     "./github/review-threads": "./src/github/review-threads.mjs"
   },
