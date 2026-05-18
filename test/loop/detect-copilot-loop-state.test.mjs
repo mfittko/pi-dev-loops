@@ -461,10 +461,8 @@ test("detect-copilot-loop-state auto-detect treats a pending Copilot review as i
           statusCheckRollup: [],
         }) + "\n",
       },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[],"teams":[]}\n',
-      },
+      // No requested_reviewers call here: a PENDING Copilot review is already sufficient
+      // in-progress evidence, so auto-detect should skip that extra API round-trip.
       {
         assertArgs: ["api", "graphql"],
         stdout: emptyThreads + "\n",

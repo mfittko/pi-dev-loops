@@ -359,11 +359,13 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
   let copilotReviewRequestStatus;
   if (reviewRequestStatusOverride !== undefined) {
     copilotReviewRequestStatus = reviewRequestStatusOverride;
+  } else if (copilotPendingReview) {
+    // A PENDING Copilot review is observable evidence that review is already in progress,
+    // so no additional requested_reviewers API probe is needed.
+    copilotReviewRequestStatus = "requested";
   } else {
     const copilotRequested = await fetchCopilotRequested({ repo, pr }, { env, ghCommand });
-    // A PENDING Copilot review is observable evidence that review is in progress,
-    // equivalent to Copilot being in requested_reviewers.
-    copilotReviewRequestStatus = (copilotRequested || copilotPendingReview) ? "requested" : "none";
+    copilotReviewRequestStatus = copilotRequested ? "requested" : "none";
   }
 
   // Fetch review threads for unresolved counts. This must fail closed: if we
