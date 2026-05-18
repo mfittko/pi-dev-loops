@@ -379,7 +379,8 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
 
   // 3. Reviewer active work takes priority (reviewer needs to complete review)
   if (REVIEWER_ACTIVE_STATES.has(reviewerState)) {
-    if (REVIEWER_NEEDS_LOCAL_EXECUTION.has(reviewerState) && (gitStatus.isDirty || gitStatus.isDetached)) {
+    const needsIsolation = REVIEWER_NEEDS_LOCAL_EXECUTION.has(reviewerState) && (gitStatus.isDirty || gitStatus.isDetached);
+    if (needsIsolation) {
       return { outerAction: "stop", reason: "unsafe_local_edit_requires_isolation" };
     }
     return { outerAction: "reenter_reviewer_loop" };
@@ -387,7 +388,8 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
 
   // 4a. Strong copilot fix/reply states take priority over reviewer wait states
   if (COPILOT_STRONG_ACTIVE_STATES.has(copilotState)) {
-    if (COPILOT_NEEDS_LOCAL_MUTATION.has(copilotState) && (gitStatus.isDirty || gitStatus.isDetached)) {
+    const needsIsolation = COPILOT_NEEDS_LOCAL_MUTATION.has(copilotState) && (gitStatus.isDirty || gitStatus.isDetached);
+    if (needsIsolation) {
       return { outerAction: "stop", reason: "unsafe_local_edit_requires_isolation" };
     }
     return { outerAction: "reenter_copilot_loop" };
