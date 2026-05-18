@@ -294,6 +294,7 @@ Optional:
 Contract:
 - auto-detect mode calls both inner detectors, interprets their current states, and emits one
   outer action: `continue_wait`, `reenter_copilot_loop`, `reenter_reviewer_loop`, `stop`, or `done`
+- treats draft PRs as a re-entry point into owned draft-stage follow-up rather than a terminal stop
 - treats `waiting_for_copilot_review`, `waiting_for_ci`, reviewer `waiting_for_author_followup`,
   and reviewer `waiting_for_re_request` as outer-loop-owned `continue_wait` states
 - stops with `unsafe_local_edit_requires_isolation` when the next step needs local execution or

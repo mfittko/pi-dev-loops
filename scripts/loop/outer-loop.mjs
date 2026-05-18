@@ -140,8 +140,9 @@ const COPILOT_WEAK_ACTIVE_STATES = new Set([
   STATE.READY_TO_REREQUEST_REVIEW,
 ]);
 
-// Copilot states that need local code mutation
-const COPILOT_NEEDS_LOCAL_MUTATION = new Set([
+// Copilot states that need local execution or mutation before the next GitHub wait
+const COPILOT_NEEDS_LOCAL_EXECUTION = new Set([
+  STATE.PR_DRAFT,
   STATE.UNRESOLVED_FEEDBACK_PRESENT,
 ]);
 
@@ -365,6 +366,9 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
   }
 
   if (copilotState === STATE.PR_DRAFT) {
+    if (gitStatus.isDirty || gitStatus.isDetached) {
+      return { outerAction: "stop", reason: "unsafe_local_edit_requires_isolation" };
+    }
     return { outerAction: "reenter_copilot_loop" };
   }
 
@@ -392,7 +396,7 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
 
   // 4a. Strong copilot fix/reply states take priority over reviewer wait states
   if (COPILOT_STRONG_ACTIVE_STATES.has(copilotState)) {
-    const needsIsolation = COPILOT_NEEDS_LOCAL_MUTATION.has(copilotState) && (gitStatus.isDirty || gitStatus.isDetached);
+    const needsIsolation = COPILOT_NEEDS_LOCAL_EXECUTION.has(copilotState) && (gitStatus.isDirty || gitStatus.isDetached);
     if (needsIsolation) {
       return { outerAction: "stop", reason: "unsafe_local_edit_requires_isolation" };
     }
