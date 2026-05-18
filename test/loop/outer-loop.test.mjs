@@ -433,7 +433,7 @@ test("outer-loop: copilot pr_draft → reenter_copilot_loop", async () => {
     assert.equal(output.ok, true);
     assert.equal(output.outerAction, "reenter_copilot_loop");
     assert.equal(output.copilotState, "pr_draft");
-    assert.equal(output.reason, undefined);
+    assert.equal("reason" in output, false);
     assert.equal(output.checkpoint.waitCycles, 0);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
