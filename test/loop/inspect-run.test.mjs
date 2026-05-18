@@ -819,7 +819,7 @@ test("inspect-run CLI: merged PR → done, statusClass done", async () => {
   });
 });
 
-test("inspect-run CLI: PR not found → PR returns no_pr, statusClass blocked/stop", async () => {
+test("inspect-run CLI: PR not found → structured output with needsAttention true, no false certainty", async () => {
   await withTempDir(async (tempDir) => {
     const copilotPath = path.join(tempDir, "copilot.json");
     const reviewerPath = path.join(tempDir, "reviewer.json");
