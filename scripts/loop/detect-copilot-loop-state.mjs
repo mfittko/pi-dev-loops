@@ -348,7 +348,11 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
 
   const isDraft = Boolean(prData.isDraft);
   const reviews = Array.isArray(prData.reviews) ? prData.reviews : [];
-  const copilotReviewPresent = reviews.some((review) => isCopilotLogin(review?.author?.login));
+  const copilotReviews = reviews.filter((review) => isCopilotLogin(review?.author?.login));
+  const copilotReviewPresent = copilotReviews.length > 0;
+  const copilotPendingReview = copilotReviews.some(
+    (review) => typeof review?.state === "string" && review.state.toUpperCase() === "PENDING",
+  );
   const ciStatus = normalizeCiStatus(prData.statusCheckRollup);
 
   // Determine review request status
@@ -357,7 +361,9 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     copilotReviewRequestStatus = reviewRequestStatusOverride;
   } else {
     const copilotRequested = await fetchCopilotRequested({ repo, pr }, { env, ghCommand });
-    copilotReviewRequestStatus = copilotRequested ? "requested" : "none";
+    // A PENDING Copilot review is observable evidence that review is in progress,
+    // equivalent to Copilot being in requested_reviewers.
+    copilotReviewRequestStatus = (copilotRequested || copilotPendingReview) ? "requested" : "none";
   }
 
   // Fetch review threads for unresolved counts. This must fail closed: if we

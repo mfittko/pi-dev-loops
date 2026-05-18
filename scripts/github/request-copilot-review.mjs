@@ -154,12 +154,15 @@ function parseReviewsPayload(text) {
   }
 
   const reviews = Array.isArray(payload?.reviews) ? payload.reviews : [];
-  const copilotReviewIds = reviews
-    .filter((review) => isCopilotReviewer(review?.author?.login))
-    .map((review) => String(review.id));
+  const copilotReviews = reviews.filter((review) => isCopilotReviewer(review?.author?.login));
+  const copilotReviewIds = copilotReviews.map((review) => String(review.id));
+  const hasCopilotPendingReview = copilotReviews.some(
+    (review) => typeof review?.state === "string" && review.state.toUpperCase() === "PENDING",
+  );
 
   return {
     copilotReviewIds,
+    hasCopilotPendingReview,
   };
 }
 
@@ -200,6 +203,7 @@ async function fetchCopilotReviewState(options, runtime) {
   return {
     requested: requestedReviewers.requested,
     copilotReviewIds: reviews.copilotReviewIds,
+    hasPendingReview: reviews.hasCopilotPendingReview,
   };
 }
 
@@ -272,6 +276,19 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   const requestResult = await requestCopilotReview(options, { env, ghCommand });
 
   if (requestResult.status === "unavailable") {
+    // Post-failure verification: even when the explicit request path is rejected,
+    // Copilot review may already be in progress if GitHub internally queued it.
+    // Check for observable in-progress evidence before treating this as a terminal stop.
+    const after = await fetchCopilotReviewState(options, { env, ghCommand });
+    if (after.requested || after.hasPendingReview) {
+      return {
+        ok: true,
+        status: "already-requested",
+        repo: options.repo,
+        pr: options.pr,
+        reviewer: "Copilot",
+      };
+    }
     return requestResult;
   }
 

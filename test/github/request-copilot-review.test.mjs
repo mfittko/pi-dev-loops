@@ -246,6 +246,16 @@ test("request-copilot-review normalizes known unrequestable/unavailable failures
         stderr: "gh: Reviews may only be requested from collaborators.\n",
         exitCode: 1,
       },
+      // post-failure verification: Copilot is still not in requested_reviewers
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      // post-failure verification: no pending Copilot review
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -259,6 +269,100 @@ test("request-copilot-review normalizes known unrequestable/unavailable failures
       pr: 17,
       reviewer: "Copilot",
       detail: "gh: Reviews may only be requested from collaborators.",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("request-copilot-review returns already-requested when 422 but Copilot is in requested_reviewers", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-422-in-progress-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      // before: Copilot not in requested_reviewers yet
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
+      },
+      // request: GitHub returns 422
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stderr: "gh: Reviews may only be requested from collaborators.\n",
+        exitCode: 1,
+      },
+      // post-failure verification: Copilot now appears in requested_reviewers
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "already-requested",
+      repo: "owner/repo",
+      pr: 17,
+      reviewer: "Copilot",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("request-copilot-review returns already-requested when 422 but Copilot has a pending review", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-422-pending-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      // before: Copilot not in requested_reviewers
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[]}\n',
+      },
+      // request: GitHub returns 422
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stderr: "gh: Reviews may only be requested from collaborators.\n",
+        exitCode: 1,
+      },
+      // post-failure verification: Copilot not in requested_reviewers, but has a PENDING review
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "already-requested",
+      repo: "owner/repo",
+      pr: 17,
+      reviewer: "Copilot",
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
