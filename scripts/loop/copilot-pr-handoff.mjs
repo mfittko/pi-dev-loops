@@ -4,9 +4,10 @@
  *
  * Flow:
  *   1. Detect current Copilot-loop state for the given PR.
- *   2. If the state suggests requesting review (pr_ready_no_feedback or
- *      ready_to_rerequest_review), request Copilot review and re-interpret
- *      the state with the confirmed review-request status.
+ *   2. If the state suggests requesting review (pr_ready_no_feedback, or
+ *      ready_to_rerequest_review with no submitted Copilot review yet on the
+ *      current head), request Copilot review and re-interpret the state with
+ *      the confirmed review-request status.
  *   3. Emit a single JSON payload describing the current state, the
  *      recommended action ("watch", "fix", or "stop"), and — when the action
  *      is "watch" — the exact watch parameters to pass to watch-copilot-review.mjs.
@@ -36,8 +37,9 @@ import { interpretLoopState, normalizeSnapshot, STATE } from "../../packages/cor
 
 const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
 
-Detect the Copilot-loop state for a PR, request Copilot review when
-appropriate, and emit the recommended next action with exact parameters.
+Detect the Copilot-loop state for a PR, request Copilot review only when
+a new request is still needed, and emit the recommended next action with
+exact parameters.
 
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
