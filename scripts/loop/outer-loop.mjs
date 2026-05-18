@@ -85,7 +85,7 @@ Outer actions:
   done                   PR is merged or closed; loop complete
 
 Stop reasons:
-  pr_not_ready                         PR is draft or does not exist
+  pr_not_ready                         PR does not exist
   copilot_blocked                      Copilot loop is blocked
   reviewer_blocked                     Reviewer loop is blocked
   review_unavailable                   Copilot review is unavailable
@@ -344,7 +344,7 @@ async function writeCheckpoint(checkpointDir, checkpoint) {
  * Decide the outer-loop action from the two inner-machine states.
  *
  * Priority order (first match wins):
- *   1. Terminal / PR-not-ready
+ *   1. Terminal / missing-PR stop
  *   2. Hard stops (blocked, unavailable)
  *   3. Reviewer active work → reenter_reviewer_loop (with dirty check)
  *   4. Copilot active work → reenter_copilot_loop (with dirty check)
@@ -360,8 +360,12 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
     return { outerAction: "done" };
   }
 
-  if (copilotState === STATE.NO_PR || copilotState === STATE.PR_DRAFT) {
+  if (copilotState === STATE.NO_PR) {
     return { outerAction: "stop", reason: "pr_not_ready" };
+  }
+
+  if (copilotState === STATE.PR_DRAFT) {
+    return { outerAction: "reenter_copilot_loop" };
   }
 
   // 2. Hard stops

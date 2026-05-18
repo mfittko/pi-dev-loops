@@ -96,14 +96,14 @@ test("decideOuterAction: copilot no_pr → stop / pr_not_ready", () => {
   assert.equal(result.reason, "pr_not_ready");
 });
 
-test("decideOuterAction: copilot pr_draft → stop / pr_not_ready", () => {
+test("decideOuterAction: copilot pr_draft → reenter_copilot_loop", () => {
   const result = decideOuterAction({
     copilotState: "pr_draft",
     reviewerState: "waiting_for_review_request",
     gitStatus: { isDirty: false, isDetached: false },
   });
-  assert.equal(result.outerAction, "stop");
-  assert.equal(result.reason, "pr_not_ready");
+  assert.equal(result.outerAction, "reenter_copilot_loop");
+  assert.equal(result.reason, undefined);
 });
 
 test("decideOuterAction: copilot waiting_for_copilot_review → continue_wait", () => {
@@ -383,6 +383,58 @@ test("outer-loop: waiting_for_copilot_review → continue_wait", async () => {
     assert.equal(output.checkpoint.repo, "owner/repo");
     assert.equal(output.checkpoint.waitCycles, 1);
     assert.ok(typeof output.checkpoint.timestamp === "string");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: copilot pr_draft → reenter_copilot_loop", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-copilot-draft-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+    const reviewerSnapshotPath = path.join(tempDir, "reviewer-snapshot.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: true,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "none",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "none",
+    });
+
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: true,
+      prHeadSha: "abc123",
+      reviewRequested: false,
+    });
+
+    const env = await writeGitStub(tempDir, { porcelainOutput: "", headRef: "main" });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+      "--checkpoint-dir", tempDir,
+    ], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.outerAction, "reenter_copilot_loop");
+    assert.equal(output.copilotState, "pr_draft");
+    assert.equal(output.reason, undefined);
+    assert.equal(output.checkpoint.waitCycles, 0);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
