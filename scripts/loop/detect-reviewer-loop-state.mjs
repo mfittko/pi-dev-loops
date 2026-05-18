@@ -299,7 +299,7 @@ async function readLocalState(pathname) {
   return parsed;
 }
 
-async function autoDetectSnapshot(
+export async function autoDetectReviewerSnapshot(
   { repo, pr, reviewerLogin, reviewRequestedOverride, localStatePath },
   deps,
 ) {
@@ -360,7 +360,7 @@ export async function runCli(
     const text = await readFile(options.inputPath, "utf8");
     snapshot = normalizeReviewerSnapshot(parseJsonText(text));
   } else {
-    snapshot = await autoDetectSnapshot(options, { env, ghCommand });
+    snapshot = await autoDetectReviewerSnapshot(options, { env, ghCommand });
   }
 
   const interpretation = interpretReviewerLoopState(snapshot);
