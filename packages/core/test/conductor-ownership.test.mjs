@@ -110,6 +110,16 @@ test("normalizeOwnershipKey rejects invalid scopeType", () => {
   );
 });
 
+test("normalizeOwnershipKey rejects other invalid scopeType strings", () => {
+  for (const scopeType of ["ticket", "epic", "task", "sprint", "", "  "]) {
+    assert.throws(
+      () => normalizeOwnershipKey({ repo: "a/b", scopeType, scopeId: "1" }),
+      /scopeType must be one of/,
+      `expected rejection for scopeType '${scopeType}'`,
+    );
+  }
+});
+
 test("normalizeOwnershipKey rejects missing or empty scopeId", () => {
   assert.throws(
     () => normalizeOwnershipKey({ repo: "a/b", scopeType: "issue" }),

@@ -49,7 +49,7 @@ export const ACTION = Object.freeze({
 /**
  * Ownership state taxonomy constants.
  *
- * These distinguish the five possible ownership conditions for a normalized scope:
+ * These distinguish the six possible ownership conditions for a normalized scope:
  * - `live_owner` — an active/live owner exists (from authoritative signal or local active record)
  * - `recorded_no_live_owner` — non-terminal record exists but no confirmed live owner
  * - `stale_local_record` — only stale/superseded records exist; no non-terminal owner
