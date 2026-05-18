@@ -323,22 +323,31 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
 }
 
 function validateNormalizedOwnershipKey(ownershipKey) {
+  const validationError = new Error(
+    "evaluateOwnershipAction requires a normalized ownershipKey from normalizeOwnershipKey",
+  );
+
   if (!ownershipKey || typeof ownershipKey !== "object") {
-    throw new Error("evaluateOwnershipAction requires a normalized ownershipKey from normalizeOwnershipKey");
+    throw validationError;
   }
 
-  const normalizedOwnershipKey = normalizeOwnershipKey({
-    repo: ownershipKey.repo,
-    scopeType: ownershipKey.scopeType,
-    scopeId: ownershipKey.scopeId,
-  });
+  let normalizedOwnershipKey;
+  try {
+    normalizedOwnershipKey = normalizeOwnershipKey({
+      repo: ownershipKey.repo,
+      scopeType: ownershipKey.scopeType,
+      scopeId: ownershipKey.scopeId,
+    });
+  } catch {
+    throw validationError;
+  }
 
   if (ownershipKey.keyString !== normalizedOwnershipKey.keyString) {
-    throw new Error("evaluateOwnershipAction requires a normalized ownershipKey from normalizeOwnershipKey");
+    throw validationError;
   }
 
   if (ownershipKey.isAmbiguous !== normalizedOwnershipKey.isAmbiguous) {
-    throw new Error("evaluateOwnershipAction requires a normalized ownershipKey from normalizeOwnershipKey");
+    throw validationError;
   }
 
   return normalizedOwnershipKey;
