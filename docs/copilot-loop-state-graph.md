@@ -94,7 +94,7 @@ The snapshot is the set of observable facts that the interpreter uses to determi
 | Value | Meaning |
 |---|---|
 | `requested` | Copilot is currently in `requested_reviewers`, whether detected directly or immediately after a successful request; also set when a PENDING Copilot review is detected as observable in-progress evidence |
-| `already-requested` | A caller with prior request-attempt context knows Copilot was already in `requested_reviewers` before that attempt; also returned by the request helper when the explicit 422 request was rejected but Copilot review is observably in progress |
+| `already-requested` | A caller with prior request-attempt context knows Copilot review was already observably in progress before or after that attempt (for example: `requested_reviewers`, a PENDING review, or post-failure verification after a rejected request) |
 | `unavailable` | GitHub rejected the request (Copilot review not enabled, not a collaborator, etc.) **and** no observable in-progress review evidence was found |
 | `none` | Copilot is not currently requested and there is no stronger request-attempt result to inject |
 | `failed` | A prior request attempt failed unexpectedly |
@@ -118,7 +118,7 @@ The interpreter applies rules in priority order. The first matching rule wins.
 2. `prMerged || prClosed` → `done`
 3. `prDraft` → `pr_draft`
 4. `copilotReviewRequestStatus === "unavailable"` → `review_request_unavailable`
-   *(only reached when no in-progress evidence was found; the request helper returns `already-requested` instead when Copilot review is observably in progress after a 422)*
+   *(only reached when no in-progress evidence was found; the request helper returns `already-requested` instead when Copilot review is observably in progress before or after known unavailable/unrequestable failures, including the 422 collaborator case)*
 5. `copilotReviewRequestStatus === "failed"` → `blocked_needs_user_decision`
 6. `unresolvedThreadCount > 0 && agentFixStatus === "applied"` → `already_fixed_needs_reply_resolve`
 7. `unresolvedThreadCount > 0` → `unresolved_feedback_present`
@@ -140,7 +140,7 @@ Rules 6 and 7 check `unresolvedThreadCount > 0` **before** checking review-reque
 
 ### `unavailable` stops the loop only when no in-progress evidence exists
 
-Rule 4 routes to `review_request_unavailable` when the explicit request path returned `unavailable`. However, this only reaches the state machine when there is **no observable in-progress evidence**. The request helper (`request-copilot-review.mjs`) performs a post-failure verification after a 422: if Copilot is found in `requested_reviewers` or has a PENDING review, it returns `already-requested` instead of `unavailable`. The auto-detect path also treats a PENDING Copilot review as equivalent evidence to being in `requested_reviewers`, setting `copilotReviewRequestStatus = "requested"`.
+Rule 4 routes to `review_request_unavailable` when the explicit request path returned `unavailable`. However, this only reaches the state machine when there is **no observable in-progress evidence**. The request helper (`request-copilot-review.mjs`) short-circuits to `already-requested` when Copilot review is already observably in progress before the mutation attempt, and it also performs post-failure verification after known unavailable/unrequestable failures (including the 422 collaborator error): if Copilot is found in `requested_reviewers` or has a PENDING review, it returns `already-requested` instead of `unavailable`. The auto-detect path also treats a PENDING Copilot review as equivalent evidence to being in `requested_reviewers`, setting `copilotReviewRequestStatus = "requested"`.
 
 The net effect: `unavailable` in the snapshot means the request path failed **and** Copilot is observably not in progress. The loop never drops to the approval gate when Copilot review is still in progress.
 

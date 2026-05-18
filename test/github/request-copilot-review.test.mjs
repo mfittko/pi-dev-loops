@@ -185,6 +185,38 @@ test("request-copilot-review reports already-requested without mutating PR state
   }
 });
 
+
+test("request-copilot-review treats a pending Copilot review as already-requested before mutating", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-pending-before-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "reviews"],
+        stdout: '{"reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "already-requested",
+      repo: "owner/repo",
+      pr: 17,
+      reviewer: "Copilot",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("request-copilot-review accepts an immediate Copilot review as proof the request succeeded", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-immediate-review-"));
 

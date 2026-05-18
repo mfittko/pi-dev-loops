@@ -19,8 +19,8 @@ Output (stdout, JSON):
 
 Request statuses:
   requested           Copilot review was successfully requested
-  already-requested   Copilot was already in requested reviewers; no change made
-  unavailable         Copilot review is not enabled for this repository
+  already-requested   Copilot review was already observably in progress; no new request needed
+  unavailable         Copilot review is not enabled/requestable and no in-progress evidence was found
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -263,7 +263,7 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
 
-  if (before.requested) {
+  if (before.requested || before.hasPendingReview) {
     return {
       ok: true,
       status: "already-requested",
@@ -294,9 +294,10 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
 
   const after = await fetchCopilotReviewState(options, { env, ghCommand });
   const reviewCountIncreased = after.copilotReviewIds.length > before.copilotReviewIds.length;
+  const reviewNowObservablyInProgress = after.requested || after.hasPendingReview || reviewCountIncreased;
 
-  if (!after.requested && !reviewCountIncreased) {
-    throw new Error("Copilot review request did not appear in requested reviewers or fresh Copilot reviews after gh pr edit");
+  if (!reviewNowObservablyInProgress) {
+    throw new Error("Copilot review request did not appear in requested reviewers or fresh/in-progress Copilot reviews after gh pr edit");
   }
 
   return requestResult;
