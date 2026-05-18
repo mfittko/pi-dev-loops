@@ -120,6 +120,12 @@ function parseError(message, usage) {
   return Object.assign(new Error(message), { usage });
 }
 
+function runIdMismatchError(persistedRunId, requestedRunId) {
+  return new Error(
+    `run-id mismatch: --state-file contains run '${persistedRunId}' but --run-id is '${requestedRunId}'. Use the correct --run-id or point --state-file at the right file.`
+  );
+}
+
 function requireOptionValue(args, flag, usage, { allowFlagLike = false } = {}) {
   const value = args.shift();
   const missing = typeof value !== "string" || value.length === 0 || (!allowFlagLike && value.startsWith("--"));
@@ -362,6 +368,11 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
       ? normalizeSteeringState(raw)
       : createSteeringState(options.runId);
 
+    // Reject --run-id / --state-file mismatches
+    if (raw !== null && steeringState.runId !== options.runId) {
+      throw runIdMismatchError(steeringState.runId, options.runId);
+    }
+
     // Build and validate the event
     const eventId = options.eventId ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const event = normalizeSteeringEvent({
@@ -404,6 +415,12 @@ export async function runStatus(argv = [], { stdout = process.stdout, cwd = proc
   }
 
   const steeringState = normalizeSteeringState(raw);
+
+  // Reject --run-id / --state-file mismatches
+  if (steeringState.runId !== options.runId) {
+    throw runIdMismatchError(steeringState.runId, options.runId);
+  }
+
   const status = getSteeringStatus(steeringState);
   stdout.write(`${JSON.stringify({ ok: true, status })}\n`);
 }

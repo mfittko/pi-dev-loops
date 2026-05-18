@@ -497,6 +497,40 @@ test("runSubmit creates the default steering directory before acquiring the lock
 });
 
 // ---------------------------------------------------------------------------
+// runSubmit — run-id / state-file mismatch
+// ---------------------------------------------------------------------------
+
+test("runSubmit rejects when --state-file contains a different run-id than --run-id", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+
+    // Seed the file with run-A
+    const { stream: s1 } = makeStdout();
+    await runSubmit([
+      "--run-id", "run-A",
+      "--kind", "preference",
+      "--directive", "Prefer TS",
+      "--seq", "1",
+      "--loop-state", "waiting_for_ci",
+      "--state-file", stateFile,
+    ], { stdout: s1, cwd: dir });
+
+    // Attempt to submit as run-B against the same file
+    await assert.rejects(
+      () => runSubmit([
+        "--run-id", "run-B",
+        "--kind", "preference",
+        "--directive", "Prefer Go",
+        "--seq", "1",
+        "--loop-state", "waiting_for_ci",
+        "--state-file", stateFile,
+      ], { stdout: { write() {} }, cwd: dir }),
+      /run-id mismatch/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // runStatus
 // ---------------------------------------------------------------------------
 
@@ -603,6 +637,32 @@ test("runStatus shows stop_at_next_safe_gate in effective constraints", async ()
   });
 });
 
+test("runStatus rejects when --state-file contains a different run-id than --run-id", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+
+    // Seed the file with run-status-A
+    const { stream: s1 } = makeStdout();
+    await runSubmit([
+      "--run-id", "run-status-A",
+      "--kind", "preference",
+      "--directive", "Prefer TS",
+      "--seq", "1",
+      "--loop-state", "waiting_for_ci",
+      "--state-file", stateFile,
+    ], { stdout: s1, cwd: dir });
+
+    // Attempt to inspect as run-status-B against the same file
+    await assert.rejects(
+      () => runStatus([
+        "--run-id", "run-status-B",
+        "--state-file", stateFile,
+      ], { stdout: { write() {} }, cwd: dir }),
+      /run-id mismatch/,
+    );
+  });
+});
+
 // ---------------------------------------------------------------------------
 // CLI binary — argument errors
 // ---------------------------------------------------------------------------
@@ -639,6 +699,72 @@ test("steer-loop.mjs status --help prints usage", async () => {
   const result = await runNode(["status", "--help"]);
   assert.equal(result.code, 0);
   assert.match(result.stdout, /--run-id/);
+});
+
+// ---------------------------------------------------------------------------
+// CLI binary — run-id / state-file mismatch
+// ---------------------------------------------------------------------------
+
+test("steer-loop.mjs submit exits non-zero on run-id/state-file mismatch", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "mismatch-state.json");
+
+    // Seed with run-X
+    const seed = await runNode([
+      "submit",
+      "--run-id", "run-X",
+      "--kind", "preference",
+      "--directive", "Prefer TS",
+      "--seq", "1",
+      "--loop-state", "waiting_for_ci",
+      "--state-file", stateFile,
+    ]);
+    assert.equal(seed.code, 0);
+
+    // Submit as run-Y against the same file
+    const mismatch = await runNode([
+      "submit",
+      "--run-id", "run-Y",
+      "--kind", "preference",
+      "--directive", "Prefer Go",
+      "--seq", "1",
+      "--loop-state", "waiting_for_ci",
+      "--state-file", stateFile,
+    ]);
+    assert.equal(mismatch.code, 1);
+    const err = JSON.parse(mismatch.stderr);
+    assert.equal(err.ok, false);
+    assert.match(err.error, /run-id mismatch/);
+  });
+});
+
+test("steer-loop.mjs status exits non-zero on run-id/state-file mismatch", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "mismatch-state.json");
+
+    // Seed with run-X
+    const seed = await runNode([
+      "submit",
+      "--run-id", "run-X",
+      "--kind", "preference",
+      "--directive", "Prefer TS",
+      "--seq", "1",
+      "--loop-state", "waiting_for_ci",
+      "--state-file", stateFile,
+    ]);
+    assert.equal(seed.code, 0);
+
+    // Status as run-Y against the same file
+    const mismatch = await runNode([
+      "status",
+      "--run-id", "run-Y",
+      "--state-file", stateFile,
+    ]);
+    assert.equal(mismatch.code, 1);
+    const err = JSON.parse(mismatch.stderr);
+    assert.equal(err.ok, false);
+    assert.match(err.error, /run-id mismatch/);
+  });
 });
 
 // ---------------------------------------------------------------------------
