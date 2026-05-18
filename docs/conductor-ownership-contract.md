@@ -44,12 +44,13 @@ logical scope always produce the same key.
 
 | Field | Type | Description |
 |---|---|---|
-| `repo` | `string` | Fully-qualified repository slug in `owner/name` format |
+| `repo` | `string` | Fully-qualified repository slug in canonical lowercase `owner/name` format |
 | `scopeType` | `"issue" \| "pr" \| "branch" \| "generic"` | Scope category discriminator |
 | `scopeId` | `string` | Unique identifier within the scope type (e.g., issue number, PR number, branch name) |
 
 The stable key string is the concatenation: `repo:scopeType:scopeId`
-(e.g., `acme/my-repo:issue:42`).
+(e.g., `acme/my-repo:issue:42`). Repository slugs are normalized to lowercase so
+case-only differences cannot create duplicate singleton keys.
 
 ### Excluded non-semantic noise fields
 
@@ -113,7 +114,7 @@ or mutation decisions. Concretely:
 
 | State | Description |
 |---|---|
-| `live_owner` | An active live owner exists — confirmed by authoritative signal or a single local `active` record |
+| `live_owner` | An active live owner exists — confirmed by authoritative signal or a single local `active` record after duplicate-local-owner ambiguity is ruled out |
 | `recorded_no_live_owner` | A non-terminal record exists (`active` or `inactive`) but no live owner is confirmed |
 | `stale_local_record` | Only `stale`/superseded records exist; no non-terminal owner record |
 | `duplicate_local_owners` | Multiple `active` non-watcher local records exist for the same scope |
@@ -149,7 +150,8 @@ Each outcome also carries:
 
 - `allowOwnerCreation` (`boolean`) — whether the caller is permitted to create a new owner
 - `requiresAuthoritativeConsultation` (`boolean`) — whether the caller must consult
-  authoritative live state before committing a routing or mutation decision
+  authoritative live state before committing a routing or mutation decision. Any
+  `needs_reconcile_before_resume` outcome sets this to `true`.
 
 ---
 

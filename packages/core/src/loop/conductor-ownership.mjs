@@ -108,6 +108,7 @@ export const OUTCOME = Object.freeze({
 const VALID_SCOPE_TYPES = new Set(["issue", "pr", "branch", "generic"]);
 const VALID_ACTIONS = new Set(Object.values(ACTION));
 const VALID_RECORD_STATES = new Set(["active", "inactive", "stale", "terminal"]);
+const VALID_REPO_SLUG = /^[^/\s]+\/[^/\s]+$/;
 
 // ---------------------------------------------------------------------------
 // Ownership key normalization
@@ -139,12 +140,12 @@ export function normalizeOwnershipKey(raw) {
   }
 
   const repo = typeof raw.repo === "string" && raw.repo.trim().length > 0
-    ? raw.repo.trim()
+    ? raw.repo.trim().toLowerCase()
     : null;
   if (!repo) {
     throw new Error("Ownership key requires a non-empty repo");
   }
-  if (!repo.includes("/")) {
+  if (!VALID_REPO_SLUG.test(repo)) {
     throw new Error("Ownership key repo must be in owner/name format (e.g., 'acme/my-repo')");
   }
 
@@ -248,13 +249,22 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
       throw new Error("authoritativeLiveState.hasLiveOwner must be a boolean when provided");
     }
 
+    const activeOwners = normalized.filter(r => !r.isWatcher && r.state === "active");
+
+    if (activeOwners.length > 1) {
+      // Multiple local active records remain a duplicate-owner condition even when
+      // authoritative state reports a live owner somewhere for the scope. The
+      // caller still needs reconciliation before treating the scope as singly owned.
+      return OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS;
+    }
+
     if (authoritativeLiveState.hasLiveOwner) {
-      // Authoritative confirms live owner regardless of local records
+      // Authoritative confirms a single live owner once duplicate-local-owner
+      // ambiguity has been ruled out.
       return OWNERSHIP_STATE.LIVE_OWNER;
     }
 
     // Authoritative confirms no live owner; check for duplicate local records
-    const activeOwners = normalized.filter(r => !r.isWatcher && r.state === "active");
     if (activeOwners.length > 1) {
       // Multiple local active records while authoritative says none live — duplicate confusion
       return OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS;
@@ -389,7 +399,6 @@ export function evaluateOwnershipAction(action, ownershipKey, localRecords, auth
  * @returns {{ outcome, reason, allowOwnerCreation, requiresAuthoritativeConsultation }}
  */
 function routeOutcome(action, ownershipState, hasAuthoritativeSignal) {
-  const isOwningAction = action === ACTION.START || action === ACTION.RESUME;
   const isRequestAction = action === ACTION.REQUEST_REVIEW || action === ACTION.ASSIGN;
 
   switch (ownershipState) {
@@ -399,7 +408,7 @@ function routeOutcome(action, ownershipState, hasAuthoritativeSignal) {
           outcome: OUTCOME.NEEDS_RECONCILE_BEFORE_RESUME,
           reason: "No ownership record exists for this scope; cannot satisfy request-review/assign without an active owner",
           allowOwnerCreation: false,
-          requiresAuthoritativeConsultation: false,
+          requiresAuthoritativeConsultation: true,
         };
       }
       return {
@@ -467,7 +476,7 @@ function routeOutcome(action, ownershipState, hasAuthoritativeSignal) {
           outcome: OUTCOME.NEEDS_RECONCILE_BEFORE_RESUME,
           reason: "Only a stale/superseded local record exists; cannot satisfy request-review/assign without an active owner",
           allowOwnerCreation: false,
-          requiresAuthoritativeConsultation: false,
+          requiresAuthoritativeConsultation: true,
         };
       }
       return {
@@ -491,7 +500,7 @@ function routeOutcome(action, ownershipState, hasAuthoritativeSignal) {
           outcome: OUTCOME.NEEDS_RECONCILE_BEFORE_RESUME,
           reason: "Only watcher records exist; watcher presence does not satisfy conductor ownership for request-review/assign",
           allowOwnerCreation: false,
-          requiresAuthoritativeConsultation: false,
+          requiresAuthoritativeConsultation: true,
         };
       }
       return {

@@ -103,6 +103,22 @@ test("normalizeOwnershipKey rejects repo without slash", () => {
   );
 });
 
+test("normalizeOwnershipKey rejects malformed owner/name repo slugs", () => {
+  for (const repo of ["owner/", "/repo", "owner/repo/extra", "owner name/repo", "owner/repo name"]) {
+    assert.throws(
+      () => normalizeOwnershipKey({ repo, scopeType: "issue", scopeId: "1" }),
+      /owner\/name/,
+      `expected rejection for repo '${repo}'`,
+    );
+  }
+});
+
+test("normalizeOwnershipKey canonicalizes repo slug case", () => {
+  const key = normalizeOwnershipKey({ repo: "Acme/My-Repo", scopeType: "issue", scopeId: 42 });
+  assert.equal(key.repo, "acme/my-repo");
+  assert.equal(key.keyString, "acme/my-repo:issue:42");
+});
+
 test("normalizeOwnershipKey rejects invalid scopeType", () => {
   assert.throws(
     () => normalizeOwnershipKey({ repo: "a/b", scopeType: "unknown", scopeId: "1" }),
@@ -195,6 +211,17 @@ test("classifyOwnershipState returns LIVE_OWNER when authoritative confirms live
   assert.equal(
     classifyOwnershipState([], makeAuth(true, "owner-remote")),
     OWNERSHIP_STATE.LIVE_OWNER,
+  );
+});
+
+test("classifyOwnershipState keeps duplicate-local-owner state when authoritative reports a live owner", () => {
+  const records = [
+    makeRecord({ ownerId: "owner-1", state: "active" }),
+    makeRecord({ ownerId: "owner-2", state: "active" }),
+  ];
+  assert.equal(
+    classifyOwnershipState(records, makeAuth(true, "owner-remote")),
+    OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS,
   );
 });
 
@@ -514,6 +541,43 @@ test("[scenario] assign with no record → needs_reconcile_before_resume", () =>
 
   assert.equal(result.outcome, OUTCOME.NEEDS_RECONCILE_BEFORE_RESUME);
   assert.equal(result.allowOwnerCreation, false);
+});
+
+test("request-review with no record requires authoritative consultation", () => {
+  const key = makeKey();
+  const result = evaluateOwnershipAction(ACTION.REQUEST_REVIEW, key, [], null);
+
+  assert.equal(result.requiresAuthoritativeConsultation, true);
+});
+
+test("assign with stale local record requires authoritative consultation", () => {
+  const key = makeKey();
+  const records = [makeRecord({ state: "stale" })];
+  const result = evaluateOwnershipAction(ACTION.ASSIGN, key, records, null);
+
+  assert.equal(result.outcome, OUTCOME.NEEDS_RECONCILE_BEFORE_RESUME);
+  assert.equal(result.requiresAuthoritativeConsultation, true);
+});
+
+test("request-review with watcher-only records requires authoritative consultation", () => {
+  const key = makeKey();
+  const records = [makeRecord({ ownerId: "watcher-1", isWatcher: true })];
+  const result = evaluateOwnershipAction(ACTION.REQUEST_REVIEW, key, records, null);
+
+  assert.equal(result.outcome, OUTCOME.NEEDS_RECONCILE_BEFORE_RESUME);
+  assert.equal(result.requiresAuthoritativeConsultation, true);
+});
+
+test("start with duplicate local owners stays reject_duplicate_owner even when authoritative reports live owner", () => {
+  const key = makeKey();
+  const records = [
+    makeRecord({ ownerId: "owner-1", state: "active" }),
+    makeRecord({ ownerId: "owner-2", state: "active" }),
+  ];
+  const result = evaluateOwnershipAction(ACTION.START, key, records, makeAuth(true, "owner-remote"));
+
+  assert.equal(result.outcome, OUTCOME.REJECT_DUPLICATE_OWNER);
+  assert.equal(result.requiresAuthoritativeConsultation, true);
 });
 
 test("[scenario] request-review with recorded-no-live-owner + auth → resume_recorded_but_not_live_state", () => {
