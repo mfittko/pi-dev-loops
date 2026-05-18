@@ -5,3 +5,7 @@ dist/
 tmp/
 .DS_Store
 *.log
+
+docs/conductor-loop-latency-presentation.html
+docs/conductor-loop-latency-presentation.pdf
+docs/conductor-loop-latency-site/
