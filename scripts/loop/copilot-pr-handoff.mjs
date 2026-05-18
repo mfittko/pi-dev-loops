@@ -5,9 +5,10 @@
  * Flow:
  *   1. Detect current Copilot-loop state for the given PR.
  *   2. If the state suggests requesting review (pr_ready_no_feedback, or
- *      ready_to_rerequest_review with no submitted Copilot review yet on the
- *      current head), request Copilot review and re-interpret the state with
- *      the confirmed review-request status.
+ *      ready_to_rerequest_review when a meaningful remediation event made
+ *      automatic re-request eligible), request Copilot review and re-interpret
+ *      the state with the confirmed review-request status.
+ *      An explicit operator override can force another same-head request.
  *   3. Emit a single JSON payload describing the current state, the
  *      recommended action ("watch", "fix", or "stop"), and — when the action
  *      is "watch" — the exact watch parameters to pass to watch-copilot-review.mjs.
@@ -18,6 +19,7 @@
  * Success output shape:
  *   { "ok": true, "action": "watch"|"fix"|"stop", "state": "...",
  *     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
+ *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
  *     "reviewRequestStatus"?: "...", "watchArgs"?: { "repo": "...", "pr": N,
  *     "pollIntervalMs": N, "timeoutMs": N } }
  *
@@ -35,7 +37,7 @@ import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
 import { interpretLoopState, normalizeSnapshot, STATE } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
-const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
+const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number> [--force-rerequest-review]
 
 Detect the Copilot-loop state for a PR, request Copilot review only when
 a new request is still needed, and emit the recommended next action with
@@ -45,9 +47,14 @@ Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
 
+Optional:
+  --force-rerequest-review  Force a Copilot re-request even when automatic
+                            same-head suppression is active
+
 Output (stdout, JSON):
   { "ok": true, "action": "watch"|"fix"|"stop", "state": "...",
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
+    "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
     "reviewRequestStatus"?: "...",
     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
 
@@ -110,6 +117,7 @@ export function parseHandoffCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
+    forceRerequestReview: false,
   };
 
   while (args.length > 0) {
@@ -127,6 +135,11 @@ export function parseHandoffCliArgs(argv) {
 
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr"));
+      continue;
+    }
+
+    if (token === "--force-rerequest-review") {
+      options.forceRerequestReview = true;
       continue;
     }
 
@@ -159,7 +172,10 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   let reviewRequestStatus;
 
   const shouldRequestReview = interpretation.state === STATE.PR_READY_NO_FEEDBACK
-    || (interpretation.state === STATE.READY_TO_REREQUEST_REVIEW && !snapshot.copilotReviewOnCurrentHead);
+    || (
+      interpretation.state === STATE.READY_TO_REREQUEST_REVIEW
+      && (interpretation.autoRerequestEligible || options.forceRerequestReview)
+    );
 
   if (shouldRequestReview) {
     const requestResult = await performCopilotReviewRequest(
@@ -187,6 +203,8 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     state: interpretation.state,
     allowedTransitions: interpretation.allowedTransitions,
     nextAction: interpretation.nextAction,
+    autoRerequestEligible: interpretation.autoRerequestEligible,
+    sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
     snapshot,
   };
 

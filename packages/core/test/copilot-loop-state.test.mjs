@@ -341,6 +341,10 @@ test("interpretLoopState exits waiting_for_copilot_review when Copilot has a sub
       `must not remain in waiting_for_copilot_review when copilotReviewOnCurrentHead=true (status=${status})`);
     assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW,
       `expected ready_to_rerequest_review when copilotReviewOnCurrentHead=true (status=${status})`);
+    assert.equal(result.autoRerequestEligible, false,
+      `expected auto re-request suppression when copilotReviewOnCurrentHead=true (status=${status})`);
+    assert.equal(result.sameHeadCleanConverged, true,
+      `expected sameHeadCleanConverged when copilotReviewOnCurrentHead=true (status=${status})`);
   }
 });
 
@@ -383,6 +387,8 @@ test("interpretLoopState returns ready_to_rerequest_review when Copilot has revi
   assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
   assert.ok(result.allowedTransitions.includes(STATE.WAITING_FOR_COPILOT_REVIEW));
   assert.ok(result.allowedTransitions.includes(STATE.DONE));
+  assert.equal(result.autoRerequestEligible, true);
+  assert.equal(result.sameHeadCleanConverged, false);
 });
 
 test("interpretLoopState returns waiting_for_ci when CI is pending and no unresolved threads", () => {

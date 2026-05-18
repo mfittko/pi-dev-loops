@@ -104,6 +104,14 @@ const NEXT_ACTIONS = Object.freeze({
 const VALID_REVIEW_REQUEST_STATUSES = new Set(["requested", "already-requested", "unavailable", "none", "failed"]);
 const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
 
+function isAutoRerequestEligible(snapshot, state) {
+  if (state !== STATE.READY_TO_REREQUEST_REVIEW) return false;
+  // A fresh submitted Copilot review on the current head with no unresolved feedback
+  // is converged for that head on the automatic path. Auto re-request eligibility
+  // re-opens only when the head advances (i.e. review is no longer on current head).
+  return !snapshot.copilotReviewOnCurrentHead;
+}
+
 /**
  * Normalize a raw snapshot object into a validated, canonical snapshot.
  *
@@ -179,7 +187,13 @@ export function normalizeSnapshot(raw) {
  *   which means the wait is done and the loop can advance to ready_to_rerequest_review
  *
  * @param {object} snapshot - raw or normalized snapshot
- * @returns {{ state: string, allowedTransitions: string[], nextAction: string }}
+ * @returns {{
+ *   state: string,
+ *   allowedTransitions: string[],
+ *   nextAction: string,
+ *   autoRerequestEligible: boolean,
+ *   sameHeadCleanConverged: boolean
+ * }}
  */
 export function interpretLoopState(snapshot) {
   const s = normalizeSnapshot(snapshot);
@@ -225,9 +239,22 @@ export function interpretLoopState(snapshot) {
     }
   }
 
+  const autoRerequestEligible = isAutoRerequestEligible(s, state);
+  const sameHeadCleanConverged = state === STATE.READY_TO_REREQUEST_REVIEW
+    && s.copilotReviewOnCurrentHead
+    && s.unresolvedThreadCount === 0
+    && s.actionableThreadCount === 0;
+
+  let nextAction = NEXT_ACTIONS[state];
+  if (sameHeadCleanConverged) {
+    nextAction = "Current head already has a clean submitted Copilot review; suppress automatic same-head re-request unless a meaningful remediation event occurs, or explicitly request another Copilot pass";
+  }
+
   return {
     state,
     allowedTransitions: [...TRANSITIONS[state]],
-    nextAction: NEXT_ACTIONS[state],
+    nextAction,
+    autoRerequestEligible,
+    sameHeadCleanConverged,
   };
 }

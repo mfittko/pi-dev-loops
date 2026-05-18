@@ -535,6 +535,8 @@ test("detect-copilot-loop-state auto-detect ignores stale pending Copilot review
     assert.equal(output.snapshot.copilotReviewPresent, true);
     assert.equal(output.snapshot.copilotReviewRequestStatus, "none");
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+    assert.equal(output.autoRerequestEligible, true);
+    assert.equal(output.sameHeadCleanConverged, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -599,6 +601,8 @@ test("detect-copilot-loop-state auto-detect exits waiting_for_copilot_review whe
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, true);
     // copilotReviewRequestStatus is still "requested" from the stale requested_reviewers entry
     assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
+    assert.equal(output.autoRerequestEligible, false);
+    assert.equal(output.sameHeadCleanConverged, true);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
