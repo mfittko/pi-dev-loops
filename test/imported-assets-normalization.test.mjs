@@ -271,6 +271,19 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(planContent, /stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`/i);
 });
 
+test("copilot-dev-loop agent is a thin executable entrypoint that defers to the skill", async () => {
+  const content = await readRepo("agents/copilot-dev-loop.agent.md");
+
+  assert.match(content, /name:\s*"copilot-dev-loop"/);
+  assert.match(content, /user-invocable:\s*true/);
+  assert.match(content, /skills\/copilot-dev-loop\/SKILL\.md/);
+  assert.match(content, /must stay thin/i);
+  assert.match(content, /do not restate the skill's phase sequencing or workflow policy here/i);
+  assert.match(content, /state-machine.*helper.*authority|deterministic.*state-machine/i);
+  assert.match(content, /stop and ask for human direction rather than guessing/i);
+  assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
+});
+
 test("tracker-first MVP state graph is documented as adapter-agnostic, mutually exclusive, and bounded by #21", async () => {
   const content = await readRepo("docs/tracker-first-mvp-state-graph.md");
   const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
