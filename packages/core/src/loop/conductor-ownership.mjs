@@ -68,7 +68,7 @@ export const OWNERSHIP_STATE = Object.freeze({
   DUPLICATE_LOCAL_OWNERS: "duplicate_local_owners",
   /** Records exist but all are watchers; no owning record is present. */
   WATCHER_ONLY: "watcher_only",
-  /** No records of any kind for this scope. */
+  /** No records that affect current ownership remain for this scope. */
   NO_RECORD: "no_record",
 });
 
@@ -224,9 +224,10 @@ function normalizeLocalRecord(raw, index) {
  * Classify the ownership state for a scope given local records and an optional
  * caller-supplied authoritative live signal.
  *
- * Authority precedence rule: authoritative live state always wins over local records
- * for the live-owner / no-live-owner distinction. Provisional local state never
- * overrides an authoritative signal for final routing or mutation decisions.
+ * Authority precedence rule: authoritative live state wins over local records
+ * for the live-owner / no-live-owner distinction once duplicate-local-owner
+ * ambiguity has been ruled out. Provisional local state never overrides an
+ * authoritative signal for final routing or mutation decisions.
  *
  * Local-vs-shared coordination boundary:
  * - Local-only coordination is sufficient when: ownershipState is NO_RECORD or STALE_LOCAL_RECORD,
@@ -248,7 +249,8 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
   const normalized = (Array.isArray(localRecords) ? localRecords : [])
     .map((r, i) => normalizeLocalRecord(r, i));
 
-  // Authoritative signal takes precedence over all local records
+  // Authoritative signal takes precedence over local records once duplicate-local-owner
+  // ambiguity has been ruled out for this scope.
   if (authoritativeLiveState !== null && authoritativeLiveState !== undefined) {
     if (typeof authoritativeLiveState.hasLiveOwner !== "boolean") {
       throw new Error("authoritativeLiveState.hasLiveOwner must be a boolean when provided");
