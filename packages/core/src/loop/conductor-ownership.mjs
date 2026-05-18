@@ -229,10 +229,11 @@ function normalizeLocalRecord(raw, index) {
  * overrides an authoritative signal for final routing or mutation decisions.
  *
  * Local-vs-shared coordination boundary:
- * - Local-only coordination is sufficient when: ownershipState is NO_RECORD or STALE_LOCAL_RECORD
- *   (no ambiguity; safe to proceed without authoritative consultation)
+ * - Local-only coordination is sufficient when: ownershipState is NO_RECORD or STALE_LOCAL_RECORD,
+ *   and for WATCHER_ONLY only on start/resume-style owner creation
  * - Authoritative consultation is required before routing when: LIVE_OWNER (local only, unconfirmed),
- *   RECORDED_NO_LIVE_OWNER (local-only signal), or DUPLICATE_LOCAL_OWNERS
+ *   RECORDED_NO_LIVE_OWNER (local-only signal), DUPLICATE_LOCAL_OWNERS, or WATCHER_ONLY
+ *   for request-review/assign
  *
  * @param {object[]} localRecords — caller-supplied local ownership records for this scope
  * @param {{ hasLiveOwner: boolean, liveOwnerId?: string }|null|undefined} authoritativeLiveState
@@ -321,6 +322,28 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
   return OWNERSHIP_STATE.NO_RECORD;
 }
 
+function validateNormalizedOwnershipKey(ownershipKey) {
+  if (!ownershipKey || typeof ownershipKey !== "object") {
+    throw new Error("evaluateOwnershipAction requires a normalized ownershipKey from normalizeOwnershipKey");
+  }
+
+  const normalizedOwnershipKey = normalizeOwnershipKey({
+    repo: ownershipKey.repo,
+    scopeType: ownershipKey.scopeType,
+    scopeId: ownershipKey.scopeId,
+  });
+
+  if (ownershipKey.keyString !== normalizedOwnershipKey.keyString) {
+    throw new Error("evaluateOwnershipAction requires a normalized ownershipKey from normalizeOwnershipKey");
+  }
+
+  if (ownershipKey.isAmbiguous !== normalizedOwnershipKey.isAmbiguous) {
+    throw new Error("evaluateOwnershipAction requires a normalized ownershipKey from normalizeOwnershipKey");
+  }
+
+  return normalizedOwnershipKey;
+}
+
 // ---------------------------------------------------------------------------
 // Idempotency evaluation
 // ---------------------------------------------------------------------------
@@ -342,7 +365,7 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
  *
  * @param {string} action — one of the ACTION values
  * @param {{ repo, scopeType, scopeId, keyString, isAmbiguous }} ownershipKey
- *   Normalized key from normalizeOwnershipKey
+ *   Normalized key from normalizeOwnershipKey (shape is re-validated here)
  * @param {object[]} localRecords — local ownership records for this scope
  * @param {{ hasLiveOwner: boolean, liveOwnerId?: string }|null|undefined} authoritativeLiveState
  *   Caller-supplied authoritative signal. Pass null/undefined when not yet consulted.
@@ -358,15 +381,13 @@ export function evaluateOwnershipAction(action, ownershipKey, localRecords, auth
     throw new Error(`action must be one of: ${[...VALID_ACTIONS].join(", ")}`);
   }
 
-  if (!ownershipKey || typeof ownershipKey !== "object" || !ownershipKey.keyString) {
-    throw new Error("evaluateOwnershipAction requires a normalized ownershipKey from normalizeOwnershipKey");
-  }
+  const normalizedOwnershipKey = validateNormalizedOwnershipKey(ownershipKey);
 
   // Ambiguous scope: reject immediately, before any ownership classification
-  if (ownershipKey.isAmbiguous) {
+  if (normalizedOwnershipKey.isAmbiguous) {
     return {
       outcome: OUTCOME.REJECT_AMBIGUOUS_SCOPE,
-      reason: `Scope identity is ambiguous for key '${ownershipKey.keyString}'; cannot determine a single effective owner`,
+      reason: `Scope identity is ambiguous for key '${normalizedOwnershipKey.keyString}'; cannot determine a single effective owner`,
       allowOwnerCreation: false,
       requiresAuthoritativeConsultation: false,
     };

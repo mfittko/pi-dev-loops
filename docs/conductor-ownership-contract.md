@@ -83,7 +83,7 @@ Local-only coordination (without authoritative consultation) is sufficient when:
 
 - ownership state is `no_record` — no prior state exists; safe to start immediately
 - ownership state is `stale_local_record` — superseded records; safe to create a new owner
-- ownership state is `watcher_only` — watchers do not block starting a new owner
+- ownership state is `watcher_only` — watchers do not block starting a new owner for `start` / `resume`, but they are not sufficient for `request-review` / `assign`
 
 ### When authoritative live state must be consulted
 
@@ -94,6 +94,7 @@ Authoritative state **must** be consulted before making routing or mutation deci
 - `recorded_no_live_owner` (no authoritative signal) — cannot safely distinguish "inactive
   and resumable" from "still live but unresponsive" without authoritative confirmation
 - `duplicate_local_owners` — conflicting local records cannot be resolved locally
+- `watcher_only` for `request-review` / `assign` — watcher presence still requires authoritative confirmation of an active owner
 
 The `requiresAuthoritativeConsultation` field on each outcome explicitly encodes this rule.
 
@@ -102,8 +103,7 @@ The `requiresAuthoritativeConsultation` field on each outcome explicitly encodes
 **Provisional local state never overrides authoritative live/remote state** for final routing
 or mutation decisions. Concretely:
 
-- If `authoritativeLiveState.hasLiveOwner === true`, the scope has a live owner — regardless
-  of what local records say.
+- If `authoritativeLiveState.hasLiveOwner === true`, the scope has a live owner **after** duplicate-local-owner ambiguity is ruled out. Duplicate active local owners still classify as `duplicate_local_owners` until reconciled.
 - If `authoritativeLiveState.hasLiveOwner === false`, the scope has no live owner — even if
   a local `active` record exists. The local record is reclassified as
   `recorded_no_live_owner`.
@@ -282,10 +282,13 @@ For `request-review`/`assign` against a stale record the outcome is
 
 | Field | Value |
 |---|---|
-| Input | `action=request-review` or `action=assign`, `ownershipState=live_owner` |
+| Input | `action=request-review` or `action=assign`, `ownershipState=live_owner`, `authoritativeSignal=yes(live)` |
 | Expected outcome | `noop_already_satisfied` |
 | allowOwnerCreation | `false` |
 | requiresAuthoritativeConsultation | `false` |
+
+Without authoritative confirmation, the same local-only `live_owner` state still yields
+`noop_already_satisfied`, but `requiresAuthoritativeConsultation: true`.
 
 ---
 

@@ -324,6 +324,13 @@ test("evaluateOwnershipAction throws when ownershipKey is not a normalized key",
   );
 });
 
+test("evaluateOwnershipAction rejects partially constructed ownershipKey objects", () => {
+  assert.throws(
+    () => evaluateOwnershipAction(ACTION.START, { repo: "a/b", scopeType: "issue", scopeId: "*", keyString: "a/b:issue:*", isAmbiguous: false }, []),
+    /normalized ownershipKey/,
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Scenario 1: repeated `start` against an already-live equivalent scope
 // ---------------------------------------------------------------------------
@@ -526,6 +533,15 @@ test("request-review against local-only live owner still requires authoritative 
   const key = makeKey();
   const records = [makeRecord({ state: "active" })];
   const result = evaluateOwnershipAction(ACTION.REQUEST_REVIEW, key, records, null);
+
+  assert.equal(result.outcome, OUTCOME.NOOP_ALREADY_SATISFIED);
+  assert.equal(result.requiresAuthoritativeConsultation, true);
+});
+
+test("assign against local-only live owner still requires authoritative consultation", () => {
+  const key = makeKey();
+  const records = [makeRecord({ state: "active" })];
+  const result = evaluateOwnershipAction(ACTION.ASSIGN, key, records, null);
 
   assert.equal(result.outcome, OUTCOME.NOOP_ALREADY_SATISFIED);
   assert.equal(result.requiresAuthoritativeConsultation, true);
