@@ -398,6 +398,17 @@ export function evaluateOwnershipAction(action, ownershipKey, localRecords, auth
 
   const normalizedOwnershipKey = validateNormalizedOwnershipKey(ownershipKey);
 
+  // Validate localRecords and authoritativeLiveState before any action branch so
+  // all actions — including watch — share the same input-validation boundary.
+  if (localRecords !== null && localRecords !== undefined && !Array.isArray(localRecords)) {
+    throw new Error("localRecords must be an array when provided");
+  }
+  if (authoritativeLiveState !== null && authoritativeLiveState !== undefined) {
+    if (typeof authoritativeLiveState.hasLiveOwner !== "boolean") {
+      throw new Error("authoritativeLiveState.hasLiveOwner must be a boolean when provided");
+    }
+  }
+
   // Ambiguous scope: reject immediately, before any ownership classification
   if (normalizedOwnershipKey.isAmbiguous) {
     return {

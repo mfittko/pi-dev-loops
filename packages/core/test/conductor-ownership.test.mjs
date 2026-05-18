@@ -466,6 +466,26 @@ test("[scenario] watch with watcher records → noop_already_satisfied, non-owni
 });
 
 // ---------------------------------------------------------------------------
+// watch input validation — same boundary as owning actions
+// ---------------------------------------------------------------------------
+
+test("watch rejects non-array localRecords the same as owning actions", () => {
+  const key = makeKey();
+  assert.throws(
+    () => evaluateOwnershipAction(ACTION.WATCH, key, { ownerId: "x", state: "active" }, null),
+    /localRecords must be an array/,
+  );
+});
+
+test("watch rejects invalid authoritativeLiveState the same as owning actions", () => {
+  const key = makeKey();
+  assert.throws(
+    () => evaluateOwnershipAction(ACTION.WATCH, key, [], { hasLiveOwner: "yes" }),
+    /hasLiveOwner must be a boolean/,
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Scenario 4: duplicate local owner records for one clear scope
 // ---------------------------------------------------------------------------
 
