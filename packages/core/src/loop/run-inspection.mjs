@@ -127,7 +127,11 @@ export function mapOuterActionToStatusClass(outerAction) {
  * @param {object | null} params.existingCheckpoint
  *   Previously persisted outer-loop checkpoint (read-only). null when not found.
  * @param {{ copilot: "ok"|"failed", reviewer: "ok"|"failed" }} params.liveAvailability
- *   Tracks whether each live detector succeeded ("ok") or failed ("failed").
+ *   Tracks whether each detector/interpreter path succeeded ("ok") or failed ("failed").
+ * @param {{ copilot?: "live"|"input", reviewer?: "live"|"input" }} [params.evidenceSourceKinds]
+ *   Indicates whether successful evidence came from live detection or caller-supplied snapshot input.
+ * @param {boolean} [params.explicitTargetMissing]
+ *   True when the explicit target was not found by one or more detector inputs.
  * @param {string | null} [params.steeringLocatorPath]
  *   Path to the steering state file, when explicitly provided by the caller.
  *   null means no locator was given.
@@ -146,6 +150,8 @@ export function composeRunInspectionSnapshot({
   reviewerEvidence,
   existingCheckpoint,
   liveAvailability,
+  evidenceSourceKinds = { copilot: "live", reviewer: "live" },
+  explicitTargetMissing = false,
   steeringLocatorPath = null,
   steeringEvidence = null,
   steeringLoadFailed = false,
@@ -158,6 +164,10 @@ export function composeRunInspectionSnapshot({
   const copilotLiveFailed = liveAvailability.copilot === "failed";
   const reviewerLiveFailed = liveAvailability.reviewer === "failed";
   const bothLiveOk = copilotLiveOk && reviewerLiveOk;
+  const copilotSourceKind = evidenceSourceKinds.copilot ?? "live";
+  const reviewerSourceKind = evidenceSourceKinds.reviewer ?? "live";
+  const bothSourceKindsLive = copilotSourceKind === "live" && reviewerSourceKind === "live";
+  const inputSnapshotMode = bothLiveOk && !bothSourceKindsLive;
 
   const evidenceAuthoritative = [];
   const evidenceCheckpoint = [];
@@ -169,10 +179,17 @@ export function composeRunInspectionSnapshot({
   let sourceMode;
   let trust;
 
-  if (bothLiveOk) {
+  if (explicitTargetMissing) {
+    sourceMode = SOURCE_MODE.UNAVAILABLE;
+    trust = TRUST.UNAVAILABLE;
+    markers.missing.push("explicit target PR was not found");
+  } else if (bothLiveOk && bothSourceKindsLive) {
     sourceMode = SOURCE_MODE.LIVE_DETECTOR_BACKED;
     trust = TRUST.AUTHORITATIVE;
     evidenceAuthoritative.push("live Copilot loop detector", "live reviewer loop detector");
+  } else if (inputSnapshotMode) {
+    sourceMode = SOURCE_MODE.PARTIAL;
+    trust = TRUST.DEGRADED;
   } else if (!copilotLiveOk && !reviewerLiveOk) {
     if (existingCheckpoint !== null && typeof existingCheckpoint?.outerAction === "string") {
       sourceMode = SOURCE_MODE.CHECKPOINT_ONLY;
@@ -297,15 +314,17 @@ export function composeRunInspectionSnapshot({
     || markers.conflicts.length > 0
     || markers.missing.length > 0
     || sourceMode === SOURCE_MODE.CHECKPOINT_ONLY
-    || sourceMode === SOURCE_MODE.PARTIAL
-    || sourceMode === SOURCE_MODE.UNAVAILABLE;
+    || sourceMode === SOURCE_MODE.UNAVAILABLE
+    || (sourceMode === SOURCE_MODE.PARTIAL && !inputSnapshotMode);
 
   // -------------------------------------------------------------------------
   // Build evidence summary
   // -------------------------------------------------------------------------
 
   let evidenceSummary;
-  if (sourceMode === SOURCE_MODE.LIVE_DETECTOR_BACKED) {
+  if (explicitTargetMissing) {
+    evidenceSummary = "The explicit target PR was not found; no current run state could be determined.";
+  } else if (sourceMode === SOURCE_MODE.LIVE_DETECTOR_BACKED) {
     if (effectiveOuterAction === "continue_wait") {
       evidenceSummary = `Live detectors agree the PR is in a wait state (outerAction: ${effectiveOuterAction}).`;
     } else if (effectiveOuterAction === "done") {
@@ -324,8 +343,9 @@ export function composeRunInspectionSnapshot({
     evidenceSummary =
       "No live detector facts available; using checkpoint state only (degraded confidence).";
   } else if (sourceMode === SOURCE_MODE.PARTIAL) {
-    evidenceSummary =
-      "Partial live evidence available; some facts are checkpoint-derived (degraded confidence).";
+    evidenceSummary = inputSnapshotMode
+      ? "Caller-supplied snapshot inputs were used; no live detection was performed (degraded confidence)."
+      : "Partial live evidence available; some facts are checkpoint-derived (degraded confidence).";
   } else {
     evidenceSummary = "No evidence available to determine current run state.";
   }

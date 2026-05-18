@@ -749,8 +749,8 @@ test("inspect-run CLI: complete snapshot inputs → live-detector-backed snapsho
     assert.equal(output.outerAction, output.activeFamilyState);
     assert.ok(["active", "waiting", "blocked", "done", "unknown"].includes(output.statusClass));
     assert.ok(typeof output.needsAttention === "boolean");
-    assert.equal(output.sourceMode, "live-detector-backed");
-    assert.equal(output.trust, "authoritative");
+    assert.equal(output.sourceMode, "partial");
+    assert.equal(output.trust, "degraded");
     assert.ok(typeof output.evidence.summary === "string");
     assert.ok(Array.isArray(output.markers.missing));
     assert.ok(Array.isArray(output.markers.stale));
@@ -793,6 +793,8 @@ test("inspect-run CLI: waiting copilot → continue_wait, statusClass waiting", 
     assert.equal(output.outerAction, "continue_wait");
     assert.equal(output.statusClass, "waiting");
     assert.equal(output.needsAttention, false);
+    assert.equal(output.sourceMode, "partial");
+    assert.equal(output.trust, "degraded");
   });
 });
 
@@ -819,7 +821,7 @@ test("inspect-run CLI: merged PR → done, statusClass done", async () => {
   });
 });
 
-test("inspect-run CLI: PR not found → structured output with needsAttention true, no false certainty", async () => {
+test("inspect-run CLI: PR not found → structured output with statusClass unknown", async () => {
   await withTempDir(async (tempDir) => {
     const copilotPath = path.join(tempDir, "copilot.json");
     const reviewerPath = path.join(tempDir, "reviewer.json");
@@ -838,9 +840,12 @@ test("inspect-run CLI: PR not found → structured output with needsAttention tr
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    // no_pr maps to stop/pr_not_ready via decideOuterAction
-    assert.ok(output.outerAction === "stop" || output.statusClass !== "unknown");
+    assert.equal(output.statusClass, "unknown");
+    assert.ok(output.outerAction === undefined || output.outerAction === "unknown");
+    assert.equal(output.trust, "unavailable");
     assert.equal(output.needsAttention, true);
+    assert.match(output.evidence.summary, /not found/i);
+    assert.ok(output.markers.missing.some((entry) => /explicit target PR was not found/i.test(entry)));
   });
 });
 

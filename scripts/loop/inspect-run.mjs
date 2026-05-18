@@ -289,6 +289,11 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   const { repo, pr, steeringStateFile, copilotInputPath, reviewerInputPath } = options;
   const inspectedAt = new Date().toISOString();
 
+  const evidenceSourceKinds = {
+    copilot: copilotInputPath !== undefined ? "input" : "live",
+    reviewer: reviewerInputPath !== undefined ? "input" : "live",
+  };
+
   // -------------------------------------------------------------------------
   // Detect copilot inner-loop state
   // -------------------------------------------------------------------------
@@ -352,17 +357,21 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   let outerAction;
   let outerReason;
 
+  const explicitTargetMissing =
+    copilotEvidence?.snapshot?.prExists === false
+    || reviewerEvidence?.snapshot?.prExists === false;
+
   const effectiveCopilotState =
-    copilotLiveStatus === "ok" && copilotEvidence !== null
+    !explicitTargetMissing && copilotLiveStatus === "ok" && copilotEvidence !== null
       ? copilotEvidence.interpretation.state
       : (typeof existingCheckpoint?.copilotState === "string" ? existingCheckpoint.copilotState : undefined);
 
   const effectiveReviewerState =
-    reviewerLiveStatus === "ok" && reviewerEvidence !== null
+    !explicitTargetMissing && reviewerLiveStatus === "ok" && reviewerEvidence !== null
       ? reviewerEvidence.interpretation.state
       : (typeof existingCheckpoint?.reviewerState === "string" ? existingCheckpoint.reviewerState : undefined);
 
-  if (effectiveCopilotState !== undefined && effectiveReviewerState !== undefined) {
+  if (!explicitTargetMissing && effectiveCopilotState !== undefined && effectiveReviewerState !== undefined) {
     const decision = decideOuterAction({
       copilotState: effectiveCopilotState,
       reviewerState: effectiveReviewerState,
@@ -399,6 +408,8 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
     reviewerEvidence,
     existingCheckpoint,
     liveAvailability: { copilot: copilotLiveStatus, reviewer: reviewerLiveStatus },
+    evidenceSourceKinds,
+    explicitTargetMissing,
     steeringLocatorPath,
     steeringEvidence,
     steeringLoadFailed,
