@@ -52,7 +52,10 @@ export function summarizeCopilotReviews(reviews, { headSha } = {}) {
 
   return {
     copilotReviews,
-    copilotReviewIds: copilotReviews.map((review) => String(review.id)),
+    copilotReviewIds: copilotReviews
+      .map((review) => review?.id)
+      .filter((id) => id !== null && id !== undefined)
+      .map((id) => String(id)),
     copilotReviewPresent: copilotReviews.length > 0,
     hasPendingReviewOnCurrentHead,
     hasSubmittedReviewOnCurrentHead,

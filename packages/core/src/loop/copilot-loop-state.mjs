@@ -137,6 +137,8 @@ export function normalizeSnapshot(raw) {
 
   const prExists = Boolean(raw.prExists);
 
+  const copilotReviewOnCurrentHead = Boolean(raw.copilotReviewOnCurrentHead);
+
   return {
     prExists,
     prNumber: prExists && typeof raw.prNumber === "number" && raw.prNumber > 0
@@ -148,8 +150,8 @@ export function normalizeSnapshot(raw) {
     copilotReviewRequestStatus: VALID_REVIEW_REQUEST_STATUSES.has(raw.copilotReviewRequestStatus)
       ? raw.copilotReviewRequestStatus
       : "none",
-    copilotReviewPresent: Boolean(raw.copilotReviewPresent),
-    copilotReviewOnCurrentHead: Boolean(raw.copilotReviewOnCurrentHead),
+    copilotReviewPresent: Boolean(raw.copilotReviewPresent) || copilotReviewOnCurrentHead,
+    copilotReviewOnCurrentHead,
     unresolvedThreadCount: typeof raw.unresolvedThreadCount === "number" && raw.unresolvedThreadCount >= 0
       ? Math.floor(raw.unresolvedThreadCount)
       : 0,
