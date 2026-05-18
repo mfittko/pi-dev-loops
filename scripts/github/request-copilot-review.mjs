@@ -157,7 +157,7 @@ function parseReviewsPayload(text) {
   return {
     headSha,
     copilotReviewIds: reviewSummary.copilotReviewIds,
-    hasCopilotPendingReview: reviewSummary.hasPendingReviewOnCurrentHead,
+    hasCopilotPendingReviewOnCurrentHead: reviewSummary.hasPendingReviewOnCurrentHead,
   };
 }
 
@@ -198,7 +198,7 @@ async function fetchCopilotReviewState(options, runtime) {
   return {
     requested: requestedReviewers.requested,
     copilotReviewIds: reviews.copilotReviewIds,
-    hasPendingReview: reviews.hasCopilotPendingReview,
+    hasPendingReviewOnCurrentHead: reviews.hasCopilotPendingReviewOnCurrentHead,
   };
 }
 
@@ -258,7 +258,7 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
 
-  if (before.requested || before.hasPendingReview) {
+  if (before.requested || before.hasPendingReviewOnCurrentHead) {
     return {
       ok: true,
       status: "already-requested",
@@ -275,7 +275,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     // Copilot review may already be in progress if GitHub internally queued it.
     // Check for observable in-progress evidence before treating this as a terminal stop.
     const after = await fetchCopilotReviewState(options, { env, ghCommand });
-    if (after.requested || after.hasPendingReview) {
+    if (after.requested || after.hasPendingReviewOnCurrentHead) {
       return {
         ok: true,
         status: "already-requested",
@@ -289,7 +289,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
 
   const after = await fetchCopilotReviewState(options, { env, ghCommand });
   const reviewCountIncreased = after.copilotReviewIds.length > before.copilotReviewIds.length;
-  const reviewNowObservablyInProgress = after.requested || after.hasPendingReview || reviewCountIncreased;
+  const reviewNowObservablyInProgress = after.requested || after.hasPendingReviewOnCurrentHead || reviewCountIncreased;
 
   if (!reviewNowObservablyInProgress) {
     throw new Error("Copilot review request did not appear in requested reviewers or fresh/in-progress Copilot reviews after gh pr edit");
