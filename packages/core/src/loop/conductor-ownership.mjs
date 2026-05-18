@@ -53,7 +53,7 @@ export const ACTION = Object.freeze({
  * - `live_owner` — an active/live owner exists (from authoritative signal or local active record)
  * - `recorded_no_live_owner` — non-terminal record exists but no confirmed live owner
  * - `stale_local_record` — only stale/superseded records exist; no non-terminal owner
- * - `duplicate_local_owners` — multiple active non-watcher local records for the same scope
+ * - `duplicate_local_owners` — multiple non-terminal non-watcher local records for the same scope
  * - `watcher_only` — records exist but all are watchers; no owning record present
  * - `no_record` — no records of any kind for this scope
  */
@@ -64,7 +64,7 @@ export const OWNERSHIP_STATE = Object.freeze({
   RECORDED_NO_LIVE_OWNER: "recorded_no_live_owner",
   /** Only stale/superseded records exist; no non-terminal owner record. */
   STALE_LOCAL_RECORD: "stale_local_record",
-  /** Multiple active non-watcher local records exist for the same scope. */
+  /** Multiple non-terminal non-watcher local records exist for the same scope. */
   DUPLICATE_LOCAL_OWNERS: "duplicate_local_owners",
   /** Records exist but all are watchers; no owning record is present. */
   WATCHER_ONLY: "watcher_only",
@@ -276,7 +276,11 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
     const nonTerminalOwners = normalized.filter(
       r => !r.isWatcher && (r.state === "active" || r.state === "inactive"),
     );
-    if (nonTerminalOwners.length > 0) {
+    if (nonTerminalOwners.length > 1) {
+      return OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS;
+    }
+
+    if (nonTerminalOwners.length === 1) {
       return OWNERSHIP_STATE.RECORDED_NO_LIVE_OWNER;
     }
 
@@ -305,7 +309,11 @@ export function classifyOwnershipState(localRecords, authoritativeLiveState) {
   }
 
   const inactiveOwners = ownerRecords.filter(r => r.state === "inactive");
-  if (inactiveOwners.length > 0) {
+  if (inactiveOwners.length > 1) {
+    return OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS;
+  }
+
+  if (inactiveOwners.length === 1) {
     return OWNERSHIP_STATE.RECORDED_NO_LIVE_OWNER;
   }
 
@@ -367,8 +375,8 @@ function validateNormalizedOwnershipKey(ownershipKey) {
  * Action semantics:
  * - `start` / `kickoff` (alias) — start or re-attach to an existing owner
  * - `resume` — resume a prior recorded run or start fresh if none exists
- * - `watch` — non-owning observation; always returns noop_already_satisfied
- *   with allowOwnerCreation: false; watcher presence CANNOT satisfy ownership
+ * - `watch` — non-owning observation; returns noop_already_satisfied for
+ *   unambiguous scopes with allowOwnerCreation: false; ambiguous scopes are still rejected
  * - `request-review` / `assign` — require an existing active owner; return
  *   noop_already_satisfied when one exists, needs_reconcile otherwise
  *
@@ -402,7 +410,8 @@ export function evaluateOwnershipAction(action, ownershipKey, localRecords, auth
     };
   }
 
-  // watch is non-owning: always returns noop_already_satisfied regardless of ownership state
+  // watch is non-owning for unambiguous scopes: returns noop_already_satisfied once
+  // ambiguous-scope rejection has been ruled out above
   if (action === ACTION.WATCH) {
     return {
       outcome: OUTCOME.NOOP_ALREADY_SATISFIED,

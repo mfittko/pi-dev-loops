@@ -242,6 +242,14 @@ test("classifyOwnershipState returns RECORDED_NO_LIVE_OWNER for one inactive non
   assert.equal(classifyOwnershipState(records), OWNERSHIP_STATE.RECORDED_NO_LIVE_OWNER);
 });
 
+test("classifyOwnershipState returns DUPLICATE_LOCAL_OWNERS for multiple inactive non-watcher records", () => {
+  const records = [
+    makeRecord({ ownerId: "owner-1", state: "inactive" }),
+    makeRecord({ ownerId: "owner-2", state: "inactive" }),
+  ];
+  assert.equal(classifyOwnershipState(records), OWNERSHIP_STATE.DUPLICATE_LOCAL_OWNERS);
+});
+
 test("classifyOwnershipState returns STALE_LOCAL_RECORD for one stale non-watcher record", () => {
   const records = [makeRecord({ state: "stale" })];
   assert.equal(classifyOwnershipState(records), OWNERSHIP_STATE.STALE_LOCAL_RECORD);
@@ -390,6 +398,18 @@ test("[scenario] resume with recorded non-terminal state + no authoritative sign
 
   assert.equal(result.outcome, OUTCOME.NEEDS_RECONCILE_BEFORE_RESUME);
   assert.equal(result.allowOwnerCreation, false);
+  assert.equal(result.requiresAuthoritativeConsultation, true);
+});
+
+test("multiple inactive resume candidates are rejected as duplicate owners", () => {
+  const key = makeKey();
+  const records = [
+    makeRecord({ ownerId: "owner-1", state: "inactive" }),
+    makeRecord({ ownerId: "owner-2", state: "inactive" }),
+  ];
+  const result = evaluateOwnershipAction(ACTION.RESUME, key, records, makeAuth(false));
+
+  assert.equal(result.outcome, OUTCOME.REJECT_DUPLICATE_OWNER);
   assert.equal(result.requiresAuthoritativeConsultation, true);
 });
 

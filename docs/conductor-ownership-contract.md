@@ -117,7 +117,7 @@ or mutation decisions. Concretely:
 | `live_owner` | An active live owner exists — confirmed by authoritative signal or a single local `active` record after duplicate-local-owner ambiguity is ruled out |
 | `recorded_no_live_owner` | A non-terminal record exists (`active` or `inactive`) but no live owner is confirmed |
 | `stale_local_record` | Only `stale`/superseded records exist; no non-terminal owner record |
-| `duplicate_local_owners` | Multiple `active` non-watcher local records exist for the same scope |
+| `duplicate_local_owners` | Multiple non-terminal non-watcher local records exist for the same scope |
 | `watcher_only` | Records exist but all are watchers (`isWatcher: true`); no owning record |
 | `no_record` | No records of any kind for this scope |
 
@@ -164,7 +164,7 @@ Each outcome also carries:
 | `start` | `start_new` | `attach` | `reconcile`* or `resume` | `start_new` | `reject_dup` | `start_new` |
 | `kickoff` | same as `start` | same | same | same | same | same |
 | `resume` | `start_new` | `attach` | `reconcile`* or `resume` | `start_new` | `reject_dup` | `start_new` |
-| `watch` | `noop` | `noop` | `noop` | `noop` | `noop` | `noop` |
+| `watch` | `noop`* | `noop`* | `noop`* | `noop`* | `noop`* | `noop`* |
 | `request-review` | `reconcile` | `noop` | `reconcile`* or `resume` | `reconcile` | `reject_dup` | `reconcile` |
 | `assign` | `reconcile` | `noop` | `reconcile`* or `resume` | `reconcile` | `reject_dup` | `reconcile` |
 
@@ -175,12 +175,15 @@ Legend:
 - `noop` = `noop_already_satisfied`
 - `reject_dup` = `reject_duplicate_owner`
 - `*` = `reconcile` when no authoritative signal is available; `resume` when authoritative confirms no live owner
+- `noop*` = `noop_already_satisfied` for unambiguous scopes; ambiguous scopes still yield `reject_ambiguous_scope`
 
 ### `watch` is non-owning
 
-`watch` **always** returns `noop_already_satisfied` with `allowOwnerCreation: false`.
-It never creates, claims, or satisfies conductor ownership. Watcher presence alone is
-insufficient to determine that a scope has an active owner.
+For unambiguous scopes, `watch` returns `noop_already_satisfied` with
+`allowOwnerCreation: false`. Ambiguous scopes are still rejected as
+`reject_ambiguous_scope` before the watch fast-path applies. `watch` never creates,
+claims, or satisfies conductor ownership. Watcher presence alone is insufficient to
+determine that a scope has an active owner.
 
 ### `kickoff` is a `start` alias
 
@@ -195,7 +198,7 @@ rejection:
 
 | Condition | Rule |
 |---|---|
-| Duplicate local records | Two or more `active` non-watcher records for the same scope — return `reject_duplicate_owner` and reconcile to one surviving owner using authoritative state before routing again |
+| Duplicate local records | Two or more non-terminal non-watcher records for the same scope — return `reject_duplicate_owner` and reconcile to one surviving owner using authoritative state before routing again |
 | Stale local records with `request-review`/`assign` | Stale records cannot satisfy actions requiring an active owner |
 | Recorded non-terminal without authoritative confirmation | Cannot safely distinguish "inactive resumable" from "still live" without authoritative signal |
 | Watcher-only for `request-review`/`assign` | Watcher presence does not satisfy ownership for actions that require an active owner |
