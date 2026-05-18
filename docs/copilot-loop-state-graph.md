@@ -125,7 +125,7 @@ The interpreter applies rules in priority order. The first matching rule wins.
 7. `unresolvedThreadCount > 0` → `unresolved_feedback_present`
    *(Unresolved feedback always takes priority over any wait/watch path)*
 8. `(copilotReviewRequestStatus === "requested" || copilotReviewRequestStatus === "already-requested") && !copilotReviewOnCurrentHead` → `waiting_for_copilot_review`
-   *(Copilot is in `requested_reviewers` or a pending review is in progress, and has not yet submitted a submitted review on the current head; when `copilotReviewOnCurrentHead === true` the wait is concluded and the loop falls through to rule 9+)*
+   *(Copilot is in `requested_reviewers` or a pending review is in progress, and has not yet submitted a review on the current head; when `copilotReviewOnCurrentHead === true` the wait is concluded and the loop falls through to rule 9+)*
 9. `copilotReviewPresent && ciStatus === "pending"` → `waiting_for_ci`
 10. `copilotReviewPresent && ciStatus === "failure"` → `blocked_needs_user_decision`
 11. `copilotReviewPresent` → `ready_to_rerequest_review`
