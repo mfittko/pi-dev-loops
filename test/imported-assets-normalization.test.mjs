@@ -109,7 +109,7 @@ test("copilot skill requires github reply/resolve follow-up and gates waiting on
   assert.match(content, /backticks for actual code\/path\/CLI literals only/i);
 });
 
-test("fixer agent preserves GitHub autolinks in thread replies while still allowing code literals", async () => {
+test("fixer agent documentation includes GitHub autolink guidance", async () => {
   const content = await readRepo("agents/fixer.agent.md");
 
   assert.match(content, /keep commit SHAs and issue\/PR refs unwrapped/i);
