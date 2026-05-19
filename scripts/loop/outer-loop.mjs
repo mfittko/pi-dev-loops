@@ -83,7 +83,7 @@ Output (stdout, JSON):
       "stopReason": null|"...", "handoffEnvelope": { ... } },
     "checkpoint": { "pr": N, "repo": "...", "outerAction": "...",
       "copilotState": "...", "reviewerState": "...", "reason": null|"...",
-      "timestamp": "...", "waitCycles": N } }
+      "timestamp": "...", "waitCycles": N, "headSha": "..."|null } }
 
 Outer actions:
   continue_wait          Durable outer-loop wait state; re-run after bounded wait

@@ -1182,6 +1182,69 @@ test("outer-loop: legacy default checkpoint fallback is used only for matching r
   }
 });
 
+test("outer-loop: prefers repo-qualified checkpoint when both new and legacy checkpoints exist", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-prefer-repo-qualified-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+    const reviewerSnapshotPath = path.join(tempDir, "reviewer-snapshot.json");
+    const legacyCheckpointPath = path.join(tempDir, "tmp", "copilot-loop", "pr-47", "outer-loop-state.json");
+    const repoQualifiedPath = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo", "pr-47", "outer-loop-state.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prHeadSha: "abc123",
+    });
+    await mkdir(path.dirname(legacyCheckpointPath), { recursive: true });
+    await mkdir(path.dirname(repoQualifiedPath), { recursive: true });
+    await writeJson(legacyCheckpointPath, {
+      pr: 47,
+      repo: "owner/repo",
+      outerAction: "continue_wait",
+      copilotState: "waiting_for_copilot_review",
+      reviewerState: "waiting_for_author_followup",
+      reason: null,
+      timestamp: "2026-05-16T10:00:00Z",
+      waitCycles: 9,
+      headSha: "abc123",
+    });
+    await writeJson(repoQualifiedPath, {
+      pr: 47,
+      repo: "owner/repo",
+      outerAction: "continue_wait",
+      copilotState: "waiting_for_copilot_review",
+      reviewerState: "waiting_for_author_followup",
+      reason: null,
+      timestamp: "2026-05-17T10:00:00Z",
+      waitCycles: 2,
+      headSha: "abc123",
+    });
+
+    const env = await writeGitStub(tempDir, { porcelainOutput: "", headRef: "main" });
+    const run = await runNode([
+      "--repo", "owner/repo", "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+    ], { env, cwd: tempDir });
+    assert.equal(JSON.parse(run.stdout).checkpoint.waitCycles, 3);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("outer-loop: wait cycles reset to 0 when outer action changes from continue_wait to reenter_copilot_loop", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-wait-reset-"));
 
