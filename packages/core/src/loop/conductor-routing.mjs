@@ -431,16 +431,9 @@ export function evaluateConductorRouting({
     }
 
     default:
-      // Should not be reached — detectConflict already catches unknown outerAction values
-      return {
-        routingOutcome: ROUTING_OUTCOME.NEEDS_RECONCILE,
-        handoffEnvelope: buildEnvelope({
-          targetIdentity: normalizedTarget,
-          loopFamily: LOOP_FAMILY.NONE,
-          entrypoint: ENTRYPOINT.NONE,
-          reason: `Unrecognized outer action '${outerAction}'; cannot route deterministically`,
-          confidence,
-        }),
-      };
+      // This path is unreachable: detectConflict() above rejects all unknown
+      // outerAction values before the switch. Throw to surface any future
+      // regression where a new outer action is added without updating detectConflict.
+      throw new Error(`[conductor-routing] Unhandled outer action '${outerAction}' reached switch default — update detectConflict KNOWN_OUTER_ACTIONS`);
   }
 }
