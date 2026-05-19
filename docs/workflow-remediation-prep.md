@@ -1,6 +1,6 @@
 # Workflow remediation preparation
 
-Related issue: #70
+Related issue: `#70`
 
 ## Purpose
 
