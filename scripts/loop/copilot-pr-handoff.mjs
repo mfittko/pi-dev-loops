@@ -59,7 +59,7 @@ Output (stdout, JSON):
 Actions:
   watch   Copilot review was requested; use watchArgs with watch-copilot-review.mjs
   fix     Unresolved feedback exists; address it before re-requesting review
-  stop    Terminal or blocked state; report to user and do not proceed
+  stop    No automatic next step; report the current state (terminal, blocked, or operator-decision-required) and do not proceed
 
 Watch defaults:
   pollIntervalMs  60000  (1 minute)

@@ -593,6 +593,71 @@ test("copilot-pr-handoff stops after a current-head Copilot review even if reque
   }
 });
 
+test("copilot-pr-handoff preserves copilotReviewPresent=false for an initial request with no prior review", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-initial-request-preserves-review-presence-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        stdout: '{"headRefOid":"newsha","reviews":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stdout: "https://github.com/owner/repo/pull/17\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        stdout: '{"headRefOid":"newsha","reviews":[]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "watch");
+    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.reviewRequestStatus, "requested");
+    assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+    assert.equal(output.snapshot.copilotReviewPresent, false);
+    assert.ok(output.watchArgs, "expected watchArgs after initial request");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("copilot-pr-handoff auto re-requests when a newer head has no submitted Copilot review yet", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-reenabled-after-head-change-"));
 

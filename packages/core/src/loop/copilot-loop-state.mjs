@@ -181,7 +181,8 @@ export function normalizeSnapshot(raw) {
  * This keeps the handoff helper on the same shared state-machine contract instead of
  * emitting a watch action that contradicts a same-head clean-convergence interpretation.
  * A confirmed request starts a new wait cycle for the current head, so prior
- * current-head clean-review convergence is cleared for handoff purposes.
+ * current-head clean-review convergence is cleared for handoff purposes while
+ * preserving whether a submitted Copilot review has ever been observed on the PR.
  *
  * @param {object} snapshot
  * @param {string} reviewRequestStatus
@@ -198,7 +199,7 @@ export function applyConfirmedReviewRequest(snapshot, reviewRequestStatus) {
     ...s,
     copilotReviewRequestStatus: reviewRequestStatus,
     copilotReviewOnCurrentHead: false,
-    copilotReviewPresent: true,
+    copilotReviewPresent: s.copilotReviewPresent,
   });
 }
 

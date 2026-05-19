@@ -6,6 +6,7 @@ import {
   TRANSITIONS,
   normalizeSnapshot,
   interpretLoopState,
+  applyConfirmedReviewRequest,
 } from "../src/loop/copilot-loop-state.mjs";
 
 // ---------------------------------------------------------------------------
@@ -346,6 +347,34 @@ test("interpretLoopState exits waiting_for_copilot_review when Copilot has a sub
     assert.equal(result.sameHeadCleanConverged, true,
       `expected sameHeadCleanConverged when copilotReviewOnCurrentHead=true (status=${status})`);
   }
+});
+
+test("applyConfirmedReviewRequest preserves review presence semantics for a fresh request", () => {
+  const result = applyConfirmedReviewRequest({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewPresent: false,
+    copilotReviewOnCurrentHead: false,
+    copilotReviewRequestStatus: "none",
+  }, "requested");
+
+  assert.equal(result.copilotReviewRequestStatus, "requested");
+  assert.equal(result.copilotReviewOnCurrentHead, false);
+  assert.equal(result.copilotReviewPresent, false);
+});
+
+test("applyConfirmedReviewRequest clears current-head convergence without inventing a review", () => {
+  const result = applyConfirmedReviewRequest({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: true,
+    copilotReviewRequestStatus: "none",
+  }, "requested");
+
+  assert.equal(result.copilotReviewRequestStatus, "requested");
+  assert.equal(result.copilotReviewOnCurrentHead, false);
+  assert.equal(result.copilotReviewPresent, true);
 });
 
 test("interpretLoopState stays in waiting_for_copilot_review when review is not yet on current head", () => {
