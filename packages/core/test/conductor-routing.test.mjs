@@ -6,6 +6,7 @@ import {
   LOOP_FAMILY,
   SOURCE_MODE,
   ENTRYPOINT,
+  STOP_REASON,
   evaluateConductorRouting,
 } from "../src/loop/conductor-routing.mjs";
 
@@ -17,14 +18,13 @@ const BASE_TARGET = { repo: "acme/my-repo", pr: 42 };
 
 /**
  * Build a minimal valid input for evaluateConductorRouting.
- * All required fields are set to a "continue_wait" scenario by default.
+ * All required fields default to a "continue_wait" scenario (copilot wait state).
  */
 function makeInput(overrides = {}) {
   return {
     target: BASE_TARGET,
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
-    outerAction: "continue_wait",
     ...overrides,
   };
 }
@@ -80,38 +80,60 @@ test("ENTRYPOINT exports the four required entrypoint values", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 1: outer wait remains outer wait → continue_current_wait
+// STOP_REASON constants
 // ---------------------------------------------------------------------------
 
-test("outer wait: continue_wait → continue_current_wait", () => {
+test("STOP_REASON exports the required stop reason codes", () => {
+  assert.equal(STOP_REASON.PR_NOT_READY, "pr_not_ready");
+  assert.equal(STOP_REASON.COPILOT_BLOCKED, "copilot_blocked");
+  assert.equal(STOP_REASON.REVIEWER_BLOCKED, "reviewer_blocked");
+  assert.equal(STOP_REASON.REVIEW_UNAVAILABLE, "review_unavailable");
+  assert.equal(STOP_REASON.UNSAFE_LOCAL_EDIT, "unsafe_local_edit_requires_isolation");
+  assert.equal(STOP_REASON.UNKNOWN_STATE, "unknown_state");
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 1: outer wait → continue_current_wait
+// ---------------------------------------------------------------------------
+
+test("outer wait: copilot waiting_for_copilot_review → continue_current_wait", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "continue_wait",
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
   }));
 
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
+  assert.equal(result.outerAction, "continue_wait");
+  assert.equal(result.stopReason, null);
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.OUTER_LOOP);
   assert.equal(result.handoffEnvelope.entrypoint, ENTRYPOINT.OUTER_LOOP_WAIT);
   assert.ok(result.handoffEnvelope.reason.length > 0);
   assert.deepEqual(result.handoffEnvelope.requiredArgs, { repo: "acme/my-repo", pr: 42 });
 });
 
-test("outer wait: waiting_for_ci → continue_current_wait", () => {
+test("outer wait: copilot waiting_for_ci → continue_current_wait", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "continue_wait",
     copilotState: "waiting_for_ci",
     reviewerState: "waiting_for_review_request",
   }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
+  assert.equal(result.outerAction, "continue_wait");
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.OUTER_LOOP);
 });
 
 test("outer wait: reviewer waiting_for_author_followup → continue_current_wait", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "continue_wait",
     copilotState: "pr_ready_no_feedback",
     reviewerState: "waiting_for_author_followup",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
+  assert.equal(result.outerAction, "continue_wait");
+});
+
+test("outer wait: reviewer waiting_for_re_request → continue_current_wait", () => {
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "pr_ready_no_feedback",
+    reviewerState: "waiting_for_re_request",
   }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
 });
@@ -120,14 +142,15 @@ test("outer wait: reviewer waiting_for_author_followup → continue_current_wait
 // Scenario 2: reviewer-active routes to reviewer-loop handoff
 // ---------------------------------------------------------------------------
 
-test("reviewer active: reenter_reviewer_loop → handoff_to_reviewer_loop", () => {
+test("reviewer active: review_requested → handoff_to_reviewer_loop", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "reenter_reviewer_loop",
     copilotState: "pr_ready_no_feedback",
     reviewerState: "review_requested",
   }));
 
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_REVIEWER_LOOP);
+  assert.equal(result.outerAction, "reenter_reviewer_loop");
+  assert.equal(result.stopReason, null);
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.REVIEWER_LOOP);
   assert.equal(result.handoffEnvelope.entrypoint, ENTRYPOINT.REVIEWER_LOOP_HANDLER);
   assert.ok(result.handoffEnvelope.reason.includes("reviewer_state=review_requested"));
@@ -136,7 +159,6 @@ test("reviewer active: reenter_reviewer_loop → handoff_to_reviewer_loop", () =
 
 test("reviewer active: review_invalidated → handoff_to_reviewer_loop", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "reenter_reviewer_loop",
     copilotState: "pr_ready_no_feedback",
     reviewerState: "review_invalidated",
   }));
@@ -144,27 +166,36 @@ test("reviewer active: review_invalidated → handoff_to_reviewer_loop", () => {
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.REVIEWER_LOOP);
 });
 
+test("reviewer active: reviewer wins over copilot wait state", () => {
+  // Reviewer active takes priority even when copilot is in a wait state
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "waiting_for_copilot_review",
+    reviewerState: "review_requested",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_REVIEWER_LOOP);
+});
+
 // ---------------------------------------------------------------------------
 // Scenario 3: Copilot-active routes to Copilot-loop handoff
 // ---------------------------------------------------------------------------
 
-test("copilot active: reenter_copilot_loop + unresolved_feedback → handoff_to_copilot_loop", () => {
+test("copilot active: unresolved_feedback_present → handoff_to_copilot_loop", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "reenter_copilot_loop",
     copilotState: "unresolved_feedback_present",
     reviewerState: "waiting_for_author_followup",
   }));
 
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP);
+  assert.equal(result.outerAction, "reenter_copilot_loop");
+  assert.equal(result.stopReason, null);
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.COPILOT_LOOP);
   assert.equal(result.handoffEnvelope.entrypoint, ENTRYPOINT.COPILOT_PR_HANDOFF);
   assert.ok(result.handoffEnvelope.reason.includes("copilot_state=unresolved_feedback_present"));
   assert.deepEqual(result.handoffEnvelope.requiredArgs, { repo: "acme/my-repo", pr: 42 });
 });
 
-test("copilot active: reenter_copilot_loop + pr_draft → handoff_to_copilot_loop", () => {
+test("copilot active: pr_draft → handoff_to_copilot_loop", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "reenter_copilot_loop",
     copilotState: "pr_draft",
     reviewerState: "waiting_for_review_request",
   }));
@@ -172,11 +203,18 @@ test("copilot active: reenter_copilot_loop + pr_draft → handoff_to_copilot_loo
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.COPILOT_LOOP);
 });
 
-test("copilot active: reenter_copilot_loop + ready_to_rerequest → handoff_to_copilot_loop", () => {
+test("copilot active: ready_to_rerequest_review → handoff_to_copilot_loop", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "reenter_copilot_loop",
     copilotState: "ready_to_rerequest_review",
     reviewerState: "waiting_for_review_request",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP);
+});
+
+test("copilot active wins over reviewer wait: unresolved_feedback wins over waiting_for_author_followup", () => {
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "unresolved_feedback_present",
+    reviewerState: "waiting_for_author_followup",
   }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP);
 });
@@ -185,143 +223,231 @@ test("copilot active: reenter_copilot_loop + ready_to_rerequest → handoff_to_c
 // Scenario 4: blocked routes to stop_needs_human
 // ---------------------------------------------------------------------------
 
-test("blocked: stop/copilot_blocked → stop_needs_human", () => {
+test("blocked: copilot blocked_needs_user_decision → stop_needs_human", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "stop",
-    outerReason: "copilot_blocked",
     copilotState: "blocked_needs_user_decision",
     reviewerState: "waiting_for_review_request",
   }));
 
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
+  assert.equal(result.outerAction, "stop");
+  assert.equal(result.stopReason, STOP_REASON.COPILOT_BLOCKED);
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.NONE);
   assert.equal(result.handoffEnvelope.entrypoint, ENTRYPOINT.NONE);
-  assert.ok(result.handoffEnvelope.reason.includes("copilot_blocked"));
+  assert.ok(result.handoffEnvelope.reason.length > 0);
 });
 
-test("blocked: stop/reviewer_blocked → stop_needs_human", () => {
+test("blocked: reviewer blocked_needs_user_decision → stop_needs_human", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "stop",
-    outerReason: "reviewer_blocked",
     copilotState: "pr_ready_no_feedback",
     reviewerState: "blocked_needs_user_decision",
   }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
+  assert.equal(result.stopReason, STOP_REASON.REVIEWER_BLOCKED);
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.NONE);
 });
 
-test("blocked: stop/review_unavailable → stop_needs_human", () => {
+test("blocked: review_request_unavailable → stop_needs_human", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "stop",
-    outerReason: "review_unavailable",
     copilotState: "review_request_unavailable",
     reviewerState: "waiting_for_review_request",
   }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
+  assert.equal(result.stopReason, STOP_REASON.REVIEW_UNAVAILABLE);
 });
 
-test("blocked: stop/pr_not_ready → stop_needs_human", () => {
+test("blocked: no_pr → stop_needs_human", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "stop",
-    outerReason: "pr_not_ready",
     copilotState: "no_pr",
     reviewerState: "waiting_for_review_request",
   }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
-});
-
-test("blocked: stop with no reason → stop_needs_human", () => {
-  const result = evaluateConductorRouting(makeInput({
-    outerAction: "stop",
-    copilotState: "blocked_needs_user_decision",
-    reviewerState: "waiting_for_review_request",
-  }));
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
-  assert.ok(result.handoffEnvelope.reason.includes("blocked"));
+  assert.equal(result.stopReason, STOP_REASON.PR_NOT_READY);
 });
 
 // ---------------------------------------------------------------------------
 // Scenario 5: terminal state routes to done_terminal
 // ---------------------------------------------------------------------------
 
-test("terminal: done → done_terminal", () => {
+test("terminal: copilot done → done_terminal", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "done",
     copilotState: "done",
     reviewerState: "waiting_for_review_request",
   }));
 
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.DONE_TERMINAL);
+  assert.equal(result.outerAction, "done");
+  assert.equal(result.stopReason, null);
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.NONE);
   assert.equal(result.handoffEnvelope.entrypoint, ENTRYPOINT.NONE);
   assert.ok(result.handoffEnvelope.reason.length > 0);
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 6: conflicting inner/outer signals fail closed to needs_reconcile
+// Scenario 6: unsafe local isolation routes to stop_needs_human
 // ---------------------------------------------------------------------------
 
-test("conflict: outerAction=done but copilotState=active → needs_reconcile", () => {
+test("isolation: pr_draft + requiresLocalIsolation=true → stop_needs_human", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "done",
+    copilotState: "pr_draft",
+    reviewerState: "waiting_for_review_request",
+    requiresLocalIsolation: true,
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
+  assert.equal(result.outerAction, "stop");
+  assert.equal(result.stopReason, STOP_REASON.UNSAFE_LOCAL_EDIT);
+  assert.equal(result.handoffEnvelope.requiresLocalIsolation, true);
+});
+
+test("isolation: unresolved_feedback_present + requiresLocalIsolation=true → stop_needs_human", () => {
+  const result = evaluateConductorRouting(makeInput({
     copilotState: "unresolved_feedback_present",
     reviewerState: "waiting_for_author_followup",
+    requiresLocalIsolation: true,
   }));
-
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
-  assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.NONE);
-  assert.equal(result.handoffEnvelope.entrypoint, ENTRYPOINT.NONE);
-  assert.ok(result.handoffEnvelope.reason.length > 0);
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
+  assert.equal(result.stopReason, STOP_REASON.UNSAFE_LOCAL_EDIT);
 });
 
-test("conflict: copilotState=done but outerAction=reenter_copilot_loop → needs_reconcile", () => {
+test("isolation: reviewer review_requested (needs local) + requiresLocalIsolation=true → stop_needs_human", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "reenter_copilot_loop",
-    copilotState: "done",
+    copilotState: "pr_ready_no_feedback",
+    reviewerState: "review_requested",
+    requiresLocalIsolation: true,
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
+  assert.equal(result.stopReason, STOP_REASON.UNSAFE_LOCAL_EDIT);
+});
+
+test("isolation: reviewer waiting_for_user_submit (no local exec needed) + requiresLocalIsolation=true → handoff", () => {
+  // waiting_for_user_submit is a reviewer active state but does NOT need local execution
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "pr_ready_no_feedback",
+    reviewerState: "waiting_for_user_submit",
+    requiresLocalIsolation: true,
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_REVIEWER_LOOP);
+});
+
+test("isolation: already_fixed_needs_reply_resolve (no local exec needed) + requiresLocalIsolation=true → handoff", () => {
+  // already_fixed_needs_reply_resolve does NOT need local execution
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "already_fixed_needs_reply_resolve",
     reviewerState: "waiting_for_review_request",
+    requiresLocalIsolation: true,
   }));
-
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
-  assert.ok(result.handoffEnvelope.reason.includes("Copilot state 'done' conflicts"));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP);
 });
 
-test("conflict: unknown outerAction → needs_reconcile", () => {
+// ---------------------------------------------------------------------------
+// Scenario 7: live_owner ownership → stay_with_current_live_owner
+// ---------------------------------------------------------------------------
+
+test("live_owner: copilot active + ownershipState=live_owner → stay_with_current_live_owner", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "invented_action",
+    copilotState: "unresolved_feedback_present",
+    reviewerState: "waiting_for_author_followup",
+    ownershipState: "live_owner",
+  }));
+
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STAY_WITH_CURRENT_LIVE_OWNER);
+  assert.equal(result.outerAction, "continue_wait");
+  assert.equal(result.stopReason, null);
+  assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.OUTER_LOOP);
+  assert.equal(result.handoffEnvelope.entrypoint, ENTRYPOINT.OUTER_LOOP_WAIT);
+  assert.ok(result.handoffEnvelope.reason.includes("live owner"));
+});
+
+test("live_owner: reviewer active + ownershipState=live_owner → stay_with_current_live_owner", () => {
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "pr_ready_no_feedback",
+    reviewerState: "review_requested",
+    ownershipState: "live_owner",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STAY_WITH_CURRENT_LIVE_OWNER);
+  assert.equal(result.outerAction, "continue_wait");
+});
+
+test("live_owner: copilot weak active + ownershipState=live_owner → stay_with_current_live_owner", () => {
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "ready_to_rerequest_review",
+    reviewerState: "waiting_for_review_request",
+    ownershipState: "live_owner",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STAY_WITH_CURRENT_LIVE_OWNER);
+});
+
+test("live_owner: pr_draft + ownershipState=live_owner → stay_with_current_live_owner (when workspace clean)", () => {
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "pr_draft",
+    reviewerState: "waiting_for_review_request",
+    ownershipState: "live_owner",
+    requiresLocalIsolation: false,
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STAY_WITH_CURRENT_LIVE_OWNER);
+});
+
+test("live_owner: pr_draft + ownershipState=live_owner + requiresLocalIsolation → stop (isolation wins)", () => {
+  // Unsafe isolation takes priority over the live-owner check
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "pr_draft",
+    reviewerState: "waiting_for_review_request",
+    ownershipState: "live_owner",
+    requiresLocalIsolation: true,
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
+  assert.equal(result.stopReason, STOP_REASON.UNSAFE_LOCAL_EDIT);
+});
+
+test("live_owner: wait states + ownershipState=live_owner → continue_current_wait (unchanged)", () => {
+  // live_owner does not change wait-state routing
+  const result = evaluateConductorRouting(makeInput({
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
+    ownershipState: "live_owner",
   }));
-
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
-  assert.ok(result.handoffEnvelope.reason.includes("invented_action"));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
 });
 
-test("conflict: stop/unknown_state → needs_reconcile (not stop_needs_human)", () => {
-  const result = evaluateConductorRouting(makeInput({
-    outerAction: "stop",
-    outerReason: "unknown_state",
-    copilotState: "pr_ready_no_feedback",
-    reviewerState: "waiting_for_review_request",
-  }));
-
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
-  assert.ok(result.handoffEnvelope.reason.includes("unknown_state"));
-});
+// ---------------------------------------------------------------------------
+// Scenario 8: ambiguous/conflict inputs fail closed to needs_reconcile
+// ---------------------------------------------------------------------------
 
 test("conflict: ownership duplicate_local_owners → needs_reconcile", () => {
   const result = evaluateConductorRouting(makeInput({
     ownershipState: "duplicate_local_owners",
-    outerAction: "continue_wait",
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
   }));
 
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
+  assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.NONE);
+  assert.equal(result.handoffEnvelope.entrypoint, ENTRYPOINT.NONE);
   assert.ok(result.handoffEnvelope.reason.includes("duplicate local owners"));
 });
 
+test("conflict: unrecognized combined state → needs_reconcile", () => {
+  // A completely unknown copilot state falls through to the reconcile fallback
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "completely_unknown_invented_state",
+    reviewerState: "waiting_for_review_request",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
+  assert.equal(result.outerAction, "stop");
+  assert.equal(result.stopReason, STOP_REASON.UNKNOWN_STATE);
+  assert.ok(result.handoffEnvelope.reason.includes("completely_unknown_invented_state"));
+});
+
+test("conflict: both states unknown → needs_reconcile", () => {
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "unknown_x",
+    reviewerState: "unknown_y",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
+});
+
 // ---------------------------------------------------------------------------
-// Scenario 7: non-target / noise inputs do not alter routing for targeted run
+// Scenario 9: non-target / noise inputs fail closed
 // ---------------------------------------------------------------------------
 
 test("non-target: null target → needs_reconcile", () => {
@@ -360,18 +486,11 @@ test("non-target: empty reviewerState → needs_reconcile", () => {
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
 });
 
-test("non-target: empty outerAction → needs_reconcile", () => {
-  const result = evaluateConductorRouting(makeInput({ outerAction: "" }));
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
-});
-
 test("non-target: extra noise fields on input do not affect valid routing", () => {
-  // Adding unknown fields should not alter a clean continue_wait decision
   const result = evaluateConductorRouting({
     target: BASE_TARGET,
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
-    outerAction: "continue_wait",
     unknownField: "noise",
     anotherNoise: 12345,
   });
@@ -384,18 +503,21 @@ test("non-target: extra noise fields on input do not affect valid routing", () =
 
 test("handoffEnvelope has all required fields for every routing outcome", () => {
   const scenarios = [
-    makeInput({ outerAction: "continue_wait", copilotState: "waiting_for_copilot_review", reviewerState: "waiting_for_review_request" }),
-    makeInput({ outerAction: "reenter_copilot_loop", copilotState: "unresolved_feedback_present", reviewerState: "waiting_for_author_followup" }),
-    makeInput({ outerAction: "reenter_reviewer_loop", copilotState: "pr_ready_no_feedback", reviewerState: "review_requested" }),
-    makeInput({ outerAction: "stop", outerReason: "copilot_blocked", copilotState: "blocked_needs_user_decision", reviewerState: "waiting_for_review_request" }),
-    makeInput({ outerAction: "done", copilotState: "done", reviewerState: "waiting_for_review_request" }),
+    makeInput({ copilotState: "waiting_for_copilot_review", reviewerState: "waiting_for_review_request" }),
+    makeInput({ copilotState: "unresolved_feedback_present", reviewerState: "waiting_for_author_followup" }),
+    makeInput({ copilotState: "pr_ready_no_feedback", reviewerState: "review_requested" }),
+    makeInput({ copilotState: "blocked_needs_user_decision", reviewerState: "waiting_for_review_request" }),
+    makeInput({ copilotState: "done", reviewerState: "waiting_for_review_request" }),
     makeInput({ target: null }), // needs_reconcile
+    makeInput({ copilotState: "unresolved_feedback_present", reviewerState: "waiting_for_author_followup", ownershipState: "live_owner" }),
   ];
 
   for (const input of scenarios) {
     const result = evaluateConductorRouting(input);
     const env = result.handoffEnvelope;
     assert.ok(typeof result.routingOutcome === "string", "routingOutcome must be a string");
+    assert.ok(typeof result.outerAction === "string", "outerAction must be a string");
+    assert.ok("stopReason" in result, "result must have stopReason field");
     assert.ok("targetIdentity" in env, "envelope must have targetIdentity");
     assert.ok("loopFamily" in env, "envelope must have loopFamily");
     assert.ok("entrypoint" in env, "envelope must have entrypoint");
@@ -407,13 +529,44 @@ test("handoffEnvelope has all required fields for every routing outcome", () => 
 });
 
 // ---------------------------------------------------------------------------
+// outerAction / stopReason derivation
+// ---------------------------------------------------------------------------
+
+test("result.outerAction is 'done' for done_terminal routing outcome", () => {
+  const result = evaluateConductorRouting(makeInput({ copilotState: "done" }));
+  assert.equal(result.outerAction, "done");
+  assert.equal(result.stopReason, null);
+});
+
+test("result.outerAction is 'stop' and stopReason is set for stop_needs_human", () => {
+  const result = evaluateConductorRouting(makeInput({ copilotState: "blocked_needs_user_decision" }));
+  assert.equal(result.outerAction, "stop");
+  assert.equal(result.stopReason, STOP_REASON.COPILOT_BLOCKED);
+});
+
+test("result.outerAction is 'stop' and stopReason=unknown_state for needs_reconcile fallback", () => {
+  const result = evaluateConductorRouting(makeInput({ copilotState: "completely_unknown" }));
+  assert.equal(result.outerAction, "stop");
+  assert.equal(result.stopReason, STOP_REASON.UNKNOWN_STATE);
+});
+
+test("result.outerAction is 'continue_wait' for stay_with_current_live_owner", () => {
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "unresolved_feedback_present",
+    reviewerState: "waiting_for_author_followup",
+    ownershipState: "live_owner",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STAY_WITH_CURRENT_LIVE_OWNER);
+  assert.equal(result.outerAction, "continue_wait");
+});
+
+// ---------------------------------------------------------------------------
 // requiresLocalIsolation passthrough
 // ---------------------------------------------------------------------------
 
-test("requiresLocalIsolation=true is propagated to handoff envelope", () => {
+test("requiresLocalIsolation=true is propagated to handoff envelope for non-stop outcomes", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "reenter_copilot_loop",
-    copilotState: "unresolved_feedback_present",
+    copilotState: "already_fixed_needs_reply_resolve",
     reviewerState: "waiting_for_author_followup",
     requiresLocalIsolation: true,
   }));
@@ -423,7 +576,6 @@ test("requiresLocalIsolation=true is propagated to handoff envelope", () => {
 
 test("requiresLocalIsolation defaults to false when not provided", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "continue_wait",
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
   }));
@@ -437,7 +589,6 @@ test("requiresLocalIsolation defaults to false when not provided", () => {
 test("sourceMode=authoritative → confidence=authoritative in envelope", () => {
   const result = evaluateConductorRouting(makeInput({
     sourceMode: "authoritative",
-    outerAction: "continue_wait",
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
   }));
@@ -447,7 +598,6 @@ test("sourceMode=authoritative → confidence=authoritative in envelope", () => 
 test("sourceMode=snapshot → confidence=snapshot in envelope", () => {
   const result = evaluateConductorRouting(makeInput({
     sourceMode: "snapshot",
-    outerAction: "continue_wait",
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
   }));
@@ -456,7 +606,6 @@ test("sourceMode=snapshot → confidence=snapshot in envelope", () => {
 
 test("sourceMode defaults to local when not provided", () => {
   const result = evaluateConductorRouting(makeInput({
-    outerAction: "continue_wait",
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
   }));
@@ -470,7 +619,6 @@ test("sourceMode defaults to local when not provided", () => {
 test("target repo is normalized to lowercase in handoff envelope", () => {
   const result = evaluateConductorRouting(makeInput({
     target: { repo: "ACME/My-Repo", pr: 7 },
-    outerAction: "continue_wait",
     copilotState: "waiting_for_copilot_review",
     reviewerState: "waiting_for_review_request",
   }));
@@ -483,21 +631,19 @@ test("target repo is normalized to lowercase in handoff envelope", () => {
 // Ownership state: non-duplicate values do not block routing
 // ---------------------------------------------------------------------------
 
-test("ownershipState=live_owner does not block routing", () => {
-  const result = evaluateConductorRouting(makeInput({
-    ownershipState: "live_owner",
-    outerAction: "continue_wait",
-    copilotState: "waiting_for_copilot_review",
-    reviewerState: "waiting_for_review_request",
-  }));
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
-});
-
 test("ownershipState=no_record does not block routing", () => {
   const result = evaluateConductorRouting(makeInput({
     ownershipState: "no_record",
-    outerAction: "reenter_copilot_loop",
     copilotState: "pr_draft",
+    reviewerState: "waiting_for_review_request",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP);
+});
+
+test("ownershipState=watcher_only does not block routing", () => {
+  const result = evaluateConductorRouting(makeInput({
+    ownershipState: "watcher_only",
+    copilotState: "unresolved_feedback_present",
     reviewerState: "waiting_for_review_request",
   }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP);
