@@ -989,6 +989,48 @@ test("inspect-run CLI: reads checkpoint from repo-qualified default path", async
   });
 });
 
+test("inspect-run CLI: reads the repo-qualified checkpoint for the targeted repo when two repos share a PR number", async () => {
+  await withTempDir(async (tempDir) => {
+    const checkpointPathA = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo-a", "pr-55", "outer-loop-state.json");
+    const checkpointPathB = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo-b", "pr-55", "outer-loop-state.json");
+    await mkdir(path.dirname(checkpointPathA), { recursive: true });
+    await mkdir(path.dirname(checkpointPathB), { recursive: true });
+    await writeJson(checkpointPathA, {
+      pr: 55,
+      repo: "owner/repo-a",
+      outerAction: "continue_wait",
+      copilotState: "waiting_for_copilot_review",
+      reviewerState: "waiting_for_author_followup",
+      reason: null,
+      timestamp: "2026-05-17T10:00:00Z",
+      waitCycles: 3,
+      headSha: "abc123",
+    });
+    await writeJson(checkpointPathB, {
+      pr: 55,
+      repo: "owner/repo-b",
+      outerAction: "stop",
+      copilotState: "review_request_unavailable",
+      reviewerState: "waiting_for_author_followup",
+      reason: "review_unavailable",
+      timestamp: "2026-05-17T10:00:00Z",
+      waitCycles: 1,
+      headSha: "def456",
+    });
+
+    const result = await runNode(["--repo", "owner/repo-b", "--pr", "55"], {
+      cwd: tempDir,
+      env: { ...process.env, PATH: tempDir },
+    });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.sourceMode, SOURCE_MODE.CHECKPOINT_ONLY);
+    assert.equal(output.evidence.checkpoint[0], path.join("tmp", "copilot-loop", "owner", "repo-b", "pr-55", "outer-loop-state.json"));
+    assert.equal(output.outerAction, "stop");
+  });
+});
+
 test("inspect-run CLI: reads matching legacy checkpoint as fallback when repo input casing differs", async () => {
   await withTempDir(async (tempDir) => {
     const checkpointPath = path.join(tempDir, "tmp", "copilot-loop", "pr-55", "outer-loop-state.json");
