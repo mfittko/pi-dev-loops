@@ -49,6 +49,7 @@ import {
   normalizeReviewerSnapshot,
   REVIEWER_STATE,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+import { evaluateConductorRouting } from "../../packages/core/src/loop/conductor-routing.mjs";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 
@@ -479,6 +480,17 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     gitStatus,
   });
 
+  // Evaluate conductor routing above the outer-loop decision
+  const conductorRouting = evaluateConductorRouting({
+    target: { repo, pr },
+    copilotState: copilotInterpretation.state,
+    reviewerState: reviewerInterpretation.state,
+    outerAction: decision.outerAction,
+    outerReason: decision.reason,
+    sourceMode: (copilotInputPath !== undefined || reviewerInputPath !== undefined) ? "snapshot" : "local",
+    requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
+  });
+
   // Read previous checkpoint to track wait cycles
   const prevCheckpoint = await readCheckpoint(checkpointDir);
   const prevWaitCycles = typeof prevCheckpoint?.waitCycles === "number" ? prevCheckpoint.waitCycles : 0;
@@ -504,6 +516,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
     ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
+    conductorRouting,
     checkpoint,
   };
 }
