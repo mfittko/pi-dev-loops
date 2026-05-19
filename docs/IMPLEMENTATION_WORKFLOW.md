@@ -1,14 +1,45 @@
 # Implementation workflow
 
-This repository uses a docs-first local dev-loop convention.
+This repository supports both a local phased workflow and a GitHub-first remote workflow.
+
+## Repo-level workflow preference
+
+Use these defaults unless the user explicitly asks for something else:
+- prefer the **GitHub remote-loop workflow** for active implementation and release work
+- use the local **`dev-loop`** for phase-bounded local planning/implementation when explicitly requested
+
+In practice:
+- use `copilot-dev-loop` for normal GitHub-first issue/PR execution
+- use `copilot-autopilot` when the user wants end-to-end issue-first GitHub execution
+- use `dev-loop` only when the user explicitly wants the local phase-based path
 
 ## Layers of truth
 
-### 1. `PLAN.md`
-Use for durable product, architecture, and roadmap truth across phases.
+### 1. GitHub issues and PRs
 
-### 2. `docs/phases/phase-<n>.md`
-Use for the durable plan for one phase:
+Use GitHub as the backlog and execution trail for GitHub-first work:
+- issues are the backlog
+- PRs are the execution and review trail
+- issue/PR comments are the durable discussion trail for remote-loop work
+
+Do not invent a parallel backlog file for active GitHub-first execution.
+
+### 2. `PLAN.md`
+
+Use for durable repo/product/architecture/roadmap truth.
+
+Do not turn `PLAN.md` into an issue-level implementation checklist.
+
+### 3. `docs/IMPLEMENTATION_STATE.md`
+
+Use for the current repo execution snapshot:
+- which phase is active
+- what a fresh session should read first
+- which workflow mode is expected next
+
+### 4. `docs/phases/phase-<n>.md`
+
+Use for the durable plan for one local phase:
 - why the phase exists now
 - in-scope work
 - explicit non-goals
@@ -17,38 +48,41 @@ Use for the durable plan for one phase:
 - validation approach
 - durable decisions and open questions
 
-A fresh human or agent should be able to read the active phase doc first and understand the current intent without replaying tmp artifacts.
+A fresh human or agent should be able to read the active phase doc first and understand the current local-phase intent without replaying `tmp/` artifacts.
 
-### 3. `tmp/phases/phase-<n>/`
-Use for temporary local execution artifacts and audit trails:
+### 5. `tmp/`
+
+Use for temporary execution artifacts and audit trails:
 - planning variants
 - merged plan drafts
-- review notes, including definition-of-done and RFC-escalation checks
-- retrospectives
+- review notes
+- retrospective notes
 - subagent summaries
-- deterministic logs such as `bash-exit-1.jsonl`
+- deterministic logs
+- proposal/intake artifacts
 
-Keep this surface minimal. Start with only the artifacts needed to resume the current phase, and create optional artifacts such as extra variants, clarification notes, raw subagent output captures, and dev-mode files only when they are actually used.
+These files are normally local-only and do not need to be committed.
 
-These files are normally local-only and do not need to be committed to git.
+## Documentation sync rule
 
-## Dev mode expectation
+When a merged slice changes durable repo truth, update the affected durable docs before treating the slice as closed.
 
-When dev mode is used for a phase, leave behind:
-- `tmp/phases/phase-<n>/dev-mode-retrospective.md`
-- `tmp/phases/phase-<n>/dev-mode-skill-changes.md`
+Typical touched docs:
+- `README.md` when the shipped surface or usage contract changed
+- `PLAN.md` when durable roadmap/product truth changed
+- `docs/IMPLEMENTATION_STATE.md` when the current status, active phase, or fresh-session guidance changed
+- `docs/IMPLEMENTATION_WORKFLOW.md` when workflow preference or source-of-truth rules changed
+- relevant contract/state-graph docs under `docs/` when a helper or workflow contract changed
+- `scripts/README.md` when script surfaces, outputs, or supported entrypoints changed
 
-The dev retrospective should drive at least one bounded follow-up update to a relevant skill and/or agent prompt. Supporting workflow-doc, template, script, or test changes may accompany that prompt update, but they do not replace it.
+Keep issue-specific execution plans in GitHub issues/PRs or `tmp/`, not in repo-level durable docs.
 
-## Default operating mode
+## Default operating rules for local phase work
 
-- one phase at a time
+When the user explicitly chooses the local phased path:
+- work one phase at a time
 - refine the active phase before coding it
 - use the dedicated refiner role for phase-refinement work when available, while keeping the coordinator as the RFC receiving boundary and decision owner
-- when a phase includes a bounded audit or scan, record prioritized findings and explicit non-goals rather than letting it become an open-ended rewrite
-- for new CLI surfaces, make success-output and malformed-argument/error-contract expectations explicit during planning
-- for watcher or predicate-driven behavior, make timeout semantics and negative-case/non-target-activity expectations explicit during planning
-- for package-first phases in a source-loaded workspace, make the local shared-helper consumption boundary explicit instead of assuming published-package import resolution
 - keep durable decisions in docs and execution traces in `tmp/`
 - use fan-out / fan-in / review before implementation
 - write tests first for non-trivial changes
@@ -59,18 +93,15 @@ The dev retrospective should drive at least one bounded follow-up update to a re
 ## Phase completion semantics
 
 Use these terms consistently:
-
-- `in-progress` / `planning` = the phase is still being refined or executed
+- `planning` / `in-progress` = the phase is still being refined or executed
 - `awaiting-finalization` = scoped work, required support files, artifacts, and validation are done, but commit and/or merge steps are still pending authorization or execution
 - `completed` = the phase is fully finalized, including commit history capture and merge back to local `main`
 
-For bootstrap/setup phases, do not use `awaiting-finalization` or `completed` until the expected durable support files for the workflow contract exist in the repository. Temporary `tmp/` artifacts do not need to be committed.
-
 Do not mark a phase `completed` if the only thing left is “commit later” or “merge later.” In that case, mark it `awaiting-finalization` and record the missing step explicitly.
 
-## Bootstrap expectation
+## Bootstrap/support expectation for the local phase path
 
-The dev-loop skill should create or maintain:
+The local phase workflow expects the repo to maintain:
 - `AGENTS.md`
 - `docs/IMPLEMENTATION_STATE.md`
 - `docs/IMPLEMENTATION_WORKFLOW.md`
@@ -80,6 +111,7 @@ The dev-loop skill should create or maintain:
 
 ## Convention goal
 
-This split is intentional:
-- docs are for durable human-and-agent understanding
-- tmp is for resumable execution detail and machine-friendly artifacts
+The split is intentional:
+- GitHub issues/PRs carry backlog and remote execution trail
+- durable docs carry long-lived human-and-agent truth
+- `tmp/` carries resumable execution detail and machine-friendly artifacts

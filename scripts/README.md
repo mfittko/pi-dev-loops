@@ -331,6 +331,8 @@ Contract:
   mutation and the checkout is dirty or detached
 - persists bounded checkpoint state to `tmp/copilot-loop/pr-<n>/outer-loop-state.json` for
   async continuation and false-positive wakeup detection
+- emits an additive `conductorRouting` field with the conductor-owned routing outcome, derived
+  outer action, stop reason when relevant, and any machine-readable handoff envelope
 - supports snapshot-input mode for deterministic gh-free testing
 
 Success output shape:
@@ -339,6 +341,59 @@ Success output shape:
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
 - unexpected `gh` or `git` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
+### `scripts/loop/inspect-run.mjs`
+
+Read-only inspection entrypoint for one explicit Copilot PR outer-loop target.
+It composes current inner-loop facts into one JSON snapshot without attaching to
+an active worker or mutating local/runtime state.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Optional:
+- `--steering-state-file <path>`
+- `--copilot-input <path>`
+- `--reviewer-input <path>`
+
+Contract:
+- is strictly read-only: it does not write checkpoints, mutate GitHub state, or create local artifacts
+- returns a stable top-level inspection shape with target identity, outer action, active family state,
+  status class, trust/source semantics, evidence, markers, and best-effort drill-down layers
+- reports not-found or unavailable targets as structured success output with `statusClass: "unknown"`
+  rather than by throwing a synthetic blocked-run error
+- surfaces steering as a best-effort drill-down layer when `--steering-state-file` is provided
+
+Success output shape:
+- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "layers": { ... } }`
+
+Failure behavior:
+- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- unexpected runtime failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
+### `scripts/loop/steer-loop.mjs`
+
+Mid-flight operator steering CLI for active dev loops.
+
+Subcommands:
+- `submit` — submit a steering directive to a specific run
+- `status` — inspect the current steering state for a run
+
+Contract:
+- persists steering state to a JSON file (default: `.pi/steering/<run-id>.json`)
+- accepts the current loop state as an injected input so callers can reuse existing loop detection
+  rather than making this CLI re-query GitHub directly
+- returns deterministic acknowledgement/result payloads for `submit` and deterministic state
+  readback for `status`
+
+Success output shape:
+- `submit`: `{ "ok": true, "result": { ... }, "steeringState": { ... } }`
+- `status`: `{ "ok": true, "status": { ... } }`
+
+Failure behavior:
+- argument/usage errors emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- runtime failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/loop/summarize-loop-state.mjs`
 
