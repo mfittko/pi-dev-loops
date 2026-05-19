@@ -104,6 +104,17 @@ test("copilot skill requires github reply/resolve follow-up and gates waiting on
   assert.match(content, /`already-requested`: if another Copilot pass is actually desired/);
   assert.match(content, /`unavailable`: report the limitation and stop/);
   assert.match(content, /stop and report the error rather than (?:entering a sleep\/watch loop|sleeping and hoping for a new review)/);
+  assert.match(content, /keep commit SHAs and issue\/PR refs as plain text/i);
+  assert.match(content, /do not wrap them in backticks/i);
+  assert.match(content, /backticks for actual code\/path\/CLI literals only/i);
+});
+
+test("fixer agent preserves GitHub autolinks in thread replies while still allowing code literals", async () => {
+  const content = await readRepo("agents/fixer.agent.md");
+
+  assert.match(content, /keep commit SHAs and issue\/PR refs unwrapped/i);
+  assert.match(content, /intent is GitHub autolinks/i);
+  assert.match(content, /reserve backticks for actual code\/path\/CLI literals/i);
 });
 
 test("copilot skill forbids detached bash watcher loops for async follow-up", async () => {
