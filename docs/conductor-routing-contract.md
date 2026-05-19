@@ -66,6 +66,19 @@ The evaluator (`evaluateConductorRouting`) consumes a single normalized input ob
 | `copilotState` | `string` | Already-detected copilot loop lifecycle state (from `STATE` constants in `copilot-loop-state.mjs`) |
 | `reviewerState` | `string` | Already-detected reviewer loop lifecycle state (from `REVIEWER_STATE` constants in `reviewer-loop-state.mjs`) |
 
+### Target normalization and malformed-target behavior
+
+For valid targets, the evaluator normalizes:
+- `target.repo` -> `target.repo.trim().toLowerCase()`
+- `target.pr` -> unchanged positive integer
+
+When `target` is missing or malformed, routing fails closed to `needs_reconcile`.
+In that fail-closed result, `handoffEnvelope.targetIdentity` is stable:
+- `null` when `target` is absent or not an object
+- otherwise `{ repo: string | null, pr: number | null }`, where:
+  - `repo` is lowercased+trimmed when a non-empty repo string is present, else `null`
+  - `pr` is the positive integer when valid, else `null`
+
 ### Optional inputs
 
 | Field | Type | Default | Description |
@@ -112,7 +125,7 @@ The following input combinations are sufficient for direct routing (no reconcile
 |---|---|---|
 | `routingOutcome` | `string` | One of the 7 closed routing outcome values |
 | `outerAction` | `string` | Derived outer-loop action (for backward compat with `outer-loop.mjs` checkpoint/output shape) |
-| `stopReason` | `string | null` | Stop reason code (from `STOP_REASON` constants) when `outerAction` is `"stop"`; `null` otherwise |
+| `stopReason` | `string | null` | Stop reason code (from `STOP_REASON` constants) when `outerAction` is `"stop"`; `null` otherwise. `ownershipState === "duplicate_local_owners"` emits `"ownership_conflict"`; unmapped state combinations continue to use `"unknown_state"`. |
 | `handoffEnvelope` | `object` | Machine-readable handoff payload (see below) |
 
 ---
@@ -137,7 +150,7 @@ Every routing decision emits a `handoffEnvelope` with the following fields:
 
 | Field | Type | Description |
 |---|---|---|
-| `targetIdentity` | `{ repo: string, pr: number }` | Normalized target identity for downstream workers |
+| `targetIdentity` | `{ repo: string, pr: number } \| { repo: string \| null, pr: number \| null } \| null` | Normalized target identity for downstream workers; malformed-target fail-closed results use the stable degraded shape described above |
 | `loopFamily` | `string | null` | Which loop family receives control; `null` for terminal/blocked/reconcile |
 | `entrypoint` | `string | null` | Specific handler identifier; `null` when no automated handler applies |
 | `reason` | `string` | Human-readable reason/evidence summary for the routing decision |

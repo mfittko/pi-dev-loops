@@ -365,7 +365,7 @@ test("outer-loop done → conductorRouting.routingOutcome=done_terminal", async 
   }
 });
 
-test("outer-loop conductorRouting.handoffEnvelope.targetIdentity matches repo+pr args", async () => {
+test("outer-loop normalizes repo casing consistently across handoff envelope and checkpoint", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "conductor-routing-test-"));
   try {
     const env = await writeGitStub(tempDir);
@@ -404,9 +404,10 @@ test("outer-loop conductorRouting.handoffEnvelope.targetIdentity matches repo+pr
 
     assert.equal(code, 0);
     const result = JSON.parse(stdout);
-    // repo is normalized to lowercase by evaluateConductorRouting
+    // repo is normalized once in outer-loop so checkpoint and handoff envelope agree
     assert.equal(result.conductorRouting.handoffEnvelope.targetIdentity.repo, "owner/myrepo");
     assert.equal(result.conductorRouting.handoffEnvelope.targetIdentity.pr, 77);
+    assert.equal(result.checkpoint.repo, "owner/myrepo");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

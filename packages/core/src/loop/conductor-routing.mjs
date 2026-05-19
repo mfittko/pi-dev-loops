@@ -107,6 +107,7 @@ export const STOP_REASON = Object.freeze({
   REVIEWER_BLOCKED: "reviewer_blocked",
   REVIEW_UNAVAILABLE: "review_unavailable",
   UNSAFE_LOCAL_EDIT: "unsafe_local_edit_requires_isolation",
+  OWNERSHIP_CONFLICT: "ownership_conflict",
   UNKNOWN_STATE: "unknown_state",
 });
 
@@ -188,6 +189,21 @@ function normalizeTarget(target) {
     return null;
   }
   return { repo: repo.trim().toLowerCase(), pr };
+}
+
+function describeMalformedTarget(target) {
+  if (!target || typeof target !== "object") {
+    return null;
+  }
+
+  const repo = typeof target.repo === "string" && target.repo.trim().length > 0
+    ? target.repo.trim().toLowerCase()
+    : null;
+  const pr = typeof target.pr === "number" && Number.isInteger(target.pr) && target.pr > 0
+    ? target.pr
+    : null;
+
+  return { repo, pr };
 }
 
 function resolveConfidence(sourceMode) {
@@ -306,7 +322,7 @@ function routeFromStates({
     return {
       routingOutcome: ROUTING_OUTCOME.NEEDS_RECONCILE,
       outerAction: "stop",
-      stopReason: STOP_REASON.UNKNOWN_STATE,
+      stopReason: STOP_REASON.OWNERSHIP_CONFLICT,
       handoffEnvelope: buildEnvelope({
         targetIdentity: normalizedTarget,
         loopFamily: LOOP_FAMILY.NONE,
@@ -628,7 +644,7 @@ export function evaluateConductorRouting({
       outerAction: "stop",
       stopReason: STOP_REASON.UNKNOWN_STATE,
       handoffEnvelope: buildEnvelope({
-        targetIdentity: target ?? null,
+        targetIdentity: describeMalformedTarget(target),
         loopFamily: LOOP_FAMILY.NONE,
         entrypoint: ENTRYPOINT.NONE,
         reason: "Target identity is missing or malformed; cannot route without a resolved target",

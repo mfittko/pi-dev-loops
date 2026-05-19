@@ -344,6 +344,7 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
  */
 export async function runOuterLoop(options, { env = process.env, ghCommand = "gh", gitCommand = "git" } = {}) {
   const { repo, pr, reviewerLogin, copilotInputPath, reviewerInputPath } = options;
+  const normalizedRepo = repo.trim().toLowerCase();
   const checkpointDir = options.checkpointDir ?? defaultCheckpointDir(pr);
 
   // Detect copilot state
@@ -352,7 +353,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     const text = await readFile(copilotInputPath, "utf8");
     copilotSnapshot = normalizeCopilotSnapshot(parseJsonText(text));
   } else {
-    copilotSnapshot = await autoDetectCopilotSnapshot({ repo, pr }, { env, ghCommand });
+    copilotSnapshot = await autoDetectCopilotSnapshot({ repo: normalizedRepo, pr }, { env, ghCommand });
   }
   const copilotInterpretation = interpretLoopState(copilotSnapshot);
 
@@ -363,7 +364,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     reviewerSnapshot = normalizeReviewerSnapshot(parseJsonText(text));
   } else {
     reviewerSnapshot = await autoDetectReviewerSnapshot(
-      { repo, pr, reviewerLogin },
+      { repo: normalizedRepo, pr, reviewerLogin },
       { env, ghCommand },
     );
   }
@@ -375,7 +376,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   // Evaluate conductor routing — this is the routing authority.
   // The outer-loop action and stop reason are derived from the routing result.
   const conductorRouting = evaluateConductorRouting({
-    target: { repo, pr },
+    target: { repo: normalizedRepo, pr },
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
     sourceMode: (copilotInputPath !== undefined || reviewerInputPath !== undefined) ? "snapshot" : "local",
@@ -394,7 +395,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   // Build and persist checkpoint
   const checkpoint = {
     pr,
-    repo,
+    repo: normalizedRepo,
     outerAction,
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,

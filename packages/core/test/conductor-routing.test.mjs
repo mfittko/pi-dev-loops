@@ -89,6 +89,7 @@ test("STOP_REASON exports the required stop reason codes", () => {
   assert.equal(STOP_REASON.REVIEWER_BLOCKED, "reviewer_blocked");
   assert.equal(STOP_REASON.REVIEW_UNAVAILABLE, "review_unavailable");
   assert.equal(STOP_REASON.UNSAFE_LOCAL_EDIT, "unsafe_local_edit_requires_isolation");
+  assert.equal(STOP_REASON.OWNERSHIP_CONFLICT, "ownership_conflict");
   assert.equal(STOP_REASON.UNKNOWN_STATE, "unknown_state");
 });
 
@@ -423,6 +424,7 @@ test("conflict: ownership duplicate_local_owners → needs_reconcile", () => {
   }));
 
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
+  assert.equal(result.stopReason, STOP_REASON.OWNERSHIP_CONFLICT);
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.NONE);
   assert.equal(result.handoffEnvelope.entrypoint, ENTRYPOINT.NONE);
   assert.ok(result.handoffEnvelope.reason.includes("duplicate local owners"));
@@ -455,17 +457,20 @@ test("conflict: both states unknown → needs_reconcile", () => {
 test("non-target: null target → needs_reconcile", () => {
   const result = evaluateConductorRouting(makeInput({ target: null }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
+  assert.equal(result.handoffEnvelope.targetIdentity, null);
   assert.ok(result.handoffEnvelope.reason.includes("Target identity"));
 });
 
 test("non-target: missing repo → needs_reconcile", () => {
   const result = evaluateConductorRouting(makeInput({ target: { pr: 42 } }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
+  assert.deepEqual(result.handoffEnvelope.targetIdentity, { repo: null, pr: 42 });
 });
 
 test("non-target: non-integer pr → needs_reconcile", () => {
-  const result = evaluateConductorRouting(makeInput({ target: { repo: "acme/my-repo", pr: "not-a-number" } }));
+  const result = evaluateConductorRouting(makeInput({ target: { repo: "Acme/My-Repo", pr: "not-a-number" } }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
+  assert.deepEqual(result.handoffEnvelope.targetIdentity, { repo: "acme/my-repo", pr: null });
 });
 
 test("non-target: pr=0 → needs_reconcile", () => {
