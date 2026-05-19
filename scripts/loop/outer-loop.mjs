@@ -375,11 +375,15 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
 
   // Evaluate conductor routing — this is the routing authority.
   // The outer-loop action and stop reason are derived from the routing result.
+  const sourceMode = (copilotInputPath !== undefined && reviewerInputPath !== undefined)
+    ? "snapshot"
+    : "local";
+
   const conductorRouting = evaluateConductorRouting({
     target: { repo: normalizedRepo, pr },
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
-    sourceMode: (copilotInputPath !== undefined || reviewerInputPath !== undefined) ? "snapshot" : "local",
+    sourceMode,
     requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
   });
 

@@ -648,6 +648,7 @@ export function evaluateConductorRouting({
         loopFamily: LOOP_FAMILY.NONE,
         entrypoint: ENTRYPOINT.NONE,
         reason: "Target identity is missing or malformed; cannot route without a resolved target",
+        requiresLocalIsolation,
         confidence,
       }),
     };
@@ -664,6 +665,7 @@ export function evaluateConductorRouting({
         loopFamily: LOOP_FAMILY.NONE,
         entrypoint: ENTRYPOINT.NONE,
         reason: "Copilot state is missing or empty; cannot route without family-local state",
+        requiresLocalIsolation,
         confidence,
       }),
     };
@@ -679,6 +681,7 @@ export function evaluateConductorRouting({
         loopFamily: LOOP_FAMILY.NONE,
         entrypoint: ENTRYPOINT.NONE,
         reason: "Reviewer state is missing or empty; cannot route without family-local state",
+        requiresLocalIsolation,
         confidence,
       }),
     };

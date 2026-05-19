@@ -455,9 +455,10 @@ test("conflict: both states unknown → needs_reconcile", () => {
 // ---------------------------------------------------------------------------
 
 test("non-target: null target → needs_reconcile", () => {
-  const result = evaluateConductorRouting(makeInput({ target: null }));
+  const result = evaluateConductorRouting(makeInput({ target: null, requiresLocalIsolation: true }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
   assert.equal(result.handoffEnvelope.targetIdentity, null);
+  assert.equal(result.handoffEnvelope.requiresLocalIsolation, true);
   assert.ok(result.handoffEnvelope.reason.includes("Target identity"));
 });
 
@@ -479,8 +480,9 @@ test("non-target: pr=0 → needs_reconcile", () => {
 });
 
 test("non-target: empty copilotState → needs_reconcile", () => {
-  const result = evaluateConductorRouting(makeInput({ copilotState: "" }));
+  const result = evaluateConductorRouting(makeInput({ copilotState: "", requiresLocalIsolation: true }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
+  assert.equal(result.handoffEnvelope.requiresLocalIsolation, true);
 });
 
 test("non-target: missing copilotState → needs_reconcile", () => {
@@ -489,8 +491,9 @@ test("non-target: missing copilotState → needs_reconcile", () => {
 });
 
 test("non-target: empty reviewerState → needs_reconcile", () => {
-  const result = evaluateConductorRouting(makeInput({ reviewerState: "" }));
+  const result = evaluateConductorRouting(makeInput({ reviewerState: "", requiresLocalIsolation: true }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.NEEDS_RECONCILE);
+  assert.equal(result.handoffEnvelope.requiresLocalIsolation, true);
 });
 
 test("non-target: extra noise fields on input do not affect valid routing", () => {
