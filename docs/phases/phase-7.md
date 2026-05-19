@@ -119,6 +119,7 @@ This phase exists to answer, in one real non-bootstrap repo:
 - any downstream customization in this phase should stay thin, local, and explicitly documented rather than generalized prematurely
 - for the Phase 7 portability path, package install should expose the extension command surface only; packaged skills should be copied explicitly into repo-local or system-wide skill directories through `/dev-loops install ...` and `/dev-loops update ...`
 - phase refinement for this repo should default to fan-out / fan-in planning with multiple variants before converging on one merged plan
+- bounded workflow-remediation prep slices under issue `#70` may land first to harden the current workflow foundation, but they do not change this phase's scope or success criteria
 
 ## Open questions
 
@@ -130,6 +131,8 @@ This phase exists to answer, in one real non-bootstrap repo:
 ## Operational closure status
 
 Phase 7 refinement has started and the merged bounded plan is recorded here.
+
+Before pilot implementation begins, it is acceptable to land bounded workflow-remediation prep slices under issue `#70` so later work starts from a more reliable foundation. Those slices do not replace this phase.
 
 Implementation should not begin until the target repository is chosen and the GitHub issue is opened with the selected pilot path.
 

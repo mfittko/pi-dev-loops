@@ -142,6 +142,20 @@ Success for Phase 7 means:
 
 The durable phase plan lives in `docs/phases/phase-7.md`.
 
+#### Preparatory workflow-remediation track
+
+Before broader follow-up improvements continue, bounded remediation chunks under issue `#70` may land to harden the current workflow foundation.
+
+That prep track is intentionally narrow:
+- small local PR chunks
+- one bounded problem per chunk
+- no roadmap replacement
+- no silent expansion into a workflow rewrite
+
+This prep track does **not** replace Phase 7. It exists to make later work, including the Phase 7 pilot and subsequent improvements, start from a more reliable foundation.
+
+The durable prep memo lives in `docs/workflow-remediation-prep.md`.
+
 ### After Phase 7
 
 Do not lock later phases in detail until Phase 7 produces real evidence. Likely follow-up areas include:
