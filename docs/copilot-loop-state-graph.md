@@ -42,7 +42,7 @@ pr_ready_no_feedback
 waiting_for_copilot_review
   → unresolved_feedback_present  (Copilot reviewed; unresolved threads exist)
   → ready_to_rerequest_review    (Copilot reviewed; all threads resolved)
-  → waiting_for_ci               (CI checks are running)
+  → waiting_for_ci               (CI checks are running or have not materialized yet)
 
 unresolved_feedback_present
   → already_fixed_needs_reply_resolve  (agent applied fix; threads still open on GitHub)
@@ -87,7 +87,7 @@ The snapshot is the set of observable facts that the interpreter uses to determi
 | `copilotReviewOnCurrentHead` | `boolean` | Whether a submitted (non-PENDING) Copilot review exists for the current head commit; when true the wait is done even if `requested_reviewers` has not yet cleared |
 | `unresolvedThreadCount` | `number` | Total unresolved review-thread count |
 | `actionableThreadCount` | `number` | Unresolved threads with non-bot actionable comments |
-| `ciStatus` | `"success" \| "failure" \| "pending" \| "none"` | Current CI check rollup |
+| `ciStatus` | `"success" \| "failure" \| "pending" \| "none"` | Current CI check rollup; `none` means no usable CI readiness signal yet and is not treated as green |
 | `agentFixStatus` | `"applied" \| null` | Agent-provided: `"applied"` when code has been fixed |
 
 ### Review request status values

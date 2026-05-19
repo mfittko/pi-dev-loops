@@ -39,7 +39,7 @@ export const STATE = Object.freeze({
    * Do not sleep or watch as if review were requested.
    */
   REVIEW_REQUEST_UNAVAILABLE: "review_request_unavailable",
-  /** CI checks are in progress; wait before proceeding. */
+  /** CI checks are in progress or no usable CI readiness signal exists yet; wait before proceeding. */
   WAITING_FOR_CI: "waiting_for_ci",
   /**
    * An unexpected failure occurred (bad review-request result, CI failure, etc.)
