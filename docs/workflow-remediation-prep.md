@@ -4,16 +4,17 @@ Related issue: #70
 
 ## Purpose
 
-This document turns the 2026-05-19 workflow audit into durable repo guidance.
+This document turns the 2026-05-19 workflow audit into a durable supporting memo for issue `#70`.
 
-It is a **preparation track** for later improvements, not a roadmap reset.
+It is **supporting context**, not a new roadmap phase and not a backlog replacement.
 
-It exists to harden the current workflow foundation before broader follow-up work proceeds, while keeping the existing planned work intact — especially the bounded Phase 7 second-repo pilot.
+It exists to capture the concrete workflow-remediation findings in-repo while keeping the existing planned work intact — especially the bounded Phase 7 second-repo pilot.
 
 ## What this does not change
 
 - it does **not** replace `PLAN.md`
 - it does **not** replace `docs/phases/phase-7.md`
+- it does **not** replace issue `#70` as the execution-tracking surface for remediation chunks
 - it does **not** declare a one-shot workflow rewrite
 - it does **not** commit the raw local audit scratch artifacts under `tmp/`, `fanout/`, `fanin/`, `final/`, or `validation/`
 
@@ -104,26 +105,11 @@ Problem shape:
 - some docs still over-own or blur behavior
 - this weakens future maintenance and audits
 
-## Implementation chain
+## Execution tracking
 
-```mermaid
-flowchart TD
-    A[Chunk 1\nCommit distilled audit memo\nand prep phase docs] --> B[Chunk 2\nFix premature Copilot\nrequest gating]
-    B --> C[Chunk 3\nTighten checkpoint\nidentity and freshness]
-    C --> D[Chunk 4\nTighten inspect-run\nfallback honesty]
-    D --> E[Chunk 5\nDecide reviewer\nidentity scoping contract]
-    E --> F[Chunk 6\nDocs and authority\ncleanup]
-    F --> G[Resume later planned improvements\non stronger workflow footing]
-```
+Issue `#70` owns the current chunk order, Mermaid implementation chain, and follow-up PR rules.
 
-## Working rules for chunks
-
-Each follow-up PR should:
-- reference `#70`
-- stay bounded to one chunk
-- include explicit non-goals
-- include focused validation
-- update docs/contracts only where that chunk changes shipped behavior
+Use this memo for the durable findings; use the GitHub issue for the active execution sequence.
 
 ## Non-goals
 

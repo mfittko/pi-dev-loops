@@ -132,7 +132,7 @@ This phase exists to answer, in one real non-bootstrap repo:
 
 Phase 7 refinement has started and the merged bounded plan is recorded here.
 
-Before pilot implementation begins, it is acceptable to land bounded workflow-remediation prep slices under issue `#70` so later work starts from a more reliable foundation. Those slices do not replace this phase.
+Bounded workflow-remediation prep slices under issue `#70` may land independently to improve shared workflow footing. They are not part of this phase and do not replace it.
 
 Implementation should not begin until the target repository is chosen and the GitHub issue is opened with the selected pilot path.
 

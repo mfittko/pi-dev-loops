@@ -14,9 +14,12 @@ Current `main` also includes the current conductor-adjacent ownership/routing co
 - Product/repo roadmap: `PLAN.md`
 - Repo contract: `AGENTS.md`
 - Workflow explainer: `docs/IMPLEMENTATION_WORKFLOW.md`
-- Durable remediation prep memo: `docs/workflow-remediation-prep.md`
 - Durable local phase plan: `docs/phases/phase-7.md`
 - tmp index for fresh-context inspection if present locally: `tmp/phases/index.json`
+
+## Supporting context
+
+- Workflow-remediation findings memo for issue `#70`: `docs/workflow-remediation-prep.md`
 
 ## Current phase
 
