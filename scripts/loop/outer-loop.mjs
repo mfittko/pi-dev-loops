@@ -21,6 +21,8 @@
  * Success output shape:
  *   { "ok": true, "outerAction": "...", "copilotState": "...",
  *     "reviewerState": "...", "reason"?: "...",
+ *     "conductorRouting": { "routingOutcome": "...", "outerAction": "...",
+ *       "stopReason": null|"...", "handoffEnvelope": { ... } },
  *     "checkpoint": { "pr": N, "repo": "...", "outerAction": "...",
  *       "copilotState": "...", "reviewerState": "...", "reason": null|"...",
  *       "timestamp": "...", "waitCycles": N } }
@@ -42,13 +44,12 @@ import { autoDetectReviewerSnapshot } from "./detect-reviewer-loop-state.mjs";
 import {
   interpretLoopState,
   normalizeSnapshot as normalizeCopilotSnapshot,
-  STATE,
 } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
-  REVIEWER_STATE,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+import { evaluateConductorRouting } from "../../packages/core/src/loop/conductor-routing.mjs";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 
@@ -73,6 +74,8 @@ Optional:
 Output (stdout, JSON):
   { "ok": true, "outerAction": "...", "copilotState": "...",
     "reviewerState": "...", "reason"?: "...",
+    "conductorRouting": { "routingOutcome": "...", "outerAction": "...",
+      "stopReason": null|"...", "handoffEnvelope": { ... } },
     "checkpoint": { "pr": N, "repo": "...", "outerAction": "...",
       "copilotState": "...", "reviewerState": "...", "reason": null|"...",
       "timestamp": "...", "waitCycles": N } }
@@ -104,48 +107,6 @@ Exit codes:
   1  Argument error, gh/git failure, or indeterminate state`.trim();
 
 // ---------------------------------------------------------------------------
-// Reviewer states that require active work (reviewer has pending actions)
-// ---------------------------------------------------------------------------
-const REVIEWER_ACTIVE_STATES = new Set([
-  REVIEWER_STATE.REVIEW_REQUESTED,
-  REVIEWER_STATE.DETERMINE_REVIEW_PLAN,
-  REVIEWER_STATE.REVIEWS_RUNNING,
-  REVIEWER_STATE.MERGE_RESULTS,
-  REVIEWER_STATE.DRAFT_REVIEW_READY,
-  REVIEWER_STATE.DRAFT_REVIEW_POSTED,
-  REVIEWER_STATE.WAITING_FOR_USER_SUBMIT,
-  REVIEWER_STATE.SUBMITTED_REVIEW,
-  REVIEWER_STATE.REVIEW_INVALIDATED,
-]);
-
-// Reviewer states that need local execution (running review commands)
-const REVIEWER_NEEDS_LOCAL_EXECUTION = new Set([
-  REVIEWER_STATE.REVIEW_REQUESTED,
-  REVIEWER_STATE.DETERMINE_REVIEW_PLAN,
-  REVIEWER_STATE.REVIEWS_RUNNING,
-  REVIEWER_STATE.MERGE_RESULTS,
-  REVIEWER_STATE.DRAFT_REVIEW_READY,
-]);
-
-// Copilot states that need immediate action and take priority over reviewer wait states
-// (i.e. they win even when reviewer is in waiting_for_author_followup or waiting_for_re_request)
-const COPILOT_STRONG_ACTIVE_STATES = new Set([
-  STATE.UNRESOLVED_FEEDBACK_PRESENT,
-  STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE,
-]);
-
-// Copilot states that require action but yield to reviewer wait states
-const COPILOT_WEAK_ACTIVE_STATES = new Set([
-  STATE.PR_READY_NO_FEEDBACK,
-  STATE.READY_TO_REREQUEST_REVIEW,
-]);
-
-// Copilot states that need local execution or mutation before the next GitHub wait
-const COPILOT_NEEDS_LOCAL_EXECUTION = new Set([
-  STATE.PR_DRAFT,
-  STATE.UNRESOLVED_FEEDBACK_PRESENT,
-]);
-
 // ---------------------------------------------------------------------------
 // Argument parsing
 // ---------------------------------------------------------------------------
@@ -338,95 +299,34 @@ async function writeCheckpoint(checkpointDir, checkpoint) {
 }
 
 // ---------------------------------------------------------------------------
-// Outer action decision
+// Outer action decision (thin adapter around evaluateConductorRouting)
 // ---------------------------------------------------------------------------
 
 /**
  * Decide the outer-loop action from the two inner-machine states.
  *
- * Priority order (first match wins):
- *   1. Terminal / missing-PR stop
- *   2. Hard stops (blocked, unavailable)
- *   3. Reviewer active work → reenter_reviewer_loop (with dirty check)
- *   4. Copilot active work → reenter_copilot_loop (with dirty check)
- *   5. Wait states → continue_wait
- *   6. Fallback → stop / unknown_state
+ * This is a thin adapter around evaluateConductorRouting, which is the
+ * conductor-owned routing authority. The routing logic lives there; this
+ * function maps the routing result to the { outerAction, reason? } shape.
+ *
+ * A sentinel target is used here so that the routing evaluator can be
+ * called without a concrete PR identity (e.g. from inspect-run.mjs or
+ * unit tests). The sentinel target is discarded and does not affect routing.
  *
  * @param {{ copilotState: string, reviewerState: string, gitStatus: { isDirty: boolean, isDetached: boolean } }} params
  * @returns {{ outerAction: string, reason?: string }}
  */
 export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
-  // 1. Terminal
-  if (copilotState === STATE.DONE) {
-    return { outerAction: "done" };
-  }
-
-  if (copilotState === STATE.NO_PR) {
-    return { outerAction: "stop", reason: "pr_not_ready" };
-  }
-
-  if (copilotState === STATE.PR_DRAFT) {
-    if (gitStatus.isDirty || gitStatus.isDetached) {
-      return { outerAction: "stop", reason: "unsafe_local_edit_requires_isolation" };
-    }
-    return { outerAction: "reenter_copilot_loop" };
-  }
-
-  // 2. Hard stops
-  if (copilotState === STATE.REVIEW_REQUEST_UNAVAILABLE) {
-    return { outerAction: "stop", reason: "review_unavailable" };
-  }
-
-  if (copilotState === STATE.BLOCKED_NEEDS_USER_DECISION) {
-    return { outerAction: "stop", reason: "copilot_blocked" };
-  }
-
-  if (reviewerState === REVIEWER_STATE.BLOCKED_NEEDS_USER_DECISION) {
-    return { outerAction: "stop", reason: "reviewer_blocked" };
-  }
-
-  // 3. Reviewer active work takes priority (reviewer needs to complete review)
-  if (REVIEWER_ACTIVE_STATES.has(reviewerState)) {
-    const needsIsolation = REVIEWER_NEEDS_LOCAL_EXECUTION.has(reviewerState) && (gitStatus.isDirty || gitStatus.isDetached);
-    if (needsIsolation) {
-      return { outerAction: "stop", reason: "unsafe_local_edit_requires_isolation" };
-    }
-    return { outerAction: "reenter_reviewer_loop" };
-  }
-
-  // 4a. Strong copilot fix/reply states take priority over reviewer wait states
-  if (COPILOT_STRONG_ACTIVE_STATES.has(copilotState)) {
-    const needsIsolation = COPILOT_NEEDS_LOCAL_EXECUTION.has(copilotState) && (gitStatus.isDirty || gitStatus.isDetached);
-    if (needsIsolation) {
-      return { outerAction: "stop", reason: "unsafe_local_edit_requires_isolation" };
-    }
-    return { outerAction: "reenter_copilot_loop" };
-  }
-
-  // 5. Wait states owned by the outer loop (checked before weak copilot active states)
-  if (copilotState === STATE.WAITING_FOR_COPILOT_REVIEW) {
-    return { outerAction: "continue_wait" };
-  }
-
-  if (copilotState === STATE.WAITING_FOR_CI) {
-    return { outerAction: "continue_wait" };
-  }
-
-  if (reviewerState === REVIEWER_STATE.WAITING_FOR_AUTHOR_FOLLOWUP) {
-    return { outerAction: "continue_wait" };
-  }
-
-  if (reviewerState === REVIEWER_STATE.WAITING_FOR_RE_REQUEST) {
-    return { outerAction: "continue_wait" };
-  }
-
-  // 4b. Weak copilot active states (request-only; yield to reviewer waits above)
-  if (COPILOT_WEAK_ACTIVE_STATES.has(copilotState)) {
-    return { outerAction: "reenter_copilot_loop" };
-  }
-
-  // 6. Fallback
-  return { outerAction: "stop", reason: "unknown_state" };
+  const routing = evaluateConductorRouting({
+    target: { repo: "routing/sentinel", pr: 1 },
+    copilotState,
+    reviewerState,
+    requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
+  });
+  return {
+    outerAction: routing.outerAction,
+    ...(routing.stopReason !== null ? { reason: routing.stopReason } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -434,8 +334,8 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
 // ---------------------------------------------------------------------------
 
 /**
- * Detect both inner-loop states, decide the outer action, persist checkpoint,
- * and return the result payload.
+ * Detect both inner-loop states, evaluate conductor routing (the routing
+ * authority), persist checkpoint, and return the result payload.
  *
  * @param {{ repo: string, pr: number, reviewerLogin?: string, checkpointDir?: string,
  *           copilotInputPath?: string, reviewerInputPath?: string }} options
@@ -444,6 +344,7 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
  */
 export async function runOuterLoop(options, { env = process.env, ghCommand = "gh", gitCommand = "git" } = {}) {
   const { repo, pr, reviewerLogin, copilotInputPath, reviewerInputPath } = options;
+  const normalizedRepo = repo.trim().toLowerCase();
   const checkpointDir = options.checkpointDir ?? defaultCheckpointDir(pr);
 
   // Detect copilot state
@@ -452,7 +353,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     const text = await readFile(copilotInputPath, "utf8");
     copilotSnapshot = normalizeCopilotSnapshot(parseJsonText(text));
   } else {
-    copilotSnapshot = await autoDetectCopilotSnapshot({ repo, pr }, { env, ghCommand });
+    copilotSnapshot = await autoDetectCopilotSnapshot({ repo: normalizedRepo, pr }, { env, ghCommand });
   }
   const copilotInterpretation = interpretLoopState(copilotSnapshot);
 
@@ -463,7 +364,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     reviewerSnapshot = normalizeReviewerSnapshot(parseJsonText(text));
   } else {
     reviewerSnapshot = await autoDetectReviewerSnapshot(
-      { repo, pr, reviewerLogin },
+      { repo: normalizedRepo, pr, reviewerLogin },
       { env, ghCommand },
     );
   }
@@ -472,26 +373,37 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   // Check git status
   const gitStatus = await checkGitStatus({ env, gitCommand });
 
-  // Decide outer action
-  const decision = decideOuterAction({
+  // Evaluate conductor routing — this is the routing authority.
+  // The outer-loop action and stop reason are derived from the routing result.
+  const sourceMode = (copilotInputPath !== undefined && reviewerInputPath !== undefined)
+    ? "snapshot"
+    : "local";
+
+  const conductorRouting = evaluateConductorRouting({
+    target: { repo: normalizedRepo, pr },
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
-    gitStatus,
+    sourceMode,
+    requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
   });
+
+  // Derive outer-loop action from the routing result (backward-compat output shape)
+  const outerAction = conductorRouting.outerAction;
+  const outerReason = conductorRouting.stopReason;
 
   // Read previous checkpoint to track wait cycles
   const prevCheckpoint = await readCheckpoint(checkpointDir);
   const prevWaitCycles = typeof prevCheckpoint?.waitCycles === "number" ? prevCheckpoint.waitCycles : 0;
-  const waitCycles = decision.outerAction === "continue_wait" ? prevWaitCycles + 1 : 0;
+  const waitCycles = outerAction === "continue_wait" ? prevWaitCycles + 1 : 0;
 
   // Build and persist checkpoint
   const checkpoint = {
     pr,
-    repo,
-    outerAction: decision.outerAction,
+    repo: normalizedRepo,
+    outerAction,
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
-    reason: decision.reason ?? null,
+    reason: outerReason ?? null,
     timestamp: new Date().toISOString(),
     waitCycles,
   };
@@ -500,10 +412,11 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
 
   return {
     ok: true,
-    outerAction: decision.outerAction,
+    outerAction,
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
-    ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
+    ...(outerReason !== null && outerReason !== undefined ? { reason: outerReason } : {}),
+    conductorRouting,
     checkpoint,
   };
 }

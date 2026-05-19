@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
-import { decideOuterAction } from "../../scripts/loop/outer-loop.mjs";
+import { decideOuterAction, runOuterLoop } from "../../scripts/loop/outer-loop.mjs";
 
 const scriptPath = path.resolve("scripts/loop/outer-loop.mjs");
 
@@ -65,6 +65,47 @@ async function writeGitStub(tempDir, { porcelainOutput = "", headRef = "main" } 
     "utf8",
   );
   await chmod(gitPath, 0o755);
+
+  return {
+    ...process.env,
+    PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
+  };
+}
+
+async function writeGhStub(tempDir, { repo = "owner/myrepo", pr = 47, headSha = "abc123" } = {}) {
+  const ghPath = path.join(tempDir, "gh");
+  await writeFile(
+    ghPath,
+    [
+      "#!/usr/bin/env node",
+      "const args = process.argv.slice(2);",
+      "const joined = args.join(' ');",
+      `const repo = ${JSON.stringify(repo)};`,
+      `const pr = ${JSON.stringify(pr)};`,
+      `const headSha = ${JSON.stringify(headSha)};`,
+      "if (joined.includes('pr view') && joined.includes('--json')) {",
+      "  process.stdout.write(JSON.stringify({ isDraft: false, state: 'OPEN', number: pr, headRefOid: headSha, reviews: [], statusCheckRollup: [] }));",
+      "  process.exit(0);",
+      "}",
+      "if (joined.includes('requested_reviewers')) {",
+      "  process.stdout.write(JSON.stringify({ users: [] }));",
+      "  process.exit(0);",
+      "}",
+      "if (joined.includes(`/pulls/${pr}/reviews`)) {",
+      "  process.stdout.write(JSON.stringify([]));",
+      "  process.exit(0);",
+      "}",
+      "if (joined.includes('graphql')) {",
+      "  process.stdout.write(JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }));",
+      "  process.exit(0);",
+      "}",
+      "process.stderr.write(`unexpected gh args: ${joined}\\n`);",
+      "process.exit(1);",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(ghPath, 0o755);
 
   return {
     ...process.env,
@@ -460,6 +501,34 @@ test("outer-loop: waiting_for_copilot_review → continue_wait", async () => {
     assert.equal(output.checkpoint.repo, "owner/repo");
     assert.equal(output.checkpoint.waitCycles, 1);
     assert.ok(typeof output.checkpoint.timestamp === "string");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop mixed live+snapshot input keeps local sourceMode", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-mixed-source-mode-"));
+
+  try {
+    const reviewerSnapshotPath = path.join(tempDir, "reviewer-snapshot.json");
+
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prHeadSha: "abc123",
+    });
+
+    const gitEnv = await writeGitStub(tempDir, { porcelainOutput: "", headRef: "main" });
+    const env = await writeGhStub(tempDir, { repo: "owner/myrepo", pr: 47, headSha: "abc123" });
+
+    const output = await runOuterLoop({
+      repo: "Owner/MyRepo",
+      pr: 47,
+      reviewerInputPath: reviewerSnapshotPath,
+      checkpointDir: tempDir,
+    }, { env: { ...gitEnv, ...env }, ghCommand: "gh", gitCommand: "git" });
+
+    assert.equal(output.conductorRouting.handoffEnvelope.confidence, "local");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
