@@ -170,7 +170,7 @@ const REVIEWER_WAIT = new Set([
 const OWNERSHIP_LIVE_OWNER = "live_owner";
 
 // Ownership state that indicates duplicate local owners (must reconcile)
-const OWNERSHIP_DUPLICATE = "duplicate_local_owners";
+const OWNERSHIP_DUPLICATE_LOCAL_OWNERS = "duplicate_local_owners";
 
 // ---------------------------------------------------------------------------
 // Input normalization helpers
@@ -302,7 +302,7 @@ function routeFromStates({
   const baseArgs = { repo: normalizedTarget.repo, pr: normalizedTarget.pr };
 
   // 1. Ownership conflict — must reconcile before routing
-  if (ownershipState === OWNERSHIP_DUPLICATE) {
+  if (ownershipState === OWNERSHIP_DUPLICATE_LOCAL_OWNERS) {
     return {
       routingOutcome: ROUTING_OUTCOME.NEEDS_RECONCILE,
       outerAction: "stop",

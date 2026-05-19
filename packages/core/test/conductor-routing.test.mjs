@@ -407,6 +407,8 @@ test("live_owner: wait states + ownershipState=live_owner → continue_current_w
     ownershipState: "live_owner",
   }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
+  assert.equal(result.outerAction, "continue_wait");
+  assert.equal(result.stopReason, null);
 });
 
 // ---------------------------------------------------------------------------
