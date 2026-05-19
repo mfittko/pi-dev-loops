@@ -69,6 +69,13 @@ import { decideOuterAction } from "./outer-loop.mjs";
 import {
   composeRunInspectionSnapshot,
 } from "../../packages/core/src/loop/run-inspection.mjs";
+import {
+  classifySafePoint,
+  getSteeringStatus,
+  normalizeSteeringState,
+  resolveEffectiveLoopState,
+  STEERING_KIND,
+} from "../../packages/core/src/loop/steering.mjs";
 
 const USAGE = `Usage: inspect-run.mjs --repo <owner/name> --pr <number>
 
@@ -258,7 +265,7 @@ async function loadSteeringState(steeringStateFile) {
   try {
     const text = await readFile(steeringStateFile, "utf8");
     const raw = parseJsonText(text);
-    return { state: raw, loadFailed: false };
+    return { state: normalizeSteeringState(raw), loadFailed: false };
   } catch (error) {
     if (error && error.code === "ENOENT") {
       return { state: null, loadFailed: false };
@@ -387,12 +394,43 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
 
   let steeringEvidence = null;
   let steeringLoadFailed = false;
+  let steeringReadback = null;
   const steeringLocatorPath = steeringStateFile ?? null;
 
   if (steeringLocatorPath !== null) {
     const result = await loadSteeringState(steeringLocatorPath);
     steeringEvidence = result.state;
     steeringLoadFailed = result.loadFailed;
+
+    if (steeringEvidence !== null) {
+      const steeringStatus = getSteeringStatus(steeringEvidence);
+      const resolved = copilotEvidence !== null
+        ? resolveEffectiveLoopState(copilotEvidence.snapshot, steeringEvidence)
+        : null;
+      const queuedStopAtNextSafeGate = steeringEvidence.queuedEvents.some(
+        (event) => event.kind === STEERING_KIND.STOP_AT_NEXT_SAFE_GATE,
+      );
+      const effectiveConstraints = resolved?.effectiveConstraints ?? steeringStatus.effectiveConstraints;
+      const safePointCategory = copilotEvidence !== null
+        ? classifySafePoint(copilotEvidence.interpretation.state)
+        : null;
+
+      steeringReadback = {
+        latestAcknowledgement: steeringStatus.latestResult,
+        effectiveConstraints,
+        pendingSummary: {
+          queuedCount: steeringStatus.queuedCount,
+          queuedKinds: [...new Set(steeringEvidence.queuedEvents.map((event) => event.kind))],
+          stopAtNextSafeGateQueued: queuedStopAtNextSafeGate,
+        },
+        stopAtNextSafeGate: {
+          effective: effectiveConstraints.stopAtNextSafeGate,
+          queued: queuedStopAtNextSafeGate,
+          terminal: resolved?.terminalStopAtNextSafeGate ?? false,
+          safePointCategory,
+        },
+      };
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -413,6 +451,7 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
     steeringLocatorPath,
     steeringEvidence,
     steeringLoadFailed,
+    steeringReadback,
   });
 }
 

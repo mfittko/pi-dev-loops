@@ -57,7 +57,17 @@ import { fileURLToPath } from "node:url";
 import { formatCliError, isCopilotLogin, parseJsonText, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
-import { createSteeringState, normalizeSteeringState, resolveEffectiveLoopState } from "../../packages/core/src/loop/steering.mjs";
+import {
+  createSteeringState,
+  normalizeSteeringState,
+  promoteQueuedSteering,
+  resolveEffectiveLoopState,
+} from "../../packages/core/src/loop/steering.mjs";
+import {
+  loadStateFile,
+  saveStateFile,
+  withStateFileLock,
+} from "./_steering-state-file.mjs";
 
 const USAGE = `Usage:
   detect-copilot-loop-state.mjs --repo <owner/name> --pr <number> [--review-request-status <status>]
@@ -439,22 +449,26 @@ export async function runCli(
   let steeringFields = {};
 
   if (options.steeringStateFile !== undefined) {
-    let rawSteering;
-    try {
-      rawSteering = JSON.parse(await readFile(options.steeringStateFile, "utf8"));
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        rawSteering = null;
-      } else {
-        throw new Error(`Failed to read steering state file '${options.steeringStateFile}': ${error.message}`);
+    const baseInterpretation = interpretLoopState(snapshot);
+    const activeSteeringState = await withStateFileLock(options.steeringStateFile, async () => {
+      const rawSteering = await loadStateFile(options.steeringStateFile);
+      const steeringState = rawSteering !== null
+        ? normalizeSteeringState(rawSteering)
+        : createSteeringState(deriveRunIdFromSteeringFile(options.steeringStateFile));
+
+      const { steeringState: promotedState, promoted } = promoteQueuedSteering(
+        steeringState,
+        baseInterpretation.state,
+      );
+
+      if (promoted.length > 0) {
+        await saveStateFile(options.steeringStateFile, promotedState);
       }
-    }
 
-    const steeringState = rawSteering !== null
-      ? normalizeSteeringState(rawSteering)
-      : createSteeringState(deriveRunIdFromSteeringFile(options.steeringStateFile));
+      return promotedState;
+    });
 
-    const resolved = resolveEffectiveLoopState(snapshot, steeringState);
+    const resolved = resolveEffectiveLoopState(snapshot, activeSteeringState);
     interpretation = resolved;
     steeringFields = {
       steeringApplied: resolved.steeringApplied,

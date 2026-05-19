@@ -359,14 +359,16 @@ Optional:
 
 Contract:
 - is strictly read-only: it does not write checkpoints, mutate GitHub state, or create local artifacts
-- returns a stable top-level inspection shape with target identity, outer action, active family state,
+- returns a stable top-level inspection shape with target identity, derived `runId`, outer action, active family state,
   status class, trust/source semantics, evidence, markers, and best-effort drill-down layers
 - reports not-found or unavailable targets as structured success output with `statusClass: "unknown"`
   rather than by throwing a synthetic blocked-run error
-- surfaces steering as a best-effort drill-down layer when `--steering-state-file` is provided
+- surfaces steering as a best-effort drill-down layer when `--steering-state-file` is provided,
+  including latest acknowledgement plus queued/effective stop summaries for the current run,
+  without exposing full steering history/detail
 
 Success output shape:
-- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "layers": { ... } }`
+- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "layers": { ... } }`
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
@@ -382,13 +384,18 @@ Subcommands:
 
 Contract:
 - persists steering state to a JSON file (default: `.pi/steering/<run-id>.json`)
-- accepts the current loop state as an injected input so callers can reuse existing loop detection
-  rather than making this CLI re-query GitHub directly
+- operator-facing `submit` resolves one explicit `repo` + `pr` target through the read-only
+  inspection surface and derives `runId: pr-<number>` from that target
+- operator-facing `submit` is intentionally limited to `stop_at_next_safe_gate`; other directive
+  kinds remain low-level/internal and are rejected on the external submit path
+- operator-facing `submit` fails closed when inspection is partial, checkpoint-only, unavailable,
+  stale, or conflicting
+- low-level/testing mode may still accept injected loop-state inputs for deterministic tests
 - returns deterministic acknowledgement/result payloads for `submit` and deterministic state
   readback for `status`
 
 Success output shape:
-- `submit`: `{ "ok": true, "result": { ... }, "steeringState": { ... } }`
+- `submit`: `{ "ok": true, "acknowledgement": { ... }, "result": { ... }, "steeringState": { ... } }`
 - `status`: `{ "ok": true, "status": { ... } }`
 
 Failure behavior:

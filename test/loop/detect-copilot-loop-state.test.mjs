@@ -1376,3 +1376,76 @@ test("detect-copilot-loop-state: durable reload — steering applied after steer
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("detect-copilot-loop-state promotes queued stop_at_next_safe_gate at the next safe point and persists it", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-promote-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    const steeringPath = path.join(tempDir, "steering.json");
+
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 88,
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+
+    await writeJson(steeringPath, {
+      runId: "pr-88",
+      schemaVersion: 1,
+      events: [{
+        eventId: "evt-001",
+        runId: "pr-88",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      effectiveStack: [],
+      queuedEvents: [{
+        eventId: "evt-001",
+        runId: "pr-88",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      resultHistory: [{
+        eventId: "evt-001",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
+        acknowledgedAt: "2026-05-19T12:00:01.000Z",
+      }],
+      latestResult: {
+        eventId: "evt-001",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
+        acknowledgedAt: "2026-05-19T12:00:01.000Z",
+      },
+      nextSeq: 2,
+    });
+
+    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.steeringApplied, true);
+    assert.match(output.nextAction, /Stop at this safe gate/);
+
+    const persisted = JSON.parse(await readFile(steeringPath, "utf8"));
+    assert.equal(persisted.queuedEvents.length, 0);
+    assert.equal(persisted.effectiveStack.length, 1);
+    assert.equal(persisted.latestResult.result, "applied_now");
+    assert.match(persisted.latestResult.reason, /Promoted from queue/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

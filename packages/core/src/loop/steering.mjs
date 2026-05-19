@@ -372,6 +372,10 @@ function detectConflict(event, effectiveStack, queuedEvents = []) {
   return null;
 }
 
+function hasStopAtNextSafeGate(events) {
+  return events.some((event) => event.kind === STEERING_KIND.STOP_AT_NEXT_SAFE_GATE);
+}
+
 // ---------------------------------------------------------------------------
 // Steering submission
 // ---------------------------------------------------------------------------
@@ -443,6 +447,48 @@ export function submitSteering(event, steeringState, loopState) {
   }
 
   const safePointCategory = classifySafePoint(loopState);
+
+  if (event.kind === STEERING_KIND.STOP_AT_NEXT_SAFE_GATE) {
+    if (hasStopAtNextSafeGate(steeringState.effectiveStack)) {
+      const ackResult = {
+        eventId: event.eventId,
+        seq: event.seq,
+        result: STEERING_RESULT.APPLIED_NOW,
+        reason: "stop_at_next_safe_gate is already effective for this run",
+        acknowledgedAt,
+      };
+      return {
+        steeringState: {
+          ...steeringState,
+          latestResult: ackResult,
+          resultHistory: [...steeringState.resultHistory, ackResult],
+          events: [...steeringState.events, event],
+          nextSeq: Math.max(steeringState.nextSeq, event.seq + 1),
+        },
+        result: ackResult,
+      };
+    }
+
+    if (hasStopAtNextSafeGate(steeringState.queuedEvents)) {
+      const ackResult = {
+        eventId: event.eventId,
+        seq: event.seq,
+        result: STEERING_RESULT.QUEUED_FOR_SAFE_POINT,
+        reason: "stop_at_next_safe_gate is already queued for the next safe point",
+        acknowledgedAt,
+      };
+      return {
+        steeringState: {
+          ...steeringState,
+          latestResult: ackResult,
+          resultHistory: [...steeringState.resultHistory, ackResult],
+          events: [...steeringState.events, event],
+          nextSeq: Math.max(steeringState.nextSeq, event.seq + 1),
+        },
+        result: ackResult,
+      };
+    }
+  }
 
   // Terminal loop states: reject or route to human decision
   if (safePointCategory === SAFE_POINT_CATEGORY.TERMINAL) {
