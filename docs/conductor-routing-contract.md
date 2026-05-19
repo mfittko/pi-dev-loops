@@ -15,14 +15,16 @@ This contract starts **after**:
 - the active run has been identified (scope/target resolved)
 - ownership/idempotency has been classified (from `conductor-ownership.mjs`, issue #32)
 - family-local lifecycle states have been detected (from `copilot-loop-state.mjs`, `reviewer-loop-state.mjs`, issue #26)
-- the outer-loop has produced its combined action decision
+
+The routing outcome is derived **directly from normalized state inputs** — the evaluator does not accept a
+pre-computed outer-loop action. It is the routing authority, not a remapper.
 
 ## Relationship to other contracts
 
 | Contract / Issue | Relationship |
 |---|---|
 | [#28 — conductor umbrella](https://github.com/mfittko/pi-dev-loops/issues/28) | Parent umbrella |
-| [#32 — ownership/idempotency](https://github.com/mfittko/pi-dev-loops/issues/32) | **Upstream**: provides `ownershipState` input; this contract starts after ownership is settled |
+| [#32 — ownership/idempotency](https://github.com/mfittko/pi-dev-loops/issues/32) | **Upstream**: provides optional `ownershipState` input; this contract starts after ownership is settled |
 | [#26 — family-local lifecycle states](https://github.com/mfittko/pi-dev-loops/issues/26) | **Upstream**: provides `copilotState` and `reviewerState` inputs; this contract consumes them without redefining their semantics |
 | [#34 — request/watch helper contract](https://github.com/mfittko/pi-dev-loops/issues/34) | **Adjacent**: defines Copilot request/watch semantics inside the copilot loop family; this contract decides _which family_ gets control |
 | [#48 — visible PR projection](https://github.com/mfittko/pi-dev-loops/issues/48) | **Downstream**: routing decisions may drive PR projection artifacts |
@@ -48,7 +50,7 @@ It does **not** define:
 | Core routing evaluator | `packages/core/src/loop/conductor-routing.mjs` |
 | Core unit tests | `packages/core/test/conductor-routing.test.mjs` |
 | Integration tests (outer-loop adapter) | `test/loop/conductor-routing.test.mjs` |
-| Thin adapter integration | `scripts/loop/outer-loop.mjs` (emits `conductorRouting` in output) |
+| Thin adapter integration | `scripts/loop/outer-loop.mjs` (calls evaluator as routing authority; emits `conductorRouting` in output) |
 
 ---
 
@@ -63,16 +65,23 @@ The evaluator (`evaluateConductorRouting`) consumes a single normalized input ob
 | `target` | `{ repo: string, pr: number }` | Explicit target identity — already resolved by the caller |
 | `copilotState` | `string` | Already-detected copilot loop lifecycle state (from `STATE` constants in `copilot-loop-state.mjs`) |
 | `reviewerState` | `string` | Already-detected reviewer loop lifecycle state (from `REVIEWER_STATE` constants in `reviewer-loop-state.mjs`) |
-| `outerAction` | `string` | Outer-loop combined action decision from `outer-loop.mjs` |
 
 ### Optional inputs
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `ownershipState` | `string` | undefined | Settled ownership/idempotency classification from `conductor-ownership.mjs`. When `"duplicate_local_owners"`, routing fails closed to `needs_reconcile`. |
-| `outerReason` | `string` | undefined | Stop reason from the outer-loop (present when `outerAction` is `"stop"`). `"unknown_state"` triggers `needs_reconcile` instead of `stop_needs_human`. |
+| `ownershipState` | `string` | `undefined` | Settled ownership/idempotency classification from `conductor-ownership.mjs`. `"live_owner"` → `stay_with_current_live_owner` for active states. `"duplicate_local_owners"` → `needs_reconcile`. Other values or omission → routing continues purely from states. **See ownership availability note below.** |
 | `sourceMode` | `string` | `"local"` | Source/confidence mode: `"authoritative"` \| `"local"` \| `"snapshot"` |
-| `requiresLocalIsolation` | `boolean` | `false` | Whether the next step requires local mutation/execution in an isolated checkout |
+| `requiresLocalIsolation` | `boolean` | `false` | Whether the checkout is dirty or detached; blocks states that require local mutation/execution |
+
+### Ownership availability note
+
+`ownershipState` is an optional caller-supplied input. **The current `outer-loop.mjs` integration seam does not
+supply it** — the outer loop does not yet resolve ownership from `conductor-ownership.mjs` (#32).
+The ownership-aware routing branches (`stay_with_current_live_owner`, duplicate-owner reconcile) are fully
+implemented and unit-tested; they become active when a caller that has already resolved ownership (e.g., a future
+#32-wired seam) supplies `ownershipState`. Wiring ownership resolution into `outer-loop.mjs` is deferred to a
+follow-up slice once #32 stabilises its public API.
 
 ### Sufficient signals for direct routing
 
@@ -82,7 +91,6 @@ The following input combinations are sufficient for direct routing (no reconcile
 |---|---|
 | All required fields present and valid | ✓ |
 | `ownershipState` is absent or any value except `"duplicate_local_owners"` | ✓ |
-| `copilotState` and `outerAction` are not in contradiction (see conflict rules) | ✓ |
 
 ### Inputs that require reconcile first
 
@@ -91,11 +99,21 @@ The following input combinations are sufficient for direct routing (no reconcile
 | `target` is missing or malformed | Cannot route without resolved target identity |
 | `copilotState` is missing or empty | Cannot route without family-local state |
 | `reviewerState` is missing or empty | Cannot route without family-local state |
-| `outerAction` is missing, empty, or unknown | Cannot route without outer-loop decision |
 | `ownershipState === "duplicate_local_owners"` | Multiple local owners; ownership must be resolved first |
-| `outerAction === "done"` but `copilotState !== "done"` | Contradictory terminal signals |
-| `copilotState === "done"` but `outerAction !== "done"` | Contradictory terminal signals |
-| `outerAction === "stop"` with `outerReason === "unknown_state"` | Unresolvable state; not a clean human-blocked stop |
+| Unrecognized combined state (not mapped by routing policy) | Ambiguous inputs; reconcile before routing |
+
+---
+
+## Return shape
+
+`evaluateConductorRouting` returns:
+
+| Field | Type | Description |
+|---|---|---|
+| `routingOutcome` | `string` | One of the 7 closed routing outcome values |
+| `outerAction` | `string` | Derived outer-loop action (for backward compat with `outer-loop.mjs` checkpoint/output shape) |
+| `stopReason` | `string \| null` | Stop reason code (from `STOP_REASON` constants) when `outerAction` is `"stop"`; `null` otherwise |
+| `handoffEnvelope` | `object` | Machine-readable handoff payload (see below) |
 
 ---
 
@@ -106,7 +124,7 @@ The following input combinations are sufficient for direct routing (no reconcile
 | `continue_current_wait` | Outer-loop wait state; re-enter after bounded wait interval | `outer_loop` |
 | `handoff_to_copilot_loop` | Copilot inner loop should handle the next step | `copilot_loop` |
 | `handoff_to_reviewer_loop` | Reviewer inner loop should handle the next step | `reviewer_loop` |
-| `stay_with_current_live_owner` | A live owner already has control; no new handoff needed | varies |
+| `stay_with_current_live_owner` | A live owner already has control; no new handoff needed this cycle | `outer_loop` |
 | `stop_needs_human` | Blocked; requires human intervention before any loop can proceed | none |
 | `done_terminal` | PR is merged, closed, or fully done; no further action needed | none |
 | `needs_reconcile` | Ambiguous, conflicting, stale, or insufficient signals | none |
@@ -138,17 +156,41 @@ Every routing decision emits a `handoffEnvelope` with the following fields:
 
 ---
 
-## Outer-loop action → routing outcome mapping
+## Routing policy (priority order)
 
-| Outer action | `outerReason` | Routing outcome |
+The evaluator applies the following first-match-wins priority order:
+
+| Priority | Condition | Routing outcome |
 |---|---|---|
-| `done` | — | `done_terminal` |
-| `continue_wait` | — | `continue_current_wait` |
-| `reenter_copilot_loop` | — | `handoff_to_copilot_loop` |
-| `reenter_reviewer_loop` | — | `handoff_to_reviewer_loop` |
-| `stop` | `unknown_state` | `needs_reconcile` |
-| `stop` | any other reason | `stop_needs_human` |
-| unknown / missing | — | `needs_reconcile` |
+| 1 | `ownershipState === "duplicate_local_owners"` | `needs_reconcile` |
+| 2 | `copilotState === "done"` | `done_terminal` |
+| 3 | `copilotState === "no_pr"` | `stop_needs_human` (`pr_not_ready`) |
+| 4 | `copilotState === "review_request_unavailable"` | `stop_needs_human` (`review_unavailable`) |
+| 5 | `copilotState === "blocked_needs_user_decision"` | `stop_needs_human` (`copilot_blocked`) |
+| 6 | `reviewerState === "blocked_needs_user_decision"` | `stop_needs_human` (`reviewer_blocked`) |
+| 7 | `copilotState === "pr_draft"` + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
+| 8 | `copilotState === "pr_draft"` + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 9 | `copilotState === "pr_draft"` | `handoff_to_copilot_loop` |
+| 10 | reviewer active state + needs local exec + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
+| 11 | reviewer active state + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 12 | reviewer active state | `handoff_to_reviewer_loop` |
+| 13 | copilot strong-active + needs local exec + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
+| 14 | copilot strong-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 15 | copilot strong-active | `handoff_to_copilot_loop` |
+| 16 | copilot wait state OR reviewer wait state | `continue_current_wait` |
+| 17 | copilot weak-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 18 | copilot weak-active | `handoff_to_copilot_loop` |
+| 19 | anything else | `needs_reconcile` |
+
+**Copilot strong-active states** (win over reviewer wait states): `unresolved_feedback_present`, `already_fixed_needs_reply_resolve`
+
+**Copilot weak-active states** (yield to reviewer wait states): `pr_ready_no_feedback`, `ready_to_rerequest_review`
+
+**Reviewer active states**: `review_requested`, `determine_review_plan`, `reviews_running`, `merge_results`, `draft_review_ready`, `draft_review_posted`, `waiting_for_user_submit`, `submitted_review`, `review_invalidated`
+
+**Reviewer active states needing local execution**: `review_requested`, `determine_review_plan`, `reviews_running`, `merge_results`, `draft_review_ready`
+
+**Copilot/reviewer wait states** (owned by outer loop): `waiting_for_copilot_review`, `waiting_for_ci` (copilot); `waiting_for_author_followup`, `waiting_for_re_request` (reviewer)
 
 ---
 
@@ -157,11 +199,9 @@ Every routing decision emits a `handoffEnvelope` with the following fields:
 The evaluator fails closed to `needs_reconcile` rather than guessing a handoff when:
 
 1. **Target is unresolved**: `target` is missing, `null`, or missing required `repo`/`pr` fields.
-2. **State inputs are absent**: `copilotState`, `reviewerState`, or `outerAction` is missing or empty.
-3. **Unknown outer action**: `outerAction` is not one of the five known values (`done`, `continue_wait`, `reenter_copilot_loop`, `reenter_reviewer_loop`, `stop`).
-4. **Ownership conflict**: `ownershipState === "duplicate_local_owners"`.
-5. **Terminal contradiction**: `outerAction === "done"` but `copilotState !== "done"`, or `copilotState === "done"` but `outerAction !== "done"`.
-6. **Unresolvable stop**: `outerAction === "stop"` with `outerReason === "unknown_state"`.
+2. **State inputs are absent**: `copilotState` or `reviewerState` is missing or empty.
+3. **Ownership conflict**: `ownershipState === "duplicate_local_owners"`.
+4. **Unrecognized combined state**: the `copilotState`/`reviewerState` combination does not match any routing rule.
 
 ### Non-goal: this rule does not apply to noise fields
 
@@ -176,10 +216,10 @@ required and optional fields listed above affect routing decisions.
 
 | Field | Value |
 |---|---|
-| `outerAction` | `"continue_wait"` |
 | `copilotState` | `"waiting_for_copilot_review"` |
 | `reviewerState` | `"waiting_for_review_request"` |
 | Expected `routingOutcome` | `"continue_current_wait"` |
+| `outerAction` (derived) | `"continue_wait"` |
 | `loopFamily` | `"outer_loop"` |
 | `entrypoint` | `"outer_loop_wait"` |
 
@@ -187,10 +227,10 @@ required and optional fields listed above affect routing decisions.
 
 | Field | Value |
 |---|---|
-| `outerAction` | `"reenter_reviewer_loop"` |
 | `copilotState` | `"pr_ready_no_feedback"` |
 | `reviewerState` | `"review_requested"` |
 | Expected `routingOutcome` | `"handoff_to_reviewer_loop"` |
+| `outerAction` (derived) | `"reenter_reviewer_loop"` |
 | `loopFamily` | `"reviewer_loop"` |
 | `entrypoint` | `"reviewer_loop_handler"` |
 
@@ -198,10 +238,10 @@ required and optional fields listed above affect routing decisions.
 
 | Field | Value |
 |---|---|
-| `outerAction` | `"reenter_copilot_loop"` |
 | `copilotState` | `"unresolved_feedback_present"` |
 | `reviewerState` | `"waiting_for_author_followup"` |
 | Expected `routingOutcome` | `"handoff_to_copilot_loop"` |
+| `outerAction` (derived) | `"reenter_copilot_loop"` |
 | `loopFamily` | `"copilot_loop"` |
 | `entrypoint` | `"copilot_pr_handoff"` |
 
@@ -209,11 +249,11 @@ required and optional fields listed above affect routing decisions.
 
 | Field | Value |
 |---|---|
-| `outerAction` | `"stop"` |
-| `outerReason` | `"copilot_blocked"` |
 | `copilotState` | `"blocked_needs_user_decision"` |
 | `reviewerState` | `"waiting_for_review_request"` |
 | Expected `routingOutcome` | `"stop_needs_human"` |
+| `outerAction` (derived) | `"stop"` |
+| `stopReason` | `"copilot_blocked"` |
 | `loopFamily` | `null` |
 | `entrypoint` | `null` |
 
@@ -221,32 +261,36 @@ required and optional fields listed above affect routing decisions.
 
 | Field | Value |
 |---|---|
-| `outerAction` | `"done"` |
 | `copilotState` | `"done"` |
-| `reviewerState` | `"waiting_for_review_request"` |
+| `reviewerState` | any |
 | Expected `routingOutcome` | `"done_terminal"` |
+| `outerAction` (derived) | `"done"` |
 | `loopFamily` | `null` |
 | `entrypoint` | `null` |
 
-### 6. Conflicting inner/outer signals fail closed to needs_reconcile
+### 6. Live owner suppresses handoff (ownership-aware path)
+
+> **Note**: this path is exercised by unit tests only. The `outer-loop.mjs` integration seam does not supply
+> `ownershipState` yet; ownership wiring from #32 is a follow-up slice.
 
 | Field | Value |
 |---|---|
-| `outerAction` | `"done"` |
-| `copilotState` | `"unresolved_feedback_present"` (contradicts "done") |
+| `copilotState` | `"unresolved_feedback_present"` |
 | `reviewerState` | `"waiting_for_author_followup"` |
-| Expected `routingOutcome` | `"needs_reconcile"` |
-| `loopFamily` | `null` |
-| `entrypoint` | `null` |
+| `ownershipState` | `"live_owner"` |
+| Expected `routingOutcome` | `"stay_with_current_live_owner"` |
+| `outerAction` (derived) | `"continue_wait"` |
+| `loopFamily` | `"outer_loop"` |
+| `entrypoint` | `"outer_loop_wait"` |
 
-### 7. Non-target / noise inputs do not alter routing for a targeted run
+### 7. Non-target / noise inputs fail closed
 
 | Condition | Expected `routingOutcome` |
 |---|---|
 | `target` is `null` | `"needs_reconcile"` |
 | `target.pr` is not a positive integer | `"needs_reconcile"` |
 | `copilotState` is empty string | `"needs_reconcile"` |
-| `outerAction` is an unknown string | `"needs_reconcile"` |
+| Unrecognized combined state | `"needs_reconcile"` |
 
 ---
 
@@ -255,6 +299,7 @@ required and optional fields listed above affect routing decisions.
 This contract intentionally does **not** cover:
 
 - ownership-key design, duplicate-owner handling, or start/attach/resume idempotency rules (→ #32)
+- wiring `ownershipState` into `outer-loop.mjs` or any other caller (deferred to a follow-up slice)
 - PR lifecycle states, draft/ready gate order, remediation ownership classes, or approval-gate semantics (→ #26)
 - Copilot request / re-request / watch helper semantics (→ #34)
 - inspection, viewer, or steering surface design (→ #57/#58/#59)
