@@ -307,6 +307,20 @@ test("interpretLoopState returns pr_ready_no_feedback for open ready PR with no 
   assert.deepEqual(result.allowedTransitions, [STATE.WAITING_FOR_COPILOT_REVIEW]);
 });
 
+test("interpretLoopState returns waiting_for_ci for open PR with no review when ciStatus is none", () => {
+  const result = interpretLoopState({
+    prExists: true,
+    prNumber: 17,
+    prDraft: false,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: false,
+    unresolvedThreadCount: 0,
+    ciStatus: "none",
+  });
+  assert.equal(result.state, STATE.WAITING_FOR_CI);
+  assert.notEqual(result.state, STATE.PR_READY_NO_FEEDBACK);
+});
+
 test("interpretLoopState returns waiting_for_copilot_review when Copilot is in requested_reviewers", () => {
   for (const status of ["requested", "already-requested"]) {
     const result = interpretLoopState({
@@ -418,6 +432,19 @@ test("interpretLoopState returns ready_to_rerequest_review when Copilot has revi
   assert.ok(result.allowedTransitions.includes(STATE.DONE));
   assert.equal(result.autoRerequestEligible, true);
   assert.equal(result.sameHeadCleanConverged, false);
+});
+
+test("interpretLoopState returns waiting_for_ci when Copilot has reviewed and ciStatus is none", () => {
+  const result = interpretLoopState({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    unresolvedThreadCount: 0,
+    ciStatus: "none",
+  });
+  assert.equal(result.state, STATE.WAITING_FOR_CI);
+  assert.notEqual(result.state, STATE.READY_TO_REREQUEST_REVIEW);
 });
 
 test("interpretLoopState returns waiting_for_ci when CI is pending and no unresolved threads", () => {
