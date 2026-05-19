@@ -2,7 +2,9 @@
 
 ## Status
 
-Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is complete, merged, and synced back to local `main`. Phase 7 second-repo pilot refinement is now in planning.
+Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is complete, merged, and synced back to local `main`. Phase 7 second-repo pilot refinement remains the next durable roadmap phase and is still in planning.
+
+Separately, issue #70 now tracks a bounded workflow-remediation preparation chain. Those chunks are meant to harden the current workflow foundation before later improvements continue. They do **not** replace Phase 7 or the existing roadmap.
 
 Current `main` also includes the current conductor-adjacent ownership/routing contracts plus the current inspection and steering surfaces; the next durable repo-level execution phase is still the bounded Phase 7 pilot rather than a new architecture expansion.
 
@@ -14,6 +16,10 @@ Current `main` also includes the current conductor-adjacent ownership/routing co
 - Workflow explainer: `docs/IMPLEMENTATION_WORKFLOW.md`
 - Durable local phase plan: `docs/phases/phase-7.md`
 - tmp index for fresh-context inspection if present locally: `tmp/phases/index.json`
+
+## Supporting context
+
+- Workflow-remediation findings memo for issue #70: `docs/workflow-remediation-prep.md`
 
 ## Current phase
 
@@ -36,7 +42,8 @@ If the user says **"continue implementation"**:
    - explicit local phase-bounded work -> use `dev-loop`
 8. inspect `tmp/phases/index.json` and any useful prior artifacts only if prior context helps
 9. if durable repo truth changed during the work, sync `README.md`, `PLAN.md`, `docs/IMPLEMENTATION_STATE.md`, and any affected contract docs before closing the slice
-10. for Phase 7 specifically, clarify the target repository and pilot path if they are still unset before implementation starts
+10. if the request is about workflow-remediation preparation, read `docs/workflow-remediation-prep.md` and work the next bounded #70 chunk without widening scope
+11. for Phase 7 specifically, clarify the target repository and pilot path if they are still unset before implementation starts
 
 ## Next unfinished phase
 

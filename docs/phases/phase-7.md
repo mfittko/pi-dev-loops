@@ -131,6 +131,8 @@ This phase exists to answer, in one real non-bootstrap repo:
 
 Phase 7 refinement has started and the merged bounded plan is recorded here.
 
+Bounded workflow-remediation prep slices under issue #70 may land independently to improve shared workflow footing. They are not part of this phase and do not replace it.
+
 Implementation should not begin until the target repository is chosen and the GitHub issue is opened with the selected pilot path.
 
 ## Links to execution artifacts
