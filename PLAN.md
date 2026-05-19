@@ -2,595 +2,159 @@
 
 `pi-dev-loops` is a shared home for Pi-centered development workflow infrastructure.
 
-The goal is to extract reusable local and remote development loops out of individual product repositories and consolidate them into one opinionated toolkit that can be reused across codebases.
+The durable goal is to ship a reusable toolkit for Pi-based local and GitHub-first development loops without letting workflow mechanics drift back into ad hoc markdown or repo-specific shell glue.
+
+## What this plan is for
+
+Use `PLAN.md` for **durable repo-level truth**:
+- product intent
+- architecture direction
+- workflow contract
+- medium-term roadmap
+
+Do **not** use `PLAN.md` for one-off issue execution plans, PR-specific checklists, or temporary implementation notes. Those belong in:
+- GitHub issues / PRs
+- `docs/phases/phase-<n>.md` for active local-phase planning
+- `tmp/` artifacts for transient execution detail
+
+## Current repo posture
+
+- This repo is currently a **source-loaded workspace**, not a published npm-package workflow.
+- For active implementation and release work in this repo, prefer the **GitHub remote-loop workflow** (`copilot-dev-loop` / `copilot-autopilot`) when practical.
+- The local **`dev-loop`** remains a supported phased workflow when the user explicitly wants local phase-bounded work.
+- GitHub issues are the backlog and GitHub PRs are the main execution trail for remote-loop work.
+- Packaged skills are installed explicitly through `/dev-loops install ...` and refreshed through `/dev-loops update ...`; package install alone does not auto-install skills.
 
 ## Product intent
 
-This repo should eventually provide four layers:
+This repo is meant to provide four durable layers.
 
-1. **Generic role agents**
-   - implementation, docs, quality, review, fixer, coordination, refinement
-   - reusable across repositories
-   - workflow-agnostic
+### 1. Role agents
 
-2. **Loop skills**
-   - local phase-based dev loop (`dev-loop`)
-   - async GitHub/Copilot dev loop (`copilot-dev-loop`)
-   - issue-first intake and full end-to-end autopilot loop (`copilot-autopilot`)
-   - follow-up review/fix loops
-   - re-review loops
+Reusable role definitions under `agents/` for work such as:
+- coordination
+- implementation
+- docs
+- review
+- fixing
+- quality
+- refinement
 
-3. **Extension UX and package glue**
-   - status/doctor commands
-   - explicit skill install/update commands for repo-local or system-wide skill copies
-   - readiness/status widget or dashboard
-   - future installer-style overlays
-   - lightweight orchestration helpers that call into deterministic scripts rather than replacing them
+These should stay broadly reusable and should not become thinly disguised repo-specific workflow scripts.
 
-4. **Deterministic shared tooling**
-   - reusable npm support packages for logic shared by Pi skills, repo-local scripts, and GitHub Actions
-   - reusable `lib/` modules for state discovery and interpretation
-   - reusable `scripts/` for watch/review/fix mechanics
-   - fixture-backed tests for the mechanical parts
+Thin workflow entrypoint agents are still allowed, but they must stay thin, defer sequencing and workflow policy to the skill, and avoid replacing the generic role agents.
 
-## Initial opinionated assumptions
+### 2. Workflow skills
 
-For the initial versions, it is acceptable to require:
+Reusable Pi workflow skills under `skills/`, especially:
+- `dev-loop` for docs-first local phased work
+- `copilot-dev-loop` for GitHub/Copilot issue and PR execution
+- `copilot-autopilot` for issue-first GitHub intake through PR and review loops
 
-- `pi`
-- `pi-subagents`
-- `gh`
-- GitHub-hosted pull request workflows for remote loops
-- repositories that can tolerate an opinionated PR/review/fix loop
+Skills own sequencing, handoff rules, and operator-facing workflow policy.
 
-The package may assume Pi-package installation and extension loading from the start, but packaged skills should be installed explicitly rather than auto-exposed on package install.
+### 3. Extension and CLI surface
 
-Non-goals for the first phase:
+Thin package-level UX under `extension/`, `cli/`, and `bin/` for:
+- readiness and diagnostics
+- explicit skill install/update flows
+- shell access to shared deterministic helpers
+- lightweight orchestration glue that defers real mechanics to scripts/core modules
 
-- supporting every forge besides GitHub
-- supporting every repo workflow convention
-- producing a fully abstract workflow DSL
-- making the first exported assets perfectly generic before shipping anything reusable
+### 4. Deterministic support code
 
-## Imported bootstrap material
-
-Current imported sources:
-
-- `skills/dev-loop/`
-  - copied from `pi-image-drop/.pi/skills/dev-loop/`
-  - includes templates, helper scripts, and skill-local test support
-- `skills/copilot-dev-loop/SKILL.md`
-  - copied from `repo-wiki`
-- `agents/*.agent.md`
-  - copied from `repo-wiki`
-
-These are seed assets, not finished public interfaces.
-
-## Current bootstrap contract
-
-Until the package/override model is fully generalized, this repository should use the root-level directories as the source of truth:
-
-- `skills/`
-- `agents/`
-- `docs/phases/`
-
-And expose the Pi-facing assets through repo-local symlinks under:
-
-- `.pi/skills -> ../skills`
-- `.pi/agents -> ../agents`
-
-This keeps the working tree usable with Pi immediately while avoiding duplicate copies of the same assets.
-
-## Core design rules
-
-### 1. Agents are role definitions, not workflow definitions
-
-Agents should define:
-
-- role
-- scope boundaries
-- judgment style
-- expected outputs
-- quality bar
-
-Agents should **not** hardcode repository workflow policy such as:
-
-- issue tracker conventions
-- PR template rules
-- exact merge policy
-- exact Copilot handoff policy
-- specific reviewer identity
-- repo-specific documentation paths
-
-Thin workflow entrypoint agents are still allowed when they exist only to load one skill and expose that skill as an invocable entry command. Those entrypoint agents must stay thin, defer sequencing and workflow policy to the skill, and must not replace the generic role agents.
-
-### 2. Skills own the loop
-
-Skills should define:
-
-- sequencing
-- state transitions
-- required reads
-- handoff decisions
-- when to wait/watch
-- what artifacts to log
-- when to ask for confirmation
-- how durable phase docs and ephemeral tmp artifacts relate
-
-### 3. Scripts and shared library code should do the mechanical work
-
-If a step can be handled deterministically, prefer:
-
-- `lib/` helper modules
-- `scripts/` entrypoints
-
-Examples:
-
-- PR discovery
-- issue-to-PR linkage
-- review-thread capture
-- check-run normalization
-- Copilot-review baseline capture
-- watcher output formats
-- stale-artifact cleanup
-- restart-state discovery
-
-### 4. Prefer native `gh ... watch` support when it fits the exact wait condition
-
-For example:
-
-- use `gh run watch` for known workflow run IDs
-
-If `gh` does not natively watch the exact needed condition, use deterministic custom watchers instead of ad hoc shell polling.
-
-### 5. The extension should stay thin
-
-The extension should provide:
-
-- status/doctor commands
-- explicit skill install/update commands
-- lightweight widgets or overlays
-- package-level status UX
-- small orchestration glue
-
-The extension should **not** become the main home for workflow mechanics that can live in deterministic scripts or shared library code.
-
-### 6. Decide the install/override model early
-
-Do not defer the package/override model until the end of the roadmap.
-
-Before shared helpers and generalized agents harden the wrong assumptions, define the intended bootstrap and reuse contract:
-
-- Pi package install is the primary target
-- repo-local `.pi/` symlinks are an acceptable bootstrap/development mode
-- repo-local overlays should override the shared defaults only where necessary
-- asset path references inside skills and docs should not assume a single install mode forever
-
-### 7. Shared logic belongs in a package-first support layer
-
-Prefer a shared npm support package for logic that should work from Pi skills,
-repo-local scripts, or GitHub Actions. Keep Pi-specific orchestration outside
-that package.
-
-Avoid duplicating:
-
-- GitHub JSON parsing
-- timeout policy
-- watch-state interpretation
-- actionable-thread detection
-- artifact-path conventions
-- phase/artifact mutation helpers
-- CLI wrappers for deterministic helpers
-
-## Target repository structure
-
-```text
-agents/
-  coordinator.agent.md
-  developer.agent.md
-  docs.agent.md
-  fixer.agent.md
-  quality.agent.md
-  review.agent.md
-
-docs/
-  IMPLEMENTATION_STATE.md
-  IMPLEMENTATION_WORKFLOW.md
-  phases/
-    phase-0.md
-    phase-1.md
-
-packages/
-  core/
-    src/
-    bin/
-    test/
-
-skills/
-  dev-loop/
-    SKILL.md
-    package.json
-    jest.config.mjs
-    scripts/
-    templates/
-  copilot-dev-loop/
-    SKILL.md
-
-extension/
-  index.ts
-  checks.ts
-  setup.ts
-  ui/
-
-lib/
-  github/
-  loop/
-  agents/
-
-scripts/
-  github/
-  loop/
-
-test/
-  fixtures/
-  github/
-  loop/
-```
-
-The exact layout can evolve, but the important separation is:
-
-- durable planning docs
-- agent definitions
-- loop skills
-- extension UX/package glue
-- shared deterministic code
-- test fixtures
-
-## Consolidation roadmap
-
-### Phase 0 — bootstrap, workflow convention, and inventory
-
-- create this repository
-- rename/package it as `pi-dev-loops`
-- import the current local dev-loop assets
-- import the current GitHub/Copilot loop skill
-- import candidate reusable agent definitions
-- scaffold a package extension
-- document the intended architecture
-- define the docs-first phase workflow convention
-- record what is still repo-specific
-
-Acceptance criteria:
-
-- bootstrap assets exist in one repo
-- imported sources are traceable
-- the docs-first phase workflow convention is explicit in both repo docs and the local dev-loop skill
-- a durable Phase 0 plan exists under `docs/phases/`
-- the phase scaffold can create a durable phase doc plus tmp planning artifacts
-- the next generalization steps are explicit without requiring broader normalization work yet
-
-### Phase 1 — normalize the imported assets without changing intent
-
-This phase must explicitly remove or classify imported repo-specific assumptions before the assets are treated as reusable.
-
-#### Local dev loop
-
-- keep the working deterministic helpers
-- remove source-repo-specific naming where it blocks reuse
-- audit templates for repo-specific wording
-- ensure path references are relative and portable
-
-#### Copilot dev loop
-
-- keep the current workflow shape
-- separate generic GitHub/Copilot behavior from repo-specific policy
-- remove imported `repo-wiki` assumptions from required reads, trigger phrases, validation commands, and companion-skill references
-- make timeout and watch policy explicit
-- prefer deterministic helper scripts over prose-only workflow instructions where possible
-
-#### Agents
-
-Classify each imported agent:
-
-- ready to globalize now
-- reusable after moderate refactor
-- keep local until split into base + overlay
-
-Initial expectation:
-
-- `developer`, `docs`, `quality` should become generic first
-- `fixer` and `review` need refactoring to remove repo-specific process assumptions
-- `coordinator` should likely split into a reusable base plus workflow-specific overlays
-
-Mandatory policy-extraction pass:
-
-For each imported asset, classify every non-trivial assumption as one of:
-
-- reusable base behavior
-- overlay-configurable policy
-- source-repo-only behavior to remove
-
-Specific imported blockers already known:
-
-- `agents/review.agent.md` hardcodes reviewer identity and must be parameterized or removed before claiming reuse
-- `skills/copilot-dev-loop/SKILL.md` contains `repo-wiki`-specific read paths, commands, and references that must be removed or converted into overlay policy
-- `agents/coordinator.agent.md` currently encodes workflow policy that likely belongs in skills/scripts rather than in a generic role agent
-
-Acceptance criteria:
-
-- each imported asset has an explicit generalization status
-- obvious hardcoded repo-specific assumptions are identified and classified
-- the first reusable assets do not depend on source-repo-only paths or hardcoded reviewer identity
-
-### Phase 2 — dedicated refiner agent and refinement contract
-
-This phase should strengthen the local phase-refinement workflow before broader UX/package work continues.
-
-Add a dedicated refiner agent and integrate it into the local dev loop so refinement produces complete acceptance criteria and definition-of-done lists.
-
-Goals:
-
-- add a dedicated `refiner` role for phase refinement
-- make AC and DoD generation first-class refinement outputs
-- preserve parallel fan-out/fan-in refinement where it adds value
-- escalate RFC-worthy technical decisions through the coordinator instead of guessing through them
-- define the RFC handoff team boundary as:
-  - lead dev
-  - specialized dev
-  - systems architect
-
-Acceptance criteria:
-
-- a dedicated refiner agent exists and is clearly scoped to phase refinement
-- the refiner requires complete acceptance-criteria and definition-of-done output
-- the refiner escalates RFC-worthy technical decisions through the coordinator
-- the coordinator-side contract names the RFC team boundary clearly
-- the local dev-loop planning contract uses the refiner without collapsing coordinator responsibilities
-- durable planning surfaces can carry stable definition-of-done output
-
-### Phase 3 — package extension and install UX
-
-This phase should also define the runtime/build/test contract for the package.
-
-Add an initial extension that can:
-
-- register status/doctor plus explicit install/update commands
-- show readiness/status in a widget or overlay
-- report whether `gh` and `pi-subagents` are available
-- point users to the relevant skills and installation requirements
-
-Acceptance criteria:
-
-- package exposes a working extension entrypoint
-- users can run status/doctor plus explicit install/update commands from Pi
-- the extension remains thin and mostly delegates to deterministic checks/helpers
-- the runtime/build/test contract is explicit:
-  - supported Pi/Node/`gh` versions
-  - source-loaded vs built-distribution expectations
-  - root-level vs per-skill test execution story
-
-### Phase 4 — shared deterministic library and npm support package
-
-Add reusable package/library modules for:
-
-- GitHub issue/PR state discovery
+Deterministic helpers under `packages/core/` and `scripts/` for the mechanical parts of the workflows, including:
 - review-thread parsing
-- actionable-comment detection
-- workflow-run/check status normalization
-- timeout policy
-- loop artifact paths and cleanup
-- loop restart/resume state
+- loop-state detection
+- GitHub request/watch helpers
+- issue/PR linkage
+- phase-file support
+- conductor-adjacent ownership, routing, inspection, and steering seams
 
-Acceptance criteria:
+## Architecture rules
 
-- repeated GitHub parsing logic is centralized
-- at least one helper ships through a shared npm support package with both JS and CLI entrypoints
-- watcher scripts consume shared library modules
-- library outputs have stable machine-readable shapes
+### Markdown keeps policy; helpers keep mechanics
 
-### Phase 5 — deterministic scripts
+Keep durable judgment and operator guidance in markdown, but move repeatable operational logic behind deterministic helpers whenever practical.
 
-Add reusable `scripts/` entrypoints such as:
+### Thin wrappers over shared contracts
 
-- `scripts/github/find-pr-for-issue.mjs`
-- `scripts/github/capture-pr-state.mjs`
-- `scripts/github/capture-review-threads.mjs`
-- `scripts/github/watch-copilot-review.mjs`
-- `scripts/github/watch-pr-rereview.mjs`
-- `scripts/loop/clean-stale-artifacts.mjs`
-- `scripts/loop/summarize-loop-state.mjs`
+Prefer thin entrypoint agents, thin skills, thin CLI wrappers, and thin extension surfaces over duplicated logic in many places.
 
-Acceptance criteria:
+### Package-first where it helps, source-loaded where it is practical
 
-- common watch/inspection behavior can be run without re-implementing shell loops
-- scripts prefer native `gh` watch support when possible and only use custom polling when necessary
-- scripts are testable with fixtures
+Shared pure logic should live in reusable package-friendly modules where practical, but the repository must remain runnable as a source-loaded checkout during the current phase of the project.
 
-## GitHub-first intake and autopilot
+### GitHub-first for remote work
 
-The `copilot-autopilot` skill and its paired `copilot-autopilot` agent entry point are now available in this repository as the issue/plan intake wrapper for GitHub-first execution. They provide a single opinionated workflow that starts from any of three entry types and drives the GitHub/Copilot lifecycle through merge while reusing the existing PR follow-up loop.
+For GitHub/Copilot workflows, GitHub issues and PRs are the authoritative execution trail. Local docs should explain and support that flow, not replace it with a parallel backlog.
 
-The existing `copilot-dev-loop` remains the primary PR follow-up and already-open-PR workflow surface for this repository. `copilot-autopilot` sits in front of it for issue/plan intake, normalization, and end-to-end orchestration when the user wants the broader wrapper.
+### Proposal-first new-idea safety layer
 
-### What `copilot-autopilot` delivers
+For new ideas that are not already anchored to an existing issue, keep the proposal-first intake posture used by the GitHub-first autopilot workflow: classify first, emit a proposal artifact, and mutate GitHub state only after the proposal is explicit and approved. The safety layer should fail closed through the bounded stop states `stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`.
 
-| Phase | Description |
-| --- | --- |
-| Preflight intake | Assesses input clarity; emits `proceed`, `proceed_with_assumptions`, or `pause_for_clarification` before any automation |
-| Input normalization | Converts a plan-doc path or abstract idea into a properly-scoped GitHub issue |
-| Async issue refinement | Runs 2–4 parallel specialist passes (scope, acceptance criteria, non-goals, risks, verification) and merges them into a tightened issue body |
-| Copilot handoff | Assigns `copilot-swe-agent` and waits for the draft PR |
-| PR tightening | Improves draft PR title and body to meet the PR description contract |
-| Local review/fix loop | Pi-driven review and fix pass before the PR leaves draft |
-| Copilot review loop | Requests Copilot review, drives fix/reply/resolve cycles, never merges while unresolved threads exist unless explicitly deferred |
-| Final independent review | Fresh-context Pi review; emits a clear verdict before any merge action |
-| Approve and merge | Formal review approval and squash merge after user confirmation |
+### Durable docs must stay aligned
 
-### Entry types
+Whenever a merged slice changes durable project truth, update the affected durable docs before considering the slice closed. In practice this usually means checking some combination of:
+- `README.md`
+- `PLAN.md`
+- `docs/IMPLEMENTATION_STATE.md`
+- `docs/IMPLEMENTATION_WORKFLOW.md`
+- relevant contract/state-graph docs under `docs/`
+- `scripts/README.md` when a script surface changes
 
-```
-copilot-autopilot 60                            # GitHub issue number
-copilot-autopilot docs/plans/doc-validation.md  # plan-doc path
-copilot-autopilot @docs/PLAN.md ADR validation  # abstract roadmap idea
-```
+## Current shipped surface
 
-### Design principles
+Today the repository already includes:
+- reusable role agents
+- packaged workflow skills for local and GitHub-first work
+- a `/dev-loops` extension and `pi-dev-loops` shell CLI
+- deterministic GitHub helpers for review-thread capture, Copilot request/watch, issue-to-PR detection, and reviewer draft staging
+- deterministic loop-state helpers for Copilot, reviewer, tracker, and outer-loop orchestration
+- conductor-adjacent ownership, routing, inspection, and steering contracts in the source tree
+- root and package-level tests plus CI on Node 24
 
-- **Issue-first execution model**: all execution is anchored to a GitHub issue before Copilot is assigned
-- **Clarification gate**: ambiguous or underspecified inputs trigger questions, not blind automation
-- **Proposal-first new-idea safety layer**: for new ideas, use a coordinator-owned fresh-context intake path with async fan-out/fan-in proposal generation when practical, explicit stop states (`stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`), and proposal artifact emission before any GitHub mutation
-- **Safe defaults**: any GitHub mutation (issue create/edit, Copilot assignment, PR changes, merge) requires explicit confirmation
-- **Reuse over duplication**: the full PR follow-up loop routes into `copilot-dev-loop` mechanics and deterministic helpers rather than inventing a second state machine
-- **Separation of concerns**: shared workflow logic lives in the skill, while any paired workflow entrypoint agent stays thin and defers sequencing/policy to that skill; repo-local policy (validation commands, merge policy for deferred threads) is configured by the adopting repository
+## Roadmap
 
-### Guard rails that remain in effect
+### Completed foundation
 
-- normalize to a GitHub issue before the main GitHub/Copilot execution loop starts
-- for new-idea intake, default to create-new over overwrite/update unless repurposing an existing artifact is explicitly proposed and explicitly approved
-- after proposal approval, use a separate async coordinator mutation pass and emit post-mutation verification artifacts
-- do not bypass the existing confirmation boundaries for GitHub, branch, or merge state changes
-- prefer deterministic helper outputs for fact collection and routing, while leaving judgment-heavy clarification decisions in the agent layer
-- do not merge while Copilot review threads remain unresolved unless they are explicitly deferred with rationale
+The initial foundation phases are complete:
+- Phase 1 — imported-asset normalization
+- Phase 2 — dedicated refiner-agent support
+- Phase 3 — extension/setup UX
+- Phase 4 — shared deterministic library/package work
+- Phase 5 — deterministic script surfaces
+- Phase 6 — public release hardening
 
-### Adoption guidance
+See `docs/IMPLEMENTATION_STATE.md` for the current execution snapshot.
 
-When a repository decides to use `copilot-autopilot` as part of its standard execution model, record that decision in the repository's own `PLAN.md` (or equivalent planning doc) with at minimum:
+### Current next phase
 
-- which input types will be the primary entry point (issue, plan-doc, or abstract idea)
-- whether the preflight gate is operator-confirmed or semi-automated
-- any repo-specific validation commands that should run in the local review/fix phase
-- the merge policy for deferred Copilot review threads
+#### Phase 7 — bounded second-repo pilot
 
-This documents the repository's operating contract with this workflow so the behavior is traceable and recoverable.
+The next durable phase is a single bounded second-repo pilot to prove that the current source-loaded GitHub-first workflow actually works outside this repository.
 
-### Remaining work
+Success for Phase 7 means:
+- one real non-bootstrap target repo
+- one bounded non-mutating pilot path
+- one thin downstream override example
+- only the smallest portability fixes required for that pilot
 
-The shipped skill and agent cover the full operator workflow, but the following are still agent-judgment phases rather than fixture-testable end-to-end automation:
+The durable phase plan lives in `docs/phases/phase-7.md`.
 
-- preflight verdict logic (currently agent-layer judgment; no deterministic script yet)
-- issue-refinement fan-out orchestration (currently agent-driven; could be a deterministic helper)
-- input normalization from plan-doc to issue-search (currently agent-driven)
+### After Phase 7
 
-These are candidates for future extraction into deterministic scripts as the intermediate contracts stabilize.
+Do not lock later phases in detail until Phase 7 produces real evidence. Likely follow-up areas include:
+- downstream portability fixes revealed by the pilot
+- further shrinkage of markdown-owned operational logic
+- clearer operator-facing inspection / steering / projection surfaces
+- broader multi-repo and tracker-first adoption only after the bounded pilot proves the basics
 
-### Phase 6 — public release hardening
+## Current non-goals
 
-Now that the repository is public, add the minimum release-readiness pieces needed so outside users can evaluate and adopt it safely.
-
-Goals:
-
-- choose and add an explicit open-source license
-- add baseline GitHub Actions CI for the supported Node versions
-- make the public-repo quality gate explicit around the existing test suite
-- document the release-readiness expectations so later packaging/reuse work builds on a stable baseline
-
-Acceptance criteria:
-
-- a top-level `LICENSE` file exists with the chosen license text
-- `package.json` includes a matching SPDX `license` field
-- a GitHub Actions workflow runs the repository test suite on push and pull request
-- the initial CI baseline runs on an explicit Node 24 environment
-- the public release baseline is reflected in the roadmap and implementation state docs
-
-### Phase 7 — second-repo pilot
-
-Before polishing the extension or broadening the package surface further, prove reuse in at least one unrelated repository.
-
-Goals:
-
-- install `pi-dev-loops` outside this bootstrap repo
-- identify which assumptions still leak from the imported source repos
-- validate the package/overlay contract in a real second codebase
-- validate an early local-skill iteration path where downstream repos can improve local overrides without losing upstream compatibility
-- use the findings to drive the remaining agent and skill cleanup
-
-Acceptance criteria:
-
-- one non-bootstrap repository can load the package and use at least one loop skill successfully
-- second-repo breakages are documented and fed back into the roadmap
-- the second-repo pilot produces concrete evidence about how local skill changes should coexist with upstream updates instead of being blindly overwritten
-
-### Phase 8 — agent generalization
-
-Refactor the imported agent definitions so they work for both:
-
-- local dev loops
-- async GitHub/Copilot loops
-
-Likely work:
-
-- remove repo-specific plan/document path assumptions from agent prompts
-- remove hardcoded reviewer identity from `review`
-- move PR lifecycle and Copilot policy out of agents and into skills/scripts
-- preserve role-specific quality bars and output expectations
-
-Acceptance criteria:
-
-- role agents are workflow-agnostic
-- loop-specific mechanics live outside the agent definitions
-
-### Phase 9 — package and reuse strategy
-
-Decide how this repo is consumed:
-
-- direct clone + symlink
-- Pi package install
-- selective copying into `~/.pi/agent/`
-- repo-local overlays on top of global defaults
-
-Initial bias:
-
-- use this repo as the source of truth
-- install reusable skills globally
-- let product repos override only what they must
-
-Acceptance criteria:
-
-- a documented install/override story exists
-- local overrides and upstream updates have a documented reconciliation strategy rather than a blind overwrite model
-- at least one reusable global workflow can be used from another repository without forking its definitions
-
-## Testing strategy
-
-Test the deterministic parts first.
-
-Priority order:
-
-1. shared library parsing/state tests
-2. watcher script fixture tests
-3. skill-support helper tests
-4. end-to-end workflow dry-run fixtures where practical
-
-Examples:
-
-- parse review thread state from stored GraphQL/REST JSON
-- determine whether a Copilot comment is actionable
-- choose native `gh run watch` vs custom watcher path correctly
-- clean stale artifacts without removing authoritative summaries
-- restore/restart loop state from prior artifacts deterministically
-
-## Open questions
-
-- Should agents remain as plain markdown definitions only, or should some shared prompt fragments also move into deterministic templates or generated prompt builders? _(target: Phase 8)_
-- How much of the GitHub/Copilot loop should stay skill-driven versus script-driven? _(target: Phase 5)_
-- What is the right minimum package/install contract for global Pi reuse? _(target: Phase 3)_
-- Should there be one generic coordinator, or a base coordinator plus loop-specific coordinator overlays? _(target: Phase 8)_
-- How should repo-local policy overlays be layered on top of these global defaults without duplicating the whole asset? _(target: Phase 9)_
-- How should dev-mode improvements discovered in downstream repos flow back into `pi-dev-loops`: local skill iteration only, patch exchange, or GitHub PRs to the source repo? _(target: Phases 7 and 9)_
-- What extension/package tooling is needed so downstream repos can carry local skill changes while still incorporating upstream updates intelligently instead of blindly overwriting them? _(target: Phase 9)_
-
-## Immediate next steps
-
-1. use root `skills/` and `agents/` as the source of truth and expose them through repo-local `.pi/` symlinks
-2. keep the imported assets intact as the bootstrap baseline while classifying repo-specific assumptions
-3. remove the first known blockers to reuse:
-   - hardcoded reviewer identity in `agents/review.agent.md`
-   - `repo-wiki`-specific assumptions in `skills/copilot-dev-loop/SKILL.md`
-4. design and integrate a dedicated refiner agent for phase-refinement work so planning/refinement can be delegated without overloading the coordinator
-5. choose the public license and add `LICENSE` plus matching package metadata
-6. add baseline GitHub Actions CI for the existing test suite
-7. finish documenting the runtime/build/test, explicit skill-install, and install/override contract
-8. identify the first shared library modules to extract
-9. move the first deterministic helper into a shared npm support package with a thin skill-local wrapper
-10. add the first deterministic GitHub helper scripts
-11. refactor the first three generic agents: `developer`, `docs`, `quality`
+For the current stage of the repo, avoid expanding into:
+- a generic workflow DSL
+- support for every forge or every repo convention
+- broad publish/distribution strategy work before the source-loaded boundary is proven well enough
+- a parallel backlog system outside GitHub issues and PRs
+- large issue-specific execution plans embedded in durable repo docs
