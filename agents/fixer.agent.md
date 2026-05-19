@@ -40,6 +40,7 @@ You are a focused review-fix agent. You take an existing pull request with revie
 11. Reply to each addressed thread with a short note that references the resolving commit SHA or commit URL when applicable, summarizes the fix or explanation, and states why it resolves the underlying concern.
    - Prefer the deterministic helper `scripts/github/reply-resolve-review-thread.mjs` when it exists.
    - Prefer a temporary reply body file over inline shell text.
+   - Keep commit SHAs and issue/PR refs unwrapped (for example 3ee82fc and owner/repo#70) when the intent is GitHub autolinks; reserve backticks for actual code/path/CLI literals.
 12. Resolve the thread only after the reply is attached successfully and the concern is genuinely addressed, even if the final resolution differs from the reviewer’s suggested implementation.
    - If reply/resolve is not authorized, stop and report that the PR conversation state is still unresolved rather than implying the review loop is complete.
 13. If GitHub leaves a stray pending review or rejects an inline reply because of pending review state, inspect the current review state, delete the stray pending review, recreate the reply, and retry once.
