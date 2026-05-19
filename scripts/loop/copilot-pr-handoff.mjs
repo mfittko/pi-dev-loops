@@ -7,7 +7,7 @@
  *   2. If the state suggests requesting review (pr_ready_no_feedback, or
  *      ready_to_rerequest_review when a meaningful remediation event made
  *      automatic re-request eligible), request Copilot review and re-interpret
- *      the state with the confirmed review-request status.
+ *      the state from the shared post-request wait-cycle snapshot.
  *      An explicit operator override can force another same-head request.
  *   3. Emit a single JSON payload describing the current state, the
  *      recommended action ("watch", "fix", or "stop"), and — when the action
@@ -19,7 +19,6 @@
  * Success output shape:
  *   { "ok": true, "action": "watch"|"fix"|"stop", "state": "...",
  *     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
- *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
  *     "reviewRequestStatus"?: "...", "watchArgs"?: { "repo": "...", "pr": N,
  *     "pollIntervalMs": N, "timeoutMs": N } }
  *
@@ -35,7 +34,7 @@ import { formatCliError } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../github/capture-review-threads.mjs";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
-import { interpretLoopState, normalizeSnapshot, STATE } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import { applyConfirmedReviewRequest, interpretLoopState, STATE } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
 const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number> [--force-rerequest-review]
 
@@ -54,7 +53,6 @@ Optional:
 Output (stdout, JSON):
   { "ok": true, "action": "watch"|"fix"|"stop", "state": "...",
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
-    "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
     "reviewRequestStatus"?: "...",
     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
 
@@ -182,7 +180,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     );
     reviewRequestStatus = requestResult.status;
 
-    snapshot = normalizeSnapshot({ ...snapshot, copilotReviewRequestStatus: reviewRequestStatus });
+    snapshot = applyConfirmedReviewRequest(snapshot, reviewRequestStatus);
     interpretation = interpretLoopState(snapshot);
   }
 
@@ -203,8 +201,6 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     state: interpretation.state,
     allowedTransitions: interpretation.allowedTransitions,
     nextAction: interpretation.nextAction,
-    autoRerequestEligible: interpretation.autoRerequestEligible,
-    sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
     snapshot,
   };
 

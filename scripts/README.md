@@ -171,12 +171,12 @@ Contract:
 - requests Copilot review automatically for `pr_ready_no_feedback`
 - requests Copilot review automatically for `ready_to_rerequest_review` only when `autoRerequestEligible=true`
 - suppresses automatic same-head clean re-request when `sameHeadCleanConverged=true`, unless `--force-rerequest-review` is used
-- when a review request is successfully issued or confirmed (including the explicit force path), emits `action: "watch"` with exact `watchArgs` even if the interpreted state remains `ready_to_rerequest_review`
+- when a review request is successfully issued or confirmed (including the explicit force path), re-interprets from the shared post-request wait-cycle snapshot and emits `action: "watch"` with exact `watchArgs`
 - emits one machine-readable action: `watch`, `fix`, or `stop`
 - when the action is `watch`, emits exact `watchArgs` for `watch-copilot-review.mjs`
 
 Success output shape:
-- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... } }`
+- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... } }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero

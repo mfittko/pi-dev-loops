@@ -585,8 +585,6 @@ test("copilot-pr-handoff stops after a current-head Copilot review even if reque
     assert.equal(output.ok, true);
     assert.equal(output.action, "stop");
     assert.equal(output.state, "ready_to_rerequest_review");
-    assert.equal(output.autoRerequestEligible, false);
-    assert.equal(output.sameHeadCleanConverged, true);
     assert.equal(output.reviewRequestStatus, undefined);
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, true);
     assert.equal(output.watchArgs, undefined);
@@ -725,9 +723,10 @@ test("copilot-pr-handoff allows explicit operator same-head re-request via --for
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
     assert.equal(output.action, "watch");
-    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.state, "waiting_for_copilot_review");
     assert.equal(output.reviewRequestStatus, "requested");
-    assert.equal(output.sameHeadCleanConverged, true);
+    assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
     assert.ok(output.watchArgs, "expected watchArgs after explicit force re-request");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -777,8 +776,6 @@ test("copilot-pr-handoff keeps same-head suppression without --force-rerequest-r
     assert.equal(output.action, "stop");
     assert.equal(output.state, "ready_to_rerequest_review");
     assert.equal(output.reviewRequestStatus, undefined);
-    assert.equal(output.autoRerequestEligible, false);
-    assert.equal(output.sameHeadCleanConverged, true);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

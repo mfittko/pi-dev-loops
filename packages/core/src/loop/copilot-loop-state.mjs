@@ -105,6 +105,7 @@ const SAME_HEAD_CLEAN_CONVERGED_NEXT_ACTION = "Current head already has a clean 
 
 const VALID_REVIEW_REQUEST_STATUSES = new Set(["requested", "already-requested", "unavailable", "none", "failed"]);
 const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
+const ACTIVE_REQUEST_STATUSES = new Set(["requested", "already-requested"]);
 
 function isAutoRerequestEligible(snapshot, state) {
   if (state !== STATE.READY_TO_REREQUEST_REVIEW) return false;
@@ -171,6 +172,34 @@ export function normalizeSnapshot(raw) {
     ciStatus: VALID_CI_STATUSES.has(raw.ciStatus) ? raw.ciStatus : "none",
     agentFixStatus: raw.agentFixStatus === "applied" ? "applied" : null,
   };
+}
+
+/**
+ * Return the post-request snapshot that should drive the next wait-cycle interpretation
+ * once a Copilot review request has been explicitly issued or confirmed.
+ *
+ * This keeps the handoff helper on the same shared state-machine contract instead of
+ * emitting a watch action that contradicts a same-head clean-convergence interpretation.
+ * A confirmed request starts a new wait cycle for the current head, so prior
+ * current-head clean-review convergence is cleared for handoff purposes.
+ *
+ * @param {object} snapshot
+ * @param {string} reviewRequestStatus
+ * @returns {object}
+ */
+export function applyConfirmedReviewRequest(snapshot, reviewRequestStatus) {
+  const s = normalizeSnapshot(snapshot);
+
+  if (!ACTIVE_REQUEST_STATUSES.has(reviewRequestStatus)) {
+    return normalizeSnapshot({ ...s, copilotReviewRequestStatus: reviewRequestStatus });
+  }
+
+  return normalizeSnapshot({
+    ...s,
+    copilotReviewRequestStatus: reviewRequestStatus,
+    copilotReviewOnCurrentHead: false,
+    copilotReviewPresent: true,
+  });
 }
 
 /**
