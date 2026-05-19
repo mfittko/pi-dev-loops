@@ -253,7 +253,7 @@ test("detect-copilot-loop-state --input returns done for merged PR snapshot", as
 // Auto-detect mode via gh stubs
 // ---------------------------------------------------------------------------
 
-test("detect-copilot-loop-state auto-detect returns pr_ready_no_feedback for open PR with no review", async () => {
+test("detect-copilot-loop-state auto-detect returns waiting_for_ci for open PR with no review when checks have not materialized", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-ready-"));
 
   try {
@@ -299,11 +299,12 @@ test("detect-copilot-loop-state auto-detect returns pr_ready_no_feedback for ope
 
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    assert.equal(output.state, "pr_ready_no_feedback");
+    assert.equal(output.state, "waiting_for_ci");
     assert.equal(output.snapshot.prExists, true);
     assert.equal(output.snapshot.prNumber, 17);
     assert.equal(output.snapshot.copilotReviewRequestStatus, "none");
     assert.equal(output.snapshot.copilotReviewPresent, false);
+    assert.equal(output.snapshot.ciStatus, "none");
     assert.equal(output.snapshot.unresolvedThreadCount, 0);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -531,11 +532,12 @@ test("detect-copilot-loop-state auto-detect ignores stale pending Copilot review
     assert.equal(result.code, 0);
 
     const output = JSON.parse(result.stdout);
-    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.state, "waiting_for_ci");
     assert.equal(output.snapshot.copilotReviewPresent, true);
     assert.equal(output.snapshot.copilotReviewRequestStatus, "none");
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
-    assert.equal(output.autoRerequestEligible, true);
+    assert.equal(output.snapshot.ciStatus, "none");
+    assert.equal(output.autoRerequestEligible, false);
     assert.equal(output.sameHeadCleanConverged, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });

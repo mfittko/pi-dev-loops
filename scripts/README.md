@@ -170,6 +170,7 @@ Contract:
 - detects the current Copilot-loop state for the PR
 - requests Copilot review automatically for `pr_ready_no_feedback`
 - requests Copilot review automatically for `ready_to_rerequest_review` only when `autoRerequestEligible=true`
+- does not request or re-request Copilot review when `ciStatus` is `none`; that path remains gated as `waiting_for_ci`
 - suppresses automatic same-head clean re-request when `sameHeadCleanConverged=true`, unless `--force-rerequest-review` is used
 - when a review request is successfully issued or confirmed (including the explicit force path), re-interprets from the shared post-request wait-cycle snapshot and emits `action: "watch"` with exact `watchArgs`
 - emits one machine-readable action: `watch`, `fix`, or `stop` (`stop` means no automatic next step; terminal, blocked, or operator-decision-required states all use this action)
@@ -218,7 +219,7 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `copilotReviewOnCurrentHead` {boolean} — whether a submitted (non-PENDING) Copilot review exists for the current head commit
 - `unresolvedThreadCount` {number} — total unresolved review-thread count
 - `actionableThreadCount` {number} — unresolved threads with non-bot actionable comments
-- `ciStatus` {"success"|"failure"|"pending"|"none"} — current CI check rollup
+- `ciStatus` {"success"|"failure"|"pending"|"none"} — current CI check rollup; `none` means no usable readiness signal yet and is not treated as green
 - `agentFixStatus` {"applied"|null} — agent-provided: "applied" when code has been fixed
 
 Success output shape:

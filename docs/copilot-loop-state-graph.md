@@ -23,7 +23,7 @@ The implementation lives in:
 | `already_fixed_needs_reply_resolve` | Agent has applied a fix; threads still need reply/resolve on GitHub before re-request |
 | `ready_to_rerequest_review` | All threads resolved; Copilot has reviewed at least once; only re-request once the updated head is green or credibly green |
 | `review_request_unavailable` | Copilot review request returned `unavailable` and no observable in-progress review evidence exists; must stop/report |
-| `waiting_for_ci` | CI checks are in progress; wait before proceeding |
+| `waiting_for_ci` | CI checks are in progress or no usable CI readiness signal exists yet; wait before proceeding |
 | `blocked_needs_user_decision` | Unexpected failure (CI failure, bad request result); requires user decision |
 | `done` | PR has been merged or closed |
 
@@ -126,11 +126,11 @@ The interpreter applies rules in priority order. The first matching rule wins.
    *(Unresolved feedback always takes priority over any wait/watch path)*
 8. `(copilotReviewRequestStatus === "requested" || copilotReviewRequestStatus === "already-requested") && !copilotReviewOnCurrentHead` → `waiting_for_copilot_review`
    *(Copilot is in `requested_reviewers` or a pending review is in progress, and has not yet submitted a review on the current head; when `copilotReviewOnCurrentHead === true` the wait is concluded and the loop falls through to rule 9+)*
-9. `copilotReviewPresent && ciStatus === "pending"` → `waiting_for_ci`
-10. `copilotReviewPresent && ciStatus === "failure"` → `blocked_needs_user_decision`
+9. `copilotReviewPresent && ciStatus === "failure"` → `blocked_needs_user_decision`
+10. `copilotReviewPresent && (ciStatus === "pending" || ciStatus === "none")` → `waiting_for_ci`
 11. `copilotReviewPresent` → `ready_to_rerequest_review`
-12. `ciStatus === "pending"` → `waiting_for_ci`
-13. `ciStatus === "failure"` → `blocked_needs_user_decision`
+12. `ciStatus === "failure"` → `blocked_needs_user_decision`
+13. `ciStatus === "pending" || ciStatus === "none"` → `waiting_for_ci`
 14. Default → `pr_ready_no_feedback`
 
 When rule 11 yields `ready_to_rerequest_review`, the interpreter also emits two machine-readable flags:
@@ -172,7 +172,7 @@ Auto-detect must fail closed when review-thread state cannot be captured or pars
 
 ### Green validation precondition before follow-up re-request
 
-Re-requesting Copilot after a follow-up fix is gated on the updated head being green or credibly green. In practice: run the smallest honest local validation for the accepted fix scope, continue remediation if that validation is still known red, and continue remediation if CI/checks for the current head are known red for a fixable issue.
+Re-requesting Copilot after a follow-up fix is gated on the updated head being green or credibly green. In practice: run the smallest honest local validation for the accepted fix scope, continue remediation if that validation is still known red, continue remediation if CI/checks for the current head are known red for a fixable issue, and do not treat `ciStatus: "none"` as equivalent to green.
 
 ## Related Scripts
 
