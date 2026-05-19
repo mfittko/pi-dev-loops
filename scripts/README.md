@@ -330,7 +330,7 @@ Contract:
   and reviewer `waiting_for_re_request` as outer-loop-owned `continue_wait` states
 - stops with `unsafe_local_edit_requires_isolation` when the next step needs local execution or
   mutation and the checkout is dirty or detached
-- persists bounded checkpoint state to `tmp/copilot-loop/pr-<n>/outer-loop-state.json` for
+- persists bounded checkpoint state to `tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json` for
   async continuation and false-positive wakeup detection
 - emits an additive `conductorRouting` field with the conductor-owned routing outcome, derived
   outer action, stop reason when relevant, and any machine-readable handoff envelope

@@ -14,7 +14,7 @@
  *   - done                   PR is merged or closed
  *
  * A minimal checkpoint is persisted to
- *   tmp/copilot-loop/pr-<n>/outer-loop-state.json
+ *   tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json
  * to support async continuation and debugging.  GitHub/PR state is always
  * authoritative; the checkpoint is advisory only.
  *
@@ -25,7 +25,7 @@
  *       "stopReason": null|"...", "handoffEnvelope": { ... } },
  *     "checkpoint": { "pr": N, "repo": "...", "outerAction": "...",
  *       "copilotState": "...", "reviewerState": "...", "reason": null|"...",
- *       "timestamp": "...", "waitCycles": N } }
+ *       "timestamp": "...", "waitCycles": N, "headSha": "..."|null } }
  *
  * Failure behavior:
  *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
@@ -40,6 +40,11 @@ import { fileURLToPath } from "node:url";
 import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../github/capture-review-threads.mjs";
 import { autoDetectSnapshot as autoDetectCopilotSnapshot } from "./detect-copilot-loop-state.mjs";
+import {
+  buildCheckpointFilePath,
+  buildDefaultCheckpointDir,
+  buildLegacyDefaultCheckpointDir,
+} from "./_checkpoint-paths.mjs";
 import { autoDetectReviewerSnapshot } from "./detect-reviewer-loop-state.mjs";
 import {
   interpretLoopState,
@@ -65,7 +70,7 @@ Required:
 Optional:
   --reviewer-login <login>              Reviewer login for reviewer-loop detection
   --checkpoint-dir <dir>                Directory for checkpoint artifact
-                                        (default: tmp/copilot-loop/pr-<n>/)
+                                        (default: tmp/copilot-loop/<owner>/<repo>/pr-<n>/)
   --copilot-input <path>                Path to a pre-built copilot snapshot JSON
                                         (skips live copilot detection; for testing)
   --reviewer-input <path>               Path to a pre-built reviewer snapshot JSON
@@ -262,8 +267,8 @@ async function checkGitStatus({ env = process.env, gitCommand = "git" } = {}) {
 /**
  * Build the default checkpoint directory path from repo/pr.
  */
-function defaultCheckpointDir(pr) {
-  return path.join("tmp", "copilot-loop", `pr-${pr}`);
+function defaultCheckpointDir(repo, pr) {
+  return buildDefaultCheckpointDir(repo, pr);
 }
 
 /**
@@ -273,7 +278,7 @@ function defaultCheckpointDir(pr) {
  * @returns {Promise<object|null>}
  */
 async function readCheckpoint(checkpointDir) {
-  const filePath = path.join(checkpointDir, "outer-loop-state.json");
+  const filePath = buildCheckpointFilePath(checkpointDir);
 
   try {
     const text = await readFile(filePath, "utf8");
@@ -294,8 +299,52 @@ async function readCheckpoint(checkpointDir) {
  */
 async function writeCheckpoint(checkpointDir, checkpoint) {
   await mkdir(checkpointDir, { recursive: true });
-  const filePath = path.join(checkpointDir, "outer-loop-state.json");
+  const filePath = buildCheckpointFilePath(checkpointDir);
   await writeFile(filePath, `${JSON.stringify(checkpoint, null, 2)}\n`, "utf8");
+}
+
+async function readResolvedCheckpoint({ repo, pr, checkpointDir }) {
+  if (checkpointDir !== undefined) {
+    return { checkpoint: await readCheckpoint(checkpointDir), filePath: buildCheckpointFilePath(checkpointDir) };
+  }
+
+  const preferredDir = defaultCheckpointDir(repo, pr);
+  const preferredCheckpoint = await readCheckpoint(preferredDir);
+  if (preferredCheckpoint !== null) {
+    return {
+      checkpoint: preferredCheckpoint,
+      filePath: buildCheckpointFilePath(preferredDir),
+    };
+  }
+
+  const legacyDir = buildLegacyDefaultCheckpointDir(pr);
+  const legacyCheckpoint = await readCheckpoint(legacyDir);
+  if (legacyCheckpoint !== null
+    && legacyCheckpoint.repo === repo
+    && legacyCheckpoint.pr === pr) {
+    return {
+      checkpoint: legacyCheckpoint,
+      filePath: buildCheckpointFilePath(legacyDir),
+    };
+  }
+
+  return {
+    checkpoint: null,
+    filePath: buildCheckpointFilePath(preferredDir),
+  };
+}
+
+function shouldCarryForwardWaitCycles(previousCheckpoint, { repo, pr, headSha, outerAction }) {
+  return previousCheckpoint !== null
+    && previousCheckpoint.outerAction === "continue_wait"
+    && outerAction === "continue_wait"
+    && previousCheckpoint.repo === repo
+    && previousCheckpoint.pr === pr
+    && typeof previousCheckpoint.headSha === "string"
+    && previousCheckpoint.headSha.length > 0
+    && typeof headSha === "string"
+    && headSha.length > 0
+    && previousCheckpoint.headSha === headSha;
 }
 
 // ---------------------------------------------------------------------------
@@ -345,7 +394,7 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
 export async function runOuterLoop(options, { env = process.env, ghCommand = "gh", gitCommand = "git" } = {}) {
   const { repo, pr, reviewerLogin, copilotInputPath, reviewerInputPath } = options;
   const normalizedRepo = repo.trim().toLowerCase();
-  const checkpointDir = options.checkpointDir ?? defaultCheckpointDir(pr);
+  const checkpointDir = options.checkpointDir ?? defaultCheckpointDir(normalizedRepo, pr);
 
   // Detect copilot state
   let copilotSnapshot;
@@ -369,6 +418,9 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     );
   }
   const reviewerInterpretation = interpretReviewerLoopState(reviewerSnapshot);
+  const currentHeadSha = typeof reviewerSnapshot?.prHeadSha === "string" && reviewerSnapshot.prHeadSha.length > 0
+    ? reviewerSnapshot.prHeadSha
+    : null;
 
   // Check git status
   const gitStatus = await checkGitStatus({ env, gitCommand });
@@ -392,9 +444,20 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   const outerReason = conductorRouting.stopReason;
 
   // Read previous checkpoint to track wait cycles
-  const prevCheckpoint = await readCheckpoint(checkpointDir);
+  const { checkpoint: prevCheckpoint } = await readResolvedCheckpoint({
+    repo: normalizedRepo,
+    pr,
+    checkpointDir: options.checkpointDir,
+  });
   const prevWaitCycles = typeof prevCheckpoint?.waitCycles === "number" ? prevCheckpoint.waitCycles : 0;
-  const waitCycles = outerAction === "continue_wait" ? prevWaitCycles + 1 : 0;
+  const waitCycles = shouldCarryForwardWaitCycles(prevCheckpoint, {
+    repo: normalizedRepo,
+    pr,
+    headSha: currentHeadSha,
+    outerAction,
+  })
+    ? prevWaitCycles + 1
+    : (outerAction === "continue_wait" ? 1 : 0);
 
   // Build and persist checkpoint
   const checkpoint = {
@@ -406,6 +469,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     reason: outerReason ?? null,
     timestamp: new Date().toISOString(),
     waitCycles,
+    headSha: currentHeadSha,
   };
 
   await writeCheckpoint(checkpointDir, checkpoint);
