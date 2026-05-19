@@ -28,10 +28,19 @@
  *     to inject its output status without re-probing the reviewers endpoint.
  *
  * Success output shape (no steering file):
- *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }
+ *   {
+ *     "ok": true,
+ *     "snapshot": { ... },
+ *     "state": "...",
+ *     "allowedTransitions": [...],
+ *     "nextAction": "...",
+ *     "autoRerequestEligible": true|false,
+ *     "sameHeadCleanConverged": true|false
+ *   }
  *
  * Success output shape (with steering file):
  *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...",
+ *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
  *     "steeringApplied": true|false, "effectiveConstraints": { ... } }
  *
  * Failure behavior:
@@ -81,7 +90,8 @@ Optional (auto-detect mode only):
                                              Values: requested|already-requested|unavailable|none|failed
 
 Output (stdout, JSON):
-  { "ok": true, "snapshot": {...}, "state": "...", "allowedTransitions": [...], "nextAction": "..." }
+  { "ok": true, "snapshot": {...}, "state": "...", "allowedTransitions": [...], "nextAction": "...",
+    "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false }
 
   When --steering-state-file is provided, also includes:
   "steeringApplied": true|false, "effectiveConstraints": { ... }
@@ -462,6 +472,8 @@ export async function runCli(
     state: interpretation.state,
     allowedTransitions: interpretation.allowedTransitions,
     nextAction: interpretation.nextAction,
+    autoRerequestEligible: interpretation.autoRerequestEligible,
+    sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
     ...steeringFields,
   })}\n`);
 }

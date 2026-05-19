@@ -133,6 +133,11 @@ The interpreter applies rules in priority order. The first matching rule wins.
 13. `ciStatus === "failure"` → `blocked_needs_user_decision`
 14. Default → `pr_ready_no_feedback`
 
+When rule 11 yields `ready_to_rerequest_review`, the interpreter also emits two machine-readable flags:
+
+- `autoRerequestEligible` — `true` only when a meaningful remediation event has occurred since the last Copilot review basis (deterministically: there is no submitted Copilot review on the current head).
+- `sameHeadCleanConverged` — `true` when the current head already has a clean submitted Copilot review and no unresolved/actionable threads remain, so automatic same-head re-request must be suppressed.
+
 ## Key Behavioral Guarantees
 
 ### Unresolved feedback always routes to fix/reply-resolve — never to wait
@@ -142,6 +147,10 @@ Rules 6 and 7 check `unresolvedThreadCount > 0` **before** checking review-reque
 ### Fresh Copilot review on current head concludes the wait state
 
 Rule 8 only routes to `waiting_for_copilot_review` when `copilotReviewOnCurrentHead === false`. When a submitted (non-PENDING) Copilot review is detected for the current head commit, that review is complete and the wait is over, even if `requested_reviewers` still lists Copilot (GitHub does not always clear this immediately after a review is submitted). The loop falls through to rule 9+ and reaches `ready_to_rerequest_review` or another appropriate next state.
+
+### Automatic same-head re-request suppression after clean convergence
+
+When the current head already has a submitted Copilot review, unresolved/actionable thread counts are 0, and CI is not in a blocked wait/failure state, automatic follow-up re-request is suppressed for that head (`sameHeadCleanConverged: true`, `autoRerequestEligible: false`). Automatic re-request becomes eligible again only after a meaningful remediation event changes the review basis (for this loop: a newer head without a submitted Copilot review on that head). Explicit operator/manual re-request remains allowed.
 
 ### `unavailable` stops the loop only when no in-progress evidence exists
 

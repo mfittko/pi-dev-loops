@@ -6,6 +6,7 @@ import {
   TRANSITIONS,
   normalizeSnapshot,
   interpretLoopState,
+  applyConfirmedReviewRequest,
 } from "../src/loop/copilot-loop-state.mjs";
 
 // ---------------------------------------------------------------------------
@@ -341,7 +342,39 @@ test("interpretLoopState exits waiting_for_copilot_review when Copilot has a sub
       `must not remain in waiting_for_copilot_review when copilotReviewOnCurrentHead=true (status=${status})`);
     assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW,
       `expected ready_to_rerequest_review when copilotReviewOnCurrentHead=true (status=${status})`);
+    assert.equal(result.autoRerequestEligible, false,
+      `expected auto re-request suppression when copilotReviewOnCurrentHead=true (status=${status})`);
+    assert.equal(result.sameHeadCleanConverged, true,
+      `expected sameHeadCleanConverged when copilotReviewOnCurrentHead=true (status=${status})`);
   }
+});
+
+test("applyConfirmedReviewRequest preserves review presence semantics for a fresh request", () => {
+  const result = applyConfirmedReviewRequest({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewPresent: false,
+    copilotReviewOnCurrentHead: false,
+    copilotReviewRequestStatus: "none",
+  }, "requested");
+
+  assert.equal(result.copilotReviewRequestStatus, "requested");
+  assert.equal(result.copilotReviewOnCurrentHead, false);
+  assert.equal(result.copilotReviewPresent, false);
+});
+
+test("applyConfirmedReviewRequest clears current-head convergence without inventing a review", () => {
+  const result = applyConfirmedReviewRequest({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: true,
+    copilotReviewRequestStatus: "none",
+  }, "requested");
+
+  assert.equal(result.copilotReviewRequestStatus, "requested");
+  assert.equal(result.copilotReviewOnCurrentHead, false);
+  assert.equal(result.copilotReviewPresent, true);
 });
 
 test("interpretLoopState stays in waiting_for_copilot_review when review is not yet on current head", () => {
@@ -383,6 +416,8 @@ test("interpretLoopState returns ready_to_rerequest_review when Copilot has revi
   assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
   assert.ok(result.allowedTransitions.includes(STATE.WAITING_FOR_COPILOT_REVIEW));
   assert.ok(result.allowedTransitions.includes(STATE.DONE));
+  assert.equal(result.autoRerequestEligible, true);
+  assert.equal(result.sameHeadCleanConverged, false);
 });
 
 test("interpretLoopState returns waiting_for_ci when CI is pending and no unresolved threads", () => {
