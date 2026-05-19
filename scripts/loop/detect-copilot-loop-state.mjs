@@ -49,7 +49,7 @@
  *   gh/GitHub failures and incomplete review-thread detection emit
  *   { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,7 +57,12 @@ import { fileURLToPath } from "node:url";
 import { formatCliError, isCopilotLogin, parseJsonText, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
-import { createSteeringState, normalizeSteeringState, resolveEffectiveLoopState } from "../../packages/core/src/loop/steering.mjs";
+import {
+  createSteeringState,
+  normalizeSteeringState,
+  promoteQueuedSteering,
+  resolveEffectiveLoopState,
+} from "../../packages/core/src/loop/steering.mjs";
 
 const USAGE = `Usage:
   detect-copilot-loop-state.mjs --repo <owner/name> --pr <number> [--review-request-status <status>]
@@ -454,7 +459,17 @@ export async function runCli(
       ? normalizeSteeringState(rawSteering)
       : createSteeringState(deriveRunIdFromSteeringFile(options.steeringStateFile));
 
-    const resolved = resolveEffectiveLoopState(snapshot, steeringState);
+    const baseInterpretation = interpretLoopState(snapshot);
+    const { steeringState: promotedState, promoted } = promoteQueuedSteering(
+      steeringState,
+      baseInterpretation.state,
+    );
+
+    if (promoted.length > 0) {
+      await writeFile(options.steeringStateFile, `${JSON.stringify(promotedState, null, 2)}\n`, "utf8");
+    }
+
+    const resolved = resolveEffectiveLoopState(snapshot, promotedState);
     interpretation = resolved;
     steeringFields = {
       steeringApplied: resolved.steeringApplied,

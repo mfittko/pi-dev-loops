@@ -4,9 +4,15 @@
  *
  * Supports two subcommands:
  *
- * 1. submit — Submit a steering directive to a specific active run.
- *    steer-loop.mjs submit --run-id <id> --kind <kind> --directive <text>
- *      --seq <n> [--state-file <path>] [--loop-state <state>] [--apply-mode <mode>]
+ * 1. submit — Submit a bounded steering directive to a specific active run.
+ *    Operator-facing mode:
+ *      steer-loop.mjs submit --repo <owner/name> --pr <number>
+ *        --kind stop_at_next_safe_gate --directive <text> --seq <n>
+ *        [--state-file <path>] [--copilot-input <path>] [--reviewer-input <path>]
+ *
+ *    Low-level/testing mode:
+ *      steer-loop.mjs submit --run-id <id> --kind <kind> --directive <text>
+ *        --seq <n> [--state-file <path>] [--loop-state <state>] [--apply-mode <mode>]
  *
  * 2. status — Inspect the steering state for a run.
  *    steer-loop.mjs status --run-id <id> [--state-file <path>]
@@ -36,6 +42,8 @@ import { fileURLToPath } from "node:url";
 
 import {
   STEERING_KIND,
+  STEERING_RESULT,
+  classifySafePoint,
   normalizeSteeringEvent,
   normalizeSteeringState,
   createSteeringState,
@@ -43,6 +51,8 @@ import {
   getSteeringStatus,
 } from "../../packages/core/src/loop/steering.mjs";
 import { STATE } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import { deriveRunIdForInspectionTarget } from "../../packages/core/src/loop/run-inspection.mjs";
+import { inspectRun } from "./inspect-run.mjs";
 
 import { formatCliError } from "../_core-helpers.mjs";
 
@@ -51,6 +61,11 @@ import { formatCliError } from "../_core-helpers.mjs";
 // ---------------------------------------------------------------------------
 
 const SUBMIT_USAGE = `Usage:
+  steer-loop.mjs submit --repo <owner/name> --pr <number>
+    --kind stop_at_next_safe_gate --directive <text> --seq <n>
+    [--state-file <path>] [--copilot-input <path>] [--reviewer-input <path>]
+    [--run-id <id>] [--event-id <id>]
+
   steer-loop.mjs submit --run-id <id> --kind <kind> --directive <text> --seq <n>
     [--state-file <path>] [--loop-state <loop-state>] [--apply-mode <mode>]
     [--event-id <id>]
@@ -58,30 +73,37 @@ const SUBMIT_USAGE = `Usage:
 Submit a mid-flight steering directive to an active dev loop run.
 
 Required:
-  --run-id <id>           Target run identifier
-  --kind <kind>           Steering kind: hard_constraint | preference | clarification | stop_at_next_safe_gate
+  --kind <kind>           Steering kind
   --directive <text>      Operator payload / directive text
   --seq <n>               Positive integer sequence number (monotonically increasing per run)
+  --run-id <id>           Target run identifier (required in low-level mode)
+  --repo <owner/name>     Repository slug (required with --pr in operator-facing mode)
+  --pr <number>           Pull request number (required with --repo in operator-facing mode)
 
 Optional:
   --state-file <path>     Path to steering state JSON file (default: .pi/steering/<run-id>.json)
-  --loop-state <state>    Current copilot loop state (default: "ready_to_rerequest_review")
-  --apply-mode <mode>     Application mode: immediate | next_safe_point (default: immediate)
+  --loop-state <state>    Current copilot loop state (low-level/testing mode only)
+  --apply-mode <mode>     Application mode: immediate | next_safe_point (low-level/testing mode only)
   --event-id <id>         Unique event ID (default: auto-generated)
+  --copilot-input <path>  Pre-built copilot snapshot JSON (operator-facing test mode)
+  --reviewer-input <path> Pre-built reviewer snapshot JSON (operator-facing test mode)
 
 Output (stdout, JSON):
-  { "ok": true, "result": { ... }, "steeringState": { ... } }
+  { "ok": true, "acknowledgement": { ... }, "result": { ... }, "steeringState": { ... } }
 
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }`.trim();
 
 const STATUS_USAGE = `Usage:
   steer-loop.mjs status --run-id <id> [--state-file <path>]
+  steer-loop.mjs status --repo <owner/name> --pr <number> [--state-file <path>]
 
 Inspect the steering state for a run.
 
 Required:
   --run-id <id>           Target run identifier
+  --repo <owner/name>     Repository slug (required with --pr)
+  --pr <number>           Pull request number (required with --repo)
 
 Optional:
   --state-file <path>     Path to steering state JSON file (default: .pi/steering/<run-id>.json)
@@ -145,6 +167,8 @@ export function parseSubmitCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
+    repo: undefined,
+    pr: undefined,
     runId: undefined,
     kind: undefined,
     directive: undefined,
@@ -153,6 +177,8 @@ export function parseSubmitCliArgs(argv) {
     loopState: "ready_to_rerequest_review",
     applyMode: "immediate",
     eventId: undefined,
+    copilotInputPath: undefined,
+    reviewerInputPath: undefined,
   };
 
   while (args.length > 0) {
@@ -166,6 +192,18 @@ export function parseSubmitCliArgs(argv) {
     if (token === "--run-id") {
       options.runId = requireOptionValue(args, "--run-id", SUBMIT_USAGE).trim();
       validateSafeRunId(options.runId, SUBMIT_USAGE);
+      continue;
+    }
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo", SUBMIT_USAGE).trim();
+      continue;
+    }
+    if (token === "--pr") {
+      const raw = requireOptionValue(args, "--pr", SUBMIT_USAGE);
+      if (!/^\d+$/.test(raw) || Number(raw) === 0) {
+        throw parseError("--pr must be a positive integer", SUBMIT_USAGE);
+      }
+      options.pr = Number(raw);
       continue;
     }
     if (token === "--kind") {
@@ -212,13 +250,24 @@ export function parseSubmitCliArgs(argv) {
       options.eventId = requireOptionValue(args, "--event-id", SUBMIT_USAGE);
       continue;
     }
+    if (token === "--copilot-input") {
+      options.copilotInputPath = requireOptionValue(args, "--copilot-input", SUBMIT_USAGE);
+      continue;
+    }
+    if (token === "--reviewer-input") {
+      options.reviewerInputPath = requireOptionValue(args, "--reviewer-input", SUBMIT_USAGE);
+      continue;
+    }
 
     throw parseError(`Unknown argument: ${token}`, SUBMIT_USAGE);
   }
 
   if (!options.help) {
-    if (!options.runId) {
-      throw parseError("--run-id is required", SUBMIT_USAGE);
+    if ((options.repo === undefined) !== (options.pr === undefined)) {
+      throw parseError("--repo and --pr must be provided together", SUBMIT_USAGE);
+    }
+    if (!options.runId && options.repo === undefined) {
+      throw parseError("--run-id is required unless --repo and --pr are provided", SUBMIT_USAGE);
     }
     if (!options.kind) {
       throw parseError("--kind is required", SUBMIT_USAGE);
@@ -238,6 +287,8 @@ export function parseStatusCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
+    repo: undefined,
+    pr: undefined,
     runId: undefined,
     stateFile: undefined,
   };
@@ -255,6 +306,18 @@ export function parseStatusCliArgs(argv) {
       validateSafeRunId(options.runId, STATUS_USAGE);
       continue;
     }
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo", STATUS_USAGE).trim();
+      continue;
+    }
+    if (token === "--pr") {
+      const raw = requireOptionValue(args, "--pr", STATUS_USAGE);
+      if (!/^\d+$/.test(raw) || Number(raw) === 0) {
+        throw parseError("--pr must be a positive integer", STATUS_USAGE);
+      }
+      options.pr = Number(raw);
+      continue;
+    }
     if (token === "--state-file") {
       options.stateFile = requireOptionValue(args, "--state-file", STATUS_USAGE);
       continue;
@@ -263,8 +326,13 @@ export function parseStatusCliArgs(argv) {
     throw parseError(`Unknown argument: ${token}`, STATUS_USAGE);
   }
 
-  if (!options.help && !options.runId) {
-    throw parseError("--run-id is required", STATUS_USAGE);
+  if (!options.help) {
+    if ((options.repo === undefined) !== (options.pr === undefined)) {
+      throw parseError("--repo and --pr must be provided together", STATUS_USAGE);
+    }
+    if (!options.runId && options.repo === undefined) {
+      throw parseError("--run-id is required unless --repo and --pr are provided", STATUS_USAGE);
+    }
   }
 
   return options;
@@ -276,6 +344,71 @@ export function parseStatusCliArgs(argv) {
 
 function defaultStateFilePath(runId, cwd = process.cwd()) {
   return path.join(cwd, ".pi", "steering", `${runId}.json`);
+}
+
+function deriveTargetRunId(options) {
+  if (options.repo !== undefined && options.pr !== undefined) {
+    return deriveRunIdForInspectionTarget({ repo: options.repo, pr: options.pr });
+  }
+  return options.runId;
+}
+
+function resolveRequestedRunId(options, usage) {
+  const derivedRunId = deriveTargetRunId(options);
+  if (options.runId && options.repo !== undefined && options.pr !== undefined && options.runId !== derivedRunId) {
+    throw parseError(
+      `run-id mismatch: explicit --run-id '${options.runId}' does not match derived run '${derivedRunId}' for --repo/--pr target`,
+      usage,
+    );
+  }
+  return derivedRunId;
+}
+
+function mapDisposition(resultCode) {
+  switch (resultCode) {
+    case STEERING_RESULT.APPLIED_NOW:
+      return "applied_now";
+    case STEERING_RESULT.QUEUED_FOR_SAFE_POINT:
+      return "queued_for_safe_point";
+    default:
+      return "rejected";
+  }
+}
+
+function buildReadbackPath({ repo, pr, runId, stateFilePath }) {
+  const stateFileFlag = stateFilePath ? ` --state-file ${stateFilePath}` : "";
+  const inspection = repo && pr
+    ? `inspect-run --repo ${repo} --pr ${pr}${stateFileFlag}`
+    : null;
+  return {
+    inspection,
+    steeringStatus: `steer-loop.mjs status --run-id ${runId}${stateFileFlag}`,
+  };
+}
+
+function buildAcknowledgement({
+  repo,
+  pr,
+  runId,
+  directive,
+  resultCode,
+  reason,
+  inspectedState,
+  safePointCategory,
+  readbackPath,
+}) {
+  return {
+    runId,
+    directive,
+    disposition: mapDisposition(resultCode),
+    resultCode,
+    reason,
+    inspectedState,
+    safePointCategory,
+    effectiveNow: resultCode === STEERING_RESULT.APPLIED_NOW,
+    readbackPath,
+    ...(repo && pr ? { target: { repo, pr } } : {}),
+  };
 }
 
 async function loadStateFile(filePath) {
@@ -359,25 +492,96 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
     return;
   }
 
-  const stateFilePath = options.stateFile ?? defaultStateFilePath(options.runId, cwd);
+  const runId = resolveRequestedRunId(options, SUBMIT_USAGE);
+  const stateFilePath = options.stateFile ?? defaultStateFilePath(runId, cwd);
+  const readbackPath = buildReadbackPath({
+    repo: options.repo,
+    pr: options.pr,
+    runId,
+    stateFilePath,
+  });
+
+  let inspectedState = options.loopState;
+  let safePointCategory = classifySafePoint(options.loopState);
+
+  if (options.repo !== undefined && options.pr !== undefined) {
+    const inspection = await inspectRun({
+      repo: options.repo,
+      pr: options.pr,
+      steeringStateFile: stateFilePath,
+      copilotInputPath: options.copilotInputPath,
+      reviewerInputPath: options.reviewerInputPath,
+    });
+
+    inspectedState = inspection.layers?.copilot?.currentState;
+    safePointCategory = inspectedState ? classifySafePoint(inspectedState) : null;
+
+    if (options.kind !== STEERING_KIND.STOP_AT_NEXT_SAFE_GATE) {
+      const acknowledgement = buildAcknowledgement({
+        repo: options.repo,
+        pr: options.pr,
+        runId,
+        directive: options.kind,
+        resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
+        reason: "external operator submit accepts only stop_at_next_safe_gate in this first slice",
+        inspectedState: inspectedState ?? "unknown",
+        safePointCategory,
+        readbackPath,
+      });
+      stdout.write(`${JSON.stringify({ ok: true, acknowledgement })}\n`);
+      return;
+    }
+
+    if (inspection.statusClass === "unknown" || typeof inspectedState !== "string") {
+      const acknowledgement = buildAcknowledgement({
+        repo: options.repo,
+        pr: options.pr,
+        runId,
+        directive: options.kind,
+        resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+        reason: "target run could not be confidently identified from the inspection snapshot",
+        inspectedState: inspectedState ?? "unknown",
+        safePointCategory,
+        readbackPath,
+      });
+      stdout.write(`${JSON.stringify({ ok: true, acknowledgement })}\n`);
+      return;
+    }
+
+    if (inspection.trust === "unavailable") {
+      const acknowledgement = buildAcknowledgement({
+        repo: options.repo,
+        pr: options.pr,
+        runId,
+        directive: options.kind,
+        resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+        reason: "inspection snapshot did not provide sufficient confidence to steer this run",
+        inspectedState,
+        safePointCategory,
+        readbackPath,
+      });
+      stdout.write(`${JSON.stringify({ ok: true, acknowledgement })}\n`);
+      return;
+    }
+  }
 
   const { steeringState: newState, result } = await withStateFileLock(stateFilePath, async () => {
     // Load or create steering state
     const raw = await loadStateFile(stateFilePath);
     const steeringState = raw !== null
       ? normalizeSteeringState(raw)
-      : createSteeringState(options.runId);
+      : createSteeringState(runId);
 
     // Reject --run-id / --state-file mismatches
-    if (raw !== null && steeringState.runId !== options.runId) {
-      throw runIdMismatchError(steeringState.runId, options.runId);
+    if (raw !== null && steeringState.runId !== runId) {
+      throw runIdMismatchError(steeringState.runId, runId);
     }
 
     // Build and validate the event
     const eventId = options.eventId ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const event = normalizeSteeringEvent({
       eventId,
-      runId: options.runId,
+      runId,
       kind: options.kind,
       directive: options.directive,
       seq: options.seq,
@@ -386,14 +590,26 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
     });
 
     // Submit
-    const submission = submitSteering(event, steeringState, options.loopState);
+    const submission = submitSteering(event, steeringState, inspectedState);
 
     // Persist atomically while still holding the lock
     await saveStateFile(stateFilePath, submission.steeringState);
     return submission;
   });
 
-  stdout.write(`${JSON.stringify({ ok: true, result, steeringState: newState })}\n`);
+  const acknowledgement = buildAcknowledgement({
+    repo: options.repo,
+    pr: options.pr,
+    runId,
+    directive: options.kind,
+    resultCode: result.result,
+    reason: result.reason,
+    inspectedState,
+    safePointCategory,
+    readbackPath,
+  });
+
+  stdout.write(`${JSON.stringify({ ok: true, acknowledgement, result, steeringState: newState })}\n`);
 }
 
 export async function runStatus(argv = [], { stdout = process.stdout, cwd = process.cwd() } = {}) {
@@ -404,11 +620,12 @@ export async function runStatus(argv = [], { stdout = process.stdout, cwd = proc
     return;
   }
 
-  const stateFilePath = options.stateFile ?? defaultStateFilePath(options.runId, cwd);
+  const runId = resolveRequestedRunId(options, STATUS_USAGE);
+  const stateFilePath = options.stateFile ?? defaultStateFilePath(runId, cwd);
 
   const raw = await loadStateFile(stateFilePath);
   if (raw === null) {
-    const emptyState = createSteeringState(options.runId);
+    const emptyState = createSteeringState(runId);
     const status = getSteeringStatus(emptyState);
     stdout.write(`${JSON.stringify({ ok: true, status })}\n`);
     return;
@@ -417,8 +634,8 @@ export async function runStatus(argv = [], { stdout = process.stdout, cwd = proc
   const steeringState = normalizeSteeringState(raw);
 
   // Reject --run-id / --state-file mismatches
-  if (steeringState.runId !== options.runId) {
-    throw runIdMismatchError(steeringState.runId, options.runId);
+  if (steeringState.runId !== runId) {
+    throw runIdMismatchError(steeringState.runId, runId);
   }
 
   const status = getSteeringStatus(steeringState);

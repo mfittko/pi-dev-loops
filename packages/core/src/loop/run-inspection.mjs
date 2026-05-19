@@ -32,6 +32,10 @@ export const SCHEMA_VERSION = 1;
 /** The workflow family this module inspects. */
 export const ACTIVE_STATE_FAMILY = "copilot-pr-outer-loop";
 
+export function deriveRunIdForInspectionTarget({ pr }) {
+  return `pr-${pr}`;
+}
+
 /** Top-level status class values. */
 export const STATUS_CLASS = Object.freeze({
   ACTIVE: "active",
@@ -139,6 +143,8 @@ export function mapOuterActionToStatusClass(outerAction) {
  *   Loaded and normalized steering state, or null when file not found.
  * @param {boolean} [params.steeringLoadFailed]
  *   true when a steering locator was provided but loading the file failed.
+ * @param {object | null} [params.steeringReadback]
+ *   Precomputed steering readback summary for the inspection surface.
  * @returns {object} inspection snapshot with always-present and best-effort fields
  */
 export function composeRunInspectionSnapshot({
@@ -155,8 +161,10 @@ export function composeRunInspectionSnapshot({
   steeringLocatorPath = null,
   steeringEvidence = null,
   steeringLoadFailed = false,
+  steeringReadback = null,
 }) {
   const { repo, pr } = target;
+  const runId = deriveRunIdForInspectionTarget(target);
   const markers = { missing: [], stale: [], conflicts: [] };
 
   const copilotLiveOk = liveAvailability.copilot === "ok";
@@ -403,6 +411,7 @@ export function composeRunInspectionSnapshot({
       status: "available",
       locatorPath: steeringLocatorPath,
       state: steeringEvidence,
+      ...(steeringReadback ?? {}),
     };
   }
 
@@ -414,6 +423,7 @@ export function composeRunInspectionSnapshot({
     ok: true,
     schemaVersion: SCHEMA_VERSION,
     target: { repo, pr },
+    runId,
     inspectedAt,
     activeStateFamily: ACTIVE_STATE_FAMILY,
     outerAction: effectiveOuterAction ?? "unknown",

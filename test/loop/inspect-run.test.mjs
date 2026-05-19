@@ -936,12 +936,40 @@ test("inspect-run CLI: --steering-state-file given and file exists → available
     await writeJson(steeringPath, {
       runId: "run-55",
       schemaVersion: 1,
-      events: [],
+      events: [{
+        eventId: "evt-001",
+        runId: "run-55",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-18T12:00:00.000Z",
+      }],
       effectiveStack: [],
-      queuedEvents: [],
-      resultHistory: [],
-      latestResult: null,
-      nextSeq: 1,
+      queuedEvents: [{
+        eventId: "evt-001",
+        runId: "run-55",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-18T12:00:00.000Z",
+      }],
+      resultHistory: [{
+        eventId: "evt-001",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "current loop state is not yet an immediate safe point",
+        acknowledgedAt: "2026-05-18T12:00:01.000Z",
+      }],
+      latestResult: {
+        eventId: "evt-001",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "current loop state is not yet an immediate safe point",
+        acknowledgedAt: "2026-05-18T12:00:01.000Z",
+      },
+      nextSeq: 2,
     });
 
     const result = await runNode([
@@ -956,7 +984,13 @@ test("inspect-run CLI: --steering-state-file given and file exists → available
     const output = JSON.parse(result.stdout);
     assert.equal(output.layers.steering.status, "available");
     assert.equal(output.layers.steering.locatorPath, steeringPath);
-    assert.ok(typeof output.layers.steering.state === "object");
+    assert.equal(output.runId, "pr-55");
+    assert.equal(output.layers.steering.latestAcknowledgement.result, "queued_for_safe_point");
+    assert.equal(output.layers.steering.pendingSummary.queuedCount, 1);
+    assert.equal(output.layers.steering.pendingSummary.stopAtNextSafeGateQueued, true);
+    assert.equal(output.layers.steering.stopAtNextSafeGate.effective, false);
+    assert.equal(output.layers.steering.stopAtNextSafeGate.queued, true);
+    assert.equal(output.layers.steering.effectiveConstraints.stopAtNextSafeGate, false);
   });
 });
 

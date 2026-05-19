@@ -62,6 +62,10 @@ async function withTempDir(fn) {
   }
 }
 
+async function writeJson(filePath, value) {
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
 // ---------------------------------------------------------------------------
 // parseSubmitCliArgs
 // ---------------------------------------------------------------------------
@@ -277,6 +281,95 @@ test("runSubmit applies stop_at_next_safe_gate at a safe point", async () => {
     const output = read();
     assert.equal(output.result.result, STEERING_RESULT.APPLIED_NOW);
     assert.equal(output.steeringState.effectiveStack[0].kind, STEERING_KIND.STOP_AT_NEXT_SAFE_GATE);
+  });
+});
+
+test("runSubmit operator mode returns a queued acknowledgement envelope from inspected state", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+    const copilotPath = path.join(dir, "copilot.json");
+    const reviewerPath = path.join(dir, "reviewer.json");
+    const { stream, read } = makeStdout();
+
+    await writeJson(copilotPath, {
+      prExists: true,
+      prNumber: 55,
+      prDraft: true,
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerPath, {
+      prExists: true,
+      prNumber: 55,
+      prHeadSha: "abc123",
+      submittedReviewPresent: true,
+      submittedReviewCommitSha: "abc123",
+    });
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before the next safe gate",
+      "--seq", "1",
+      "--copilot-input", copilotPath,
+      "--reviewer-input", reviewerPath,
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.runId, "pr-55");
+    assert.equal(output.acknowledgement.disposition, "queued_for_safe_point");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.QUEUED_FOR_SAFE_POINT);
+    assert.equal(output.acknowledgement.inspectedState, "pr_draft");
+    assert.equal(output.acknowledgement.safePointCategory, "next_point");
+    assert.equal(output.acknowledgement.effectiveNow, false);
+    assert.match(output.acknowledgement.readbackPath.inspection, /inspect-run --repo owner\/repo --pr 55/);
+    assert.match(output.acknowledgement.readbackPath.steeringStatus, /steer-loop\.mjs status --run-id pr-55/);
+    assert.equal(output.steeringState.queuedEvents.length, 1);
+  });
+});
+
+test("runSubmit operator mode rejects non-stop directives", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+    const copilotPath = path.join(dir, "copilot.json");
+    const reviewerPath = path.join(dir, "reviewer.json");
+    const { stream, read } = makeStdout();
+
+    await writeJson(copilotPath, {
+      prExists: true,
+      prNumber: 55,
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerPath, {
+      prExists: true,
+      prNumber: 55,
+      prHeadSha: "abc123",
+      submittedReviewPresent: true,
+      submittedReviewCommitSha: "abc123",
+    });
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "preference",
+      "--directive", "Prefer TypeScript",
+      "--seq", "1",
+      "--copilot-input", copilotPath,
+      "--reviewer-input", reviewerPath,
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.disposition, "rejected");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING);
+    assert.match(output.acknowledgement.reason, /only stop_at_next_safe_gate/i);
   });
 });
 

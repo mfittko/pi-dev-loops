@@ -3,6 +3,8 @@
 This document describes the deterministic mid-flight operator steering contract
 for active dev loops. It covers how to submit steering directives, how the loop
 acknowledges them, what the safe-point rules are, and what each result means.
+In the first external slice, steering is a bounded mutation layer layered on top
+of the read-only inspection snapshot for one active Copilot PR outer-loop run.
 
 ## Overview
 
@@ -35,6 +37,22 @@ in subsequent work.
 
 ---
 
+## First-slice external directive boundary
+
+The first external operator-facing `submit` contract is intentionally narrow:
+
+- it targets one explicit Copilot PR outer-loop run at a time
+- it reuses the inspection identity model (`repo` + `pr` ⇒ `runId: pr-<number>`)
+- it must accept exactly one behavior-changing directive:
+  `stop_at_next_safe_gate`
+- it must reject `hard_constraint`, `preference`, and `clarification` on the
+  external submit path
+
+The lower-level core/state surfaces may still model other steering kinds, but
+they are not part of the v1 operator-facing submit contract.
+
+---
+
 ## Steering kinds
 
 | Kind | Meaning |
@@ -57,6 +75,20 @@ Each submitted steering event receives exactly one of the following results:
 | `rejected_unsafe_now` | The loop is in a terminal state (`done`, `review_request_unavailable`, `no_pr`). Steering has no effect and is rejected. The run must be restarted for a fresh steering session. |
 | `rejected_invalid_or_conflicting` | The event was malformed (missing required fields), the `seq` value was out of order, or the directive exactly duplicates an existing `hard_constraint` already on the effective stack. |
 | `needs_human_decision` | The loop is in `blocked_needs_user_decision`. A human must act on the blocking condition before automated steering can be applied. |
+
+---
+
+## Observation vs control boundary
+
+- `scripts/loop/inspect-run.mjs` owns the read-only run snapshot and the
+  run-scoped steering readback summary relevant to current state
+- `scripts/loop/steer-loop.mjs submit` owns bounded mutation and returns an
+  acknowledgement immediately; it does not wait for later promotion
+- `scripts/loop/steer-loop.mjs status` owns steering-specific acknowledgement
+  history beyond the inspection summary
+
+This first slice does **not** attach to the live worker or introduce a generic
+conductor-wide control plane.
 
 ---
 
@@ -179,11 +211,11 @@ fixes. Steering is queued and promoted when the loop next reaches an idle state.
 
 ```sh
 node scripts/loop/steer-loop.mjs submit \
-  --run-id <run-id> \
-  --kind hard_constraint \
-  --directive "Do not add new npm dependencies" \
+  --repo <owner/name> \
+  --pr <number> \
+  --kind stop_at_next_safe_gate \
+  --directive "Stop before the next safe gate" \
   --seq 1 \
-  [--loop-state <current-loop-state>] \
   [--state-file .pi/steering/<run-id>.json]
 ```
 
@@ -191,8 +223,9 @@ node scripts/loop/steer-loop.mjs submit \
 
 | Flag | Description |
 |---|---|
-| `--run-id` | Target run identifier |
-| `--kind` | One of: `hard_constraint`, `preference`, `clarification`, `stop_at_next_safe_gate` |
+| `--repo` | Repository slug |
+| `--pr` | Pull request number |
+| `--kind` | Must be `stop_at_next_safe_gate` in the external operator-facing contract |
 | `--directive` | Operator payload / directive text (non-empty) |
 | `--seq` | Positive integer sequence number (must be >= current `nextSeq`) |
 
@@ -200,23 +233,30 @@ node scripts/loop/steer-loop.mjs submit \
 
 | Flag | Default | Description |
 |---|---|---|
-| `--loop-state` | `ready_to_rerequest_review` | Current copilot loop state value |
-| `--apply-mode` | `immediate` | `immediate` or `next_safe_point` |
+| `--run-id` | derived as `pr-<number>` | Optional explicit identity check; mismatches are rejected |
 | `--state-file` | `.pi/steering/<run-id>.json` | Path to persisted steering state |
 | `--event-id` | auto-generated | Unique event identifier |
+| `--copilot-input`, `--reviewer-input` | unset | Snapshot-mode inputs for deterministic tests/local integration |
 
 **Output (stdout, JSON):**
 ```json
 {
   "ok": true,
-  "result": {
-    "eventId": "evt-...",
-    "seq": 1,
-    "result": "applied_now",
-    "reason": null,
-    "acknowledgedAt": "2026-05-16T08:00:00.000Z"
+  "acknowledgement": {
+    "runId": "pr-55",
+    "directive": "stop_at_next_safe_gate",
+    "disposition": "queued_for_safe_point",
+    "resultCode": "queued_for_safe_point",
+    "reason": "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
+    "inspectedState": "pr_draft",
+    "safePointCategory": "next_point",
+    "effectiveNow": false,
+    "readbackPath": {
+      "inspection": "inspect-run --repo owner/repo --pr 55 --state-file /abs/path/to/.pi/steering/pr-55.json",
+      "steeringStatus": "steer-loop.mjs status --run-id pr-55 --state-file /abs/path/to/.pi/steering/pr-55.json"
+    }
   },
-  "steeringState": { ... }
+  "result": { "...": "low-level acknowledgement detail" }
 }
 ```
 
@@ -265,6 +305,10 @@ resolve the loop state through any active steering directives.
 
 When `--steering-state-file` is provided:
 
+- The detector first interprets the base loop state, then runs
+  `promoteQueuedSteering(...)` on that state.
+- If queued steering reaches an IMMEDIATE safe point, the promoted steering state
+  is persisted back to the steering file before final readback.
 - The snapshot is interpreted through `resolveEffectiveLoopState` instead of
   `interpretLoopState` directly.
 - If a `stop_at_next_safe_gate` directive is on the effective stack **and** the
@@ -283,11 +327,11 @@ Without `--steering-state-file`, output is identical to the pre-steering behavio
 ```sh
 # 1. Submit steering mid-flight (loop is waiting for Copilot review)
 node scripts/loop/steer-loop.mjs submit \
-  --run-id pr-42 \
+  --repo owner/repo \
+  --pr 42 \
   --kind stop_at_next_safe_gate \
   --directive "Stop before next review cycle" \
   --seq 1 \
-  --loop-state waiting_for_copilot_review \
   --state-file .pi/steering/pr-42.json
 
 # 2. On the next loop iteration, detect state with the steering file
