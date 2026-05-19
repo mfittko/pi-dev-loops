@@ -334,7 +334,7 @@ Contract:
 - supports snapshot-input mode for deterministic gh-free testing
 
 Success output shape:
-- `{ "ok": true, "outerAction": "...", "copilotState": "...", "reviewerState": "...", "reason"?: "...", "checkpoint": { ... } }`
+- `{ "ok": true, "outerAction": "...", "copilotState": "...", "reviewerState": "...", "reason"?: "...", "conductorRouting": { "routingOutcome": "...", "outerAction": "...", "stopReason": null|"...", "handoffEnvelope": { ... } }, "checkpoint": { ... } }`
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero

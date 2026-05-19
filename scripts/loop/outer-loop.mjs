@@ -21,6 +21,8 @@
  * Success output shape:
  *   { "ok": true, "outerAction": "...", "copilotState": "...",
  *     "reviewerState": "...", "reason"?: "...",
+ *     "conductorRouting": { "routingOutcome": "...", "outerAction": "...",
+ *       "stopReason": null|"...", "handoffEnvelope": { ... } },
  *     "checkpoint": { "pr": N, "repo": "...", "outerAction": "...",
  *       "copilotState": "...", "reviewerState": "...", "reason": null|"...",
  *       "timestamp": "...", "waitCycles": N } }
@@ -72,6 +74,8 @@ Optional:
 Output (stdout, JSON):
   { "ok": true, "outerAction": "...", "copilotState": "...",
     "reviewerState": "...", "reason"?: "...",
+    "conductorRouting": { "routingOutcome": "...", "outerAction": "...",
+      "stopReason": null|"...", "handoffEnvelope": { ... } },
     "checkpoint": { "pr": N, "repo": "...", "outerAction": "...",
       "copilotState": "...", "reviewerState": "...", "reason": null|"...",
       "timestamp": "...", "waitCycles": N } }
