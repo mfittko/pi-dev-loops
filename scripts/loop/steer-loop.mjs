@@ -35,6 +35,7 @@
  *   on stderr and exit non-zero.
  *   Runtime failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
+import { randomUUID } from "node:crypto";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -574,7 +575,7 @@ export async function runSubmit(
     runId,
     stateFilePath,
   });
-  const eventId = options.eventId ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const eventId = options.eventId ?? `evt-${randomUUID()}`;
 
   let inspectedState = options.loopState;
   let safePointCategory = classifySafePoint(options.loopState);
