@@ -144,7 +144,7 @@ function parseError(message, usage) {
 
 function runIdMismatchError(persistedRunId, requestedRunId) {
   return new Error(
-    `run-id mismatch: --state-file contains run '${persistedRunId}' but --run-id is '${requestedRunId}'. Use the correct --run-id or point --state-file at the right file.`
+    `run-id mismatch: --state-file contains run ${JSON.stringify(persistedRunId)} but --run-id is ${JSON.stringify(requestedRunId)}. Use the correct --run-id or point --state-file at the right file.`
   );
 }
 
@@ -267,7 +267,7 @@ export function parseSubmitCliArgs(argv) {
       throw parseError("--repo and --pr must be provided together", SUBMIT_USAGE);
     }
     if (!options.runId && options.repo === undefined) {
-      throw parseError("--run-id is required unless --repo and --pr are provided", SUBMIT_USAGE);
+      throw parseError("--run-id is required, or both --repo and --pr must be provided together", SUBMIT_USAGE);
     }
     if (!options.kind) {
       throw parseError("--kind is required", SUBMIT_USAGE);
@@ -331,7 +331,7 @@ export function parseStatusCliArgs(argv) {
       throw parseError("--repo and --pr must be provided together", STATUS_USAGE);
     }
     if (!options.runId && options.repo === undefined) {
-      throw parseError("--run-id is required unless --repo and --pr are provided", STATUS_USAGE);
+      throw parseError("--run-id is required, or both --repo and --pr must be provided together", STATUS_USAGE);
     }
   }
 
@@ -353,11 +353,15 @@ function deriveTargetRunId(options) {
   return options.runId;
 }
 
+function quoteCliValue(value) {
+  return JSON.stringify(String(value));
+}
+
 function resolveRequestedRunId(options, usage) {
   const derivedRunId = deriveTargetRunId(options);
   if (options.runId && options.repo !== undefined && options.pr !== undefined && options.runId !== derivedRunId) {
     throw parseError(
-      `run-id mismatch: explicit --run-id '${options.runId}' does not match derived run '${derivedRunId}' for --repo/--pr target`,
+      `run-id mismatch: explicit --run-id ${JSON.stringify(options.runId)} does not match derived run ${JSON.stringify(derivedRunId)} for --repo/--pr target`,
       usage,
     );
   }
@@ -376,13 +380,13 @@ function mapDisposition(resultCode) {
 }
 
 function buildReadbackPath({ repo, pr, runId, stateFilePath }) {
-  const stateFileFlag = stateFilePath ? ` --state-file ${stateFilePath}` : "";
+  const stateFileFlag = stateFilePath ? ` --state-file ${quoteCliValue(stateFilePath)}` : "";
   const inspection = repo && pr
     ? `inspect-run --repo ${repo} --pr ${pr}${stateFileFlag}`
     : null;
   return {
     inspection,
-    steeringStatus: `steer-loop.mjs status --run-id ${runId}${stateFileFlag}`,
+    steeringStatus: `steer-loop.mjs status --run-id ${quoteCliValue(runId)}${stateFileFlag}`,
   };
 }
 
@@ -390,7 +394,8 @@ function buildAcknowledgement({
   repo,
   pr,
   runId,
-  directive,
+  directiveKind,
+  directiveText,
   resultCode,
   reason,
   inspectedState,
@@ -399,7 +404,8 @@ function buildAcknowledgement({
 }) {
   return {
     runId,
-    directive,
+    directiveKind,
+    directive: directiveText,
     disposition: mapDisposition(resultCode),
     resultCode,
     reason,
@@ -521,7 +527,8 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
         repo: options.repo,
         pr: options.pr,
         runId,
-        directive: options.kind,
+        directiveKind: options.kind,
+        directiveText: options.directive,
         resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
         reason: "external operator submit accepts only stop_at_next_safe_gate in this first slice",
         inspectedState: inspectedState ?? "unknown",
@@ -537,7 +544,8 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
         repo: options.repo,
         pr: options.pr,
         runId,
-        directive: options.kind,
+        directiveKind: options.kind,
+        directiveText: options.directive,
         resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
         reason: "target run could not be confidently identified from the inspection snapshot",
         inspectedState: inspectedState ?? "unknown",
@@ -553,7 +561,8 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
         repo: options.repo,
         pr: options.pr,
         runId,
-        directive: options.kind,
+        directiveKind: options.kind,
+        directiveText: options.directive,
         resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
         reason: "inspection snapshot did not provide sufficient confidence to steer this run",
         inspectedState,
@@ -601,7 +610,8 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
     repo: options.repo,
     pr: options.pr,
     runId,
-    directive: options.kind,
+    directiveKind: options.kind,
+    directiveText: options.directive,
     resultCode: result.result,
     reason: result.reason,
     inspectedState,

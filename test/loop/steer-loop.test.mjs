@@ -327,7 +327,7 @@ test("runSubmit operator mode returns a queued acknowledgement envelope from ins
     assert.equal(output.acknowledgement.safePointCategory, "next_point");
     assert.equal(output.acknowledgement.effectiveNow, false);
     assert.match(output.acknowledgement.readbackPath.inspection, /inspect-run --repo owner\/repo --pr 55/);
-    assert.match(output.acknowledgement.readbackPath.steeringStatus, /steer-loop\.mjs status --run-id pr-55/);
+    assert.match(output.acknowledgement.readbackPath.steeringStatus, /steer-loop\.mjs status --run-id "pr-55"/);
     assert.equal(output.steeringState.queuedEvents.length, 1);
   });
 });

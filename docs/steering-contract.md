@@ -244,7 +244,8 @@ node scripts/loop/steer-loop.mjs submit \
   "ok": true,
   "acknowledgement": {
     "runId": "pr-55",
-    "directive": "stop_at_next_safe_gate",
+    "directiveKind": "stop_at_next_safe_gate",
+    "directive": "Stop before the next safe gate",
     "disposition": "queued_for_safe_point",
     "resultCode": "queued_for_safe_point",
     "reason": "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
