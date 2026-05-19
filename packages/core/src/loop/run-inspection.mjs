@@ -410,7 +410,6 @@ export function composeRunInspectionSnapshot({
     layers.steering = {
       status: "available",
       locatorPath: steeringLocatorPath,
-      state: steeringEvidence,
       ...(steeringReadback ?? {}),
     };
   }

@@ -236,7 +236,7 @@ node scripts/loop/steer-loop.mjs submit \
 | `--run-id` | derived as `pr-<number>` | Optional explicit identity check; mismatches are rejected |
 | `--state-file` | `.pi/steering/<run-id>.json` | Path to persisted steering state |
 | `--event-id` | auto-generated | Unique event identifier |
-| `--copilot-input`, `--reviewer-input` | unset | Snapshot-mode inputs for deterministic tests/local integration |
+| `--copilot-input`, `--reviewer-input` | unset | Snapshot-mode inputs for deterministic tests/local integration; operator-facing submit rejects these degraded snapshots |
 
 **Output (stdout, JSON):**
 ```json
@@ -253,13 +253,19 @@ node scripts/loop/steer-loop.mjs submit \
     "safePointCategory": "next_point",
     "effectiveNow": false,
     "readbackPath": {
-      "inspection": "inspect-run --repo owner/repo --pr 55 --state-file /abs/path/to/.pi/steering/pr-55.json",
-      "steeringStatus": "steer-loop.mjs status --run-id pr-55 --state-file /abs/path/to/.pi/steering/pr-55.json"
+      "inspection": "inspect-run --repo owner/repo --pr 55 --steering-state-file \"/abs/path/to/.pi/steering/pr-55.json\"",
+      "steeringStatus": "steer-loop.mjs status --run-id \"pr-55\" --state-file \"/abs/path/to/.pi/steering/pr-55.json\""
     }
   },
-  "result": { "...": "low-level acknowledgement detail" }
+  "result": { "...": "low-level acknowledgement detail" },
+  "steeringState": { "...": "durable state after the acknowledgement or unchanged state on rejection" }
 }
 ```
+
+Operator-facing submit fails closed when the inspection snapshot is partial,
+checkpoint-only, unavailable, stale, or conflicting. In those cases it returns
+the same top-level success envelope with a rejected acknowledgement and the
+unchanged steering state.
 
 ### Inspecting steering state
 

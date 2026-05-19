@@ -49,7 +49,7 @@
  *   gh/GitHub failures and incomplete review-thread detection emit
  *   { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,6 +63,11 @@ import {
   promoteQueuedSteering,
   resolveEffectiveLoopState,
 } from "../../packages/core/src/loop/steering.mjs";
+import {
+  loadStateFile,
+  saveStateFile,
+  withStateFileLock,
+} from "./_steering-state-file.mjs";
 
 const USAGE = `Usage:
   detect-copilot-loop-state.mjs --repo <owner/name> --pr <number> [--review-request-status <status>]
@@ -444,32 +449,26 @@ export async function runCli(
   let steeringFields = {};
 
   if (options.steeringStateFile !== undefined) {
-    let rawSteering;
-    try {
-      rawSteering = JSON.parse(await readFile(options.steeringStateFile, "utf8"));
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        rawSteering = null;
-      } else {
-        throw new Error(`Failed to read steering state file '${options.steeringStateFile}': ${error.message}`);
-      }
-    }
-
-    const steeringState = rawSteering !== null
-      ? normalizeSteeringState(rawSteering)
-      : createSteeringState(deriveRunIdFromSteeringFile(options.steeringStateFile));
-
     const baseInterpretation = interpretLoopState(snapshot);
-    const { steeringState: promotedState, promoted } = promoteQueuedSteering(
-      steeringState,
-      baseInterpretation.state,
-    );
+    const activeSteeringState = await withStateFileLock(options.steeringStateFile, async () => {
+      const rawSteering = await loadStateFile(options.steeringStateFile);
+      const steeringState = rawSteering !== null
+        ? normalizeSteeringState(rawSteering)
+        : createSteeringState(deriveRunIdFromSteeringFile(options.steeringStateFile));
 
-    if (promoted.length > 0) {
-      await writeFile(options.steeringStateFile, `${JSON.stringify(promotedState, null, 2)}\n`, "utf8");
-    }
+      const { steeringState: promotedState, promoted } = promoteQueuedSteering(
+        steeringState,
+        baseInterpretation.state,
+      );
 
-    const resolved = resolveEffectiveLoopState(snapshot, promotedState);
+      if (promoted.length > 0) {
+        await saveStateFile(options.steeringStateFile, promotedState);
+      }
+
+      return promotedState;
+    });
+
+    const resolved = resolveEffectiveLoopState(snapshot, activeSteeringState);
     interpretation = resolved;
     steeringFields = {
       steeringApplied: resolved.steeringApplied,

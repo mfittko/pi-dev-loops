@@ -364,7 +364,8 @@ Contract:
 - reports not-found or unavailable targets as structured success output with `statusClass: "unknown"`
   rather than by throwing a synthetic blocked-run error
 - surfaces steering as a best-effort drill-down layer when `--steering-state-file` is provided,
-  including latest acknowledgement plus queued/effective stop summaries for the current run
+  including latest acknowledgement plus queued/effective stop summaries for the current run,
+  without exposing full steering history/detail
 
 Success output shape:
 - `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "layers": { ... } }`
@@ -387,6 +388,8 @@ Contract:
   inspection surface and derives `runId: pr-<number>` from that target
 - operator-facing `submit` is intentionally limited to `stop_at_next_safe_gate`; other directive
   kinds remain low-level/internal and are rejected on the external submit path
+- operator-facing `submit` fails closed when inspection is partial, checkpoint-only, unavailable,
+  stale, or conflicting
 - low-level/testing mode may still accept injected loop-state inputs for deterministic tests
 - returns deterministic acknowledgement/result payloads for `submit` and deterministic state
   readback for `status`

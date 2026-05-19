@@ -35,7 +35,6 @@
  *   on stderr and exit non-zero.
  *   Runtime failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
-import { readFile, writeFile, mkdir, rename, rm } from "node:fs/promises";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,8 +50,19 @@ import {
   getSteeringStatus,
 } from "../../packages/core/src/loop/steering.mjs";
 import { STATE } from "../../packages/core/src/loop/copilot-loop-state.mjs";
-import { deriveRunIdForInspectionTarget } from "../../packages/core/src/loop/run-inspection.mjs";
+import {
+  ACTIVE_STATE_FAMILY,
+  deriveRunIdForInspectionTarget,
+  SOURCE_MODE,
+  TRUST,
+} from "../../packages/core/src/loop/run-inspection.mjs";
 import { inspectRun } from "./inspect-run.mjs";
+import {
+  defaultStateFilePath,
+  loadStateFile,
+  saveStateFile,
+  withStateFileLock,
+} from "./_steering-state-file.mjs";
 
 import { formatCliError } from "../_core-helpers.mjs";
 
@@ -131,9 +141,6 @@ const VALID_KINDS = new Set(Object.values(STEERING_KIND));
 const VALID_APPLY_MODES = new Set(["immediate", "next_safe_point"]);
 const VALID_LOOP_STATES = new Set(Object.values(STATE));
 const SAFE_RUN_ID_RE = /^[A-Za-z0-9._-]+$/;
-const STATE_FILE_LOCK_TIMEOUT_MS = 5000;
-const STATE_FILE_LOCK_RETRY_MS = 50;
-
 // ---------------------------------------------------------------------------
 // Argument parsing
 // ---------------------------------------------------------------------------
@@ -161,6 +168,13 @@ function validateSafeRunId(runId, usage) {
   if (!SAFE_RUN_ID_RE.test(runId)) {
     throw parseError("--run-id must contain only letters, numbers, dot, underscore, or hyphen", usage);
   }
+}
+
+function parsePositiveIntegerOption(raw, flag, usage) {
+  if (!/^\d+$/.test(raw) || Number(raw) === 0) {
+    throw parseError(`${flag} must be a positive integer`, usage);
+  }
+  return Number(raw);
 }
 
 export function parseSubmitCliArgs(argv) {
@@ -199,11 +213,7 @@ export function parseSubmitCliArgs(argv) {
       continue;
     }
     if (token === "--pr") {
-      const raw = requireOptionValue(args, "--pr", SUBMIT_USAGE);
-      if (!/^\d+$/.test(raw) || Number(raw) === 0) {
-        throw parseError("--pr must be a positive integer", SUBMIT_USAGE);
-      }
-      options.pr = Number(raw);
+      options.pr = parsePositiveIntegerOption(requireOptionValue(args, "--pr", SUBMIT_USAGE), "--pr", SUBMIT_USAGE);
       continue;
     }
     if (token === "--kind") {
@@ -219,11 +229,7 @@ export function parseSubmitCliArgs(argv) {
       continue;
     }
     if (token === "--seq") {
-      const raw = requireOptionValue(args, "--seq", SUBMIT_USAGE);
-      if (!/^\d+$/.test(raw) || Number(raw) === 0) {
-        throw parseError("--seq must be a positive integer", SUBMIT_USAGE);
-      }
-      options.seq = Number(raw);
+      options.seq = parsePositiveIntegerOption(requireOptionValue(args, "--seq", SUBMIT_USAGE), "--seq", SUBMIT_USAGE);
       continue;
     }
     if (token === "--state-file") {
@@ -311,11 +317,7 @@ export function parseStatusCliArgs(argv) {
       continue;
     }
     if (token === "--pr") {
-      const raw = requireOptionValue(args, "--pr", STATUS_USAGE);
-      if (!/^\d+$/.test(raw) || Number(raw) === 0) {
-        throw parseError("--pr must be a positive integer", STATUS_USAGE);
-      }
-      options.pr = Number(raw);
+      options.pr = parsePositiveIntegerOption(requireOptionValue(args, "--pr", STATUS_USAGE), "--pr", STATUS_USAGE);
       continue;
     }
     if (token === "--state-file") {
@@ -336,14 +338,6 @@ export function parseStatusCliArgs(argv) {
   }
 
   return options;
-}
-
-// ---------------------------------------------------------------------------
-// State file I/O
-// ---------------------------------------------------------------------------
-
-function defaultStateFilePath(runId, cwd = process.cwd()) {
-  return path.join(cwd, ".pi", "steering", `${runId}.json`);
 }
 
 function deriveTargetRunId(options) {
@@ -380,13 +374,14 @@ function mapDisposition(resultCode) {
 }
 
 function buildReadbackPath({ repo, pr, runId, stateFilePath }) {
-  const stateFileFlag = stateFilePath ? ` --state-file ${quoteCliValue(stateFilePath)}` : "";
+  const inspectionStateFileFlag = stateFilePath ? ` --steering-state-file ${quoteCliValue(stateFilePath)}` : "";
+  const statusStateFileFlag = stateFilePath ? ` --state-file ${quoteCliValue(stateFilePath)}` : "";
   const inspection = repo && pr
-    ? `inspect-run --repo ${repo} --pr ${pr}${stateFileFlag}`
+    ? `inspect-run --repo ${repo} --pr ${pr}${inspectionStateFileFlag}`
     : null;
   return {
     inspection,
-    steeringStatus: `steer-loop.mjs status --run-id ${quoteCliValue(runId)}${stateFileFlag}`,
+    steeringStatus: `steer-loop.mjs status --run-id ${quoteCliValue(runId)}${statusStateFileFlag}`,
   };
 }
 
@@ -417,80 +412,153 @@ function buildAcknowledgement({
   };
 }
 
-async function loadStateFile(filePath) {
-  try {
-    const text = await readFile(filePath, "utf8");
-    return JSON.parse(text);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return null;
-    }
-    throw new Error(`Failed to read steering state file '${filePath}': ${error.message}`);
-  }
+function buildLowLevelResult({ eventId, seq, resultCode, reason, acknowledgedAt = new Date().toISOString() }) {
+  return {
+    eventId,
+    seq,
+    result: resultCode,
+    reason,
+    acknowledgedAt,
+  };
 }
 
-async function sleep(ms) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
+async function loadOrCreateSteeringState(filePath, runId) {
+  const raw = await loadStateFile(filePath);
+  const steeringState = raw !== null
+    ? normalizeSteeringState(raw)
+    : createSteeringState(runId);
 
-async function readLockMetadata(lockPath) {
-  try {
-    const text = await readFile(path.join(lockPath, "owner.json"), "utf8");
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-async function withStateFileLock(filePath, callback) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-
-  const lockPath = `${filePath}.lock`;
-  const deadline = Date.now() + STATE_FILE_LOCK_TIMEOUT_MS;
-
-  while (true) {
-    try {
-      await mkdir(lockPath);
-      await writeFile(
-        path.join(lockPath, "owner.json"),
-        `${JSON.stringify({ pid: process.pid, acquiredAt: new Date().toISOString() }, null, 2)}\n`,
-        "utf8",
-      );
-      break;
-    } catch (error) {
-      if (error.code !== "EEXIST") {
-        throw new Error(`Failed to acquire steering state lock '${lockPath}': ${error.message}`);
-      }
-      if (Date.now() >= deadline) {
-        const metadata = await readLockMetadata(lockPath);
-        const ownerSuffix = metadata
-          ? ` (current lock owner pid=${metadata.pid ?? "unknown"}, acquiredAt=${metadata.acquiredAt ?? "unknown"})`
-          : "";
-        throw new Error(`Timed out waiting for steering state lock '${lockPath}'${ownerSuffix}. If the owning process crashed, remove the stale lock directory and retry.`);
-      }
-      await sleep(STATE_FILE_LOCK_RETRY_MS);
-    }
+  if (raw !== null && steeringState.runId !== runId) {
+    throw runIdMismatchError(steeringState.runId, runId);
   }
 
-  try {
-    return await callback();
-  } finally {
-    await rm(lockPath, { recursive: true, force: true });
-  }
+  return steeringState;
 }
 
-async function saveStateFile(filePath, steeringState) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(tempPath, `${JSON.stringify(steeringState, null, 2)}\n`, "utf8");
-  await rename(tempPath, filePath);
+function rejectUnsteerableInspection(inspection, { runId, eventId, seq, directiveKind, directiveText, readbackPath }) {
+  if (inspection.activeStateFamily !== ACTIVE_STATE_FAMILY) {
+    const result = buildLowLevelResult({
+      eventId,
+      seq,
+      resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+      reason: `inspection target family '${inspection.activeStateFamily}' is unsupported for operator-facing steering`,
+    });
+    return {
+      acknowledgement: buildAcknowledgement({
+        repo: inspection.target?.repo,
+        pr: inspection.target?.pr,
+        runId,
+        directiveKind,
+        directiveText,
+        resultCode: result.result,
+        reason: result.reason,
+        inspectedState: inspection.layers?.copilot?.currentState ?? "unknown",
+        safePointCategory: null,
+        readbackPath,
+      }),
+      result,
+    };
+  }
+
+  if (inspection.runId !== runId) {
+    const result = buildLowLevelResult({
+      eventId,
+      seq,
+      resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+      reason: `inspection run mismatch: expected ${JSON.stringify(runId)} but inspected ${JSON.stringify(inspection.runId)}`,
+    });
+    return {
+      acknowledgement: buildAcknowledgement({
+        repo: inspection.target?.repo,
+        pr: inspection.target?.pr,
+        runId,
+        directiveKind,
+        directiveText,
+        resultCode: result.result,
+        reason: result.reason,
+        inspectedState: inspection.layers?.copilot?.currentState ?? "unknown",
+        safePointCategory: null,
+        readbackPath,
+      }),
+      result,
+    };
+  }
+
+  const inspectedState = inspection.layers?.copilot?.currentState;
+  const safePointCategory = typeof inspectedState === "string" ? classifySafePoint(inspectedState) : null;
+
+  if (typeof inspectedState !== "string" || inspection.statusClass === "unknown") {
+    const result = buildLowLevelResult({
+      eventId,
+      seq,
+      resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+      reason: "target run could not be confidently identified from the inspection snapshot",
+    });
+    return {
+      acknowledgement: buildAcknowledgement({
+        repo: inspection.target?.repo,
+        pr: inspection.target?.pr,
+        runId,
+        directiveKind,
+        directiveText,
+        resultCode: result.result,
+        reason: result.reason,
+        inspectedState: inspectedState ?? "unknown",
+        safePointCategory,
+        readbackPath,
+      }),
+      result,
+    };
+  }
+
+  if (
+    inspection.sourceMode !== SOURCE_MODE.LIVE_DETECTOR_BACKED
+    || inspection.trust !== TRUST.AUTHORITATIVE
+    || inspection.markers.missing.length > 0
+    || inspection.markers.stale.length > 0
+    || inspection.markers.conflicts.length > 0
+  ) {
+    const detail = [
+      `sourceMode=${inspection.sourceMode}`,
+      `trust=${inspection.trust}`,
+      `missing=${inspection.markers.missing.length}`,
+      `stale=${inspection.markers.stale.length}`,
+      `conflicts=${inspection.markers.conflicts.length}`,
+    ].join(", ");
+    const result = buildLowLevelResult({
+      eventId,
+      seq,
+      resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+      reason: `inspection snapshot is degraded or stale and cannot be steered safely (${detail})`,
+    });
+    return {
+      acknowledgement: buildAcknowledgement({
+        repo: inspection.target?.repo,
+        pr: inspection.target?.pr,
+        runId,
+        directiveKind,
+        directiveText,
+        resultCode: result.result,
+        reason: result.reason,
+        inspectedState,
+        safePointCategory,
+        readbackPath,
+      }),
+      result,
+    };
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
 // Subcommand handlers
 // ---------------------------------------------------------------------------
 
-export async function runSubmit(argv = [], { stdout = process.stdout, cwd = process.cwd() } = {}) {
+export async function runSubmit(
+  argv = [],
+  { stdout = process.stdout, cwd = process.cwd(), env = process.env, ghCommand = "gh" } = {},
+) {
   const options = parseSubmitCliArgs(argv);
 
   if (options.help) {
@@ -506,9 +574,11 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
     runId,
     stateFilePath,
   });
+  const eventId = options.eventId ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   let inspectedState = options.loopState;
   let safePointCategory = classifySafePoint(options.loopState);
+  let validationRejection = null;
 
   if (options.repo !== undefined && options.pr !== undefined) {
     const inspection = await inspectRun({
@@ -517,77 +587,60 @@ export async function runSubmit(argv = [], { stdout = process.stdout, cwd = proc
       steeringStateFile: stateFilePath,
       copilotInputPath: options.copilotInputPath,
       reviewerInputPath: options.reviewerInputPath,
-    });
+    }, { env, ghCommand });
 
     inspectedState = inspection.layers?.copilot?.currentState;
     safePointCategory = inspectedState ? classifySafePoint(inspectedState) : null;
 
     if (options.kind !== STEERING_KIND.STOP_AT_NEXT_SAFE_GATE) {
-      const acknowledgement = buildAcknowledgement({
-        repo: options.repo,
-        pr: options.pr,
+      validationRejection = {
+        acknowledgement: buildAcknowledgement({
+          repo: options.repo,
+          pr: options.pr,
+          runId,
+          directiveKind: options.kind,
+          directiveText: options.directive,
+          resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
+          reason: "external operator submit accepts only stop_at_next_safe_gate in this first slice",
+          inspectedState: inspectedState ?? "unknown",
+          safePointCategory,
+          readbackPath,
+        }),
+        result: buildLowLevelResult({
+          eventId,
+          seq: options.seq,
+          resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
+          reason: "external operator submit accepts only stop_at_next_safe_gate in this first slice",
+        }),
+      };
+    } else {
+      validationRejection = rejectUnsteerableInspection(inspection, {
         runId,
+        eventId,
+        seq: options.seq,
         directiveKind: options.kind,
         directiveText: options.directive,
-        resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
-        reason: "external operator submit accepts only stop_at_next_safe_gate in this first slice",
-        inspectedState: inspectedState ?? "unknown",
-        safePointCategory,
         readbackPath,
       });
-      stdout.write(`${JSON.stringify({ ok: true, acknowledgement })}\n`);
-      return;
     }
+  }
 
-    if (inspection.statusClass === "unknown" || typeof inspectedState !== "string") {
-      const acknowledgement = buildAcknowledgement({
-        repo: options.repo,
-        pr: options.pr,
-        runId,
-        directiveKind: options.kind,
-        directiveText: options.directive,
-        resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
-        reason: "target run could not be confidently identified from the inspection snapshot",
-        inspectedState: inspectedState ?? "unknown",
-        safePointCategory,
-        readbackPath,
-      });
-      stdout.write(`${JSON.stringify({ ok: true, acknowledgement })}\n`);
-      return;
-    }
-
-    if (inspection.trust === "unavailable") {
-      const acknowledgement = buildAcknowledgement({
-        repo: options.repo,
-        pr: options.pr,
-        runId,
-        directiveKind: options.kind,
-        directiveText: options.directive,
-        resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
-        reason: "inspection snapshot did not provide sufficient confidence to steer this run",
-        inspectedState,
-        safePointCategory,
-        readbackPath,
-      });
-      stdout.write(`${JSON.stringify({ ok: true, acknowledgement })}\n`);
-      return;
-    }
+  if (validationRejection !== null) {
+    const steeringState = await loadOrCreateSteeringState(stateFilePath, runId);
+    stdout.write(`${JSON.stringify({
+      ok: true,
+      acknowledgement: validationRejection.acknowledgement,
+      result: validationRejection.result,
+      steeringState,
+    })}\n`);
+    return;
   }
 
   const { steeringState: newState, result } = await withStateFileLock(stateFilePath, async () => {
     // Load or create steering state
-    const raw = await loadStateFile(stateFilePath);
-    const steeringState = raw !== null
-      ? normalizeSteeringState(raw)
-      : createSteeringState(runId);
-
-    // Reject --run-id / --state-file mismatches
-    if (raw !== null && steeringState.runId !== runId) {
-      throw runIdMismatchError(steeringState.runId, runId);
-    }
+    const steeringState = await loadOrCreateSteeringState(stateFilePath, runId);
 
     // Build and validate the event
-    const eventId = options.eventId ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const event = normalizeSteeringEvent({
       eventId,
       runId,
@@ -633,21 +686,7 @@ export async function runStatus(argv = [], { stdout = process.stdout, cwd = proc
   const runId = resolveRequestedRunId(options, STATUS_USAGE);
   const stateFilePath = options.stateFile ?? defaultStateFilePath(runId, cwd);
 
-  const raw = await loadStateFile(stateFilePath);
-  if (raw === null) {
-    const emptyState = createSteeringState(runId);
-    const status = getSteeringStatus(emptyState);
-    stdout.write(`${JSON.stringify({ ok: true, status })}\n`);
-    return;
-  }
-
-  const steeringState = normalizeSteeringState(raw);
-
-  // Reject --run-id / --state-file mismatches
-  if (steeringState.runId !== runId) {
-    throw runIdMismatchError(steeringState.runId, runId);
-  }
-
+  const steeringState = await loadOrCreateSteeringState(stateFilePath, runId);
   const status = getSteeringStatus(steeringState);
   stdout.write(`${JSON.stringify({ ok: true, status })}\n`);
 }
@@ -658,7 +697,7 @@ export async function runStatus(argv = [], { stdout = process.stdout, cwd = proc
 
 export async function runCli(
   argv = process.argv.slice(2),
-  { stdout = process.stdout, cwd = process.cwd() } = {},
+  { stdout = process.stdout, cwd = process.cwd(), env = process.env, ghCommand = "gh" } = {},
 ) {
   const [subcommand, ...rest] = argv;
 
@@ -668,7 +707,7 @@ export async function runCli(
   }
 
   if (subcommand === "submit") {
-    return runSubmit(rest, { stdout, cwd });
+    return runSubmit(rest, { stdout, cwd, env, ghCommand });
   }
 
   if (subcommand === "status") {

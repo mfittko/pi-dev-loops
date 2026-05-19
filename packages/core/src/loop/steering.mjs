@@ -462,6 +462,8 @@ export function submitSteering(event, steeringState, loopState) {
           ...steeringState,
           latestResult: ackResult,
           resultHistory: [...steeringState.resultHistory, ackResult],
+          events: [...steeringState.events, event],
+          nextSeq: Math.max(steeringState.nextSeq, event.seq + 1),
         },
         result: ackResult,
       };
@@ -480,6 +482,8 @@ export function submitSteering(event, steeringState, loopState) {
           ...steeringState,
           latestResult: ackResult,
           resultHistory: [...steeringState.resultHistory, ackResult],
+          events: [...steeringState.events, event],
+          nextSeq: Math.max(steeringState.nextSeq, event.seq + 1),
         },
         result: ackResult,
       };

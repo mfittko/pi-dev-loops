@@ -516,13 +516,6 @@ test("composeRunInspectionSnapshot: steering locator given but file missing → 
 });
 
 test("composeRunInspectionSnapshot: steering locator given and file loads → available", () => {
-  const steeringState = {
-    runId: "run-1",
-    schemaVersion: 1,
-    effectiveStack: [],
-    queuedEvents: [],
-  };
-
   const snapshot = composeRunInspectionSnapshot({
     target: { repo: "owner/repo", pr: 55 },
     inspectedAt: "2026-05-18T12:00:00Z",
@@ -532,13 +525,27 @@ test("composeRunInspectionSnapshot: steering locator given and file loads → av
     existingCheckpoint: null,
     liveAvailability: { copilot: "ok", reviewer: "ok" },
     steeringLocatorPath: "/tmp/run-1-steering.json",
-    steeringEvidence: steeringState,
+    steeringEvidence: {
+      runId: "run-1",
+      schemaVersion: 1,
+      effectiveStack: [],
+      queuedEvents: [],
+    },
     steeringLoadFailed: false,
+    steeringReadback: {
+      latestAcknowledgement: null,
+      effectiveConstraints: { hardConstraints: [], preferences: [], clarifications: [], stopAtNextSafeGate: false, unknownConstraints: [] },
+      pendingSummary: { queuedCount: 0, queuedKinds: [], stopAtNextSafeGateQueued: false },
+      stopAtNextSafeGate: { effective: false, queued: false, terminal: false, safePointCategory: "immediate" },
+    },
   });
 
   assert.equal(snapshot.layers.steering.status, "available");
   assert.equal(snapshot.layers.steering.locatorPath, "/tmp/run-1-steering.json");
-  assert.deepEqual(snapshot.layers.steering.state, steeringState);
+  assert.equal(snapshot.layers.steering.latestAcknowledgement, null);
+  assert.equal(snapshot.layers.steering.pendingSummary.queuedCount, 0);
+  assert.equal(snapshot.layers.steering.stopAtNextSafeGate.effective, false);
+  assert.equal("state" in snapshot.layers.steering, false);
 });
 
 test("composeRunInspectionSnapshot: steering load failed → load_failed reason", () => {
@@ -991,6 +998,7 @@ test("inspect-run CLI: --steering-state-file given and file exists → available
     assert.equal(output.layers.steering.stopAtNextSafeGate.effective, false);
     assert.equal(output.layers.steering.stopAtNextSafeGate.queued, true);
     assert.equal(output.layers.steering.effectiveConstraints.stopAtNextSafeGate, false);
+    assert.equal("state" in output.layers.steering, false);
   });
 });
 

@@ -373,7 +373,8 @@ test("submitSteering treats repeat stop_at_next_safe_gate on an effective run as
   assert.equal(result.result, STEERING_RESULT.APPLIED_NOW);
   assert.match(result.reason, /already effective/i);
   assert.equal(afterRepeat.effectiveStack.length, 1);
-  assert.equal(afterRepeat.events.length, 1);
+  assert.equal(afterRepeat.events.length, 2);
+  assert.equal(afterRepeat.nextSeq, 3);
 });
 
 test("submitSteering applies steering at PR_READY_NO_FEEDBACK safe point", () => {
@@ -441,7 +442,8 @@ test("submitSteering treats repeat stop_at_next_safe_gate while queued as queued
   assert.equal(result.result, STEERING_RESULT.QUEUED_FOR_SAFE_POINT);
   assert.match(result.reason, /already queued/i);
   assert.equal(afterRepeat.queuedEvents.length, 1);
-  assert.equal(afterRepeat.events.length, 1);
+  assert.equal(afterRepeat.events.length, 2);
+  assert.equal(afterRepeat.nextSeq, 3);
 });
 
 // ---------------------------------------------------------------------------
