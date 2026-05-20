@@ -155,7 +155,7 @@ You can override this with `--state-file <path>`.
 {
   "runId": "string",
   "schemaVersion": 1,
-  "target": { "repo": "owner/name", "pr": 55 },
+  "target": null, /* low-level --run-id mode; operator-facing --repo/--pr mode stores { "repo": "owner/name", "pr": 55 } */
   "events": [ /* all submitted events, in submission order */ ],
   "effectiveStack": [ /* events currently in effect */ ],
   "queuedEvents": [ /* events waiting for the next safe point */ ],
