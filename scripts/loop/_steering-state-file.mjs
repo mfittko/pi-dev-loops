@@ -9,13 +9,22 @@ function normalizeRepoSlug(repo) {
   return typeof repo === "string" ? repo.trim().toLowerCase() : "";
 }
 
+function isSafeRepoSegment(segment) {
+  return typeof segment === "string"
+    && segment.length > 0
+    && segment !== "."
+    && segment !== ".."
+    && !/[\\/]/.test(segment)
+    && !/\s/.test(segment);
+}
+
 function assertSafeRepoSlug(repo) {
   const normalized = normalizeRepoSlug(repo);
-  const parts = normalized.split("/");
-  if (parts.length !== 2 || parts.some((part) => part.length === 0 || part === "." || part === ".." || part.includes(path.sep))) {
+  const [owner, name, ...rest] = normalized.split("/");
+  if (rest.length > 0 || !isSafeRepoSegment(owner) || !isSafeRepoSegment(name)) {
     throw new Error(`Invalid repo slug for steering target path: ${JSON.stringify(repo)}`);
   }
-  return { owner: parts[0], name: parts[1] };
+  return { owner, name };
 }
 
 export function defaultStateFilePath(runId, cwd = process.cwd()) {

@@ -216,7 +216,14 @@ test("normalizeSteeringState preserves valid target metadata", () => {
 });
 
 test("normalizeSteeringState rejects malformed target repo slugs", () => {
-  for (const repo of ["owner/repo/extra", "owner\\repo", "owner repo/repo"]) {
+  for (const repo of [
+    "owner/repo/extra",
+    "owner\repo",
+    "owner repo/repo",
+    "owner/..",
+    "./repo",
+    "owner/.",
+  ]) {
     assert.throws(
       () => normalizeSteeringState({
         runId: "run-1",

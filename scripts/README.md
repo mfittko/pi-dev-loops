@@ -397,6 +397,9 @@ Contract:
 - low-level/testing mode may still accept injected loop-state inputs for deterministic tests
 - returns deterministic acknowledgement/result payloads for `submit` and deterministic state
   readback for `status`
+- rejected operator-facing submits leave any trusted durable steering file unchanged; when the
+  persisted file is malformed or target-mismatched, the response may include a fresh synthetic
+  target-scoped `steeringState` for deterministic readback without trusting broken persisted data
 
 Success output shape:
 - `submit`: `{ "ok": true, "acknowledgement": { ... }, "result": { ... }, "steeringState": { ... } }`

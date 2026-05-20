@@ -262,14 +262,19 @@ node scripts/loop/steer-loop.mjs submit \
     }
   },
   "result": { "...": "low-level acknowledgement detail" },
-  "steeringState": { "...": "durable state after the acknowledgement or unchanged state on rejection" }
+  "steeringState": { "...": "durable state after the acknowledgement; on rejection, unchanged durable state when it could be loaded and trusted, otherwise a fresh synthetic target-scoped state for deterministic readback output" }
 }
 ```
 
 Operator-facing submit fails closed when the inspection snapshot is partial,
 checkpoint-only, unavailable, stale, or conflicting. In those cases it returns
-the same top-level success envelope with a rejected acknowledgement and the
-unchanged steering state.
+the same top-level success envelope with a rejected acknowledgement.
+When the persisted steering file could be loaded and trusted, the response
+includes that unchanged durable steering state. When the persisted file is
+malformed or target-mismatched, the durable file still remains unchanged, but
+the response may include a fresh synthetic target-scoped steering state so
+operators still get deterministic readback fields without trusting the broken
+persisted contents.
 
 ### Inspecting steering state
 

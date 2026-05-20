@@ -11,6 +11,7 @@ import {
   runSubmit,
   runStatus,
 } from "../../scripts/loop/steer-loop.mjs";
+import { defaultStateFilePathForTarget } from "../../scripts/loop/_steering-state-file.mjs";
 
 import { STEERING_KIND, STEERING_RESULT } from "../../packages/core/src/loop/steering.mjs";
 
@@ -315,6 +316,15 @@ test("parseStatusCliArgs rejects mixing --run-id with --repo/--pr", () => {
     () => parseStatusCliArgs(["--run-id", "run-xyz", "--repo", "owner/repo", "--pr", "55"]),
     /Choose exactly one target mode/,
   );
+});
+
+test("defaultStateFilePathForTarget rejects unsafe repo segments consistently", () => {
+  for (const repo of ["owner/..", "./repo", "owner/repo\\evil", "owner/repo/extra"]) {
+    assert.throws(
+      () => defaultStateFilePathForTarget({ repo, pr: 55 }),
+      /Invalid repo slug for steering target path/,
+    );
+  }
 });
 
 
