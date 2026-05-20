@@ -257,8 +257,8 @@ node scripts/loop/steer-loop.mjs submit \
     "safePointCategory": "next_point",
     "effectiveNow": false,
     "readbackPath": {
-      "inspection": "node scripts/loop/inspect-run.mjs --repo owner/repo --pr 55 --steering-state-file \"/abs/path/to/.pi/steering/owner/repo/pr-55.json\"",
-      "steeringStatus": "node scripts/loop/steer-loop.mjs status --repo owner/repo --pr 55 --state-file \"/abs/path/to/.pi/steering/owner/repo/pr-55.json\""
+      "inspection": "node scripts/loop/inspect-run.mjs --repo \"owner/repo\" --pr \"55\" --steering-state-file \"/abs/path/to/.pi/steering/owner/repo/pr-55.json\"",
+      "steeringStatus": "node scripts/loop/steer-loop.mjs status --repo \"owner/repo\" --pr \"55\" --state-file \"/abs/path/to/.pi/steering/owner/repo/pr-55.json\""
     }
   },
   "result": { "...": "low-level acknowledgement detail" },
