@@ -1305,6 +1305,118 @@ test("detect-copilot-loop-state: missing --steering-state-file path returns stee
 });
 
 
+test("detect-copilot-loop-state fails closed when a provided steering file targets a different repo/pr", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-target-mismatch-"));
+
+  try {
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "55", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 55,
+          headRefOid: "abc123",
+          reviews: [],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/requested_reviewers"],
+        stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: JSON.stringify({
+          data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+        }) + "\n",
+      },
+    ]);
+    const steeringPath = path.join(tempDir, "steering.json");
+    await writeJson(steeringPath, {
+      runId: "pr-55",
+      target: { repo: "other/repo", pr: 55 },
+      schemaVersion: 1,
+      events: [],
+      effectiveStack: [],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 1,
+    });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--steering-state-file", steeringPath,
+    ], { env });
+
+    assert.equal(result.code, 1);
+    const err = JSON.parse(result.stderr);
+    assert.equal(err.ok, false);
+    assert.match(err.error, /steering state target mismatch/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state fails closed in --input mode when steering target repo cannot be proven", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-input-target-mismatch-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    const steeringPath = path.join(tempDir, "steering.json");
+
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 42,
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+
+    await writeJson(steeringPath, {
+      runId: "pr-42",
+      target: { repo: "other/repo", pr: 42 },
+      schemaVersion: 1,
+      events: [{
+        eventId: "evt-001",
+        runId: "pr-42",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      effectiveStack: [],
+      queuedEvents: [{
+        eventId: "evt-001",
+        runId: "pr-42",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 2,
+    });
+
+    const result = await runNode([
+      "--input", snapshotPath,
+      "--steering-state-file", steeringPath,
+    ]);
+
+    assert.equal(result.code, 1);
+    const err = JSON.parse(result.stderr);
+    assert.equal(err.ok, false);
+    assert.match(err.error, /steering state target mismatch|repo identity cannot be proven/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-loop-state: terminal stop_at_next_safe_gate is surfaced when the loop is blocked", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-terminal-stop-"));
 

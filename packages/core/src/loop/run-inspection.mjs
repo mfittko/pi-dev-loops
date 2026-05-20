@@ -145,6 +145,9 @@ export function mapOuterActionToStatusClass(outerAction) {
  *   Loaded and normalized steering state, or null when file not found.
  * @param {boolean} [params.steeringLoadFailed]
  *   true when a steering locator was provided but loading the file failed.
+ * @param {string | null} [params.steeringUnavailableReason]
+ *   Optional explicit unavailable reason when a steering file was supplied but
+ *   cannot be trusted for this inspected target.
  * @param {object | null} [params.steeringReadback]
  *   Precomputed steering readback summary for the inspection surface.
  * @returns {object} inspection snapshot with always-present and best-effort fields
@@ -164,6 +167,7 @@ export function composeRunInspectionSnapshot({
   steeringLocatorPath = null,
   steeringEvidence = null,
   steeringLoadFailed = false,
+  steeringUnavailableReason = null,
   steeringReadback = null,
 }) {
   const { repo, pr } = target;
@@ -403,18 +407,20 @@ export function composeRunInspectionSnapshot({
     layers.steering = {
       status: "unavailable",
       reason: "load_failed",
-      locatorPath: steeringLocatorPath,
+    };
+  } else if (steeringUnavailableReason !== null) {
+    layers.steering = {
+      status: "unavailable",
+      reason: steeringUnavailableReason,
     };
   } else if (steeringEvidence === null) {
     layers.steering = {
       status: "unavailable",
       reason: "no_steering_file",
-      locatorPath: steeringLocatorPath,
     };
   } else {
     layers.steering = {
       status: "available",
-      locatorPath: steeringLocatorPath,
       ...(steeringReadback ?? {}),
     };
   }

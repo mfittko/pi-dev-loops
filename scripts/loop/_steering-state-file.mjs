@@ -5,8 +5,78 @@ import process from "node:process";
 const STATE_FILE_LOCK_TIMEOUT_MS = 5000;
 const STATE_FILE_LOCK_RETRY_MS = 50;
 
+function normalizeRepoSlug(repo) {
+  return typeof repo === "string" ? repo.trim().toLowerCase() : "";
+}
+
+function assertSafeRepoSlug(repo) {
+  const normalized = normalizeRepoSlug(repo);
+  const parts = normalized.split("/");
+  if (parts.length !== 2 || parts.some((part) => part.length === 0 || part === "." || part === ".." || part.includes(path.sep))) {
+    throw new Error(`Invalid repo slug for steering target path: ${JSON.stringify(repo)}`);
+  }
+  return { owner: parts[0], name: parts[1] };
+}
+
 export function defaultStateFilePath(runId, cwd = process.cwd()) {
   return path.join(cwd, ".pi", "steering", `${runId}.json`);
+}
+
+export function defaultStateFilePathForTarget({ repo, pr }, cwd = process.cwd()) {
+  const { owner, name } = assertSafeRepoSlug(repo);
+  return path.join(cwd, ".pi", "steering", owner, name, `pr-${pr}.json`);
+}
+
+export function validateSteeringStateTarget(steeringState, { repo, pr, runId }) {
+  if (!steeringState || typeof steeringState !== "object") {
+    return { ok: false, reason: "steering state must be an object" };
+  }
+
+  if (typeof runId === "string" && steeringState.runId !== runId) {
+    return {
+      ok: false,
+      reason: `steering state runId ${JSON.stringify(steeringState.runId)} does not match expected run ${JSON.stringify(runId)}`,
+    };
+  }
+
+  const target = steeringState.target;
+  const expectedRepo = normalizeRepoSlug(repo);
+
+  if (expectedRepo.length > 0) {
+    if (!target || typeof target !== "object") {
+      return {
+        ok: false,
+        reason: "steering state target metadata is missing",
+      };
+    }
+
+    const actualRepo = normalizeRepoSlug(target.repo);
+    const actualPr = typeof target.pr === "number" ? target.pr : Number(target.pr);
+
+    if (actualRepo !== expectedRepo || actualPr !== pr) {
+      return {
+        ok: false,
+        reason: `steering state target ${JSON.stringify({ repo: target.repo, pr: target.pr })} does not match expected target ${JSON.stringify({ repo: expectedRepo, pr })}`,
+      };
+    }
+  } else if (target && typeof target === "object") {
+    if (pr !== undefined) {
+      const actualPr = typeof target.pr === "number" ? target.pr : Number(target.pr);
+      if (actualPr !== pr) {
+        return {
+          ok: false,
+          reason: `steering state target pr ${JSON.stringify(target.pr)} does not match expected pr ${JSON.stringify(pr)}`,
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      reason: "repo identity cannot be proven for the supplied steering state in snapshot mode",
+    };
+  }
+
+  return { ok: true, reason: null };
 }
 
 export async function loadStateFile(filePath) {

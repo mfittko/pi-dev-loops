@@ -10,7 +10,7 @@
  *        --kind stop_at_next_safe_gate --directive <text> --seq <n>
  *        [--state-file <path>] [--copilot-input <path>] [--reviewer-input <path>]
  *
- *    Low-level/testing mode:
+ *    Internal low-level/testing mode:
  *      steer-loop.mjs submit --run-id <id> --kind <kind> --directive <text>
  *        --seq <n> [--state-file <path>] [--loop-state <state>] [--apply-mode <mode>]
  *
@@ -18,7 +18,9 @@
  *    steer-loop.mjs status --run-id <id> [--state-file <path>]
  *
  * State is persisted to / loaded from a JSON file (--state-file, default:
- * .pi/steering/<run-id>.json relative to the current working directory).
+ * operator-facing repo/pr mode => .pi/steering/<owner>/<repo>/pr-<n>.json,
+ * low-level run-id mode => .pi/steering/<run-id>.json, relative to the current
+ * working directory).
  *
  * The --loop-state flag accepts a current copilot loop state value (e.g.
  * "ready_to_rerequest_review") so that callers can inject the loop state
@@ -60,12 +62,15 @@ import {
 import { inspectRun } from "./inspect-run.mjs";
 import {
   defaultStateFilePath,
+  defaultStateFilePathForTarget,
   loadStateFile,
   saveStateFile,
+  validateSteeringStateTarget,
   withStateFileLock,
 } from "./_steering-state-file.mjs";
 
 import { formatCliError } from "../_core-helpers.mjs";
+import { parseRepoSlug } from "../github/capture-review-threads.mjs";
 
 // ---------------------------------------------------------------------------
 // Usage text
@@ -77,6 +82,7 @@ const SUBMIT_USAGE = `Usage:
     [--state-file <path>] [--copilot-input <path>] [--reviewer-input <path>]
     [--run-id <id>] [--event-id <id>]
 
+  # Internal/testing mode only:
   steer-loop.mjs submit --run-id <id> --kind <kind> --directive <text> --seq <n>
     [--state-file <path>] [--loop-state <loop-state>] [--apply-mode <mode>]
     [--event-id <id>]
@@ -92,7 +98,7 @@ Required:
   --pr <number>           Pull request number (required with --repo in operator-facing mode)
 
 Optional:
-  --state-file <path>     Path to steering state JSON file (default: .pi/steering/<run-id>.json)
+  --state-file <path>     Path to steering state JSON file (default: repo/pr mode => .pi/steering/<owner>/<repo>/pr-<n>.json; run-id mode => .pi/steering/<run-id>.json)
   --loop-state <state>    Current copilot loop state (low-level/testing mode only)
   --apply-mode <mode>     Application mode: immediate | next_safe_point (low-level/testing mode only)
   --event-id <id>         Unique event ID (default: auto-generated)
@@ -117,7 +123,7 @@ Required:
   --pr <number>           Pull request number (required with --repo)
 
 Optional:
-  --state-file <path>     Path to steering state JSON file (default: .pi/steering/<run-id>.json)
+  --state-file <path>     Path to steering state JSON file (default: repo/pr mode => .pi/steering/<owner>/<repo>/pr-<n>.json; run-id mode => .pi/steering/<run-id>.json)
 
 Output (stdout, JSON):
   { "ok": true, "status": { ... } }
@@ -211,6 +217,7 @@ export function parseSubmitCliArgs(argv) {
     }
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", SUBMIT_USAGE).trim();
+      parseRepoSlug(options.repo);
       continue;
     }
     if (token === "--pr") {
@@ -315,6 +322,7 @@ export function parseStatusCliArgs(argv) {
     }
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", STATUS_USAGE).trim();
+      parseRepoSlug(options.repo);
       continue;
     }
     if (token === "--pr") {
@@ -378,11 +386,14 @@ function buildReadbackPath({ repo, pr, runId, stateFilePath }) {
   const inspectionStateFileFlag = stateFilePath ? ` --steering-state-file ${quoteCliValue(stateFilePath)}` : "";
   const statusStateFileFlag = stateFilePath ? ` --state-file ${quoteCliValue(stateFilePath)}` : "";
   const inspection = repo && pr
-    ? `inspect-run --repo ${repo} --pr ${pr}${inspectionStateFileFlag}`
+    ? `node scripts/loop/inspect-run.mjs --repo ${repo} --pr ${pr}${inspectionStateFileFlag}`
     : null;
+  const steeringStatus = repo && pr
+    ? `node scripts/loop/steer-loop.mjs status --repo ${repo} --pr ${pr}${statusStateFileFlag}`
+    : `node scripts/loop/steer-loop.mjs status --run-id ${quoteCliValue(runId)}${statusStateFileFlag}`;
   return {
     inspection,
-    steeringStatus: `steer-loop.mjs status --run-id ${quoteCliValue(runId)}${statusStateFileFlag}`,
+    steeringStatus,
   };
 }
 
@@ -423,14 +434,25 @@ function buildLowLevelResult({ eventId, seq, resultCode, reason, acknowledgedAt 
   };
 }
 
-async function loadOrCreateSteeringState(filePath, runId) {
+async function loadOrCreateSteeringState(filePath, runId, target = null) {
   const raw = await loadStateFile(filePath);
   const steeringState = raw !== null
     ? normalizeSteeringState(raw)
-    : createSteeringState(runId);
+    : createSteeringState(runId, target);
 
   if (raw !== null && steeringState.runId !== runId) {
     throw runIdMismatchError(steeringState.runId, runId);
+  }
+
+  if (target !== null) {
+    const validation = validateSteeringStateTarget(steeringState, {
+      repo: target.repo,
+      pr: target.pr,
+      runId,
+    });
+    if (!validation.ok) {
+      throw new Error(`state-file target mismatch: ${validation.reason}`);
+    }
   }
 
   return steeringState;
@@ -568,7 +590,11 @@ export async function runSubmit(
   }
 
   const runId = resolveRequestedRunId(options, SUBMIT_USAGE);
-  const stateFilePath = options.stateFile ?? defaultStateFilePath(runId, cwd);
+  const target = options.repo !== undefined && options.pr !== undefined
+    ? { repo: options.repo, pr: options.pr }
+    : null;
+  const defaultTargetStateFilePath = target ? defaultStateFilePathForTarget(target, cwd) : defaultStateFilePath(runId, cwd);
+  const stateFilePath = options.stateFile ?? defaultTargetStateFilePath;
   const readbackPath = buildReadbackPath({
     repo: options.repo,
     pr: options.pr,
@@ -577,23 +603,39 @@ export async function runSubmit(
   });
   const eventId = options.eventId ?? `evt-${randomUUID()}`;
 
+  let persistedTargetMismatch = null;
+  if (target !== null) {
+    try {
+      const rawExistingState = await loadStateFile(stateFilePath);
+      if (rawExistingState !== null) {
+        const normalizedExistingState = normalizeSteeringState(rawExistingState);
+        const validation = validateSteeringStateTarget(normalizedExistingState, {
+          repo: target.repo,
+          pr: target.pr,
+          runId,
+        });
+        if (!validation.ok) {
+          persistedTargetMismatch = validation.reason;
+        }
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      persistedTargetMismatch = `existing steering state is invalid: ${detail}`;
+    }
+  }
+
   let inspectedState = options.loopState;
   let safePointCategory = classifySafePoint(options.loopState);
   let validationRejection = null;
 
   if (options.repo !== undefined && options.pr !== undefined) {
-    const inspection = await inspectRun({
-      repo: options.repo,
-      pr: options.pr,
-      steeringStateFile: stateFilePath,
-      copilotInputPath: options.copilotInputPath,
-      reviewerInputPath: options.reviewerInputPath,
-    }, { env, ghCommand });
-
-    inspectedState = inspection.layers?.copilot?.currentState;
-    safePointCategory = inspectedState ? classifySafePoint(inspectedState) : null;
-
-    if (options.kind !== STEERING_KIND.STOP_AT_NEXT_SAFE_GATE) {
+    if (persistedTargetMismatch !== null) {
+      const safeReadbackPath = buildReadbackPath({
+        repo: options.repo,
+        pr: options.pr,
+        runId,
+        stateFilePath: defaultTargetStateFilePath,
+      });
       validationRejection = {
         acknowledgement: buildAcknowledgement({
           repo: options.repo,
@@ -601,33 +643,93 @@ export async function runSubmit(
           runId,
           directiveKind: options.kind,
           directiveText: options.directive,
-          resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
-          reason: "external operator submit accepts only stop_at_next_safe_gate in this first slice",
-          inspectedState: inspectedState ?? "unknown",
-          safePointCategory,
-          readbackPath,
+          resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+          reason: `steering state file does not match the requested target (${persistedTargetMismatch})`,
+          inspectedState: "unknown",
+          safePointCategory: null,
+          readbackPath: safeReadbackPath,
         }),
         result: buildLowLevelResult({
           eventId,
           seq: options.seq,
-          resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
-          reason: "external operator submit accepts only stop_at_next_safe_gate in this first slice",
+          resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+          reason: `steering state file does not match the requested target (${persistedTargetMismatch})`,
         }),
       };
     } else {
-      validationRejection = rejectUnsteerableInspection(inspection, {
-        runId,
-        eventId,
-        seq: options.seq,
-        directiveKind: options.kind,
-        directiveText: options.directive,
-        readbackPath,
-      });
+      const inspection = await inspectRun({
+        repo: options.repo,
+        pr: options.pr,
+        steeringStateFile: stateFilePath,
+        copilotInputPath: options.copilotInputPath,
+        reviewerInputPath: options.reviewerInputPath,
+      }, { env, ghCommand });
+
+      inspectedState = inspection.layers?.copilot?.currentState;
+      safePointCategory = inspectedState ? classifySafePoint(inspectedState) : null;
+
+      if (options.applyMode !== "immediate") {
+        validationRejection = {
+          acknowledgement: buildAcknowledgement({
+            repo: options.repo,
+            pr: options.pr,
+            runId,
+            directiveKind: options.kind,
+            directiveText: options.directive,
+            resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
+            reason: "external operator submit does not accept --apply-mode overrides in this first slice",
+            inspectedState: inspectedState ?? "unknown",
+            safePointCategory,
+            readbackPath,
+          }),
+          result: buildLowLevelResult({
+            eventId,
+            seq: options.seq,
+            resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
+            reason: "external operator submit does not accept --apply-mode overrides in this first slice",
+          }),
+        };
+      } else if (options.kind !== STEERING_KIND.STOP_AT_NEXT_SAFE_GATE) {
+        validationRejection = {
+          acknowledgement: buildAcknowledgement({
+            repo: options.repo,
+            pr: options.pr,
+            runId,
+            directiveKind: options.kind,
+            directiveText: options.directive,
+            resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
+            reason: "external operator submit accepts only stop_at_next_safe_gate in this first slice",
+            inspectedState: inspectedState ?? "unknown",
+            safePointCategory,
+            readbackPath,
+          }),
+          result: buildLowLevelResult({
+            eventId,
+            seq: options.seq,
+            resultCode: STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING,
+            reason: "external operator submit accepts only stop_at_next_safe_gate in this first slice",
+          }),
+        };
+      } else {
+        validationRejection = rejectUnsteerableInspection(inspection, {
+          runId,
+          eventId,
+          seq: options.seq,
+          directiveKind: options.kind,
+          directiveText: options.directive,
+          readbackPath,
+        });
+      }
     }
   }
 
   if (validationRejection !== null) {
-    const steeringState = await loadOrCreateSteeringState(stateFilePath, runId);
+    let steeringState;
+    try {
+      steeringState = await loadOrCreateSteeringState(stateFilePath, runId, target);
+    } catch {
+      steeringState = createSteeringState(runId, target);
+    }
     stdout.write(`${JSON.stringify({
       ok: true,
       acknowledgement: validationRejection.acknowledgement,
@@ -639,7 +741,7 @@ export async function runSubmit(
 
   const { steeringState: newState, result } = await withStateFileLock(stateFilePath, async () => {
     // Load or create steering state
-    const steeringState = await loadOrCreateSteeringState(stateFilePath, runId);
+    const steeringState = await loadOrCreateSteeringState(stateFilePath, runId, target);
 
     // Build and validate the event
     const event = normalizeSteeringEvent({
@@ -685,9 +787,12 @@ export async function runStatus(argv = [], { stdout = process.stdout, cwd = proc
   }
 
   const runId = resolveRequestedRunId(options, STATUS_USAGE);
-  const stateFilePath = options.stateFile ?? defaultStateFilePath(runId, cwd);
+  const target = options.repo !== undefined && options.pr !== undefined
+    ? { repo: options.repo, pr: options.pr }
+    : null;
+  const stateFilePath = options.stateFile ?? (target ? defaultStateFilePathForTarget(target, cwd) : defaultStateFilePath(runId, cwd));
 
-  const steeringState = await loadOrCreateSteeringState(stateFilePath, runId);
+  const steeringState = await loadOrCreateSteeringState(stateFilePath, runId, target);
   const status = getSteeringStatus(steeringState);
   stdout.write(`${JSON.stringify({ ok: true, status })}\n`);
 }

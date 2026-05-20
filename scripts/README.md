@@ -368,7 +368,8 @@ Contract:
 - during transition, may read the legacy default path `tmp/copilot-loop/pr-<n>/outer-loop-state.json` only when the checkpoint file's embedded `repo` and `pr` match the explicit target
 - surfaces steering as a best-effort drill-down layer when `--steering-state-file` is provided,
   including latest acknowledgement plus queued/effective stop summaries for the current run,
-  without exposing full steering history/detail
+  without exposing full steering history/detail or raw steering-file locator paths
+- rejects mismatched steering-state files from the targeted repo/pr instead of projecting their state onto the inspected run
 
 Success output shape:
 - `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "layers": { ... } }`
@@ -386,9 +387,9 @@ Subcommands:
 - `status` — inspect the current steering state for a run
 
 Contract:
-- persists steering state to a JSON file (default: `.pi/steering/<run-id>.json`)
+- persists steering state to a JSON file (default: `.pi/steering/<owner>/<repo>/pr-<n>.json` for operator-facing `--repo/--pr` mode; `.pi/steering/<run-id>.json` for low-level `--run-id` mode)
 - operator-facing `submit` resolves one explicit `repo` + `pr` target through the read-only
-  inspection surface and derives `runId: pr-<number>` from that target
+  inspection surface and derives `runId: pr-<number>` from that target while persisting repo-qualified target metadata alongside the steering state
 - operator-facing `submit` is intentionally limited to `stop_at_next_safe_gate`; other directive
   kinds remain low-level/internal and are rejected on the external submit path
 - operator-facing `submit` fails closed when inspection is partial, checkpoint-only, unavailable,

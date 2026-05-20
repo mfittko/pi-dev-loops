@@ -66,6 +66,7 @@ import {
 import {
   loadStateFile,
   saveStateFile,
+  validateSteeringStateTarget,
   withStateFileLock,
 } from "./_steering-state-file.mjs";
 
@@ -454,7 +455,20 @@ export async function runCli(
       const rawSteering = await loadStateFile(options.steeringStateFile);
       const steeringState = rawSteering !== null
         ? normalizeSteeringState(rawSteering)
-        : createSteeringState(deriveRunIdFromSteeringFile(options.steeringStateFile));
+        : createSteeringState(
+            deriveRunIdFromSteeringFile(options.steeringStateFile),
+            options.repo && options.pr ? { repo: options.repo, pr: options.pr } : null,
+          );
+
+      const expectedPr = options.pr ?? snapshot.prNumber ?? null;
+      const validation = validateSteeringStateTarget(steeringState, {
+        repo: options.repo,
+        pr: expectedPr,
+        runId: options.repo && expectedPr ? `pr-${expectedPr}` : undefined,
+      });
+      if (!validation.ok) {
+        throw new Error(`steering state target mismatch: ${validation.reason}`);
+      }
 
       const { steeringState: promotedState, promoted } = promoteQueuedSteering(
         steeringState,

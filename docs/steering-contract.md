@@ -138,10 +138,13 @@ loop to steer.
 ## Durable run state
 
 Steering state is persisted to a JSON file so subsequent loop steps and
-resumptions see the updated constraints. The default path is:
+resumptions see the updated constraints.
 
-```
-.pi/steering/<run-id>.json
+Default paths:
+
+```text
+operator-facing --repo/--pr mode: .pi/steering/<owner>/<repo>/pr-<n>.json
+low-level --run-id mode:          .pi/steering/<run-id>.json
 ```
 
 You can override this with `--state-file <path>`.
@@ -152,6 +155,7 @@ You can override this with `--state-file <path>`.
 {
   "runId": "string",
   "schemaVersion": 1,
+  "target": { "repo": "owner/name", "pr": 55 },
   "events": [ /* all submitted events, in submission order */ ],
   "effectiveStack": [ /* events currently in effect */ ],
   "queuedEvents": [ /* events waiting for the next safe point */ ],
@@ -216,7 +220,7 @@ node scripts/loop/steer-loop.mjs submit \
   --kind stop_at_next_safe_gate \
   --directive "Stop before the next safe gate" \
   --seq 1 \
-  [--state-file .pi/steering/<run-id>.json]
+  [--state-file .pi/steering/<owner>/<repo>/pr-<n>.json]
 ```
 
 **Required flags:**
@@ -234,7 +238,7 @@ node scripts/loop/steer-loop.mjs submit \
 | Flag | Default | Description |
 |---|---|---|
 | `--run-id` | derived as `pr-<number>` | Optional explicit identity check; mismatches are rejected |
-| `--state-file` | `.pi/steering/<run-id>.json` | Path to persisted steering state |
+| `--state-file` | repo/pr mode: `.pi/steering/<owner>/<repo>/pr-<n>.json`; low-level mode: `.pi/steering/<run-id>.json` | Path to persisted steering state |
 | `--event-id` | auto-generated | Unique event identifier |
 | `--copilot-input`, `--reviewer-input` | unset | Snapshot-mode inputs for deterministic tests/local integration; operator-facing submit rejects these degraded snapshots |
 
@@ -253,8 +257,8 @@ node scripts/loop/steer-loop.mjs submit \
     "safePointCategory": "next_point",
     "effectiveNow": false,
     "readbackPath": {
-      "inspection": "inspect-run --repo owner/repo --pr 55 --steering-state-file \"/abs/path/to/.pi/steering/pr-55.json\"",
-      "steeringStatus": "steer-loop.mjs status --run-id \"pr-55\" --state-file \"/abs/path/to/.pi/steering/pr-55.json\""
+      "inspection": "node scripts/loop/inspect-run.mjs --repo owner/repo --pr 55 --steering-state-file \"/abs/path/to/.pi/steering/owner/repo/pr-55.json\"",
+      "steeringStatus": "node scripts/loop/steer-loop.mjs status --repo owner/repo --pr 55 --state-file \"/abs/path/to/.pi/steering/owner/repo/pr-55.json\""
     }
   },
   "result": { "...": "low-level acknowledgement detail" },
@@ -271,8 +275,9 @@ unchanged steering state.
 
 ```sh
 node scripts/loop/steer-loop.mjs status \
-  --run-id <run-id> \
-  [--state-file .pi/steering/<run-id>.json]
+  --repo <owner/name> \
+  --pr <number> \
+  [--state-file .pi/steering/<owner>/<repo>/pr-<n>.json]
 ```
 
 **Output (stdout, JSON):**
@@ -280,7 +285,8 @@ node scripts/loop/steer-loop.mjs status \
 {
   "ok": true,
   "status": {
-    "runId": "run-abc",
+    "runId": "pr-55",
+    "target": { "repo": "owner/repo", "pr": 55 },
     "schemaVersion": 1,
     "eventCount": 2,
     "queuedCount": 0,
@@ -339,12 +345,12 @@ node scripts/loop/steer-loop.mjs submit \
   --kind stop_at_next_safe_gate \
   --directive "Stop before next review cycle" \
   --seq 1 \
-  --state-file .pi/steering/pr-42.json
+  --state-file .pi/steering/owner/repo/pr-42.json
 
 # 2. On the next loop iteration, detect state with the steering file
 node scripts/loop/detect-copilot-loop-state.mjs \
   --input snapshot.json \
-  --steering-state-file .pi/steering/pr-42.json
+  --steering-state-file .pi/steering/owner/repo/pr-42.json
 
 # Output (nextAction is now overridden at the safe point):
 # {

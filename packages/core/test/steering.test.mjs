@@ -207,6 +207,14 @@ test("normalizeSteeringState rejects unsupported schemaVersion values", () => {
   );
 });
 
+test("normalizeSteeringState preserves valid target metadata", () => {
+  const state = normalizeSteeringState({
+    runId: "run-1",
+    target: { repo: "Owner/Repo", pr: 55 },
+  });
+  assert.deepEqual(state.target, { repo: "owner/repo", pr: 55 });
+});
+
 test("normalizeSteeringState preserves existing arrays", () => {
   const event = makeEvent();
   const resultEntry = {
@@ -251,12 +259,18 @@ test("createSteeringState returns a fresh state with correct defaults", () => {
   const state = createSteeringState("run-xyz");
   assert.equal(state.runId, "run-xyz");
   assert.equal(state.schemaVersion, 1);
+  assert.equal(state.target, null);
   assert.deepEqual(state.events, []);
   assert.deepEqual(state.effectiveStack, []);
   assert.deepEqual(state.queuedEvents, []);
   assert.deepEqual(state.resultHistory, []);
   assert.equal(state.latestResult, null);
   assert.equal(state.nextSeq, 1);
+});
+
+test("createSteeringState accepts normalized target metadata", () => {
+  const state = createSteeringState("run-xyz", { repo: "Owner/Repo", pr: 55 });
+  assert.deepEqual(state.target, { repo: "owner/repo", pr: 55 });
 });
 
 test("createSteeringState rejects empty runId", () => {

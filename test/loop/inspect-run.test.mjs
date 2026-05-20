@@ -513,7 +513,7 @@ test("composeRunInspectionSnapshot: steering locator given but file missing → 
 
   assert.equal(snapshot.layers.steering.status, "unavailable");
   assert.equal(snapshot.layers.steering.reason, "no_steering_file");
-  assert.equal(snapshot.layers.steering.locatorPath, "/tmp/nonexistent/steering.json");
+  assert.equal(snapshot.layers.steering.locatorPath, undefined);
 });
 
 test("composeRunInspectionSnapshot: steering locator given and file loads → available", () => {
@@ -542,7 +542,7 @@ test("composeRunInspectionSnapshot: steering locator given and file loads → av
   });
 
   assert.equal(snapshot.layers.steering.status, "available");
-  assert.equal(snapshot.layers.steering.locatorPath, "/tmp/run-1-steering.json");
+  assert.equal(snapshot.layers.steering.locatorPath, undefined);
   assert.equal(snapshot.layers.steering.latestAcknowledgement, null);
   assert.equal(snapshot.layers.steering.pendingSummary.queuedCount, 0);
   assert.equal(snapshot.layers.steering.stopAtNextSafeGate.effective, false);
@@ -565,7 +565,7 @@ test("composeRunInspectionSnapshot: steering load failed → load_failed reason"
 
   assert.equal(snapshot.layers.steering.status, "unavailable");
   assert.equal(snapshot.layers.steering.reason, "load_failed");
-  assert.equal(snapshot.layers.steering.locatorPath, "/tmp/bad-steering.json");
+  assert.equal(snapshot.layers.steering.locatorPath, undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -921,7 +921,51 @@ test("inspect-run CLI: --steering-state-file given but file missing → no_steer
     const output = JSON.parse(result.stdout);
     assert.equal(output.layers.steering.status, "unavailable");
     assert.equal(output.layers.steering.reason, "no_steering_file");
-    assert.equal(output.layers.steering.locatorPath, steeringPath);
+    assert.equal(output.layers.steering.locatorPath, undefined);
+  });
+});
+
+test("inspect-run CLI: --steering-state-file with mismatched target is unavailable and does not leak steering state", async () => {
+  await withTempDir(async (tempDir) => {
+    const copilotPath = path.join(tempDir, "copilot.json");
+    const reviewerPath = path.join(tempDir, "reviewer.json");
+    const steeringPath = path.join(tempDir, "steering.json");
+
+    await writeJson(copilotPath, {
+      prExists: true, prNumber: 55,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0, ciStatus: "success",
+    });
+    await writeJson(reviewerPath, {
+      prExists: true, prNumber: 55, prHeadSha: "abc123",
+      submittedReviewPresent: true, submittedReviewCommitSha: "abc123",
+    });
+    await writeJson(steeringPath, {
+      runId: "pr-55",
+      target: { repo: "other/repo", pr: 55 },
+      schemaVersion: 1,
+      events: [],
+      effectiveStack: [],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 1,
+    });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--copilot-input", copilotPath,
+      "--reviewer-input", reviewerPath,
+      "--steering-state-file", steeringPath,
+    ]);
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.layers.steering.status, "unavailable");
+    assert.equal(output.layers.steering.reason, "mismatched_steering_target");
+    assert.equal(output.layers.steering.locatorPath, undefined);
   });
 });
 
@@ -942,11 +986,12 @@ test("inspect-run CLI: --steering-state-file given and file exists → available
       submittedReviewPresent: true, submittedReviewCommitSha: "abc123",
     });
     await writeJson(steeringPath, {
-      runId: "run-55",
+      runId: "pr-55",
+      target: { repo: "owner/repo", pr: 55 },
       schemaVersion: 1,
       events: [{
         eventId: "evt-001",
-        runId: "run-55",
+        runId: "pr-55",
         kind: "stop_at_next_safe_gate",
         directive: "Stop before next review pass",
         seq: 1,
@@ -956,7 +1001,7 @@ test("inspect-run CLI: --steering-state-file given and file exists → available
       effectiveStack: [],
       queuedEvents: [{
         eventId: "evt-001",
-        runId: "run-55",
+        runId: "pr-55",
         kind: "stop_at_next_safe_gate",
         directive: "Stop before next review pass",
         seq: 1,
@@ -991,7 +1036,7 @@ test("inspect-run CLI: --steering-state-file given and file exists → available
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);
     assert.equal(output.layers.steering.status, "available");
-    assert.equal(output.layers.steering.locatorPath, steeringPath);
+    assert.equal(output.layers.steering.locatorPath, undefined);
     assert.equal(output.runId, "pr-55");
     assert.equal(output.layers.steering.latestAcknowledgement.result, "queued_for_safe_point");
     assert.equal(output.layers.steering.pendingSummary.queuedCount, 1);
