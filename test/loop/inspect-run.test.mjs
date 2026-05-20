@@ -853,7 +853,7 @@ test("inspect-run CLI: mixed live + input coverage can still derive a degraded t
       "--copilot-input", copilotPath,
     ], {
       cwd: tempDir,
-      env: { ...process.env, PATH: `${tempDir}:${process.env.PATH ?? ""}` },
+      env: { ...process.env, PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter) },
     });
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
@@ -876,7 +876,7 @@ test("inspect-run CLI: successful live detectors still derive authoritative top-
       "--pr", "55",
     ], {
       cwd: tempDir,
-      env: { ...process.env, PATH: `${tempDir}:${process.env.PATH ?? ""}` },
+      env: { ...process.env, PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter) },
     });
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
