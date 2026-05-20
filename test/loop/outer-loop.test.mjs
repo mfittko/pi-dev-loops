@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -918,6 +918,328 @@ test("outer-loop: wait cycles accumulate correctly across multiple re-detect run
     const out3 = JSON.parse(run3.stdout);
     assert.equal(out3.outerAction, "continue_wait");
     assert.equal(out3.checkpoint.waitCycles, 3);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: default checkpoint path is repo-qualified", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-default-checkpoint-path-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+    const reviewerSnapshotPath = path.join(tempDir, "reviewer-snapshot.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prHeadSha: "abc123",
+    });
+
+    const env = await writeGitStub(tempDir, { porcelainOutput: "", headRef: "main" });
+    const result = await runNode([
+      "--repo", "Owner/Repo", "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+    ], { env, cwd: tempDir });
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    const checkpointPath = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo", "pr-47", "outer-loop-state.json");
+    const { readFile: rf } = await import("node:fs/promises");
+    const checkpointText = await rf(checkpointPath, "utf8");
+    assert.ok(checkpointText.includes('"repo": "owner/repo"'));
+    assert.equal(output.checkpoint.headSha, "abc123");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: cross-repo default checkpoints do not share waitCycles", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-repo-qualified-wait-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+    const reviewerSnapshotPath = path.join(tempDir, "reviewer-snapshot.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prHeadSha: "abc123",
+    });
+
+    const env = await writeGitStub(tempDir, { porcelainOutput: "", headRef: "main" });
+
+    const run1 = await runNode([
+      "--repo", "owner/repo-a", "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+    ], { env, cwd: tempDir });
+    assert.equal(JSON.parse(run1.stdout).checkpoint.waitCycles, 1);
+
+    const run2 = await runNode([
+      "--repo", "owner/repo-b", "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+    ], { env, cwd: tempDir });
+    assert.equal(JSON.parse(run2.stdout).checkpoint.waitCycles, 1);
+
+    const { readFile: rf } = await import("node:fs/promises");
+    const repoACheckpoint = JSON.parse(await rf(path.join(tempDir, "tmp", "copilot-loop", "owner", "repo-a", "pr-47", "outer-loop-state.json"), "utf8"));
+    const repoBCheckpoint = JSON.parse(await rf(path.join(tempDir, "tmp", "copilot-loop", "owner", "repo-b", "pr-47", "outer-loop-state.json"), "utf8"));
+    assert.equal(repoACheckpoint.repo, "owner/repo-a");
+    assert.equal(repoBCheckpoint.repo, "owner/repo-b");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: wait cycles carry forward on same repo/pr/head using the default checkpoint path", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-default-path-same-head-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+    const reviewerSnapshotPath = path.join(tempDir, "reviewer-snapshot.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prHeadSha: "abc123",
+    });
+
+    const env = await writeGitStub(tempDir, { porcelainOutput: "", headRef: "main" });
+    const baseArgs = [
+      "--repo", "owner/repo", "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+    ];
+
+    const run1 = await runNode(baseArgs, { env, cwd: tempDir });
+    assert.equal(JSON.parse(run1.stdout).checkpoint.waitCycles, 1);
+
+    const run2 = await runNode(baseArgs, { env, cwd: tempDir });
+    assert.equal(JSON.parse(run2.stdout).checkpoint.waitCycles, 2);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: wait cycles reset to 1 when head changes but outer action stays continue_wait", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-wait-head-reset-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+    const reviewerSnapshotPath = path.join(tempDir, "reviewer-snapshot.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prHeadSha: "abc123",
+    });
+
+    const env = await writeGitStub(tempDir, { porcelainOutput: "", headRef: "main" });
+    const baseArgs = [
+      "--repo", "owner/repo", "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+    ];
+
+    const run1 = await runNode(baseArgs, { env, cwd: tempDir });
+    assert.equal(JSON.parse(run1.stdout).checkpoint.waitCycles, 1);
+
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prHeadSha: "def456",
+    });
+
+    const run2 = await runNode(baseArgs, { env, cwd: tempDir });
+    const out2 = JSON.parse(run2.stdout);
+    assert.equal(out2.checkpoint.waitCycles, 1);
+    assert.equal(out2.checkpoint.headSha, "def456");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: legacy default checkpoint fallback is used only for matching repo/pr", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-legacy-fallback-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+    const reviewerSnapshotPath = path.join(tempDir, "reviewer-snapshot.json");
+    const legacyCheckpointPath = path.join(tempDir, "tmp", "copilot-loop", "pr-47", "outer-loop-state.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prHeadSha: "abc123",
+    });
+    await mkdir(path.dirname(legacyCheckpointPath), { recursive: true });
+    await writeJson(legacyCheckpointPath, {
+      pr: 47,
+      repo: "owner/repo",
+      outerAction: "continue_wait",
+      copilotState: "waiting_for_copilot_review",
+      reviewerState: "waiting_for_author_followup",
+      reason: null,
+      timestamp: "2026-05-17T10:00:00Z",
+      waitCycles: 2,
+      headSha: "abc123",
+    });
+
+    const env = await writeGitStub(tempDir, { porcelainOutput: "", headRef: "main" });
+    const run1 = await runNode([
+      "--repo", "owner/repo", "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+    ], { env, cwd: tempDir });
+    assert.equal(JSON.parse(run1.stdout).checkpoint.waitCycles, 3);
+
+    await writeJson(legacyCheckpointPath, {
+      pr: 47,
+      repo: "other/repo",
+      outerAction: "continue_wait",
+      copilotState: "waiting_for_copilot_review",
+      reviewerState: "waiting_for_author_followup",
+      reason: null,
+      timestamp: "2026-05-17T10:00:00Z",
+      waitCycles: 9,
+      headSha: "abc123",
+    });
+
+    const repoQualifiedPath = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo", "pr-47", "outer-loop-state.json");
+    await rm(repoQualifiedPath, { force: true });
+
+    const run2 = await runNode([
+      "--repo", "owner/repo", "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+    ], { env, cwd: tempDir });
+    assert.equal(JSON.parse(run2.stdout).checkpoint.waitCycles, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: prefers repo-qualified checkpoint when both new and legacy checkpoints exist", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-prefer-repo-qualified-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+    const reviewerSnapshotPath = path.join(tempDir, "reviewer-snapshot.json");
+    const legacyCheckpointPath = path.join(tempDir, "tmp", "copilot-loop", "pr-47", "outer-loop-state.json");
+    const repoQualifiedPath = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo", "pr-47", "outer-loop-state.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prHeadSha: "abc123",
+    });
+    await mkdir(path.dirname(legacyCheckpointPath), { recursive: true });
+    await mkdir(path.dirname(repoQualifiedPath), { recursive: true });
+    await writeJson(legacyCheckpointPath, {
+      pr: 47,
+      repo: "owner/repo",
+      outerAction: "continue_wait",
+      copilotState: "waiting_for_copilot_review",
+      reviewerState: "waiting_for_author_followup",
+      reason: null,
+      timestamp: "2026-05-16T10:00:00Z",
+      waitCycles: 9,
+      headSha: "abc123",
+    });
+    await writeJson(repoQualifiedPath, {
+      pr: 47,
+      repo: "owner/repo",
+      outerAction: "continue_wait",
+      copilotState: "waiting_for_copilot_review",
+      reviewerState: "waiting_for_author_followup",
+      reason: null,
+      timestamp: "2026-05-17T10:00:00Z",
+      waitCycles: 2,
+      headSha: "abc123",
+    });
+
+    const env = await writeGitStub(tempDir, { porcelainOutput: "", headRef: "main" });
+    const run = await runNode([
+      "--repo", "owner/repo", "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--reviewer-input", reviewerSnapshotPath,
+    ], { env, cwd: tempDir });
+    assert.equal(JSON.parse(run.stdout).checkpoint.waitCycles, 3);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
