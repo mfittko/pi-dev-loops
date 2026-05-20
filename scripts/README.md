@@ -202,6 +202,11 @@ Two modes:
   `failed` statuses that are not observable from static GitHub state alone.
 
 Optional (auto-detect mode only):
+- `--steering-state-file <path>`
+  Resolve the detected state through the active steering contract. This is
+  available only in `--repo/--pr` mode; snapshot `--input` mode does not accept
+  steering files because repo/pr target identity cannot be proven from the
+  snapshot alone.
 - `--review-request-status <requested|already-requested|unavailable|none|failed>`
   Override the Copilot review-request status with a known prior result. Skips the
   `requested_reviewers` API call and injects the provided value directly into the snapshot.

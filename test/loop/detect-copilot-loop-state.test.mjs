@@ -1078,10 +1078,18 @@ test("detect-copilot-loop-state fails closed when review threads cannot be fetch
 // Steering integration — real loop surface changes behavior after steering
 // ---------------------------------------------------------------------------
 
-test("parseDetectCliArgs accepts --steering-state-file flag", () => {
-  const opts = parseDetectCliArgs(["--input", "/tmp/snap.json", "--steering-state-file", "/tmp/st.json"]);
+test("parseDetectCliArgs accepts --steering-state-file flag in auto-detect mode", () => {
+  const opts = parseDetectCliArgs(["--repo", "owner/repo", "--pr", "17", "--steering-state-file", "/tmp/st.json"]);
   assert.equal(opts.steeringStateFile, "/tmp/st.json");
-  assert.equal(opts.inputPath, "/tmp/snap.json");
+  assert.equal(opts.repo, "owner/repo");
+  assert.equal(opts.pr, 17);
+});
+
+test("parseDetectCliArgs rejects --steering-state-file in snapshot mode", () => {
+  assert.throws(
+    () => parseDetectCliArgs(["--input", "/tmp/snap.json", "--steering-state-file", "/tmp/st.json"]),
+    /--steering-state-file cannot be combined with --input/,
+  );
 });
 
 test("parseDetectCliArgs leaves steeringStateFile undefined when flag is absent", () => {
@@ -1466,8 +1474,8 @@ test("detect-copilot-loop-state fails closed when a provided steering file targe
   }
 });
 
-test("detect-copilot-loop-state fails closed in --input mode when steering target metadata is missing", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-input-target-missing-"));
+test("detect-copilot-loop-state rejects --input with --steering-state-file at the CLI boundary", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-input-reject-"));
 
   try {
     const snapshotPath = path.join(tempDir, "snapshot.json");
@@ -1480,7 +1488,6 @@ test("detect-copilot-loop-state fails closed in --input mode when steering targe
       unresolvedThreadCount: 0,
       ciStatus: "success",
     });
-
     await writeJson(steeringPath, {
       runId: "pr-42",
       schemaVersion: 1,
@@ -1500,64 +1507,8 @@ test("detect-copilot-loop-state fails closed in --input mode when steering targe
     assert.equal(result.code, 1);
     const err = JSON.parse(result.stderr);
     assert.equal(err.ok, false);
-    assert.match(err.error, /steering state target mismatch|target metadata is missing|repo identity cannot be proven/i);
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("detect-copilot-loop-state fails closed in --input mode when steering target repo cannot be proven", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-input-target-mismatch-"));
-
-  try {
-    const snapshotPath = path.join(tempDir, "snapshot.json");
-    const steeringPath = path.join(tempDir, "steering.json");
-
-    await writeJson(snapshotPath, {
-      prExists: true,
-      prNumber: 42,
-      copilotReviewPresent: true,
-      unresolvedThreadCount: 0,
-      ciStatus: "success",
-    });
-
-    await writeJson(steeringPath, {
-      runId: "pr-42",
-      target: { repo: "other/repo", pr: 42 },
-      schemaVersion: 1,
-      events: [{
-        eventId: "evt-001",
-        runId: "pr-42",
-        kind: "stop_at_next_safe_gate",
-        directive: "Stop before next review pass",
-        seq: 1,
-        applyMode: "immediate",
-        submittedAt: "2026-05-19T12:00:00.000Z",
-      }],
-      effectiveStack: [],
-      queuedEvents: [{
-        eventId: "evt-001",
-        runId: "pr-42",
-        kind: "stop_at_next_safe_gate",
-        directive: "Stop before next review pass",
-        seq: 1,
-        applyMode: "immediate",
-        submittedAt: "2026-05-19T12:00:00.000Z",
-      }],
-      resultHistory: [],
-      latestResult: null,
-      nextSeq: 2,
-    });
-
-    const result = await runNode([
-      "--input", snapshotPath,
-      "--steering-state-file", steeringPath,
-    ]);
-
-    assert.equal(result.code, 1);
-    const err = JSON.parse(result.stderr);
-    assert.equal(err.ok, false);
-    assert.match(err.error, /steering state target mismatch|repo identity cannot be proven/i);
+    assert.match(err.error, /--steering-state-file cannot be combined with --input/);
+    assert.match(err.usage, /detect-copilot-loop-state\.mjs/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

@@ -14,12 +14,14 @@
  *    historical request-attempt outcomes like "already-requested", "unavailable",
  *    or "failed" that are not fully observable from static state alone).
  *
- * Optional (both modes):
+ * Optional (auto-detect mode only):
  *   --steering-state-file <path>
  *     Path to a durable steering state JSON file (as written by steer-loop.mjs).
  *     When provided, the detected state is resolved through the active steering
  *     contract: nextAction may be overridden by an active stop_at_next_safe_gate
  *     directive, and the output includes steeringApplied and effectiveConstraints.
+ *     Snapshot mode does not accept this flag because repo/pr target identity
+ *     cannot be proven from --input alone.
  *
  * Optional (auto-detect mode only):
  *   --review-request-status <requested|already-requested|unavailable|none|failed>
@@ -89,12 +91,14 @@ Required (auto-detect mode):
 Required (snapshot mode):
   --input <path>                             Path to snapshot JSON file
 
-Optional (both modes):
+Optional (auto-detect mode only):
   --steering-state-file <path>               Path to a durable steering state JSON file.
                                              When provided, nextAction is resolved through
                                              the active steering contract (e.g. overridden
                                              by stop_at_next_safe_gate). Output includes
                                              steeringApplied and effectiveConstraints.
+                                             Cannot be combined with --input because
+                                             snapshot mode cannot prove repo/pr identity.
 
 Optional (auto-detect mode only):
   --review-request-status <status>           Inject a known prior request result.
@@ -198,6 +202,9 @@ export function parseDetectCliArgs(argv) {
     }
     if (options.reviewRequestStatusOverride !== undefined) {
       throw parseError("--review-request-status cannot be combined with --input");
+    }
+    if (options.steeringStateFile !== undefined) {
+      throw parseError("--steering-state-file cannot be combined with --input; use --repo/--pr auto-detect when steering integration is needed");
     }
     return options;
   }

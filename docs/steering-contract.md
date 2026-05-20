@@ -336,6 +336,10 @@ When `--steering-state-file` is provided:
   consumers can inject hard constraints into agent context or check the stop flag.
 - When the steering file does not exist (ENOENT), the detector treats it as an
   empty steering state — no error, no change to base behavior.
+- Steering integration is currently available only on explicit `--repo/--pr`
+  auto-detect targets; snapshot `--input` mode does not accept
+  `--steering-state-file` because repo/pr identity cannot be proven from the
+  snapshot alone.
 
 Without `--steering-state-file`, output is identical to the pre-steering behavior
 (no `steeringApplied` or `effectiveConstraints` fields).
@@ -354,7 +358,9 @@ node scripts/loop/steer-loop.mjs submit \
 
 # 2. On the next loop iteration, detect state with the steering file
 node scripts/loop/detect-copilot-loop-state.mjs \
-  --input snapshot.json \
+  --repo owner/repo \
+  --pr 42 \
+  --review-request-status none \
   --steering-state-file .pi/steering/owner/repo/pr-42.json
 
 # Output (nextAction is now overridden at the safe point):
