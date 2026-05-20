@@ -45,9 +45,9 @@ export const STATUS_CLASS = Object.freeze({
 export const SOURCE_MODE = Object.freeze({
   /** Both inner-loop detectors returned live facts. */
   LIVE_DETECTOR_BACKED: "live-detector-backed",
-  /** Live detection failed for all inner loops; state is checkpoint-derived only. */
+  /** Live detection failed for all inner loops; checkpoint-backed drill-down remains available, but the top-level state stays unknown. */
   CHECKPOINT_ONLY: "checkpoint-only",
-  /** Degraded mode: caller-supplied snapshot inputs and/or checkpoint-backed fallback contributed to the inspection result. */
+  /** Degraded mode: mixed live + checkpoint fallback keeps the top-level state unknown; complete caller-supplied current-state inputs can still derive a top-level state. */
   PARTIAL: "partial",
   /** No live facts and no valid checkpoint available. */
   UNAVAILABLE: "unavailable",
@@ -276,7 +276,7 @@ export function composeRunInspectionSnapshot({
   }
 
   // -------------------------------------------------------------------------
-  // Effective outerAction for unavailable source mode
+  // Top-level outerAction surfacing eligibility
   // -------------------------------------------------------------------------
 
   // Top-level outer action is only surfaced when the caller derived it from a
