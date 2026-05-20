@@ -30,7 +30,7 @@
  * that already have the loop state in scope.
  *
  * Success output shape:
- *   submit: { "ok": true, "result": { ... }, "steeringState": { ... } }
+ *   submit: { "ok": true, "acknowledgement": { ... }, "result": { ... }, "steeringState": { ... } }
  *   status: { "ok": true, "status": { ... } }
  *
  * Failure behavior:
