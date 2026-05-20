@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -1400,10 +1400,11 @@ test("detect-copilot-loop-state: missing --steering-state-file path returns stee
       skipRequestedReviewers: true,
     });
 
+    const steeringPath = path.join(tempDir, "nonexistent-steering.json");
     const result = await runNode([
       "--repo", "owner/repo", "--pr", "17",
       "--review-request-status", "none",
-      "--steering-state-file", path.join(tempDir, "nonexistent-steering.json"),
+      "--steering-state-file", steeringPath,
     ], { env });
 
     assert.equal(result.code, 0);
@@ -1413,6 +1414,7 @@ test("detect-copilot-loop-state: missing --steering-state-file path returns stee
     assert.equal(output.steeringApplied, false);
     assert.equal(output.effectiveConstraints.stopAtNextSafeGate, false);
     assert.equal(output.terminalStopAtNextSafeGate, false);
+    await assert.rejects(() => stat(steeringPath), /ENOENT/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

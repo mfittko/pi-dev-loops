@@ -458,36 +458,41 @@ export async function runCli(
 
   if (options.steeringStateFile !== undefined) {
     const baseInterpretation = interpretLoopState(snapshot);
-    const activeSteeringState = await withStateFileLock(options.steeringStateFile, async () => {
-      const rawSteering = await loadStateFile(options.steeringStateFile);
-      const steeringState = rawSteering !== null
-        ? normalizeSteeringState(rawSteering)
-        : createSteeringState(
-            options.repo && options.pr ? `pr-${options.pr}` : deriveRunIdFromSteeringFile(options.steeringStateFile),
-            options.repo && options.pr ? { repo: options.repo, pr: options.pr } : null,
+    const expectedPr = options.pr ?? snapshot.prNumber ?? null;
+    const defaultSteeringState = createSteeringState(
+      options.repo && options.pr ? `pr-${options.pr}` : deriveRunIdFromSteeringFile(options.steeringStateFile),
+      options.repo && options.pr ? { repo: options.repo, pr: options.pr } : null,
+    );
+    const existingSteeringState = await loadStateFile(options.steeringStateFile);
+
+    const activeSteeringState = existingSteeringState === null
+      ? defaultSteeringState
+      : await withStateFileLock(options.steeringStateFile, async () => {
+          const rawSteering = await loadStateFile(options.steeringStateFile);
+          const steeringState = rawSteering !== null
+            ? normalizeSteeringState(rawSteering)
+            : defaultSteeringState;
+
+          const validation = validateSteeringStateTarget(steeringState, {
+            repo: options.repo,
+            pr: expectedPr,
+            runId: options.repo && expectedPr ? `pr-${expectedPr}` : undefined,
+          });
+          if (!validation.ok) {
+            throw new Error(`steering state target mismatch: ${validation.reason}`);
+          }
+
+          const { steeringState: promotedState, promoted } = promoteQueuedSteering(
+            steeringState,
+            baseInterpretation.state,
           );
 
-      const expectedPr = options.pr ?? snapshot.prNumber ?? null;
-      const validation = validateSteeringStateTarget(steeringState, {
-        repo: options.repo,
-        pr: expectedPr,
-        runId: options.repo && expectedPr ? `pr-${expectedPr}` : undefined,
-      });
-      if (!validation.ok) {
-        throw new Error(`steering state target mismatch: ${validation.reason}`);
-      }
+          if (promoted.length > 0) {
+            await saveStateFile(options.steeringStateFile, promotedState);
+          }
 
-      const { steeringState: promotedState, promoted } = promoteQueuedSteering(
-        steeringState,
-        baseInterpretation.state,
-      );
-
-      if (promoted.length > 0) {
-        await saveStateFile(options.steeringStateFile, promotedState);
-      }
-
-      return promotedState;
-    });
+          return promotedState;
+        });
 
     const resolved = resolveEffectiveLoopState(snapshot, activeSteeringState);
     interpretation = resolved;
