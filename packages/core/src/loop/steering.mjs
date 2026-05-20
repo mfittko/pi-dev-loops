@@ -21,6 +21,7 @@
  * loop behavior when stop_at_next_safe_gate steering is active.
  */
 
+import { normalizeRepoSlug } from "../github/repo-slug.mjs";
 import { STATE, interpretLoopState } from "./copilot-loop-state.mjs";
 
 // ---------------------------------------------------------------------------
@@ -67,28 +68,6 @@ const CURRENT_SCHEMA_VERSION = 1;
 const VALID_STEERING_KINDS = new Set(Object.values(STEERING_KIND));
 const VALID_STEERING_RESULTS = new Set(Object.values(STEERING_RESULT));
 const VALID_APPLY_MODES = new Set(["immediate", "next_safe_point"]);
-
-function isSafeRepoSegment(segment) {
-  return typeof segment === "string"
-    && segment.length > 0
-    && segment !== "."
-    && segment !== ".."
-    && !/[\\/]/.test(segment)
-    && !/\s/.test(segment);
-}
-
-function normalizeRepoSlugValue(rawRepo, fieldName) {
-  const repo = typeof rawRepo === "string" && rawRepo.trim().length > 0
-    ? rawRepo.trim().toLowerCase()
-    : null;
-  const [owner, name, ...rest] = repo ? repo.split("/") : [];
-
-  if (rest.length > 0 || !isSafeRepoSegment(owner) || !isSafeRepoSegment(name)) {
-    throw new Error(`${fieldName} must be a non-empty owner/name repo slug`);
-  }
-
-  return `${owner}/${name}`;
-}
 
 // ---------------------------------------------------------------------------
 // Safe-point classification
@@ -236,7 +215,9 @@ function normalizeSteeringTarget(raw) {
     throw new Error("target must be an object when present");
   }
 
-  const repo = normalizeRepoSlugValue(raw.repo, "target.repo");
+  const repo = normalizeRepoSlug(raw.repo, {
+    errorMessage: "target.repo must be a non-empty owner/name repo slug",
+  });
 
   const pr = typeof raw.pr === "number" && Number.isFinite(raw.pr) && raw.pr > 0
     ? Math.floor(raw.pr)

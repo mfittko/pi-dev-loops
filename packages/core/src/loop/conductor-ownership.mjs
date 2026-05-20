@@ -29,6 +29,9 @@
 // Constants
 // ---------------------------------------------------------------------------
 
+import { normalizeRepoSlug } from "../github/repo-slug.mjs";
+
+
 /**
  * Supported orchestration action constants.
  * `kickoff` is a `start` alias for ownership policy purposes.
@@ -110,7 +113,6 @@ export const OUTCOME = Object.freeze({
 const VALID_SCOPE_TYPES = new Set(["issue", "pr", "branch", "generic"]);
 const VALID_ACTIONS = new Set(Object.values(ACTION));
 const VALID_RECORD_STATES = new Set(["active", "inactive", "stale", "terminal"]);
-const VALID_REPO_SLUG = /^[^/\s]+\/[^/\s]+$/;
 
 // ---------------------------------------------------------------------------
 // Ownership key normalization
@@ -141,15 +143,15 @@ export function normalizeOwnershipKey(raw) {
     throw new Error("Ownership key must be a non-null object");
   }
 
-  const repo = typeof raw.repo === "string" && raw.repo.trim().length > 0
-    ? raw.repo.trim().toLowerCase()
+  const rawRepo = typeof raw.repo === "string" && raw.repo.trim().length > 0
+    ? raw.repo
     : null;
-  if (!repo) {
+  if (!rawRepo) {
     throw new Error("Ownership key requires a non-empty repo");
   }
-  if (!VALID_REPO_SLUG.test(repo)) {
-    throw new Error("Ownership key repo must be in owner/name format (e.g., 'acme/my-repo')");
-  }
+  const repo = normalizeRepoSlug(rawRepo, {
+    errorMessage: "Ownership key repo must be in owner/name format (e.g., 'acme/my-repo')",
+  });
 
   const scopeType = VALID_SCOPE_TYPES.has(raw.scopeType) ? raw.scopeType : null;
   if (!scopeType) {

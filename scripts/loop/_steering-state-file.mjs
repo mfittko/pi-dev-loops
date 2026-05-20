@@ -2,6 +2,8 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
+import { parseRepoSlugParts } from "../../packages/core/src/github/repo-slug.mjs";
+
 const STATE_FILE_LOCK_TIMEOUT_MS = 5000;
 const STATE_FILE_LOCK_RETRY_MS = 50;
 
@@ -9,22 +11,11 @@ function normalizeRepoSlug(repo) {
   return typeof repo === "string" ? repo.trim().toLowerCase() : "";
 }
 
-function isSafeRepoSegment(segment) {
-  return typeof segment === "string"
-    && segment.length > 0
-    && segment !== "."
-    && segment !== ".."
-    && !/[\\/]/.test(segment)
-    && !/\s/.test(segment);
-}
-
 function assertSafeRepoSlug(repo) {
-  const normalized = normalizeRepoSlug(repo);
-  const [owner, name, ...rest] = normalized.split("/");
-  if (rest.length > 0 || !isSafeRepoSegment(owner) || !isSafeRepoSegment(name)) {
-    throw new Error(`Invalid repo slug for steering target path: ${JSON.stringify(repo)}`);
-  }
-  return { owner, name };
+  return parseRepoSlugParts(repo, {
+    errorMessage: `Invalid repo slug for steering target path: ${JSON.stringify(repo)}`,
+    lowercase: true,
+  });
 }
 
 export function defaultStateFilePath(runId, cwd = process.cwd()) {
