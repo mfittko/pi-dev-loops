@@ -47,7 +47,7 @@ export const SOURCE_MODE = Object.freeze({
   LIVE_DETECTOR_BACKED: "live-detector-backed",
   /** Live detection failed for all inner loops; state is checkpoint-derived only. */
   CHECKPOINT_ONLY: "checkpoint-only",
-  /** Some live facts available; remaining are checkpoint-derived or missing. */
+  /** Degraded mode: caller-supplied snapshot inputs and/or checkpoint-backed fallback contributed to the inspection result. */
   PARTIAL: "partial",
   /** No live facts and no valid checkpoint available. */
   UNAVAILABLE: "unavailable",
@@ -279,25 +279,12 @@ export function composeRunInspectionSnapshot({
   // Effective outerAction for unavailable source mode
   // -------------------------------------------------------------------------
 
-  // When no live evidence is available but a valid checkpoint exists, fall back
-  // to checkpoint outerAction (already captured above in sourceMode logic).
-  const effectiveOuterAction =
-    outerAction !== undefined
-      ? outerAction
-      : (
-        sourceMode === SOURCE_MODE.CHECKPOINT_ONLY && typeof existingCheckpoint?.outerAction === "string"
-          ? existingCheckpoint.outerAction
-          : undefined
-      );
+  // Top-level outer action is only surfaced when the caller derived it from a
+  // complete current evidence set. Checkpoint-backed or mixed fallback remains
+  // available only as advisory drill-down evidence in this chunk.
+  const effectiveOuterAction = outerAction;
 
-  const effectiveOuterReason =
-    outerReason !== undefined
-      ? outerReason
-      : (
-        sourceMode === SOURCE_MODE.CHECKPOINT_ONLY && existingCheckpoint?.reason != null
-          ? existingCheckpoint.reason
-          : undefined
-      );
+  const effectiveOuterReason = outerReason;
 
   // -------------------------------------------------------------------------
   // Determine statusClass
@@ -346,11 +333,11 @@ export function composeRunInspectionSnapshot({
     }
   } else if (sourceMode === SOURCE_MODE.CHECKPOINT_ONLY) {
     evidenceSummary =
-      "No live detector facts available; using checkpoint state only (degraded confidence).";
+      "No live detector facts are available. Checkpoint state is shown as advisory drill-down only, and the current top-level run state could not be confirmed.";
   } else if (sourceMode === SOURCE_MODE.PARTIAL) {
     evidenceSummary = inputSnapshotMode
-      ? "Caller-supplied snapshot inputs were used; no live detection was performed (degraded confidence)."
-      : "Partial live evidence available; some facts are checkpoint-derived (degraded confidence).";
+      ? "One or more caller-supplied snapshot inputs were used. The result reflects the complete current-state picture provided to inspection, but remains degraded because it was not fully live-detector-backed."
+      : "Only partial live evidence is available. Any checkpoint-backed state is advisory only, so the current top-level run state could not be confirmed.";
   } else {
     evidenceSummary = "No evidence available to determine current run state.";
   }
