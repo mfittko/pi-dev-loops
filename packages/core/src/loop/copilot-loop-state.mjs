@@ -39,7 +39,7 @@ export const STATE = Object.freeze({
    * Do not sleep or watch as if review were requested.
    */
   REVIEW_REQUEST_UNAVAILABLE: "review_request_unavailable",
-  /** CI checks are in progress; wait before proceeding. */
+  /** CI checks are in progress or no usable CI readiness signal exists yet; wait before proceeding. */
   WAITING_FOR_CI: "waiting_for_ci",
   /**
    * An unexpected failure occurred (bad review-request result, CI failure, etc.)
@@ -96,7 +96,7 @@ const NEXT_ACTIONS = Object.freeze({
   [STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE]: "Reply to and resolve addressed threads on GitHub via scripts/github/reply-resolve-review-thread.mjs before re-requesting review",
   [STATE.READY_TO_REREQUEST_REVIEW]: "Re-request Copilot review via scripts/github/request-copilot-review.mjs only after smallest honest local validation is green and no known fixable CI-red state remains, or confirm the PR is done",
   [STATE.REVIEW_REQUEST_UNAVAILABLE]: "Report that Copilot review is unavailable and stop; do not sleep or watch as if review were requested",
-  [STATE.WAITING_FOR_CI]: "Wait for CI checks to complete",
+  [STATE.WAITING_FOR_CI]: "Wait for CI checks to complete or become available",
   [STATE.BLOCKED_NEEDS_USER_DECISION]: "Report the blocked state to the user and stop; do not proceed without explicit authorization",
   [STATE.DONE]: "Loop is complete; confirm merge-readiness or close",
 });
@@ -253,19 +253,19 @@ export function interpretLoopState(snapshot) {
     state = STATE.WAITING_FOR_COPILOT_REVIEW;
   } else if (s.copilotReviewPresent) {
     // Copilot has reviewed at least once; all threads resolved
-    if (s.ciStatus === "pending") {
-      state = STATE.WAITING_FOR_CI;
-    } else if (s.ciStatus === "failure") {
+    if (s.ciStatus === "failure") {
       state = STATE.BLOCKED_NEEDS_USER_DECISION;
+    } else if (s.ciStatus === "pending" || s.ciStatus === "none") {
+      state = STATE.WAITING_FOR_CI;
     } else {
       state = STATE.READY_TO_REREQUEST_REVIEW;
     }
   } else {
     // No Copilot review yet; not currently requested
-    if (s.ciStatus === "pending") {
-      state = STATE.WAITING_FOR_CI;
-    } else if (s.ciStatus === "failure") {
+    if (s.ciStatus === "failure") {
       state = STATE.BLOCKED_NEEDS_USER_DECISION;
+    } else if (s.ciStatus === "pending" || s.ciStatus === "none") {
+      state = STATE.WAITING_FOR_CI;
     } else {
       state = STATE.PR_READY_NO_FEEDBACK;
     }

@@ -56,6 +56,11 @@ import { fileURLToPath } from "node:url";
 import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../github/capture-review-threads.mjs";
 import { autoDetectSnapshot as autoDetectCopilotSnapshot } from "./detect-copilot-loop-state.mjs";
+import {
+  buildCheckpointFilePath,
+  buildDefaultCheckpointDir,
+  buildLegacyDefaultCheckpointDir,
+} from "./_checkpoint-paths.mjs";
 import { autoDetectReviewerSnapshot } from "./detect-reviewer-loop-state.mjs";
 import {
   interpretLoopState,
@@ -224,30 +229,42 @@ export function parseInspectRunCliArgs(argv) {
 // Checkpoint read (read-only; no writes)
 // ---------------------------------------------------------------------------
 
-function defaultCheckpointDir(pr) {
-  return path.join("tmp", "copilot-loop", `pr-${pr}`);
+function defaultCheckpointDir(repo, pr) {
+  return buildDefaultCheckpointDir(repo, pr);
 }
 
 /**
  * Read the existing checkpoint if it exists. Returns null if not found.
  * This is a read-only operation; the checkpoint is never written here.
  *
+ * @param {string} repo
  * @param {number} pr
- * @returns {Promise<object|null>}
+ * @returns {Promise<{ checkpoint: object|null, filePath: string|null }>}
  */
-async function readExistingCheckpoint(pr) {
-  const filePath = path.join(defaultCheckpointDir(pr), "outer-loop-state.json");
+async function readExistingCheckpoint(repo, pr) {
+  const normalizedRepo = repo.trim().toLowerCase();
+  const preferredDir = defaultCheckpointDir(normalizedRepo, pr);
+  const preferredPath = buildCheckpointFilePath(preferredDir);
 
   try {
-    const text = await readFile(filePath, "utf8");
-    return parseJsonText(text);
+    const text = await readFile(preferredPath, "utf8");
+    return { checkpoint: parseJsonText(text), filePath: preferredPath };
   } catch (error) {
-    if (error && error.code === "ENOENT") {
-      return null;
+    if (!error || error.code !== "ENOENT") {
+      return { checkpoint: null, filePath: null };
     }
-    // Non-ENOENT failures (e.g. corrupt JSON, permissions) are surfaced as
-    // missing rather than fatal so the inspector degrades gracefully.
-    return null;
+  }
+
+  const legacyPath = buildCheckpointFilePath(buildLegacyDefaultCheckpointDir(pr));
+  try {
+    const text = await readFile(legacyPath, "utf8");
+    const checkpoint = parseJsonText(text);
+    if (checkpoint?.repo === normalizedRepo && checkpoint?.pr === pr) {
+      return { checkpoint, filePath: legacyPath };
+    }
+    return { checkpoint: null, filePath: null };
+  } catch {
+    return { checkpoint: null, filePath: null };
   }
 }
 
@@ -352,7 +369,7 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   // Read existing checkpoint (read-only)
   // -------------------------------------------------------------------------
 
-  const existingCheckpoint = await readExistingCheckpoint(pr);
+  const { checkpoint: existingCheckpoint, filePath: checkpointEvidencePath } = await readExistingCheckpoint(repo, pr);
 
   // -------------------------------------------------------------------------
   // Derive outerAction from best-available states
@@ -445,6 +462,7 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
     copilotEvidence,
     reviewerEvidence,
     existingCheckpoint,
+    checkpointEvidencePath,
     liveAvailability: { copilot: copilotLiveStatus, reviewer: reviewerLiveStatus },
     evidenceSourceKinds,
     explicitTargetMissing,

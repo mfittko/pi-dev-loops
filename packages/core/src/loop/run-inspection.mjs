@@ -130,6 +130,8 @@ export function mapOuterActionToStatusClass(outerAction) {
  *   Live reviewer inner-loop facts. null when live detection was unavailable.
  * @param {object | null} params.existingCheckpoint
  *   Previously persisted outer-loop checkpoint (read-only). null when not found.
+ * @param {string | null} [params.checkpointEvidencePath]
+ *   Concrete checkpoint file path used by the caller when a checkpoint was found.
  * @param {{ copilot: "ok"|"failed", reviewer: "ok"|"failed" }} params.liveAvailability
  *   Tracks whether each detector/interpreter path succeeded ("ok") or failed ("failed").
  * @param {{ copilot?: "live"|"input", reviewer?: "live"|"input" }} [params.evidenceSourceKinds]
@@ -155,6 +157,7 @@ export function composeRunInspectionSnapshot({
   copilotEvidence,
   reviewerEvidence,
   existingCheckpoint,
+  checkpointEvidencePath = null,
   liveAvailability,
   evidenceSourceKinds = { copilot: "live", reviewer: "live" },
   explicitTargetMissing = false,
@@ -243,7 +246,9 @@ export function composeRunInspectionSnapshot({
   // -------------------------------------------------------------------------
 
   if (existingCheckpoint !== null) {
-    evidenceCheckpoint.push(`tmp/copilot-loop/pr-${pr}/outer-loop-state.json`);
+    if (checkpointEvidencePath !== null) {
+      evidenceCheckpoint.push(checkpointEvidencePath);
+    }
 
     if (bothLiveOk && outerAction !== undefined) {
       // Check for conflicts between live-derived action and checkpoint

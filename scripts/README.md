@@ -170,6 +170,7 @@ Contract:
 - detects the current Copilot-loop state for the PR
 - requests Copilot review automatically for `pr_ready_no_feedback`
 - requests Copilot review automatically for `ready_to_rerequest_review` only when `autoRerequestEligible=true`
+- does not request or re-request Copilot review when `ciStatus` is `none`; that path remains gated as `waiting_for_ci`
 - suppresses automatic same-head clean re-request when `sameHeadCleanConverged=true`, unless `--force-rerequest-review` is used
 - when a review request is successfully issued or confirmed (including the explicit force path), re-interprets from the shared post-request wait-cycle snapshot and emits `action: "watch"` with exact `watchArgs`
 - emits one machine-readable action: `watch`, `fix`, or `stop` (`stop` means no automatic next step; terminal, blocked, or operator-decision-required states all use this action)
@@ -218,7 +219,7 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `copilotReviewOnCurrentHead` {boolean} — whether a submitted (non-PENDING) Copilot review exists for the current head commit
 - `unresolvedThreadCount` {number} — total unresolved review-thread count
 - `actionableThreadCount` {number} — unresolved threads with non-bot actionable comments
-- `ciStatus` {"success"|"failure"|"pending"|"none"} — current CI check rollup
+- `ciStatus` {"success"|"failure"|"pending"|"none"} — current CI check rollup; `none` means no usable readiness signal yet and is not treated as green
 - `agentFixStatus` {"applied"|null} — agent-provided: "applied" when code has been fixed
 
 Success output shape:
@@ -329,7 +330,7 @@ Contract:
   and reviewer `waiting_for_re_request` as outer-loop-owned `continue_wait` states
 - stops with `unsafe_local_edit_requires_isolation` when the next step needs local execution or
   mutation and the checkout is dirty or detached
-- persists bounded checkpoint state to `tmp/copilot-loop/pr-<n>/outer-loop-state.json` for
+- persists bounded checkpoint state to `tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json` for
   async continuation and false-positive wakeup detection
 - emits an additive `conductorRouting` field with the conductor-owned routing outcome, derived
   outer action, stop reason when relevant, and any machine-readable handoff envelope
@@ -363,6 +364,8 @@ Contract:
   status class, trust/source semantics, evidence, markers, and best-effort drill-down layers
 - reports not-found or unavailable targets as structured success output with `statusClass: "unknown"`
   rather than by throwing a synthetic blocked-run error
+- looks for checkpoints at the repo-qualified default path `tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json`
+- during transition, may read the legacy default path `tmp/copilot-loop/pr-<n>/outer-loop-state.json` only when the checkpoint file's embedded `repo` and `pr` match the explicit target
 - surfaces steering as a best-effort drill-down layer when `--steering-state-file` is provided,
   including latest acknowledgement plus queued/effective stop summaries for the current run,
   without exposing full steering history/detail
