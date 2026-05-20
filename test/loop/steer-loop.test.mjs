@@ -241,6 +241,13 @@ test("parseSubmitCliArgs throws on invalid --loop-state", () => {
   );
 });
 
+test("parseSubmitCliArgs rejects --loop-state in operator mode", () => {
+  assert.throws(
+    () => parseSubmitCliArgs(["--repo", "owner/repo", "--pr", "1", "--kind", "stop_at_next_safe_gate", "--directive", "Stop", "--seq", "1", "--loop-state", "waiting_for_ci"]),
+    /--loop-state is low-level\/testing mode only/,
+  );
+});
+
 test("parseSubmitCliArgs throws usage-bearing errors on invalid --repo slug", () => {
   let error = null;
   try {
@@ -461,9 +468,9 @@ test("runSubmit operator mode returns an applied-now acknowledgement envelope fr
     assert.equal(output.acknowledgement.inspectedState, "waiting_for_copilot_review");
     assert.equal(output.acknowledgement.safePointCategory, "immediate");
     assert.equal(output.acknowledgement.effectiveNow, true);
-    assert.match(output.acknowledgement.readbackPath.inspection, /node scripts\/loop\/inspect-run\.mjs --repo owner\/repo --pr 55 --steering-state-file/);
+    assert.match(output.acknowledgement.readbackPath.inspection, /node scripts\/loop\/inspect-run\.mjs --repo "owner\/repo" --pr "55" --steering-state-file/);
     assert.doesNotMatch(output.acknowledgement.readbackPath.inspection, /--state-file/);
-    assert.match(output.acknowledgement.readbackPath.steeringStatus, /node scripts\/loop\/steer-loop\.mjs status --repo owner\/repo --pr 55 --state-file/);
+    assert.match(output.acknowledgement.readbackPath.steeringStatus, /node scripts\/loop\/steer-loop\.mjs status --repo "owner\/repo" --pr "55" --state-file/);
     assert.doesNotMatch(output.acknowledgement.readbackPath.steeringStatus, /--steering-state-file/);
     assert.equal(output.result.result, STEERING_RESULT.APPLIED_NOW);
     assert.equal(output.steeringState.effectiveStack.length, 1);
@@ -605,7 +612,7 @@ test("runSubmit operator mode rejects mismatched steering state files with a det
     assert.equal(output.acknowledgement.disposition, "rejected");
     assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_UNSAFE_NOW);
     assert.match(output.acknowledgement.reason, /state file does not match the requested target/i);
-    assert.match(output.acknowledgement.readbackPath.steeringStatus, /node scripts\/loop\/steer-loop\.mjs status --repo owner\/repo --pr 55 --state-file/);
+    assert.match(output.acknowledgement.readbackPath.steeringStatus, /node scripts\/loop\/steer-loop\.mjs status --repo "owner\/repo" --pr "55" --state-file/);
     assert.equal(output.steeringState.runId, "pr-55");
     assert.deepEqual(output.steeringState.target, { repo: "owner/repo", pr: 55 });
     assert.deepEqual(output.steeringState.events, []);
@@ -793,8 +800,8 @@ test("runSubmit operator mode queues stop_at_next_safe_gate for the next safe po
     assert.equal(output.acknowledgement.safePointCategory, "next_point");
     assert.equal(output.acknowledgement.effectiveNow, false);
     assert.equal(output.result.result, STEERING_RESULT.QUEUED_FOR_SAFE_POINT);
-    assert.match(output.acknowledgement.readbackPath.inspection, /node scripts\/loop\/inspect-run\.mjs --repo owner\/repo --pr 55 --steering-state-file/);
-    assert.match(output.acknowledgement.readbackPath.steeringStatus, /node scripts\/loop\/steer-loop\.mjs status --repo owner\/repo --pr 55 --state-file/);
+    assert.match(output.acknowledgement.readbackPath.inspection, /node scripts\/loop\/inspect-run\.mjs --repo "owner\/repo" --pr "55" --steering-state-file/);
+    assert.match(output.acknowledgement.readbackPath.steeringStatus, /node scripts\/loop\/steer-loop\.mjs status --repo "owner\/repo" --pr "55" --state-file/);
     assert.equal(output.steeringState.queuedEvents.length, 1);
     assert.deepEqual(output.steeringState.target, { repo: "owner/repo", pr: 55 });
   });

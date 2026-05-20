@@ -205,6 +205,7 @@ export function parseSubmitCliArgs(argv) {
     seq: undefined,
     stateFile: undefined,
     loopState: "ready_to_rerequest_review",
+    loopStateExplicit: false,
     applyMode: "immediate",
     eventId: undefined,
     copilotInputPath: undefined,
@@ -259,6 +260,7 @@ export function parseSubmitCliArgs(argv) {
         throw parseError(`--loop-state must be one of: ${[...VALID_LOOP_STATES].join(", ")}`, SUBMIT_USAGE);
       }
       options.loopState = val;
+      options.loopStateExplicit = true;
       continue;
     }
     if (token === "--apply-mode") {
@@ -291,6 +293,9 @@ export function parseSubmitCliArgs(argv) {
     }
     if (!options.runId && options.repo === undefined) {
       throw parseError("--run-id is required, or both --repo and --pr must be provided together", SUBMIT_USAGE);
+    }
+    if (options.repo !== undefined && options.loopStateExplicit) {
+      throw parseError("--loop-state is low-level/testing mode only; omit it when using --repo/--pr operator mode", SUBMIT_USAGE);
     }
     if (!options.kind) {
       throw parseError("--kind is required", SUBMIT_USAGE);
@@ -397,11 +402,13 @@ function mapDisposition(resultCode) {
 function buildReadbackPath({ repo, pr, runId, stateFilePath }) {
   const inspectionStateFileFlag = stateFilePath ? ` --steering-state-file ${quoteCliValue(stateFilePath)}` : "";
   const statusStateFileFlag = stateFilePath ? ` --state-file ${quoteCliValue(stateFilePath)}` : "";
-  const inspection = repo && pr
-    ? `node scripts/loop/inspect-run.mjs --repo ${repo} --pr ${pr}${inspectionStateFileFlag}`
+  const quotedRepo = repo ? quoteCliValue(repo) : null;
+  const quotedPr = pr !== undefined && pr !== null ? quoteCliValue(pr) : null;
+  const inspection = quotedRepo && quotedPr
+    ? `node scripts/loop/inspect-run.mjs --repo ${quotedRepo} --pr ${quotedPr}${inspectionStateFileFlag}`
     : null;
-  const steeringStatus = repo && pr
-    ? `node scripts/loop/steer-loop.mjs status --repo ${repo} --pr ${pr}${statusStateFileFlag}`
+  const steeringStatus = quotedRepo && quotedPr
+    ? `node scripts/loop/steer-loop.mjs status --repo ${quotedRepo} --pr ${quotedPr}${statusStateFileFlag}`
     : `node scripts/loop/steer-loop.mjs status --run-id ${quoteCliValue(runId)}${statusStateFileFlag}`;
   return {
     inspection,
