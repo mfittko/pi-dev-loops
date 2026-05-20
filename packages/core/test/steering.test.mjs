@@ -215,6 +215,19 @@ test("normalizeSteeringState preserves valid target metadata", () => {
   assert.deepEqual(state.target, { repo: "owner/repo", pr: 55 });
 });
 
+test("normalizeSteeringState rejects malformed target repo slugs", () => {
+  for (const repo of ["owner/repo/extra", "owner\\repo", "owner repo/repo"]) {
+    assert.throws(
+      () => normalizeSteeringState({
+        runId: "run-1",
+        target: { repo, pr: 55 },
+      }),
+      /owner\/name repo slug/,
+    );
+  }
+});
+
+
 test("normalizeSteeringState preserves existing arrays", () => {
   const event = makeEvent();
   const resultEntry = {

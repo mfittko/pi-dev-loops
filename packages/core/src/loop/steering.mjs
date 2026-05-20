@@ -67,6 +67,7 @@ const CURRENT_SCHEMA_VERSION = 1;
 const VALID_STEERING_KINDS = new Set(Object.values(STEERING_KIND));
 const VALID_STEERING_RESULTS = new Set(Object.values(STEERING_RESULT));
 const VALID_APPLY_MODES = new Set(["immediate", "next_safe_point"]);
+const VALID_REPO_SLUG = /^[^/\\\s]+\/[^/\\\s]+$/;
 
 // ---------------------------------------------------------------------------
 // Safe-point classification
@@ -217,7 +218,7 @@ function normalizeSteeringTarget(raw) {
   const repo = typeof raw.repo === "string" && raw.repo.trim().length > 0
     ? raw.repo.trim().toLowerCase()
     : null;
-  if (!repo || !repo.includes("/")) {
+  if (!repo || !VALID_REPO_SLUG.test(repo)) {
     throw new Error("target.repo must be a non-empty owner/name repo slug");
   }
 

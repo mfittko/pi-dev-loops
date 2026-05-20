@@ -178,6 +178,14 @@ function validateSafeRunId(runId, usage) {
   }
 }
 
+function parseRepoSlugOption(rawRepo, usage) {
+  try {
+    parseRepoSlug(rawRepo);
+  } catch (error) {
+    throw parseError(error instanceof Error ? error.message : String(error), usage);
+  }
+}
+
 function parsePositiveIntegerOption(raw, flag, usage) {
   if (!/^\d+$/.test(raw) || Number(raw) === 0) {
     throw parseError(`${flag} must be a positive integer`, usage);
@@ -218,7 +226,7 @@ export function parseSubmitCliArgs(argv) {
     }
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", SUBMIT_USAGE).trim();
-      parseRepoSlug(options.repo);
+      parseRepoSlugOption(options.repo, SUBMIT_USAGE);
       continue;
     }
     if (token === "--pr") {
@@ -323,7 +331,7 @@ export function parseStatusCliArgs(argv) {
     }
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", STATUS_USAGE).trim();
-      parseRepoSlug(options.repo);
+      parseRepoSlugOption(options.repo, STATUS_USAGE);
       continue;
     }
     if (token === "--pr") {
@@ -341,6 +349,9 @@ export function parseStatusCliArgs(argv) {
   if (!options.help) {
     if ((options.repo === undefined) !== (options.pr === undefined)) {
       throw parseError("--repo and --pr must be provided together", STATUS_USAGE);
+    }
+    if (options.runId && options.repo !== undefined) {
+      throw parseError("Choose exactly one target mode: either --run-id or --repo/--pr", STATUS_USAGE);
     }
     if (!options.runId && options.repo === undefined) {
       throw parseError("--run-id is required, or both --repo and --pr must be provided together", STATUS_USAGE);

@@ -240,11 +240,18 @@ test("parseSubmitCliArgs throws on invalid --loop-state", () => {
   );
 });
 
-test("parseSubmitCliArgs throws on invalid --repo slug", () => {
-  assert.throws(
-    () => parseSubmitCliArgs(["--repo", "../../x/y", "--pr", "1", "--kind", "stop_at_next_safe_gate", "--directive", "Stop", "--seq", "1"]),
-    /Repository slug|owner\/name|Invalid repository slug/i,
-  );
+test("parseSubmitCliArgs throws usage-bearing errors on invalid --repo slug", () => {
+  let error = null;
+  try {
+    parseSubmitCliArgs(["--repo", "../../x/y", "--pr", "1", "--kind", "stop_at_next_safe_gate", "--directive", "Stop", "--seq", "1"]);
+  } catch (caught) {
+    error = caught;
+  }
+
+  assert.ok(error instanceof Error);
+  assert.match(error.message, /Repository slug|owner\/name|Invalid repository slug/i);
+  assert.equal(typeof error.usage, "string");
+  assert.match(error.usage, /steer-loop\.mjs submit/);
 });
 
 test("runSubmit rejects explicit --run-id that disagrees with --repo/--pr", async () => {
@@ -285,16 +292,31 @@ test("parseStatusCliArgs accepts --state-file", () => {
   assert.equal(opts.stateFile, "/tmp/s.json");
 });
 
-test("parseStatusCliArgs throws on invalid --repo slug", () => {
-  assert.throws(
-    () => parseStatusCliArgs(["--repo", "../../x/y", "--pr", "1"]),
-    /Repository slug|owner\/name|Invalid repository slug/i,
-  );
+test("parseStatusCliArgs throws usage-bearing errors on invalid --repo slug", () => {
+  let error = null;
+  try {
+    parseStatusCliArgs(["--repo", "../../x/y", "--pr", "1"]);
+  } catch (caught) {
+    error = caught;
+  }
+
+  assert.ok(error instanceof Error);
+  assert.match(error.message, /Repository slug|owner\/name|Invalid repository slug/i);
+  assert.equal(typeof error.usage, "string");
+  assert.match(error.usage, /Choose exactly one target mode/);
 });
 
 test("parseStatusCliArgs throws on unsafe --run-id", () => {
   assert.throws(() => parseStatusCliArgs(["--run-id", "../../bad"]), /--run-id must contain only/);
 });
+
+test("parseStatusCliArgs rejects mixing --run-id with --repo/--pr", () => {
+  assert.throws(
+    () => parseStatusCliArgs(["--run-id", "run-xyz", "--repo", "owner/repo", "--pr", "55"]),
+    /Choose exactly one target mode/,
+  );
+});
+
 
 test("parseStatusCliArgs throws on unknown argument", () => {
   assert.throws(() => parseStatusCliArgs(["--unknown"]), /Unknown argument/);

@@ -59,6 +59,8 @@ export function validateSteeringStateTarget(steeringState, { repo, pr, runId }) 
         reason: `steering state target ${JSON.stringify({ repo: target.repo, pr: target.pr })} does not match expected target ${JSON.stringify({ repo: expectedRepo, pr })}`,
       };
     }
+
+    return { ok: true, reason: null };
   } else if (target && typeof target === "object") {
     if (pr !== undefined) {
       const actualPr = typeof target.pr === "number" ? target.pr : Number(target.pr);
@@ -73,6 +75,13 @@ export function validateSteeringStateTarget(steeringState, { repo, pr, runId }) 
     return {
       ok: false,
       reason: "repo identity cannot be proven for the supplied steering state in snapshot mode",
+    };
+  }
+
+  if (pr !== undefined) {
+    return {
+      ok: false,
+      reason: "steering state target metadata is missing; repo identity cannot be proven for the supplied steering state in snapshot mode",
     };
   }
 

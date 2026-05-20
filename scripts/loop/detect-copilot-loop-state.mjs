@@ -456,7 +456,7 @@ export async function runCli(
       const steeringState = rawSteering !== null
         ? normalizeSteeringState(rawSteering)
         : createSteeringState(
-            deriveRunIdFromSteeringFile(options.steeringStateFile),
+            options.repo && options.pr ? `pr-${options.pr}` : deriveRunIdFromSteeringFile(options.steeringStateFile),
             options.repo && options.pr ? { repo: options.repo, pr: options.pr } : null,
           );
 
