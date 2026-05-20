@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -52,6 +52,68 @@ function runNode(args = [], options = {}) {
 
 async function writeJson(filePath, data) {
   await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+async function writeGhStub(tempDir) {
+  const ghPath = path.join(tempDir, "gh");
+  const script = `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const out = (value) => process.stdout.write(JSON.stringify(value));
+
+if (args[0] === "pr" && args[1] === "view") {
+  const fields = args[args.indexOf("--json") + 1] || "";
+  if (fields.includes("reviews")) {
+    out({
+      headRefOid: "abc123",
+      isDraft: false,
+      state: "OPEN",
+      number: 55,
+      reviews: [],
+      statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+    });
+  } else {
+    out({
+      isDraft: false,
+      state: "OPEN",
+      number: 55,
+      headRefOid: "abc123",
+    });
+  }
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/requested_reviewers") {
+  out({ users: [{ login: "copilot-pull-request-reviewer[bot]" }, { login: "reviewer-user" }] });
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/reviews") {
+  out([{ id: 41, state: "COMMENTED", user: { login: "reviewer-user" }, commit_id: "abc123", html_url: "https://example.test/review/41" }]);
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "graphql") {
+  out({
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  });
+  process.exit(0);
+}
+
+process.stderr.write("unexpected gh args: " + args.join(" ") + "\\n");
+process.exit(1);
+`;
+  await writeFile(ghPath, script, "utf8");
+  await chmod(ghPath, 0o755);
+  return ghPath;
 }
 
 async function withTempDir(fn) {
@@ -275,7 +337,7 @@ test("composeRunInspectionSnapshot: live evidence + reenter_copilot_loop → act
 // Unit tests: checkpoint-only fixture
 // ---------------------------------------------------------------------------
 
-test("composeRunInspectionSnapshot: checkpoint-only → checkpoint-only sourceMode, checkpoint trust", () => {
+test("composeRunInspectionSnapshot: checkpoint-only stays advisory and leaves top-level state unknown", () => {
   const existingCheckpoint = {
     pr: 55,
     repo: "owner/repo",
@@ -290,7 +352,7 @@ test("composeRunInspectionSnapshot: checkpoint-only → checkpoint-only sourceMo
   const snapshot = composeRunInspectionSnapshot({
     target: { repo: "owner/repo", pr: 55 },
     inspectedAt: "2026-05-18T12:00:00Z",
-    outerAction: "continue_wait",
+    outerAction: undefined,
     copilotEvidence: null,
     reviewerEvidence: null,
     existingCheckpoint,
@@ -305,8 +367,11 @@ test("composeRunInspectionSnapshot: checkpoint-only → checkpoint-only sourceMo
   assert.equal(snapshot.sourceMode, SOURCE_MODE.CHECKPOINT_ONLY);
   assert.equal(snapshot.trust, TRUST.CHECKPOINT);
   assert.equal(snapshot.needsAttention, true);
-  assert.equal(snapshot.outerAction, "continue_wait");
-  assert.equal(snapshot.statusClass, STATUS_CLASS.WAITING);
+  assert.equal(snapshot.outerAction, "unknown");
+  assert.equal(snapshot.activeFamilyState, "unknown");
+  assert.equal(snapshot.statusClass, STATUS_CLASS.UNKNOWN);
+  assert.match(snapshot.evidence.summary, /advisory/i);
+  assert.match(snapshot.evidence.summary, /could not be determined|could not be confirmed/i);
 
   // Checkpoint layer is populated
   assert.equal(snapshot.layers.copilot.currentState, "waiting_for_copilot_review");
@@ -433,7 +498,7 @@ test("composeRunInspectionSnapshot: live copilot state matches checkpoint — no
 // Unit tests: partial live evidence
 // ---------------------------------------------------------------------------
 
-test("composeRunInspectionSnapshot: reviewer live fails, copilot ok → partial sourceMode", () => {
+test("composeRunInspectionSnapshot: mixed live + checkpoint stays advisory and leaves top-level state unknown", () => {
   const copilotEvidence = makeCopilotEvidence("waiting_for_copilot_review");
 
   const existingCheckpoint = {
@@ -450,7 +515,7 @@ test("composeRunInspectionSnapshot: reviewer live fails, copilot ok → partial 
   const snapshot = composeRunInspectionSnapshot({
     target: { repo: "owner/repo", pr: 55 },
     inspectedAt: "2026-05-18T12:00:00Z",
-    outerAction: "continue_wait",
+    outerAction: undefined,
     copilotEvidence,
     reviewerEvidence: null,
     existingCheckpoint,
@@ -463,6 +528,10 @@ test("composeRunInspectionSnapshot: reviewer live fails, copilot ok → partial 
   assert.equal(snapshot.sourceMode, SOURCE_MODE.PARTIAL);
   assert.equal(snapshot.trust, TRUST.DEGRADED);
   assert.equal(snapshot.needsAttention, true);
+  assert.equal(snapshot.outerAction, "unknown");
+  assert.equal(snapshot.activeFamilyState, "unknown");
+  assert.equal(snapshot.statusClass, STATUS_CLASS.UNKNOWN);
+  assert.match(snapshot.evidence.summary, /insufficient|advisory/i);
   assert.ok(snapshot.markers.missing.length > 0 || snapshot.markers.stale.length > 0);
 
   // Copilot layer from live
@@ -759,6 +828,68 @@ test("inspect-run CLI: complete snapshot inputs -> partial sourceMode (degraded 
   });
 });
 
+test("inspect-run CLI: mixed live + input coverage can still derive a degraded top-level state", async () => {
+  await withTempDir(async (tempDir) => {
+    await writeGhStub(tempDir);
+    const copilotPath = path.join(tempDir, "copilot.json");
+    await writeJson(copilotPath, {
+      prExists: true,
+      prNumber: 55,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      copilotReviewOnCurrentHead: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+      agentFixStatus: null,
+    });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--copilot-input", copilotPath,
+    ], {
+      cwd: tempDir,
+      env: { ...process.env, PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter) },
+    });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.sourceMode, SOURCE_MODE.PARTIAL);
+    assert.equal(output.trust, TRUST.DEGRADED);
+    assert.equal(output.outerAction, "continue_wait");
+    assert.equal(output.activeFamilyState, "continue_wait");
+    assert.equal(output.statusClass, STATUS_CLASS.WAITING);
+    assert.match(output.evidence.summary, /caller-supplied snapshot inputs|provided to inspection/i);
+  });
+});
+
+test("inspect-run CLI: successful live detectors still derive authoritative top-level state", async () => {
+  await withTempDir(async (tempDir) => {
+    await writeGhStub(tempDir);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+    ], {
+      cwd: tempDir,
+      env: { ...process.env, PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter) },
+    });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.sourceMode, SOURCE_MODE.LIVE_DETECTOR_BACKED);
+    assert.equal(output.trust, TRUST.AUTHORITATIVE);
+    assert.equal(output.outerAction, "continue_wait");
+    assert.equal(output.activeFamilyState, "continue_wait");
+    assert.equal(output.statusClass, STATUS_CLASS.WAITING);
+    assert.equal(output.needsAttention, false);
+  });
+});
+
 test("inspect-run CLI: waiting copilot → continue_wait, statusClass waiting", async () => {
   await withTempDir(async (tempDir) => {
     const copilotPath = path.join(tempDir, "copilot.json");
@@ -961,7 +1092,7 @@ test("inspect-run CLI: --steering-state-file given and file exists → available
   });
 });
 
-test("inspect-run CLI: reads checkpoint from repo-qualified default path", async () => {
+test("inspect-run CLI: checkpoint-only repo-qualified path stays advisory and top-level unknown", async () => {
   await withTempDir(async (tempDir) => {
     const checkpointPath = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo", "pr-55", "outer-loop-state.json");
     await mkdir(path.dirname(checkpointPath), { recursive: true });
@@ -985,11 +1116,15 @@ test("inspect-run CLI: reads checkpoint from repo-qualified default path", async
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);
     assert.equal(output.sourceMode, SOURCE_MODE.CHECKPOINT_ONLY);
+    assert.equal(output.outerAction, "unknown");
+    assert.equal(output.activeFamilyState, "unknown");
+    assert.equal(output.statusClass, STATUS_CLASS.UNKNOWN);
+    assert.match(output.evidence.summary, /advisory/i);
     assert.equal(output.evidence.checkpoint[0], path.join("tmp", "copilot-loop", "owner", "repo", "pr-55", "outer-loop-state.json"));
   });
 });
 
-test("inspect-run CLI: reads the repo-qualified checkpoint for the targeted repo when two repos share a PR number", async () => {
+test("inspect-run CLI: checkpoint-only selection still picks the targeted repo when two repos share a PR number", async () => {
   await withTempDir(async (tempDir) => {
     const checkpointPathA = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo-a", "pr-55", "outer-loop-state.json");
     const checkpointPathB = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo-b", "pr-55", "outer-loop-state.json");
@@ -1027,11 +1162,67 @@ test("inspect-run CLI: reads the repo-qualified checkpoint for the targeted repo
     const output = JSON.parse(result.stdout);
     assert.equal(output.sourceMode, SOURCE_MODE.CHECKPOINT_ONLY);
     assert.equal(output.evidence.checkpoint[0], path.join("tmp", "copilot-loop", "owner", "repo-b", "pr-55", "outer-loop-state.json"));
-    assert.equal(output.outerAction, "stop");
+    assert.equal(output.outerAction, "unknown");
+    assert.equal(output.activeFamilyState, "unknown");
+    assert.equal(output.statusClass, STATUS_CLASS.UNKNOWN);
   });
 });
 
-test("inspect-run CLI: reads matching legacy checkpoint as fallback when repo input casing differs", async () => {
+test("inspect-run CLI: mixed live + checkpoint fallback stays advisory and top-level unknown", async () => {
+  await withTempDir(async (tempDir) => {
+    const copilotPath = path.join(tempDir, "copilot.json");
+    const checkpointPath = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo", "pr-55", "outer-loop-state.json");
+    await mkdir(path.dirname(checkpointPath), { recursive: true });
+    await writeJson(copilotPath, {
+      prExists: true,
+      prNumber: 55,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      copilotReviewOnCurrentHead: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+      agentFixStatus: null,
+    });
+    await writeJson(checkpointPath, {
+      pr: 55,
+      repo: "owner/repo",
+      outerAction: "continue_wait",
+      copilotState: "waiting_for_copilot_review",
+      reviewerState: "waiting_for_author_followup",
+      reason: null,
+      timestamp: "2026-05-17T10:00:00Z",
+      waitCycles: 3,
+      headSha: "abc123",
+    });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--copilot-input", copilotPath,
+    ], {
+      cwd: tempDir,
+      env: { ...process.env, PATH: tempDir },
+    });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.sourceMode, SOURCE_MODE.PARTIAL);
+    assert.equal(output.trust, TRUST.DEGRADED);
+    assert.equal(output.outerAction, "unknown");
+    assert.equal(output.activeFamilyState, "unknown");
+    assert.equal(output.statusClass, STATUS_CLASS.UNKNOWN);
+    assert.equal(output.layers.copilot.currentState, "waiting_for_copilot_review");
+    assert.equal(output.layers.reviewer.currentState, "waiting_for_author_followup");
+    assert.equal(output.layers.reviewer.source, "checkpoint");
+    assert.match(output.evidence.summary, /insufficient|advisory/i);
+  });
+});
+
+test("inspect-run CLI: matching legacy checkpoint fallback stays advisory when repo input casing differs", async () => {
   await withTempDir(async (tempDir) => {
     const checkpointPath = path.join(tempDir, "tmp", "copilot-loop", "pr-55", "outer-loop-state.json");
     await mkdir(path.dirname(checkpointPath), { recursive: true });
@@ -1055,11 +1246,14 @@ test("inspect-run CLI: reads matching legacy checkpoint as fallback when repo in
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);
     assert.equal(output.sourceMode, SOURCE_MODE.CHECKPOINT_ONLY);
+    assert.equal(output.outerAction, "unknown");
+    assert.equal(output.activeFamilyState, "unknown");
+    assert.equal(output.statusClass, STATUS_CLASS.UNKNOWN);
     assert.equal(output.evidence.checkpoint[0], path.join("tmp", "copilot-loop", "pr-55", "outer-loop-state.json"));
   });
 });
 
-test("inspect-run CLI: prefers repo-qualified checkpoint when both new and legacy files exist", async () => {
+test("inspect-run CLI: prefers repo-qualified checkpoint when both new and legacy files exist and keeps top-level unknown", async () => {
   await withTempDir(async (tempDir) => {
     const repoQualifiedPath = path.join(tempDir, "tmp", "copilot-loop", "owner", "repo", "pr-55", "outer-loop-state.json");
     const legacyPath = path.join(tempDir, "tmp", "copilot-loop", "pr-55", "outer-loop-state.json");
@@ -1097,7 +1291,9 @@ test("inspect-run CLI: prefers repo-qualified checkpoint when both new and legac
     const output = JSON.parse(result.stdout);
     assert.equal(output.sourceMode, SOURCE_MODE.CHECKPOINT_ONLY);
     assert.equal(output.evidence.checkpoint[0], path.join("tmp", "copilot-loop", "owner", "repo", "pr-55", "outer-loop-state.json"));
-    assert.equal(output.outerAction, "continue_wait");
+    assert.equal(output.outerAction, "unknown");
+    assert.equal(output.activeFamilyState, "unknown");
+    assert.equal(output.statusClass, STATUS_CLASS.UNKNOWN);
   });
 });
 

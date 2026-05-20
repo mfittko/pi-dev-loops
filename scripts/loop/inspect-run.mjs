@@ -116,8 +116,11 @@ statusClass values:
 
 sourceMode values:
   live-detector-backed   All facts from live detectors (authoritative)
-  checkpoint-only        Facts from existing checkpoint only (degraded)
-  partial                Mixed live and checkpoint-derived (degraded)
+  checkpoint-only        Checkpoint drill-down only; top-level state stays unknown
+  partial                Degraded mode. Mixed live + checkpoint fallback keeps top-level
+                         state unknown; complete current-state input supplied by the
+                         caller (including mixed live + input coverage) can still derive
+                         a top-level state.
   unavailable            No usable evidence available
 
 Error output (stderr, JSON):
@@ -378,20 +381,17 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
     copilotEvidence?.snapshot?.prExists === false
     || reviewerEvidence?.snapshot?.prExists === false;
 
-  const effectiveCopilotState =
-    !explicitTargetMissing && copilotLiveStatus === "ok" && copilotEvidence !== null
-      ? copilotEvidence.interpretation.state
-      : (typeof existingCheckpoint?.copilotState === "string" ? existingCheckpoint.copilotState : undefined);
+  const hasCompleteCurrentInnerLoopState =
+    !explicitTargetMissing
+    && copilotLiveStatus === "ok"
+    && reviewerLiveStatus === "ok"
+    && copilotEvidence !== null
+    && reviewerEvidence !== null;
 
-  const effectiveReviewerState =
-    !explicitTargetMissing && reviewerLiveStatus === "ok" && reviewerEvidence !== null
-      ? reviewerEvidence.interpretation.state
-      : (typeof existingCheckpoint?.reviewerState === "string" ? existingCheckpoint.reviewerState : undefined);
-
-  if (!explicitTargetMissing && effectiveCopilotState !== undefined && effectiveReviewerState !== undefined) {
+  if (hasCompleteCurrentInnerLoopState) {
     const decision = decideOuterAction({
-      copilotState: effectiveCopilotState,
-      reviewerState: effectiveReviewerState,
+      copilotState: copilotEvidence.interpretation.state,
+      reviewerState: reviewerEvidence.interpretation.state,
       gitStatus: { isDirty: false, isDetached: false },
     });
     outerAction = decision.outerAction;

@@ -362,6 +362,8 @@ Contract:
 - is strictly read-only: it does not write checkpoints, mutate GitHub state, or create local artifacts
 - returns a stable top-level inspection shape with target identity, outer action, active family state,
   status class, trust/source semantics, evidence, markers, and best-effort drill-down layers
+- only derives top-level `outerAction` / `activeFamilyState` / `statusClass` when inspection has a complete current inner-loop picture, whether from live detectors and/or caller-supplied snapshot inputs
+- when inspection falls back to checkpoint-only data or mixed live + checkpoint evidence, checkpoint-backed drill-down layers and checkpoint evidence paths remain available as advisory context while the top-level state stays `"unknown"`
 - reports not-found or unavailable targets as structured success output with `statusClass: "unknown"`
   rather than by throwing a synthetic blocked-run error
 - looks for checkpoints at the repo-qualified default path `tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json`
