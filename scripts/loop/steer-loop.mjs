@@ -16,6 +16,7 @@
  *
  * 2. status — Inspect the steering state for a run.
  *    steer-loop.mjs status --run-id <id> [--state-file <path>]
+ *    steer-loop.mjs status --repo <owner/name> --pr <number> [--state-file <path>]
  *
  * State is persisted to / loaded from a JSON file (--state-file, default:
  * operator-facing repo/pr mode => .pi/steering/<owner>/<repo>/pr-<n>.json,
@@ -117,7 +118,7 @@ const STATUS_USAGE = `Usage:
 
 Inspect the steering state for a run.
 
-Required:
+Choose exactly one target mode:
   --run-id <id>           Target run identifier
   --repo <owner/name>     Repository slug (required with --pr)
   --pr <number>           Pull request number (required with --repo)

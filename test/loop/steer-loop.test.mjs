@@ -1264,6 +1264,8 @@ test("steer-loop.mjs status --help prints usage", async () => {
   const result = await runNode(["status", "--help"]);
   assert.equal(result.code, 0);
   assert.match(result.stdout, /--run-id/);
+  assert.match(result.stdout, /Choose exactly one target mode/);
+  assert.doesNotMatch(result.stdout, /Required:\n  --run-id <id>[\s\S]*--repo <owner\/name>[\s\S]*--pr <number>/);
 });
 
 // ---------------------------------------------------------------------------
