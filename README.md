@@ -99,6 +99,7 @@ Current script entrypoints include:
 - `scripts/github/watch-copilot-review.mjs`
 - `scripts/loop/copilot-pr-handoff.mjs`
 - `scripts/loop/detect-copilot-loop-state.mjs`
+- `scripts/loop/detect-initial-copilot-pr-state.mjs`
 - `scripts/loop/detect-reviewer-loop-state.mjs`
 - `scripts/loop/detect-tracker-pr-state.mjs`
 - `scripts/loop/inspect-run.mjs`
