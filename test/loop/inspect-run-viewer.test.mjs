@@ -36,14 +36,22 @@ function makeSnapshot(overrides = {}) {
   };
 }
 
-test("parseInspectRunViewerCliArgs parses required target and rejects malformed input", () => {
-  const parsed = parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55"]);
+test("parseInspectRunViewerCliArgs normalizes target values and rejects malformed input with usage", () => {
+  const parsed = parseInspectRunViewerCliArgs(["--repo", "  owner/repo  ", "--pr", "55"]);
   assert.equal(parsed.repo, "owner/repo");
-  assert.equal(parsed.pr, "55");
-  assert.throws(
-    () => parseInspectRunViewerCliArgs(["--repo", "../../bad", "--pr", "55"]),
-    /Invalid repository slug|owner\/name|Repository slug/i,
-  );
+  assert.equal(parsed.pr, 55);
+
+  let malformedTargetError;
+  try {
+    parseInspectRunViewerCliArgs(["--repo", "../../bad", "--pr", "55"]);
+  } catch (error) {
+    malformedTargetError = error;
+  }
+  assert.ok(malformedTargetError instanceof Error);
+  assert.match(malformedTargetError.message, /Invalid repository slug|owner\/name|Repository slug/i);
+  assert.equal(typeof malformedTargetError.usage, "string");
+  assert.ok(malformedTargetError.usage.length > 0);
+
   assert.throws(
     () => parseInspectRunViewerCliArgs([
       "--repo",

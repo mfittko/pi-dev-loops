@@ -73,6 +73,14 @@ function parseReviewerLogin(rawLogin) {
   return reviewerLogin;
 }
 
+function normalizeCliTargetOptions(options) {
+  try {
+    return normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
+  } catch (error) {
+    throw parseError(error instanceof Error ? error.message : String(error));
+  }
+}
+
 export function parseInspectRunViewerCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -135,7 +143,10 @@ export function parseInspectRunViewerCliArgs(argv) {
     if (options.reviewerInputPath !== undefined && options.reviewerLogin !== undefined) {
       throw parseError("--reviewer-input cannot be combined with --reviewer-login");
     }
-    normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
+
+    const normalizedTarget = normalizeCliTargetOptions(options);
+    options.repo = normalizedTarget.repo;
+    options.pr = normalizedTarget.pr;
   }
 
   return options;
