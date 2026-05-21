@@ -440,7 +440,16 @@ export function formatInspectRunViewerUrl(host, port) {
   return new URL(`http://${formattedHost}:${port}`).toString().replace(/\/$/, "");
 }
 
-async function listListeningPidsForPort(port, { execFileImpl = execFile } = {}) {
+function isLsofNoListenerResult(error) {
+  if (!error || error.code !== 1) {
+    return false;
+  }
+
+  const stderr = typeof error.stderr === "string" ? error.stderr.trim() : "";
+  return stderr.length === 0;
+}
+
+export async function listListeningPidsForPort(port, { execFileImpl = execFile } = {}) {
   try {
     const { stdout } = await execFileImpl("lsof", [`-tiTCP:${port}`, "-sTCP:LISTEN"]);
     return stdout
@@ -448,7 +457,7 @@ async function listListeningPidsForPort(port, { execFileImpl = execFile } = {}) 
       .map((line) => Number(line.trim()))
       .filter((pid) => Number.isInteger(pid) && pid > 0);
   } catch (error) {
-    if (error && error.code === 1) {
+    if (isLsofNoListenerResult(error)) {
       return [];
     }
     throw error;
@@ -556,10 +565,25 @@ export function createInspectRunViewerServer(options, deps = {}) {
   });
 }
 
+function normalizeRestartCapabilityError(error) {
+  const missingLsof = error?.code === "ENOENT"
+    && (error?.path === "lsof" || /(^|\b)lsof(\b|$)/i.test(String(error?.message ?? "")));
+  if (!missingLsof) {
+    return error;
+  }
+
+  const parseFriendlyError = parseError(
+    "--restart requires lsof/POSIX support; install lsof or rerun without --restart",
+  );
+  parseFriendlyError.cause = error;
+  return parseFriendlyError;
+}
+
 export async function runCli(
   argv = process.argv.slice(2),
   {
     stdout = process.stdout,
+    restartExistingPortListenerImpl = restartExistingPortListener,
   } = {},
 ) {
   const options = parseInspectRunViewerCliArgs(argv);
@@ -569,7 +593,11 @@ export async function runCli(
   }
 
   if (options.restart) {
-    await restartExistingPortListener(options.port);
+    try {
+      await restartExistingPortListenerImpl(options.port);
+    } catch (error) {
+      throw normalizeRestartCapabilityError(error);
+    }
   }
 
   const server = createInspectRunViewerServer(options);

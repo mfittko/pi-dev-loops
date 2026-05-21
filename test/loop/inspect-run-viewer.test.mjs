@@ -6,9 +6,11 @@ import test from "node:test";
 import {
   createInspectRunViewerServer,
   formatInspectRunViewerUrl,
+  listListeningPidsForPort,
   parseInspectRunViewerCliArgs,
   renderInspectRunViewerHtml,
   restartExistingPortListener,
+  runCli,
 } from "../../scripts/loop/inspect-run-viewer.mjs";
 import { createInspectionViewerAdapter } from "../../scripts/loop/_inspect-run-viewer-adapter.mjs";
 
@@ -125,6 +127,32 @@ test("restartExistingPortListener is a no-op when nothing is listening", async (
   });
 
   assert.deepEqual(restarted, []);
+});
+
+
+test("listListeningPidsForPort only treats empty-stderr lsof exit 1 as no listeners", async () => {
+  const emptyResult = await listListeningPidsForPort(4311, {
+    execFileImpl: async () => {
+      const error = new Error("no listeners");
+      error.code = 1;
+      error.stderr = "";
+      throw error;
+    },
+  });
+
+  assert.deepEqual(emptyResult, []);
+
+  await assert.rejects(
+    () => listListeningPidsForPort(4311, {
+      execFileImpl: async () => {
+        const error = new Error("unsupported flag");
+        error.code = 1;
+        error.stderr = "lsof: illegal option";
+        throw error;
+      },
+    }),
+    /unsupported flag/,
+  );
 });
 
 test("restartExistingPortListener stops existing listeners on the chosen port", async () => {
@@ -595,4 +623,30 @@ test("createInspectRunViewerServer guards malformed request URLs and undefined s
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("runCli explains missing lsof when --restart is requested", async () => {
+  await assert.rejects(
+    () => runCli([
+      "--repo",
+      "owner/repo",
+      "--pr",
+      "55",
+      "--restart",
+    ], {
+      stdout: { write() {} },
+      restartExistingPortListenerImpl: async () => {
+        const error = new Error("spawn lsof ENOENT");
+        error.code = "ENOENT";
+        error.path = "lsof";
+        throw error;
+      },
+    }),
+    (error) => {
+      assert.match(error.message, /--restart requires lsof\/POSIX support/i);
+      assert.equal(typeof error.usage, "string");
+      assert.match(error.usage, /--restart/);
+      return true;
+    },
+  );
 });
