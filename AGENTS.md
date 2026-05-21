@@ -4,8 +4,13 @@
 
 This repository now prefers the GitHub remote-loop workflow for active implementation and release work.
 
-- Use `copilot-dev-loop` as the primary workflow when work should move through GitHub branches, pull requests, CI, and review.
-- Use `dev-loop` only when the user explicitly wants a local phase-based implementation path.
+- Use `dev-loop-unified` as the primary public entrypoint — it routes deterministically to the correct internal strategy based on user intent and current state.
+- The old entrypoints remain as compatibility shims:
+  - `copilot-dev-loop` routes to the Copilot PR follow-up strategy
+  - `copilot-autopilot` routes to the issue intake strategy
+  - `dev-loop` routes to the local implementation strategy
+
+Users should prefer intent-based commands (e.g., "start dev loop on issue #83", "continue PR 85") over choosing an internal loop name directly.
 
 These skills may be provided repo-locally or globally; this contract does not assume a local skill path.
 

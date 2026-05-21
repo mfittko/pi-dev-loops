@@ -20,9 +20,10 @@ This repo currently contains four main layers. The design goal is generic role a
 1. **Role agents** in `agents/`
    - reusable prompts such as coordinator, developer, docs, quality, review, fixer, and refiner
 2. **Workflow skills** in `skills/`
-   - `dev-loop` for docs-first local phase planning and implementation
-   - `copilot-dev-loop` for GitHub/Copilot PR execution, watch, and follow-up loops
-   - `copilot-autopilot` for issue-first GitHub intake through refinement, handoff, review, and merge
+   - `dev-loop-unified` — single public entrypoint that deterministically routes to the correct internal strategy
+   - `dev-loop` for docs-first local phase planning and implementation (internal strategy)
+   - `copilot-dev-loop` for GitHub/Copilot PR execution, watch, and follow-up loops (internal strategy)
+   - `copilot-autopilot` for issue-first GitHub intake through refinement, handoff, review, and merge (internal strategy)
 3. **Extension UX** in `extension/`
    - `/dev-loops` readiness checks plus explicit skill install/update flows
 4. **Deterministic support code** in `packages/core/` and `scripts/`
