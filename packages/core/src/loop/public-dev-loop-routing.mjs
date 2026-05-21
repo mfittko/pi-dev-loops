@@ -8,8 +8,9 @@
  * - explicit compatibility entrypoints for existing specialized skills
  *
  * The evaluator is intentionally pure and side-effect free. It does not inspect
- * GitHub or local state itself; callers must provide the authoritative current
- * state they have already detected.
+ * GitHub or local state itself; callers may provide the authoritative current
+ * state they have already detected, or omit it for explicit start intents where
+ * the router can synthesize a minimal canonical state from the requested target.
  */
 
 export const PUBLIC_DEV_LOOP_ENTRYPOINT = "dev-loop";
@@ -355,7 +356,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     return routeForState({
       target: explicitTarget,
       ownership: DEV_LOOP_ACTOR.COPILOT,
-      nextActor: DEV_LOOP_ACTOR.LOCAL,
+      nextActor: DEV_LOOP_ACTOR.USER,
       status: DEV_LOOP_STATUS.ACTIVE,
       authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
     });

@@ -29,6 +29,7 @@ test("start_on_issue routes to issue_intake through the public dev-loop façade"
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_AUTOPILOT);
   assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.ISSUE);
+  assert.equal(result.canonicalState.nextActor, DEV_LOOP_ACTOR.USER);
   assert.equal(result.canonicalState.authorization, DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION);
 });
 
