@@ -35,10 +35,15 @@ Implementation:
 `normalizeReviewerSnapshot` canonicalizes this schema:
 
 - PR/observable: `prExists`, `prNumber`, `prDraft`, `prMerged`, `prClosed`, `prHeadSha`, `reviewRequested`
+- reviewer-scope metadata: `reviewerScope`, `reviewerLogin`
 - local planning/run/merge status: `localPlanningStatus`, `localReviewRunsStatus`, `localMergeStatus`, `draftReviewPrepared`
 - staged draft review state: `draftReviewPosted`, `draftReviewId`, `draftReviewUrl`, `draftReviewCommitSha`, `draftReviewNotificationStatus`
 - submitted review state: `submittedReviewPresent`, `submittedReviewCommitSha`
 - explicit prior action-result state: `reviewSubmissionStatus`
+
+`reviewerScope` is explicit machine-readable contract, not an inferred side note:
+- `single_reviewer` means detection was scoped to one reviewer identity and `reviewerLogin` is that normalized login
+- `all_reviewers` means `--reviewer-login` was omitted and the detector intentionally aggregated reviewer state across the PR
 
 The contract separates observable current state (`submittedReviewPresent`, `draftReviewPosted`, `reviewRequested`) from prior action-result state (`reviewSubmissionStatus`) to avoid overloading one field.
 
@@ -88,6 +93,11 @@ artifact/verdict.
 - optional: `--reviewer-login <login>`
 - optional: `--review-requested <true|false>` (inject known request result)
 - optional: `--local-state <path>` (inject local planning/run/merge metadata)
+
+Reviewer-scope contract:
+- with `--reviewer-login`, detection is for that single reviewer identity
+- without `--reviewer-login`, detection intentionally aggregates across all reviewers on the PR
+- success output snapshots always expose that choice through `snapshot.reviewerScope` and `snapshot.reviewerLogin`
 
 Success output:
 

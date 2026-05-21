@@ -26,6 +26,8 @@ test("normalizeReviewerSnapshot returns deterministic defaults", () => {
     prMerged: false,
     prClosed: false,
     prHeadSha: null,
+    reviewerScope: "all_reviewers",
+    reviewerLogin: null,
     reviewRequested: false,
     localPlanningStatus: "none",
     localReviewRunsStatus: "none",
@@ -40,6 +42,26 @@ test("normalizeReviewerSnapshot returns deterministic defaults", () => {
     submittedReviewCommitSha: null,
     reviewSubmissionStatus: "none",
   });
+});
+
+test("normalizeReviewerSnapshot derives reviewer scope metadata deterministically", () => {
+  assert.deepEqual(
+    normalizeReviewerSnapshot({ reviewerLogin: "Pi-Reviewer" }),
+    {
+      ...normalizeReviewerSnapshot({}),
+      reviewerScope: "single_reviewer",
+      reviewerLogin: "pi-reviewer",
+    },
+  );
+
+  assert.deepEqual(
+    normalizeReviewerSnapshot({ reviewerScope: "single_reviewer" }),
+    {
+      ...normalizeReviewerSnapshot({}),
+      reviewerScope: "all_reviewers",
+      reviewerLogin: null,
+    },
+  );
 });
 
 test("REVIEWER_TRANSITIONS covers every REVIEWER_STATE", () => {

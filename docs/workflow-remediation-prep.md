@@ -64,7 +64,7 @@ Problem shape:
 - this is an operator-signal / output-contract problem
 
 ### 4. Reviewer identity scoping is underspecified when `--reviewer-login` is omitted
-This is real, but it is not yet a plain bug ticket.
+This was a contract-decision problem before chunk 5 clarified the rule.
 
 Primary surfaces:
 - `scripts/loop/detect-reviewer-loop-state.mjs`
@@ -75,8 +75,8 @@ Primary surfaces:
 
 Problem shape:
 - omitted reviewer identity broadens scope to all reviewers
-- current docs make that behavior at least partly defensible
-- this needs a contract decision before any default-behavior change
+- current docs made that behavior only partly explicit
+- chunk 5 resolves the contract by making aggregate-vs-single-reviewer scope explicit in runtime output and docs, while keeping the omitted-login default unchanged for now
 
 ### 5. Ownership-aware routing exists in core but is not wired into active outer-loop routing
 This is a known seam, not a surprise bug.

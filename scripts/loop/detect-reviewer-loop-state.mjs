@@ -42,6 +42,14 @@ function parseBool(value, flag) {
   throw new Error(`${flag} must be true or false`);
 }
 
+function parseReviewerLogin(value) {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    throw new Error("--reviewer-login must not be empty");
+  }
+  return normalized;
+}
+
 export function parseDetectReviewerCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -72,7 +80,7 @@ export function parseDetectReviewerCliArgs(argv) {
     }
 
     if (token === "--reviewer-login") {
-      options.reviewerLogin = requireOptionValue(args, "--reviewer-login").trim();
+      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login"));
       continue;
     }
 
@@ -306,7 +314,10 @@ export async function autoDetectReviewerSnapshot(
   const prView = await fetchPrView({ repo, pr }, deps);
 
   if (prView === null) {
-    return normalizeReviewerSnapshot({ prExists: false });
+    return normalizeReviewerSnapshot({
+      prExists: false,
+      reviewerLogin,
+    });
   }
 
   const localState = await readLocalState(localStatePath);
@@ -322,6 +333,7 @@ export async function autoDetectReviewerSnapshot(
       prMerged,
       prClosed,
       prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null,
+      reviewerLogin,
     });
   }
 
@@ -340,6 +352,7 @@ export async function autoDetectReviewerSnapshot(
     prMerged: false,
     prClosed: false,
     prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null,
+    reviewerLogin,
     reviewRequested,
     ...reviewState,
   });

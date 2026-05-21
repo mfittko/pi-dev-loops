@@ -101,12 +101,18 @@ Optional:
                                         file (as written by steer-loop.mjs).
                                         When absent, steering is reported as
                                         unavailable (no_steering_locator).
+  --reviewer-login <login>              Reviewer login for live reviewer-loop
+                                        detection. When omitted, reviewer
+                                        detection uses aggregate all-reviewer
+                                        scope for the PR.
 
 Test / snapshot-mode flags:
   --copilot-input <path>                Pre-built copilot snapshot JSON
                                         (skips live copilot detection)
   --reviewer-input <path>               Pre-built reviewer snapshot JSON
-                                        (skips live reviewer detection)
+                                        (skips live reviewer detection;
+                                        cannot be combined with
+                                        --reviewer-login)
 
 Output (stdout, JSON):
   Always-present fields:
@@ -150,6 +156,14 @@ function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
 }
 
+function parseReviewerLogin(value) {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    throw parseError("--reviewer-login must not be empty");
+  }
+  return normalized;
+}
+
 function requireOptionValue(args, flag) {
   const value = args.shift();
 
@@ -175,6 +189,7 @@ export function parseInspectRunCliArgs(argv) {
     repo: undefined,
     pr: undefined,
     steeringStateFile: undefined,
+    reviewerLogin: undefined,
     copilotInputPath: undefined,
     reviewerInputPath: undefined,
   };
@@ -202,6 +217,11 @@ export function parseInspectRunCliArgs(argv) {
       continue;
     }
 
+    if (token === "--reviewer-login") {
+      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login"));
+      continue;
+    }
+
     if (token === "--copilot-input") {
       options.copilotInputPath = requireOptionValue(args, "--copilot-input");
       continue;
@@ -218,6 +238,10 @@ export function parseInspectRunCliArgs(argv) {
   if (!options.help) {
     if (options.repo === undefined || options.pr === undefined) {
       throw parseError("inspect-run requires both --repo <owner/name> and --pr <number>");
+    }
+
+    if (options.reviewerInputPath !== undefined && options.reviewerLogin !== undefined) {
+      throw parseError("--reviewer-input cannot be combined with --reviewer-login");
     }
 
     try {
@@ -309,13 +333,13 @@ async function loadSteeringState(steeringStateFile) {
  *
  * No checkpoints are written. No GitHub state is mutated.
  *
- * @param {{ repo: string, pr: number, steeringStateFile?: string,
+ * @param {{ repo: string, pr: number, steeringStateFile?: string, reviewerLogin?: string,
  *           copilotInputPath?: string, reviewerInputPath?: string }} options
  * @param {{ env?: object, ghCommand?: string }} deps
  * @returns {Promise<object>} inspection snapshot
  */
 export async function inspectRun(options, { env = process.env, ghCommand = "gh" } = {}) {
-  const { repo, pr, steeringStateFile, copilotInputPath, reviewerInputPath } = options;
+  const { repo, pr, steeringStateFile, reviewerLogin, copilotInputPath, reviewerInputPath } = options;
   parseRepoSlug(repo);
   const inspectedAt = new Date().toISOString();
 
@@ -360,7 +384,7 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
       reviewerSnapshot = normalizeReviewerSnapshot(parseJsonText(text));
     } else {
       reviewerSnapshot = await autoDetectReviewerSnapshot(
-        { repo, pr },
+        { repo, pr, reviewerLogin },
         { env, ghCommand },
       );
     }
