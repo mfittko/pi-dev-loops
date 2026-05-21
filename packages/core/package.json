@@ -10,6 +10,7 @@
     "./loop/reviewer-loop-state": "./src/loop/reviewer-loop-state.mjs",
     "./loop/conductor-ownership": "./src/loop/conductor-ownership.mjs",
     "./loop/tracker-pr-state": "./src/loop/tracker-pr-state.mjs",
+    "./loop/public-dev-loop-routing": "./src/loop/public-dev-loop-routing.mjs",
     "./github/review-threads": "./src/github/review-threads.mjs"
   },
   "bin": {

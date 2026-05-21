@@ -78,6 +78,7 @@ Current exported areas include:
 - `./loop/reviewer-loop-state`
 - `./loop/conductor-ownership`
 - `./loop/tracker-pr-state`
+- `./loop/public-dev-loop-routing`
 - `./github/review-threads`
 
 It also exposes these CLI binaries:

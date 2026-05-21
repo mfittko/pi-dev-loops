@@ -103,10 +103,15 @@ function normalizeTarget(target) {
 
   const issue = Number.isInteger(target.issue) && target.issue > 0 ? target.issue : null;
   const pr = Number.isInteger(target.pr) && target.pr > 0 ? target.pr : null;
+  const hasLinkedPr = Object.hasOwn(target, "linkedPr") && target.linkedPr !== null && target.linkedPr !== undefined;
+  const linkedPr = Number.isInteger(target.linkedPr) && target.linkedPr > 0 ? target.linkedPr : null;
   const branch = typeof target.branch === "string" && target.branch.trim().length > 0 ? target.branch.trim() : null;
   const phase = typeof target.phase === "string" && target.phase.trim().length > 0 ? target.phase.trim() : null;
 
   if (kind === DEV_LOOP_TARGET_KIND.ISSUE && issue === null) {
+    return null;
+  }
+  if (kind === DEV_LOOP_TARGET_KIND.ISSUE && hasLinkedPr && linkedPr === null) {
     return null;
   }
   if (kind === DEV_LOOP_TARGET_KIND.PR && pr === null) {
@@ -119,7 +124,7 @@ function normalizeTarget(target) {
     return null;
   }
 
-  return { kind, issue, pr, branch, phase };
+  return { kind, issue, pr, linkedPr, branch, phase };
 }
 
 function normalizeActor(value) {
@@ -246,13 +251,27 @@ function routeForState(canonicalState) {
   }
 
   if (canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE) {
+    if (canonicalState.target.linkedPr !== null) {
+      return routeForState({
+        ...canonicalState,
+        target: {
+          kind: DEV_LOOP_TARGET_KIND.PR,
+          issue: canonicalState.target.issue,
+          pr: canonicalState.target.linkedPr,
+          linkedPr: null,
+          branch: null,
+          phase: null,
+        },
+      });
+    }
+
     return buildResult({
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.COPILOT_AUTOPILOT,
       canonicalState,
       nextAction: "Normalize the issue, confirm scope, and determine whether an existing PR already exists.",
-      reason: "Issue targets route to the issue-intake strategy before PR follow-up.",
+      reason: "Issue targets without a linked PR route to issue intake before PR follow-up.",
     });
   }
 
@@ -320,6 +339,17 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   if (intent === DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE) {
     if (!explicitTarget || explicitTarget.kind !== DEV_LOOP_TARGET_KIND.ISSUE) {
       return buildReconcile("`start_on_issue` requires an issue target.");
+    }
+
+    if (input.currentState !== undefined && !explicitState) {
+      return buildReconcile("`start_on_issue` received an invalid canonical current state.");
+    }
+
+    if (explicitState && explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE) {
+      if (explicitState.target.issue !== explicitTarget.issue) {
+        return buildReconcile("`start_on_issue` target conflicts with the canonical current issue state.", explicitState);
+      }
+      return routeForState(explicitState);
     }
 
     return routeForState({
