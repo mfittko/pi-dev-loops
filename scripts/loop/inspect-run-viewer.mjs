@@ -206,10 +206,11 @@ export function renderInspectRunViewerHtml({
   snapshot = null,
   error = null,
 }) {
-  const stateLabel = renderSnapshotStateLabel(snapshot);
+  const normalizedSnapshot = snapshot ?? null;
+  const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
   const title = `${target.repo}#${target.pr} inspection snapshot`;
-  const runId = snapshot?.runId ?? "not present";
-  const topSummary = snapshot === null
+  const runId = normalizedSnapshot?.runId ?? "not present";
+  const topSummary = normalizedSnapshot === null
     ? `<section>
       <h2>Snapshot unavailable</h2>
       <p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p>
@@ -218,26 +219,26 @@ export function renderInspectRunViewerHtml({
     : `<section>
       <h2>Top summary</h2>
       <dl>
-        <dt>target.repo</dt><dd>${escapeHtml(snapshot.target?.repo ?? target.repo)}</dd>
-        <dt>target.pr</dt><dd>${escapeHtml(snapshot.target?.pr ?? target.pr)}</dd>
+        <dt>target.repo</dt><dd>${escapeHtml(normalizedSnapshot.target?.repo ?? target.repo)}</dd>
+        <dt>target.pr</dt><dd>${escapeHtml(normalizedSnapshot.target?.pr ?? target.pr)}</dd>
         <dt>runId</dt><dd>${escapeHtml(runId)}</dd>
-        <dt>inspectedAt</dt><dd>${escapeHtml(snapshot.inspectedAt ?? "not present")}</dd>
-        <dt>activeStateFamily</dt><dd>${escapeHtml(snapshot.activeStateFamily ?? "not present")}</dd>
-        <dt>outerAction</dt><dd>${escapeHtml(snapshot.outerAction ?? "not present")}</dd>
-        <dt>activeFamilyState</dt><dd>${escapeHtml(snapshot.activeFamilyState ?? "not present")}</dd>
-        <dt>statusClass</dt><dd>${escapeHtml(snapshot.statusClass ?? "not present")}</dd>
-        <dt>needsAttention</dt><dd>${escapeHtml(String(snapshot.needsAttention ?? "not present"))}</dd>
-        <dt>sourceMode</dt><dd>${escapeHtml(snapshot.sourceMode ?? "not present")}</dd>
-        <dt>trust</dt><dd>${escapeHtml(snapshot.trust ?? "not present")}</dd>
-        <dt>evidence.summary</dt><dd>${escapeHtml(snapshot.evidence?.summary ?? "not present")}</dd>
+        <dt>inspectedAt</dt><dd>${escapeHtml(normalizedSnapshot.inspectedAt ?? "not present")}</dd>
+        <dt>activeStateFamily</dt><dd>${escapeHtml(normalizedSnapshot.activeStateFamily ?? "not present")}</dd>
+        <dt>outerAction</dt><dd>${escapeHtml(normalizedSnapshot.outerAction ?? "not present")}</dd>
+        <dt>activeFamilyState</dt><dd>${escapeHtml(normalizedSnapshot.activeFamilyState ?? "not present")}</dd>
+        <dt>statusClass</dt><dd>${escapeHtml(normalizedSnapshot.statusClass ?? "not present")}</dd>
+        <dt>needsAttention</dt><dd>${escapeHtml(String(normalizedSnapshot.needsAttention ?? "not present"))}</dd>
+        <dt>sourceMode</dt><dd>${escapeHtml(normalizedSnapshot.sourceMode ?? "not present")}</dd>
+        <dt>trust</dt><dd>${escapeHtml(normalizedSnapshot.trust ?? "not present")}</dd>
+        <dt>evidence.summary</dt><dd>${escapeHtml(normalizedSnapshot.evidence?.summary ?? "not present")}</dd>
       </dl>
       <h3>Markers</h3>
       <h4>markers.missing</h4>
-      ${renderList(snapshot.markers?.missing)}
+      ${renderList(normalizedSnapshot.markers?.missing)}
       <h4>markers.stale</h4>
-      ${renderList(snapshot.markers?.stale)}
+      ${renderList(normalizedSnapshot.markers?.stale)}
       <h4>markers.conflicts</h4>
-      ${renderList(snapshot.markers?.conflicts)}
+      ${renderList(normalizedSnapshot.markers?.conflicts)}
     </section>`;
 
   return `<!doctype html>
@@ -261,10 +262,10 @@ export function renderInspectRunViewerHtml({
     <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span></p>
     <p><button type="button" onclick="window.location.reload()">Reload snapshot</button> (manual reload only)</p>
     ${topSummary}
-    ${renderLayerSection({ title: "outer-loop summary", layer: snapshot })}
-    ${renderLayerSection({ title: "copilot layer", layer: snapshot?.layers?.copilot })}
-    ${renderLayerSection({ title: "reviewer layer", layer: snapshot?.layers?.reviewer })}
-    ${renderLayerSection({ title: "steering summary", layer: snapshot?.layers?.steering })}
+    ${renderLayerSection({ title: "outer-loop summary", layer: normalizedSnapshot })}
+    ${renderLayerSection({ title: "copilot layer", layer: normalizedSnapshot?.layers?.copilot })}
+    ${renderLayerSection({ title: "reviewer layer", layer: normalizedSnapshot?.layers?.reviewer })}
+    ${renderLayerSection({ title: "steering summary", layer: normalizedSnapshot?.layers?.steering })}
   </body>
 </html>`;
 }
@@ -297,25 +298,33 @@ export function createInspectRunViewerServer(options, deps = {}) {
   const adapterOptions = makeAdapterOptions(options);
 
   return createServer(async (request, response) => {
-    const requestPath = request.url ? new URL(request.url, "http://localhost").pathname : "/";
-    if (requestPath !== "/") {
-      response.statusCode = requestPath === "/favicon.ico" ? 204 : 404;
-      response.end();
-      return;
-    }
-
-    let snapshot = null;
-    let error = null;
     try {
-      snapshot = await adapter.loadSnapshot(target, adapterOptions);
-    } catch (caught) {
-      error = caught instanceof Error ? caught : new Error(String(caught));
-    }
+      const requestPath = request.url ? new URL(request.url, "http://localhost").pathname : "/";
+      if (requestPath !== "/") {
+        response.statusCode = requestPath === "/favicon.ico" ? 204 : 404;
+        response.end();
+        return;
+      }
 
-    const html = renderInspectRunViewerHtml({ target, snapshot, error });
-    response.statusCode = 200;
-    response.setHeader("content-type", "text/html; charset=utf-8");
-    response.end(html);
+      let snapshot = null;
+      let error = null;
+      try {
+        snapshot = await adapter.loadSnapshot(target, adapterOptions);
+      } catch (caught) {
+        error = caught instanceof Error ? caught : new Error(String(caught));
+      }
+
+      const html = renderInspectRunViewerHtml({ target, snapshot: snapshot ?? null, error });
+      response.statusCode = 200;
+      response.setHeader("content-type", "text/html; charset=utf-8");
+      response.end(html);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      const malformedRequest = /invalid url|uri malformed/i.test(message);
+      response.statusCode = malformedRequest ? 400 : 500;
+      response.setHeader("content-type", "text/plain; charset=utf-8");
+      response.end(malformedRequest ? "Bad Request" : "Internal Server Error");
+    }
   });
 }
 

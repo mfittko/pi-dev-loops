@@ -165,6 +165,17 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
   assert.match(html, /manual reload only/i);
 });
 
+
+test("renderInspectRunViewerHtml treats undefined snapshots as unavailable", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: undefined,
+  });
+
+  assert.match(html, /Snapshot unavailable/);
+  assert.match(html, /Unable to load inspect-run snapshot/);
+});
+
 test("createInspectionViewerAdapter loadSnapshot validates target deterministically", async () => {
   const adapter = createInspectionViewerAdapter({
     inspectRunImpl: async () => ({ ok: true }),
@@ -242,6 +253,74 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot", a
     });
 
     assert.equal(faviconStatus, 204);
+    assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+
+test("createInspectRunViewerServer guards malformed request URLs and undefined snapshots", async () => {
+  let loadCount = 0;
+  const adapter = {
+    async loadSnapshot() {
+      loadCount += 1;
+      return undefined;
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await new Promise((resolve, reject) => {
+      get(`http://127.0.0.1:${address.port}`, (incoming) => {
+        let text = "";
+        incoming.on("data", (chunk) => {
+          text += String(chunk);
+        });
+        incoming.on("end", () => resolve({ statusCode: incoming.statusCode, body: text }));
+      }).on("error", reject);
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /Snapshot unavailable/);
+    assert.equal(loadCount, 1);
+
+    const malformedResponse = await new Promise((resolve) => {
+      const fakeRequest = Object.defineProperty({}, "url", {
+        enumerable: true,
+        get() {
+          throw new Error("URI malformed");
+        },
+      });
+      const result = {
+        statusCode: undefined,
+        headers: {},
+        body: "",
+      };
+      const fakeResponse = {
+        setHeader(name, value) {
+          result.headers[name] = value;
+        },
+        end(body = "") {
+          result.statusCode = this.statusCode;
+          result.body = String(body);
+          resolve(result);
+        },
+      };
+
+      server.emit("request", fakeRequest, fakeResponse);
+    });
+
+    assert.equal(malformedResponse.statusCode, 400);
+    assert.equal(malformedResponse.headers["content-type"], "text/plain; charset=utf-8");
+    assert.equal(malformedResponse.body, "Bad Request");
     assert.equal(loadCount, 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
