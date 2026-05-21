@@ -21,6 +21,7 @@
  * loop behavior when stop_at_next_safe_gate steering is active.
  */
 
+import { normalizeRepoSlug } from "../github/repo-slug.mjs";
 import { STATE, interpretLoopState } from "./copilot-loop-state.mjs";
 
 // ---------------------------------------------------------------------------
@@ -206,6 +207,28 @@ export function normalizeSteeringEvent(raw) {
  * @returns {object} normalized steering state
  * @throws {Error} if required fields are missing
  */
+function normalizeSteeringTarget(raw) {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (!raw || typeof raw !== "object") {
+    throw new Error("target must be an object when present");
+  }
+
+  const repo = normalizeRepoSlug(raw.repo, {
+    errorMessage: "target.repo must be a non-empty owner/name repo slug",
+  });
+
+  const pr = typeof raw.pr === "number" && Number.isFinite(raw.pr) && raw.pr > 0
+    ? Math.floor(raw.pr)
+    : null;
+  if (pr === null) {
+    throw new Error("target.pr must be a positive integer");
+  }
+
+  return { repo, pr };
+}
+
 function normalizeResultEntry(raw, fieldName) {
   if (!raw || typeof raw !== "object") {
     throw new Error(`${fieldName} entry must be an object`);
@@ -302,9 +325,20 @@ export function normalizeSteeringState(raw) {
     latestResult = normalizeResultEntry(raw.latestResult, "latestResult");
   }
 
+  let target = null;
+  if (raw.target !== undefined) {
+    try {
+      target = normalizeSteeringTarget(raw.target);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`target is invalid: ${detail}`);
+    }
+  }
+
   return {
     runId,
     schemaVersion: CURRENT_SCHEMA_VERSION,
+    target,
     events,
     effectiveStack,
     queuedEvents,
@@ -320,15 +354,17 @@ export function normalizeSteeringState(raw) {
  * Create a fresh steering state for a new run.
  *
  * @param {string} runId
+ * @param {{repo:string,pr:number}|null} [target]
  * @returns {object}
  */
-export function createSteeringState(runId) {
+export function createSteeringState(runId, target = null) {
   if (typeof runId !== "string" || runId.trim().length === 0) {
     throw new Error("createSteeringState requires a non-empty runId");
   }
   return {
     runId: runId.trim(),
     schemaVersion: CURRENT_SCHEMA_VERSION,
+    target: target ? normalizeSteeringTarget(target) : null,
     events: [],
     effectiveStack: [],
     queuedEvents: [],
@@ -370,6 +406,10 @@ function detectConflict(event, effectiveStack, queuedEvents = []) {
     }
   }
   return null;
+}
+
+function hasStopAtNextSafeGate(events) {
+  return events.some((event) => event.kind === STEERING_KIND.STOP_AT_NEXT_SAFE_GATE);
 }
 
 // ---------------------------------------------------------------------------
@@ -443,6 +483,48 @@ export function submitSteering(event, steeringState, loopState) {
   }
 
   const safePointCategory = classifySafePoint(loopState);
+
+  if (event.kind === STEERING_KIND.STOP_AT_NEXT_SAFE_GATE) {
+    if (hasStopAtNextSafeGate(steeringState.effectiveStack)) {
+      const ackResult = {
+        eventId: event.eventId,
+        seq: event.seq,
+        result: STEERING_RESULT.APPLIED_NOW,
+        reason: "stop_at_next_safe_gate is already effective for this run",
+        acknowledgedAt,
+      };
+      return {
+        steeringState: {
+          ...steeringState,
+          latestResult: ackResult,
+          resultHistory: [...steeringState.resultHistory, ackResult],
+          events: [...steeringState.events, event],
+          nextSeq: Math.max(steeringState.nextSeq, event.seq + 1),
+        },
+        result: ackResult,
+      };
+    }
+
+    if (hasStopAtNextSafeGate(steeringState.queuedEvents)) {
+      const ackResult = {
+        eventId: event.eventId,
+        seq: event.seq,
+        result: STEERING_RESULT.QUEUED_FOR_SAFE_POINT,
+        reason: "stop_at_next_safe_gate is already queued for the next safe point",
+        acknowledgedAt,
+      };
+      return {
+        steeringState: {
+          ...steeringState,
+          latestResult: ackResult,
+          resultHistory: [...steeringState.resultHistory, ackResult],
+          events: [...steeringState.events, event],
+          nextSeq: Math.max(steeringState.nextSeq, event.seq + 1),
+        },
+        result: ackResult,
+      };
+    }
+  }
 
   // Terminal loop states: reject or route to human decision
   if (safePointCategory === SAFE_POINT_CATEGORY.TERMINAL) {
@@ -697,6 +779,7 @@ export function getSteeringStatus(steeringState) {
   const effectiveConstraints = getEffectiveConstraints(steeringState);
   return {
     runId: steeringState.runId,
+    ...(steeringState.target ? { target: steeringState.target } : {}),
     schemaVersion: steeringState.schemaVersion,
     eventCount: steeringState.events.length,
     queuedCount: steeringState.queuedEvents.length,

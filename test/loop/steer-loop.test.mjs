@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -11,6 +11,7 @@ import {
   runSubmit,
   runStatus,
 } from "../../scripts/loop/steer-loop.mjs";
+import { defaultStateFilePathForTarget } from "../../scripts/loop/_steering-state-file.mjs";
 
 import { STEERING_KIND, STEERING_RESULT } from "../../packages/core/src/loop/steering.mjs";
 
@@ -60,6 +61,65 @@ async function withTempDir(fn) {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+async function writeJson(filePath, value) {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function writeGhStub(tempDir, entries) {
+  const sequencePath = path.join(tempDir, "gh-sequence.json");
+  const counterPath = path.join(tempDir, "gh-counter.txt");
+  const ghPath = path.join(tempDir, "gh");
+
+  await writeFile(sequencePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+  await writeFile(counterPath, "0\n", "utf8");
+  await writeFile(
+    ghPath,
+    [
+      "#!/usr/bin/env node",
+      'import { readFileSync, writeFileSync } from "node:fs";',
+      "const sequencePath = process.env.GH_SEQUENCE_PATH;",
+      "const counterPath = process.env.GH_COUNTER_PATH;",
+      'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
+      'const current = Number(readFileSync(counterPath, "utf8").trim() || "0");',
+      'if (current >= entries.length) {',
+      '  process.stderr.write("unexpected gh call beyond scripted sequence\\n");',
+      '  process.exit(97);',
+      '}',
+      'const entry = entries[current] ?? { stdout: "{}\\n" };',
+      'writeFileSync(counterPath, String(current + 1));',
+      'const actual = process.argv.slice(2);',
+      'if (entry.assertArgs) {',
+      '  for (const expected of entry.assertArgs) {',
+      '    if (!actual.includes(expected)) {',
+      '      process.stderr.write(`missing expected gh arg: ${expected}\\n`);',
+      '      process.exit(98);',
+      '    }',
+      '  }',
+      '}',
+      'if (entry.stderr) {',
+      '  process.stderr.write(entry.stderr);',
+      '}',
+      'if (entry.stdout) {',
+      '  process.stdout.write(entry.stdout);',
+      '}',
+      'process.exit(entry.exitCode ?? 0);',
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(ghPath, 0o755);
+
+  return {
+    env: {
+      ...process.env,
+      PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
+      GH_SEQUENCE_PATH: sequencePath,
+      GH_COUNTER_PATH: counterPath,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +241,42 @@ test("parseSubmitCliArgs throws on invalid --loop-state", () => {
   );
 });
 
+test("parseSubmitCliArgs rejects --loop-state in operator mode", () => {
+  assert.throws(
+    () => parseSubmitCliArgs(["--repo", "owner/repo", "--pr", "1", "--kind", "stop_at_next_safe_gate", "--directive", "Stop", "--seq", "1", "--loop-state", "waiting_for_ci"]),
+    /--loop-state is low-level\/testing mode only/,
+  );
+});
+
+test("parseSubmitCliArgs throws usage-bearing errors on invalid --repo slug", () => {
+  let error = null;
+  try {
+    parseSubmitCliArgs(["--repo", "../../x/y", "--pr", "1", "--kind", "stop_at_next_safe_gate", "--directive", "Stop", "--seq", "1"]);
+  } catch (caught) {
+    error = caught;
+  }
+
+  assert.ok(error instanceof Error);
+  assert.match(error.message, /Repository slug|owner\/name|Invalid repository slug/i);
+  assert.equal(typeof error.usage, "string");
+  assert.match(error.usage, /steer-loop\.mjs submit/);
+});
+
+test("runSubmit rejects explicit --run-id that disagrees with --repo/--pr", async () => {
+  const { stream } = makeStdout();
+  await assert.rejects(
+    () => runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--run-id", "pr-99",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop",
+      "--seq", "1",
+    ], { stdout: stream }),
+    /run-id mismatch/,
+  );
+});
+
 test("parseSubmitCliArgs sets help flag on --help", () => {
   const opts = parseSubmitCliArgs(["--help"]);
   assert.equal(opts.help, true);
@@ -204,10 +300,40 @@ test("parseStatusCliArgs accepts --state-file", () => {
   assert.equal(opts.stateFile, "/tmp/s.json");
 });
 
+test("parseStatusCliArgs throws usage-bearing errors on invalid --repo slug", () => {
+  let error = null;
+  try {
+    parseStatusCliArgs(["--repo", "../../x/y", "--pr", "1"]);
+  } catch (caught) {
+    error = caught;
+  }
+
+  assert.ok(error instanceof Error);
+  assert.match(error.message, /Repository slug|owner\/name|Invalid repository slug/i);
+  assert.equal(typeof error.usage, "string");
+  assert.match(error.usage, /Choose exactly one target mode/);
+});
 
 test("parseStatusCliArgs throws on unsafe --run-id", () => {
   assert.throws(() => parseStatusCliArgs(["--run-id", "../../bad"]), /--run-id must contain only/);
 });
+
+test("parseStatusCliArgs rejects mixing --run-id with --repo/--pr", () => {
+  assert.throws(
+    () => parseStatusCliArgs(["--run-id", "run-xyz", "--repo", "owner/repo", "--pr", "55"]),
+    /Choose exactly one target mode/,
+  );
+});
+
+test("defaultStateFilePathForTarget rejects unsafe repo segments consistently", () => {
+  for (const repo of ["owner/..", "./repo", "owner/repo\\evil", "owner/repo/extra"]) {
+    assert.throws(
+      () => defaultStateFilePathForTarget({ repo, pr: 55 }),
+      /Invalid repo slug for steering target path/,
+    );
+  }
+});
+
 
 test("parseStatusCliArgs throws on unknown argument", () => {
   assert.throws(() => parseStatusCliArgs(["--unknown"]), /Unknown argument/);
@@ -277,6 +403,450 @@ test("runSubmit applies stop_at_next_safe_gate at a safe point", async () => {
     const output = read();
     assert.equal(output.result.result, STEERING_RESULT.APPLIED_NOW);
     assert.equal(output.steeringState.effectiveStack[0].kind, STEERING_KIND.STOP_AT_NEXT_SAFE_GATE);
+  });
+});
+
+test("runSubmit operator mode returns an applied-now acknowledgement envelope from an authoritative inspection", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+    const { stream, read } = makeStdout();
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+    const { env } = await writeGhStub(dir, [
+      {
+        assertArgs: ["pr", "view", "55", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 55,
+          reviews: [],
+          statusCheckRollup: [],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/requested_reviewers"],
+        stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["pr", "view", "55", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 55,
+          headRefOid: "abc123",
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/reviews"],
+        stdout: `${JSON.stringify([{ id: 1, state: "COMMENTED", commit_id: "abc123" }])}\n`,
+      },
+    ]);
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before the next safe gate",
+      "--seq", "1",
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir, env });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.runId, "pr-55");
+    assert.equal(output.acknowledgement.disposition, "applied_now");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.APPLIED_NOW);
+    assert.equal(output.acknowledgement.inspectedState, "waiting_for_copilot_review");
+    assert.equal(output.acknowledgement.safePointCategory, "immediate");
+    assert.equal(output.acknowledgement.effectiveNow, true);
+    assert.match(output.acknowledgement.readbackPath.inspection, /node scripts\/loop\/inspect-run\.mjs --repo "owner\/repo" --pr "55" --steering-state-file/);
+    assert.doesNotMatch(output.acknowledgement.readbackPath.inspection, /--state-file/);
+    assert.match(output.acknowledgement.readbackPath.steeringStatus, /node scripts\/loop\/steer-loop\.mjs status --repo "owner\/repo" --pr "55" --state-file/);
+    assert.doesNotMatch(output.acknowledgement.readbackPath.steeringStatus, /--steering-state-file/);
+    assert.equal(output.result.result, STEERING_RESULT.APPLIED_NOW);
+    assert.equal(output.steeringState.effectiveStack.length, 1);
+  });
+});
+
+test("runSubmit operator mode rejects degraded snapshot inputs and keeps a deterministic success envelope", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+    const copilotPath = path.join(dir, "copilot.json");
+    const reviewerPath = path.join(dir, "reviewer.json");
+    const { stream, read } = makeStdout();
+
+    await writeJson(copilotPath, {
+      prExists: true,
+      prNumber: 55,
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerPath, {
+      prExists: true,
+      prNumber: 55,
+      prHeadSha: "abc123",
+      submittedReviewPresent: true,
+      submittedReviewCommitSha: "abc123",
+    });
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before the next safe gate",
+      "--seq", "1",
+      "--copilot-input", copilotPath,
+      "--reviewer-input", reviewerPath,
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.disposition, "rejected");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_UNSAFE_NOW);
+    assert.match(output.acknowledgement.reason, /degraded or stale/i);
+    assert.equal(output.result.result, STEERING_RESULT.REJECTED_UNSAFE_NOW);
+    assert.equal(output.steeringState.events.length, 0);
+  });
+});
+
+test("runSubmit operator mode rejects checkpoint-only inspection snapshots and keeps a deterministic success envelope", async () => {
+  await withTempDir(async (dir) => {
+    const checkpointPath = path.join(dir, "tmp", "copilot-loop", "owner", "repo", "pr-55", "outer-loop-state.json");
+    const stateFile = path.join(dir, "state.json");
+    const { stream, read } = makeStdout();
+
+    await writeJson(checkpointPath, {
+      pr: 55,
+      repo: "owner/repo",
+      outerAction: "continue_wait",
+      copilotState: "waiting_for_copilot_review",
+      reviewerState: "waiting_for_author_followup",
+      reason: null,
+      timestamp: "2026-05-20T12:00:00.000Z",
+      waitCycles: 2,
+      headSha: "abc123",
+    });
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before the next safe gate",
+      "--seq", "1",
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir, env: { ...process.env, PATH: dir } });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.disposition, "rejected");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_UNSAFE_NOW);
+    assert.match(output.acknowledgement.reason, /could not be confidently identified|degraded or stale/i);
+    assert.deepEqual(output.steeringState.events, []);
+  });
+});
+
+test("runSubmit operator mode rejects malformed steering state files with a deterministic success envelope", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "broken-state.json");
+    const { stream, read } = makeStdout();
+    await writeFile(stateFile, "{not valid json\n", "utf8");
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before the next safe gate",
+      "--seq", "1",
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.disposition, "rejected");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_UNSAFE_NOW);
+    assert.match(output.acknowledgement.reason, /existing steering state is invalid/i);
+    assert.deepEqual(output.steeringState.target, { repo: "owner/repo", pr: 55 });
+    assert.deepEqual(output.steeringState.events, []);
+  });
+});
+
+test("runSubmit operator mode rejects mismatched steering state files with a deterministic success envelope", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, ".pi", "steering", "owner", "repo", "pr-55.json");
+    const { stream, read } = makeStdout();
+
+    await writeJson(stateFile, {
+      runId: "pr-55",
+      target: { repo: "other/repo", pr: 55 },
+      schemaVersion: 1,
+      events: [],
+      effectiveStack: [],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 1,
+    });
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before the next safe gate",
+      "--seq", "1",
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.disposition, "rejected");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_UNSAFE_NOW);
+    assert.match(output.acknowledgement.reason, /state file does not match the requested target/i);
+    assert.match(output.acknowledgement.readbackPath.steeringStatus, /node scripts\/loop\/steer-loop\.mjs status --repo "owner\/repo" --pr "55" --state-file/);
+    assert.equal(output.steeringState.runId, "pr-55");
+    assert.deepEqual(output.steeringState.target, { repo: "owner/repo", pr: 55 });
+    assert.deepEqual(output.steeringState.events, []);
+  });
+});
+
+test("runSubmit operator mode rejects conflict-marked inspections with a deterministic success envelope", async () => {
+  await withTempDir(async (dir) => {
+    const checkpointPath = path.join(dir, "tmp", "copilot-loop", "owner", "repo", "pr-55", "outer-loop-state.json");
+    const stateFile = path.join(dir, "state.json");
+    const copilotPath = path.join(dir, "copilot.json");
+    const reviewerPath = path.join(dir, "reviewer.json");
+    const { stream, read } = makeStdout();
+
+    await writeJson(checkpointPath, {
+      pr: 55,
+      repo: "owner/repo",
+      outerAction: "stop",
+      copilotState: "review_request_unavailable",
+      reviewerState: "waiting_for_author_followup",
+      reason: "review_unavailable",
+      timestamp: "2026-05-20T12:00:00.000Z",
+      waitCycles: 2,
+      headSha: "abc123",
+    });
+    await writeJson(copilotPath, {
+      prExists: true,
+      prNumber: 55,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerPath, {
+      prExists: true,
+      prNumber: 55,
+      prHeadSha: "abc123",
+      submittedReviewPresent: true,
+      submittedReviewCommitSha: "abc123",
+    });
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before the next safe gate",
+      "--seq", "1",
+      "--copilot-input", copilotPath,
+      "--reviewer-input", reviewerPath,
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.disposition, "rejected");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_UNSAFE_NOW);
+    assert.match(output.acknowledgement.reason, /degraded or stale/i);
+    assert.deepEqual(output.steeringState.events, []);
+  });
+});
+
+test("runSubmit operator mode rejects --apply-mode overrides in the first external slice", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+    const { stream, read } = makeStdout();
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+    const { env } = await writeGhStub(dir, [
+      {
+        assertArgs: ["pr", "view", "55", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 55,
+          reviews: [],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/requested_reviewers"],
+        stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["pr", "view", "55", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 55,
+          headRefOid: "abc123",
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/reviews"],
+        stdout: `${JSON.stringify([{ id: 1, state: "COMMENTED", commit_id: "abc123" }])}\n`,
+      },
+    ]);
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before the next safe gate",
+      "--seq", "1",
+      "--apply-mode", "next_safe_point",
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir, env });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.disposition, "rejected");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING);
+    assert.match(output.acknowledgement.reason, /does not accept --apply-mode overrides/i);
+    assert.deepEqual(output.steeringState.events, []);
+  });
+});
+
+test("runSubmit operator mode queues stop_at_next_safe_gate for the next safe point from authoritative inspection", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+    const { stream, read } = makeStdout();
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+    const { env } = await writeGhStub(dir, [
+      {
+        assertArgs: ["pr", "view", "55", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: true,
+          state: "OPEN",
+          number: 55,
+          reviews: [],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["pr", "view", "55", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: true,
+          state: "OPEN",
+          number: 55,
+          headRefOid: "abc123",
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/reviews"],
+        stdout: '[]\n',
+      },
+    ]);
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop before the next safe gate",
+      "--seq", "1",
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir, env });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.disposition, "queued_for_safe_point");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.QUEUED_FOR_SAFE_POINT);
+    assert.equal(output.acknowledgement.inspectedState, "pr_draft");
+    assert.equal(output.acknowledgement.safePointCategory, "next_point");
+    assert.equal(output.acknowledgement.effectiveNow, false);
+    assert.equal(output.result.result, STEERING_RESULT.QUEUED_FOR_SAFE_POINT);
+    assert.match(output.acknowledgement.readbackPath.inspection, /node scripts\/loop\/inspect-run\.mjs --repo "owner\/repo" --pr "55" --steering-state-file/);
+    assert.match(output.acknowledgement.readbackPath.steeringStatus, /node scripts\/loop\/steer-loop\.mjs status --repo "owner\/repo" --pr "55" --state-file/);
+    assert.equal(output.steeringState.queuedEvents.length, 1);
+    assert.deepEqual(output.steeringState.target, { repo: "owner/repo", pr: 55 });
+  });
+});
+
+test("runSubmit operator mode rejects non-stop directives with the same top-level success shape", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+    const copilotPath = path.join(dir, "copilot.json");
+    const reviewerPath = path.join(dir, "reviewer.json");
+    const { stream, read } = makeStdout();
+
+    await writeJson(copilotPath, {
+      prExists: true,
+      prNumber: 55,
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(reviewerPath, {
+      prExists: true,
+      prNumber: 55,
+      prHeadSha: "abc123",
+      submittedReviewPresent: true,
+      submittedReviewCommitSha: "abc123",
+    });
+
+    await runSubmit([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--kind", "preference",
+      "--directive", "Prefer TypeScript",
+      "--seq", "1",
+      "--copilot-input", copilotPath,
+      "--reviewer-input", reviewerPath,
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.acknowledgement.disposition, "rejected");
+    assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING);
+    assert.match(output.acknowledgement.reason, /only stop_at_next_safe_gate/i);
+    assert.equal(output.result.result, STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING);
+    assert.deepEqual(output.steeringState.events, []);
   });
 });
 
@@ -397,6 +967,40 @@ test("runSubmit rejects duplicate hard_constraint directives", async () => {
     const output = r2();
     assert.equal(output.result.result, STEERING_RESULT.REJECTED_INVALID_OR_CONFLICTING);
     assert.match(output.result.reason, /[Dd]uplicate/);
+  });
+});
+
+test("runSubmit preserves deterministic sequencing for repeat stop_at_next_safe_gate no-op submissions", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+
+    const { stream: s1, read: r1 } = makeStdout();
+    await runSubmit([
+      "--run-id", "run-stop-seq",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop at the next safe gate",
+      "--seq", "1",
+      "--loop-state", "waiting_for_copilot_review",
+      "--state-file", stateFile,
+    ], { stdout: s1, cwd: dir });
+    assert.equal(r1().result.result, STEERING_RESULT.APPLIED_NOW);
+
+    const { stream: s2, read: r2 } = makeStdout();
+    await runSubmit([
+      "--run-id", "run-stop-seq",
+      "--kind", "stop_at_next_safe_gate",
+      "--directive", "Stop again",
+      "--seq", "2",
+      "--loop-state", "waiting_for_copilot_review",
+      "--state-file", stateFile,
+    ], { stdout: s2, cwd: dir });
+
+    const output = r2();
+    assert.equal(output.result.result, STEERING_RESULT.APPLIED_NOW);
+    assert.match(output.result.reason, /already effective/i);
+    assert.equal(output.steeringState.effectiveStack.length, 1);
+    assert.equal(output.steeringState.events.length, 2);
+    assert.equal(output.steeringState.nextSeq, 3);
   });
 });
 
@@ -699,6 +1303,8 @@ test("steer-loop.mjs status --help prints usage", async () => {
   const result = await runNode(["status", "--help"]);
   assert.equal(result.code, 0);
   assert.match(result.stdout, /--run-id/);
+  assert.match(result.stdout, /Choose exactly one target mode/);
+  assert.doesNotMatch(result.stdout, /Required:\n  --run-id <id>[\s\S]*--repo <owner\/name>[\s\S]*--pr <number>/);
 });
 
 // ---------------------------------------------------------------------------

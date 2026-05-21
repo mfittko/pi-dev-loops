@@ -73,7 +73,16 @@ import {
 import { decideOuterAction } from "./outer-loop.mjs";
 import {
   composeRunInspectionSnapshot,
+  deriveRunIdForInspectionTarget,
 } from "../../packages/core/src/loop/run-inspection.mjs";
+import {
+  classifySafePoint,
+  getSteeringStatus,
+  normalizeSteeringState,
+  resolveEffectiveLoopState,
+  STEERING_KIND,
+} from "../../packages/core/src/loop/steering.mjs";
+import { validateSteeringStateTarget } from "./_steering-state-file.mjs";
 
 const USAGE = `Usage: inspect-run.mjs --repo <owner/name> --pr <number>
 
@@ -278,7 +287,7 @@ async function loadSteeringState(steeringStateFile) {
   try {
     const text = await readFile(steeringStateFile, "utf8");
     const raw = parseJsonText(text);
-    return { state: raw, loadFailed: false };
+    return { state: normalizeSteeringState(raw), loadFailed: false };
   } catch (error) {
     if (error && error.code === "ENOENT") {
       return { state: null, loadFailed: false };
@@ -307,6 +316,7 @@ async function loadSteeringState(steeringStateFile) {
  */
 export async function inspectRun(options, { env = process.env, ghCommand = "gh" } = {}) {
   const { repo, pr, steeringStateFile, copilotInputPath, reviewerInputPath } = options;
+  parseRepoSlug(repo);
   const inspectedAt = new Date().toISOString();
 
   const evidenceSourceKinds = {
@@ -404,12 +414,55 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
 
   let steeringEvidence = null;
   let steeringLoadFailed = false;
+  let steeringUnavailableReason = null;
+  let steeringReadback = null;
   const steeringLocatorPath = steeringStateFile ?? null;
 
   if (steeringLocatorPath !== null) {
     const result = await loadSteeringState(steeringLocatorPath);
     steeringEvidence = result.state;
     steeringLoadFailed = result.loadFailed;
+
+    if (steeringEvidence !== null) {
+      const validation = validateSteeringStateTarget(steeringEvidence, {
+        repo,
+        pr,
+        runId: deriveRunIdForInspectionTarget({ repo, pr }),
+      });
+
+      if (!validation.ok) {
+        steeringEvidence = null;
+        steeringUnavailableReason = "mismatched_steering_target";
+      } else {
+        const steeringStatus = getSteeringStatus(steeringEvidence);
+        const resolved = copilotEvidence !== null
+          ? resolveEffectiveLoopState(copilotEvidence.snapshot, steeringEvidence)
+          : null;
+        const queuedStopAtNextSafeGate = steeringEvidence.queuedEvents.some(
+          (event) => event.kind === STEERING_KIND.STOP_AT_NEXT_SAFE_GATE,
+        );
+        const effectiveConstraints = resolved?.effectiveConstraints ?? steeringStatus.effectiveConstraints;
+        const safePointCategory = copilotEvidence !== null
+          ? classifySafePoint(copilotEvidence.interpretation.state)
+          : null;
+
+        steeringReadback = {
+          latestAcknowledgement: steeringStatus.latestResult,
+          effectiveConstraints,
+          pendingSummary: {
+            queuedCount: steeringStatus.queuedCount,
+            queuedKinds: [...new Set(steeringEvidence.queuedEvents.map((event) => event.kind))],
+            stopAtNextSafeGateQueued: queuedStopAtNextSafeGate,
+          },
+          stopAtNextSafeGate: {
+            effective: effectiveConstraints.stopAtNextSafeGate,
+            queued: queuedStopAtNextSafeGate,
+            terminal: resolved?.terminalStopAtNextSafeGate ?? false,
+            safePointCategory,
+          },
+        };
+      }
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -431,6 +484,8 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
     steeringLocatorPath,
     steeringEvidence,
     steeringLoadFailed,
+    steeringUnavailableReason,
+    steeringReadback,
   });
 }
 

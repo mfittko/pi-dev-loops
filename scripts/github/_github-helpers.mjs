@@ -1,8 +1,5 @@
-export function parseRepoSlug(repo) {
-  if (typeof repo !== "string" || !/^[^/\s]+\/[^/\s]+$/.test(repo)) {
-    throw new Error("--repo must match <owner/name>");
-  }
+import { parseRepoSlugParts } from "../../packages/core/src/github/repo-slug.mjs";
 
-  const [owner, name] = repo.split("/");
-  return { owner, name };
+export function parseRepoSlug(repo) {
+  return parseRepoSlugParts(repo, { errorMessage: "--repo must match <owner/name>" });
 }

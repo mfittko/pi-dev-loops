@@ -104,7 +104,7 @@ test("normalizeOwnershipKey rejects repo without slash", () => {
 });
 
 test("normalizeOwnershipKey rejects malformed owner/name repo slugs", () => {
-  for (const repo of ["owner/", "/repo", "owner/repo/extra", "owner name/repo", "owner/repo name"]) {
+  for (const repo of ["owner/", "/repo", "owner/repo/extra", "owner name/repo", "owner/repo name", "owner\\repo", "owner/..", "./repo"]) {
     assert.throws(
       () => normalizeOwnershipKey({ repo, scopeType: "issue", scopeId: "1" }),
       /owner\/name/,

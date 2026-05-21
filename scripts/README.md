@@ -202,6 +202,11 @@ Two modes:
   `failed` statuses that are not observable from static GitHub state alone.
 
 Optional (auto-detect mode only):
+- `--steering-state-file <path>`
+  Resolve the detected state through the active steering contract. This is
+  available only in `--repo/--pr` mode; snapshot `--input` mode does not accept
+  steering files because repo/pr target identity cannot be proven from the
+  snapshot alone.
 - `--review-request-status <requested|already-requested|unavailable|none|failed>`
   Override the Copilot review-request status with a known prior result. Skips the
   `requested_reviewers` API call and injects the provided value directly into the snapshot.
@@ -360,7 +365,7 @@ Optional:
 
 Contract:
 - is strictly read-only: it does not write checkpoints, mutate GitHub state, or create local artifacts
-- returns a stable top-level inspection shape with target identity, outer action, active family state,
+- returns a stable top-level inspection shape with target identity, derived `runId`, outer action, active family state,
   status class, trust/source semantics, evidence, markers, and best-effort drill-down layers
 - only derives top-level `outerAction` / `activeFamilyState` / `statusClass` when inspection has a complete current inner-loop picture, whether from live detectors and/or caller-supplied snapshot inputs
 - when inspection falls back to checkpoint-only data or mixed live + checkpoint evidence, checkpoint-backed drill-down layers and checkpoint evidence paths remain available as advisory context while the top-level state stays `"unknown"`
@@ -368,10 +373,13 @@ Contract:
   rather than by throwing a synthetic blocked-run error
 - looks for checkpoints at the repo-qualified default path `tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json`
 - during transition, may read the legacy default path `tmp/copilot-loop/pr-<n>/outer-loop-state.json` only when the checkpoint file's embedded `repo` and `pr` match the explicit target
-- surfaces steering as a best-effort drill-down layer when `--steering-state-file` is provided
+- surfaces steering as a best-effort drill-down layer when `--steering-state-file` is provided,
+  including latest acknowledgement plus queued/effective stop summaries for the current run,
+  without exposing full steering history/detail or raw steering-file locator paths
+- rejects mismatched steering-state files from the targeted repo/pr instead of projecting their state onto the inspected run
 
 Success output shape:
-- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "layers": { ... } }`
+- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "layers": { ... } }`
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
@@ -386,14 +394,22 @@ Subcommands:
 - `status` — inspect the current steering state for a run
 
 Contract:
-- persists steering state to a JSON file (default: `.pi/steering/<run-id>.json`)
-- accepts the current loop state as an injected input so callers can reuse existing loop detection
-  rather than making this CLI re-query GitHub directly
+- persists steering state to a JSON file (default: `.pi/steering/<owner>/<repo>/pr-<n>.json` for operator-facing `--repo/--pr` mode; `.pi/steering/<run-id>.json` for low-level `--run-id` mode)
+- operator-facing `submit` resolves one explicit `repo` + `pr` target through the read-only
+  inspection surface and derives `runId: pr-<number>` from that target while persisting repo-qualified target metadata alongside the steering state
+- operator-facing `submit` is intentionally limited to `stop_at_next_safe_gate`; other directive
+  kinds remain low-level/internal and are rejected on the external submit path
+- operator-facing `submit` fails closed when inspection is partial, checkpoint-only, unavailable,
+  stale, or conflicting
+- low-level/testing mode may still accept injected loop-state inputs for deterministic tests
 - returns deterministic acknowledgement/result payloads for `submit` and deterministic state
   readback for `status`
+- rejected operator-facing submits leave any trusted durable steering file unchanged; when the
+  persisted file is malformed or target-mismatched, the response may include a fresh synthetic
+  target-scoped `steeringState` for deterministic readback without trusting broken persisted data
 
 Success output shape:
-- `submit`: `{ "ok": true, "result": { ... }, "steeringState": { ... } }`
+- `submit`: `{ "ok": true, "acknowledgement": { ... }, "result": { ... }, "steeringState": { ... } }`
 - `status`: `{ "ok": true, "status": { ... } }`
 
 Failure behavior:

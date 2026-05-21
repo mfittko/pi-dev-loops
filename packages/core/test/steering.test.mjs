@@ -207,6 +207,34 @@ test("normalizeSteeringState rejects unsupported schemaVersion values", () => {
   );
 });
 
+test("normalizeSteeringState preserves valid target metadata", () => {
+  const state = normalizeSteeringState({
+    runId: "run-1",
+    target: { repo: "Owner/Repo", pr: 55 },
+  });
+  assert.deepEqual(state.target, { repo: "owner/repo", pr: 55 });
+});
+
+test("normalizeSteeringState rejects malformed target repo slugs", () => {
+  for (const repo of [
+    "owner/repo/extra",
+    "owner\\repo",
+    "owner repo/repo",
+    "owner/..",
+    "./repo",
+    "owner/.",
+  ]) {
+    assert.throws(
+      () => normalizeSteeringState({
+        runId: "run-1",
+        target: { repo, pr: 55 },
+      }),
+      /owner\/name repo slug/,
+    );
+  }
+});
+
+
 test("normalizeSteeringState preserves existing arrays", () => {
   const event = makeEvent();
   const resultEntry = {
@@ -251,12 +279,18 @@ test("createSteeringState returns a fresh state with correct defaults", () => {
   const state = createSteeringState("run-xyz");
   assert.equal(state.runId, "run-xyz");
   assert.equal(state.schemaVersion, 1);
+  assert.equal(state.target, null);
   assert.deepEqual(state.events, []);
   assert.deepEqual(state.effectiveStack, []);
   assert.deepEqual(state.queuedEvents, []);
   assert.deepEqual(state.resultHistory, []);
   assert.equal(state.latestResult, null);
   assert.equal(state.nextSeq, 1);
+});
+
+test("createSteeringState accepts normalized target metadata", () => {
+  const state = createSteeringState("run-xyz", { repo: "Owner/Repo", pr: 55 });
+  assert.deepEqual(state.target, { repo: "owner/repo", pr: 55 });
 });
 
 test("createSteeringState rejects empty runId", () => {
@@ -353,6 +387,30 @@ test("submitSteering applies stop_at_next_safe_gate at a safe point", () => {
   assert.equal(steeringState.effectiveStack[0].kind, STEERING_KIND.STOP_AT_NEXT_SAFE_GATE);
 });
 
+test("submitSteering treats repeat stop_at_next_safe_gate on an effective run as applied_now no-op", () => {
+  const first = makeEvent({ kind: STEERING_KIND.STOP_AT_NEXT_SAFE_GATE, seq: 1 });
+  const repeat = makeEvent({
+    eventId: "evt-002",
+    kind: STEERING_KIND.STOP_AT_NEXT_SAFE_GATE,
+    directive: "Repeat stop request",
+    seq: 2,
+  });
+  const state = makeState();
+
+  const { steeringState: afterFirst } = submitSteering(first, state, STATE.WAITING_FOR_COPILOT_REVIEW);
+  const { steeringState: afterRepeat, result } = submitSteering(
+    repeat,
+    afterFirst,
+    STATE.WAITING_FOR_COPILOT_REVIEW,
+  );
+
+  assert.equal(result.result, STEERING_RESULT.APPLIED_NOW);
+  assert.match(result.reason, /already effective/i);
+  assert.equal(afterRepeat.effectiveStack.length, 1);
+  assert.equal(afterRepeat.events.length, 2);
+  assert.equal(afterRepeat.nextSeq, 3);
+});
+
 test("submitSteering applies steering at PR_READY_NO_FEEDBACK safe point", () => {
   const event = makeEvent({ seq: 1 });
   const state = makeState();
@@ -400,6 +458,26 @@ test("submitSteering queues steering when applyMode is next_safe_point even at a
   assert.equal(result.result, STEERING_RESULT.QUEUED_FOR_SAFE_POINT);
   assert.equal(steeringState.queuedEvents.length, 1);
   assert.equal(steeringState.effectiveStack.length, 0);
+});
+
+test("submitSteering treats repeat stop_at_next_safe_gate while queued as queued_for_safe_point no-op", () => {
+  const first = makeEvent({ kind: STEERING_KIND.STOP_AT_NEXT_SAFE_GATE, seq: 1 });
+  const repeat = makeEvent({
+    eventId: "evt-002",
+    kind: STEERING_KIND.STOP_AT_NEXT_SAFE_GATE,
+    directive: "Repeat stop request",
+    seq: 2,
+  });
+  const state = makeState();
+
+  const { steeringState: afterFirst } = submitSteering(first, state, STATE.PR_DRAFT);
+  const { steeringState: afterRepeat, result } = submitSteering(repeat, afterFirst, STATE.PR_DRAFT);
+
+  assert.equal(result.result, STEERING_RESULT.QUEUED_FOR_SAFE_POINT);
+  assert.match(result.reason, /already queued/i);
+  assert.equal(afterRepeat.queuedEvents.length, 1);
+  assert.equal(afterRepeat.events.length, 2);
+  assert.equal(afterRepeat.nextSeq, 3);
 });
 
 // ---------------------------------------------------------------------------

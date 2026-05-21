@@ -14,12 +14,14 @@
  *    historical request-attempt outcomes like "already-requested", "unavailable",
  *    or "failed" that are not fully observable from static state alone).
  *
- * Optional (both modes):
+ * Optional (auto-detect mode only):
  *   --steering-state-file <path>
  *     Path to a durable steering state JSON file (as written by steer-loop.mjs).
  *     When provided, the detected state is resolved through the active steering
  *     contract: nextAction may be overridden by an active stop_at_next_safe_gate
  *     directive, and the output includes steeringApplied and effectiveConstraints.
+ *     Snapshot mode does not accept this flag because repo/pr target identity
+ *     cannot be proven from --input alone.
  *
  * Optional (auto-detect mode only):
  *   --review-request-status <requested|already-requested|unavailable|none|failed>
@@ -57,7 +59,18 @@ import { fileURLToPath } from "node:url";
 import { formatCliError, isCopilotLogin, parseJsonText, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
-import { createSteeringState, normalizeSteeringState, resolveEffectiveLoopState } from "../../packages/core/src/loop/steering.mjs";
+import {
+  createSteeringState,
+  normalizeSteeringState,
+  promoteQueuedSteering,
+  resolveEffectiveLoopState,
+} from "../../packages/core/src/loop/steering.mjs";
+import {
+  loadStateFile,
+  saveStateFile,
+  validateSteeringStateTarget,
+  withStateFileLock,
+} from "./_steering-state-file.mjs";
 
 const USAGE = `Usage:
   detect-copilot-loop-state.mjs --repo <owner/name> --pr <number> [--review-request-status <status>]
@@ -78,12 +91,14 @@ Required (auto-detect mode):
 Required (snapshot mode):
   --input <path>                             Path to snapshot JSON file
 
-Optional (both modes):
+Optional (auto-detect mode only):
   --steering-state-file <path>               Path to a durable steering state JSON file.
                                              When provided, nextAction is resolved through
                                              the active steering contract (e.g. overridden
                                              by stop_at_next_safe_gate). Output includes
                                              steeringApplied and effectiveConstraints.
+                                             Cannot be combined with --input because
+                                             snapshot mode cannot prove repo/pr identity.
 
 Optional (auto-detect mode only):
   --review-request-status <status>           Inject a known prior request result.
@@ -187,6 +202,9 @@ export function parseDetectCliArgs(argv) {
     }
     if (options.reviewRequestStatusOverride !== undefined) {
       throw parseError("--review-request-status cannot be combined with --input");
+    }
+    if (options.steeringStateFile !== undefined) {
+      throw parseError("--steering-state-file cannot be combined with --input; use --repo/--pr auto-detect when steering integration is needed");
     }
     return options;
   }
@@ -439,22 +457,44 @@ export async function runCli(
   let steeringFields = {};
 
   if (options.steeringStateFile !== undefined) {
-    let rawSteering;
-    try {
-      rawSteering = JSON.parse(await readFile(options.steeringStateFile, "utf8"));
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        rawSteering = null;
-      } else {
-        throw new Error(`Failed to read steering state file '${options.steeringStateFile}': ${error.message}`);
-      }
-    }
+    const baseInterpretation = interpretLoopState(snapshot);
+    const expectedPr = options.pr ?? snapshot.prNumber ?? null;
+    const defaultSteeringState = createSteeringState(
+      options.repo && options.pr ? `pr-${options.pr}` : deriveRunIdFromSteeringFile(options.steeringStateFile),
+      options.repo && options.pr ? { repo: options.repo, pr: options.pr } : null,
+    );
+    const existingSteeringState = await loadStateFile(options.steeringStateFile);
 
-    const steeringState = rawSteering !== null
-      ? normalizeSteeringState(rawSteering)
-      : createSteeringState(deriveRunIdFromSteeringFile(options.steeringStateFile));
+    const activeSteeringState = existingSteeringState === null
+      ? defaultSteeringState
+      : await withStateFileLock(options.steeringStateFile, async () => {
+          const rawSteering = await loadStateFile(options.steeringStateFile);
+          const steeringState = rawSteering !== null
+            ? normalizeSteeringState(rawSteering)
+            : defaultSteeringState;
 
-    const resolved = resolveEffectiveLoopState(snapshot, steeringState);
+          const validation = validateSteeringStateTarget(steeringState, {
+            repo: options.repo,
+            pr: expectedPr,
+            runId: options.repo && expectedPr ? `pr-${expectedPr}` : undefined,
+          });
+          if (!validation.ok) {
+            throw new Error(`steering state target mismatch: ${validation.reason}`);
+          }
+
+          const { steeringState: promotedState, promoted } = promoteQueuedSteering(
+            steeringState,
+            baseInterpretation.state,
+          );
+
+          if (promoted.length > 0) {
+            await saveStateFile(options.steeringStateFile, promotedState);
+          }
+
+          return promotedState;
+        });
+
+    const resolved = resolveEffectiveLoopState(snapshot, activeSteeringState);
     interpretation = resolved;
     steeringFields = {
       steeringApplied: resolved.steeringApplied,

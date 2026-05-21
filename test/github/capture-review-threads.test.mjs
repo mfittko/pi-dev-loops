@@ -181,6 +181,18 @@ test("capture-review-threads supports live gh capture only with explicit --repo 
   }
 });
 
+test("capture-review-threads rejects unsafe repo slugs deterministically", async () => {
+  for (const repo of ["../repo", "owner/..", "owner\\repo", "./repo"]) {
+    const result = await runNode(["--repo", repo, "--pr", "17"]);
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "--repo must match <owner/name>",
+    });
+  }
+});
+
 test("capture-review-threads rejects malformed live-argument combinations deterministically", async () => {
   const missingPr = await runNode(["--repo", "owner/repo"]);
   assert.equal(missingPr.code, 1);

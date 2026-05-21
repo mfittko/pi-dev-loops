@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -99,6 +99,82 @@ async function writeGhStub(tempDir, entries) {
       GH_COUNTER_PATH: counterPath,
     },
   };
+}
+
+function makeReviewThreadsPayload(nodes = []) {
+  return {
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: {
+            nodes,
+          },
+        },
+      },
+    },
+  };
+}
+
+function makeThread({ id, isResolved = false, comments }) {
+  return {
+    id,
+    isResolved,
+    comments: {
+      nodes: comments,
+    },
+  };
+}
+
+function makeComment({ id, body, login = "reviewer", type = "User" }) {
+  return {
+    id,
+    body,
+    author: {
+      login,
+      __typename: type,
+    },
+  };
+}
+
+async function writeAutoDetectGhStub(tempDir, {
+  repo = "owner/repo",
+  pr,
+  prView = {},
+  requestedReviewers = { users: [], teams: [] },
+  reviewThreads = [],
+  skipRequestedReviewers = false,
+} = {}) {
+  const entries = [
+    {
+      assertArgs: ["pr", "view", String(pr), "--repo", repo],
+      stdout: `${JSON.stringify({
+        headRefOid: "abc123",
+        isDraft: false,
+        state: "OPEN",
+        number: pr,
+        reviews: [],
+        statusCheckRollup: [],
+        ...prView,
+      })}
+`,
+    },
+  ];
+
+  if (!skipRequestedReviewers) {
+    entries.push({
+      assertArgs: ["api", `repos/${repo}/pulls/${pr}/requested_reviewers`],
+      stdout: `${JSON.stringify(requestedReviewers)}
+`,
+    });
+  }
+
+  entries.push({
+    assertArgs: ["api", "graphql"],
+    stdout: `${JSON.stringify(makeReviewThreadsPayload(reviewThreads))}
+`,
+  });
+
+  return writeGhStub(tempDir, entries);
 }
 
 // ---------------------------------------------------------------------------
@@ -1002,10 +1078,18 @@ test("detect-copilot-loop-state fails closed when review threads cannot be fetch
 // Steering integration — real loop surface changes behavior after steering
 // ---------------------------------------------------------------------------
 
-test("parseDetectCliArgs accepts --steering-state-file flag", () => {
-  const opts = parseDetectCliArgs(["--input", "/tmp/snap.json", "--steering-state-file", "/tmp/st.json"]);
+test("parseDetectCliArgs accepts --steering-state-file flag in auto-detect mode", () => {
+  const opts = parseDetectCliArgs(["--repo", "owner/repo", "--pr", "17", "--steering-state-file", "/tmp/st.json"]);
   assert.equal(opts.steeringStateFile, "/tmp/st.json");
-  assert.equal(opts.inputPath, "/tmp/snap.json");
+  assert.equal(opts.repo, "owner/repo");
+  assert.equal(opts.pr, 17);
+});
+
+test("parseDetectCliArgs rejects --steering-state-file in snapshot mode", () => {
+  assert.throws(
+    () => parseDetectCliArgs(["--input", "/tmp/snap.json", "--steering-state-file", "/tmp/st.json"]),
+    /--steering-state-file cannot be combined with --input/,
+  );
 });
 
 test("parseDetectCliArgs leaves steeringStateFile undefined when flag is absent", () => {
@@ -1044,20 +1128,25 @@ test("detect-copilot-loop-state with empty steering file adds steering fields bu
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-empty-"));
 
   try {
-    const snapshotPath = path.join(tempDir, "snapshot.json");
     const steeringPath = path.join(tempDir, "steering.json");
-
-    await writeJson(snapshotPath, {
-      prExists: true,
-      prNumber: 17,
-      copilotReviewPresent: true,
-      unresolvedThreadCount: 0,
-      ciStatus: "success",
+    const { env } = await writeAutoDetectGhStub(tempDir, {
+      pr: 17,
+      prView: {
+        reviews: [{
+          id: "review-1",
+          state: "COMMENTED",
+          author: { login: "copilot-pull-request-reviewer" },
+          commit: { oid: "abc123" },
+        }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+      },
+      reviewThreads: [],
+      skipRequestedReviewers: true,
     });
 
-    // Steering file exists but has no effective events (fresh state)
     await writeJson(steeringPath, {
-      runId: "run-17",
+      runId: "pr-17",
+      target: { repo: "owner/repo", pr: 17 },
       schemaVersion: 1,
       events: [],
       effectiveStack: [],
@@ -1067,7 +1156,7 @@ test("detect-copilot-loop-state with empty steering file adds steering fields bu
       nextSeq: 1,
     });
 
-    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--review-request-status", "none", "--steering-state-file", steeringPath], { env });
 
     assert.equal(result.code, 0);
     const output = JSON.parse(result.stdout);
@@ -1077,7 +1166,6 @@ test("detect-copilot-loop-state with empty steering file adds steering fields bu
     assert.ok(output.effectiveConstraints, "effectiveConstraints must be present");
     assert.deepEqual(output.effectiveConstraints.hardConstraints, []);
     assert.equal(output.effectiveConstraints.stopAtNextSafeGate, false);
-    // nextAction unchanged from base interpretation
     assert.ok(!/Stop at this safe gate/.test(output.nextAction));
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -1088,25 +1176,29 @@ test("detect-copilot-loop-state: stop_at_next_safe_gate steering overrides nextA
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-stop-"));
 
   try {
-    const snapshotPath = path.join(tempDir, "snapshot.json");
     const steeringPath = path.join(tempDir, "steering.json");
-
-    // Loop is at ready_to_rerequest_review (an IMMEDIATE safe point)
-    await writeJson(snapshotPath, {
-      prExists: true,
-      prNumber: 17,
-      copilotReviewPresent: true,
-      unresolvedThreadCount: 0,
-      ciStatus: "success",
+    const { env } = await writeAutoDetectGhStub(tempDir, {
+      pr: 17,
+      prView: {
+        reviews: [{
+          id: "review-1",
+          state: "COMMENTED",
+          author: { login: "copilot-pull-request-reviewer" },
+          commit: { oid: "abc123" },
+        }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+      },
+      reviewThreads: [],
+      skipRequestedReviewers: true,
     });
 
-    // Steering state with a stop_at_next_safe_gate directive in effect
     await writeJson(steeringPath, {
-      runId: "run-17",
+      runId: "pr-17",
+      target: { repo: "owner/repo", pr: 17 },
       schemaVersion: 1,
       events: [{
         eventId: "evt-001",
-        runId: "run-17",
+        runId: "pr-17",
         kind: "stop_at_next_safe_gate",
         directive: "Stop before next review cycle",
         seq: 1,
@@ -1115,7 +1207,7 @@ test("detect-copilot-loop-state: stop_at_next_safe_gate steering overrides nextA
       }],
       effectiveStack: [{
         eventId: "evt-001",
-        runId: "run-17",
+        runId: "pr-17",
         kind: "stop_at_next_safe_gate",
         directive: "Stop before next review cycle",
         seq: 1,
@@ -1140,14 +1232,12 @@ test("detect-copilot-loop-state: stop_at_next_safe_gate steering overrides nextA
       nextSeq: 2,
     });
 
-    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--review-request-status", "none", "--steering-state-file", steeringPath], { env });
 
     assert.equal(result.code, 0);
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    // Loop state is still ready_to_rerequest_review — steering doesn't change the state
     assert.equal(output.state, "ready_to_rerequest_review");
-    // But nextAction IS overridden by the stop_at_next_safe_gate directive
     assert.equal(output.steeringApplied, true);
     assert.match(output.nextAction, /Stop at this safe gate/);
     assert.match(output.nextAction, /stop_at_next_safe_gate/);
@@ -1162,23 +1252,24 @@ test("detect-copilot-loop-state: hard_constraint steering is visible in effectiv
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-hard-"));
 
   try {
-    const snapshotPath = path.join(tempDir, "snapshot.json");
     const steeringPath = path.join(tempDir, "steering.json");
-
-    await writeJson(snapshotPath, {
-      prExists: true,
-      prNumber: 42,
-      copilotReviewRequestStatus: "requested",
-      copilotReviewPresent: false,
-      unresolvedThreadCount: 0,
+    const { env } = await writeAutoDetectGhStub(tempDir, {
+      pr: 42,
+      prView: {
+        reviews: [],
+        statusCheckRollup: [],
+      },
+      reviewThreads: [],
+      skipRequestedReviewers: true,
     });
 
     await writeJson(steeringPath, {
-      runId: "run-42",
+      runId: "pr-42",
+      target: { repo: "owner/repo", pr: 42 },
       schemaVersion: 1,
       events: [{
         eventId: "evt-001",
-        runId: "run-42",
+        runId: "pr-42",
         kind: "hard_constraint",
         directive: "Do not add new npm dependencies",
         seq: 1,
@@ -1187,7 +1278,7 @@ test("detect-copilot-loop-state: hard_constraint steering is visible in effectiv
       }],
       effectiveStack: [{
         eventId: "evt-001",
-        runId: "run-42",
+        runId: "pr-42",
         kind: "hard_constraint",
         directive: "Do not add new npm dependencies",
         seq: 1,
@@ -1200,7 +1291,11 @@ test("detect-copilot-loop-state: hard_constraint steering is visible in effectiv
       nextSeq: 2,
     });
 
-    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+    const result = await runNode([
+      "--repo", "owner/repo", "--pr", "42",
+      "--review-request-status", "requested",
+      "--steering-state-file", steeringPath,
+    ], { env });
 
     assert.equal(result.code, 0);
     const output = JSON.parse(result.stdout);
@@ -1218,24 +1313,39 @@ test("detect-copilot-loop-state: stop_at_next_safe_gate is visible as pending wh
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-nogate-"));
 
   try {
-    const snapshotPath = path.join(tempDir, "snapshot.json");
     const steeringPath = path.join(tempDir, "steering.json");
-
-    // Loop is in unresolved_feedback_present (a NEXT_POINT state, not a safe point)
-    await writeJson(snapshotPath, {
-      prExists: true,
-      prNumber: 17,
-      copilotReviewPresent: true,
-      unresolvedThreadCount: 2,
-      actionableThreadCount: 2,
+    const { env } = await writeAutoDetectGhStub(tempDir, {
+      pr: 17,
+      prView: {
+        reviews: [{
+          id: "review-1",
+          state: "COMMENTED",
+          author: { login: "copilot-pull-request-reviewer" },
+          commit: { oid: "abc123" },
+        }],
+      },
+      reviewThreads: [
+        makeThread({
+          id: "thread-1",
+          isResolved: false,
+          comments: [makeComment({ id: "comment-1", body: "Please fix this" })],
+        }),
+        makeThread({
+          id: "thread-2",
+          isResolved: false,
+          comments: [makeComment({ id: "comment-2", body: "And this too" })],
+        }),
+      ],
+      skipRequestedReviewers: true,
     });
 
     await writeJson(steeringPath, {
-      runId: "run-17",
+      runId: "pr-17",
+      target: { repo: "owner/repo", pr: 17 },
       schemaVersion: 1,
       events: [{
         eventId: "evt-001",
-        runId: "run-17",
+        runId: "pr-17",
         kind: "stop_at_next_safe_gate",
         directive: "Stop at next gate",
         seq: 1,
@@ -1244,7 +1354,7 @@ test("detect-copilot-loop-state: stop_at_next_safe_gate is visible as pending wh
       }],
       effectiveStack: [{
         eventId: "evt-001",
-        runId: "run-17",
+        runId: "pr-17",
         kind: "stop_at_next_safe_gate",
         directive: "Stop at next gate",
         seq: 1,
@@ -1257,7 +1367,7 @@ test("detect-copilot-loop-state: stop_at_next_safe_gate is visible as pending wh
       nextSeq: 2,
     });
 
-    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--review-request-status", "none", "--steering-state-file", steeringPath], { env });
 
     assert.equal(result.code, 0);
     const output = JSON.parse(result.stdout);
@@ -1275,38 +1385,99 @@ test("detect-copilot-loop-state: missing --steering-state-file path returns stee
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-missing-"));
 
   try {
-    const snapshotPath = path.join(tempDir, "snapshot.json");
-
-    await writeJson(snapshotPath, {
-      prExists: true,
-      prNumber: 17,
-      copilotReviewPresent: true,
-      unresolvedThreadCount: 0,
-      ciStatus: "success",
+    const { env } = await writeAutoDetectGhStub(tempDir, {
+      pr: 17,
+      prView: {
+        reviews: [{
+          id: "review-1",
+          state: "COMMENTED",
+          author: { login: "copilot-pull-request-reviewer" },
+          commit: { oid: "abc123" },
+        }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+      },
+      reviewThreads: [],
+      skipRequestedReviewers: true,
     });
 
-    // Point to a non-existent steering file; should not error
+    const steeringPath = path.join(tempDir, "nonexistent-steering.json");
     const result = await runNode([
-      "--input", snapshotPath,
-      "--steering-state-file", path.join(tempDir, "nonexistent-steering.json"),
-    ]);
+      "--repo", "owner/repo", "--pr", "17",
+      "--review-request-status", "none",
+      "--steering-state-file", steeringPath,
+    ], { env });
 
     assert.equal(result.code, 0);
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
     assert.equal(output.state, "ready_to_rerequest_review");
-    // With a missing file, treated as empty steering
     assert.equal(output.steeringApplied, false);
     assert.equal(output.effectiveConstraints.stopAtNextSafeGate, false);
     assert.equal(output.terminalStopAtNextSafeGate, false);
+    await assert.rejects(() => stat(steeringPath), /ENOENT/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
 
-test("detect-copilot-loop-state: terminal stop_at_next_safe_gate is surfaced when the loop is blocked", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-terminal-stop-"));
+test("detect-copilot-loop-state fails closed when a provided steering file targets a different repo/pr", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-target-mismatch-"));
+
+  try {
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "55", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 55,
+          headRefOid: "abc123",
+          reviews: [],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/55/requested_reviewers"],
+        stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: JSON.stringify({
+          data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+        }) + "\n",
+      },
+    ]);
+    const steeringPath = path.join(tempDir, "steering.json");
+    await writeJson(steeringPath, {
+      runId: "pr-55",
+      target: { repo: "other/repo", pr: 55 },
+      schemaVersion: 1,
+      events: [],
+      effectiveStack: [],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 1,
+    });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--steering-state-file", steeringPath,
+    ], { env });
+
+    assert.equal(result.code, 1);
+    const err = JSON.parse(result.stderr);
+    assert.equal(err.ok, false);
+    assert.match(err.error, /steering state target mismatch/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state rejects --input with --steering-state-file at the CLI boundary", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-input-reject-"));
 
   try {
     const snapshotPath = path.join(tempDir, "snapshot.json");
@@ -1314,16 +1485,56 @@ test("detect-copilot-loop-state: terminal stop_at_next_safe_gate is surfaced whe
 
     await writeJson(snapshotPath, {
       prExists: true,
-      prNumber: 17,
-      copilotReviewRequestStatus: "failed",
+      prNumber: 42,
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      ciStatus: "success",
+    });
+    await writeJson(steeringPath, {
+      runId: "pr-42",
+      schemaVersion: 1,
+      events: [],
+      effectiveStack: [],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 1,
+    });
+
+    const result = await runNode([
+      "--input", snapshotPath,
+      "--steering-state-file", steeringPath,
+    ]);
+
+    assert.equal(result.code, 1);
+    const err = JSON.parse(result.stderr);
+    assert.equal(err.ok, false);
+    assert.match(err.error, /--steering-state-file cannot be combined with --input/);
+    assert.match(err.usage, /detect-copilot-loop-state\.mjs/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state: terminal stop_at_next_safe_gate is surfaced when the loop is blocked", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-terminal-stop-"));
+
+  try {
+    const steeringPath = path.join(tempDir, "steering.json");
+    const { env } = await writeAutoDetectGhStub(tempDir, {
+      pr: 17,
+      prView: {},
+      reviewThreads: [],
+      skipRequestedReviewers: true,
     });
 
     await writeJson(steeringPath, {
-      runId: "run-17",
+      runId: "pr-17",
+      target: { repo: "owner/repo", pr: 17 },
       schemaVersion: 1,
       events: [{
         eventId: "evt-001",
-        runId: "run-17",
+        runId: "pr-17",
         kind: "stop_at_next_safe_gate",
         directive: "Stop at next gate",
         seq: 1,
@@ -1332,7 +1543,7 @@ test("detect-copilot-loop-state: terminal stop_at_next_safe_gate is surfaced whe
       }],
       effectiveStack: [{
         eventId: "evt-001",
-        runId: "run-17",
+        runId: "pr-17",
         kind: "stop_at_next_safe_gate",
         directive: "Stop at next gate",
         seq: 1,
@@ -1345,7 +1556,11 @@ test("detect-copilot-loop-state: terminal stop_at_next_safe_gate is surfaced whe
       nextSeq: 2,
     });
 
-    const result = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+    const result = await runNode([
+      "--repo", "owner/repo", "--pr", "17",
+      "--review-request-status", "failed",
+      "--steering-state-file", steeringPath,
+    ], { env });
 
     assert.equal(result.code, 0);
     const output = JSON.parse(result.stdout);
@@ -1379,19 +1594,22 @@ test("detect-copilot-loop-state: durable reload — steering applied after steer
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-reload-"));
 
   try {
-    const snapshotPath = path.join(tempDir, "snapshot.json");
     const steeringPath = path.join(tempDir, "steering.json");
-
-    // Snapshot: loop is at ready_to_rerequest_review
-    await writeJson(snapshotPath, {
-      prExists: true,
-      prNumber: 77,
-      copilotReviewPresent: true,
-      unresolvedThreadCount: 0,
-      ciStatus: "success",
+    const { env } = await writeAutoDetectGhStub(tempDir, {
+      pr: 77,
+      prView: {
+        reviews: [{
+          id: "review-1",
+          state: "COMMENTED",
+          author: { login: "copilot-pull-request-reviewer" },
+          commit: { oid: "abc123" },
+        }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+      },
+      reviewThreads: [],
+      skipRequestedReviewers: true,
     });
 
-    // Step 1: submit stop_at_next_safe_gate via steer-loop CLI
     const submitResult = await runSteerNode([
       "submit",
       "--run-id", "run-77",
@@ -1405,17 +1623,102 @@ test("detect-copilot-loop-state: durable reload — steering applied after steer
     const submitOut = JSON.parse(submitResult.stdout);
     assert.equal(submitOut.result.result, "applied_now");
 
-    // Step 2: detect loop state with the durable steering file
-    const detectResult = await runNode(["--input", snapshotPath, "--steering-state-file", steeringPath]);
+    const persisted = JSON.parse(await readFile(steeringPath, "utf8"));
+    persisted.runId = "pr-77";
+    persisted.events = persisted.events.map((event) => ({ ...event, runId: "pr-77" }));
+    persisted.effectiveStack = persisted.effectiveStack.map((event) => ({ ...event, runId: "pr-77" }));
+    persisted.queuedEvents = persisted.queuedEvents.map((event) => ({ ...event, runId: "pr-77" }));
+    persisted.target = { repo: "owner/repo", pr: 77 };
+    await writeJson(steeringPath, persisted);
 
-    assert.equal(detectResult.code, 0, `detect failed: ${detectResult.stdout}`);
+    const detectResult = await runNode(["--repo", "owner/repo", "--pr", "77", "--review-request-status", "none", "--steering-state-file", steeringPath], { env });
+
+    assert.equal(detectResult.code, 0, `detect failed: ${detectResult.stderr || detectResult.stdout}`);
     const detectOut = JSON.parse(detectResult.stdout);
     assert.equal(detectOut.ok, true);
     assert.equal(detectOut.state, "ready_to_rerequest_review");
-    // The real loop surface now returns an overridden nextAction
     assert.equal(detectOut.steeringApplied, true);
     assert.match(detectOut.nextAction, /Stop at this safe gate/);
     assert.equal(detectOut.effectiveConstraints.stopAtNextSafeGate, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state promotes queued stop_at_next_safe_gate at the next safe point and persists it", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-promote-"));
+
+  try {
+    const steeringPath = path.join(tempDir, "steering.json");
+    const { env } = await writeAutoDetectGhStub(tempDir, {
+      pr: 88,
+      prView: {
+        reviews: [{
+          id: "review-1",
+          state: "COMMENTED",
+          author: { login: "copilot-pull-request-reviewer" },
+          commit: { oid: "abc123" },
+        }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+      },
+      reviewThreads: [],
+      skipRequestedReviewers: true,
+    });
+
+    await writeJson(steeringPath, {
+      runId: "pr-88",
+      target: { repo: "owner/repo", pr: 88 },
+      schemaVersion: 1,
+      events: [{
+        eventId: "evt-001",
+        runId: "pr-88",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      effectiveStack: [],
+      queuedEvents: [{
+        eventId: "evt-001",
+        runId: "pr-88",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      resultHistory: [{
+        eventId: "evt-001",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
+        acknowledgedAt: "2026-05-19T12:00:01.000Z",
+      }],
+      latestResult: {
+        eventId: "evt-001",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
+        acknowledgedAt: "2026-05-19T12:00:01.000Z",
+      },
+      nextSeq: 2,
+    });
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "88", "--review-request-status", "none", "--steering-state-file", steeringPath], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.steeringApplied, true);
+    assert.match(output.nextAction, /Stop at this safe gate/);
+
+    const persisted = JSON.parse(await readFile(steeringPath, "utf8"));
+    assert.equal(persisted.queuedEvents.length, 0);
+    assert.equal(persisted.effectiveStack.length, 1);
+    assert.equal(persisted.latestResult.result, "applied_now");
+    assert.match(persisted.latestResult.reason, /Promoted from queue/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
