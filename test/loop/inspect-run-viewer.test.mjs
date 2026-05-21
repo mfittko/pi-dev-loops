@@ -320,6 +320,40 @@ test("createInspectRunViewerServer serves authoritative snapshot JSON on /snapsh
   }
 });
 
+test("createInspectRunViewerServer treats missing JSON snapshots as machine-readable failures", async () => {
+  let loadCount = 0;
+  const adapter = {
+    async loadSnapshot() {
+      loadCount += 1;
+      return undefined;
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json`);
+
+    assert.equal(response.statusCode, 500);
+    assert.equal(response.headers["content-type"], "application/json; charset=utf-8");
+    assert.equal(response.headers["cache-control"], "no-store");
+    assert.deepEqual(JSON.parse(response.body), {
+      ok: false,
+      target: { repo: "owner/repo", pr: 55 },
+      error: { message: "inspection snapshot unavailable" },
+    });
+    assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("createInspectRunViewerServer keeps JSON failures machine-readable and HTML failures browser-friendly", async () => {
   let loadCount = 0;
   const adapter = {
@@ -401,6 +435,9 @@ test("createInspectRunViewerServer keeps favicon, unsupported paths, and unsuppo
     const postJsonResponse = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json`, { method: "POST" });
     assert.equal(postJsonResponse.statusCode, 405);
     assert.equal(postJsonResponse.headers.allow, "GET");
+
+    const postMissingPathResponse = await requestOnce(`http://127.0.0.1:${address.port}/nope`, { method: "POST" });
+    assert.equal(postMissingPathResponse.statusCode, 404);
     assert.equal(loadCount, 0);
   } finally {
     await new Promise((resolve) => server.close(resolve));

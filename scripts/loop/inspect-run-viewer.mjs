@@ -361,6 +361,14 @@ function jsonErrorPayload(target, error) {
   };
 }
 
+function requireSnapshotForJson(snapshot) {
+  if (snapshot === null || snapshot === undefined) {
+    throw new Error("inspection snapshot unavailable");
+  }
+
+  return snapshot;
+}
+
 export function formatInspectRunViewerUrl(host, port) {
   const formattedHost = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
   return new URL(`http://${formattedHost}:${port}`).toString().replace(/\/$/, "");
@@ -376,6 +384,19 @@ export function createInspectRunViewerServer(options, deps = {}) {
       const requestPath = request.url ? new URL(request.url, "http://localhost").pathname : "/";
       const method = request.method ?? "GET";
 
+      if (requestPath === "/favicon.ico") {
+        response.statusCode = 204;
+        response.end();
+        return;
+      }
+
+      if (requestPath !== "/" && requestPath !== "/snapshot.json") {
+        writeText(response, 404, "Not Found", {
+          "content-type": "text/plain; charset=utf-8",
+        });
+        return;
+      }
+
       if (method !== "GET") {
         writeText(response, 405, "Method Not Allowed", {
           allow: "GET",
@@ -384,26 +405,13 @@ export function createInspectRunViewerServer(options, deps = {}) {
         return;
       }
 
-      if (requestPath === "/favicon.ico") {
-        response.statusCode = 204;
-        response.end();
-        return;
-      }
-
       if (requestPath === "/snapshot.json") {
         try {
-          const snapshot = await adapter.loadSnapshot(target, adapterOptions);
-          writeJson(response, 200, snapshot ?? null);
+          const snapshot = requireSnapshotForJson(await adapter.loadSnapshot(target, adapterOptions));
+          writeJson(response, 200, snapshot);
         } catch (error) {
           writeJson(response, 500, jsonErrorPayload(target, error));
         }
-        return;
-      }
-
-      if (requestPath !== "/") {
-        writeText(response, 404, "Not Found", {
-          "content-type": "text/plain; charset=utf-8",
-        });
         return;
       }
 
