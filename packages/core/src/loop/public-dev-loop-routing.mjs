@@ -317,7 +317,7 @@ function routeForState(canonicalState) {
 export function evaluatePublicDevLoopRouting(input = {}) {
   const intent = normalizeIntent(input.intent);
   const explicitTarget = normalizeTarget(input.target);
-  const explicitState = normalizeState(input.currentState, explicitTarget);
+  const explicitState = normalizeState(input.currentState);
 
   if (!intent) {
     return buildReconcile("The public dev-loop intent is missing or unrecognized.");
