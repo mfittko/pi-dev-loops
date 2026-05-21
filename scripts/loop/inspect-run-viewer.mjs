@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import { execFile as execFileCallback } from "node:child_process";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import { formatCliError } from "../_core-helpers.mjs";
 import {
@@ -10,7 +12,7 @@ import {
 } from "./_inspect-run-viewer-adapter.mjs";
 
 const USAGE = `Usage: inspect-run-viewer.mjs --repo <owner/name> --pr <number>
-  [--host <host>] [--port <port>] [--allow-non-localhost]
+  [--host <host>] [--port <port>] [--allow-non-localhost] [--restart]
   [--steering-state-file <path>] [--reviewer-login <login>]
   [--copilot-input <path>] [--reviewer-input <path>]
 
@@ -25,6 +27,8 @@ Optional:
   --port <port>                         Bind port (default: 4311)
   --allow-non-localhost                 Permit non-loopback binds
                                         (otherwise rejected)
+  --restart                             Stop any existing listener on the
+                                        chosen port before starting
   --steering-state-file <path>          Pass-through to inspect-run
   --reviewer-login <login>              Pass-through to inspect-run
   --copilot-input <path>                Pass-through to inspect-run
@@ -34,6 +38,7 @@ Optional:
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4311;
+const execFile = promisify(execFileCallback);
 
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
@@ -105,6 +110,7 @@ export function parseInspectRunViewerCliArgs(argv) {
     copilotInputPath: undefined,
     reviewerInputPath: undefined,
     allowNonLocalhost: false,
+    restart: false,
   };
 
   while (args.length > 0) {
@@ -131,6 +137,10 @@ export function parseInspectRunViewerCliArgs(argv) {
     }
     if (token === "--allow-non-localhost") {
       options.allowNonLocalhost = true;
+      continue;
+    }
+    if (token === "--restart") {
+      options.restart = true;
       continue;
     }
     if (token === "--steering-state-file") {
@@ -428,6 +438,59 @@ export function formatInspectRunViewerUrl(host, port) {
   return new URL(`http://${formattedHost}:${port}`).toString().replace(/\/$/, "");
 }
 
+async function listListeningPidsForPort(port, { execFileImpl = execFile } = {}) {
+  try {
+    const { stdout } = await execFileImpl("lsof", [`-tiTCP:${port}`, "-sTCP:LISTEN"]);
+    return stdout
+      .split(/\r?\n/)
+      .map((line) => Number(line.trim()))
+      .filter((pid) => Number.isInteger(pid) && pid > 0);
+  } catch (error) {
+    if (error && error.code === 1) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function restartExistingPortListener(
+  port,
+  {
+    listListeningPidsImpl = listListeningPidsForPort,
+    killProcessImpl = (pid, signal) => process.kill(pid, signal),
+    isProcessAliveImpl = (pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    timeoutMs = 1500,
+    pollIntervalMs = 50,
+  } = {},
+) {
+  const pids = (await listListeningPidsImpl(port)).filter((pid) => pid !== process.pid);
+  if (pids.length === 0) {
+    return [];
+  }
+
+  for (const pid of pids) {
+    killProcessImpl(pid, "SIGTERM");
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (pids.every((pid) => !isProcessAliveImpl(pid))) {
+      return pids;
+    }
+    await sleepImpl(pollIntervalMs);
+  }
+
+  throw new Error(`--restart could not stop existing listener on port ${port}`);
+}
+
 export function createInspectRunViewerServer(options, deps = {}) {
   const adapter = deps.adapter ?? createInspectionViewerAdapter();
   const target = normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
@@ -499,6 +562,10 @@ export async function runCli(
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return null;
+  }
+
+  if (options.restart) {
+    await restartExistingPortListener(options.port);
   }
 
   const server = createInspectRunViewerServer(options);

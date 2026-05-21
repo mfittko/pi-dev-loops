@@ -8,6 +8,7 @@ import {
   formatInspectRunViewerUrl,
   parseInspectRunViewerCliArgs,
   renderInspectRunViewerHtml,
+  restartExistingPortListener,
 } from "../../scripts/loop/inspect-run-viewer.mjs";
 import { createInspectionViewerAdapter } from "../../scripts/loop/_inspect-run-viewer-adapter.mjs";
 
@@ -78,9 +79,11 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
     "--host",
     "0.0.0.0",
     "--allow-non-localhost",
+    "--restart",
   ]);
   assert.equal(nonLocalhostOptIn.host, "0.0.0.0");
   assert.equal(nonLocalhostOptIn.allowNonLocalhost, true);
+  assert.equal(nonLocalhostOptIn.restart, true);
 
   let malformedTargetError;
   try {
@@ -114,6 +117,35 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
     () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "   "]),
     /--host must not be empty/i,
   );
+});
+
+test("restartExistingPortListener is a no-op when nothing is listening", async () => {
+  const restarted = await restartExistingPortListener(4311, {
+    listListeningPidsImpl: async () => [],
+  });
+
+  assert.deepEqual(restarted, []);
+});
+
+test("restartExistingPortListener stops existing listeners on the chosen port", async () => {
+  const alive = new Set([111, 222]);
+  const killed = [];
+
+  const restarted = await restartExistingPortListener(4311, {
+    listListeningPidsImpl: async () => [111, 222],
+    killProcessImpl: (pid, signal) => {
+      killed.push([pid, signal]);
+      alive.delete(pid);
+    },
+    isProcessAliveImpl: (pid) => alive.has(pid),
+    sleepImpl: async () => {},
+  });
+
+  assert.deepEqual(restarted, [111, 222]);
+  assert.deepEqual(killed, [
+    [111, "SIGTERM"],
+    [222, "SIGTERM"],
+  ]);
 });
 
 test("formatInspectRunViewerUrl formats IPv4 and IPv6 hosts for copy-pasteable output", () => {

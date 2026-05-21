@@ -444,6 +444,7 @@ Optional:
 - `--host <host>` (default: `127.0.0.1`; non-loopback binds require `--allow-non-localhost`)
 - `--port <port>` (default: `4311`)
 - `--allow-non-localhost` (explicit opt-in for non-loopback binds such as `0.0.0.0` or LAN IPs)
+- `--restart` (stop any existing listener on the chosen port before starting)
 - `--steering-state-file <path>` (pass-through to `inspect-run`)
 - `--reviewer-login <login>` (pass-through to `inspect-run`)
 - `--copilot-input <path>` (pass-through to `inspect-run`)
@@ -462,6 +463,7 @@ Contract:
 - `/snapshot.json` returns `application/json; charset=utf-8` on success and deterministic JSON error output with non-2xx status when snapshot loading throws or yields no snapshot
 - unsupported paths return deterministic `404` without loading a snapshot (even for unsupported methods on unknown paths); `/favicon.ico` returns deterministic `204`; unsupported methods on supported routes return `405 Allow: GET`
 - both primary endpoints send `Cache-Control: no-store` to match the manual-reload workflow
+- `--restart` is a local convenience flag that attempts to stop any existing listener already bound to the chosen port before starting the new server process
 - manual reload only (`window.location.reload()`); no polling/watch/timeout/control semantics
 
 Local manual verification path:
