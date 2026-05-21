@@ -187,6 +187,10 @@ function renderList(items) {
   return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
 }
 
+function renderDefinitionList(entries) {
+  return `<dl>${entries.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl>`;
+}
+
 function renderLayerSection({ title, layer }) {
   if (layer === null || layer === undefined) {
     return `<section><h2>${escapeHtml(title)}</h2><p>not present / unavailable</p></section>`;
@@ -195,6 +199,30 @@ function renderLayerSection({ title, layer }) {
   return `<section>
     <h2>${escapeHtml(title)}</h2>
     <pre>${escapeHtml(JSON.stringify(layer, null, 2))}</pre>
+  </section>`;
+}
+
+function renderOuterLoopSummarySection(snapshot) {
+  if (snapshot === null || snapshot === undefined) {
+    return renderLayerSection({ title: "outer-loop summary", layer: null });
+  }
+
+  return `<section>
+    <h2>outer-loop summary</h2>
+    ${renderDefinitionList([
+      ["activeStateFamily", snapshot.activeStateFamily ?? "not present"],
+      ["outerAction", snapshot.outerAction ?? "not present"],
+      ["activeFamilyState", snapshot.activeFamilyState ?? "not present"],
+      ["statusClass", snapshot.statusClass ?? "not present"],
+      ["needsAttention", String(snapshot.needsAttention ?? "not present")],
+      ["sourceMode", snapshot.sourceMode ?? "not present"],
+      ["trust", snapshot.trust ?? "not present"],
+      ["evidence.summary", snapshot.evidence?.summary ?? "not present"],
+    ])}
+    <h3>evidence.authoritative</h3>
+    ${renderList(snapshot.evidence?.authoritative)}
+    <h3>evidence.checkpoint</h3>
+    ${renderList(snapshot.evidence?.checkpoint)}
   </section>`;
 }
 
@@ -234,20 +262,12 @@ export function renderInspectRunViewerHtml({
     </section>`
     : `<section>
       <h2>Top summary</h2>
-      <dl>
-        <dt>target.repo</dt><dd>${escapeHtml(normalizedSnapshot.target?.repo ?? target.repo)}</dd>
-        <dt>target.pr</dt><dd>${escapeHtml(normalizedSnapshot.target?.pr ?? target.pr)}</dd>
-        <dt>runId</dt><dd>${escapeHtml(runId)}</dd>
-        <dt>inspectedAt</dt><dd>${escapeHtml(normalizedSnapshot.inspectedAt ?? "not present")}</dd>
-        <dt>activeStateFamily</dt><dd>${escapeHtml(normalizedSnapshot.activeStateFamily ?? "not present")}</dd>
-        <dt>outerAction</dt><dd>${escapeHtml(normalizedSnapshot.outerAction ?? "not present")}</dd>
-        <dt>activeFamilyState</dt><dd>${escapeHtml(normalizedSnapshot.activeFamilyState ?? "not present")}</dd>
-        <dt>statusClass</dt><dd>${escapeHtml(normalizedSnapshot.statusClass ?? "not present")}</dd>
-        <dt>needsAttention</dt><dd>${escapeHtml(String(normalizedSnapshot.needsAttention ?? "not present"))}</dd>
-        <dt>sourceMode</dt><dd>${escapeHtml(normalizedSnapshot.sourceMode ?? "not present")}</dd>
-        <dt>trust</dt><dd>${escapeHtml(normalizedSnapshot.trust ?? "not present")}</dd>
-        <dt>evidence.summary</dt><dd>${escapeHtml(normalizedSnapshot.evidence?.summary ?? "not present")}</dd>
-      </dl>
+      ${renderDefinitionList([
+        ["target.repo", normalizedSnapshot.target?.repo ?? target.repo],
+        ["target.pr", normalizedSnapshot.target?.pr ?? target.pr],
+        ["runId", runId],
+        ["inspectedAt", normalizedSnapshot.inspectedAt ?? "not present"],
+      ])}
       <h3>Markers</h3>
       <h4>markers.missing</h4>
       ${renderList(normalizedSnapshot.markers?.missing)}
@@ -277,8 +297,9 @@ export function renderInspectRunViewerHtml({
     <p><strong>Target:</strong> <code>${escapeHtml(target.repo)}</code> PR <code>${escapeHtml(target.pr)}</code></p>
     <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span></p>
     <p><button type="button" onclick="window.location.reload()">Reload snapshot</button> (manual reload only)</p>
+    <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
     ${topSummary}
-    ${renderLayerSection({ title: "outer-loop summary", layer: normalizedSnapshot })}
+    ${renderOuterLoopSummarySection(normalizedSnapshot)}
     ${renderLayerSection({ title: "copilot layer", layer: normalizedSnapshot?.layers?.copilot })}
     ${renderLayerSection({ title: "reviewer layer", layer: normalizedSnapshot?.layers?.reviewer })}
     ${renderLayerSection({ title: "steering summary", layer: normalizedSnapshot?.layers?.steering })}
@@ -303,6 +324,43 @@ function makeAdapterOptions(options) {
   return adapterOptions;
 }
 
+function setNoStore(response) {
+  response.setHeader("cache-control", "no-store");
+}
+
+function writeText(response, statusCode, body, headers = {}) {
+  response.statusCode = statusCode;
+  for (const [name, value] of Object.entries(headers)) {
+    response.setHeader(name, value);
+  }
+  response.end(body);
+}
+
+function writeJson(response, statusCode, payload) {
+  setNoStore(response);
+  writeText(
+    response,
+    statusCode,
+    `${JSON.stringify(payload, null, 2)}\n`,
+    { "content-type": "application/json; charset=utf-8" },
+  );
+}
+
+function writeHtml(response, html) {
+  setNoStore(response);
+  writeText(response, 200, html, { "content-type": "text/html; charset=utf-8" });
+}
+
+function jsonErrorPayload(target, error) {
+  return {
+    ok: false,
+    target,
+    error: {
+      message: error instanceof Error ? error.message : String(error),
+    },
+  };
+}
+
 export function formatInspectRunViewerUrl(host, port) {
   const formattedHost = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
   return new URL(`http://${formattedHost}:${port}`).toString().replace(/\/$/, "");
@@ -316,9 +374,36 @@ export function createInspectRunViewerServer(options, deps = {}) {
   return createServer(async (request, response) => {
     try {
       const requestPath = request.url ? new URL(request.url, "http://localhost").pathname : "/";
-      if (requestPath !== "/") {
-        response.statusCode = requestPath === "/favicon.ico" ? 204 : 404;
+      const method = request.method ?? "GET";
+
+      if (method !== "GET") {
+        writeText(response, 405, "Method Not Allowed", {
+          allow: "GET",
+          "content-type": "text/plain; charset=utf-8",
+        });
+        return;
+      }
+
+      if (requestPath === "/favicon.ico") {
+        response.statusCode = 204;
         response.end();
+        return;
+      }
+
+      if (requestPath === "/snapshot.json") {
+        try {
+          const snapshot = await adapter.loadSnapshot(target, adapterOptions);
+          writeJson(response, 200, snapshot ?? null);
+        } catch (error) {
+          writeJson(response, 500, jsonErrorPayload(target, error));
+        }
+        return;
+      }
+
+      if (requestPath !== "/") {
+        writeText(response, 404, "Not Found", {
+          "content-type": "text/plain; charset=utf-8",
+        });
         return;
       }
 
@@ -331,9 +416,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
       }
 
       const html = renderInspectRunViewerHtml({ target, snapshot: snapshot ?? null, error });
-      response.statusCode = 200;
-      response.setHeader("content-type", "text/html; charset=utf-8");
-      response.end(html);
+      writeHtml(response, html);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
       const malformedRequest = /invalid url|uri malformed/i.test(message);

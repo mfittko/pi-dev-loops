@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { get } from "node:http";
+import { get, request } from "node:http";
 import test from "node:test";
 
 import {
@@ -34,6 +34,27 @@ function makeSnapshot(overrides = {}) {
     },
     ...overrides,
   };
+}
+
+function requestOnce(url, { method = "GET" } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = request(url, { method }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => {
+        resolve({
+          statusCode: response.statusCode,
+          headers: response.headers,
+          body,
+        });
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 test("parseInspectRunViewerCliArgs normalizes target values and rejects malformed input with usage", () => {
@@ -102,7 +123,7 @@ test("formatInspectRunViewerUrl formats IPv4 and IPv6 hosts for copy-pasteable o
   assert.equal(formatInspectRunViewerUrl("0.0.0.0", 4311), "http://0.0.0.0:4311");
 });
 
-test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot", () => {
+test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
   const html = renderInspectRunViewerHtml({
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot(),
@@ -131,6 +152,9 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /copilot layer/);
   assert.match(html, /reviewer layer/);
   assert.match(html, /steering summary/);
+  assert.match(html, /href="\/snapshot\.json"/);
+  assert.doesNotMatch(html, /"schemaVersion": 1/);
+  assert.doesNotMatch(html, /"ok": true/);
 });
 
 test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and absent sections", () => {
@@ -181,6 +205,7 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
   assert.match(html, /Snapshot unavailable/);
   assert.match(html, /target\.pr must be a positive integer/);
   assert.match(html, /manual reload only/i);
+  assert.match(html, /href="\/snapshot\.json"/);
 });
 
 
@@ -230,7 +255,7 @@ test("createInspectionViewerAdapter keeps normalized target authoritative over o
   });
 });
 
-test("createInspectRunViewerServer serves browser html from adapter snapshot", async () => {
+test("createInspectRunViewerServer serves browser html from adapter snapshot without inline full snapshot dump", async () => {
   let loadCount = 0;
   const adapter = {
     async loadSnapshot() {
@@ -248,30 +273,135 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot", a
 
   try {
     const address = server.address();
-    const body = await new Promise((resolve, reject) => {
-      get(`http://127.0.0.1:${address.port}`, (response) => {
-        let text = "";
-        response.on("data", (chunk) => {
-          text += String(chunk);
-        });
-        response.on("end", () => resolve(text));
-      }).on("error", reject);
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
+    assert.equal(response.headers["cache-control"], "no-store");
+    assert.match(response.body, /Read-only run viewer/);
+    assert.match(response.body, /owner\/repo/);
+    assert.match(response.body, /degraded/);
+    assert.match(response.body, /href="\/snapshot\.json"/);
+    assert.doesNotMatch(response.body, /"schemaVersion": 1/);
+    assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer serves authoritative snapshot JSON on /snapshot.json", async () => {
+  let loadCount = 0;
+  const snapshot = makeSnapshot({ sourceMode: "partial", trust: "degraded" });
+  const adapter = {
+    async loadSnapshot() {
+      loadCount += 1;
+      return snapshot;
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json`);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-type"], "application/json; charset=utf-8");
+    assert.equal(response.headers["cache-control"], "no-store");
+    assert.deepEqual(JSON.parse(response.body), snapshot);
+    assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer keeps JSON failures machine-readable and HTML failures browser-friendly", async () => {
+  let loadCount = 0;
+  const adapter = {
+    async loadSnapshot() {
+      loadCount += 1;
+      throw new Error("inspection snapshot unavailable");
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+
+    const htmlResponse = await requestOnce(`http://127.0.0.1:${address.port}/`);
+    assert.equal(htmlResponse.statusCode, 200);
+    assert.equal(htmlResponse.headers["content-type"], "text/html; charset=utf-8");
+    assert.match(htmlResponse.body, /Snapshot unavailable/);
+    assert.match(htmlResponse.body, /inspection snapshot unavailable/);
+
+    const jsonResponse = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json`);
+    assert.equal(jsonResponse.statusCode, 500);
+    assert.equal(jsonResponse.headers["content-type"], "application/json; charset=utf-8");
+    assert.equal(jsonResponse.headers["cache-control"], "no-store");
+    assert.deepEqual(JSON.parse(jsonResponse.body), {
+      ok: false,
+      target: { repo: "owner/repo", pr: 55 },
+      error: { message: "inspection snapshot unavailable" },
     });
 
-    assert.match(body, /Read-only run viewer/);
-    assert.match(body, /owner\/repo/);
-    assert.match(body, /degraded/);
-    assert.equal(loadCount, 1);
+    assert.equal(loadCount, 2);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 
-    const faviconStatus = await new Promise((resolve, reject) => {
+test("createInspectRunViewerServer keeps favicon, unsupported paths, and unsupported methods load-free", async () => {
+  let loadCount = 0;
+  const adapter = {
+    async loadSnapshot() {
+      loadCount += 1;
+      return makeSnapshot();
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+
+    const faviconResponse = await new Promise((resolve, reject) => {
       get(`http://127.0.0.1:${address.port}/favicon.ico`, (response) => {
         response.resume();
-        response.on("end", () => resolve(response.statusCode));
+        response.on("end", () => resolve({ statusCode: response.statusCode, headers: response.headers }));
       }).on("error", reject);
     });
+    assert.equal(faviconResponse.statusCode, 204);
+    assert.equal(loadCount, 0);
 
-    assert.equal(faviconStatus, 204);
-    assert.equal(loadCount, 1);
+    const missingResponse = await requestOnce(`http://127.0.0.1:${address.port}/nope`);
+    assert.equal(missingResponse.statusCode, 404);
+    assert.equal(loadCount, 0);
+
+    const postHtmlResponse = await requestOnce(`http://127.0.0.1:${address.port}/`, { method: "POST" });
+    assert.equal(postHtmlResponse.statusCode, 405);
+    assert.equal(postHtmlResponse.headers.allow, "GET");
+    assert.equal(loadCount, 0);
+
+    const postJsonResponse = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json`, { method: "POST" });
+    assert.equal(postJsonResponse.statusCode, 405);
+    assert.equal(postJsonResponse.headers.allow, "GET");
+    assert.equal(loadCount, 0);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -296,18 +426,11 @@ test("createInspectRunViewerServer guards malformed request URLs and undefined s
 
   try {
     const address = server.address();
-    const response = await new Promise((resolve, reject) => {
-      get(`http://127.0.0.1:${address.port}`, (incoming) => {
-        let text = "";
-        incoming.on("data", (chunk) => {
-          text += String(chunk);
-        });
-        incoming.on("end", () => resolve({ statusCode: incoming.statusCode, body: text }));
-      }).on("error", reject);
-    });
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
 
     assert.equal(response.statusCode, 200);
     assert.match(response.body, /Snapshot unavailable/);
+    assert.match(response.body, /href="\/snapshot\.json"/);
     assert.equal(loadCount, 1);
 
     const malformedResponse = await new Promise((resolve) => {
@@ -323,6 +446,7 @@ test("createInspectRunViewerServer guards malformed request URLs and undefined s
         body: "",
       };
       const fakeResponse = {
+        statusCode: undefined,
         setHeader(name, value) {
           result.headers[name] = value;
         },
