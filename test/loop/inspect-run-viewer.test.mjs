@@ -148,6 +148,33 @@ test("restartExistingPortListener stops existing listeners on the chosen port", 
   ]);
 });
 
+
+test("restartExistingPortListener tolerates listeners that exit before SIGTERM", async () => {
+  const alive = new Set([222]);
+  const killed = [];
+
+  const restarted = await restartExistingPortListener(4311, {
+    listListeningPidsImpl: async () => [111, 222],
+    killProcessImpl: (pid, signal) => {
+      killed.push([pid, signal]);
+      if (pid === 111) {
+        const error = new Error("process already exited");
+        error.code = "ESRCH";
+        throw error;
+      }
+      alive.delete(pid);
+    },
+    isProcessAliveImpl: (pid) => alive.has(pid),
+    sleepImpl: async () => {},
+  });
+
+  assert.deepEqual(restarted, [111, 222]);
+  assert.deepEqual(killed, [
+    [111, "SIGTERM"],
+    [222, "SIGTERM"],
+  ]);
+});
+
 test("formatInspectRunViewerUrl formats IPv4 and IPv6 hosts for copy-pasteable output", () => {
   assert.equal(formatInspectRunViewerUrl("127.0.0.1", 4311), "http://127.0.0.1:4311");
   assert.equal(formatInspectRunViewerUrl("::1", 4311), "http://[::1]:4311");

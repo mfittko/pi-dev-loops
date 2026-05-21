@@ -479,7 +479,13 @@ export async function restartExistingPortListener(
   }
 
   for (const pid of pids) {
-    killProcessImpl(pid, "SIGTERM");
+    try {
+      killProcessImpl(pid, "SIGTERM");
+    } catch (error) {
+      if (error?.code !== "ESRCH") {
+        throw error;
+      }
+    }
   }
 
   const deadline = Date.now() + timeoutMs;
