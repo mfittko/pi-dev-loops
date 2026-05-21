@@ -539,6 +539,7 @@ test("createInspectRunViewerServer guards malformed request URLs and undefined s
 
     assert.equal(malformedResponse.statusCode, 400);
     assert.equal(malformedResponse.headers["content-type"], "text/plain; charset=utf-8");
+    assert.equal(malformedResponse.headers["cache-control"], "no-store");
     assert.equal(malformedResponse.body, "Bad Request");
     assert.equal(loadCount, 1);
   } finally {

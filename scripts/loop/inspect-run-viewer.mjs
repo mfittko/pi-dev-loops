@@ -29,6 +29,8 @@ Optional:
                                         (otherwise rejected)
   --restart                             Stop any existing listener on the
                                         chosen port before starting
+                                        (requires lsof/POSIX; sends
+                                        SIGTERM to all listeners)
   --steering-state-file <path>          Pass-through to inspect-run
   --reviewer-login <login>              Pass-through to inspect-run
   --copilot-input <path>                Pass-through to inspect-run
@@ -545,9 +547,12 @@ export function createInspectRunViewerServer(options, deps = {}) {
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
       const malformedRequest = /invalid url|uri malformed/i.test(message);
-      response.statusCode = malformedRequest ? 400 : 500;
-      response.setHeader("content-type", "text/plain; charset=utf-8");
-      response.end(malformedRequest ? "Bad Request" : "Internal Server Error");
+      writeText(
+        response,
+        malformedRequest ? 400 : 500,
+        malformedRequest ? "Bad Request" : "Internal Server Error",
+        { "content-type": "text/plain; charset=utf-8" },
+      );
     }
   });
 }
