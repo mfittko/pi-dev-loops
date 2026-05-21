@@ -56,10 +56,12 @@ For routing, use one canonical current state that answers:
 - whether the loop is active / waiting / blocked / approval-ready / merge-ready / done
 - whether a state-changing action is authorized
 
-The first-slice deterministic evaluator and durable contract live at:
+In the `pi-dev-loops` source repository, the first-slice deterministic evaluator and durable contract live at:
 - `packages/core/src/loop/public-dev-loop-routing.mjs`
 - `packages/core/test/public-dev-loop-routing.test.mjs`
 - `docs/public-dev-loop-contract.md`
+
+For installed packaged copies of this skill, do not assume those source-repository paths exist beside the skill. Treat this section as the operating contract, and use the exported `@pi-dev-loops/core/loop/public-dev-loop-routing` module when the package runtime is available.
 
 When the routed strategy is not local implementation, stop the local-phase procedure below and hand off to the routed internal strategy instead of forcing the request into a local-only path.
 
