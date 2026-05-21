@@ -63,6 +63,16 @@ Use for temporary execution artifacts and audit trails:
 
 These files are normally local-only and do not need to be committed.
 
+## Authority boundary for shipped behavior
+
+For already-shipped helpers, CLIs, and extension commands:
+- shipped helper/runtime semantics stay owned by code, tests, and the relevant contract docs
+- `scripts/README.md` summarizes those semantics for operators and maintainers; it must be kept aligned with the implementation
+- the narrower state-graph/contract docs under `docs/` remain part of the authoritative shipped contract surface for their helper families
+- skills and phase docs explain workflow procedure and durable planning intent; they must not silently redefine shipped helper behavior
+
+Use workflow/phase docs to explain how to operate within the repository contract. Use code, tests, and helper contract docs to define what shipped runtime surfaces actually do.
+
 ## Documentation sync rule
 
 When a merged slice changes durable repo truth, update the affected durable docs before treating the slice as closed.

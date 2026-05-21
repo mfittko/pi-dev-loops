@@ -104,6 +104,7 @@ Problem shape:
 - shipped runtime semantics should be code-owned
 - some docs still over-own or blur behavior
 - this weakens future maintenance and audits
+- chunk 6 addresses this as bounded docs/authority cleanup by clarifying that workflow docs and skills explain procedure, while code/tests plus the relevant contract docs own shipped helper behavior
 
 ## Execution tracking
 

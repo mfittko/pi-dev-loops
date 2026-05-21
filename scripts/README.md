@@ -10,6 +10,13 @@ Scripts here should prefer:
 
 In this source-loaded workspace repo, root scripts may consume shared package helpers through a thin local adapter rather than a published package import path so the checkout remains runnable without an install step.
 
+## Authority note
+
+For the script surfaces documented here:
+- code, tests, and the helper entrypoints themselves are authoritative for shipped runtime behavior
+- this README summarizes those contracts for operators and maintainers; if behavior changes, update the code/tests and then sync this document
+- use the more specific state-graph and contract docs under `docs/` when a helper family has a narrower machine-readable contract that this README is summarizing
+
 ## Phase 5 scripts
 
 ### `scripts/github/capture-review-threads.mjs`
