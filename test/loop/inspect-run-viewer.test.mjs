@@ -129,7 +129,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
     snapshot: makeSnapshot(),
   });
 
-  assert.match(html, /Read-only run viewer/);
+  assert.match(html, /PR #55 inspection/);
   assert.match(html, /target\.repo/);
   assert.match(html, /owner\/repo/);
   assert.match(html, /target\.pr/);
@@ -280,7 +280,7 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
     assert.equal(response.headers["cache-control"], "no-store");
-    assert.match(response.body, /Read-only run viewer/);
+    assert.match(response.body, /PR #55 inspection/);
     assert.match(response.body, /owner\/repo/);
     assert.match(response.body, /degraded/);
     assert.match(response.body, /href="\/snapshot\.json"/);

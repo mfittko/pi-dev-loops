@@ -305,6 +305,7 @@ export function renderInspectRunViewerHtml({
   const normalizedSnapshot = snapshot ?? null;
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
   const title = `${target.repo}#${target.pr} inspection snapshot`;
+  const pageHeading = `PR #${target.pr} inspection`;
   const runId = normalizedSnapshot?.runId ?? "not present";
   const topSummary = normalizedSnapshot === null
     ? `<section>
@@ -345,8 +346,8 @@ export function renderInspectRunViewerHtml({
     </style>
   </head>
   <body>
-    <h1>Read-only run viewer</h1>
-    <p><strong>Target:</strong> <code>${escapeHtml(target.repo)}</code> PR <code>${escapeHtml(target.pr)}</code></p>
+    <h1>${escapeHtml(pageHeading)}</h1>
+    <p><strong>Target:</strong> <code>${escapeHtml(target.repo)}</code></p>
     <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
     <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
     ${topSummary}
