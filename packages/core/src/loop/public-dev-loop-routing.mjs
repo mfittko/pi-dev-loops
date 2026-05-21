@@ -132,12 +132,12 @@ function normalizeActor(value) {
   return ACTOR_SET.has(normalized) ? normalized : null;
 }
 
-function normalizeState(currentState, explicitTarget) {
+function normalizeState(currentState) {
   if (!currentState || typeof currentState !== "object") {
     return null;
   }
 
-  const target = normalizeTarget(currentState.target ?? explicitTarget);
+  const target = normalizeTarget(currentState.target);
   const ownership = normalizeActor(currentState.ownership);
   const nextActor = normalizeActor(currentState.nextActor);
   const status = typeof currentState.status === "string" ? currentState.status.trim().toLowerCase() : "";

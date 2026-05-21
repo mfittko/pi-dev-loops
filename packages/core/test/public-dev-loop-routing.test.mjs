@@ -123,6 +123,22 @@ test("issue targets with malformed linkedPr fail closed", () => {
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
 });
 
+test("provided canonical current state must include a target", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 86 },
+    currentState: {
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
+});
+
 test("start_issue_locally_then_continue routes first to local implementation without changing the public entrypoint", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY_THEN_CONTINUE,

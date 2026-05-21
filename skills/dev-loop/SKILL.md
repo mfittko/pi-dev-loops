@@ -51,8 +51,8 @@ Treat `dev-loop` as the single public façade. On day one it should accept user 
 
 For routing, use one canonical current state that answers:
 - what target artifact is active: issue / PR / local branch / local phase slice
-- who currently owns the next move: local / Copilot / external human / reviewer / maintainer / user
-- who should act next
+- which durable owner or strategy family is currently responsible for the artifact: local / Copilot / external human / reviewer / maintainer / user
+- who should act next right now
 - whether the loop is active / waiting / blocked / approval-ready / merge-ready / done
 - whether a state-changing action is authorized
 
