@@ -349,6 +349,7 @@ export function renderInspectRunViewerHtml({
     <h1>${escapeHtml(pageHeading)}</h1>
     <p><strong>Target:</strong> <code>${escapeHtml(target.repo)}</code></p>
     <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
+    <p><strong>Refresh:</strong> manual reload only.</p>
     <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
     ${topSummary}
     ${renderOuterLoopSummarySection(normalizedSnapshot)}

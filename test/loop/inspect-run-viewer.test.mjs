@@ -154,6 +154,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /steering summary/);
   assert.match(html, /href="\/snapshot\.json"/);
   assert.match(html, /title="Reload snapshot"/);
+  assert.match(html, /manual reload only/i);
   assert.doesNotMatch(html, /<pre>/);
   assert.doesNotMatch(html, /"schemaVersion": 1/);
   assert.doesNotMatch(html, /"ok": true/);
@@ -283,6 +284,7 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.match(response.body, /PR #55 inspection/);
     assert.match(response.body, /owner\/repo/);
     assert.match(response.body, /degraded/);
+    assert.match(response.body, /manual reload only/i);
     assert.match(response.body, /href="\/snapshot\.json"/);
     assert.doesNotMatch(response.body, /"schemaVersion": 1/);
     assert.equal(loadCount, 1);
