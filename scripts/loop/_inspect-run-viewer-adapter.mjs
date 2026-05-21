@@ -1,4 +1,4 @@
-import { parseRepoSlug } from "../github/capture-review-threads.mjs";
+import { parseRepoSlug } from "../github/_github-helpers.mjs";
 import { inspectRun } from "./inspect-run.mjs";
 
 function malformedTargetError(message) {

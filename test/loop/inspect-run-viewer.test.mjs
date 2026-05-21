@@ -5,6 +5,7 @@ import test from "node:test";
 
 import {
   createInspectRunViewerServer,
+  formatInspectRunViewerUrl,
   parseInspectRunViewerCliArgs,
   renderInspectRunViewerHtml,
 } from "../../scripts/loop/inspect-run-viewer.mjs";
@@ -60,6 +61,15 @@ test("parseInspectRunViewerCliArgs parses required target and rejects malformed 
     () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--reviewer-login", "   "]),
     /must not be empty/i,
   );
+  assert.throws(
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "   "]),
+    /--host must not be empty/i,
+  );
+});
+
+test("formatInspectRunViewerUrl formats IPv4 and IPv6 hosts for copy-pasteable output", () => {
+  assert.equal(formatInspectRunViewerUrl("127.0.0.1", 4311), "http://127.0.0.1:4311");
+  assert.equal(formatInspectRunViewerUrl("::1", 4311), "http://[::1]:4311");
 });
 
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot", () => {

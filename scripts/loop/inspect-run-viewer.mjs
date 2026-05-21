@@ -57,6 +57,14 @@ function parsePort(rawPort) {
   return port;
 }
 
+function parseHost(rawHost) {
+  const host = rawHost.trim();
+  if (host.length === 0) {
+    throw parseError("--host must not be empty");
+  }
+  return host;
+}
+
 function parseReviewerLogin(rawLogin) {
   const reviewerLogin = rawLogin.trim();
   if (reviewerLogin.length === 0) {
@@ -94,7 +102,7 @@ export function parseInspectRunViewerCliArgs(argv) {
       continue;
     }
     if (token === "--host") {
-      options.host = requireOptionValue(args, "--host");
+      options.host = parseHost(requireOptionValue(args, "--host"));
       continue;
     }
     if (token === "--port") {
@@ -264,6 +272,11 @@ function makeAdapterOptions(options) {
   return adapterOptions;
 }
 
+export function formatInspectRunViewerUrl(host, port) {
+  const formattedHost = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  return new URL(`http://${formattedHost}:${port}`).toString().replace(/\/$/, "");
+}
+
 export function createInspectRunViewerServer(options, deps = {}) {
   const adapter = deps.adapter ?? createInspectionViewerAdapter();
   const target = normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
@@ -308,7 +321,7 @@ export async function runCli(
       ok: true,
       message: "read-only inspect-run viewer started",
       target: normalizeInspectionTarget({ repo: options.repo, pr: options.pr }),
-      url: `http://${options.host}:${options.port}`,
+      url: formatInspectRunViewerUrl(options.host, options.port),
       reload: "manual",
     })}\n`,
   );
