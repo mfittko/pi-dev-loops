@@ -1,4 +1,4 @@
-import { parseRepoSlug } from "../github/_github-helpers.mjs";
+import { parseRepoSlugParts } from "../../packages/core/src/github/repo-slug.mjs";
 import { inspectRun } from "./inspect-run.mjs";
 
 function malformedTargetError(message) {
@@ -30,7 +30,7 @@ export function normalizeInspectionTarget(target) {
   }
 
   try {
-    parseRepoSlug(rawRepo);
+    parseRepoSlugParts(rawRepo, { errorMessage: "target.repo must match <owner/name>" });
   } catch (error) {
     throw malformedTargetError(error instanceof Error ? error.message : String(error));
   }
@@ -45,7 +45,7 @@ export function createInspectionViewerAdapter({ inspectRunImpl = inspectRun } = 
   return {
     async loadSnapshot(target, options = {}) {
       const normalizedTarget = normalizeInspectionTarget(target);
-      return inspectRunImpl({ ...normalizedTarget, ...options });
+      return inspectRunImpl({ ...options, ...normalizedTarget });
     },
   };
 }

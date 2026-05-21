@@ -37,9 +37,9 @@ function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
 }
 
-function requireOptionValue(args, flag, { allowFlagLike = false } = {}) {
+function requireOptionValue(args, flag) {
   const value = args.shift();
-  const missing = typeof value !== "string" || value.length === 0 || (!allowFlagLike && value.startsWith("--"));
+  const missing = typeof value !== "string" || value.length === 0 || value.startsWith("--");
   if (missing) {
     throw parseError(`Missing value for ${flag}`);
   }

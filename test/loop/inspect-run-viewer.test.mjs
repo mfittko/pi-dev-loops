@@ -170,6 +170,31 @@ test("createInspectionViewerAdapter loadSnapshot validates target deterministica
     () => adapter.loadSnapshot({ repo: "owner/repo", pr: "nope" }),
     /positive integer/,
   );
+  await assert.rejects(
+    () => adapter.loadSnapshot({ repo: "../../bad", pr: 55 }),
+    /target\.repo must match <owner\/name>/,
+  );
+});
+
+test("createInspectionViewerAdapter keeps normalized target authoritative over options", async () => {
+  let inspectRunCall;
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async (input) => {
+      inspectRunCall = input;
+      return { ok: true };
+    },
+  });
+
+  await adapter.loadSnapshot(
+    { repo: "owner/repo", pr: "55" },
+    { repo: "other/repo", pr: 99, reviewerLogin: "reviewer" },
+  );
+
+  assert.deepEqual(inspectRunCall, {
+    repo: "owner/repo",
+    pr: 55,
+    reviewerLogin: "reviewer",
+  });
 });
 
 test("createInspectRunViewerServer serves browser html from adapter snapshot", async () => {
