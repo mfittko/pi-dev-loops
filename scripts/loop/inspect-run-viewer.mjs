@@ -296,7 +296,14 @@ export function createInspectRunViewerServer(options, deps = {}) {
   const target = normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
   const adapterOptions = makeAdapterOptions(options);
 
-  return createServer(async (_request, response) => {
+  return createServer(async (request, response) => {
+    const requestPath = request.url ? new URL(request.url, "http://localhost").pathname : "/";
+    if (requestPath !== "/") {
+      response.statusCode = requestPath === "/favicon.ico" ? 204 : 404;
+      response.end();
+      return;
+    }
+
     let snapshot = null;
     let error = null;
     try {

@@ -202,8 +202,10 @@ test("createInspectionViewerAdapter keeps normalized target authoritative over o
 });
 
 test("createInspectRunViewerServer serves browser html from adapter snapshot", async () => {
+  let loadCount = 0;
   const adapter = {
     async loadSnapshot() {
+      loadCount += 1;
       return makeSnapshot({ sourceMode: "partial", trust: "degraded" });
     },
   };
@@ -230,6 +232,17 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot", a
     assert.match(body, /Read-only run viewer/);
     assert.match(body, /owner\/repo/);
     assert.match(body, /degraded/);
+    assert.equal(loadCount, 1);
+
+    const faviconStatus = await new Promise((resolve, reject) => {
+      get(`http://127.0.0.1:${address.port}/favicon.ico`, (response) => {
+        response.resume();
+        response.on("end", () => resolve(response.statusCode));
+      }).on("error", reject);
+    });
+
+    assert.equal(faviconStatus, 204);
+    assert.equal(loadCount, 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
