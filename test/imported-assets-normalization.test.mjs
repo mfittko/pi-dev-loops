@@ -150,8 +150,10 @@ test("copilot-autopilot skill requires unattended resume-from-state behavior whe
   assert.match(content, /unattended execution/i);
   assert.match(content, /automatically detect the current lifecycle entrypoint/i);
   assert.match(content, /deterministic helper\/state-machine surface/i);
-  assert.match(content, /If a PR already exists, route to the existing PR follow-up path immediately/i);
-  assert.match(content, /draft-stage PR tightening \/ local review \/ fix path automatically/i);
+  assert.match(content, /If a PR already exists, classify the post-assignment seam before follow-up/i);
+  assert.match(content, /waiting_for_initial_copilot_implementation.*keep waiting/i);
+  assert.match(content, /linked_pr_ready_for_followup.*route to the existing PR follow-up path immediately/i);
+  assert.match(content, /When the draft PR appears, classify whether it is still the bootstrap-only Copilot draft/i);
   assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
   assert.match(content, /continue unattended until the final approval gate/i);
   assert.match(content, /stop for human approval\/merge by default/i);
@@ -193,7 +195,7 @@ test("copilot-autopilot normalization docs require issue state checks and avoid 
   const planContent = await readRepo("PLAN.md");
 
   assert.match(skillContent, /gh issue view <number> --repo <(?:owner\/name|resolved-repo)> --json number,title,body,state,labels,assignees,milestone/);
-  assert.match(skillContent, /If a matching issue exists:[\s\S]*if the matching issue is closed, stop for a user decision[\s\S]*if a PR already exists, route immediately into the existing PR follow-up path/i);
+  assert.match(skillContent, /If a matching issue exists:[\s\S]*if the matching issue is closed, stop for a user decision[\s\S]*if a PR already exists, classify bootstrap-wait versus follow-up/i);
   assert.doesNotMatch(planContent, /remain a mode of `copilot-dev-loop`, or become a separate top-level workflow/i);
 });
 
@@ -235,7 +237,9 @@ test("copilot-autopilot docs define the closed direct-issue branch and keep sear
   assert.match(skillContent, /gh issue list --repo <resolved-repo> --state all --search/);
   assert.match(skillContent, /detect-linked-issue-pr\.mjs --repo <resolved-repo> --issue <number>/);
   assert.match(skillContent, /treat the helper output as authoritative for linked-PR detection\/selection/i);
-  assert.match(skillContent, /If the helper returns an open linked PR in `<resolved-repo>`, resume from that PR and do not retrigger Copilot for the same scope/i);
+  assert.match(skillContent, /detect-initial-copilot-pr-state\.mjs --repo <resolved-repo> --issue <number>/i);
+  assert.match(skillContent, /waiting_for_initial_copilot_implementation.*keep waiting/i);
+  assert.match(skillContent, /linked_pr_ready_for_followup.*resume from that PR/i);
   assert.doesNotMatch(skillContent, /gh pr list --repo <resolved-repo> --state open --search "copilot\/ <issue-number>"/);
 });
 

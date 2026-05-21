@@ -369,6 +369,8 @@ Inspect:
 - latest commits
 - CI results
 
+At the issue-assignment seam, do not treat every linked draft PR as ready follow-up work. Use `detect-initial-copilot-pr-state.mjs` (which delegates linked-PR selection to `detect-linked-issue-pr.mjs`) and keep waiting when the state is `waiting_for_initial_copilot_implementation`.
+
 When confirming whether Copilot is requested as a reviewer, do not rely solely on `gh pr view --json reviewRequests`.
 
 Prefer the deterministic helper `request-copilot-review.mjs` from the resolved skill scripts directory when it exists. That helper verifies reviewer state through `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers`, which is more reliable here than `gh pr view --json reviewRequests`.

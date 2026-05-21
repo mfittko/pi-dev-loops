@@ -29,6 +29,7 @@ async function seedPackagedSupport(tempDir) {
     "github/stage-reviewer-draft.mjs": "export const stage = true;\n",
     "github/watch-copilot-review.mjs": "export const watch = true;\n",
     "loop/copilot-pr-handoff.mjs": "export const handoff = true;\n",
+    "loop/detect-initial-copilot-pr-state.mjs": "export const initialState = true;\n",
     "loop/detect-copilot-loop-state.mjs": "#!/usr/bin/env node\n",
     "loop/detect-reviewer-loop-state.mjs": "export const reviewer = true;\n",
     "README.md": "scripts readme\n",
@@ -121,6 +122,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "github", "detect-linked-issue-pr.mjs"), "utf8"),
     "export const linkedPr = true;\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "loop", "detect-initial-copilot-pr-state.mjs"), "utf8"),
+    "export const initialState = true;\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "github", "_github-helpers.mjs"), "utf8"),

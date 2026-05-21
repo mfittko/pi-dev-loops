@@ -210,11 +210,14 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    - do not re-implement linked-event query behavior, pagination, repo filtering, or tie-break logic in ad hoc markdown/prompt logic
    - do not rely only on PR title/body containing a literal issue number
    - treat an open linked PR reported by the helper as the active implementation for this issue
-5. If a PR already exists, route to the existing PR follow-up path immediately with that PR number.
-   - Use the deterministic helper/state-machine surface to detect the current PR lifecycle state.
-   - Treat that detected state as the authoritative entrypoint for resumed execution.
-   - Continue from that entrypoint rather than restarting earlier phases.
-6. Otherwise, proceed to Phase 3 with this issue as the execution entry point.
+5. If a PR already exists, classify the post-assignment seam before follow-up:
+   ```sh
+   node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
+   ```
+   - `waiting_for_initial_copilot_implementation`: keep waiting and continue polling; do not enter PR tightening or local review/fix yet
+   - `linked_pr_ready_for_followup`: route to the existing PR follow-up path immediately with that PR number
+   - `no_linked_pr`: continue to Phase 3
+6. If no linked PR exists, proceed to Phase 3 with this issue as the execution entry point.
 7. Carry that resolved repo slug through every later GitHub issue/PR command for this execution so follow-up edits, PR actions, and merge steps stay scoped to the intended repository.
 
 ### From a plan-doc path
@@ -228,13 +231,18 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
 5. If a matching issue exists:
    - fetch it with `gh issue view <number> --repo <resolved-repo> --json number,title,body,state,labels,assignees,milestone`
    - if the matching issue is closed, stop for a user decision before proceeding (for example: reopen it when authorized, reference it and stop, or draft a new follow-up issue)
-   - if it is still open, run the same deterministic helper:
-     ```sh
-     node <resolved-skill-scripts>/github/detect-linked-issue-pr.mjs --repo <resolved-repo> --issue <number>
-     ```
-   - rely on that helper output rather than title/body number heuristics or re-implementing linked-event selection details in this skill text
-   - if a PR already exists, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
-   - otherwise confirm with the user and proceed with that issue
+    - if it is still open, run the same deterministic helper:
+      ```sh
+      node <resolved-skill-scripts>/github/detect-linked-issue-pr.mjs --repo <resolved-repo> --issue <number>
+      ```
+    - rely on that helper output rather than title/body number heuristics or re-implementing linked-event selection details in this skill text
+    - if a PR already exists, classify bootstrap-wait versus follow-up:
+      ```sh
+      node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
+      ```
+    - if the state is `waiting_for_initial_copilot_implementation`, keep waiting and do not enter PR tightening/local review-fix yet
+    - if the state is `linked_pr_ready_for_followup`, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
+    - otherwise confirm with the user and proceed with that issue
 6. If no matching issue exists:
    - Draft a properly scoped issue body. At minimum include:
      - **Title** — concise and action-oriented
@@ -326,13 +334,18 @@ gh issue view <number> --repo <resolved-repo> --json assignees
 
 After assignment, wait for Copilot to open a draft PR. Use the deterministic watcher when available (see `copilot-dev-loop` async watch behavior for defaults).
 
-When the draft PR appears, do not stop just because it is draft. Enter the draft-stage PR tightening and local review/fix path automatically unless a real stop condition applies.
+When the draft PR appears, classify whether it is still the bootstrap-only Copilot draft or already a substantive implementation PR before entering PR tightening or local review/fix.
 
 Useful check:
 ```sh
 node <resolved-skill-scripts>/github/detect-linked-issue-pr.mjs --repo <resolved-repo> --issue <number>
 ```
-If the helper returns an open linked PR in `<resolved-repo>`, resume from that PR and do not retrigger Copilot for the same scope.
+If the helper returns an open linked PR in `<resolved-repo>`, run:
+```sh
+node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
+```
+- `waiting_for_initial_copilot_implementation`: keep waiting; do not enter draft-stage PR tightening or local review/fix yet
+- `linked_pr_ready_for_followup`: resume from that PR and do not retrigger Copilot for the same scope
 
 ## Phase 5 — PR tightening
 

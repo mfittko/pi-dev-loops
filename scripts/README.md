@@ -162,6 +162,35 @@ Success output shape:
 Failure behavior:
 - malformed arguments and `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/loop/detect-initial-copilot-pr-state.mjs`
+
+Detect the post-assignment issue-to-linked-PR seam for Copilot handoff.
+
+Required:
+- `--repo <owner/name>`
+- `--issue <number>`
+
+Contract:
+- uses `scripts/github/detect-linked-issue-pr.mjs` as the authoritative linked-PR selector
+- returns exactly one deterministic state:
+  - `no_linked_pr`
+  - `waiting_for_initial_copilot_implementation`
+  - `linked_pr_ready_for_followup`
+- classifies `waiting_for_initial_copilot_implementation` only for the bounded bootstrap-only draft shape:
+  - open same-repo linked PR
+  - draft
+  - Copilot-authored
+  - exactly 1 commit
+  - sole commit headline exactly `Initial plan`
+  - exactly 0 changed files
+- fails closed with explicit error output when required PR facts cannot be fetched
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/name", "issue": 59, "state": "...", "prNumber": 79|null, "prUrl": "..."|null, "isDraft": true|false|null, "changedFiles": 0|null, "commitCount": 1|null, "soleCommitHeadline": "Initial plan"|null, "authorLogin": "Copilot"|null }`
+
+Failure behavior:
+- malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/loop/copilot-pr-handoff.mjs`
 
 Thin high-level helper for the common Copilot PR follow-up handoff path.
