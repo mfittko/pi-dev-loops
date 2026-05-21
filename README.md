@@ -5,8 +5,10 @@
 ## Workflow posture
 
 This repo supports both local and GitHub-first workflows, but the current repo contract is:
-- prefer the **GitHub remote-loop workflow** for active implementation and release work when practical
-- use the local **`dev-loop`** when the user explicitly wants phase-bounded local planning/implementation
+- use **`dev-loop`** as the single public workflow entrypoint
+- let the canonical current state route that public entrypoint deterministically to the correct internal strategy
+- prefer the GitHub-first internal strategies by default for active implementation and release work when practical
+- use the local implementation strategy only when the user explicitly wants phase-bounded local planning/implementation
 
 For the latest durable roadmap and status, start with:
 - `PLAN.md`
@@ -20,9 +22,9 @@ This repo currently contains four main layers. The design goal is generic role a
 1. **Role agents** in `agents/`
    - reusable prompts such as coordinator, developer, docs, quality, review, fixer, and refiner
 2. **Workflow skills** in `skills/`
-   - `dev-loop` for docs-first local phase planning and implementation
-   - `copilot-dev-loop` for GitHub/Copilot PR execution, watch, and follow-up loops
-   - `copilot-autopilot` for issue-first GitHub intake through refinement, handoff, review, and merge
+   - `dev-loop` as the single public façade that routes to the correct internal loop strategy
+   - `copilot-dev-loop` as the Copilot-owned PR follow-up compatibility/internal strategy
+   - `copilot-autopilot` as the issue-first GitHub intake compatibility/internal strategy
 3. **Extension UX** in `extension/`
    - `/dev-loops` readiness checks plus explicit skill install/update flows
 4. **Deterministic support code** in `packages/core/` and `scripts/`
@@ -110,6 +112,7 @@ Current script entrypoints include:
 
 Reference docs:
 - `scripts/README.md`
+- `docs/public-dev-loop-contract.md`
 - `docs/conductor-ownership-contract.md`
 - `docs/conductor-routing-contract.md`
 - `docs/copilot-loop-state-graph.md`
@@ -158,6 +161,7 @@ CI currently runs `npm ci` and `npm test` on Node 24 in `.github/workflows/ci.ym
 - `PLAN.md` — durable repo intent and roadmap
 - `docs/IMPLEMENTATION_STATE.md` — current implementation snapshot
 - `docs/IMPLEMENTATION_WORKFLOW.md` — repo workflow contract and docs-sync rules
+- `docs/public-dev-loop-contract.md` — public façade, canonical state, and compatibility routing contract
 - `extension/README.md` — `/dev-loops` command and install/update contract
 - `scripts/README.md` — deterministic script contracts
 - `skills/*/SKILL.md` — workflow-specific operating instructions

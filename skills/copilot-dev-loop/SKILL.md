@@ -14,9 +14,9 @@ user-invocable: true
 
 # Copilot Dev Loop
 
-This skill is the Pi-first GitHub/Copilot alternative to a local phase-based dev loop.
+This skill is the Copilot-owned PR follow-up compatibility/internal strategy behind the public `dev-loop` façade.
 
-Use it when the user wants to work through the normal GitHub/Copilot flow rather than a purely local implementation loop. Keep repository specifics grounded in the active repo's actual files, scripts, CI, and GitHub state rather than assuming a hard-coded project layout.
+Use it when the public `dev-loop` router lands on a Copilot-owned issue/PR path, or when a user explicitly asks for `copilot-dev-loop` for backwards-compatible behavior. Keep repository specifics grounded in the active repo's actual files, scripts, CI, and GitHub state rather than assuming a hard-coded project layout.
 
 Typical triggers:
 - start the copilot dev loop

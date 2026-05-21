@@ -1,11 +1,14 @@
 ---
 name: dev-loop
 description: >-
-  Use for phased local development in Pi-managed repositories when the user says
-  to start or continue work. Reads project docs, resumes the next unfinished
-  phase, uses the refiner for phase refinement, runs a fan-out/fan-in/review/
-  merge planning loop for that phase only, logs structured artifacts under tmp/,
-  records subagent summaries, writes tests first, validates locally, updates
+  Use as the single public dev-loop entrypoint. It reads the canonical current
+  state and routes deterministically to the correct internal strategy: local
+  phased implementation, issue-first GitHub/Copilot intake, PR follow-up,
+  reviewer/fixer work, wait/watch, or final approval. When the selected
+  strategy is local implementation, it resumes the next unfinished phase, uses
+  the refiner for phase refinement, runs a fan-out/fan-in/review/merge planning
+  loop for that phase only, logs structured artifacts under tmp/, records
+  subagent summaries, writes tests first, validates locally, updates
   implementation state, and stops at phase boundaries unless explicitly told to
   continue.
 compatibility: Pi skill for git-based repositories with Node.js/npm and optional subagent support.
@@ -13,16 +16,63 @@ allowed-tools: read bash edit write subagent review_loop
 user-invocable: true
 ---
 
-# Local Implementation Loop
+# Unified Dev Loop
 
-This skill is the execution engine for phased implementation in this repository.
+This skill is the single public user-facing dev-loop façade for this repository.
+
+It must do two things in order:
+
+1. interpret one canonical current state for the active artifact
+2. route deterministically to the correct internal strategy without making the user choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front
+
+Current first-slice internal strategies are:
+- local implementation
+- issue intake / normalization
+- Copilot-owned PR follow-up
+- external-human PR follow-up
+- reviewer / fixer
+- wait / watch
+- final approval / merge gate
+
+Compatibility note:
+- `copilot-dev-loop` remains available as a compatibility/internal entrypoint for Copilot-owned PR follow-up
+- `copilot-autopilot` remains available as a compatibility/internal entrypoint for issue-first GitHub intake
+- users should still be able to say `start dev loop on issue <n>`, `continue dev loop on PR <n>`, `start issue <n> locally`, `continue the current dev loop`, or `what state is the dev loop in?`
+
+## First-slice public routing contract
+
+Treat `dev-loop` as the single public façade. On day one it should accept user intent in forms such as:
+- start dev loop on issue `<n>`
+- continue dev loop on PR `<n>`
+- start issue `<n>` locally
+- start issue `<n>` locally, then continue the loop
+- continue the current dev loop
+- what state is the dev loop in?
+
+For routing, use one canonical current state that answers:
+- what target artifact is active: issue / PR / local branch / local phase slice
+- who currently owns the next move: local / Copilot / external human / reviewer / maintainer / user
+- who should act next
+- whether the loop is active / waiting / blocked / approval-ready / merge-ready / done
+- whether a state-changing action is authorized
+
+The first-slice deterministic evaluator and durable contract live at:
+- `packages/core/src/loop/public-dev-loop-routing.mjs`
+- `packages/core/test/public-dev-loop-routing.test.mjs`
+- `docs/public-dev-loop-contract.md`
+
+When the routed strategy is not local implementation, stop the local-phase procedure below and hand off to the routed internal strategy instead of forcing the request into a local-only path.
 
 Authority boundary for this skill:
-- this skill owns the local phase procedure and artifact discipline
+- this skill owns the local phase procedure and artifact discipline when the routed strategy is local implementation
 - it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands
 - when helper behavior changes, update the relevant code/tests and contract docs in addition to any skill guidance that references them
 
 Use it when the user says things like:
+- start dev loop on issue 86
+- continue dev loop on PR 88
+- continue the current dev loop
+- what state is the dev loop in?
 - start implementation
 - continue implementation
 - implement the next phase
@@ -30,7 +80,7 @@ Use it when the user says things like:
 - start implementation in dev mode
 - continue implementation in dev mode
 
-Do not assume GitHub PRs, issues, or remote review workflows. This repo is local-first.
+Do not assume every request should stay local. Route from the canonical current state first. If the routed strategy is issue intake or PR follow-up, hand off to `copilot-autopilot` or `copilot-dev-loop` rather than forcing a local-phase plan.
 
 ## Minimal required project inputs
 

@@ -96,6 +96,43 @@ test("workflow docs keep helper/runtime authority code-owned and dev-loop scope 
   assert.match(devLoopSkill, /it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands/i);
 });
 
+test("repo docs define dev-loop as the single public façade and keep specialized loops as compatibility paths", async () => {
+  const [readme, plan, agents, workflowDoc, publicContract, devLoopSkill, copilotSkill, autopilotSkill] = await Promise.all([
+    readRepo("README.md"),
+    readRepo("PLAN.md"),
+    readRepo("AGENTS.md"),
+    readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),
+    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/dev-loop/SKILL.md"),
+    readRepo("skills/copilot-dev-loop/SKILL.md"),
+    readRepo("skills/copilot-autopilot/SKILL.md"),
+  ]);
+
+  for (const [label, content] of [
+    ["README.md", readme],
+    ["PLAN.md", plan],
+    ["AGENTS.md", agents],
+    ["docs/IMPLEMENTATION_WORKFLOW.md", workflowDoc],
+    ["docs/public-dev-loop-contract.md", publicContract],
+    ["skills/dev-loop/SKILL.md", devLoopSkill],
+  ]) {
+    assert.match(
+      content,
+      /single public (?:workflow )?(?:entrypoint|façade).*`dev-loop`|public `dev-loop` façade|`dev-loop`(?:\*\*)?\s+as the single public/i,
+      `${label} should lead with the unified public entrypoint`,
+    );
+  }
+
+  assert.match(publicContract, /canonical current state/i);
+  assert.match(publicContract, /issue_intake/i);
+  assert.match(publicContract, /copilot_pr_followup/i);
+  assert.match(publicContract, /external_pr_followup/i);
+  assert.match(publicContract, /Compatibility and migration posture/i);
+  assert.match(devLoopSkill, /without making the user choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front|do not make the user choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front/i);
+  assert.match(copilotSkill, /compatibility\/internal strategy behind the public `dev-loop` façade/i);
+  assert.match(autopilotSkill, /compatibility\/internal strategy behind the public `dev-loop` façade/i);
+});
+
 test("copilot skill still contains its core workflow guidance", async () => {
   const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
 

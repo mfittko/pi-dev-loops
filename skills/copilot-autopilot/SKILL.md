@@ -14,7 +14,7 @@ user-invocable: true
 
 # Copilot Autopilot
 
-This skill is an opinionated, issue-first GitHub/Copilot autopilot wrapper.
+This skill is the issue-intake compatibility/internal strategy behind the public `dev-loop` façade.
 
 It extends the `copilot-dev-loop` with:
 
