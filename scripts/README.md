@@ -444,6 +444,7 @@ Optional:
 - `--host <host>` (default: `127.0.0.1`; non-loopback binds require `--allow-non-localhost`)
 - `--port <port>` (default: `4311`)
 - `--allow-non-localhost` (explicit opt-in for non-loopback binds such as `0.0.0.0` or LAN IPs)
+- `--restart` (stop any existing listener on the chosen port before starting; requires `lsof` / POSIX support and sends `SIGTERM` to every listener already bound to that port)
 - `--steering-state-file <path>` (pass-through to `inspect-run`)
 - `--reviewer-login <login>` (pass-through to `inspect-run`)
 - `--copilot-input <path>` (pass-through to `inspect-run`)
@@ -455,16 +456,24 @@ Contract:
 - GitHub-first launch boundary: one explicit target (`repo` + `pr`)
 - uses one thin adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace
-- renders top summary fields directly from inspection snapshot (`runId` when present, `inspectedAt`, `activeStateFamily`, `outerAction`, `activeFamilyState`, `statusClass`, `needsAttention`, `sourceMode`, `trust`, `evidence.summary`, and markers)
-- renders separate read-only sections for outer-loop summary, copilot layer, reviewer layer, and steering summary, including explicit "not present / unavailable" output when a section is absent
+- serves two explicit read-only endpoints for the same target:
+  - `/` → operator-facing HTML with the top summary, compact outer-loop summary, copilot layer, reviewer layer, and steering summary
+  - `/snapshot.json` → the full authoritative inspection snapshot JSON returned by the adapter
+- HTML includes a visible link to `/snapshot.json` so machine-readable state no longer depends on an inline full-snapshot dump in the page itself
+- `/snapshot.json` returns `application/json; charset=utf-8` on success and deterministic JSON error output with non-2xx status when snapshot loading throws or yields no snapshot
+- unsupported paths return deterministic `404` without loading a snapshot (even for unsupported methods on unknown paths); `/favicon.ico` returns deterministic `204`; unsupported methods on supported routes return `405 Allow: GET`
+- both primary endpoints send `Cache-Control: no-store` to match the manual-reload workflow
+- `--restart` is a local convenience flag that requires `lsof` / POSIX support and attempts to stop every listener already bound to the chosen port with `SIGTERM` before starting the new server process
 - manual reload only (`window.location.reload()`); no polling/watch/timeout/control semantics
 
 Local manual verification path:
 1. Start viewer for one explicit target:
    - `node scripts/loop/inspect-run-viewer.mjs --repo <owner/name> --pr <number>`
-2. Open printed URL in a local browser
-3. Use browser refresh or the reload button for point-in-time re-inspection
-4. For deterministic/local test mode, pass `--copilot-input` and `--reviewer-input` fixtures to viewer; these are forwarded to `inspect-run`
+2. Open the printed URL in a local browser and verify the human-oriented `/` page
+3. Open `<printed-url>/snapshot.json` and verify it returns the full inspection snapshot JSON for the same target
+4. Use browser refresh or the reload button for point-in-time re-inspection
+5. Optionally hit `/favicon.ico` or an unsupported path to confirm those paths stay deterministic and do not perform snapshot rendering
+6. For deterministic/local test mode, pass `--copilot-input` and `--reviewer-input` fixtures to viewer; these are forwarded to `inspect-run`
 
 ### `scripts/loop/steer-loop.mjs`
 

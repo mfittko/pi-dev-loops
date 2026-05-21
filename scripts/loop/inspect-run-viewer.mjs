@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import { execFile as execFileCallback } from "node:child_process";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import { formatCliError } from "../_core-helpers.mjs";
 import {
@@ -10,7 +12,7 @@ import {
 } from "./_inspect-run-viewer-adapter.mjs";
 
 const USAGE = `Usage: inspect-run-viewer.mjs --repo <owner/name> --pr <number>
-  [--host <host>] [--port <port>] [--allow-non-localhost]
+  [--host <host>] [--port <port>] [--allow-non-localhost] [--restart]
   [--steering-state-file <path>] [--reviewer-login <login>]
   [--copilot-input <path>] [--reviewer-input <path>]
 
@@ -25,6 +27,10 @@ Optional:
   --port <port>                         Bind port (default: 4311)
   --allow-non-localhost                 Permit non-loopback binds
                                         (otherwise rejected)
+  --restart                             Stop any existing listener on the
+                                        chosen port before starting
+                                        (requires lsof/POSIX; sends
+                                        SIGTERM to all listeners)
   --steering-state-file <path>          Pass-through to inspect-run
   --reviewer-login <login>              Pass-through to inspect-run
   --copilot-input <path>                Pass-through to inspect-run
@@ -34,6 +40,7 @@ Optional:
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4311;
+const execFile = promisify(execFileCallback);
 
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
@@ -105,6 +112,7 @@ export function parseInspectRunViewerCliArgs(argv) {
     copilotInputPath: undefined,
     reviewerInputPath: undefined,
     allowNonLocalhost: false,
+    restart: false,
   };
 
   while (args.length > 0) {
@@ -131,6 +139,10 @@ export function parseInspectRunViewerCliArgs(argv) {
     }
     if (token === "--allow-non-localhost") {
       options.allowNonLocalhost = true;
+      continue;
+    }
+    if (token === "--restart") {
+      options.restart = true;
       continue;
     }
     if (token === "--steering-state-file") {
@@ -187,15 +199,95 @@ function renderList(items) {
   return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
 }
 
-function renderLayerSection({ title, layer }) {
-  if (layer === null || layer === undefined) {
+function renderDefinitionList(entries) {
+  return `<dl>${entries.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl>`;
+}
+
+function renderCompactSection({ title, entries = [], lists = [] }) {
+  if (entries.length === 0 && lists.length === 0) {
     return `<section><h2>${escapeHtml(title)}</h2><p>not present / unavailable</p></section>`;
   }
 
   return `<section>
     <h2>${escapeHtml(title)}</h2>
-    <pre>${escapeHtml(JSON.stringify(layer, null, 2))}</pre>
+    ${entries.length > 0 ? renderDefinitionList(entries) : "<p>not present / unavailable</p>"}
+    ${lists.map(({ title: listTitle, items }) => `
+      <h3>${escapeHtml(listTitle)}</h3>
+      ${renderList(items)}
+    `).join("")}
   </section>`;
+}
+
+function renderOuterLoopSummarySection(snapshot) {
+  if (snapshot === null || snapshot === undefined) {
+    return renderCompactSection({ title: "outer-loop summary" });
+  }
+
+  return renderCompactSection({
+    title: "outer-loop summary",
+    entries: [
+      ["activeStateFamily", snapshot.activeStateFamily ?? "not present"],
+      ["outerAction", snapshot.outerAction ?? "not present"],
+      ["activeFamilyState", snapshot.activeFamilyState ?? "not present"],
+      ["statusClass", snapshot.statusClass ?? "not present"],
+      ["needsAttention", String(snapshot.needsAttention ?? "not present")],
+      ["sourceMode", snapshot.sourceMode ?? "not present"],
+      ["trust", snapshot.trust ?? "not present"],
+      ["evidence.summary", snapshot.evidence?.summary ?? "not present"],
+    ],
+    lists: [
+      { title: "evidence.authoritative", items: snapshot.evidence?.authoritative },
+      { title: "evidence.checkpoint", items: snapshot.evidence?.checkpoint },
+    ],
+  });
+}
+
+function renderCopilotLayerSection(layer) {
+  if (layer === null || layer === undefined) {
+    return renderCompactSection({ title: "copilot layer" });
+  }
+
+  return renderCompactSection({
+    title: "copilot layer",
+    entries: [
+      ["currentState", layer.currentState ?? "not present"],
+    ],
+    lists: [
+      { title: "allowedTransitions", items: layer.allowedTransitions },
+    ],
+  });
+}
+
+function renderReviewerLayerSection(layer) {
+  if (layer === null || layer === undefined) {
+    return renderCompactSection({ title: "reviewer layer" });
+  }
+
+  return renderCompactSection({
+    title: "reviewer layer",
+    entries: [
+      ["currentState", layer.currentState ?? "not present"],
+      ["scope.mode", layer.scope?.mode ?? "not present"],
+      ["scope.reviewerLogin", layer.scope?.reviewerLogin ?? "not present"],
+    ],
+    lists: [
+      { title: "allowedTransitions", items: layer.allowedTransitions },
+    ],
+  });
+}
+
+function renderSteeringSummarySection(layer) {
+  if (layer === null || layer === undefined) {
+    return renderCompactSection({ title: "steering summary" });
+  }
+
+  return renderCompactSection({
+    title: "steering summary",
+    entries: [
+      ["status", layer.status ?? "not present"],
+      ["reason", layer.reason ?? "not present"],
+    ],
+  });
 }
 
 function renderSnapshotStateLabel(snapshot) {
@@ -225,6 +317,7 @@ export function renderInspectRunViewerHtml({
   const normalizedSnapshot = snapshot ?? null;
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
   const title = `${target.repo}#${target.pr} inspection snapshot`;
+  const pageHeading = `PR #${target.pr} inspection`;
   const runId = normalizedSnapshot?.runId ?? "not present";
   const topSummary = normalizedSnapshot === null
     ? `<section>
@@ -234,20 +327,12 @@ export function renderInspectRunViewerHtml({
     </section>`
     : `<section>
       <h2>Top summary</h2>
-      <dl>
-        <dt>target.repo</dt><dd>${escapeHtml(normalizedSnapshot.target?.repo ?? target.repo)}</dd>
-        <dt>target.pr</dt><dd>${escapeHtml(normalizedSnapshot.target?.pr ?? target.pr)}</dd>
-        <dt>runId</dt><dd>${escapeHtml(runId)}</dd>
-        <dt>inspectedAt</dt><dd>${escapeHtml(normalizedSnapshot.inspectedAt ?? "not present")}</dd>
-        <dt>activeStateFamily</dt><dd>${escapeHtml(normalizedSnapshot.activeStateFamily ?? "not present")}</dd>
-        <dt>outerAction</dt><dd>${escapeHtml(normalizedSnapshot.outerAction ?? "not present")}</dd>
-        <dt>activeFamilyState</dt><dd>${escapeHtml(normalizedSnapshot.activeFamilyState ?? "not present")}</dd>
-        <dt>statusClass</dt><dd>${escapeHtml(normalizedSnapshot.statusClass ?? "not present")}</dd>
-        <dt>needsAttention</dt><dd>${escapeHtml(String(normalizedSnapshot.needsAttention ?? "not present"))}</dd>
-        <dt>sourceMode</dt><dd>${escapeHtml(normalizedSnapshot.sourceMode ?? "not present")}</dd>
-        <dt>trust</dt><dd>${escapeHtml(normalizedSnapshot.trust ?? "not present")}</dd>
-        <dt>evidence.summary</dt><dd>${escapeHtml(normalizedSnapshot.evidence?.summary ?? "not present")}</dd>
-      </dl>
+      ${renderDefinitionList([
+        ["target.repo", normalizedSnapshot.target?.repo ?? target.repo],
+        ["target.pr", normalizedSnapshot.target?.pr ?? target.pr],
+        ["runId", runId],
+        ["inspectedAt", normalizedSnapshot.inspectedAt ?? "not present"],
+      ])}
       <h3>Markers</h3>
       <h4>markers.missing</h4>
       ${renderList(normalizedSnapshot.markers?.missing)}
@@ -273,15 +358,16 @@ export function renderInspectRunViewerHtml({
     </style>
   </head>
   <body>
-    <h1>Read-only run viewer</h1>
-    <p><strong>Target:</strong> <code>${escapeHtml(target.repo)}</code> PR <code>${escapeHtml(target.pr)}</code></p>
-    <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span></p>
-    <p><button type="button" onclick="window.location.reload()">Reload snapshot</button> (manual reload only)</p>
+    <h1>${escapeHtml(pageHeading)}</h1>
+    <p><strong>Target:</strong> <code>${escapeHtml(target.repo)}</code></p>
+    <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
+    <p><strong>Refresh:</strong> manual reload only.</p>
+    <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
     ${topSummary}
-    ${renderLayerSection({ title: "outer-loop summary", layer: normalizedSnapshot })}
-    ${renderLayerSection({ title: "copilot layer", layer: normalizedSnapshot?.layers?.copilot })}
-    ${renderLayerSection({ title: "reviewer layer", layer: normalizedSnapshot?.layers?.reviewer })}
-    ${renderLayerSection({ title: "steering summary", layer: normalizedSnapshot?.layers?.steering })}
+    ${renderOuterLoopSummarySection(normalizedSnapshot)}
+    ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
+    ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
+    ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
   </body>
 </html>`;
 }
@@ -303,9 +389,116 @@ function makeAdapterOptions(options) {
   return adapterOptions;
 }
 
+function setNoStore(response) {
+  response.setHeader("cache-control", "no-store");
+}
+
+function writeText(response, statusCode, body, headers = {}) {
+  setNoStore(response);
+  response.statusCode = statusCode;
+  for (const [name, value] of Object.entries(headers)) {
+    response.setHeader(name, value);
+  }
+  response.end(body);
+}
+
+function writeJson(response, statusCode, payload) {
+  setNoStore(response);
+  writeText(
+    response,
+    statusCode,
+    `${JSON.stringify(payload, null, 2)}\n`,
+    { "content-type": "application/json; charset=utf-8" },
+  );
+}
+
+function writeHtml(response, html) {
+  setNoStore(response);
+  writeText(response, 200, html, { "content-type": "text/html; charset=utf-8" });
+}
+
+function jsonErrorPayload(target, error) {
+  return {
+    ok: false,
+    target,
+    error: {
+      message: error instanceof Error ? error.message : String(error),
+    },
+  };
+}
+
+function requireSnapshotForJson(snapshot) {
+  if (snapshot === null || snapshot === undefined) {
+    throw new Error("inspection snapshot unavailable");
+  }
+
+  return snapshot;
+}
+
 export function formatInspectRunViewerUrl(host, port) {
   const formattedHost = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
   return new URL(`http://${formattedHost}:${port}`).toString().replace(/\/$/, "");
+}
+
+function isLsofNoListenerResult(error) {
+  if (!error || error.code !== 1) {
+    return false;
+  }
+
+  const stderr = typeof error.stderr === "string" ? error.stderr.trim() : "";
+  return stderr.length === 0;
+}
+
+export async function listListeningPidsForPort(port, { execFileImpl = execFile } = {}) {
+  try {
+    const { stdout } = await execFileImpl("lsof", [`-tiTCP:${port}`, "-sTCP:LISTEN"]);
+    return stdout
+      .split(/\r?\n/)
+      .map((line) => Number(line.trim()))
+      .filter((pid) => Number.isInteger(pid) && pid > 0);
+  } catch (error) {
+    if (isLsofNoListenerResult(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function restartExistingPortListener(
+  port,
+  {
+    listListeningPidsImpl = listListeningPidsForPort,
+    killProcessImpl = (pid, signal) => process.kill(pid, signal),
+    sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    timeoutMs = 1500,
+    pollIntervalMs = 50,
+  } = {},
+) {
+  const pids = (await listListeningPidsImpl(port)).filter((pid) => pid !== process.pid);
+  if (pids.length === 0) {
+    return [];
+  }
+
+  for (const pid of pids) {
+    try {
+      killProcessImpl(pid, "SIGTERM");
+    } catch (error) {
+      if (error?.code !== "ESRCH") {
+        throw error;
+      }
+    }
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const remainingListeners = (await listListeningPidsImpl(port)).filter((pid) => pid !== process.pid);
+    if (remainingListeners.length === 0) {
+      return pids;
+    }
+    await sleepImpl(pollIntervalMs);
+  }
+
+  throw new Error(`--restart could not stop existing listener on port ${port}`);
 }
 
 export function createInspectRunViewerServer(options, deps = {}) {
@@ -316,9 +509,36 @@ export function createInspectRunViewerServer(options, deps = {}) {
   return createServer(async (request, response) => {
     try {
       const requestPath = request.url ? new URL(request.url, "http://localhost").pathname : "/";
-      if (requestPath !== "/") {
-        response.statusCode = requestPath === "/favicon.ico" ? 204 : 404;
+      const method = request.method ?? "GET";
+
+      if (requestPath === "/favicon.ico") {
+        response.statusCode = 204;
         response.end();
+        return;
+      }
+
+      if (requestPath !== "/" && requestPath !== "/snapshot.json") {
+        writeText(response, 404, "Not Found", {
+          "content-type": "text/plain; charset=utf-8",
+        });
+        return;
+      }
+
+      if (method !== "GET") {
+        writeText(response, 405, "Method Not Allowed", {
+          allow: "GET",
+          "content-type": "text/plain; charset=utf-8",
+        });
+        return;
+      }
+
+      if (requestPath === "/snapshot.json") {
+        try {
+          const snapshot = requireSnapshotForJson(await adapter.loadSnapshot(target, adapterOptions));
+          writeJson(response, 200, snapshot);
+        } catch (error) {
+          writeJson(response, 500, jsonErrorPayload(target, error));
+        }
         return;
       }
 
@@ -331,29 +551,53 @@ export function createInspectRunViewerServer(options, deps = {}) {
       }
 
       const html = renderInspectRunViewerHtml({ target, snapshot: snapshot ?? null, error });
-      response.statusCode = 200;
-      response.setHeader("content-type", "text/html; charset=utf-8");
-      response.end(html);
+      writeHtml(response, html);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
       const malformedRequest = /invalid url|uri malformed/i.test(message);
-      response.statusCode = malformedRequest ? 400 : 500;
-      response.setHeader("content-type", "text/plain; charset=utf-8");
-      response.end(malformedRequest ? "Bad Request" : "Internal Server Error");
+      writeText(
+        response,
+        malformedRequest ? 400 : 500,
+        malformedRequest ? "Bad Request" : "Internal Server Error",
+        { "content-type": "text/plain; charset=utf-8" },
+      );
     }
   });
+}
+
+function normalizeRestartCapabilityError(error) {
+  const missingLsof = error?.code === "ENOENT"
+    && (error?.path === "lsof" || /(^|\b)lsof(\b|$)/i.test(String(error?.message ?? "")));
+  if (!missingLsof) {
+    return error;
+  }
+
+  const parseFriendlyError = parseError(
+    "--restart requires lsof/POSIX support; install lsof or rerun without --restart",
+  );
+  parseFriendlyError.cause = error;
+  return parseFriendlyError;
 }
 
 export async function runCli(
   argv = process.argv.slice(2),
   {
     stdout = process.stdout,
+    restartExistingPortListenerImpl = restartExistingPortListener,
   } = {},
 ) {
   const options = parseInspectRunViewerCliArgs(argv);
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return null;
+  }
+
+  if (options.restart) {
+    try {
+      await restartExistingPortListenerImpl(options.port);
+    } catch (error) {
+      throw normalizeRestartCapabilityError(error);
+    }
   }
 
   const server = createInspectRunViewerServer(options);
