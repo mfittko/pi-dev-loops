@@ -10,7 +10,7 @@ import {
 } from "./_inspect-run-viewer-adapter.mjs";
 
 const USAGE = `Usage: inspect-run-viewer.mjs --repo <owner/name> --pr <number>
-  [--host <host>] [--port <port>]
+  [--host <host>] [--port <port>] [--allow-non-localhost]
   [--steering-state-file <path>] [--reviewer-login <login>]
   [--copilot-input <path>] [--reviewer-input <path>]
 
@@ -23,6 +23,8 @@ Required:
 Optional:
   --host <host>                         Bind host (default: 127.0.0.1)
   --port <port>                         Bind port (default: 4311)
+  --allow-non-localhost                 Permit non-loopback binds
+                                        (otherwise rejected)
   --steering-state-file <path>          Pass-through to inspect-run
   --reviewer-login <login>              Pass-through to inspect-run
   --copilot-input <path>                Pass-through to inspect-run
@@ -68,6 +70,12 @@ function parseHost(rawHost) {
   return host;
 }
 
+function isLoopbackHost(host) {
+  return host === "localhost"
+    || host === "::1"
+    || /^127(?:\.\d{1,3}){3}$/.test(host);
+}
+
 function parseReviewerLogin(rawLogin) {
   const reviewerLogin = rawLogin.trim();
   if (reviewerLogin.length === 0) {
@@ -96,6 +104,7 @@ export function parseInspectRunViewerCliArgs(argv) {
     reviewerLogin: undefined,
     copilotInputPath: undefined,
     reviewerInputPath: undefined,
+    allowNonLocalhost: false,
   };
 
   while (args.length > 0) {
@@ -118,6 +127,10 @@ export function parseInspectRunViewerCliArgs(argv) {
     }
     if (token === "--port") {
       options.port = parsePort(requireOptionValue(args, "--port"));
+      continue;
+    }
+    if (token === "--allow-non-localhost") {
+      options.allowNonLocalhost = true;
       continue;
     }
     if (token === "--steering-state-file") {
@@ -150,6 +163,9 @@ export function parseInspectRunViewerCliArgs(argv) {
     const normalizedTarget = normalizeCliTargetOptions(options);
     options.repo = normalizedTarget.repo;
     options.pr = normalizedTarget.pr;
+    if (!options.allowNonLocalhost && !isLoopbackHost(options.host)) {
+      throw parseError("--host must stay on localhost/loopback unless --allow-non-localhost is set");
+    }
   }
 
   return options;

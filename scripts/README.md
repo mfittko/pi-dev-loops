@@ -412,8 +412,9 @@ Required:
 - `--pr <number>`
 
 Optional:
-- `--host <host>` (default: `127.0.0.1`)
+- `--host <host>` (default: `127.0.0.1`; non-loopback binds require `--allow-non-localhost`)
 - `--port <port>` (default: `4311`)
+- `--allow-non-localhost` (explicit opt-in for non-loopback binds such as `0.0.0.0` or LAN IPs)
 - `--steering-state-file <path>` (pass-through to `inspect-run`)
 - `--reviewer-login <login>` (pass-through to `inspect-run`)
 - `--copilot-input <path>` (pass-through to `inspect-run`)
@@ -421,6 +422,7 @@ Optional:
 
 Contract:
 - read-only: no GitHub mutations, no checkpoint writes, no steering writes, no worker attachment
+- local-viewer safety: default host remains loopback-only; non-loopback binds require explicit `--allow-non-localhost` because they may expose local inspection state on the network
 - GitHub-first launch boundary: one explicit target (`repo` + `pr`)
 - uses one thin adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace

@@ -44,6 +44,23 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
   const bracketedIpv6Host = parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "[::1]"]);
   assert.equal(bracketedIpv6Host.host, "::1");
 
+  assert.throws(
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "0.0.0.0"]),
+    /--host must stay on localhost\/loopback unless --allow-non-localhost is set/i,
+  );
+
+  const nonLocalhostOptIn = parseInspectRunViewerCliArgs([
+    "--repo",
+    "owner/repo",
+    "--pr",
+    "55",
+    "--host",
+    "0.0.0.0",
+    "--allow-non-localhost",
+  ]);
+  assert.equal(nonLocalhostOptIn.host, "0.0.0.0");
+  assert.equal(nonLocalhostOptIn.allowNonLocalhost, true);
+
   let malformedTargetError;
   try {
     parseInspectRunViewerCliArgs(["--repo", "../../bad", "--pr", "55"]);
@@ -82,6 +99,7 @@ test("formatInspectRunViewerUrl formats IPv4 and IPv6 hosts for copy-pasteable o
   assert.equal(formatInspectRunViewerUrl("127.0.0.1", 4311), "http://127.0.0.1:4311");
   assert.equal(formatInspectRunViewerUrl("::1", 4311), "http://[::1]:4311");
   assert.equal(formatInspectRunViewerUrl("[::1]", 4311), "http://[::1]:4311");
+  assert.equal(formatInspectRunViewerUrl("0.0.0.0", 4311), "http://0.0.0.0:4311");
 });
 
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot", () => {
