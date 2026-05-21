@@ -191,25 +191,29 @@ function renderDefinitionList(entries) {
   return `<dl>${entries.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl>`;
 }
 
-function renderLayerSection({ title, layer }) {
-  if (layer === null || layer === undefined) {
+function renderCompactSection({ title, entries = [], lists = [] }) {
+  if (entries.length === 0 && lists.length === 0) {
     return `<section><h2>${escapeHtml(title)}</h2><p>not present / unavailable</p></section>`;
   }
 
   return `<section>
     <h2>${escapeHtml(title)}</h2>
-    <pre>${escapeHtml(JSON.stringify(layer, null, 2))}</pre>
+    ${entries.length > 0 ? renderDefinitionList(entries) : "<p>not present / unavailable</p>"}
+    ${lists.map(({ title: listTitle, items }) => `
+      <h3>${escapeHtml(listTitle)}</h3>
+      ${renderList(items)}
+    `).join("")}
   </section>`;
 }
 
 function renderOuterLoopSummarySection(snapshot) {
   if (snapshot === null || snapshot === undefined) {
-    return renderLayerSection({ title: "outer-loop summary", layer: null });
+    return renderCompactSection({ title: "outer-loop summary" });
   }
 
-  return `<section>
-    <h2>outer-loop summary</h2>
-    ${renderDefinitionList([
+  return renderCompactSection({
+    title: "outer-loop summary",
+    entries: [
       ["activeStateFamily", snapshot.activeStateFamily ?? "not present"],
       ["outerAction", snapshot.outerAction ?? "not present"],
       ["activeFamilyState", snapshot.activeFamilyState ?? "not present"],
@@ -218,12 +222,60 @@ function renderOuterLoopSummarySection(snapshot) {
       ["sourceMode", snapshot.sourceMode ?? "not present"],
       ["trust", snapshot.trust ?? "not present"],
       ["evidence.summary", snapshot.evidence?.summary ?? "not present"],
-    ])}
-    <h3>evidence.authoritative</h3>
-    ${renderList(snapshot.evidence?.authoritative)}
-    <h3>evidence.checkpoint</h3>
-    ${renderList(snapshot.evidence?.checkpoint)}
-  </section>`;
+    ],
+    lists: [
+      { title: "evidence.authoritative", items: snapshot.evidence?.authoritative },
+      { title: "evidence.checkpoint", items: snapshot.evidence?.checkpoint },
+    ],
+  });
+}
+
+function renderCopilotLayerSection(layer) {
+  if (layer === null || layer === undefined) {
+    return renderCompactSection({ title: "copilot layer" });
+  }
+
+  return renderCompactSection({
+    title: "copilot layer",
+    entries: [
+      ["currentState", layer.currentState ?? "not present"],
+    ],
+    lists: [
+      { title: "allowedTransitions", items: layer.allowedTransitions },
+    ],
+  });
+}
+
+function renderReviewerLayerSection(layer) {
+  if (layer === null || layer === undefined) {
+    return renderCompactSection({ title: "reviewer layer" });
+  }
+
+  return renderCompactSection({
+    title: "reviewer layer",
+    entries: [
+      ["currentState", layer.currentState ?? "not present"],
+      ["scope.mode", layer.scope?.mode ?? "not present"],
+      ["scope.reviewerLogin", layer.scope?.reviewerLogin ?? "not present"],
+    ],
+    lists: [
+      { title: "allowedTransitions", items: layer.allowedTransitions },
+    ],
+  });
+}
+
+function renderSteeringSummarySection(layer) {
+  if (layer === null || layer === undefined) {
+    return renderCompactSection({ title: "steering summary" });
+  }
+
+  return renderCompactSection({
+    title: "steering summary",
+    entries: [
+      ["status", layer.status ?? "not present"],
+      ["reason", layer.reason ?? "not present"],
+    ],
+  });
 }
 
 function renderSnapshotStateLabel(snapshot) {
@@ -295,14 +347,13 @@ export function renderInspectRunViewerHtml({
   <body>
     <h1>Read-only run viewer</h1>
     <p><strong>Target:</strong> <code>${escapeHtml(target.repo)}</code> PR <code>${escapeHtml(target.pr)}</code></p>
-    <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span></p>
-    <p><button type="button" onclick="window.location.reload()">Reload snapshot</button> (manual reload only)</p>
+    <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
     <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
     ${topSummary}
     ${renderOuterLoopSummarySection(normalizedSnapshot)}
-    ${renderLayerSection({ title: "copilot layer", layer: normalizedSnapshot?.layers?.copilot })}
-    ${renderLayerSection({ title: "reviewer layer", layer: normalizedSnapshot?.layers?.reviewer })}
-    ${renderLayerSection({ title: "steering summary", layer: normalizedSnapshot?.layers?.steering })}
+    ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
+    ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
+    ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
   </body>
 </html>`;
 }

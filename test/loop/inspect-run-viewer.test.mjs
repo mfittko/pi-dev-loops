@@ -153,6 +153,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /reviewer layer/);
   assert.match(html, /steering summary/);
   assert.match(html, /href="\/snapshot\.json"/);
+  assert.match(html, /title="Reload snapshot"/);
+  assert.doesNotMatch(html, /<pre>/);
   assert.doesNotMatch(html, /"schemaVersion": 1/);
   assert.doesNotMatch(html, /"ok": true/);
 });
