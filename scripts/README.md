@@ -417,7 +417,7 @@ Optional:
 - `--steering-state-file <path>` (pass-through to `inspect-run`)
 - `--reviewer-login <login>` (pass-through to `inspect-run`)
 - `--copilot-input <path>` (pass-through to `inspect-run`)
-- `--reviewer-input <path>` (pass-through to `inspect-run`)
+- `--reviewer-input <path>` (pass-through to `inspect-run`; cannot be combined with `--reviewer-login`)
 
 Contract:
 - read-only: no GitHub mutations, no checkpoint writes, no steering writes, no worker attachment

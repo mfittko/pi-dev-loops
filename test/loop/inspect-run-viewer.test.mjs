@@ -43,6 +43,23 @@ test("parseInspectRunViewerCliArgs parses required target and rejects malformed 
     () => parseInspectRunViewerCliArgs(["--repo", "../../bad", "--pr", "55"]),
     /Invalid repository slug|owner\/name|Repository slug/i,
   );
+  assert.throws(
+    () => parseInspectRunViewerCliArgs([
+      "--repo",
+      "owner/repo",
+      "--pr",
+      "55",
+      "--reviewer-login",
+      "reviewer",
+      "--reviewer-input",
+      "tmp/reviewer.json",
+    ]),
+    /cannot be combined/i,
+  );
+  assert.throws(
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--reviewer-login", "   "]),
+    /must not be empty/i,
+  );
 });
 
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot", () => {

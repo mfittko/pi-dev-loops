@@ -26,7 +26,9 @@ Optional:
   --steering-state-file <path>          Pass-through to inspect-run
   --reviewer-login <login>              Pass-through to inspect-run
   --copilot-input <path>                Pass-through to inspect-run
-  --reviewer-input <path>               Pass-through to inspect-run`.trim();
+  --reviewer-input <path>               Pass-through to inspect-run
+                                        (cannot be combined with
+                                        --reviewer-login)`.trim();
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4311;
@@ -53,6 +55,14 @@ function parsePort(rawPort) {
     throw parseError("--port must be between 1 and 65535");
   }
   return port;
+}
+
+function parseReviewerLogin(rawLogin) {
+  const reviewerLogin = rawLogin.trim();
+  if (reviewerLogin.length === 0) {
+    throw parseError("--reviewer-login must not be empty");
+  }
+  return reviewerLogin;
 }
 
 export function parseInspectRunViewerCliArgs(argv) {
@@ -96,7 +106,7 @@ export function parseInspectRunViewerCliArgs(argv) {
       continue;
     }
     if (token === "--reviewer-login") {
-      options.reviewerLogin = requireOptionValue(args, "--reviewer-login");
+      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login"));
       continue;
     }
     if (token === "--copilot-input") {
@@ -113,6 +123,9 @@ export function parseInspectRunViewerCliArgs(argv) {
   if (!options.help) {
     if (options.repo === undefined || options.pr === undefined) {
       throw parseError("inspect-run-viewer requires both --repo <owner/name> and --pr <number>");
+    }
+    if (options.reviewerInputPath !== undefined && options.reviewerLogin !== undefined) {
+      throw parseError("--reviewer-input cannot be combined with --reviewer-login");
     }
     normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
   }
