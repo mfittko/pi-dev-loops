@@ -388,6 +388,29 @@ test("outer-loop rejects malformed arguments with usage guidance", async () => {
   const unknownErr = JSON.parse(unknown.stderr);
   assert.equal(unknownErr.ok, false);
   assert.equal(unknownErr.error, "Unknown argument: --unexpected");
+
+  const conflictingReviewerScope = await runNode([
+    "--repo", "owner/repo",
+    "--pr", "17",
+    "--reviewer-input", "/tmp/reviewer.json",
+    "--reviewer-login", "pi-reviewer",
+  ]);
+  assert.equal(conflictingReviewerScope.code, 1);
+  const conflictingErr = JSON.parse(conflictingReviewerScope.stderr);
+  assert.equal(conflictingErr.ok, false);
+  assert.match(conflictingErr.error, /--reviewer-input/);
+  assert.match(conflictingErr.error, /--reviewer-login/);
+
+  const blankReviewerLogin = await runNode([
+    "--repo", "owner/repo",
+    "--pr", "17",
+    "--reviewer-login", "   ",
+  ]);
+  assert.equal(blankReviewerLogin.code, 1);
+  const blankReviewerLoginErr = JSON.parse(blankReviewerLogin.stderr);
+  assert.equal(blankReviewerLoginErr.ok, false);
+  assert.match(blankReviewerLoginErr.error, /--reviewer-login/);
+  assert.match(blankReviewerLoginErr.error, /empty/);
 });
 
 // ---------------------------------------------------------------------------
@@ -636,6 +659,10 @@ test("outer-loop: reviewer waiting_for_author_followup â†’ continue_wait", async
     assert.equal(output.ok, true);
     assert.equal(output.outerAction, "continue_wait");
     assert.equal(output.reviewerState, "waiting_for_author_followup");
+    assert.equal(output.reviewerScope.mode, "all_reviewers");
+    assert.equal(output.reviewerScope.reviewerLogin, null);
+    assert.equal(output.checkpoint.reviewerScope, "all_reviewers");
+    assert.equal(output.checkpoint.reviewerLogin, null);
     assert.equal(output.checkpoint.waitCycles, 1);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -726,6 +753,8 @@ test("outer-loop: waiting_for_re_request â†’ review_requested after re-detect â†
       prExists: true,
       prNumber: 47,
       prHeadSha: "def456",
+      reviewerScope: "single_reviewer",
+      reviewerLogin: "pi-reviewer",
       submittedReviewPresent: true,
       submittedReviewCommitSha: "abc123",
       reviewRequested: true,
@@ -747,6 +776,10 @@ test("outer-loop: waiting_for_re_request â†’ review_requested after re-detect â†
     assert.equal(output.ok, true);
     assert.equal(output.outerAction, "reenter_reviewer_loop");
     assert.equal(output.reviewerState, "review_requested");
+    assert.equal(output.reviewerScope.mode, "single_reviewer");
+    assert.equal(output.reviewerScope.reviewerLogin, "pi-reviewer");
+    assert.equal(output.checkpoint.reviewerScope, "single_reviewer");
+    assert.equal(output.checkpoint.reviewerLogin, "pi-reviewer");
     assert.equal(output.checkpoint.waitCycles, 0);
   } finally {
     await rm(tempDir, { recursive: true, force: true });

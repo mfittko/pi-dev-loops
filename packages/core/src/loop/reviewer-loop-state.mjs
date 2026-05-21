@@ -111,6 +111,12 @@ function normalizeStatus(value, allowed, fallback) {
   return allowed.has(value) ? value : fallback;
 }
 
+function normalizeReviewerLogin(value) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim().toLowerCase()
+    : null;
+}
+
 /**
  * Normalize reviewer-loop snapshot data into a canonical, deterministic shape.
  *
@@ -123,6 +129,8 @@ export function normalizeReviewerSnapshot(raw) {
   }
 
   const prExists = Boolean(raw.prExists);
+  const reviewerLogin = normalizeReviewerLogin(raw.reviewerLogin);
+  const reviewerScope = reviewerLogin !== null ? "single_reviewer" : "all_reviewers";
 
   return {
     prExists,
@@ -132,6 +140,8 @@ export function normalizeReviewerSnapshot(raw) {
     prClosed: Boolean(raw.prClosed),
     prHeadSha: prExists ? normalizeSha(raw.prHeadSha) : null,
 
+    reviewerScope,
+    reviewerLogin: reviewerScope === "single_reviewer" ? reviewerLogin : null,
     reviewRequested: Boolean(raw.reviewRequested),
 
     localPlanningStatus: normalizeStatus(raw.localPlanningStatus, VALID_LOCAL_PLANNING_STATUSES, "none"),

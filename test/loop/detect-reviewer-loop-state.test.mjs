@@ -243,6 +243,8 @@ test("detect-reviewer-loop-state auto-detect returns review_requested when revie
     const output = JSON.parse(result.stdout);
     assert.equal(output.state, "review_requested");
     assert.equal(output.snapshot.reviewRequested, true);
+    assert.equal(output.snapshot.reviewerScope, "single_reviewer");
+    assert.equal(output.snapshot.reviewerLogin, "pi-reviewer");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -334,6 +336,8 @@ test("detect-reviewer-loop-state auto-detect treats missing local state as empty
     const output = JSON.parse(result.stdout);
     assert.equal(output.state, "waiting_for_review_request");
     assert.equal(output.snapshot.prExists, true);
+    assert.equal(output.snapshot.reviewerScope, "all_reviewers");
+    assert.equal(output.snapshot.reviewerLogin, null);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -482,6 +486,13 @@ test("detect-reviewer-loop-state rejects malformed arguments deterministically",
   assert.deepEqual(JSON.parse(badBool.stderr), {
     ok: false,
     error: "--review-requested must be true or false",
+  });
+
+  const blankReviewerLogin = await runNode(["--repo", "owner/repo", "--pr", "17", "--reviewer-login", "   "]);
+  assert.equal(blankReviewerLogin.code, 1);
+  assert.deepEqual(JSON.parse(blankReviewerLogin.stderr), {
+    ok: false,
+    error: "--reviewer-login must not be empty",
   });
 
   const unknown = await runNode(["--repo", "owner/repo", "--pr", "17", "--wat"]);

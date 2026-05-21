@@ -711,6 +711,7 @@ test("parseInspectRunCliArgs: parses required flags", () => {
   assert.equal(opts.steeringStateFile, undefined);
   assert.equal(opts.copilotInputPath, undefined);
   assert.equal(opts.reviewerInputPath, undefined);
+  assert.equal(opts.reviewerLogin, undefined);
 });
 
 test("parseInspectRunCliArgs: parses all optional flags", () => {
@@ -724,6 +725,26 @@ test("parseInspectRunCliArgs: parses all optional flags", () => {
   assert.equal(opts.steeringStateFile, "/tmp/steering.json");
   assert.equal(opts.copilotInputPath, "/tmp/copilot.json");
   assert.equal(opts.reviewerInputPath, "/tmp/reviewer.json");
+});
+
+test("parseInspectRunCliArgs: parses reviewer-login for live reviewer detection", () => {
+  const opts = parseInspectRunCliArgs([
+    "--repo", "owner/repo",
+    "--pr", "55",
+    "--reviewer-login", "pi-reviewer",
+  ]);
+  assert.equal(opts.reviewerLogin, "pi-reviewer");
+});
+
+test("parseInspectRunCliArgs: rejects blank reviewer-login", () => {
+  assert.throws(
+    () => parseInspectRunCliArgs([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--reviewer-login", "   ",
+    ]),
+    (err) => err.message.includes("--reviewer-login") && err.message.includes("empty"),
+  );
 });
 
 test("parseInspectRunCliArgs: --help returns help flag", () => {
@@ -763,6 +784,18 @@ test("parseInspectRunCliArgs: unknown flag throws", () => {
   assert.throws(
     () => parseInspectRunCliArgs(["--repo", "owner/repo", "--pr", "55", "--unknown-flag"]),
     (err) => err.message.includes("Unknown argument"),
+  );
+});
+
+test("parseInspectRunCliArgs: rejects reviewer-input combined with reviewer-login", () => {
+  assert.throws(
+    () => parseInspectRunCliArgs([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--reviewer-input", "/tmp/reviewer.json",
+      "--reviewer-login", "pi-reviewer",
+    ]),
+    (err) => err.message.includes("--reviewer-input") && err.message.includes("--reviewer-login"),
   );
 });
 
@@ -894,6 +927,101 @@ test("inspect-run CLI: successful live detectors still derive authoritative top-
     assert.equal(output.activeFamilyState, "continue_wait");
     assert.equal(output.statusClass, STATUS_CLASS.WAITING);
     assert.equal(output.needsAttention, false);
+    assert.equal(output.layers.reviewer.scope.mode, "all_reviewers");
+    assert.equal(output.layers.reviewer.scope.reviewerLogin, null);
+  });
+});
+
+test("inspect-run CLI: reviewer-login narrows live reviewer detection to one reviewer identity", async () => {
+  await withTempDir(async (tempDir) => {
+    const ghPath = path.join(tempDir, "gh");
+    await writeFile(
+      ghPath,
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const out = (value) => process.stdout.write(JSON.stringify(value));
+
+if (args[0] === "pr" && args[1] === "view") {
+  const fields = args[args.indexOf("--json") + 1] || "";
+  if (fields.includes("reviews")) {
+    out({
+      headRefOid: "abc123",
+      isDraft: false,
+      state: "OPEN",
+      number: 55,
+      reviews: [],
+      statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+    });
+  } else {
+    out({ isDraft: false, state: "OPEN", number: 55, headRefOid: "abc123" });
+  }
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/requested_reviewers") {
+  out({ users: [{ login: "reviewer-user" }], teams: [] });
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/reviews") {
+  out([{ id: 41, state: "COMMENTED", user: { login: "other-reviewer" }, commit_id: "abc123", html_url: "https://example.test/review/41" }]);
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "graphql") {
+  out({
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  });
+  process.exit(0);
+}
+
+process.stderr.write("unexpected gh args: " + args.join(" ") + "\\n");
+process.exit(1);
+`,
+      "utf8",
+    );
+    await chmod(ghPath, 0o755);
+
+    const baseEnv = {
+      ...process.env,
+      PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter),
+    };
+
+    const aggregate = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+    ], {
+      cwd: tempDir,
+      env: baseEnv,
+    });
+    assert.equal(aggregate.code, 0, `stderr: ${aggregate.stderr}`);
+    const aggregateOutput = JSON.parse(aggregate.stdout);
+    assert.equal(aggregateOutput.layers.reviewer.currentState, "waiting_for_author_followup");
+    assert.equal(aggregateOutput.layers.reviewer.scope.mode, "all_reviewers");
+    assert.equal(aggregateOutput.layers.reviewer.scope.reviewerLogin, null);
+
+    const scoped = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--reviewer-login", "reviewer-user",
+    ], {
+      cwd: tempDir,
+      env: baseEnv,
+    });
+    assert.equal(scoped.code, 0, `stderr: ${scoped.stderr}`);
+    const scopedOutput = JSON.parse(scoped.stdout);
+    assert.equal(scopedOutput.layers.reviewer.currentState, "review_requested");
+    assert.equal(scopedOutput.layers.reviewer.scope.mode, "single_reviewer");
+    assert.equal(scopedOutput.layers.reviewer.scope.reviewerLogin, "reviewer-user");
   });
 });
 
@@ -1189,6 +1317,8 @@ test("inspect-run CLI: checkpoint-only repo-qualified path stays advisory and to
       outerAction: "continue_wait",
       copilotState: "waiting_for_copilot_review",
       reviewerState: "waiting_for_author_followup",
+      reviewerScope: "single_reviewer",
+      reviewerLogin: "reviewer-user",
       reason: null,
       timestamp: "2026-05-17T10:00:00Z",
       waitCycles: 3,
@@ -1206,6 +1336,8 @@ test("inspect-run CLI: checkpoint-only repo-qualified path stays advisory and to
     assert.equal(output.outerAction, "unknown");
     assert.equal(output.activeFamilyState, "unknown");
     assert.equal(output.statusClass, STATUS_CLASS.UNKNOWN);
+    assert.equal(output.layers.reviewer.scope.mode, "single_reviewer");
+    assert.equal(output.layers.reviewer.scope.reviewerLogin, "reviewer-user");
     assert.match(output.evidence.summary, /advisory/i);
     assert.equal(output.evidence.checkpoint[0], path.join("tmp", "copilot-loop", "owner", "repo", "pr-55", "outer-loop-state.json"));
   });

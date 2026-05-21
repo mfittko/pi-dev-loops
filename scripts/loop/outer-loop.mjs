@@ -68,22 +68,28 @@ Required:
   --pr <number>                         Pull request number
 
 Optional:
-  --reviewer-login <login>              Reviewer login for reviewer-loop detection
+  --reviewer-login <login>              Reviewer login for reviewer-loop detection.
+                                        When omitted, reviewer detection uses
+                                        aggregate all-reviewer scope for the PR.
   --checkpoint-dir <dir>                Directory for checkpoint artifact
                                         (default: tmp/copilot-loop/<owner>/<repo>/pr-<n>/)
   --copilot-input <path>                Path to a pre-built copilot snapshot JSON
                                         (skips live copilot detection; for testing)
   --reviewer-input <path>               Path to a pre-built reviewer snapshot JSON
-                                        (skips live reviewer detection; for testing)
+                                        (skips live reviewer detection; for testing;
+                                        cannot be combined with --reviewer-login)
 
 Output (stdout, JSON):
   { "ok": true, "outerAction": "...", "copilotState": "...",
-    "reviewerState": "...", "reason"?: "...",
+    "reviewerState": "...", "reviewerScope": { "mode": "...",
+      "reviewerLogin": "..."|null }, "reason"?: "...",
     "conductorRouting": { "routingOutcome": "...", "outerAction": "...",
       "stopReason": null|"...", "handoffEnvelope": { ... } },
     "checkpoint": { "pr": N, "repo": "...", "outerAction": "...",
-      "copilotState": "...", "reviewerState": "...", "reason": null|"...",
-      "timestamp": "...", "waitCycles": N, "headSha": "..."|null } }
+      "copilotState": "...", "reviewerState": "...",
+      "reviewerScope": "...", "reviewerLogin": "..."|null,
+      "reason": null|"...", "timestamp": "...", "waitCycles": N,
+      "headSha": "..."|null } }
 
 Outer actions:
   continue_wait          Durable outer-loop wait state; re-run after bounded wait
@@ -118,6 +124,14 @@ Exit codes:
 
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
+}
+
+function parseReviewerLogin(value) {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    throw parseError("--reviewer-login must not be empty");
+  }
+  return normalized;
 }
 
 function requireOptionValue(args, flag) {
@@ -169,7 +183,7 @@ export function parseOuterLoopCliArgs(argv) {
     }
 
     if (token === "--reviewer-login") {
-      options.reviewerLogin = requireOptionValue(args, "--reviewer-login").trim();
+      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login"));
       continue;
     }
 
@@ -194,6 +208,10 @@ export function parseOuterLoopCliArgs(argv) {
   if (!options.help) {
     if (options.repo === undefined || options.pr === undefined) {
       throw parseError("outer-loop requires both --repo <owner/name> and --pr <number>");
+    }
+
+    if (options.reviewerInputPath !== undefined && options.reviewerLogin !== undefined) {
+      throw parseError("--reviewer-input cannot be combined with --reviewer-login");
     }
 
     try {
@@ -466,6 +484,8 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     outerAction,
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
+    reviewerScope: reviewerSnapshot.reviewerScope,
+    reviewerLogin: reviewerSnapshot.reviewerLogin,
     reason: outerReason ?? null,
     timestamp: new Date().toISOString(),
     waitCycles,
@@ -479,6 +499,10 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     outerAction,
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
+    reviewerScope: {
+      mode: reviewerSnapshot.reviewerScope,
+      reviewerLogin: reviewerSnapshot.reviewerLogin,
+    },
     ...(outerReason !== null && outerReason !== undefined ? { reason: outerReason } : {}),
     conductorRouting,
     checkpoint,

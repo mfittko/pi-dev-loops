@@ -103,6 +103,20 @@ export function mapOuterActionToStatusClass(outerAction) {
   }
 }
 
+function buildReviewerScope(snapshotLike) {
+  if (snapshotLike?.reviewerScope === "single_reviewer") {
+    return {
+      mode: "single_reviewer",
+      reviewerLogin: typeof snapshotLike?.reviewerLogin === "string" ? snapshotLike.reviewerLogin : null,
+    };
+  }
+
+  return {
+    mode: "all_reviewers",
+    reviewerLogin: null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Snapshot composer
 // ---------------------------------------------------------------------------
@@ -376,11 +390,13 @@ export function composeRunInspectionSnapshot({
     layers.reviewer = {
       currentState: reviewerEvidence.interpretation.state,
       allowedTransitions: reviewerEvidence.interpretation.allowedTransitions,
+      scope: buildReviewerScope(reviewerEvidence.snapshot),
     };
   } else if (typeof existingCheckpoint?.reviewerState === "string") {
     layers.reviewer = {
       currentState: existingCheckpoint.reviewerState,
       source: "checkpoint",
+      scope: buildReviewerScope(existingCheckpoint),
     };
   }
 
