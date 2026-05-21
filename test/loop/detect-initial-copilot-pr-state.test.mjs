@@ -237,6 +237,56 @@ test("detect-initial-copilot-pr-state returns linked_pr_ready_for_followup for s
   }
 });
 
+test("detect-initial-copilot-pr-state returns linked_pr_ready_for_followup when the linked PR has more than one commit", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-multi-commit-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload(),
+      },
+      {
+        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
+        stdout: pullRequestFactsPayload({ commitCount: 2, changedFiles: 0, messageHeadline: "Initial plan" }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.equal(JSON.parse(result.stdout).state, "linked_pr_ready_for_followup");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-initial-copilot-pr-state returns linked_pr_ready_for_followup for a ready-for-review PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-ready-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload(),
+      },
+      {
+        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
+        stdout: pullRequestFactsPayload({ isDraft: false, changedFiles: 0, commitCount: 1, messageHeadline: "Initial plan" }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.equal(JSON.parse(result.stdout).state, "linked_pr_ready_for_followup");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-initial-copilot-pr-state returns linked_pr_ready_for_followup for non-Copilot draft PR", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-non-copilot-"));
 
