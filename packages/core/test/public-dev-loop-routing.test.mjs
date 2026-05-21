@@ -53,12 +53,48 @@ test("start_on_issue with a linked PR routes directly to PR follow-up", () => {
   assert.equal(result.canonicalState.target.pr, 88);
 });
 
+test("start_on_issue with valid canonical PR state for the same issue routes from that state", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 86 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, issue: 86, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+  assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(result.canonicalState.target.pr, 88);
+});
+
 test("start_on_issue with conflicting canonical issue state fails closed", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
     target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 86 },
     currentState: {
       target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 999, linkedPr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
+});
+
+test("start_on_issue with a canonical PR state that cannot be matched to the issue fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 86 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
       ownership: DEV_LOOP_ACTOR.COPILOT,
       nextActor: DEV_LOOP_ACTOR.COPILOT,
       status: DEV_LOOP_STATUS.ACTIVE,
@@ -117,6 +153,23 @@ test("continue_on_pr routes Copilot-owned PR follow-up to the compatibility copi
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
+});
+
+test("continue_on_pr with conflicting canonical PR state fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,
+    target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 99 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
 });
 
 test("continue_current routes external-human PR ownership to the external PR follow-up strategy", () => {

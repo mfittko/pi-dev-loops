@@ -26,8 +26,8 @@ The public router consumes one canonical current state with these top-level dime
 | Field | Meaning |
 |---|---|
 | `target` | active artifact: `issue` \| `pr` \| `local_branch` \| `local_phase`; issue targets may include `linkedPr` when an existing PR is authoritative |
-| `ownership` | who currently owns the next move: `local` \| `copilot` \| `external_human` \| `reviewer` \| `maintainer` \| `user` |
-| `nextActor` | who should act next |
+| `ownership` | durable owner or strategy family currently responsible for the artifact: `local` \| `copilot` \| `external_human` \| `reviewer` \| `maintainer` \| `user` |
+| `nextActor` | immediate actor expected to take the next step; it may differ from `ownership` during review, approval, or handoff states |
 | `status` | `active` \| `waiting` \| `blocked` \| `approval_ready` \| `merge_ready` \| `done` |
 | `authorization` | `authorized` \| `needs_confirmation` \| `not_authorized` |
 

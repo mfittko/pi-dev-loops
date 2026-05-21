@@ -345,9 +345,9 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       return buildReconcile("`start_on_issue` received an invalid canonical current state.");
     }
 
-    if (explicitState && explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE) {
+    if (explicitState) {
       if (explicitState.target.issue !== explicitTarget.issue) {
-        return buildReconcile("`start_on_issue` target conflicts with the canonical current issue state.", explicitState);
+        return buildReconcile("`start_on_issue` target conflicts with the canonical current state.", explicitState);
       }
       return routeForState(explicitState);
     }
@@ -398,6 +398,9 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     }
     if (!explicitState || explicitState.target.kind !== DEV_LOOP_TARGET_KIND.PR) {
       return buildReconcile("`continue_on_pr` requires a valid canonical PR state.", explicitState);
+    }
+    if (explicitState.target.pr !== explicitTarget.pr) {
+      return buildReconcile("`continue_on_pr` target conflicts with the canonical current PR state.", explicitState);
     }
     return routeForState(explicitState);
   }
