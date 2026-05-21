@@ -239,6 +239,70 @@ test("continue_current routes external-human PR ownership to the external PR fol
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
 });
 
+test("blocked and not-authorized states stop instead of routing", () => {
+  for (const currentState of [
+    {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.BLOCKED,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NOT_AUTHORIZED,
+    },
+  ]) {
+    const result = evaluatePublicDevLoopRouting({
+      intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+      currentState,
+    });
+
+    assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+    assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
+    assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
+  }
+});
+
+test("done states stop as terminal states", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.DONE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
+  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
+});
+
+test("approval-ready and merge-ready states route to final approval", () => {
+  for (const status of [DEV_LOOP_STATUS.APPROVAL_READY, DEV_LOOP_STATUS.MERGE_READY]) {
+    const result = evaluatePublicDevLoopRouting({
+      intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+      currentState: {
+        target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+        ownership: DEV_LOOP_ACTOR.MAINTAINER,
+        nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+        status,
+        authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+      },
+    });
+
+    assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+    assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL);
+    assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
+  }
+});
+
 test("waiting states remain deterministic wait/watch states", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
@@ -254,6 +318,23 @@ test("waiting states remain deterministic wait/watch states", () => {
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
+});
+
+test("waiting states with local ownership keep the dev-loop compatibility entrypoint", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.LOCAL_PHASE, issue: 86, phase: "issue-86" },
+      ownership: DEV_LOOP_ACTOR.LOCAL,
+      nextActor: DEV_LOOP_ACTOR.LOCAL,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.DEV_LOOP);
 });
 
 test("inspect_state reports the canonical state without switching public entrypoints", () => {
