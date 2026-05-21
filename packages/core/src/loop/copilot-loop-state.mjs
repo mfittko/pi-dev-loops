@@ -50,6 +50,16 @@ export const STATE = Object.freeze({
   DONE: "done",
 });
 
+/** Stable high-level loop dispositions for completion vs follow-up decisions. */
+export const LOOP_DISPOSITION = Object.freeze({
+  PENDING: "pending",
+  UNRESOLVED_FEEDBACK: "unresolved_feedback",
+  CLEAN_CONVERGED: "clean_converged",
+  BLOCKED: "blocked",
+  ACTION_REQUIRED: "action_required",
+  DONE: "done",
+});
+
 /**
  * Legal transitions for each state.
  * Each entry lists the states that are reachable from the given state.
@@ -288,5 +298,55 @@ export function interpretLoopState(snapshot) {
     nextAction,
     autoRerequestEligible,
     sameHeadCleanConverged,
+  };
+}
+
+/**
+ * Classify a loop interpretation into a higher-level disposition and whether the
+ * loop is terminal/stoppable for this head.
+ *
+ * @param {object} snapshotOrInterpretation - raw snapshot, normalized snapshot, or interpretLoopState() output
+ * @returns {{ loopDisposition: string, terminal: boolean }}
+ */
+export function summarizeLoopInterpretation(snapshotOrInterpretation) {
+  const interpretation = Array.isArray(snapshotOrInterpretation?.allowedTransitions)
+    && typeof snapshotOrInterpretation?.state === "string"
+    && typeof snapshotOrInterpretation?.nextAction === "string"
+    ? snapshotOrInterpretation
+    : interpretLoopState(snapshotOrInterpretation);
+
+  let loopDisposition;
+
+  switch (interpretation.state) {
+    case STATE.WAITING_FOR_COPILOT_REVIEW:
+    case STATE.WAITING_FOR_CI:
+      loopDisposition = LOOP_DISPOSITION.PENDING;
+      break;
+    case STATE.UNRESOLVED_FEEDBACK_PRESENT:
+    case STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE:
+      loopDisposition = LOOP_DISPOSITION.UNRESOLVED_FEEDBACK;
+      break;
+    case STATE.REVIEW_REQUEST_UNAVAILABLE:
+    case STATE.BLOCKED_NEEDS_USER_DECISION:
+      loopDisposition = LOOP_DISPOSITION.BLOCKED;
+      break;
+    case STATE.DONE:
+      loopDisposition = LOOP_DISPOSITION.DONE;
+      break;
+    case STATE.READY_TO_REREQUEST_REVIEW:
+      loopDisposition = interpretation.sameHeadCleanConverged
+        ? LOOP_DISPOSITION.CLEAN_CONVERGED
+        : LOOP_DISPOSITION.ACTION_REQUIRED;
+      break;
+    default:
+      loopDisposition = LOOP_DISPOSITION.ACTION_REQUIRED;
+      break;
+  }
+
+  return {
+    loopDisposition,
+    terminal: loopDisposition === LOOP_DISPOSITION.CLEAN_CONVERGED
+      || loopDisposition === LOOP_DISPOSITION.BLOCKED
+      || loopDisposition === LOOP_DISPOSITION.DONE,
   };
 }

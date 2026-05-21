@@ -37,12 +37,15 @@
  *     "allowedTransitions": [...],
  *     "nextAction": "...",
  *     "autoRerequestEligible": true|false,
- *     "sameHeadCleanConverged": true|false
+ *     "sameHeadCleanConverged": true|false,
+ *     "loopDisposition": "...",
+ *     "terminal": true|false
  *   }
  *
  * Success output shape (with steering file):
  *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...",
  *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
+ *     "loopDisposition": "...", "terminal": true|false,
  *     "steeringApplied": true|false, "effectiveConstraints": { ... } }
  *
  * Failure behavior:
@@ -58,7 +61,7 @@ import { fileURLToPath } from "node:url";
 
 import { formatCliError, isCopilotLogin, parseJsonText, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
-import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import { interpretLoopState, normalizeSnapshot, summarizeLoopInterpretation } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
   createSteeringState,
   normalizeSteeringState,
@@ -106,7 +109,8 @@ Optional (auto-detect mode only):
 
 Output (stdout, JSON):
   { "ok": true, "snapshot": {...}, "state": "...", "allowedTransitions": [...], "nextAction": "...",
-    "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false }
+    "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
+    "loopDisposition": "...", "terminal": true|false }
 
   When --steering-state-file is provided, also includes:
   "steeringApplied": true|false, "effectiveConstraints": { ... }
@@ -506,6 +510,8 @@ export async function runCli(
     interpretation = interpretLoopState(snapshot);
   }
 
+  const interpretationSummary = summarizeLoopInterpretation(interpretation);
+
   stdout.write(`${JSON.stringify({
     ok: true,
     snapshot,
@@ -514,6 +520,8 @@ export async function runCli(
     nextAction: interpretation.nextAction,
     autoRerequestEligible: interpretation.autoRerequestEligible,
     sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
+    loopDisposition: interpretationSummary.loopDisposition,
+    terminal: interpretationSummary.terminal,
     ...steeringFields,
   })}\n`);
 }

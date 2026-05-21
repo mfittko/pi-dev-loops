@@ -19,8 +19,10 @@
  * Success output shape:
  *   { "ok": true, "action": "watch"|"fix"|"stop", "state": "...",
  *     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
- *     "reviewRequestStatus"?: "...", "watchArgs"?: { "repo": "...", "pr": N,
- *     "pollIntervalMs": N, "timeoutMs": N } }
+ *     "reviewRequestStatus"?: "...", "watchStatus"?: "...",
+ *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
+ *     "loopDisposition": "...", "terminal": true|false,
+ *     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
  *
  * Failure behavior:
  *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
@@ -34,9 +36,11 @@ import { formatCliError } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../github/capture-review-threads.mjs";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
-import { applyConfirmedReviewRequest, interpretLoopState, STATE } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
-const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number> [--force-rerequest-review]
+const VALID_WATCH_STATUSES = new Set(["changed", "timeout", "idle"]);
+
+const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number> [--force-rerequest-review] [--watch-status <changed|timeout|idle>]
 
 Detect the Copilot-loop state for a PR, request Copilot review only when
 a new request is still needed, and emit the recommended next action with
@@ -49,17 +53,27 @@ Required:
 Optional:
   --force-rerequest-review  Force a Copilot re-request even when automatic
                             same-head suppression is active
+  --watch-status <status>   Refresh deterministic loop state after a prior
+                           watcher result (changed|timeout|idle). This mode
+                           never requests review; it only re-detects state.
 
 Output (stdout, JSON):
   { "ok": true, "action": "watch"|"fix"|"stop", "state": "...",
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
-    "reviewRequestStatus"?: "...",
+    "reviewRequestStatus"?: "...", "watchStatus"?: "...",
+    "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
+    "loopDisposition": "...", "terminal": true|false,
     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
 
 Actions:
   watch   Copilot review was requested; use watchArgs with watch-copilot-review.mjs
   fix     Unresolved feedback exists; address it before re-requesting review
   stop    No automatic next step; report the current state (terminal, blocked, or operator-decision-required) and do not proceed
+
+Watch refresh rule:
+  watcher timeout/idle is observational only. Re-run this helper with
+  --watch-status and stop only when terminal=true. Pending or unresolved
+  states remain non-terminal even after a timeout.
 
 Watch defaults:
   pollIntervalMs  60000  (1 minute)
@@ -116,6 +130,7 @@ export function parseHandoffCliArgs(argv) {
     repo: undefined,
     pr: undefined,
     forceRerequestReview: false,
+    watchStatus: undefined,
   };
 
   while (args.length > 0) {
@@ -138,6 +153,15 @@ export function parseHandoffCliArgs(argv) {
 
     if (token === "--force-rerequest-review") {
       options.forceRerequestReview = true;
+      continue;
+    }
+
+    if (token === "--watch-status") {
+      const watchStatus = requireOptionValue(args, "--watch-status");
+      if (!VALID_WATCH_STATUSES.has(watchStatus)) {
+        throw parseError(`--watch-status must be one of: ${[...VALID_WATCH_STATUSES].join(", ")}`);
+      }
+      options.watchStatus = watchStatus;
       continue;
     }
 
@@ -169,9 +193,10 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   let interpretation = interpretLoopState(snapshot);
   let reviewRequestStatus;
 
-  const shouldRequestReview = interpretation.state === STATE.PR_READY_NO_FEEDBACK
+  const shouldRequestReview = options.watchStatus === undefined
+    && (interpretation.state === STATE.PR_READY_NO_FEEDBACK
     || interpretation.state === STATE.READY_TO_REREQUEST_REVIEW
-    && (interpretation.autoRerequestEligible || options.forceRerequestReview);
+    && (interpretation.autoRerequestEligible || options.forceRerequestReview));
 
   if (shouldRequestReview) {
     const requestResult = await performCopilotReviewRequest(
@@ -183,6 +208,8 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     snapshot = applyConfirmedReviewRequest(snapshot, reviewRequestStatus);
     interpretation = interpretLoopState(snapshot);
   }
+
+  const interpretationSummary = summarizeLoopInterpretation(interpretation);
 
   let action;
   if (reviewRequestStatus === "requested" || reviewRequestStatus === "already-requested") {
@@ -201,11 +228,19 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     state: interpretation.state,
     allowedTransitions: interpretation.allowedTransitions,
     nextAction: interpretation.nextAction,
+    autoRerequestEligible: interpretation.autoRerequestEligible,
+    sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
+    loopDisposition: interpretationSummary.loopDisposition,
+    terminal: interpretationSummary.terminal,
     snapshot,
   };
 
   if (reviewRequestStatus !== undefined) {
     result.reviewRequestStatus = reviewRequestStatus;
+  }
+
+  if (options.watchStatus !== undefined) {
+    result.watchStatus = options.watchStatus;
   }
 
   if (action === "watch") {

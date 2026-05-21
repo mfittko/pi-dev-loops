@@ -49,11 +49,19 @@ node <resolved-skill-scripts>/github/watch-copilot-review.mjs \
 ```
 Emits JSON including `{ ok: true, status, repo, pr, attempts, newComments, newReviews, newIssueComments }`.
 
+After `watch-copilot-review.mjs` returns `status: "timeout"` or `status: "idle"`, do **not** treat that as loop completion. Refresh deterministic state:
+```sh
+node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs \
+  --repo <owner/name> --pr <number> \
+  --watch-status timeout
+```
+Only stop as cleanly converged when the refreshed output proves `terminal: true` with `loopDisposition: "clean_converged"` (or another intentional terminal state such as `blocked`/`done`). If the refreshed output says `pending`, `unresolved_feedback`, or `action_required`, the loop is still non-terminal.
+
 **4. One-step detect → request → emit watch params (preferred handoff)**
 ```sh
 node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
 ```
-Detects state, requests review when appropriate, and emits JSON including `{ ok: true, action, state, allowedTransitions, nextAction, snapshot, reviewRequestStatus?, watchArgs? }`.
+Detects state, requests review when appropriate, and emits JSON including `{ ok: true, action, state, allowedTransitions, nextAction, snapshot, reviewRequestStatus?, watchStatus?, autoRerequestEligible, sameHeadCleanConverged, loopDisposition, terminal, watchArgs? }`.
 When `action` is `"watch"`, use the returned `watchArgs` with `watch-copilot-review.mjs` directly.
 
 **Request status reference**
@@ -420,6 +428,8 @@ Preferred approach for Copilot review follow-up:
 - keep the watcher in the current Pi/TelePi session
 - for unattended or long-lived waiting, prefer a Pi async subagent or the designated async follow-up skill rather than inventing a new watcher mechanism
 - after new review activity appears, launch an async Pi fixer in-session
+- if the watcher returns `timeout` or `idle`, immediately refresh deterministic state with `copilot-pr-handoff.mjs --watch-status <status>` (or `detect-copilot-loop-state.mjs`) before deciding anything about completion
+- watcher timeout/idle is observational only; it is non-terminal unless the refreshed detector output proves `terminal=true`
 - do not report the loop complete while fresh Copilot comments remain unresolved; a new Copilot pass must flow back into fixer/reply/resolve work before completion when authorization exists
 - use explicit long timeouts from the timeout policy above rather than short defaults
 
