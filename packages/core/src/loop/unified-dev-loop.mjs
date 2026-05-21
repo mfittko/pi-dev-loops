@@ -419,12 +419,12 @@ function routePRContinuation(canonicalState) {
     };
   }
 
-  // Default: copilot PR follow-up as the most common case
+  // Unknown owner — cannot determine strategy without more information
   return {
-    strategy: INTERNAL_STRATEGY.COPILOT_PR_FOLLOWUP,
-    reason: "Default PR continuation; routing to Copilot PR follow-up",
-    compatibility: "copilot-dev-loop",
-    actionable: true,
+    strategy: INTERNAL_STRATEGY.NEEDS_CLARIFICATION,
+    reason: "Cannot determine PR ownership; ask user to clarify who owns this PR",
+    compatibility: null,
+    actionable: false,
   };
 }
 
