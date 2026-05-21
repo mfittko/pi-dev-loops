@@ -128,16 +128,17 @@ test("restartExistingPortListener is a no-op when nothing is listening", async (
 });
 
 test("restartExistingPortListener stops existing listeners on the chosen port", async () => {
-  const alive = new Set([111, 222]);
   const killed = [];
+  let pollCount = 0;
 
   const restarted = await restartExistingPortListener(4311, {
-    listListeningPidsImpl: async () => [111, 222],
+    listListeningPidsImpl: async () => {
+      pollCount += 1;
+      return pollCount === 1 ? [111, 222] : [];
+    },
     killProcessImpl: (pid, signal) => {
       killed.push([pid, signal]);
-      alive.delete(pid);
     },
-    isProcessAliveImpl: (pid) => alive.has(pid),
     sleepImpl: async () => {},
   });
 
@@ -150,11 +151,14 @@ test("restartExistingPortListener stops existing listeners on the chosen port", 
 
 
 test("restartExistingPortListener tolerates listeners that exit before SIGTERM", async () => {
-  const alive = new Set([222]);
   const killed = [];
+  let pollCount = 0;
 
   const restarted = await restartExistingPortListener(4311, {
-    listListeningPidsImpl: async () => [111, 222],
+    listListeningPidsImpl: async () => {
+      pollCount += 1;
+      return pollCount === 1 ? [111, 222] : [];
+    },
     killProcessImpl: (pid, signal) => {
       killed.push([pid, signal]);
       if (pid === 111) {
@@ -162,9 +166,7 @@ test("restartExistingPortListener tolerates listeners that exit before SIGTERM",
         error.code = "ESRCH";
         throw error;
       }
-      alive.delete(pid);
     },
-    isProcessAliveImpl: (pid) => alive.has(pid),
     sleepImpl: async () => {},
   });
 
@@ -173,6 +175,27 @@ test("restartExistingPortListener tolerates listeners that exit before SIGTERM",
     [111, "SIGTERM"],
     [222, "SIGTERM"],
   ]);
+});
+
+
+test("restartExistingPortListener waits for the port to become free, not for the process to exit", async () => {
+  const killed = [];
+  let pollCount = 0;
+
+  const restarted = await restartExistingPortListener(4311, {
+    listListeningPidsImpl: async () => {
+      pollCount += 1;
+      return pollCount === 1 ? [111] : [];
+    },
+    killProcessImpl: (pid, signal) => {
+      killed.push([pid, signal]);
+    },
+    sleepImpl: async () => {},
+  });
+
+  assert.deepEqual(restarted, [111]);
+  assert.deepEqual(killed, [[111, "SIGTERM"]]);
+  assert.equal(pollCount, 2);
 });
 
 test("formatInspectRunViewerUrl formats IPv4 and IPv6 hosts for copy-pasteable output", () => {

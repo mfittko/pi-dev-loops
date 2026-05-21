@@ -460,14 +460,6 @@ export async function restartExistingPortListener(
   {
     listListeningPidsImpl = listListeningPidsForPort,
     killProcessImpl = (pid, signal) => process.kill(pid, signal),
-    isProcessAliveImpl = (pid) => {
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch {
-        return false;
-      }
-    },
     sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     timeoutMs = 1500,
     pollIntervalMs = 50,
@@ -490,7 +482,8 @@ export async function restartExistingPortListener(
 
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (pids.every((pid) => !isProcessAliveImpl(pid))) {
+    const remainingListeners = (await listListeningPidsImpl(port)).filter((pid) => pid !== process.pid);
+    if (remainingListeners.length === 0) {
       return pids;
     }
     await sleepImpl(pollIntervalMs);
