@@ -41,6 +41,9 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
   assert.equal(parsed.repo, "owner/repo");
   assert.equal(parsed.pr, 55);
 
+  const bracketedIpv6Host = parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "[::1]"]);
+  assert.equal(bracketedIpv6Host.host, "::1");
+
   let malformedTargetError;
   try {
     parseInspectRunViewerCliArgs(["--repo", "../../bad", "--pr", "55"]);
@@ -78,6 +81,7 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
 test("formatInspectRunViewerUrl formats IPv4 and IPv6 hosts for copy-pasteable output", () => {
   assert.equal(formatInspectRunViewerUrl("127.0.0.1", 4311), "http://127.0.0.1:4311");
   assert.equal(formatInspectRunViewerUrl("::1", 4311), "http://[::1]:4311");
+  assert.equal(formatInspectRunViewerUrl("[::1]", 4311), "http://[::1]:4311");
 });
 
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot", () => {

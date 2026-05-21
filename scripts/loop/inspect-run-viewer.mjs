@@ -62,6 +62,9 @@ function parseHost(rawHost) {
   if (host.length === 0) {
     throw parseError("--host must not be empty");
   }
+  if (/^\[[^\]]+\]$/.test(host)) {
+    return host.slice(1, -1);
+  }
   return host;
 }
 
