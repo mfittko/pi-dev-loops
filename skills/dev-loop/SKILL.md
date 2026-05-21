@@ -17,6 +17,11 @@ user-invocable: true
 
 This skill is the execution engine for phased implementation in this repository.
 
+Authority boundary for this skill:
+- this skill owns the local phase procedure and artifact discipline
+- it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands
+- when helper behavior changes, update the relevant code/tests and contract docs in addition to any skill guidance that references them
+
 Use it when the user says things like:
 - start implementation
 - continue implementation
@@ -113,7 +118,7 @@ If these files are missing, create them from `templates/` before continuing:
 - missing `docs/phases/phase-x.md` for the active phase -> create from `templates/phase-doc.md`
 - missing `tmp/phases/index.json` -> create or reinitialize it
 
-The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase.
+The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase's plan and acceptance boundary.
 
 For bootstrap/setup phases, do not mark the phase `completed` or `awaiting-finalization` until the expected durable support files for the chosen workflow contract actually exist in the repository. Temporary `tmp/` execution artifacts do not need to be committed.
 ## Plan sufficiency check

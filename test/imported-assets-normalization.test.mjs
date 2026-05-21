@@ -77,6 +77,25 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
   assert.match(reviewerGraph, /do not replace the state machine's supported\s+review-angle taxonomy/i);
 });
 
+test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {
+  const [workflowDoc, scriptsReadme, devLoopSkill] = await Promise.all([
+    readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),
+    readRepo("scripts/README.md"),
+    readRepo("skills/dev-loop/SKILL.md"),
+  ]);
+
+  assert.match(workflowDoc, /shipped helper\/runtime semantics stay owned by code, tests, and the relevant contract docs/i);
+  assert.match(workflowDoc, /`scripts\/README\.md` summarizes those semantics/i);
+  assert.match(workflowDoc, /state-graph\/contract docs under `docs\/` remain part of the authoritative shipped contract surface/i);
+  assert.match(workflowDoc, /skills and phase docs explain workflow procedure and durable planning intent; they must not silently redefine shipped helper behavior/i);
+
+  assert.match(scriptsReadme, /code, tests, and the helper entrypoints themselves are authoritative for shipped runtime behavior/i);
+  assert.match(scriptsReadme, /this README summarizes those contracts for operators and maintainers; if behavior changes, update the code\/tests and then sync this document/i);
+
+  assert.match(devLoopSkill, /this skill owns the local phase procedure and artifact discipline/i);
+  assert.match(devLoopSkill, /it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands/i);
+});
+
 test("copilot skill still contains its core workflow guidance", async () => {
   const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
 
