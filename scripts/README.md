@@ -431,6 +431,41 @@ Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
 - unexpected runtime failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/loop/inspect-run-viewer.mjs`
+
+Read-only single-run local browser viewer for one explicit Copilot PR outer-loop target.
+This viewer is a downstream consumer of `inspect-run` and does not invent a second status model.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Optional:
+- `--host <host>` (default: `127.0.0.1`; non-loopback binds require `--allow-non-localhost`)
+- `--port <port>` (default: `4311`)
+- `--allow-non-localhost` (explicit opt-in for non-loopback binds such as `0.0.0.0` or LAN IPs)
+- `--steering-state-file <path>` (pass-through to `inspect-run`)
+- `--reviewer-login <login>` (pass-through to `inspect-run`)
+- `--copilot-input <path>` (pass-through to `inspect-run`)
+- `--reviewer-input <path>` (pass-through to `inspect-run`; cannot be combined with `--reviewer-login`)
+
+Contract:
+- read-only: no GitHub mutations, no checkpoint writes, no steering writes, no worker attachment
+- local-viewer safety: default host remains loopback-only; non-loopback binds require explicit `--allow-non-localhost` because they may expose local inspection state on the network
+- GitHub-first launch boundary: one explicit target (`repo` + `pr`)
+- uses one thin adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
+- adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace
+- renders top summary fields directly from inspection snapshot (`runId` when present, `inspectedAt`, `activeStateFamily`, `outerAction`, `activeFamilyState`, `statusClass`, `needsAttention`, `sourceMode`, `trust`, `evidence.summary`, and markers)
+- renders separate read-only sections for outer-loop summary, copilot layer, reviewer layer, and steering summary, including explicit "not present / unavailable" output when a section is absent
+- manual reload only (`window.location.reload()`); no polling/watch/timeout/control semantics
+
+Local manual verification path:
+1. Start viewer for one explicit target:
+   - `node scripts/loop/inspect-run-viewer.mjs --repo <owner/name> --pr <number>`
+2. Open printed URL in a local browser
+3. Use browser refresh or the reload button for point-in-time re-inspection
+4. For deterministic/local test mode, pass `--copilot-input` and `--reviewer-input` fixtures to viewer; these are forwarded to `inspect-run`
+
 ### `scripts/loop/steer-loop.mjs`
 
 Mid-flight operator steering CLI for active dev loops.

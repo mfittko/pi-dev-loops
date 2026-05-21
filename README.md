@@ -103,6 +103,7 @@ Current script entrypoints include:
 - `scripts/loop/detect-reviewer-loop-state.mjs`
 - `scripts/loop/detect-tracker-pr-state.mjs`
 - `scripts/loop/inspect-run.mjs`
+- `scripts/loop/inspect-run-viewer.mjs`
 - `scripts/loop/outer-loop.mjs`
 - `scripts/loop/steer-loop.mjs`
 - `scripts/loop/summarize-loop-state.mjs`
