@@ -429,19 +429,23 @@ test("createInspectRunViewerServer keeps favicon, unsupported paths, and unsuppo
 
     const missingResponse = await requestOnce(`http://127.0.0.1:${address.port}/nope`);
     assert.equal(missingResponse.statusCode, 404);
+    assert.equal(missingResponse.headers["cache-control"], "no-store");
     assert.equal(loadCount, 0);
 
     const postHtmlResponse = await requestOnce(`http://127.0.0.1:${address.port}/`, { method: "POST" });
     assert.equal(postHtmlResponse.statusCode, 405);
     assert.equal(postHtmlResponse.headers.allow, "GET");
+    assert.equal(postHtmlResponse.headers["cache-control"], "no-store");
     assert.equal(loadCount, 0);
 
     const postJsonResponse = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json`, { method: "POST" });
     assert.equal(postJsonResponse.statusCode, 405);
     assert.equal(postJsonResponse.headers.allow, "GET");
+    assert.equal(postJsonResponse.headers["cache-control"], "no-store");
 
     const postMissingPathResponse = await requestOnce(`http://127.0.0.1:${address.port}/nope`, { method: "POST" });
     assert.equal(postMissingPathResponse.statusCode, 404);
+    assert.equal(postMissingPathResponse.headers["cache-control"], "no-store");
     assert.equal(loadCount, 0);
   } finally {
     await new Promise((resolve) => server.close(resolve));

@@ -382,6 +382,7 @@ function setNoStore(response) {
 }
 
 function writeText(response, statusCode, body, headers = {}) {
+  setNoStore(response);
   response.statusCode = statusCode;
   for (const [name, value] of Object.entries(headers)) {
     response.setHeader(name, value);
