@@ -153,6 +153,39 @@ test("start_issue_locally_then_continue routes first to local implementation wit
   assert.match(result.nextAction, /re-enter the same public `dev-loop` entrypoint/i);
 });
 
+test("start_issue_locally with invalid canonical state fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 86 },
+    currentState: {
+      ownership: DEV_LOOP_ACTOR.LOCAL,
+      nextActor: DEV_LOOP_ACTOR.LOCAL,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
+});
+
+test("start_issue_locally with conflicting canonical state fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 86 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, issue: 86, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
+});
+
 test("continue_on_pr routes Copilot-owned PR follow-up to the compatibility copilot-dev-loop strategy", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,

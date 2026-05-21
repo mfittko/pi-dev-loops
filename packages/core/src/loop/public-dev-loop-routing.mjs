@@ -369,6 +369,20 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       return buildReconcile("Local issue-start intents require an issue target.");
     }
 
+    if (input.currentState !== undefined && !explicitState) {
+      return buildReconcile("Local issue-start intents received an invalid canonical current state.");
+    }
+
+    if (explicitState) {
+      if (
+        explicitState.target.kind !== DEV_LOOP_TARGET_KIND.LOCAL_PHASE ||
+        explicitState.target.issue !== explicitTarget.issue
+      ) {
+        return buildReconcile("Local issue-start target conflicts with the canonical current state.", explicitState);
+      }
+      return routeForState(explicitState);
+    }
+
     const routed = routeForState({
       target: {
         kind: DEV_LOOP_TARGET_KIND.LOCAL_PHASE,
