@@ -50,8 +50,15 @@ export function summarizeCopilotReviews(reviews, { headSha } = {}) {
     }
   }
 
+  const hasCleanSubmittedReview = copilotReviews.some((review) => {
+    const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
+    const body = typeof review?.body === "string" ? review.body : "";
+    return state !== "PENDING" && /generated no new comments/i.test(body);
+  });
+
   return {
     copilotReviews,
+    hasCleanSubmittedReview,
     copilotReviewIds: copilotReviews
       .map((review) => review?.id)
       .filter((id) => id !== null && id !== undefined)

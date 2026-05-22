@@ -381,6 +381,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
   const reviewSummary = summarizeCopilotReviews(prData.reviews, { headSha: prHeadSha });
   const copilotReviewPresent = reviewSummary.copilotReviewPresent;
   const copilotReviewOnCurrentHead = reviewSummary.hasSubmittedReviewOnCurrentHead;
+  const cleanCopilotReviewPresent = reviewSummary.hasCleanSubmittedReview;
   const ciStatus = normalizeCiStatus(prData.statusCheckRollup);
 
   // Determine review request status
@@ -421,6 +422,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     copilotReviewRequestStatus,
     copilotReviewPresent,
     copilotReviewOnCurrentHead,
+    cleanCopilotReviewPresent,
     unresolvedThreadCount,
     actionableThreadCount,
     ciStatus,

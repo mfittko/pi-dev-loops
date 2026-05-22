@@ -33,6 +33,7 @@ test("normalizeSnapshot returns safe defaults for an empty object", () => {
     copilotReviewRequestStatus: "none",
     copilotReviewPresent: false,
     copilotReviewOnCurrentHead: false,
+    cleanCopilotReviewPresent: false,
     unresolvedThreadCount: 0,
     actionableThreadCount: 0,
     ciStatus: "none",

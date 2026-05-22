@@ -175,12 +175,6 @@ function parseReviewsPayload(text) {
     : null;
   const reviewSummary = summarizeCopilotReviews(payload?.reviews, { headSha });
 
-  const hasCleanSubmittedReview = reviewSummary.copilotReviews.some((review) => {
-    const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
-    const body = typeof review?.body === "string" ? review.body : "";
-    return state !== "PENDING" && /generated no new comments/i.test(body);
-  });
-
   return {
     prData: payload,
     headSha,
@@ -188,7 +182,7 @@ function parseReviewsPayload(text) {
     copilotReviewPresent: reviewSummary.copilotReviewPresent,
     hasCopilotPendingReviewOnCurrentHead: reviewSummary.hasPendingReviewOnCurrentHead,
     hasCopilotSubmittedReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
-    hasCleanSubmittedReview,
+    hasCleanSubmittedReview: reviewSummary.hasCleanSubmittedReview,
   };
 }
 
@@ -277,6 +271,7 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
       copilotReviewRequestStatus: hasPendingReviewOnCurrentHead || requested ? "requested" : "none",
       copilotReviewPresent,
       copilotReviewOnCurrentHead: hasSubmittedReviewOnCurrentHead,
+      cleanCopilotReviewPresent: hasCleanSubmittedReview,
       unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
       actionableThreadCount: parsedThreads.summary.actionableThreads,
       ciStatus: normalizeCiStatus(prData.statusCheckRollup),
