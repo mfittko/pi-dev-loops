@@ -258,6 +258,35 @@ function renderCopilotLayerSection(layer) {
   });
 }
 
+function renderCopilotLoopIterationsSection(snapshot) {
+  const loopIterations = snapshot?.loopIterations;
+
+  if (loopIterations === null || loopIterations === undefined) {
+    return renderCompactSection({ title: "Copilot loop iterations" });
+  }
+
+  const humanSummary = loopIterations.available
+    ? `state: ${snapshot?.layers?.copilot?.currentState ?? "not present"}; iterations: ${loopIterations.completedCopilotReviewRounds} completed, ${loopIterations.pendingCopilotReviewRounds} pending; comments: ${loopIterations.copilotReviewComments} produced, ${loopIterations.unresolvedReviewThreads} unresolved; fix commits: ${loopIterations.fixCommitsAfterFeedback}`
+    : "not present / unavailable";
+
+  return renderCompactSection({
+    title: "Copilot loop iterations",
+    entries: [
+      ["available", String(loopIterations.available)],
+      ["source", loopIterations.source ?? "not present"],
+      ["reason", loopIterations.reason ?? "not present"],
+      ["completedCopilotReviewRounds", loopIterations.completedCopilotReviewRounds ?? "not present"],
+      ["pendingCopilotReviewRounds", loopIterations.pendingCopilotReviewRounds ?? "not present"],
+      ["copilotReviewRequests", loopIterations.copilotReviewRequests ?? "not present"],
+      ["copilotReviewComments", loopIterations.copilotReviewComments ?? "not present"],
+      ["resolvedReviewThreads", loopIterations.resolvedReviewThreads ?? "not present"],
+      ["unresolvedReviewThreads", loopIterations.unresolvedReviewThreads ?? "not present"],
+      ["fixCommitsAfterFeedback", loopIterations.fixCommitsAfterFeedback ?? "not present"],
+      ["humanSummary", humanSummary],
+    ],
+  });
+}
+
 function renderReviewerLayerSection(layer) {
   if (layer === null || layer === undefined) {
     return renderCompactSection({ title: "reviewer layer" });
@@ -365,6 +394,7 @@ export function renderInspectRunViewerHtml({
     <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
     ${topSummary}
     ${renderOuterLoopSummarySection(normalizedSnapshot)}
+    ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
     ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
     ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
     ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}

@@ -37,6 +37,7 @@
  *     "sourceMode": "...", "trust": "...",
  *     "evidence": { "summary": "...", "authoritative": [...], "checkpoint": [...] },
  *     "markers": { "missing": [], "stale": [], "conflicts": [] },
+ *     "loopIterations": { "available": true|false, ... },
  *     "layers": { "copilot": {...}, "reviewer": {...}, "steering": {...} } }
  *
  * Failure behavior:
@@ -51,10 +52,11 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../github/capture-review-threads.mjs";
+import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
+import { fetchGithubReviewThreadsPayload, parseRepoSlug } from "../github/capture-review-threads.mjs";
 import { autoDetectSnapshot as autoDetectCopilotSnapshot } from "./detect-copilot-loop-state.mjs";
 import {
   buildCheckpointFilePath,
@@ -75,6 +77,7 @@ import {
   composeRunInspectionSnapshot,
   deriveRunIdForInspectionTarget,
 } from "../../packages/core/src/loop/run-inspection.mjs";
+import { summarizeCopilotLoopIterations } from "../../packages/core/src/loop/copilot-loop-iterations.mjs";
 import {
   classifySafePoint,
   getSteeringStatus,
@@ -118,7 +121,7 @@ Output (stdout, JSON):
   Always-present fields:
     ok, schemaVersion, target, inspectedAt, activeStateFamily,
     outerAction, activeFamilyState, statusClass, needsAttention,
-    sourceMode, trust, evidence, markers
+    sourceMode, trust, evidence, markers, loopIterations
   Best-effort fields:
     layers (copilot, reviewer, steering drill-down)
 
@@ -252,6 +255,114 @@ export function parseInspectRunCliArgs(argv) {
   }
 
   return options;
+}
+
+// ---------------------------------------------------------------------------
+// GitHub fact capture helpers
+// ---------------------------------------------------------------------------
+
+function runChild(command, args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+async function runGhJson(args, { env, ghCommand }) {
+  const result = await runChild(ghCommand, args, env);
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Invalid JSON from gh: ${result.stdout.trim() || "<empty>"}`);
+  }
+}
+
+function normalizeTimelineReviewRequestEvents(payload) {
+  const events = Array.isArray(payload) ? payload : [];
+
+  return events
+    .filter((event) => event?.event === "review_requested")
+    .map((event) => ({
+      createdAt: event?.created_at,
+      requestedReviewerLogin: event?.requested_reviewer?.login,
+    }));
+}
+
+function normalizeReviewPayload(payload) {
+  const reviews = Array.isArray(payload) ? payload : [];
+
+  return reviews.map((review) => ({
+    state: review?.state,
+    submittedAt: review?.submitted_at ?? review?.created_at,
+    authorLogin: review?.user?.login ?? review?.author?.login,
+    commitSha: review?.commit_id ?? review?.commit?.oid,
+  }));
+}
+
+function normalizeReviewCommentsPayload(payload) {
+  const comments = Array.isArray(payload) ? payload : [];
+
+  return comments.map((comment) => ({
+    createdAt: comment?.created_at ?? comment?.createdAt,
+    authorLogin: comment?.user?.login ?? comment?.author?.login,
+  }));
+}
+
+function normalizeCommitsPayload(payload) {
+  const commits = Array.isArray(payload) ? payload : [];
+
+  return commits.map((item) => ({
+    sha: item?.sha ?? item?.commit?.oid,
+    committedAt: item?.commit?.committer?.date ?? item?.commit?.author?.date ?? item?.committed_at,
+    authorLogin: item?.author?.login ?? item?.committer?.login ?? "",
+  }));
+}
+
+async function fetchCopilotLoopIterations({ repo, pr, snapshot }, { env, ghCommand }) {
+  const [timelinePayload, reviewsPayload, reviewCommentsPayload, commitsPayload, reviewThreadsPayload] = await Promise.all([
+    runGhJson(
+      ["api", "-H", "Accept: application/vnd.github+json", `repos/${repo}/issues/${pr}/timeline?per_page=100`],
+      { env, ghCommand },
+    ),
+    runGhJson(["api", `repos/${repo}/pulls/${pr}/reviews?per_page=100`], { env, ghCommand }),
+    runGhJson(["api", `repos/${repo}/pulls/${pr}/comments?per_page=100`], { env, ghCommand }),
+    runGhJson(["api", `repos/${repo}/pulls/${pr}/commits?per_page=100`], { env, ghCommand }),
+    fetchGithubReviewThreadsPayload({ repo, pr }, { env, ghCommand }),
+  ]);
+
+  return summarizeCopilotLoopIterations({
+    reviewRequestEvents: normalizeTimelineReviewRequestEvents(timelinePayload),
+    reviews: normalizeReviewPayload(reviewsPayload),
+    reviewComments: normalizeReviewCommentsPayload(reviewCommentsPayload),
+    commits: normalizeCommitsPayload(commitsPayload),
+    reviewThreadSummary: parseReviewThreads(reviewThreadsPayload).summary,
+    currentHeadSha: snapshot?.prHeadSha ?? null,
+    currentReviewRequestStatus: snapshot?.copilotReviewRequestStatus ?? "none",
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -395,6 +506,33 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
     // Detection failure; reviewerEvidence stays null, status stays "failed"
   }
 
+  let loopIterations = {
+    available: false,
+    source: "github_pr_timeline",
+    reason: "requires_live_github_facts",
+  };
+
+  if (copilotEvidence?.snapshot?.prExists === false) {
+    loopIterations = {
+      available: false,
+      source: "github_pr_timeline",
+      reason: "no_pr",
+    };
+  } else if (copilotInputPath === undefined && copilotEvidence !== null) {
+    try {
+      loopIterations = await fetchCopilotLoopIterations(
+        { repo, pr, snapshot: copilotEvidence.snapshot },
+        { env, ghCommand },
+      );
+    } catch {
+      loopIterations = {
+        available: false,
+        source: "github_pr_timeline",
+        reason: "github_fact_capture_failed",
+      };
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Read existing checkpoint (read-only)
   // -------------------------------------------------------------------------
@@ -510,6 +648,7 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
     steeringLoadFailed,
     steeringUnavailableReason,
     steeringReadback,
+    loopIterations,
   });
 }
 
