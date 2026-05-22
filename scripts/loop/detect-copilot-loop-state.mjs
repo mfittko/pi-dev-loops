@@ -320,7 +320,7 @@ async function fetchCopilotRequested({ repo, pr }, { env, ghCommand }) {
 /**
  * Map a gh statusCheckRollup array to a normalized ciStatus string.
  */
-function normalizeCiStatus(rollup) {
+export function normalizeCiStatus(rollup) {
   if (!Array.isArray(rollup) || rollup.length === 0) {
     return "none";
   }

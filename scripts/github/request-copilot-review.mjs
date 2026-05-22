@@ -3,10 +3,10 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatCliError, isCopilotLogin, summarizeCopilotReviews } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "./capture-review-threads.mjs";
-import { autoDetectSnapshot } from "../loop/detect-copilot-loop-state.mjs";
-import { interpretLoopState } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import { formatCliError, isCopilotLogin, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
+import { fetchGithubReviewThreadsPayload, parseRepoSlug } from "./capture-review-threads.mjs";
+import { normalizeCiStatus } from "../loop/detect-copilot-loop-state.mjs";
+import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
 
@@ -176,8 +176,10 @@ function parseReviewsPayload(text) {
   const reviewSummary = summarizeCopilotReviews(payload?.reviews, { headSha });
 
   return {
+    prData: payload,
     headSha,
     copilotReviewIds: reviewSummary.copilotReviewIds,
+    copilotReviewPresent: reviewSummary.copilotReviewPresent,
     hasCopilotPendingReviewOnCurrentHead: reviewSummary.hasPendingReviewOnCurrentHead,
     hasCopilotSubmittedReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
   };
@@ -201,7 +203,7 @@ async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghComm
 async function fetchCopilotReviewIds({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
-    ["pr", "view", String(pr), "--repo", repo, "--json", "headRefOid,reviews"],
+    ["pr", "view", String(pr), "--repo", repo, "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
     env,
   );
 
@@ -219,28 +221,51 @@ async function fetchCopilotReviewState(options, runtime) {
 
   return {
     requested: requestedReviewers.requested,
+    prData: reviews.prData,
     copilotReviewIds: reviews.copilotReviewIds,
+    copilotReviewPresent: reviews.copilotReviewPresent,
     hasPendingReviewOnCurrentHead: reviews.hasCopilotPendingReviewOnCurrentHead,
     hasSubmittedReviewOnCurrentHead: reviews.hasCopilotSubmittedReviewOnCurrentHead,
   };
 }
 
 async function detectSameHeadCleanConvergence(options, runtime, priorReviewState = {}) {
-  const { hasSubmittedReviewOnCurrentHead = false } = priorReviewState;
+  const {
+    requested = false,
+    prData = null,
+    copilotReviewPresent = false,
+    hasPendingReviewOnCurrentHead = false,
+    hasSubmittedReviewOnCurrentHead = false,
+  } = priorReviewState;
 
   if (typeof options.sameHeadCleanConverged === "boolean") {
     return options.sameHeadCleanConverged;
   }
 
-  if (!hasSubmittedReviewOnCurrentHead) {
+  if (!hasSubmittedReviewOnCurrentHead || prData === null) {
     return false;
   }
 
   try {
-    const snapshot = await autoDetectSnapshot(
+    const threadsPayload = await fetchGithubReviewThreadsPayload(
       { repo: options.repo, pr: options.pr },
       runtime,
     );
+    const parsedThreads = parseReviewThreads(threadsPayload);
+    const prState = typeof prData.state === "string" ? prData.state.toUpperCase() : "OPEN";
+    const snapshot = normalizeSnapshot({
+      prExists: true,
+      prNumber: typeof prData.number === "number" ? prData.number : options.pr,
+      prDraft: Boolean(prData.isDraft),
+      prMerged: prState === "MERGED",
+      prClosed: prState === "CLOSED",
+      copilotReviewRequestStatus: hasPendingReviewOnCurrentHead || requested ? "requested" : "none",
+      copilotReviewPresent,
+      copilotReviewOnCurrentHead: hasSubmittedReviewOnCurrentHead,
+      unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
+      actionableThreadCount: parsedThreads.summary.actionableThreads,
+      ciStatus: normalizeCiStatus(prData.statusCheckRollup),
+    });
     const interpretation = interpretLoopState(snapshot);
     return interpretation.sameHeadCleanConverged;
   } catch (error) {
@@ -310,7 +335,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   const sameHeadCleanConverged = await detectSameHeadCleanConvergence(
     options,
     { env, ghCommand },
-    { hasSubmittedReviewOnCurrentHead: before.hasSubmittedReviewOnCurrentHead },
+    before,
   );
   const bypassedSameHeadCleanSuppression = sameHeadCleanConverged && options.forceRerequestReview === true;
 
