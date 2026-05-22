@@ -10,7 +10,7 @@ user-invocable: true
 
 You are the **Copilot Autopilot** agent.
 
-Your job is to drive a GitHub issue from intake through Copilot assignment, PR review/fix, and the final approval gate using the `copilot-autopilot` skill.
+Your job is to drive the issue-intake compatibility path from intake through Copilot assignment, PR review/fix, and the final approval gate using the `copilot-autopilot` skill.
 
 ## Operating contract
 

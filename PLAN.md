@@ -20,8 +20,10 @@ Do **not** use `PLAN.md` for one-off issue execution plans, PR-specific checklis
 ## Current repo posture
 
 - This repo is currently a **source-loaded workspace**, not a published npm-package workflow.
-- For active implementation and release work in this repo, prefer the **GitHub remote-loop workflow** (`copilot-dev-loop` / `copilot-autopilot`) when practical.
-- The local **`dev-loop`** remains a supported phased workflow when the user explicitly wants local phase-bounded work.
+- Use **`dev-loop`** as the single public workflow entrypoint.
+- Let the public `dev-loop` façade route deterministically to the correct internal strategy family.
+- For active implementation and release work in this repo, the default routed path should still prefer the GitHub-first internal strategies when practical.
+- The local implementation strategy remains supported when the user explicitly wants local phase-bounded work.
 - GitHub issues are the backlog and GitHub PRs are the main execution trail for remote-loop work.
 - Packaged skills are installed explicitly through `/dev-loops install ...` and refreshed through `/dev-loops update ...`; package install alone does not auto-install skills.
 
@@ -47,11 +49,12 @@ Thin workflow entrypoint agents are still allowed, but they must stay thin, defe
 ### 2. Workflow skills
 
 Reusable Pi workflow skills under `skills/`, especially:
-- `dev-loop` for docs-first local phased work
-- `copilot-dev-loop` for GitHub/Copilot issue and PR execution
-- `copilot-autopilot` for issue-first GitHub intake through PR and review loops
+- `dev-loop` as the single public façade for start/continue/state requests
+- `copilot-dev-loop` as a compatibility/internal GitHub/Copilot PR execution strategy
+- `copilot-autopilot` as a compatibility/internal issue-first GitHub intake strategy
 
 Skills own sequencing, handoff rules, and operator-facing workflow policy.
+The public entrypoint should expose user intent; internal strategy names are compatibility shims, not the primary UX.
 
 ### 3. Extension and CLI surface
 

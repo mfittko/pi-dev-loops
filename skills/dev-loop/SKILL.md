@@ -1,11 +1,14 @@
 ---
 name: dev-loop
 description: >-
-  Use for phased local development in Pi-managed repositories when the user says
-  to start or continue work. Reads project docs, resumes the next unfinished
-  phase, uses the refiner for phase refinement, runs a fan-out/fan-in/review/
-  merge planning loop for that phase only, logs structured artifacts under tmp/,
-  records subagent summaries, writes tests first, validates locally, updates
+  Use as the single public dev-loop entrypoint. It reads the canonical current
+  state and routes deterministically to the correct internal strategy: local
+  phased implementation, issue-first GitHub/Copilot intake, PR follow-up,
+  reviewer/fixer work, wait/watch, or final approval. When the selected
+  strategy is local implementation, it resumes the next unfinished phase, uses
+  the refiner for phase refinement, runs a fan-out/fan-in/review/merge planning
+  loop for that phase only, logs structured artifacts under tmp/, records
+  subagent summaries, writes tests first, validates locally, updates
   implementation state, and stops at phase boundaries unless explicitly told to
   continue.
 compatibility: Pi skill for git-based repositories with Node.js/npm and optional subagent support.
@@ -13,24 +16,37 @@ allowed-tools: read bash edit write subagent review_loop
 user-invocable: true
 ---
 
-# Local Implementation Loop
+# Unified Dev Loop
 
-This skill is the execution engine for phased implementation in this repository.
+This skill is the public `dev-loop` façade for this repository. It should route user intent from canonical state without making the user choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front.
+
+## First-slice public routing contract
+
+The authoritative contract is `docs/public-dev-loop-contract.md`; the executable evaluator is exported as `@pi-dev-loops/core/loop/public-dev-loop-routing` and lives in the source repository at `packages/core/src/loop/public-dev-loop-routing.mjs`.
+
+For installed packaged copies of this skill, do not assume source-repository paths such as `packages/core/...` or `docs/...` exist beside the skill. Treat this section as a summary and use the package export when the runtime is available.
+
+Operational summary:
+- route from the canonical current state before deciding whether work is local, issue-intake, PR follow-up, review/fix, wait/watch, or final approval
+- keep `copilot-dev-loop` and `copilot-autopilot` as compatibility/internal entrypoints for routed GitHub/Copilot paths
+- when the routed strategy is not local implementation, stop the local-phase procedure below and hand off instead of forcing the request into a local-only path
 
 Authority boundary for this skill:
-- this skill owns the local phase procedure and artifact discipline
-- it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands
+- this skill owns the local phase procedure and artifact discipline when the routed strategy is local implementation
+- it summarizes the public routing contract, and it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands
 - when helper behavior changes, update the relevant code/tests and contract docs in addition to any skill guidance that references them
 
 Use it when the user says things like:
+- start dev loop on issue 86
+- continue dev loop on PR 88
+- continue the current dev loop
+- what state is the dev loop in?
 - start implementation
 - continue implementation
 - implement the next phase
 - resume the local implementation loop
 - start implementation in dev mode
 - continue implementation in dev mode
-
-Do not assume GitHub PRs, issues, or remote review workflows. This repo is local-first.
 
 ## Minimal required project inputs
 

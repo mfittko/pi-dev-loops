@@ -38,8 +38,10 @@ If the user says **"continue implementation"**:
 5. read this file
 6. read `docs/phases/phase-7.md`
 7. choose the workflow mode that fits the request:
-   - active GitHub-first implementation/release work -> prefer `copilot-dev-loop` or `copilot-autopilot`
-   - explicit local phase-bounded work -> use `dev-loop`
+   - start from the public `dev-loop` entrypoint
+   - routed issue-intake work -> `copilot-autopilot`
+   - routed Copilot-owned PR follow-up -> `copilot-dev-loop`
+   - explicit local phase-bounded work -> local implementation strategy inside `dev-loop`
 8. inspect `tmp/phases/index.json` and any useful prior artifacts only if prior context helps
 9. if durable repo truth changed during the work, sync `README.md`, `PLAN.md`, `docs/IMPLEMENTATION_STATE.md`, and any affected contract docs before closing the slice
 10. if the request is about workflow-remediation preparation, read `docs/workflow-remediation-prep.md` and work the next bounded #70 chunk without widening scope

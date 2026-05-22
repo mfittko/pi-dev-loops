@@ -2,10 +2,11 @@
 
 ## Project contract
 
-This repository now prefers the GitHub remote-loop workflow for active implementation and release work.
+This repository now uses `dev-loop` as the single public workflow entrypoint.
 
-- Use `copilot-dev-loop` as the primary workflow when work should move through GitHub branches, pull requests, CI, and review.
-- Use `dev-loop` only when the user explicitly wants a local phase-based implementation path.
+- Route `dev-loop` deterministically to the GitHub-first internal strategies when work should move through GitHub branches, pull requests, CI, and review.
+- Route `dev-loop` to the local implementation strategy only when the user explicitly wants a local phase-based path.
+- Keep `copilot-dev-loop` and `copilot-autopilot` available as compatibility/internal strategy entrypoints during the migration.
 
 These skills may be provided repo-locally or globally; this contract does not assume a local skill path.
 

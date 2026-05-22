@@ -5,13 +5,16 @@ This repository supports both a local phased workflow and a GitHub-first remote 
 ## Repo-level workflow preference
 
 Use these defaults unless the user explicitly asks for something else:
-- prefer the **GitHub remote-loop workflow** for active implementation and release work
-- use the local **`dev-loop`** for phase-bounded local planning/implementation when explicitly requested
+- use **`dev-loop`** as the single public workflow entrypoint
+- let `dev-loop` route deterministically from the canonical current state to the correct internal strategy
+- prefer the GitHub-first internal strategies for active implementation and release work
+- use the local implementation strategy for phase-bounded local planning/implementation when explicitly requested
 
 In practice:
-- use `copilot-dev-loop` for normal GitHub-first issue/PR execution
-- use `copilot-autopilot` when the user wants end-to-end issue-first GitHub execution
-- use `dev-loop` only when the user explicitly wants the local phase-based path
+- start with `dev-loop` for user-intent requests such as start, continue, or inspect state
+- let routed issue-intake work land in `copilot-autopilot`
+- let routed Copilot-owned PR follow-up work land in `copilot-dev-loop`
+- let explicit local-start requests land in the local implementation strategy inside `dev-loop`
 
 ## Layers of truth
 
