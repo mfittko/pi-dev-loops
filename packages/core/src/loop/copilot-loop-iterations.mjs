@@ -160,7 +160,7 @@ export function summarizeCopilotLoopIterations({
     source: "github_pr_timeline",
     completedCopilotReviewRounds,
     pendingCopilotReviewRounds,
-    copilotReviewRequests: completedCopilotReviewRounds + pendingCopilotReviewRounds,
+    copilotReviewRequests: normalizedReviewRequests.length,
     copilotReviewComments: normalizedReviewComments.length,
     resolvedReviewThreads: Math.max(0, normalizedThreadSummary.totalThreads - normalizedThreadSummary.unresolvedThreads),
     unresolvedReviewThreads: normalizedThreadSummary.unresolvedThreads,

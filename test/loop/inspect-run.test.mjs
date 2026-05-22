@@ -57,8 +57,9 @@ async function writeJson(filePath, data) {
 async function writeGhStub(tempDir) {
   const ghPath = path.join(tempDir, "gh");
   const script = `#!/usr/bin/env node
-const args = process.argv.slice(2);
-const out = (value) => process.stdout.write(JSON.stringify(value));
+  const args = process.argv.slice(2);
+  const out = (value) => process.stdout.write(JSON.stringify(value));
+  const apiPath = args[0] === "api" ? args.find((arg) => arg.startsWith("repos/")) : null;
 
 if (args[0] === "pr" && args[1] === "view") {
   const fields = args[args.indexOf("--json") + 1] || "";
@@ -87,13 +88,7 @@ if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/requested_review
   process.exit(0);
 }
 
-if (
-  args[0] === "api"
-  && (
-    args.includes("repos/owner/repo/pulls/55/reviews")
-    || args.includes("repos/owner/repo/pulls/55/reviews?per_page=100")
-  )
-) {
+if (apiPath === "repos/owner/repo/pulls/55/reviews" || apiPath === "repos/owner/repo/pulls/55/reviews?per_page=100") {
   out([
     { id: 40, state: "COMMENTED", user: { login: "copilot-pull-request-reviewer[bot]" }, submitted_at: "2026-05-20T09:00:00Z", commit_id: "oldsha", html_url: "https://example.test/review/40" },
     { id: 41, state: "COMMENTED", user: { login: "reviewer-user" }, submitted_at: "2026-05-20T10:00:00Z", commit_id: "abc123", html_url: "https://example.test/review/41" },
@@ -101,7 +96,7 @@ if (
   process.exit(0);
 }
 
-if (args[0] === "api" && args.includes("repos/owner/repo/issues/55/timeline?per_page=100")) {
+if (apiPath === "repos/owner/repo/issues/55/timeline?per_page=100") {
   out([
     { event: "review_requested", created_at: "2026-05-20T08:55:00Z", requested_reviewer: { login: "copilot-pull-request-reviewer[bot]" } },
     { event: "review_requested", created_at: "2026-05-20T11:00:00Z", requested_reviewer: { login: "copilot-pull-request-reviewer[bot]" } },
@@ -109,7 +104,7 @@ if (args[0] === "api" && args.includes("repos/owner/repo/issues/55/timeline?per_
   process.exit(0);
 }
 
-if (args[0] === "api" && args.includes("repos/owner/repo/pulls/55/comments?per_page=100")) {
+if (apiPath === "repos/owner/repo/pulls/55/comments?per_page=100") {
   out([
     { id: 101, created_at: "2026-05-20T09:01:00Z", user: { login: "copilot-pull-request-reviewer[bot]" } },
     { id: 102, created_at: "2026-05-20T09:02:00Z", user: { login: "copilot-pull-request-reviewer[bot]" } },
@@ -117,7 +112,7 @@ if (args[0] === "api" && args.includes("repos/owner/repo/pulls/55/comments?per_p
   process.exit(0);
 }
 
-if (args[0] === "api" && args.includes("repos/owner/repo/pulls/55/commits?per_page=100")) {
+if (apiPath === "repos/owner/repo/pulls/55/commits?per_page=100") {
   out([
     { sha: "oldsha", commit: { committer: { date: "2026-05-20T08:00:00Z" } }, author: { login: "copilot-swe-agent" } },
     { sha: "abc123", commit: { committer: { date: "2026-05-20T10:30:00Z" } }, author: { login: "author-user" } },
@@ -994,6 +989,7 @@ test("inspect-run CLI: live PR with no Copilot review history marks loopIteratio
       `#!/usr/bin/env node
 const args = process.argv.slice(2);
 const out = (value) => process.stdout.write(JSON.stringify(value));
+const apiPath = args[0] === "api" ? args.find((arg) => arg.startsWith("repos/")) : null;
 
 if (args[0] === "pr" && args[1] === "view") {
   const fields = args[args.indexOf("--json") + 1] || "";
@@ -1017,28 +1013,22 @@ if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/requested_review
   process.exit(0);
 }
 
-if (
-  args[0] === "api"
-  && (
-    args.includes("repos/owner/repo/pulls/55/reviews")
-    || args.includes("repos/owner/repo/pulls/55/reviews?per_page=100")
-  )
-) {
+if (apiPath === "repos/owner/repo/pulls/55/reviews" || apiPath === "repos/owner/repo/pulls/55/reviews?per_page=100") {
   out([]);
   process.exit(0);
 }
 
-if (args[0] === "api" && args.includes("repos/owner/repo/issues/55/timeline?per_page=100")) {
+if (apiPath === "repos/owner/repo/issues/55/timeline?per_page=100") {
   out([]);
   process.exit(0);
 }
 
-if (args[0] === "api" && args.includes("repos/owner/repo/pulls/55/comments?per_page=100")) {
+if (apiPath === "repos/owner/repo/pulls/55/comments?per_page=100") {
   out([]);
   process.exit(0);
 }
 
-if (args[0] === "api" && args.includes("repos/owner/repo/pulls/55/commits?per_page=100")) {
+if (apiPath === "repos/owner/repo/pulls/55/commits?per_page=100") {
   out([{ sha: "abc123", commit: { committer: { date: "2026-05-20T10:30:00Z" } }, author: { login: "author-user" } }]);
   process.exit(0);
 }

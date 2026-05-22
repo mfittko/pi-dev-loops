@@ -82,7 +82,7 @@ test("summarizeCopilotLoopIterations keeps duplicate post-review request events 
   assert.equal(summary.available, true);
   assert.equal(summary.completedCopilotReviewRounds, 1);
   assert.equal(summary.pendingCopilotReviewRounds, 1);
-  assert.equal(summary.copilotReviewRequests, 2);
+  assert.equal(summary.copilotReviewRequests, 4);
 });
 
 test("summarizeCopilotLoopIterations marks no-review/no-request PRs unavailable", () => {
