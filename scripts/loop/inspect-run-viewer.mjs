@@ -266,7 +266,12 @@ function renderCopilotLoopIterationsSection(snapshot) {
   }
 
   const humanSummary = loopIterations.available
-    ? `state: ${snapshot?.layers?.copilot?.currentState ?? "not present"}; iterations: ${loopIterations.completedCopilotReviewRounds} completed, ${loopIterations.pendingCopilotReviewRounds} pending; comments: ${loopIterations.copilotReviewComments} produced, ${loopIterations.unresolvedReviewThreads} unresolved; fix commits: ${loopIterations.fixCommitsAfterFeedback}`
+    ? [
+      `state: ${snapshot?.layers?.copilot?.currentState ?? "not present"}`,
+      `iterations: ${loopIterations.completedCopilotReviewRounds} completed, ${loopIterations.pendingCopilotReviewRounds} pending`,
+      `comments: ${loopIterations.copilotReviewComments} produced, ${loopIterations.unresolvedReviewThreads} unresolved`,
+      `fix commits: ${loopIterations.fixCommitsAfterFeedback}`,
+    ].join("; ")
     : "not present / unavailable";
 
   return renderCompactSection({
