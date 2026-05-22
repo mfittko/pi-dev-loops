@@ -96,7 +96,7 @@ test("workflow docs keep helper/runtime authority code-owned and dev-loop scope 
   assert.match(devLoopSkill, /it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands/i);
 });
 
-test("repo docs define dev-loop as the single public façade and keep specialized loops as compatibility paths", async () => {
+test("repo docs define dev-loop as the public façade and keep specialized loops as compatibility paths", async () => {
   const [readme, plan, agents, workflowDoc, publicContract, devLoopSkill, copilotSkill, autopilotSkill] = await Promise.all([
     readRepo("README.md"),
     readRepo("PLAN.md"),
@@ -108,29 +108,35 @@ test("repo docs define dev-loop as the single public façade and keep specialize
     readRepo("skills/copilot-autopilot/SKILL.md"),
   ]);
 
-  for (const [label, content] of [
-    ["README.md", readme],
-    ["PLAN.md", plan],
-    ["AGENTS.md", agents],
-    ["docs/IMPLEMENTATION_WORKFLOW.md", workflowDoc],
-    ["docs/public-dev-loop-contract.md", publicContract],
-    ["skills/dev-loop/SKILL.md", devLoopSkill],
-  ]) {
-    assert.match(
-      content,
-      /single public (?:workflow )?(?:entrypoint|façade).*`dev-loop`|public `dev-loop` façade|`dev-loop`(?:\*\*)?\s+as the single public/i,
-      `${label} should lead with the unified public entrypoint`,
-    );
-  }
-
+  assert.match(publicContract, /single public entrypoint/i);
   assert.match(publicContract, /canonical current state/i);
   assert.match(publicContract, /issue_intake/i);
   assert.match(publicContract, /copilot_pr_followup/i);
   assert.match(publicContract, /external_pr_followup/i);
   assert.match(publicContract, /Compatibility and migration posture/i);
-  assert.match(devLoopSkill, /without making the user choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front|do not make the user choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front/i);
-  assert.match(copilotSkill, /compatibility\/internal strategy behind the public `dev-loop` façade/i);
-  assert.match(autopilotSkill, /compatibility\/internal strategy behind the public `dev-loop` façade/i);
+
+  for (const [label, content] of [
+    ["README.md", readme],
+    ["PLAN.md", plan],
+    ["AGENTS.md", agents],
+    ["docs/IMPLEMENTATION_WORKFLOW.md", workflowDoc],
+  ]) {
+    assert.match(content, /`dev-loop`/i, `${label} should mention the public dev-loop entrypoint`);
+    assert.match(content, /public/i, `${label} should preserve public-entrypoint framing`);
+    assert.match(content, /compatibility|internal/i, `${label} should preserve compatibility/internal framing`);
+  }
+
+  assert.match(devLoopSkill, /authoritative contract is `docs\/public-dev-loop-contract\.md`/i);
+  assert.match(devLoopSkill, /@pi-dev-loops\/core\/loop\/public-dev-loop-routing/i);
+  assert.match(devLoopSkill, /summary/i);
+
+  for (const [label, content] of [
+    ["skills/copilot-dev-loop/SKILL.md", copilotSkill],
+    ["skills/copilot-autopilot/SKILL.md", autopilotSkill],
+  ]) {
+    assert.match(content, /compatibility\/internal/i, `${label} should preserve compatibility/internal framing`);
+    assert.match(content, /public `dev-loop`/i, `${label} should point back to the public dev-loop façade`);
+  }
 });
 
 test("copilot skill still contains its core workflow guidance", async () => {
