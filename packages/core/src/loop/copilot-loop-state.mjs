@@ -119,9 +119,10 @@ const ACTIVE_REQUEST_STATUSES = new Set(["requested", "already-requested"]);
 
 function isAutoRerequestEligible(snapshot, state) {
   if (state !== STATE.READY_TO_REREQUEST_REVIEW) return false;
-  // A clean submitted Copilot review with no unresolved feedback is converged
-  // for the automatic path. Another pass requires an explicit force/override.
-  return !snapshot.copilotReviewOnCurrentHead && !snapshot.cleanCopilotReviewPresent;
+  // A fresh submitted Copilot review on the current head with no unresolved feedback
+  // is converged for that head on the automatic path. Auto re-request eligibility
+  // re-opens only when the head advances (i.e. review is no longer on current head).
+  return !snapshot.copilotReviewOnCurrentHead;
 }
 
 /**
@@ -142,8 +143,6 @@ function isAutoRerequestEligible(snapshot, state) {
  * - copilotReviewOnCurrentHead {boolean} — whether a submitted (non-PENDING) Copilot review
  *     exists for the current head commit; when true, the review is done even if
  *     requested_reviewers has not yet cleared
- * - cleanCopilotReviewPresent {boolean} — whether a submitted Copilot review with no new comments
- *     exists on this PR; this suppresses automatic re-request loops even after trivial cleanup commits
  * - unresolvedThreadCount {number} — total unresolved review-thread count
  * - actionableThreadCount {number} — unresolved threads with non-bot actionable comments
  * - ciStatus {"success"|"failure"|"pending"|"none"} — current CI check rollup status
@@ -160,7 +159,6 @@ export function normalizeSnapshot(raw) {
   const prExists = Boolean(raw.prExists);
 
   const copilotReviewOnCurrentHead = Boolean(raw.copilotReviewOnCurrentHead);
-  const cleanCopilotReviewPresent = Boolean(raw.cleanCopilotReviewPresent);
 
   return {
     prExists,
@@ -173,9 +171,8 @@ export function normalizeSnapshot(raw) {
     copilotReviewRequestStatus: VALID_REVIEW_REQUEST_STATUSES.has(raw.copilotReviewRequestStatus)
       ? raw.copilotReviewRequestStatus
       : "none",
-    copilotReviewPresent: Boolean(raw.copilotReviewPresent) || copilotReviewOnCurrentHead || cleanCopilotReviewPresent,
+    copilotReviewPresent: Boolean(raw.copilotReviewPresent) || copilotReviewOnCurrentHead,
     copilotReviewOnCurrentHead,
-    cleanCopilotReviewPresent,
     unresolvedThreadCount: typeof raw.unresolvedThreadCount === "number" && raw.unresolvedThreadCount >= 0
       ? Math.floor(raw.unresolvedThreadCount)
       : 0,
@@ -286,7 +283,7 @@ export function interpretLoopState(snapshot) {
 
   const autoRerequestEligible = isAutoRerequestEligible(s, state);
   const sameHeadCleanConverged = state === STATE.READY_TO_REREQUEST_REVIEW
-    && (s.copilotReviewOnCurrentHead || s.cleanCopilotReviewPresent)
+    && s.copilotReviewOnCurrentHead
     && s.unresolvedThreadCount === 0
     && s.actionableThreadCount === 0;
 

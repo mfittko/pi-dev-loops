@@ -225,44 +225,6 @@ test("request-copilot-review suppresses same-head clean re-request by default", 
 });
 
 
-test("request-copilot-review suppresses re-request after a prior clean Copilot review on an older head", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-prior-clean-"));
-
-  try {
-    const env = await writeGhStub(tempDir, [
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
-        stdout: '{"isDraft":false,"state":"OPEN","number":17,"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","body":"Copilot reviewed 1 out of 1 changed files and generated no new comments.","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
-      },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
-      },
-    ]);
-
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
-
-    assert.equal(result.code, 0);
-    assert.equal(result.stderr, "");
-    assert.deepEqual(JSON.parse(result.stdout), {
-      ok: true,
-      status: "suppressed_same_head_clean",
-      repo: "owner/repo",
-      pr: 17,
-      reviewer: "Copilot",
-      sameHeadCleanConverged: true,
-      detail: "Current head already has a clean submitted Copilot review; rerun with --force-rerequest-review to bypass same-head clean-convergence suppression.",
-    });
-    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 3);
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
-});
-
 test("request-copilot-review treats pending review as already-requested even when a submitted current-head review exists", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-pending-with-submitted-"));
 

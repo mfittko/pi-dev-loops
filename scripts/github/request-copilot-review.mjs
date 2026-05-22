@@ -182,7 +182,6 @@ function parseReviewsPayload(text) {
     copilotReviewPresent: reviewSummary.copilotReviewPresent,
     hasCopilotPendingReviewOnCurrentHead: reviewSummary.hasPendingReviewOnCurrentHead,
     hasCopilotSubmittedReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
-    hasCleanSubmittedReview: reviewSummary.hasCleanSubmittedReview,
   };
 }
 
@@ -227,7 +226,6 @@ async function fetchCopilotReviewState(options, runtime) {
     copilotReviewPresent: reviews.copilotReviewPresent,
     hasPendingReviewOnCurrentHead: reviews.hasCopilotPendingReviewOnCurrentHead,
     hasSubmittedReviewOnCurrentHead: reviews.hasCopilotSubmittedReviewOnCurrentHead,
-    hasCleanSubmittedReview: reviews.hasCleanSubmittedReview,
   };
 }
 
@@ -238,14 +236,13 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     copilotReviewPresent = false,
     hasPendingReviewOnCurrentHead = false,
     hasSubmittedReviewOnCurrentHead = false,
-    hasCleanSubmittedReview = false,
   } = priorReviewState;
 
   if (typeof options.sameHeadCleanConverged === "boolean") {
     return options.sameHeadCleanConverged;
   }
 
-  if (hasPendingReviewOnCurrentHead || (!hasSubmittedReviewOnCurrentHead && !hasCleanSubmittedReview) || prData === null) {
+  if (hasPendingReviewOnCurrentHead || !hasSubmittedReviewOnCurrentHead || prData === null) {
     return false;
   }
 
@@ -256,12 +253,6 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     );
     const parsedThreads = parseReviewThreads(threadsPayload);
     const prState = typeof prData.state === "string" ? prData.state.toUpperCase() : "OPEN";
-    if (!hasSubmittedReviewOnCurrentHead && hasCleanSubmittedReview) {
-      return parsedThreads.summary.unresolvedThreads === 0
-        && parsedThreads.summary.actionableThreads === 0
-        && normalizeCiStatus(prData.statusCheckRollup) === "success";
-    }
-
     const snapshot = normalizeSnapshot({
       prExists: true,
       prNumber: typeof prData.number === "number" ? prData.number : options.pr,
@@ -271,7 +262,6 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
       copilotReviewRequestStatus: hasPendingReviewOnCurrentHead || requested ? "requested" : "none",
       copilotReviewPresent,
       copilotReviewOnCurrentHead: hasSubmittedReviewOnCurrentHead,
-      cleanCopilotReviewPresent: hasCleanSubmittedReview,
       unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
       actionableThreadCount: parsedThreads.summary.actionableThreads,
       ciStatus: normalizeCiStatus(prData.statusCheckRollup),
