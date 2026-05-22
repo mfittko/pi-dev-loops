@@ -175,6 +175,12 @@ function parseReviewsPayload(text) {
     : null;
   const reviewSummary = summarizeCopilotReviews(payload?.reviews, { headSha });
 
+  const hasCleanSubmittedReview = reviewSummary.copilotReviews.some((review) => {
+    const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
+    const body = typeof review?.body === "string" ? review.body : "";
+    return state !== "PENDING" && /generated no new comments/i.test(body);
+  });
+
   return {
     prData: payload,
     headSha,
@@ -182,6 +188,7 @@ function parseReviewsPayload(text) {
     copilotReviewPresent: reviewSummary.copilotReviewPresent,
     hasCopilotPendingReviewOnCurrentHead: reviewSummary.hasPendingReviewOnCurrentHead,
     hasCopilotSubmittedReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
+    hasCleanSubmittedReview,
   };
 }
 
@@ -226,6 +233,7 @@ async function fetchCopilotReviewState(options, runtime) {
     copilotReviewPresent: reviews.copilotReviewPresent,
     hasPendingReviewOnCurrentHead: reviews.hasCopilotPendingReviewOnCurrentHead,
     hasSubmittedReviewOnCurrentHead: reviews.hasCopilotSubmittedReviewOnCurrentHead,
+    hasCleanSubmittedReview: reviews.hasCleanSubmittedReview,
   };
 }
 
@@ -236,13 +244,14 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     copilotReviewPresent = false,
     hasPendingReviewOnCurrentHead = false,
     hasSubmittedReviewOnCurrentHead = false,
+    hasCleanSubmittedReview = false,
   } = priorReviewState;
 
   if (typeof options.sameHeadCleanConverged === "boolean") {
     return options.sameHeadCleanConverged;
   }
 
-  if (hasPendingReviewOnCurrentHead || !hasSubmittedReviewOnCurrentHead || prData === null) {
+  if (hasPendingReviewOnCurrentHead || (!hasSubmittedReviewOnCurrentHead && !hasCleanSubmittedReview) || prData === null) {
     return false;
   }
 
@@ -253,6 +262,12 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     );
     const parsedThreads = parseReviewThreads(threadsPayload);
     const prState = typeof prData.state === "string" ? prData.state.toUpperCase() : "OPEN";
+    if (!hasSubmittedReviewOnCurrentHead && hasCleanSubmittedReview) {
+      return parsedThreads.summary.unresolvedThreads === 0
+        && parsedThreads.summary.actionableThreads === 0
+        && normalizeCiStatus(prData.statusCheckRollup) === "success";
+    }
+
     const snapshot = normalizeSnapshot({
       prExists: true,
       prNumber: typeof prData.number === "number" ? prData.number : options.pr,
