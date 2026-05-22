@@ -157,7 +157,7 @@ export function parseHandoffCliArgs(argv) {
     }
 
     if (token === "--watch-status") {
-      const watchStatus = requireOptionValue(args, "--watch-status");
+      const watchStatus = requireOptionValue(args, "--watch-status").trim().toLowerCase();
       if (!VALID_WATCH_STATUSES.has(watchStatus)) {
         throw parseError(`--watch-status must be one of: ${[...VALID_WATCH_STATUSES].join(", ")}`);
       }

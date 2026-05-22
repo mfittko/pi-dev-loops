@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
+import { parseHandoffCliArgs } from "../../scripts/loop/copilot-pr-handoff.mjs";
+
 const scriptPath = path.resolve("scripts/loop/copilot-pr-handoff.mjs");
 
 function runNode(args = [], options = {}) {
@@ -118,6 +120,11 @@ test("copilot-pr-handoff --help prints usage and exits 0", async () => {
   assert.equal(helpShort.code, 0);
   assert.equal(helpShort.stderr, "");
   assert.equal(helpShort.stdout, helpLong.stdout);
+});
+
+test("copilot-pr-handoff normalizes watch-status input", async () => {
+  const parsed = parseHandoffCliArgs(["--repo", "owner/repo", "--pr", "17", "--watch-status", " Timeout "]);
+  assert.equal(parsed.watchStatus, "timeout");
 });
 
 test("copilot-pr-handoff rejects malformed arguments with usage guidance", async () => {
