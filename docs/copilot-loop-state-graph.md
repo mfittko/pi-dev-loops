@@ -150,7 +150,7 @@ Rule 8 only routes to `waiting_for_copilot_review` when `copilotReviewOnCurrentH
 
 ### Automatic same-head re-request suppression after clean convergence
 
-When the current head already has a submitted Copilot review, unresolved/actionable thread counts are 0, and CI is not in a blocked wait/failure state, automatic follow-up re-request is suppressed for that head (`sameHeadCleanConverged: true`, `autoRerequestEligible: false`). Automatic re-request becomes eligible again only after a meaningful remediation event changes the review basis (for this loop: a newer head without a submitted Copilot review on that head). Explicit operator/manual re-request remains allowed.
+When the current head already has a submitted Copilot review, unresolved/actionable thread counts are 0, and CI is not in a blocked wait/failure state, automatic follow-up re-request is suppressed for that head (`sameHeadCleanConverged: true`, `autoRerequestEligible: false`). Automatic re-request becomes eligible again only after a meaningful remediation event changes the review basis (for this loop: a newer head without a submitted Copilot review on that head). Explicit operator/manual re-request remains allowed, but the direct request helper now suppresses same-head clean re-requests by default unless `--force-rerequest-review` is provided.
 
 ### `unavailable` stops the loop only when no in-progress evidence exists
 

@@ -200,7 +200,12 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
 
   if (shouldRequestReview) {
     const requestResult = await performCopilotReviewRequest(
-      { repo: options.repo, pr: options.pr },
+      {
+        repo: options.repo,
+        pr: options.pr,
+        forceRerequestReview: options.forceRerequestReview,
+        sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
+      },
       { env, ghCommand },
     );
     reviewRequestStatus = requestResult.status;

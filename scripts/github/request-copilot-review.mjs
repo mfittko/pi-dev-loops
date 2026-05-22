@@ -5,8 +5,12 @@ import { fileURLToPath } from "node:url";
 
 import { formatCliError, isCopilotLogin, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "./capture-review-threads.mjs";
+import { autoDetectSnapshot } from "../loop/detect-copilot-loop-state.mjs";
+import { interpretLoopState } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
-const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number>
+const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
+
+const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number> [--force-rerequest-review]
 
 Request Copilot as a reviewer on a GitHub pull request.
 
@@ -14,13 +18,20 @@ Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
 
+Optional:
+  --force-rerequest-review  Bypass same-head clean-convergence suppression and
+                            attempt another explicit Copilot request anyway
+
 Output (stdout, JSON):
-  { "ok": true, "status": "requested"|"already-requested"|"unavailable", "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "..." }
+  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean",
+    "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
+    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true }
 
 Request statuses:
   requested           Copilot review was successfully requested
   already-requested   Copilot review was already observably in progress; no new request needed
   unavailable         Copilot review is not enabled/requestable and no in-progress evidence was found
+  suppressed_same_head_clean  Current head is already clean-converged; no new request is made unless forced
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -60,6 +71,7 @@ export function parseRequestCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
+    forceRerequestReview: false,
   };
 
   while (args.length > 0) {
@@ -77,6 +89,11 @@ export function parseRequestCliArgs(argv) {
 
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr"));
+      continue;
+    }
+
+    if (token === "--force-rerequest-review") {
+      options.forceRerequestReview = true;
       continue;
     }
 
@@ -158,6 +175,7 @@ function parseReviewsPayload(text) {
     headSha,
     copilotReviewIds: reviewSummary.copilotReviewIds,
     hasCopilotPendingReviewOnCurrentHead: reviewSummary.hasPendingReviewOnCurrentHead,
+    hasCopilotSubmittedReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
   };
 }
 
@@ -199,7 +217,29 @@ async function fetchCopilotReviewState(options, runtime) {
     requested: requestedReviewers.requested,
     copilotReviewIds: reviews.copilotReviewIds,
     hasPendingReviewOnCurrentHead: reviews.hasCopilotPendingReviewOnCurrentHead,
+    hasSubmittedReviewOnCurrentHead: reviews.hasCopilotSubmittedReviewOnCurrentHead,
   };
+}
+
+async function detectSameHeadCleanConvergence(options, runtime, { hasSubmittedReviewOnCurrentHead } = {}) {
+  if (typeof options.sameHeadCleanConverged === "boolean") {
+    return options.sameHeadCleanConverged;
+  }
+
+  if (!hasSubmittedReviewOnCurrentHead) {
+    return false;
+  }
+
+  try {
+    const snapshot = await autoDetectSnapshot(
+      { repo: options.repo, pr: options.pr },
+      runtime,
+    );
+    const interpretation = interpretLoopState(snapshot);
+    return interpretation.sameHeadCleanConverged;
+  } catch {
+    return false;
+  }
 }
 
 function classifyRequestFailure(detail) {
@@ -257,6 +297,24 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
  */
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
+  const sameHeadCleanConverged = await detectSameHeadCleanConvergence(
+    options,
+    { env, ghCommand },
+    { hasSubmittedReviewOnCurrentHead: before.hasSubmittedReviewOnCurrentHead },
+  );
+  const bypassedSameHeadCleanSuppression = sameHeadCleanConverged && options.forceRerequestReview === true;
+
+  if (sameHeadCleanConverged && !options.forceRerequestReview) {
+    return {
+      ok: true,
+      status: SUPPRESSED_SAME_HEAD_CLEAN_STATUS,
+      repo: options.repo,
+      pr: options.pr,
+      reviewer: "Copilot",
+      sameHeadCleanConverged: true,
+      detail: "Current head already has a clean submitted Copilot review; rerun with --force-rerequest-review to bypass same-head clean-convergence suppression.",
+    };
+  }
 
   if (before.requested || before.hasPendingReviewOnCurrentHead) {
     return {
@@ -265,6 +323,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       repo: options.repo,
       pr: options.pr,
       reviewer: "Copilot",
+      ...(bypassedSameHeadCleanSuppression ? { bypassedSameHeadCleanSuppression: true } : {}),
     };
   }
 
@@ -282,9 +341,13 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
         repo: options.repo,
         pr: options.pr,
         reviewer: "Copilot",
+        ...(bypassedSameHeadCleanSuppression ? { bypassedSameHeadCleanSuppression: true } : {}),
       };
     }
-    return requestResult;
+    return {
+      ...requestResult,
+      ...(bypassedSameHeadCleanSuppression ? { bypassedSameHeadCleanSuppression: true } : {}),
+    };
   }
 
   const after = await fetchCopilotReviewState(options, { env, ghCommand });
@@ -295,7 +358,10 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     throw new Error("Copilot review request did not appear in requested reviewers or fresh/in-progress Copilot reviews after gh pr edit");
   }
 
-  return requestResult;
+  return {
+    ...requestResult,
+    ...(bypassedSameHeadCleanSuppression ? { bypassedSameHeadCleanSuppression: true } : {}),
+  };
 }
 
 export async function runCli(

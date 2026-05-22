@@ -39,7 +39,7 @@ Emits JSON including `{ ok: true, state, allowedTransitions, nextAction, snapsho
 ```sh
 node <resolved-skill-scripts>/github/request-copilot-review.mjs --repo <owner/name> --pr <number>
 ```
-Emits JSON including `{ ok: true, status, repo, pr, reviewer, detail? }`.
+Emits JSON including `{ ok: true, status, repo, pr, reviewer, detail?, sameHeadCleanConverged?, bypassedSameHeadCleanSuppression? }`.
 
 **3. Watch for fresh Copilot review activity**
 ```sh
@@ -69,6 +69,7 @@ When `action` is `"watch"`, use the returned `watchArgs` with `watch-copilot-rev
 | --- | --- | --- |
 | `requested` | Copilot added to reviewers | Baseline and watch |
 | `already-requested` | Copilot was already pending | Baseline and watch |
+| `suppressed_same_head_clean` | Current head is already clean-converged; direct re-request was suppressed | Stop/report unless an explicit forced same-head re-request is truly intended |
 | `unavailable` | Copilot review not enabled | Report and stop |
 
 **Pass `--help` to any helper for full usage:**
@@ -399,6 +400,7 @@ Do not treat an attempted request as equivalent to a confirmed request.
 For the resolved `request-copilot-review.mjs` helper, branch on the machine-readable result:
 - `requested`: if another Copilot pass is actually desired, baseline fresh state and then wait/watch; otherwise report current state without waiting
 - `already-requested`: if another Copilot pass is actually desired, baseline fresh state and then wait/watch; otherwise report current state without waiting
+- `suppressed_same_head_clean`: report the clean-converged state and stop unless an explicit `--force-rerequest-review` bypass is intentionally authorized
 - `unavailable`: report the limitation and stop unless the user explicitly wants passive waiting without a fresh request
 - non-zero / unexpected failure: stop and report the error rather than entering a sleep/watch loop
 

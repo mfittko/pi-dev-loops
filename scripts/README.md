@@ -47,18 +47,24 @@ Required:
 - `--repo <owner/name>`
 - `--pr <number>`
 
+Optional:
+- `--force-rerequest-review` — bypass same-head clean-convergence suppression and attempt another explicit request
+
 Contract:
 - checks `requested_reviewers` first so an existing Copilot request is detected without mutating PR state again
 - requests Copilot via `gh pr edit <pr> --repo <owner/name> --add-reviewer @copilot`
 - is suitable both for the first request after ready-for-review and for later explicit re-requests after follow-up fix commits land on the PR head
+- suppresses direct same-head clean re-requests by default when the current head is deterministically clean-converged; use `--force-rerequest-review` to bypass that suppression explicitly
 - should be paired with a fresh unresolved-thread check after Copilot posts again; requesting review alone does not complete the loop
 - verifies the result through `gh api repos/<owner>/<name>/pulls/<pr>/requested_reviewers`
 - does **not** rely on `gh pr view --json reviewRequests`, which can be incomplete for Copilot reviewer state
 - normalizes known repository/tooling limitations into a machine-readable `unavailable` result instead of forcing callers to parse ad hoc stderr
 
 Success output shape:
-- `{ "ok": true, "status": "requested"|"already-requested"|"unavailable", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
+- `{ "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
 - `unavailable` also includes a `detail` string with the normalized GitHub/CLI limitation
+- `suppressed_same_head_clean` includes `sameHeadCleanConverged: true` and an override hint
+- forced bypass results include `bypassedSameHeadCleanSuppression: true`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
