@@ -22,6 +22,10 @@ Optional:
   --force-rerequest-review  Bypass same-head clean-convergence suppression and
                             attempt another explicit Copilot request anyway
 
+Debug:
+  PI_DEV_LOOPS_DEBUG=1      Emit stderr traces when best-effort same-head clean
+                            convergence detection falls back to unsuppressed behavior
+
 Output (stdout, JSON):
   { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
@@ -221,7 +225,9 @@ async function fetchCopilotReviewState(options, runtime) {
   };
 }
 
-async function detectSameHeadCleanConvergence(options, runtime, { hasSubmittedReviewOnCurrentHead } = {}) {
+async function detectSameHeadCleanConvergence(options, runtime, priorReviewState = {}) {
+  const { hasSubmittedReviewOnCurrentHead = false } = priorReviewState;
+
   if (typeof options.sameHeadCleanConverged === "boolean") {
     return options.sameHeadCleanConverged;
   }
