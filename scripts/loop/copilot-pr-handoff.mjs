@@ -172,6 +172,10 @@ export function parseHandoffCliArgs(argv) {
     throw parseError("copilot-pr-handoff requires both --repo <owner/name> and --pr <number>");
   }
 
+  if (options.watchStatus !== undefined && options.forceRerequestReview) {
+    throw parseError("--force-rerequest-review cannot be combined with --watch-status because watch refresh mode never requests review");
+  }
+
   try {
     parseRepoSlug(options.repo);
   } catch (error) {

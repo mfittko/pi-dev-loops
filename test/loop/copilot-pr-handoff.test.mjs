@@ -150,6 +150,17 @@ test("copilot-pr-handoff rejects malformed arguments with usage guidance", async
   const badWatchStatusErr = JSON.parse(badWatchStatus.stderr);
   assert.equal(badWatchStatusErr.ok, false);
   assert.equal(badWatchStatusErr.error, "--watch-status must be one of: changed, timeout, idle");
+
+  const conflictingWatchRefresh = await runNode([
+    "--repo", "owner/repo", "--pr", "17", "--watch-status", "timeout", "--force-rerequest-review",
+  ]);
+  assert.equal(conflictingWatchRefresh.code, 1);
+  const conflictingWatchRefreshErr = JSON.parse(conflictingWatchRefresh.stderr);
+  assert.equal(conflictingWatchRefreshErr.ok, false);
+  assert.equal(
+    conflictingWatchRefreshErr.error,
+    "--force-rerequest-review cannot be combined with --watch-status because watch refresh mode never requests review",
+  );
 });
 
 // ---------------------------------------------------------------------------
