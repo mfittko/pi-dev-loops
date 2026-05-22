@@ -50,6 +50,16 @@ export const STATE = Object.freeze({
   DONE: "done",
 });
 
+/** Stable high-level loop dispositions for completion vs follow-up decisions. */
+export const LOOP_DISPOSITION = Object.freeze({
+  PENDING: "pending",
+  UNRESOLVED_FEEDBACK: "unresolved_feedback",
+  CLEAN_CONVERGED: "clean_converged",
+  BLOCKED: "blocked",
+  ACTION_REQUIRED: "action_required",
+  DONE: "done",
+});
+
 /**
  * Legal transitions for each state.
  * Each entry lists the states that are reachable from the given state.
@@ -106,6 +116,63 @@ const SAME_HEAD_CLEAN_CONVERGED_NEXT_ACTION = "Current head already has a clean 
 const VALID_REVIEW_REQUEST_STATUSES = new Set(["requested", "already-requested", "unavailable", "none", "failed"]);
 const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
 const ACTIVE_REQUEST_STATUSES = new Set(["requested", "already-requested"]);
+
+export function normalizeCiStatus(rollup) {
+  if (!Array.isArray(rollup) || rollup.length === 0) {
+    return "none";
+  }
+
+  const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
+
+  let hasPending = false;
+  let hasFailure = false;
+
+  for (const check of rollup) {
+    const status = typeof check.status === "string" ? check.status.toUpperCase() : "";
+    const conclusion = typeof check.conclusion === "string" ? check.conclusion.toUpperCase() : "";
+
+    if (status === "COMPLETED" && FAILURE_CONCLUSIONS.has(conclusion)) {
+      hasFailure = true;
+      continue;
+    }
+
+    if (status !== "COMPLETED") {
+      hasPending = true;
+    }
+  }
+
+  if (hasFailure) return "failure";
+  if (hasPending) return "pending";
+  return "success";
+}
+
+export function buildSnapshotFromPrFacts({
+  prData,
+  prNumber,
+  copilotReviewRequestStatus = "none",
+  copilotReviewPresent = false,
+  copilotReviewOnCurrentHead = false,
+  unresolvedThreadCount = 0,
+  actionableThreadCount = 0,
+}) {
+  const prState = typeof prData?.state === "string" ? prData.state.toUpperCase() : "OPEN";
+  const prMerged = prState === "MERGED";
+  const prClosed = prState === "CLOSED";
+
+  return normalizeSnapshot({
+    prExists: true,
+    prNumber: typeof prData?.number === "number" ? prData.number : prNumber,
+    prDraft: Boolean(prData?.isDraft),
+    prMerged,
+    prClosed,
+    copilotReviewRequestStatus,
+    copilotReviewPresent,
+    copilotReviewOnCurrentHead,
+    unresolvedThreadCount,
+    actionableThreadCount,
+    ciStatus: normalizeCiStatus(prData?.statusCheckRollup),
+  });
+}
 
 function isAutoRerequestEligible(snapshot, state) {
   if (state !== STATE.READY_TO_REREQUEST_REVIEW) return false;
@@ -288,5 +355,55 @@ export function interpretLoopState(snapshot) {
     nextAction,
     autoRerequestEligible,
     sameHeadCleanConverged,
+  };
+}
+
+/**
+ * Classify a loop interpretation into a higher-level disposition and whether the
+ * loop is terminal/stoppable for this head.
+ *
+ * @param {object} snapshotOrInterpretation - raw snapshot, normalized snapshot, or interpretLoopState() output
+ * @returns {{ loopDisposition: string, terminal: boolean }}
+ */
+export function summarizeLoopInterpretation(snapshotOrInterpretation) {
+  const interpretation = Array.isArray(snapshotOrInterpretation?.allowedTransitions)
+    && typeof snapshotOrInterpretation?.state === "string"
+    && typeof snapshotOrInterpretation?.nextAction === "string"
+    ? snapshotOrInterpretation
+    : interpretLoopState(snapshotOrInterpretation);
+
+  let loopDisposition;
+
+  switch (interpretation.state) {
+    case STATE.WAITING_FOR_COPILOT_REVIEW:
+    case STATE.WAITING_FOR_CI:
+      loopDisposition = LOOP_DISPOSITION.PENDING;
+      break;
+    case STATE.UNRESOLVED_FEEDBACK_PRESENT:
+    case STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE:
+      loopDisposition = LOOP_DISPOSITION.UNRESOLVED_FEEDBACK;
+      break;
+    case STATE.REVIEW_REQUEST_UNAVAILABLE:
+    case STATE.BLOCKED_NEEDS_USER_DECISION:
+      loopDisposition = LOOP_DISPOSITION.BLOCKED;
+      break;
+    case STATE.DONE:
+      loopDisposition = LOOP_DISPOSITION.DONE;
+      break;
+    case STATE.READY_TO_REREQUEST_REVIEW:
+      loopDisposition = interpretation.sameHeadCleanConverged
+        ? LOOP_DISPOSITION.CLEAN_CONVERGED
+        : LOOP_DISPOSITION.ACTION_REQUIRED;
+      break;
+    default:
+      loopDisposition = LOOP_DISPOSITION.ACTION_REQUIRED;
+      break;
+  }
+
+  return {
+    loopDisposition,
+    terminal: loopDisposition === LOOP_DISPOSITION.CLEAN_CONVERGED
+      || loopDisposition === LOOP_DISPOSITION.BLOCKED
+      || loopDisposition === LOOP_DISPOSITION.DONE,
   };
 }

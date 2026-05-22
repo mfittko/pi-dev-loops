@@ -550,6 +550,8 @@ test("detect-copilot-loop-state auto-detect returns waiting_for_copilot_review w
     const output = JSON.parse(result.stdout);
     assert.equal(output.state, "waiting_for_copilot_review");
     assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
+    assert.equal(output.loopDisposition, "pending");
+    assert.equal(output.terminal, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -723,6 +725,8 @@ test("detect-copilot-loop-state auto-detect exits waiting_for_copilot_review whe
     assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
     assert.equal(output.autoRerequestEligible, false);
     assert.equal(output.sameHeadCleanConverged, true);
+    assert.equal(output.loopDisposition, "clean_converged");
+    assert.equal(output.terminal, true);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

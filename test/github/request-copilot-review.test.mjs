@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -90,7 +90,7 @@ test("request-copilot-review requests Copilot deterministically and verifies via
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
       {
@@ -102,7 +102,7 @@ test("request-copilot-review requests Copilot deterministically and verifies via
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -133,7 +133,7 @@ test("request-copilot-review recognizes Copilot under the requested reviewer log
         stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -164,7 +164,7 @@ test("request-copilot-review reports already-requested without mutating PR state
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[{"id":"r-1","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
       },
     ]);
@@ -185,6 +185,77 @@ test("request-copilot-review reports already-requested without mutating PR state
   }
 });
 
+test("request-copilot-review suppresses same-head clean re-request by default", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-suppressed-same-head-clean-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: '{"isDraft":false,"state":"OPEN","number":17,"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"newsha"}}],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "suppressed_same_head_clean",
+      repo: "owner/repo",
+      pr: 17,
+      reviewer: "Copilot",
+      sameHeadCleanConverged: true,
+      detail: "Current head already has a clean submitted Copilot review; rerun with --force-rerequest-review to bypass same-head clean-convergence suppression.",
+    });
+    // 3 gh calls: preflight requested_reviewers + expanded PR view, then only review threads for clean-convergence proof.
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 3);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+test("request-copilot-review treats pending review as already-requested even when a submitted current-head review exists", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-pending-with-submitted-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: '{"headRefOid":"abc123","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}},{"id":"r-2","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}}]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "already-requested",
+      repo: "owner/repo",
+      pr: 17,
+      reviewer: "Copilot",
+    });
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 2);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 
 test("request-copilot-review treats a pending Copilot review as already-requested before mutating", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-pending-before-"));
@@ -196,7 +267,7 @@ test("request-copilot-review treats a pending Copilot review as already-requeste
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"abc123","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}}]}\n',
       },
     ]);
@@ -217,6 +288,54 @@ test("request-copilot-review treats a pending Copilot review as already-requeste
   }
 });
 
+test("request-copilot-review allows explicit forced same-head clean re-request and reports bypass", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-force-same-head-clean-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: '{"isDraft":false,"state":"OPEN","number":17,"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"newsha"}}],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stdout: "https://github.com/owner/repo/pull/17\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"newsha"}}]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--force-rerequest-review"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      status: "requested",
+      repo: "owner/repo",
+      pr: 17,
+      reviewer: "Copilot",
+      bypassedSameHeadCleanSuppression: true,
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("request-copilot-review accepts an immediate Copilot review as proof the request succeeded", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-immediate-review-"));
 
@@ -227,7 +346,7 @@ test("request-copilot-review accepts an immediate Copilot review as proof the re
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
       {
@@ -239,7 +358,7 @@ test("request-copilot-review accepts an immediate Copilot review as proof the re
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[{"id":"r-2","author":{"login":"copilot-pull-request-reviewer[bot]"}}]}\n',
       },
     ]);
@@ -270,7 +389,7 @@ test("request-copilot-review normalizes known unrequestable/unavailable failures
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
       {
@@ -285,7 +404,7 @@ test("request-copilot-review normalizes known unrequestable/unavailable failures
       },
       // post-failure verification: no pending Copilot review
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -318,7 +437,7 @@ test("request-copilot-review returns already-requested when 422 but Copilot is i
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
       // request: GitHub returns 422
@@ -333,7 +452,7 @@ test("request-copilot-review returns already-requested when 422 but Copilot is i
         stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -365,7 +484,7 @@ test("request-copilot-review returns already-requested when 422 but Copilot has 
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
       // request: GitHub returns 422
@@ -380,7 +499,7 @@ test("request-copilot-review returns already-requested when 422 but Copilot has 
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"abc123","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}}]}\n',
       },
     ]);
@@ -411,7 +530,7 @@ test("request-copilot-review does not treat a stale pending Copilot review as al
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
       {
@@ -423,7 +542,7 @@ test("request-copilot-review does not treat a stale pending Copilot review as al
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
     ]);
@@ -454,7 +573,7 @@ test("request-copilot-review ignores a stale pending Copilot review after 422 an
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
       {
@@ -467,7 +586,7 @@ test("request-copilot-review ignores a stale pending Copilot review after 422 an
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
     ]);
@@ -499,7 +618,7 @@ test("request-copilot-review wraps invalid gh JSON deterministically", async () 
         stdout: "not-json\n",
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -553,6 +672,9 @@ test("request-copilot-review rejects malformed arguments deterministically", asy
   assert.equal(unknownErr.error, "Unknown argument: --wat");
   assert.equal(typeof unknownErr.usage, "string");
   assert(unknownErr.usage.length > 0);
+
+  const force = await runNode(["--repo", "owner/repo", "--pr", "17", "--force-rerequest-review", "--wat"]);
+  assert.equal(force.code, 1);
 });
 
 test("request-copilot-review --help prints usage and exits 0", async () => {

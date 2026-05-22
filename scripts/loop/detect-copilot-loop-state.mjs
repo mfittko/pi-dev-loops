@@ -37,12 +37,15 @@
  *     "allowedTransitions": [...],
  *     "nextAction": "...",
  *     "autoRerequestEligible": true|false,
- *     "sameHeadCleanConverged": true|false
+ *     "sameHeadCleanConverged": true|false,
+ *     "loopDisposition": "...",
+ *     "terminal": true|false
  *   }
  *
  * Success output shape (with steering file):
  *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...",
  *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
+ *     "loopDisposition": "...", "terminal": true|false,
  *     "steeringApplied": true|false, "effectiveConstraints": { ... } }
  *
  * Failure behavior:
@@ -58,7 +61,7 @@ import { fileURLToPath } from "node:url";
 
 import { formatCliError, isCopilotLogin, parseJsonText, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
-import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import { buildSnapshotFromPrFacts, interpretLoopState, normalizeSnapshot, summarizeLoopInterpretation } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
   createSteeringState,
   normalizeSteeringState,
@@ -106,7 +109,8 @@ Optional (auto-detect mode only):
 
 Output (stdout, JSON):
   { "ok": true, "snapshot": {...}, "state": "...", "allowedTransitions": [...], "nextAction": "...",
-    "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false }
+    "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
+    "loopDisposition": "...", "terminal": true|false }
 
   When --steering-state-file is provided, also includes:
   "steeringApplied": true|false, "effectiveConstraints": { ... }
@@ -314,38 +318,6 @@ async function fetchCopilotRequested({ repo, pr }, { env, ghCommand }) {
 }
 
 /**
- * Map a gh statusCheckRollup array to a normalized ciStatus string.
- */
-function normalizeCiStatus(rollup) {
-  if (!Array.isArray(rollup) || rollup.length === 0) {
-    return "none";
-  }
-
-  const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
-
-  let hasPending = false;
-  let hasFailure = false;
-
-  for (const check of rollup) {
-    const status = typeof check.status === "string" ? check.status.toUpperCase() : "";
-    const conclusion = typeof check.conclusion === "string" ? check.conclusion.toUpperCase() : "";
-
-    if (status === "COMPLETED" && FAILURE_CONCLUSIONS.has(conclusion)) {
-      hasFailure = true;
-      continue;
-    }
-
-    if (status !== "COMPLETED") {
-      hasPending = true;
-    }
-  }
-
-  if (hasFailure) return "failure";
-  if (hasPending) return "pending";
-  return "success";
-}
-
-/**
  * Auto-detect the current loop snapshot by querying GitHub.
  * Exported for use by higher-level orchestration helpers.
  */
@@ -370,14 +342,10 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     });
   }
 
-  const isDraft = Boolean(prData.isDraft);
   const prHeadSha = typeof prData.headRefOid === "string" && prData.headRefOid.trim().length > 0
     ? prData.headRefOid.trim()
     : null;
   const reviewSummary = summarizeCopilotReviews(prData.reviews, { headSha: prHeadSha });
-  const copilotReviewPresent = reviewSummary.copilotReviewPresent;
-  const copilotReviewOnCurrentHead = reviewSummary.hasSubmittedReviewOnCurrentHead;
-  const ciStatus = normalizeCiStatus(prData.statusCheckRollup);
 
   // Determine review request status
   let copilotReviewRequestStatus;
@@ -408,18 +376,14 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     throw new Error(`Could not determine review-thread state: ${detail}`);
   }
 
-  return normalizeSnapshot({
-    prExists: true,
-    prNumber: typeof prData.number === "number" ? prData.number : pr,
-    prDraft: isDraft,
-    prMerged: false,
-    prClosed: false,
+  return buildSnapshotFromPrFacts({
+    prData,
+    prNumber: pr,
     copilotReviewRequestStatus,
-    copilotReviewPresent,
-    copilotReviewOnCurrentHead,
+    copilotReviewPresent: reviewSummary.copilotReviewPresent,
+    copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
     unresolvedThreadCount,
     actionableThreadCount,
-    ciStatus,
   });
 }
 
@@ -506,6 +470,8 @@ export async function runCli(
     interpretation = interpretLoopState(snapshot);
   }
 
+  const interpretationSummary = summarizeLoopInterpretation(interpretation);
+
   stdout.write(`${JSON.stringify({
     ok: true,
     snapshot,
@@ -514,6 +480,8 @@ export async function runCli(
     nextAction: interpretation.nextAction,
     autoRerequestEligible: interpretation.autoRerequestEligible,
     sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
+    loopDisposition: interpretationSummary.loopDisposition,
+    terminal: interpretationSummary.terminal,
     ...steeringFields,
   })}\n`);
 }

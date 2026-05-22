@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
+import { parseHandoffCliArgs } from "../../scripts/loop/copilot-pr-handoff.mjs";
+
 const scriptPath = path.resolve("scripts/loop/copilot-pr-handoff.mjs");
 
 function runNode(args = [], options = {}) {
@@ -120,6 +122,11 @@ test("copilot-pr-handoff --help prints usage and exits 0", async () => {
   assert.equal(helpShort.stdout, helpLong.stdout);
 });
 
+test("copilot-pr-handoff normalizes watch-status input", async () => {
+  const parsed = parseHandoffCliArgs(["--repo", "owner/repo", "--pr", "17", "--watch-status", " Timeout "]);
+  assert.equal(parsed.watchStatus, "timeout");
+});
+
 test("copilot-pr-handoff rejects malformed arguments with usage guidance", async () => {
   const missingPr = await runNode(["--repo", "owner/repo"]);
   assert.equal(missingPr.code, 1);
@@ -144,6 +151,23 @@ test("copilot-pr-handoff rejects malformed arguments with usage guidance", async
   assert.equal(unknownErr.error, "Unknown argument: --unexpected");
   assert.equal(typeof unknownErr.usage, "string");
   assert(unknownErr.usage.length > 0);
+
+  const badWatchStatus = await runNode(["--repo", "owner/repo", "--pr", "17", "--watch-status", "later"]);
+  assert.equal(badWatchStatus.code, 1);
+  const badWatchStatusErr = JSON.parse(badWatchStatus.stderr);
+  assert.equal(badWatchStatusErr.ok, false);
+  assert.equal(badWatchStatusErr.error, "--watch-status must be one of: changed, timeout, idle");
+
+  const conflictingWatchRefresh = await runNode([
+    "--repo", "owner/repo", "--pr", "17", "--watch-status", "timeout", "--force-rerequest-review",
+  ]);
+  assert.equal(conflictingWatchRefresh.code, 1);
+  const conflictingWatchRefreshErr = JSON.parse(conflictingWatchRefresh.stderr);
+  assert.equal(conflictingWatchRefreshErr.ok, false);
+  assert.equal(
+    conflictingWatchRefreshErr.error,
+    "--force-rerequest-review cannot be combined with --watch-status because watch refresh mode never requests review",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -177,7 +201,7 @@ test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_
       },
       // request: check reviews before requesting
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
       // request: add reviewer
@@ -192,7 +216,7 @@ test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_
       },
       // request: verify reviews after
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -259,6 +283,44 @@ test("copilot-pr-handoff emits watch action when Copilot is already requested", 
     assert.ok(output.watchArgs, "expected watchArgs");
     assert.equal(output.watchArgs.pollIntervalMs, 60_000);
     assert.equal(output.watchArgs.timeoutMs, 86_400_000);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("copilot-pr-handoff treats watch timeout with pending requested review as non-terminal", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-timeout-pending-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: OPEN_PR + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--watch-status", "timeout"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "watch");
+    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.watchStatus, "timeout");
+    assert.equal(output.loopDisposition, "pending");
+    assert.equal(output.terminal, false);
+    assert.equal(output.sameHeadCleanConverged, false);
+    assert.ok(output.watchArgs, "expected watchArgs while review is still pending");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -377,7 +439,7 @@ test("copilot-pr-handoff emits stop action when Copilot review is unavailable", 
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
       // request: gh returns unavailable error
@@ -393,7 +455,7 @@ test("copilot-pr-handoff emits stop action when Copilot review is unavailable", 
       },
       // post-failure verification: no pending Copilot review
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -444,7 +506,7 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot is in requested
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
       // request: gh returns 422
@@ -459,7 +521,7 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot is in requested
         stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
     ]);
@@ -510,7 +572,7 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot has a pending r
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
       // request: gh returns 422
@@ -525,7 +587,7 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot has a pending r
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"abc123","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}}]}\n',
       },
     ]);
@@ -647,7 +709,7 @@ test("copilot-pr-handoff still re-requests review when a stale pending Copilot r
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-0","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}},{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
       {
@@ -659,7 +721,7 @@ test("copilot-pr-handoff still re-requests review when a stale pending Copilot r
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-0","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}},{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
     ]);
@@ -730,6 +792,58 @@ test("copilot-pr-handoff stops after a current-head Copilot review even if reque
   }
 });
 
+test("copilot-pr-handoff classifies watch timeout plus current-head clean review as clean-converged", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-timeout-clean-converged-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-1",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "newsha" },
+            },
+          ],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--watch-status", "timeout"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.watchStatus, "timeout");
+    assert.equal(output.sameHeadCleanConverged, true);
+    assert.equal(output.loopDisposition, "clean_converged");
+    assert.equal(output.terminal, true);
+    assert.equal(output.watchArgs, undefined);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("copilot-pr-handoff preserves copilotReviewPresent=false for an initial request with no prior review", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-initial-request-preserves-review-presence-"));
 
@@ -759,7 +873,7 @@ test("copilot-pr-handoff preserves copilotReviewPresent=false for an initial req
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[]}\n',
       },
       {
@@ -771,7 +885,7 @@ test("copilot-pr-handoff preserves copilotReviewPresent=false for an initial req
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[]}\n',
       },
     ]);
@@ -831,7 +945,7 @@ test("copilot-pr-handoff auto re-requests when a newer head has no submitted Cop
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
       {
@@ -843,7 +957,7 @@ test("copilot-pr-handoff auto re-requests when a newer head has no submitted Cop
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
     ]);
@@ -900,7 +1014,7 @@ test("copilot-pr-handoff allows explicit operator same-head re-request via --for
         stdout: '{"users":[],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"newsha"}}]}\n',
       },
       {
@@ -912,7 +1026,7 @@ test("copilot-pr-handoff allows explicit operator same-head re-request via --for
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,reviews"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"newsha"}}]}\n',
       },
     ]);
@@ -1106,6 +1220,83 @@ test("copilot-pr-handoff emits fix action when unresolved threads exist", async 
   }
 });
 
+test("copilot-pr-handoff classifies watch timeout with refreshed unresolved thread as unresolved feedback", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-timeout-unresolved-"));
+
+  const unresolvedThreads = JSON.stringify({
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: {
+            nodes: [
+              {
+                id: "t-1",
+                isResolved: false,
+                comments: {
+                  nodes: [
+                    {
+                      id: "c-1",
+                      body: "Please add a test.",
+                      author: { login: "copilot-pull-request-reviewer[bot]", __typename: "Bot" },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-1",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "newsha" },
+            },
+          ],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: unresolvedThreads + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--watch-status", "timeout"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "fix");
+    assert.equal(output.state, "unresolved_feedback_present");
+    assert.equal(output.watchStatus, "timeout");
+    assert.equal(output.loopDisposition, "unresolved_feedback");
+    assert.equal(output.terminal, false);
+    assert.equal(output.watchArgs, undefined);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Handoff: no PR → stop
 // ---------------------------------------------------------------------------
@@ -1167,6 +1358,57 @@ test("copilot-pr-handoff emits stop action for merged PR", async () => {
     assert.equal(output.ok, true);
     assert.equal(output.action, "stop");
     assert.equal(output.state, "done");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("copilot-pr-handoff classifies watch timeout with CI still pending as non-terminal pending", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-timeout-ci-pending-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-1",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "newsha" },
+            },
+          ],
+          statusCheckRollup: [{ status: "IN_PROGRESS", conclusion: "", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--watch-status", "timeout"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "waiting_for_ci");
+    assert.equal(output.watchStatus, "timeout");
+    assert.equal(output.loopDisposition, "pending");
+    assert.equal(output.terminal, false);
+    assert.equal(output.sameHeadCleanConverged, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

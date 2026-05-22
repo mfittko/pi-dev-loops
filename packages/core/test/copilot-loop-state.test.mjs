@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  LOOP_DISPOSITION,
   STATE,
   TRANSITIONS,
   normalizeSnapshot,
   interpretLoopState,
   applyConfirmedReviewRequest,
+  summarizeLoopInterpretation,
 } from "../src/loop/copilot-loop-state.mjs";
 
 // ---------------------------------------------------------------------------
@@ -519,4 +521,68 @@ test("interpretLoopState allowedTransitions array is a fresh copy each call", ()
   const result2 = interpretLoopState({ prExists: true, prNumber: 1 });
   result1.allowedTransitions.push("mutated");
   assert.notDeepEqual(result1.allowedTransitions, result2.allowedTransitions);
+});
+
+test("summarizeLoopInterpretation marks pending requested review as non-terminal", () => {
+  const summary = summarizeLoopInterpretation({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "requested",
+    unresolvedThreadCount: 0,
+    ciStatus: "success",
+  });
+
+  assert.deepEqual(summary, {
+    loopDisposition: LOOP_DISPOSITION.PENDING,
+    terminal: false,
+  });
+});
+
+test("summarizeLoopInterpretation marks unresolved feedback as non-terminal", () => {
+  const summary = summarizeLoopInterpretation({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewPresent: true,
+    unresolvedThreadCount: 1,
+    actionableThreadCount: 1,
+    ciStatus: "success",
+  });
+
+  assert.deepEqual(summary, {
+    loopDisposition: LOOP_DISPOSITION.UNRESOLVED_FEEDBACK,
+    terminal: false,
+  });
+});
+
+test("summarizeLoopInterpretation marks same-head clean convergence as terminal", () => {
+  const summary = summarizeLoopInterpretation({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "requested",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: true,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    ciStatus: "success",
+  });
+
+  assert.deepEqual(summary, {
+    loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
+    terminal: true,
+  });
+});
+
+test("summarizeLoopInterpretation marks blocked states as terminal", () => {
+  const summary = summarizeLoopInterpretation({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewPresent: true,
+    unresolvedThreadCount: 0,
+    ciStatus: "failure",
+  });
+
+  assert.deepEqual(summary, {
+    loopDisposition: LOOP_DISPOSITION.BLOCKED,
+    terminal: true,
+  });
 });

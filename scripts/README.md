@@ -47,18 +47,24 @@ Required:
 - `--repo <owner/name>`
 - `--pr <number>`
 
+Optional:
+- `--force-rerequest-review` — bypass same-head clean-convergence suppression and attempt another explicit request
+
 Contract:
 - checks `requested_reviewers` first so an existing Copilot request is detected without mutating PR state again
 - requests Copilot via `gh pr edit <pr> --repo <owner/name> --add-reviewer @copilot`
 - is suitable both for the first request after ready-for-review and for later explicit re-requests after follow-up fix commits land on the PR head
+- suppresses direct same-head clean re-requests by default when the current head is deterministically clean-converged; use `--force-rerequest-review` to bypass that suppression explicitly
 - should be paired with a fresh unresolved-thread check after Copilot posts again; requesting review alone does not complete the loop
 - verifies the result through `gh api repos/<owner>/<name>/pulls/<pr>/requested_reviewers`
 - does **not** rely on `gh pr view --json reviewRequests`, which can be incomplete for Copilot reviewer state
 - normalizes known repository/tooling limitations into a machine-readable `unavailable` result instead of forcing callers to parse ad hoc stderr
 
 Success output shape:
-- `{ "ok": true, "status": "requested"|"already-requested"|"unavailable", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
+- `{ "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
 - `unavailable` also includes a `detail` string with the normalized GitHub/CLI limitation
+- `suppressed_same_head_clean` includes `sameHeadCleanConverged: true` and an override hint
+- forced bypass results include `bypassedSameHeadCleanSuppression: true`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
@@ -201,6 +207,7 @@ Required:
 
 Optional:
 - `--force-rerequest-review` — explicit operator/manual override that forces another Copilot request even when automatic same-head suppression is active
+- `--watch-status <changed|timeout|idle>` — refresh deterministic state after a prior watcher observation; this readback mode never requests review again
 
 Contract:
 - detects the current Copilot-loop state for the PR
@@ -209,11 +216,12 @@ Contract:
 - does not request or re-request Copilot review when `ciStatus` is `none`; that path remains gated as `waiting_for_ci`
 - suppresses automatic same-head clean re-request when `sameHeadCleanConverged=true`, unless `--force-rerequest-review` is used
 - when a review request is successfully issued or confirmed (including the explicit force path), re-interprets from the shared post-request wait-cycle snapshot and emits `action: "watch"` with exact `watchArgs`
+- when `--watch-status` is provided, treats the watcher result as observational only, refreshes GitHub state, and emits `loopDisposition` plus `terminal` so timeout/idle cannot be mistaken for clean completion
 - emits one machine-readable action: `watch`, `fix`, or `stop` (`stop` means no automatic next step; terminal, blocked, or operator-decision-required states all use this action)
 - when the action is `watch`, emits exact `watchArgs` for `watch-copilot-review.mjs`
 
 Success output shape:
-- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... } }`
+- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchStatus"?: "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false, "watchArgs"?: { ... } }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
@@ -264,12 +272,14 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `agentFixStatus` {"applied"|null} — agent-provided: "applied" when code has been fixed
 
 Success output shape:
-- `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false }`
+- `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false }`
 - `state` is one of the stable state names defined in `docs/copilot-loop-state-graph.md`
 - `allowedTransitions` is the list of states reachable from `state`
 - `nextAction` is a human-readable recommended next step
 - `autoRerequestEligible` is `true` only when a meaningful remediation event has made automatic re-request valid again
 - `sameHeadCleanConverged` is `true` when the current head already has a clean submitted Copilot review and automatic same-head re-request must be suppressed
+- `loopDisposition` is the high-level refreshed classification: `pending`, `unresolved_feedback`, `clean_converged`, `blocked`, `action_required`, or `done`
+- `terminal` is `true` only for clean-converged, blocked, or done states; watcher timeout/idle must be treated as non-terminal until a refreshed detector output proves `terminal=true`
 
 Failure behavior:
 - Malformed arguments, unexpected `gh` failures, and review-thread detection failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
