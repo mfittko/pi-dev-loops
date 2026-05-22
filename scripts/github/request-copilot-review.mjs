@@ -5,8 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { formatCliError, isCopilotLogin, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
 import { fetchGithubReviewThreadsPayload, parseRepoSlug } from "./capture-review-threads.mjs";
-import { normalizeCiStatus } from "../loop/detect-copilot-loop-state.mjs";
-import { interpretLoopState, normalizeSnapshot } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import { buildSnapshotFromPrFacts, interpretLoopState } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
 
@@ -252,19 +251,14 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
       runtime,
     );
     const parsedThreads = parseReviewThreads(threadsPayload);
-    const prState = typeof prData.state === "string" ? prData.state.toUpperCase() : "OPEN";
-    const snapshot = normalizeSnapshot({
-      prExists: true,
-      prNumber: typeof prData.number === "number" ? prData.number : options.pr,
-      prDraft: Boolean(prData.isDraft),
-      prMerged: prState === "MERGED",
-      prClosed: prState === "CLOSED",
+    const snapshot = buildSnapshotFromPrFacts({
+      prData,
+      prNumber: options.pr,
       copilotReviewRequestStatus: hasPendingReviewOnCurrentHead || requested ? "requested" : "none",
       copilotReviewPresent,
       copilotReviewOnCurrentHead: hasSubmittedReviewOnCurrentHead,
       unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
       actionableThreadCount: parsedThreads.summary.actionableThreads,
-      ciStatus: normalizeCiStatus(prData.statusCheckRollup),
     });
     const interpretation = interpretLoopState(snapshot);
     return interpretation.sameHeadCleanConverged;

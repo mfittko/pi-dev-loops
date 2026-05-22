@@ -117,6 +117,63 @@ const VALID_REVIEW_REQUEST_STATUSES = new Set(["requested", "already-requested",
 const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
 const ACTIVE_REQUEST_STATUSES = new Set(["requested", "already-requested"]);
 
+export function normalizeCiStatus(rollup) {
+  if (!Array.isArray(rollup) || rollup.length === 0) {
+    return "none";
+  }
+
+  const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
+
+  let hasPending = false;
+  let hasFailure = false;
+
+  for (const check of rollup) {
+    const status = typeof check.status === "string" ? check.status.toUpperCase() : "";
+    const conclusion = typeof check.conclusion === "string" ? check.conclusion.toUpperCase() : "";
+
+    if (status === "COMPLETED" && FAILURE_CONCLUSIONS.has(conclusion)) {
+      hasFailure = true;
+      continue;
+    }
+
+    if (status !== "COMPLETED") {
+      hasPending = true;
+    }
+  }
+
+  if (hasFailure) return "failure";
+  if (hasPending) return "pending";
+  return "success";
+}
+
+export function buildSnapshotFromPrFacts({
+  prData,
+  prNumber,
+  copilotReviewRequestStatus = "none",
+  copilotReviewPresent = false,
+  copilotReviewOnCurrentHead = false,
+  unresolvedThreadCount = 0,
+  actionableThreadCount = 0,
+}) {
+  const prState = typeof prData?.state === "string" ? prData.state.toUpperCase() : "OPEN";
+  const prMerged = prState === "MERGED";
+  const prClosed = prState === "CLOSED";
+
+  return normalizeSnapshot({
+    prExists: true,
+    prNumber: typeof prData?.number === "number" ? prData.number : prNumber,
+    prDraft: Boolean(prData?.isDraft),
+    prMerged,
+    prClosed,
+    copilotReviewRequestStatus,
+    copilotReviewPresent,
+    copilotReviewOnCurrentHead,
+    unresolvedThreadCount,
+    actionableThreadCount,
+    ciStatus: normalizeCiStatus(prData?.statusCheckRollup),
+  });
+}
+
 function isAutoRerequestEligible(snapshot, state) {
   if (state !== STATE.READY_TO_REREQUEST_REVIEW) return false;
   // A fresh submitted Copilot review on the current head with no unresolved feedback
