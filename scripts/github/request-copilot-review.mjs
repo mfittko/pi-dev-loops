@@ -242,7 +242,7 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     return options.sameHeadCleanConverged;
   }
 
-  if (!hasSubmittedReviewOnCurrentHead || prData === null) {
+  if (hasPendingReviewOnCurrentHead || !hasSubmittedReviewOnCurrentHead || prData === null) {
     return false;
   }
 
