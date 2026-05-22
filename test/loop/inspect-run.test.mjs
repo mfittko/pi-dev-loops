@@ -57,9 +57,9 @@ async function writeJson(filePath, data) {
 async function writeGhStub(tempDir) {
   const ghPath = path.join(tempDir, "gh");
   const script = `#!/usr/bin/env node
-  const args = process.argv.slice(2);
-  const out = (value) => process.stdout.write(JSON.stringify(value));
-  const apiPath = args[0] === "api" ? args.find((arg) => arg.startsWith("repos/")) : null;
+const args = process.argv.slice(2);
+const out = (value) => process.stdout.write(JSON.stringify(value));
+const apiPath = args[0] === "api" ? args.find((arg) => arg.startsWith("repos/")) : null;
 
 if (args[0] === "pr" && args[1] === "view") {
   const fields = args[args.indexOf("--json") + 1] || "";
