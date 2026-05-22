@@ -237,7 +237,11 @@ async function detectSameHeadCleanConvergence(options, runtime, { hasSubmittedRe
     );
     const interpretation = interpretLoopState(snapshot);
     return interpretation.sameHeadCleanConverged;
-  } catch {
+  } catch (error) {
+    if (runtime?.env?.PI_DEV_LOOPS_DEBUG === "1") {
+      const detail = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[request-copilot-review] same-head clean-convergence detection unavailable: ${detail}\n`);
+    }
     return false;
   }
 }

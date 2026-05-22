@@ -225,6 +225,7 @@ test("request-copilot-review suppresses same-head clean re-request by default", 
       sameHeadCleanConverged: true,
       detail: "Current head already has a clean submitted Copilot review; rerun with --force-rerequest-review to bypass same-head clean-convergence suppression.",
     });
+    // 5 gh calls: preflight requested_reviewers + reviews, then auto-detect pr view + requested_reviewers + threads.
     assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
