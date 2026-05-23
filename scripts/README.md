@@ -487,6 +487,13 @@ Local manual verification path:
 2. Open the printed URL in a local browser and verify the human-oriented `/` page
 3. Open `<printed-url>/snapshot.json` and verify it returns the full inspection snapshot JSON for the same target
 4. Use browser refresh or the reload button for point-in-time re-inspection
+
+Local WebKit/Playwright smoke path:
+1. Install the Safari/WebKit browser runtime once:
+   - `npm run playwright:install:safari`
+2. Run the viewer smoke suite:
+   - `npm run test:playwright:viewer`
+3. Review screenshots/traces under `test-results/` and the HTML report under `playwright-report/inspect-run-viewer/`
 5. Optionally hit `/favicon.ico` or an unsupported path to confirm those paths stay deterministic and do not perform snapshot rendering
 6. For deterministic/local test mode, pass `--copilot-input` and `--reviewer-input` fixtures to viewer; these are forwarded to `inspect-run`
 

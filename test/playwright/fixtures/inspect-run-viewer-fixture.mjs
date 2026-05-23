@@ -1,0 +1,46 @@
+export function makeInspectionSnapshot(overrides = {}) {
+  return {
+    ok: true,
+    schemaVersion: 1,
+    target: { repo: "owner/repo", pr: 55 },
+    runId: "pr-55",
+    inspectedAt: "2026-05-23T00:00:00.000Z",
+    activeStateFamily: "copilot-pr-outer-loop",
+    outerAction: "continue_wait",
+    activeFamilyState: "continue_wait",
+    statusClass: "waiting",
+    needsAttention: false,
+    sourceMode: "live-detector-backed",
+    trust: "authoritative",
+    evidence: {
+      summary: "Live detectors agree.",
+      authoritative: ["live detectors agree"],
+      checkpoint: [],
+    },
+    markers: { missing: [], stale: [], conflicts: [] },
+    loopIterations: {
+      available: true,
+      source: "github_pr_timeline",
+      completedCopilotReviewRounds: 4,
+      pendingCopilotReviewRounds: 1,
+      copilotReviewRequests: 5,
+      copilotReviewComments: 8,
+      resolvedReviewThreads: 8,
+      unresolvedReviewThreads: 0,
+      fixCommitsAfterFeedback: 3,
+    },
+    layers: {
+      copilot: {
+        currentState: "waiting_for_copilot_review",
+        allowedTransitions: ["unresolved_feedback_present", "ready_to_rerequest_review", "waiting_for_ci"],
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request", "waiting_for_review_request"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+    ...overrides,
+  };
+}
