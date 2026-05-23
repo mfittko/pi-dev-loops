@@ -393,8 +393,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /Next/);
   assert.match(html, /🔁/);
   assert.match(html, /outer-loop family:\s*<\/strong> current <code>continue_wait<\/code>; continue_wait; known outer actions shown, but authoritative full transitions are not exported; transition data unavailable in this snapshot/);
-  assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
-  assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; waiting_for_re_request, waiting_for_review_request/);
+  assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; validated next states: unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
+  assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; validated next states: waiting_for_re_request, waiting_for_review_request/);
   assert.match(html, /Dimmed nodes are still part of the authoritative state machine/);
   assert.match(html, /full outer-loop transitions until the repo exports that transition graph authoritatively/);
   assert.match(html, /outer-loop summary/);
@@ -439,8 +439,8 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
-  assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; transition data unavailable in this snapshot/);
-  assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; transition data unavailable in this snapshot/);
+  assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; next transitions unavailable in this snapshot/);
+  assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; next transitions unavailable in this snapshot/);
   assert.match(html, /no_copilot_review_history/);
   assert.match(html, /no_steering_file/);
 });
@@ -468,6 +468,29 @@ test("renderInspectRunViewerHtml distinguishes empty transitions from unavailabl
   assert.doesNotMatch(html, /copilot layer:[\s\S]*full authoritative state machine shown; transition data unavailable in this snapshot/);
 });
 
+test("renderInspectRunViewerHtml fail-closes invalid next-state summaries to validated transitions", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      layers: {
+        copilot: {
+          currentState: "waiting_for_copilot_review",
+          allowedTransitions: ["done", " waiting_for_ci "],
+        },
+        reviewer: {
+          currentState: "waiting_for_author_followup",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["review_requested"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /copilot layer:[\s\S]*validated next states: waiting_for_ci \(1 invalid snapshot token ignored\)/i);
+  assert.match(html, /reviewer layer:[\s\S]*no authoritative next states confirmed from snapshot/i);
+});
+
 test("renderInspectRunViewerHtml trims and de-duplicates transition summaries", () => {
   const html = renderInspectRunViewerHtml({
     target: { repo: "owner/repo", pr: 55 },
@@ -487,7 +510,7 @@ test("renderInspectRunViewerHtml trims and de-duplicates transition summaries", 
     }),
   });
 
-  assert.match(html, /copilot layer:[\s\S]*waiting_for_ci, ready_to_rerequest_review/i);
+  assert.match(html, /copilot layer:[\s\S]*validated next states: waiting_for_ci, ready_to_rerequest_review/i);
   assert.doesNotMatch(html, /waiting_for_ci\s+,/i);
   assert.doesNotMatch(html, /waiting_for_ci, waiting_for_ci/i);
 });
@@ -585,6 +608,29 @@ test("renderInspectRunViewerHtml treats undefined snapshots as unavailable", () 
 
   assert.match(html, /Snapshot unavailable/);
   assert.match(html, /Unable to load inspect-run snapshot/);
+});
+
+test("buildInspectionMermaidGraph suppresses graph rendering for sourceMode unavailable even with conflicting markers", () => {
+  const graph = buildInspectionMermaidGraph(makeSnapshot({
+    sourceMode: "unavailable",
+    trust: "unknown",
+    markers: {
+      missing: [],
+      stale: [],
+      conflicts: ["live and checkpoint disagree"],
+    },
+  }));
+
+  assert.equal(graph, null);
+});
+
+test("renderInspectRunViewerHtml includes deterministic Mermaid asset fallback messaging", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+  });
+
+  assert.match(html, /Mermaid browser asset unavailable\. Use the summaries below or open \/snapshot\.json\./);
 });
 
 test("renderInspectRunViewerHtml fail-closes the graph for unavailable snapshots", () => {

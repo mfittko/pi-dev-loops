@@ -432,11 +432,13 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
   const authoritativeCurrentNextStates = currentInfo.available
     ? new Set(Array.isArray(transitionTable[currentInfo.label]) ? transitionTable[currentInfo.label] : [])
     : new Set();
-  const highlightedNextStates = new Set(
-    transitionInfo.unavailable || !currentInfo.available
-      ? []
-      : transitionInfo.normalizedTransitions.filter((state) => authoritativeCurrentNextStates.has(state)),
-  );
+  const validNormalizedTransitions = transitionInfo.unavailable || !currentInfo.available
+    ? []
+    : transitionInfo.normalizedTransitions.filter((state) => authoritativeCurrentNextStates.has(state));
+  const invalidNormalizedTransitions = transitionInfo.unavailable || !currentInfo.available
+    ? []
+    : transitionInfo.normalizedTransitions.filter((state) => !authoritativeCurrentNextStates.has(state));
+  const highlightedNextStates = new Set(validNormalizedTransitions);
   const classIds = {
     cue: [],
     current: [],
@@ -527,10 +529,21 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
 
   lines.push("  end");
 
+  const validatedTransitionSummary = transitionInfo.unavailable
+    ? "next transitions unavailable in this snapshot"
+    : !currentInfo.available
+      ? "next transitions unavailable because current state is unavailable"
+      : transitionInfo.empty
+        ? "no allowed transitions"
+        : validNormalizedTransitions.length === 0
+          ? "no authoritative next states confirmed from snapshot"
+          : `validated next states: ${validNormalizedTransitions.join(", ")}${invalidNormalizedTransitions.length === 0 ? "" : ` (${invalidNormalizedTransitions.length} invalid snapshot token${invalidNormalizedTransitions.length === 1 ? "" : "s"} ignored)`}`;
+
   return {
     title,
     currentLabel: currentInfo.label,
     transitionInfo,
+    validatedTransitionSummary,
     currentId,
     lines,
     classIds,
@@ -539,7 +552,7 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
 }
 
 export function buildInspectionMermaidGraph(snapshot) {
-  if (snapshot === null || snapshot === undefined || renderSnapshotStateLabel(snapshot) === "unavailable") {
+  if (snapshot === null || snapshot === undefined || snapshot?.sourceMode === "unavailable" || renderSnapshotStateLabel(snapshot) === "unavailable") {
     return null;
   }
 
@@ -616,6 +629,7 @@ export function buildInspectionMermaidGraph(snapshot) {
       title: lane.title,
       currentLabel: lane.currentLabel,
       transitionInfo: lane.transitionInfo,
+      validatedTransitionSummary: lane.validatedTransitionSummary ?? lane.transitionInfo.summary,
       summary: lane.summary,
     })),
   };
@@ -643,7 +657,7 @@ function renderStateGraphHelp() {
 
 function renderStateGraphSummaries(graph) {
   return `<ul class="state-graph-summaries">
-    ${graph.lanes.map((lane) => `<li class="state-graph-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.summary ?? lane.transitionInfo.summary)}; ${escapeHtml(lane.transitionInfo.summary)}</li>`).join("")}
+    ${graph.lanes.map((lane) => `<li class="state-graph-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.summary ?? lane.transitionInfo.summary)}; ${escapeHtml(lane.validatedTransitionSummary ?? lane.transitionInfo.summary)}</li>`).join("")}
   </ul>`;
 }
 
@@ -652,7 +666,20 @@ function renderMermaidBootScript() {
     <script>
       (() => {
         const graphs = Array.from(document.querySelectorAll(".mermaid-state-graph"));
-        if (graphs.length === 0 || typeof window.mermaid === "undefined") {
+        const renderFallback = (message) => {
+          graphs.forEach((graph) => {
+            const fallback = document.createElement("p");
+            fallback.className = "state-graph-render-error";
+            fallback.textContent = message;
+            graph.replaceWith(fallback);
+          });
+        };
+
+        if (graphs.length === 0) {
+          return;
+        }
+        if (typeof window.mermaid === "undefined") {
+          renderFallback("Mermaid browser asset unavailable. Use the summaries below or open /snapshot.json.");
           return;
         }
 
@@ -672,12 +699,7 @@ function renderMermaidBootScript() {
             graph.dataset.rendered = "true";
           });
         }).catch(() => {
-          graphs.forEach((graph) => {
-            const fallback = document.createElement("p");
-            fallback.className = "state-graph-render-error";
-            fallback.textContent = "Mermaid could not render this snapshot safely. Use the summaries below or open /snapshot.json.";
-            graph.replaceWith(fallback);
-          });
+          renderFallback("Mermaid could not render this snapshot safely. Use the summaries below or open /snapshot.json.");
         });
       })();
     </script>`;

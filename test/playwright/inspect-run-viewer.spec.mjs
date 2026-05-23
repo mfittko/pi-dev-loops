@@ -57,7 +57,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(graph).toContainText(/waiting_for_copilot_review/);
     await expect(graph).toContainText(/review_requested/);
     await expect(page.getByText(/outer-loop family:\s*current\s*continue_wait; continue_wait; known outer actions shown, but authoritative full transitions are not exported; transition data unavailable in this snapshot/i)).toBeVisible();
-    await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; waiting_for_copilot_review; full authoritative state machine shown; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; waiting_for_copilot_review; full authoritative state machine shown; validated next states: unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
     await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
 
     await page.screenshot({
@@ -87,8 +87,8 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
     await expect(page.locator(".state-graph-intro")).toContainText(/checkpoint-only inspection snapshot/i);
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/current state unavailable/);
-    await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; transition data unavailable in this snapshot/i)).toBeVisible();
-    await expect(page.getByText(/reviewer layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; transition data unavailable in this snapshot/i)).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; next transitions unavailable in this snapshot/i)).toBeVisible();
+    await expect(page.getByText(/reviewer layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; next transitions unavailable in this snapshot/i)).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-checkpoint-webkit.png"),
