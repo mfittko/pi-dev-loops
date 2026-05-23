@@ -145,7 +145,9 @@ function buildReviewerScope(snapshotLike) {
  *   the authoritative outer interpretation, or undefined when the outer action
  *   cannot be determined.
  * @param {string | undefined} [params.outerReason]
- *   Optional reason string from decideOuterAction (e.g. "copilot_blocked").
+ *   Optional stop reason string from the authoritative outer-loop interpretation
+ *   (for example `interpretOuterLoopState(...).stopReason`, such as
+ *   "copilot_blocked").
  * @param {{ snapshot: object, interpretation: { state: string, allowedTransitions: string[], nextAction: string } } | null} params.copilotEvidence
  *   Live copilot inner-loop facts. null when live detection was unavailable.
  * @param {{ snapshot: object, interpretation: { state: string, allowedTransitions: string[], nextAction: string } } | null} params.reviewerEvidence
