@@ -222,6 +222,7 @@ test("install repo copies packaged skills into the repository, repo errors stay 
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "SKILL.md"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-autopilot", "SKILL.md"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "scripts", "github", "request-copilot-review.mjs"));
+  await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "scripts", "loop", "run-copilot-watch-cycle.mjs"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "packages", "core", "src", "loop", "copilot-loop-state.mjs"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "docs", "copilot-loop-state-graph.md"));
   await access(path.join(repoRoot, ".pi", "skills", "copilot-dev-loop", "docs", "outer-loop-state-graph.md"));

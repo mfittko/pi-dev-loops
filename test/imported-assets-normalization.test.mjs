@@ -379,6 +379,14 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(planContent, /stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`/i);
 });
 
+test("copilot-dev-loop skill keeps async watch persistence explicit", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(skillContent, /run-copilot-watch-cycle\.mjs/i);
+  assert.match(skillContent, /zero-timeout `idle` probes are for explicit one-shot status\/reattach checks only/i);
+  assert.match(skillContent, /returning to `waiting_for_copilot_review` is a persistence boundary: resume the watcher instead of reporting completion/i);
+});
+
 test("copilot-dev-loop agent is a thin executable entrypoint that defers to the skill", async () => {
   const content = await readRepo("agents/copilot-dev-loop.agent.md");
 

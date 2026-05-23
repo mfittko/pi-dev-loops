@@ -226,6 +226,35 @@ Success output shape:
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/loop/run-copilot-watch-cycle.mjs`
+
+Deterministic handoff → watch helper for one Copilot wait-cycle boundary.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Optional:
+- `--force-rerequest-review` — explicit operator/manual override that forces another Copilot request even when automatic same-head suppression is active
+- `--probe-only` — use a single immediate recheck (`timeoutMs: 0`) for explicit status probes only
+
+Contract:
+- runs `copilot-pr-handoff.mjs` first and preserves its current state / next action / watch args
+- when handoff returns `action: "watch"`, runs `watch-copilot-review.mjs` with the emitted non-zero `watchArgs`
+- treats `waiting_for_copilot_review` as a persistence boundary, not a completion boundary
+- preserves the shared Copilot-loop `loopDisposition` contract from the handoff/state-machine output (`pending`, `unresolved_feedback`, `clean_converged`, `blocked`, `action_required`, `done`)
+- exposes the helper's coarser wait-cycle summary separately as `cycleDisposition`
+- reports `cycleDisposition: "pending"` for quiet watch results (`timeout` or explicit probe `idle`) instead of pretending the loop concluded cleanly
+- reserves zero-timeout `idle` probes for explicit status/reattach checks; normal async waiting should use the emitted non-zero watch timeout
+- returns `cycleDisposition: "needs_followup"` when fresh Copilot activity appears or handoff already routed directly to `fix`
+- returns `cycleDisposition: "terminal"` only when handoff routed to `stop`
+
+Success output shape:
+- `{ "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... }, "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... }, "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done", "cycleDisposition": "pending"|"needs_followup"|"terminal", "terminal": true|false }`
+
+Failure behavior:
+- malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/loop/detect-copilot-loop-state.mjs`
 
 Deterministic Copilot-loop state detector. Captures current loop state from observable PR/GitHub

@@ -309,6 +309,55 @@ function buildNoChangePayload(status, repo, pr, attempts) {
   };
 }
 
+export async function watchCopilotReview(
+  options,
+  {
+    env = process.env,
+    ghCommand = "gh",
+  } = {},
+) {
+  const baseline = parseCopilotActivity(await fetchGithubCopilotActivityPayload(
+    { repo: options.repo, pr: options.pr },
+    { env, ghCommand },
+  ));
+  const attemptBudget = buildAttemptBudget(options.timeoutMs, options.pollIntervalMs);
+  const watchStartedAtMs = Date.now();
+
+  for (let attempt = 1; attempt <= attemptBudget; attempt += 1) {
+    if (!(options.timeoutMs === 0 && attempt === 1)) {
+      const pollDelayMs = buildPollDelayMs(
+        watchStartedAtMs,
+        options.timeoutMs,
+        options.pollIntervalMs,
+        attempt,
+      );
+      if (pollDelayMs > 0) {
+        await delay(pollDelayMs);
+      }
+    }
+
+    const current = parseCopilotActivity(await fetchGithubCopilotActivityPayload(
+      { repo: options.repo, pr: options.pr },
+      { env, ghCommand },
+    ));
+    const activity = findFreshCopilotActivity(baseline, current);
+
+    if (activity.newComments.length > 0 || activity.newReviews.length > 0 || activity.newIssueComments.length > 0) {
+      return {
+        ok: true,
+        status: "changed",
+        repo: options.repo,
+        pr: options.pr,
+        attempts: attempt,
+        ...activity,
+      };
+    }
+  }
+
+  const status = options.timeoutMs === 0 ? "idle" : "timeout";
+  return buildNoChangePayload(status, options.repo, options.pr, attemptBudget);
+}
+
 export function buildAttemptBudget(timeoutMs, pollIntervalMs) {
   if (timeoutMs === 0) {
     return 1;
@@ -341,47 +390,8 @@ export async function runCli(
     return;
   }
 
-  const baseline = parseCopilotActivity(await fetchGithubCopilotActivityPayload(
-    { repo: options.repo, pr: options.pr },
-    { env, ghCommand },
-  ));
-  const attemptBudget = buildAttemptBudget(options.timeoutMs, options.pollIntervalMs);
-  const watchStartedAtMs = Date.now();
-
-  for (let attempt = 1; attempt <= attemptBudget; attempt += 1) {
-    if (!(options.timeoutMs === 0 && attempt === 1)) {
-      const pollDelayMs = buildPollDelayMs(
-        watchStartedAtMs,
-        options.timeoutMs,
-        options.pollIntervalMs,
-        attempt,
-      );
-      if (pollDelayMs > 0) {
-        await delay(pollDelayMs);
-      }
-    }
-
-    const current = parseCopilotActivity(await fetchGithubCopilotActivityPayload(
-      { repo: options.repo, pr: options.pr },
-      { env, ghCommand },
-    ));
-    const activity = findFreshCopilotActivity(baseline, current);
-
-    if (activity.newComments.length > 0 || activity.newReviews.length > 0 || activity.newIssueComments.length > 0) {
-      stdout.write(`${JSON.stringify({
-        ok: true,
-        status: "changed",
-        repo: options.repo,
-        pr: options.pr,
-        attempts: attempt,
-        ...activity,
-      })}\n`);
-      return;
-    }
-  }
-
-  const status = options.timeoutMs === 0 ? "idle" : "timeout";
-  stdout.write(`${JSON.stringify(buildNoChangePayload(status, options.repo, options.pr, attemptBudget))}\n`);
+  const result = await watchCopilotReview(options, { env, ghCommand });
+  stdout.write(`${JSON.stringify(result)}\n`);
 }
 
 if (isDirectCliRun(import.meta.url)) {
