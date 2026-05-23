@@ -4,6 +4,7 @@ import { get, request } from "node:http";
 import test from "node:test";
 
 import {
+  buildInspectionMermaidGraph,
   createInspectRunViewerServer,
   formatInspectRunViewerUrl,
   listListeningPidsForPort,
@@ -251,6 +252,33 @@ test("formatInspectRunViewerUrl formats IPv4 and IPv6 hosts for copy-pasteable o
   assert.equal(formatInspectRunViewerUrl("0.0.0.0", 4311), "http://0.0.0.0:4311");
 });
 
+test("buildInspectionMermaidGraph renders authoritative Mermaid definitions with start/current/end cues", () => {
+  const graph = buildInspectionMermaidGraph(makeSnapshot({
+    layers: {
+      copilot: {
+        currentState: "done",
+        allowedTransitions: [],
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request", "done"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  }));
+
+  assert.ok(graph);
+  assert.match(graph.definition, /flowchart TB/);
+  assert.match(graph.definition, /subgraph outer_loop_family\["outer-loop family"\]/);
+  assert.match(graph.definition, /outer_loop_family_start\(\["Start"\]\)/);
+  assert.match(graph.definition, /copilot_layer_end\(\("End"\)\)/);
+  assert.match(graph.definition, /transition data unavailable/);
+  assert.match(graph.definition, /layer view/);
+  assert.match(graph.definition, /class outer_loop_family_current,reviewer_layer_current current;/);
+  assert.match(graph.definition, /class copilot_layer_current,reviewer_layer_next_2 terminal;/);
+});
+
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
   const html = renderInspectRunViewerHtml({
     target: { repo: "owner/repo", pr: 55 },
@@ -278,17 +306,16 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.conflicts/);
   assert.match(html, /State visualization/);
   assert.match(html, /authoritative inspection snapshot/i);
-  assert.match(html, /Connected state map/);
-  assert.match(html, /class="state-map-legend"/);
+  assert.match(html, /class="state-graph-cues"/);
+  assert.match(html, /class="mermaid-state-graph mermaid"/);
+  assert.match(html, /assets\/mermaid\.min\.js/);
   assert.match(html, /Start/);
   assert.match(html, /End/);
   assert.match(html, /🔁/);
-  assert.match(html, /class="state-map-svg"/);
-  assert.match(html, /outer-loop family/);
-  assert.match(html, /state-map-node-current/);
-  assert.match(html, /outer-loop family:[\s\S]*transition data unavailable in this snapshot/);
+  assert.match(html, /outer-loop family:\s*<\/strong> current <code>continue_wait<\/code>; transition data unavailable in this snapshot/);
   assert.match(html, /copilot layer:[\s\S]*unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
   assert.match(html, /copilot layer:[\s\S]*ready_to_rerequest_review/);
+  assert.match(html, /Mermaid entry and exit nodes make lane boundaries easier to scan/);
   assert.match(html, /outer-loop summary/);
   assert.match(html, /Copilot loop iterations/);
   assert.match(html, /4 completed, 1 pending/);
@@ -299,7 +326,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /href="\/snapshot\.json"/);
   assert.match(html, /title="Reload snapshot"/);
   assert.match(html, /manual reload only/i);
-  assert.doesNotMatch(html, /<pre>/);
+  assert.doesNotMatch(html, /Connected state map/);
   assert.doesNotMatch(html, /"schemaVersion": 1/);
   assert.doesNotMatch(html, /"ok": true/);
 });
@@ -327,7 +354,7 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
 
   assert.match(html, /checkpoint-only/);
   assert.match(html, /checkpoint-only inspection snapshot/i);
-  assert.match(html, /class="state-map-svg"/);
+  assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
   assert.match(html, /copilot layer:[\s\S]*transition data unavailable in this snapshot/);
@@ -381,7 +408,27 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
     }),
   });
 
-  assert.match(html, /state-map-node-terminal/);
+  const graph = buildInspectionMermaidGraph(makeSnapshot({
+    activeFamilyState: "done",
+    outerAction: "done",
+    statusClass: "done",
+    layers: {
+      copilot: {
+        currentState: "done",
+        allowedTransitions: [],
+      },
+      reviewer: {
+        currentState: "waiting_for_review_request",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: [],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  }));
+
+  assert.ok(graph);
+  assert.match(graph.definition, /class outer_loop_family_current,copilot_layer_current terminal;/);
+  assert.match(graph.definition, /copilot_layer_current --> copilot_layer_end/);
   assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; no allowed transitions/);
 });
 
@@ -442,7 +489,7 @@ test("renderInspectRunViewerHtml fail-closes the graph for unavailable snapshots
   });
 
   assert.match(html, /Snapshot unavailable, so no state graph can be rendered yet/);
-  assert.doesNotMatch(html, /class="state-map-svg"/);
+  assert.doesNotMatch(html, /class="mermaid-state-graph mermaid"/);
 });
 
 test("createInspectionViewerAdapter loadSnapshot validates target deterministically", async () => {
@@ -511,6 +558,36 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.match(response.body, /href="\/snapshot\.json"/);
     assert.doesNotMatch(response.body, /"schemaVersion": 1/);
     assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer serves the Mermaid browser asset without loading a snapshot", async () => {
+  let loadCount = 0;
+  const adapter = {
+    async loadSnapshot() {
+      loadCount += 1;
+      return makeSnapshot();
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/assets/mermaid.min.js`);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-type"], "application/javascript; charset=utf-8");
+    assert.equal(response.headers["cache-control"], "no-store");
+    assert.match(response.body, /mermaid/i);
+    assert.equal(loadCount, 0);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -665,6 +742,11 @@ test("createInspectRunViewerServer keeps favicon, unsupported paths, and unsuppo
     assert.equal(postJsonResponse.statusCode, 405);
     assert.equal(postJsonResponse.headers.allow, "GET");
     assert.equal(postJsonResponse.headers["cache-control"], "no-store");
+
+    const postMermaidResponse = await requestOnce(`http://127.0.0.1:${address.port}/assets/mermaid.min.js`, { method: "POST" });
+    assert.equal(postMermaidResponse.statusCode, 405);
+    assert.equal(postMermaidResponse.headers.allow, "GET");
+    assert.equal(postMermaidResponse.headers["cache-control"], "no-store");
 
     const postMissingPathResponse = await requestOnce(`http://127.0.0.1:${address.port}/nope`, { method: "POST" });
     assert.equal(postMissingPathResponse.statusCode, 404);

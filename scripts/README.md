@@ -472,7 +472,7 @@ Contract:
 - uses one thin adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace
 - serves two explicit read-only endpoints for the same target:
-  - `/` → operator-facing HTML with a connected SVG state map (outer-loop family + copilot/reviewer layer flows), current-state highlighting, explicit interconnections, allowed-next-transition visibility where the snapshot already provides it, fail-closed unavailable markers where it does not, and supporting textual summary/evidence
+  - `/` → operator-facing HTML with a Mermaid-first state graph (outer-loop family + copilot/reviewer layer flows), current-state highlighting, explicit layer interconnections, allowed-next-transition visibility where the snapshot already provides it, fail-closed unavailable markers where it does not, and supporting textual summary/evidence
   - `/snapshot.json` → the full authoritative inspection snapshot JSON returned by the adapter
 - HTML includes a visible link to `/snapshot.json` so machine-readable state no longer depends on an inline full-snapshot dump in the page itself
 - `/snapshot.json` returns `application/json; charset=utf-8` on success and deterministic JSON error output with non-2xx status when snapshot loading throws or yields no snapshot

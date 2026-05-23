@@ -44,5 +44,8 @@
     "extensions": [
       "./index.ts"
     ]
+  },
+  "dependencies": {
+    "mermaid": "^11.15.0"
   }
 }

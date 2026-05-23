@@ -27,7 +27,14 @@ async function startViewer(snapshot = makeInspectionSnapshot()) {
   };
 }
 
-test("webkit renders the state-graph-first inspect-run viewer and captures a screenshot", async ({ page }, testInfo) => {
+async function waitForMermaidGraph(page) {
+  const graph = page.locator(".mermaid-state-graph");
+  await expect(graph).toHaveAttribute("data-rendered", "true");
+  await expect(graph.locator("svg")).toBeVisible();
+  return graph;
+}
+
+test("webkit renders the Mermaid-first inspect-run viewer and captures a screenshot", async ({ page }, testInfo) => {
   const { server, url } = await startViewer();
 
   try {
@@ -36,12 +43,15 @@ test("webkit renders the state-graph-first inspect-run viewer and captures a scr
     await expect(page.getByRole("heading", { name: "PR #55 inspection" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "State visualization" })).toBeVisible();
     await expect(page.locator(".state-graph-intro")).toContainText(/authoritative inspection snapshot/i);
-    await expect(page.locator(".state-map-legend")).toContainText(/Start/);
-    await expect(page.locator(".state-map-legend")).toContainText(/End/);
-    await expect(page.locator(".state-map-legend")).toContainText(/🔁/);
-    await expect(page.locator(".state-map-svg")).toBeVisible();
-    await expect(page.locator(".state-map-lane-label")).toHaveCount(3);
-    await expect(page.locator(".state-map-node-current")).toHaveCount(3);
+    await expect(page.locator(".state-graph-cues")).toContainText(/Start/);
+    await expect(page.locator(".state-graph-cues")).toContainText(/Current/);
+    await expect(page.locator(".state-graph-cues")).toContainText(/End/);
+    await expect(page.locator(".state-graph-cues")).toContainText(/🔁/);
+    await expect(page.locator(".state-graph-help")).toContainText(/Mermaid entry and exit nodes/i);
+    const graph = await waitForMermaidGraph(page);
+    await expect(graph).toContainText(/Start/);
+    await expect(graph).toContainText(/continue_wait/);
+    await expect(graph).toContainText(/waiting_for_copilot_review/);
     await expect(page.getByText(/outer-loop family:\s*current\s*continue_wait; transition data unavailable in this snapshot/i)).toBeVisible();
     await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
     await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
@@ -69,7 +79,8 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
     await expect(page.locator(".state-graph-intro")).toContainText(/checkpoint-only inspection snapshot/i);
-    await expect(page.locator(".state-map-svg")).toBeVisible();
+    const graph = await waitForMermaidGraph(page);
+    await expect(graph).toContainText(/current state unavailable/);
     await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; transition data unavailable in this snapshot/i)).toBeVisible();
     await expect(page.getByText(/reviewer layer:\s*current\s*current state unavailable; transition data unavailable in this snapshot/i)).toBeVisible();
 
@@ -93,7 +104,7 @@ test("webkit shows degraded graph messaging when snapshot trust is partial", asy
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
     await expect(page.locator(".state-graph-intro")).toContainText(/degraded inspection snapshot/i);
-    await expect(page.locator(".state-map-svg")).toBeVisible();
+    await waitForMermaidGraph(page);
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-degraded-webkit.png"),
@@ -105,7 +116,7 @@ test("webkit shows degraded graph messaging when snapshot trust is partial", asy
   }
 });
 
-test("webkit shows terminal merged states clearly in the map", async ({ page }, testInfo) => {
+test("webkit shows terminal merged states clearly in the Mermaid graph", async ({ page }, testInfo) => {
   const { server, url } = await startViewer(makeInspectionSnapshot({
     activeFamilyState: "done",
     outerAction: "done",
@@ -127,7 +138,9 @@ test("webkit shows terminal merged states clearly in the map", async ({ page }, 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.locator(".state-map-node-terminal")).toHaveCount(2);
+    const graph = await waitForMermaidGraph(page);
+    await expect(graph).toContainText(/End/);
+    await expect(graph).toContainText(/done/);
     await expect(page.getByText(/copilot layer:\s*current\s*done; no allowed transitions/i)).toBeVisible();
 
     await page.screenshot({
@@ -153,7 +166,7 @@ test("webkit shows the unavailable-state fallback for unavailable snapshots", as
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.locator(".state-map-svg")).toHaveCount(0);
+    await expect(page.locator(".mermaid-state-graph")).toHaveCount(0);
     await expect(page.getByText(/Snapshot unavailable, so no state graph can be rendered yet/i)).toBeVisible();
 
     await page.screenshot({

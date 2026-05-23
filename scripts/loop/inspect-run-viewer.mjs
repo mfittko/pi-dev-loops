@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFile as execFileCallback } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +42,11 @@ Optional:
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4311;
 const execFile = promisify(execFileCallback);
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const MERMAID_BROWSER_ASSET_ROUTE = "/assets/mermaid.min.js";
+const MERMAID_BROWSER_ASSET_PATH = path.join(REPO_ROOT, "node_modules", "mermaid", "dist", "mermaid.min.js");
+
+let mermaidBrowserScriptPromise = null;
 
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
@@ -267,223 +273,243 @@ function summarizeTransitionAvailability(transitions) {
   };
 }
 
-function estimateNodeWidth(label) {
-  return Math.max(164, Math.min(292, Math.round(label.length * 8.4) + 34));
+async function loadMermaidBrowserScript() {
+  if (mermaidBrowserScriptPromise === null) {
+    mermaidBrowserScriptPromise = readFile(MERMAID_BROWSER_ASSET_PATH, "utf8");
+  }
+  return mermaidBrowserScriptPromise;
 }
 
-function createStateMapLane({ title, currentState, transitions, startX, startY }) {
+function escapeMermaidLabel(value) {
+  return String(value)
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"');
+}
+
+function renderMermaidNode(id, label, shape = "box") {
+  const escapedLabel = escapeMermaidLabel(label);
+
+  if (shape === "pill") {
+    return `${id}(["${escapedLabel}"])`;
+  }
+  if (shape === "circle") {
+    return `${id}(("${escapedLabel}"))`;
+  }
+
+  return `${id}["${escapedLabel}"]`;
+}
+
+function buildMermaidLane({ laneKey, title, currentState, transitions }) {
   const currentInfo = normalizeCurrentStateInfo(currentState);
   const transitionInfo = summarizeTransitionAvailability(transitions);
-  const nodes = [];
-  const edges = [];
-  const currentNode = {
-    kind: currentInfo.available ? (currentInfo.terminal ? "terminal" : "current") : "idle",
-    label: currentInfo.label,
-    x: startX,
-    y: startY,
-    width: estimateNodeWidth(currentInfo.label),
-    height: 46,
+  const startId = `${laneKey}_start`;
+  const currentId = `${laneKey}_current`;
+  const endId = `${laneKey}_end`;
+  const classIds = {
+    cue: [startId],
+    current: [],
+    next: [],
+    terminal: [],
+    unavailable: [],
+    note: [],
   };
-  nodes.push(currentNode);
+  const lines = [
+    `  subgraph ${laneKey}["${escapeMermaidLabel(title)}"]`,
+    "    direction LR",
+    `    ${renderMermaidNode(startId, "Start", "pill")}`,
+    `    ${renderMermaidNode(currentId, currentInfo.label)}`,
+    `    ${startId} --> ${currentId}`,
+  ];
 
-  let cursorX = currentNode.x + currentNode.width + 48;
-
-  for (const label of transitionInfo.normalizedTransitions) {
-    const node = {
-      kind: "next",
-      label,
-      x: cursorX,
-      y: startY,
-      width: estimateNodeWidth(label),
-      height: 42,
-    };
-    nodes.push(node);
-    edges.push({ from: currentNode, to: node });
-    cursorX += node.width + 34;
+  if (currentInfo.available) {
+    classIds[currentInfo.terminal ? "terminal" : "current"].push(currentId);
+  } else {
+    classIds.unavailable.push(currentId);
   }
+
+  let endVisible = false;
+  let currentConnectedToEnd = false;
+  const ensureEndNode = () => {
+    if (!endVisible) {
+      lines.push(`    ${renderMermaidNode(endId, "End", "circle")}`);
+      classIds.cue.push(endId);
+      endVisible = true;
+    }
+    return endId;
+  };
+
+  if (currentInfo.terminal) {
+    lines.push(`    ${currentId} --> ${ensureEndNode()}`);
+    currentConnectedToEnd = true;
+  }
+
+  if (transitionInfo.unavailable) {
+    const noteId = `${laneKey}_transitions_unavailable`;
+    lines.push(`    ${renderMermaidNode(noteId, "transition data unavailable")}`);
+    lines.push(`    ${currentId} -.-> ${noteId}`);
+    classIds.note.push(noteId);
+  } else if (transitionInfo.empty) {
+    if (!currentConnectedToEnd) {
+      lines.push(`    ${currentId} --> ${ensureEndNode()}`);
+    }
+  } else {
+    transitionInfo.normalizedTransitions.forEach((label, index) => {
+      const nodeId = `${laneKey}_next_${index + 1}`;
+      const terminal = TERMINAL_STATE_LABELS.has(label);
+      lines.push(`    ${renderMermaidNode(nodeId, label)}`);
+      lines.push(`    ${currentId} --> ${nodeId}`);
+      classIds[terminal ? "terminal" : "next"].push(nodeId);
+      if (terminal) {
+        lines.push(`    ${nodeId} --> ${ensureEndNode()}`);
+      }
+    });
+  }
+
+  lines.push("  end");
 
   return {
     title,
     currentLabel: currentInfo.label,
-    currentAvailable: currentInfo.available,
     transitionInfo,
-    annotation: transitionInfo.unavailable
-      ? "transition data unavailable in this snapshot"
-      : transitionInfo.empty
-        ? "no allowed transitions"
-        : null,
-    guide: null,
-    startX,
-    startY,
-    nodes,
-    edges,
+    currentId,
+    lines,
+    classIds,
   };
 }
 
-function nodeAnchor(node, side) {
-  const centerY = node.y + node.height / 2;
-
-  if (side === "left") {
-    return { x: node.x, y: centerY };
-  }
-  if (side === "right") {
-    return { x: node.x + node.width, y: centerY };
-  }
-  if (side === "top") {
-    return { x: node.x + node.width / 2, y: node.y };
+export function buildInspectionMermaidGraph(snapshot) {
+  if (snapshot === null || snapshot === undefined || renderSnapshotStateLabel(snapshot) === "unavailable") {
+    return null;
   }
 
-  return { x: node.x + node.width / 2, y: node.y + node.height };
+  const lanes = [
+    buildMermaidLane({
+      laneKey: "outer_loop_family",
+      title: "outer-loop family",
+      currentState: snapshot.activeFamilyState,
+      transitions: snapshot.allowedTransitions,
+    }),
+    buildMermaidLane({
+      laneKey: "copilot_layer",
+      title: "copilot layer",
+      currentState: snapshot.layers?.copilot?.currentState,
+      transitions: snapshot.layers?.copilot?.allowedTransitions,
+    }),
+    buildMermaidLane({
+      laneKey: "reviewer_layer",
+      title: "reviewer layer",
+      currentState: snapshot.layers?.reviewer?.currentState,
+      transitions: snapshot.layers?.reviewer?.allowedTransitions,
+    }),
+  ];
+
+  const classIds = {
+    cue: [],
+    current: [],
+    next: [],
+    terminal: [],
+    unavailable: [],
+    note: [],
+  };
+
+  for (const lane of lanes) {
+    for (const [className, ids] of Object.entries(lane.classIds)) {
+      classIds[className].push(...ids);
+    }
+  }
+
+  const lines = [
+    "flowchart TB",
+    "  classDef cue fill:#f5f7f9,stroke:#78909c,stroke-width:1.5px,color:#355061,font-weight:bold;",
+    "  classDef current fill:#e3f2fd,stroke:#1565c0,stroke-width:4px,color:#12344d,font-weight:bold;",
+    "  classDef next fill:#f3f4ff,stroke:#5c6bc0,stroke-width:2px,color:#233242;",
+    "  classDef terminal fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px,color:#1b5e20,font-weight:bold;",
+    "  classDef unavailable fill:#f8fafc,stroke:#90a4ae,stroke-width:2px,color:#546e7a,stroke-dasharray: 6 4;",
+    "  classDef note fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#7f4b00;",
+    ...lanes.flatMap((lane) => lane.lines),
+    `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[1].currentId}`,
+    `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
+  ];
+
+  for (const [className, ids] of Object.entries(classIds)) {
+    if (ids.length > 0) {
+      lines.push(`  class ${ids.join(",")} ${className};`);
+    }
+  }
+
+  return {
+    definition: lines.join("\n"),
+    lanes: lanes.map((lane) => ({
+      title: lane.title,
+      currentLabel: lane.currentLabel,
+      transitionInfo: lane.transitionInfo,
+    })),
+  };
 }
 
-function renderStateMapNode(node) {
-  return `<g class="state-map-node state-map-node-${node.kind}">
-    <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="23" ry="23" />
-    <text x="${node.x + node.width / 2}" y="${node.y + node.height / 2 + 5}" text-anchor="middle">${escapeHtml(node.label)}</text>
-  </g>`;
-}
-
-function renderStateMapLegend() {
-  return `<div class="state-map-legend" aria-label="State map legend">
-    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-start">Start</span> entry point</span>
-    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-current">Current</span> active state</span>
-    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-next">Next</span> possible next state</span>
-    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-terminal">End</span> terminal outcome</span>
-    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-loop">🔁</span> repeat/re-entry loop</span>
+function renderStateGraphLegend() {
+  return `<div class="state-graph-cues" aria-label="State graph cues">
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-start">Start</span> lane entry</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-current">Current</span> highlighted current state</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-end">End</span> visible terminal / no-transition outcome</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-loop">🔁</span> iterative inspection loop cue</span>
   </div>`;
 }
 
-function laneGuideText(title, snapshotStateLabel = "authoritative") {
-  switch (title) {
-    case "outer-loop family": {
-      const start = snapshotStateLabel === "authoritative"
-        ? "Start: routed from authoritative inspection"
-        : "Start: routed from the best available inspection evidence";
-      return {
-        start,
-        loop: "🔁 Loop: continue_wait can repeat across re-inspections",
-        end: "End: stop or done",
-      };
-    }
-    case "copilot layer":
-      return {
-        start: "Start: pr_ready_no_feedback",
-        loop: "🔁 Loop: waiting_for_copilot_review ↔ ready_to_rerequest_review",
-        end: "End: done / blocked / unavailable",
-      };
-    case "reviewer layer":
-      return {
-        start: "Start: review_requested",
-        loop: "🔁 Loop: waiting_for_re_request ↔ review_requested",
-        end: "End: review request clears after PR close/merge",
-      };
-    default:
-      return {
-        start: "Start: not present",
-        loop: "🔁 Loop: not present",
-        end: "End: not present",
-      };
-  }
-}
-
-function renderStateMapEdge(edge) {
-  const from = nodeAnchor(edge.from, "right");
-  const to = nodeAnchor(edge.to, "left");
-  return `<path class="state-map-edge" d="M ${from.x} ${from.y} L ${to.x} ${to.y}" marker-end="url(#state-map-arrow)" />`;
-}
-
-function renderStateMapBridge(fromNode, toNode) {
-  const from = nodeAnchor(fromNode, "bottom");
-  const to = nodeAnchor(toNode, "top");
-  const midY = (from.y + to.y) / 2;
-  return `<path class="state-map-bridge" d="M ${from.x} ${from.y} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y}" marker-end="url(#state-map-arrow-soft)" />`;
-}
-
-function buildInspectionStateMap(snapshot) {
-  const outerLane = createStateMapLane({
-    title: "outer-loop family",
-    currentState: snapshot.activeFamilyState,
-    transitions: snapshot.allowedTransitions,
-    startX: 120,
-    startY: 112,
-  });
-  const copilotLane = createStateMapLane({
-    title: "copilot layer",
-    currentState: snapshot.layers?.copilot?.currentState,
-    transitions: snapshot.layers?.copilot?.allowedTransitions,
-    startX: 120,
-    startY: 286,
-  });
-  const reviewerLane = createStateMapLane({
-    title: "reviewer layer",
-    currentState: snapshot.layers?.reviewer?.currentState,
-    transitions: snapshot.layers?.reviewer?.allowedTransitions,
-    startX: 120,
-    startY: 460,
-  });
-  const snapshotStateLabel = renderSnapshotStateLabel(snapshot);
-  outerLane.guide = laneGuideText(outerLane.title, snapshotStateLabel);
-  copilotLane.guide = laneGuideText(copilotLane.title, snapshotStateLabel);
-  reviewerLane.guide = laneGuideText(reviewerLane.title, snapshotStateLabel);
-
-  const lanes = [outerLane, copilotLane, reviewerLane];
-  const width = Math.max(
-    1180,
-    ...lanes.flatMap((lane) => lane.nodes.map((node) => node.x + node.width + 40)),
-  );
-
-  return {
-    width,
-    height: 640,
-    lanes,
-    bridges: [
-      { from: outerLane.nodes[0], to: copilotLane.nodes[0] },
-      { from: outerLane.nodes[0], to: reviewerLane.nodes[0] },
-    ],
-  };
-}
-
-function renderStateMapSvg(snapshot) {
-  const map = buildInspectionStateMap(snapshot);
-
-  return `<svg class="state-map-svg" viewBox="0 0 ${map.width} ${map.height}" role="img" aria-labelledby="state-map-title" aria-describedby="state-map-desc" focusable="false">
-    <title id="state-map-title">Connected inspection state map</title>
-    <desc id="state-map-desc">${escapeHtml(renderStateVisualizationIntro(snapshot))}</desc>
-    <defs>
-      <marker id="state-map-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
-        <path d="M 0 0 L 12 6 L 0 12 z" />
-      </marker>
-      <marker id="state-map-arrow-soft" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
-        <path d="M 0 0 L 12 6 L 0 12 z" />
-      </marker>
-    </defs>
-    <text class="state-map-heading" x="40" y="36">Connected state map</text>
-    <text class="state-map-subheading" x="40" y="60">Current states are emphasized; interconnections show how the outer loop fans into Copilot and reviewer layers.</text>
-    ${map.bridges.map(({ from, to }) => renderStateMapBridge(from, to)).join("")}
-    ${map.lanes.map((lane) => `
-      <g class="state-map-lane state-map-lane-${escapeHtml(lane.title.replaceAll(" ", "-").toLowerCase())}">
-        <text class="state-map-lane-label" x="${lane.startX}" y="${lane.startY - 18}">${escapeHtml(lane.title)}</text>
-        ${lane.edges.map((edge) => renderStateMapEdge(edge)).join("")}
-        ${lane.nodes.map((node) => renderStateMapNode(node)).join("")}
-        ${lane.annotation === null ? "" : `<text class="state-map-lane-note" x="${lane.startX}" y="${lane.startY + 78}">${escapeHtml(lane.annotation)}</text>`}
-        <text class="state-map-lane-guide" x="${lane.startX}" y="${lane.startY + 102}">${escapeHtml(lane.guide.start)}</text>
-        <text class="state-map-lane-guide" x="${lane.startX}" y="${lane.startY + 124}">${escapeHtml(lane.guide.loop)}</text>
-        <text class="state-map-lane-guide" x="${lane.startX}" y="${lane.startY + 146}">${escapeHtml(lane.guide.end)}</text>
-      </g>
-    `).join("")}
-  </svg>`;
-}
-
-function renderStateMapSummaries(snapshot) {
-  const map = buildInspectionStateMap(snapshot);
-
-  return `<ul class="state-map-summaries">
-    ${map.lanes.map((lane) => `<li class="state-map-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.transitionInfo.summary)}</li>`).join("")}
+function renderStateGraphHelp() {
+  return `<ul class="state-graph-help">
+    <li><strong>Current:</strong> emphasized nodes show the snapshot-derived current state for each lane.</li>
+    <li><strong>Start / End:</strong> Mermaid entry and exit nodes make lane boundaries easier to scan.</li>
+    <li><strong>🔁 Loop cue:</strong> this viewer is revisited by manual reload, so the same current state can recur across inspections until evidence changes.</li>
   </ul>`;
 }
 
+function renderStateGraphSummaries(graph) {
+  return `<ul class="state-graph-summaries">
+    ${graph.lanes.map((lane) => `<li class="state-graph-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.transitionInfo.summary)}</li>`).join("")}
+  </ul>`;
+}
+
+function renderMermaidBootScript() {
+  return `<script src="${MERMAID_BROWSER_ASSET_ROUTE}"></script>
+    <script>
+      (() => {
+        const graphs = Array.from(document.querySelectorAll(".mermaid-state-graph"));
+        if (graphs.length === 0 || typeof window.mermaid === "undefined") {
+          return;
+        }
+
+        window.mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: "base",
+          flowchart: {
+            useMaxWidth: true,
+            htmlLabels: false,
+            curve: "basis",
+          },
+        });
+
+        window.mermaid.run({ nodes: graphs }).then(() => {
+          graphs.forEach((graph) => {
+            graph.dataset.rendered = "true";
+          });
+        }).catch(() => {
+          graphs.forEach((graph) => {
+            const fallback = document.createElement("p");
+            fallback.className = "state-graph-render-error";
+            fallback.textContent = "Mermaid could not render this snapshot safely. Use the summaries below or open /snapshot.json.";
+            graph.replaceWith(fallback);
+          });
+        });
+      })();
+    </script>`;
+}
+
 function renderStateVisualizationSection(snapshot) {
-  if (snapshot === null || snapshot === undefined || renderSnapshotStateLabel(snapshot) === "unavailable") {
+  const graph = buildInspectionMermaidGraph(snapshot);
+
+  if (graph === null) {
     return `<section>
       <h2>State visualization</h2>
       <p>Snapshot unavailable, so no state graph can be rendered yet.</p>
@@ -493,9 +519,12 @@ function renderStateVisualizationSection(snapshot) {
   return `<section>
     <h2>State visualization</h2>
     <p class="state-graph-intro">${escapeHtml(renderStateVisualizationIntro(snapshot))}</p>
-    ${renderStateMapLegend()}
-    ${renderStateMapSvg(snapshot)}
-    ${renderStateMapSummaries(snapshot)}
+    ${renderStateGraphLegend()}
+    ${renderStateGraphHelp()}
+    <div class="state-graph-frame">
+      <div class="mermaid-state-graph mermaid" data-rendered="pending" aria-label="Mermaid inspection state graph">${escapeHtml(graph.definition)}</div>
+    </div>
+    ${renderStateGraphSummaries(graph)}
   </section>`;
 }
 
@@ -683,35 +712,22 @@ export function renderInspectRunViewerHtml({
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .state-graph-intro { margin-top: 0; color: #333; }
-      .state-map-legend { display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; margin: 0.5rem 0 0.75rem 0; }
-      .state-map-legend-item { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; color: #355061; }
-      .state-map-legend-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 2.4rem; padding: 0.14rem 0.45rem; border-radius: 999px; border: 1px solid #90a4ae; background: #fff; font-weight: 700; }
-      .state-map-legend-chip-start { border-color: #78909c; background: #f5f7f9; }
-      .state-map-legend-chip-current { border-color: #1565c0; background: #e3f2fd; }
-      .state-map-legend-chip-next { border-color: #5c6bc0; background: #f3f4ff; }
-      .state-map-legend-chip-terminal { border-color: #2e7d32; background: #e8f5e9; }
-      .state-map-legend-chip-loop { border-color: #ef6c00; background: #fff3e0; }
-      .state-map-svg { width: 100%; height: auto; margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); }
-      .state-map-heading { font-size: 1.1rem; font-weight: 700; fill: #12344d; }
-      .state-map-subheading { font-size: 0.88rem; fill: #496579; }
-      .state-map-lane-label { font-size: 0.92rem; font-weight: 700; fill: #29434e; text-transform: uppercase; letter-spacing: 0.03em; }
-      .state-map-lane-note { font-size: 0.84rem; fill: #607d8b; }
-      .state-map-lane-guide { font-size: 0.82rem; fill: #526d80; }
-      .state-map-edge { stroke: #738ba0; stroke-width: 2.2; fill: none; }
-      .state-map-bridge { stroke: #a7b7c5; stroke-width: 2; fill: none; stroke-dasharray: 8 8; }
-      #state-map-arrow path { fill: #738ba0; }
-      #state-map-arrow-soft path { fill: #a7b7c5; }
-      .state-map-node rect { stroke-width: 2; }
-      .state-map-node text { font-size: 0.9rem; fill: #173042; }
-      .state-map-node-current rect { fill: #e3f2fd; stroke: #1565c0; }
-      .state-map-node-current text { font-weight: 700; }
-      .state-map-node-next rect { fill: #f3f4ff; stroke: #5c6bc0; }
-      .state-map-node-terminal rect { fill: #e8f5e9; stroke: #2e7d32; }
-      .state-map-node-terminal text { font-weight: 700; fill: #1b5e20; }
-      .state-map-node-idle rect { fill: #f8fafc; stroke: #90a4ae; stroke-dasharray: 7 6; }
-      .state-map-node-idle text { fill: #546e7a; }
-      .state-map-summaries { margin: 0.85rem 0 0 0; padding-left: 1.1rem; }
-      .state-map-summary + .state-map-summary { margin-top: 0.3rem; }
+      .state-graph-cues { display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; margin: 0.5rem 0 0.75rem 0; }
+      .state-graph-cue { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; color: #355061; }
+      .state-graph-cue-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 2.5rem; padding: 0.14rem 0.5rem; border-radius: 999px; border: 1px solid #90a4ae; background: #fff; font-weight: 700; }
+      .state-graph-cue-chip-start { border-color: #78909c; background: #f5f7f9; }
+      .state-graph-cue-chip-current { border-color: #1565c0; background: #e3f2fd; }
+      .state-graph-cue-chip-end { border-color: #2e7d32; background: #e8f5e9; }
+      .state-graph-cue-chip-loop { border-color: #ef6c00; background: #fff3e0; }
+      .state-graph-help { margin: 0 0 0.85rem 1.1rem; padding: 0; color: #425d70; }
+      .state-graph-help li + li { margin-top: 0.35rem; }
+      .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); overflow: hidden; }
+      .mermaid-state-graph { min-height: 16rem; padding: 0.75rem; overflow-x: auto; }
+      .mermaid-state-graph[data-rendered="pending"] { color: #5a7184; }
+      .mermaid-state-graph svg { display: block; width: 100%; height: auto; }
+      .state-graph-render-error { margin: 0; padding: 0.9rem; color: #7f4b00; }
+      .state-graph-summaries { margin: 0.85rem 0 0 0; padding-left: 1.1rem; }
+      .state-graph-summary + .state-graph-summary { margin-top: 0.3rem; }
       dl { display: grid; grid-template-columns: 14rem 1fr; gap: 0.35rem 0.75rem; }
       dt { font-weight: 600; }
       section { border: 1px solid #ddd; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; }
@@ -730,6 +746,7 @@ export function renderInspectRunViewerHtml({
     ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
     ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
     ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
+    ${renderMermaidBootScript()}
   </body>
 </html>`;
 }
@@ -879,7 +896,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         return;
       }
 
-      if (requestPath !== "/" && requestPath !== "/snapshot.json") {
+      if (requestPath !== "/" && requestPath !== "/snapshot.json" && requestPath !== MERMAID_BROWSER_ASSET_ROUTE) {
         writeText(response, 404, "Not Found", {
           "content-type": "text/plain; charset=utf-8",
         });
@@ -891,6 +908,20 @@ export function createInspectRunViewerServer(options, deps = {}) {
           allow: "GET",
           "content-type": "text/plain; charset=utf-8",
         });
+        return;
+      }
+
+      if (requestPath === MERMAID_BROWSER_ASSET_ROUTE) {
+        try {
+          const mermaidBrowserScript = await loadMermaidBrowserScript();
+          writeText(response, 200, mermaidBrowserScript, {
+            "content-type": "application/javascript; charset=utf-8",
+          });
+        } catch (error) {
+          writeText(response, 500, error instanceof Error ? error.message : String(error), {
+            "content-type": "text/plain; charset=utf-8",
+          });
+        }
         return;
       }
 
