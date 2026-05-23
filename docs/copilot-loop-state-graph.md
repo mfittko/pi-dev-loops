@@ -174,6 +174,12 @@ Auto-detect must fail closed when review-thread state cannot be captured or pars
 
 Re-requesting Copilot after a follow-up fix is gated on the updated head being green or credibly green. In practice: run the smallest honest local validation for the accepted fix scope, continue remediation if that validation is still known red, continue remediation if CI/checks for the current head are known red for a fixable issue, and do not treat `ciStatus: "none"` as equivalent to green.
 
+### `waiting_for_copilot_review` is a persistence boundary for explicit async loop entry
+
+When a user explicitly asks to enter or continue the async Copilot dev loop, landing on `waiting_for_copilot_review` means the loop must remain in watch mode rather than reporting completion. Quiet watcher results such as `timeout` or `idle` are observational only: refresh deterministic state, and if the state remains `waiting_for_copilot_review` (or another non-terminal wait state) keep the async watcher attached.
+
+The same rule applies after a successful narrow follow-up fix / reply-resolve / re-request cycle. If the next deterministic state returns to `waiting_for_copilot_review`, resume watch mode again instead of treating the re-request handoff as the end of the async run. Handoff-only behavior is a separate, narrower contract and must be explicitly requested.
+
 ## Related Scripts
 
 | Script | Purpose |

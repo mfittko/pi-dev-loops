@@ -380,11 +380,22 @@ test("copilot-autopilot safety layer contract is documented", async () => {
 });
 
 test("copilot-dev-loop skill keeps async watch persistence explicit", async () => {
-  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+  const [skillContent, scriptsReadme, stateGraph] = await Promise.all([
+    readRepo("skills/copilot-dev-loop/SKILL.md"),
+    readRepo("scripts/README.md"),
+    readRepo("docs/copilot-loop-state-graph.md"),
+  ]);
 
   assert.match(skillContent, /run-copilot-watch-cycle\.mjs/i);
   assert.match(skillContent, /zero-timeout `idle` probes are for explicit one-shot status\/reattach checks only/i);
   assert.match(skillContent, /returning to `waiting_for_copilot_review` is a persistence boundary: resume the watcher instead of reporting completion/i);
+  assert.match(skillContent, /persistent async watch\/fix loop, not handoff-only behavior/i);
+  assert.match(skillContent, /if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary/i);
+  assert.match(skillContent, /if the user explicitly asks for async handoff-only behavior/i);
+  assert.match(scriptsReadme, /`cycleDisposition: "pending"` with `terminal: false` means stay attached and run another watch boundary rather than exiting as clean success/i);
+  assert.match(scriptsReadme, /handoff-only behavior must be explicitly requested/i);
+  assert.match(stateGraph, /`waiting_for_copilot_review` is a persistence boundary for explicit async loop entry/i);
+  assert.match(stateGraph, /If the next deterministic state returns to `waiting_for_copilot_review`, resume watch mode again instead of treating the re-request handoff as the end of the async run/i);
 });
 
 test("copilot-dev-loop agent is a thin executable entrypoint that defers to the skill", async () => {
