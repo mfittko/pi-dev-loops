@@ -279,6 +279,10 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /State visualization/);
   assert.match(html, /authoritative inspection snapshot/i);
   assert.match(html, /Connected state map/);
+  assert.match(html, /class="state-map-legend"/);
+  assert.match(html, /Start/);
+  assert.match(html, /End/);
+  assert.match(html, /🔁/);
   assert.match(html, /class="state-map-svg"/);
   assert.match(html, /outer-loop family/);
   assert.match(html, /state-map-node-current/);
@@ -352,6 +356,32 @@ test("renderInspectRunViewerHtml distinguishes empty transitions from unavailabl
 
   assert.match(html, /copilot layer:[\s\S]*no allowed transitions/);
   assert.doesNotMatch(html, /copilot layer:[\s\S]*transition data unavailable in this snapshot/);
+});
+
+test("renderInspectRunViewerHtml highlights terminal merged states", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      activeFamilyState: "done",
+      outerAction: "done",
+      statusClass: "done",
+      layers: {
+        copilot: {
+          currentState: "done",
+          allowedTransitions: [],
+        },
+        reviewer: {
+          currentState: "waiting_for_review_request",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: [],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /state-map-node-terminal/);
+  assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; no allowed transitions/);
 });
 
 test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {

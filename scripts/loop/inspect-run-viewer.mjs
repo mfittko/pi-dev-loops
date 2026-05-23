@@ -229,12 +229,18 @@ function renderStateVisualizationIntro(snapshot) {
   return "Graph-first view of the current inspection snapshot.";
 }
 
+const TERMINAL_STATE_LABELS = new Set(["done", "review_request_unavailable", "blocked_needs_user_decision", "no_pr"]);
+
 function normalizeCurrentStateInfo(currentState) {
   if (typeof currentState === "string" && currentState.length > 0) {
-    return { label: currentState, available: true };
+    return {
+      label: currentState,
+      available: true,
+      terminal: TERMINAL_STATE_LABELS.has(currentState),
+    };
   }
 
-  return { label: "current state unavailable", available: false };
+  return { label: "current state unavailable", available: false, terminal: false };
 }
 
 function summarizeTransitionAvailability(transitions) {
@@ -265,7 +271,7 @@ function createStateMapLane({ title, currentState, transitions, startX, startY }
   const nodes = [];
   const edges = [];
   const currentNode = {
-    kind: currentInfo.available ? "current" : "idle",
+    kind: currentInfo.available ? (currentInfo.terminal ? "terminal" : "current") : "idle",
     label: currentInfo.label,
     x: startX,
     y: startY,
@@ -300,6 +306,7 @@ function createStateMapLane({ title, currentState, transitions, startX, startY }
       : transitionInfo.empty
         ? "no allowed transitions"
         : null,
+    guide: laneGuideText(title),
     startX,
     startY,
     nodes,
@@ -328,6 +335,45 @@ function renderStateMapNode(node) {
     <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="23" ry="23" />
     <text x="${node.x + node.width / 2}" y="${node.y + node.height / 2 + 5}" text-anchor="middle">${escapeHtml(node.label)}</text>
   </g>`;
+}
+
+function renderStateMapLegend() {
+  return `<div class="state-map-legend" aria-label="State map legend">
+    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-start">Start</span> entry point</span>
+    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-current">Current</span> active state</span>
+    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-next">Next</span> possible next state</span>
+    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-terminal">End</span> terminal outcome</span>
+    <span class="state-map-legend-item"><span class="state-map-legend-chip state-map-legend-chip-loop">🔁</span> repeat/re-entry loop</span>
+  </div>`;
+}
+
+function laneGuideText(title) {
+  switch (title) {
+    case "outer-loop family":
+      return {
+        start: "Start: routed from authoritative inspection",
+        loop: "🔁 Loop: continue_wait can repeat across re-inspections",
+        end: "End: stop or done",
+      };
+    case "copilot layer":
+      return {
+        start: "Start: pr_ready_no_feedback",
+        loop: "🔁 Loop: waiting_for_copilot_review ↔ ready_to_rerequest_review",
+        end: "End: done / blocked / unavailable",
+      };
+    case "reviewer layer":
+      return {
+        start: "Start: review_requested",
+        loop: "🔁 Loop: waiting_for_re_request ↔ review_requested",
+        end: "End: review request clears after PR close/merge",
+      };
+    default:
+      return {
+        start: "Start: not present",
+        loop: "🔁 Loop: not present",
+        end: "End: not present",
+      };
+  }
 }
 
 function renderStateMapEdge(edge) {
@@ -405,6 +451,9 @@ function renderStateMapSvg(snapshot) {
         ${lane.edges.map((edge) => renderStateMapEdge(edge)).join("")}
         ${lane.nodes.map((node) => renderStateMapNode(node)).join("")}
         ${lane.annotation === null ? "" : `<text class="state-map-lane-note" x="${lane.startX}" y="${lane.startY + 78}">${escapeHtml(lane.annotation)}</text>`}
+        <text class="state-map-lane-guide" x="${lane.startX}" y="${lane.startY + 102}">${escapeHtml(lane.guide.start)}</text>
+        <text class="state-map-lane-guide" x="${lane.startX}" y="${lane.startY + 124}">${escapeHtml(lane.guide.loop)}</text>
+        <text class="state-map-lane-guide" x="${lane.startX}" y="${lane.startY + 146}">${escapeHtml(lane.guide.end)}</text>
       </g>
     `).join("")}
   </svg>`;
@@ -429,6 +478,7 @@ function renderStateVisualizationSection(snapshot) {
   return `<section>
     <h2>State visualization</h2>
     <p class="state-graph-intro">${escapeHtml(renderStateVisualizationIntro(snapshot))}</p>
+    ${renderStateMapLegend()}
     ${renderStateMapSvg(snapshot)}
     ${renderStateMapSummaries(snapshot)}
   </section>`;
@@ -618,11 +668,20 @@ export function renderInspectRunViewerHtml({
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .state-graph-intro { margin-top: 0; color: #333; }
+      .state-map-legend { display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; margin: 0.5rem 0 0.75rem 0; }
+      .state-map-legend-item { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; color: #355061; }
+      .state-map-legend-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 2.4rem; padding: 0.14rem 0.45rem; border-radius: 999px; border: 1px solid #90a4ae; background: #fff; font-weight: 700; }
+      .state-map-legend-chip-start { border-color: #78909c; background: #f5f7f9; }
+      .state-map-legend-chip-current { border-color: #1565c0; background: #e3f2fd; }
+      .state-map-legend-chip-next { border-color: #5c6bc0; background: #f3f4ff; }
+      .state-map-legend-chip-terminal { border-color: #2e7d32; background: #e8f5e9; }
+      .state-map-legend-chip-loop { border-color: #ef6c00; background: #fff3e0; }
       .state-map-svg { width: 100%; height: auto; margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); }
       .state-map-heading { font-size: 1.1rem; font-weight: 700; fill: #12344d; }
       .state-map-subheading { font-size: 0.88rem; fill: #496579; }
       .state-map-lane-label { font-size: 0.92rem; font-weight: 700; fill: #29434e; text-transform: uppercase; letter-spacing: 0.03em; }
       .state-map-lane-note { font-size: 0.84rem; fill: #607d8b; }
+      .state-map-lane-guide { font-size: 0.82rem; fill: #526d80; }
       .state-map-edge { stroke: #738ba0; stroke-width: 2.2; fill: none; }
       .state-map-bridge { stroke: #a7b7c5; stroke-width: 2; fill: none; stroke-dasharray: 8 8; }
       #state-map-arrow path { fill: #738ba0; }
@@ -632,6 +691,8 @@ export function renderInspectRunViewerHtml({
       .state-map-node-current rect { fill: #e3f2fd; stroke: #1565c0; }
       .state-map-node-current text { font-weight: 700; }
       .state-map-node-next rect { fill: #f3f4ff; stroke: #5c6bc0; }
+      .state-map-node-terminal rect { fill: #e8f5e9; stroke: #2e7d32; }
+      .state-map-node-terminal text { font-weight: 700; fill: #1b5e20; }
       .state-map-node-idle rect { fill: #f8fafc; stroke: #90a4ae; stroke-dasharray: 7 6; }
       .state-map-node-idle text { fill: #546e7a; }
       .state-map-summaries { margin: 0.85rem 0 0 0; padding-left: 1.1rem; }
