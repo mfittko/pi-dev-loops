@@ -42,8 +42,15 @@ function makeSnapshot(overrides = {}) {
       fixCommitsAfterFeedback: 3,
     },
     layers: {
-      copilot: { currentState: "waiting_for_copilot_review" },
-      reviewer: { currentState: "waiting_for_author_followup", scope: { mode: "all_reviewers", reviewerLogin: null } },
+      copilot: {
+        currentState: "waiting_for_copilot_review",
+        allowedTransitions: ["unresolved_feedback_present", "ready_to_rerequest_review", "waiting_for_ci"],
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request", "waiting_for_review_request"],
+      },
       steering: { status: "unavailable", reason: "no_steering_locator" },
     },
     ...overrides,
@@ -269,6 +276,10 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.missing/);
   assert.match(html, /markers\.stale/);
   assert.match(html, /markers\.conflicts/);
+  assert.match(html, /State visualization/);
+  assert.match(html, /outer-loop family/);
+  assert.match(html, /state-node state-node-current/);
+  assert.match(html, /Allowed next transitions:[\s\S]*ready_to_rerequest_review/);
   assert.match(html, /outer-loop summary/);
   assert.match(html, /Copilot loop iterations/);
   assert.match(html, /4 completed, 1 pending/);
@@ -307,6 +318,7 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
 
   assert.match(html, /checkpoint-only/);
   assert.match(html, /not present \/ unavailable/);
+  assert.match(html, /no allowed transitions/);
   assert.match(html, /no_copilot_review_history/);
   assert.match(html, /no_steering_file/);
 });
@@ -337,6 +349,7 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
 
   assert.match(html, /Snapshot unavailable/);
   assert.match(html, /target\.pr must be a positive integer/);
+  assert.match(html, /no state graph can be rendered yet/i);
   assert.match(html, /manual reload only/i);
   assert.match(html, /href="\/snapshot\.json"/);
 });

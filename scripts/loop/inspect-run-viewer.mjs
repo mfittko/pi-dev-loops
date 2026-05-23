@@ -203,6 +203,66 @@ function renderDefinitionList(entries) {
   return `<dl>${entries.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl>`;
 }
 
+function normalizeTransitions(transitions) {
+  if (!Array.isArray(transitions)) {
+    return [];
+  }
+  return transitions.filter((transition) => typeof transition === "string" && transition.trim().length > 0);
+}
+
+function renderStateGraph({ title, currentState, transitions }) {
+  const normalizedCurrentState = typeof currentState === "string" && currentState.length > 0
+    ? currentState
+    : "not present";
+  const normalizedTransitions = normalizeTransitions(transitions);
+  const transitionNodes = normalizedTransitions.length === 0
+    ? `<span class="state-node state-node-idle">no allowed transitions</span>`
+    : normalizedTransitions
+      .map((transition) => `<span class="state-arrow" aria-hidden="true">→</span><span class="state-node state-node-next">${escapeHtml(transition)}</span>`)
+      .join("");
+
+  return `<article class="state-graph-card">
+    <h3>${escapeHtml(title)}</h3>
+    <p class="state-graph-current-label">Current</p>
+    <div class="state-flow" role="img" aria-label="${escapeHtml(`${title} state flow with current state ${normalizedCurrentState}`)}">
+      <span class="state-node state-node-current">${escapeHtml(normalizedCurrentState)}</span>
+      ${transitionNodes}
+    </div>
+    <p class="state-graph-meta"><strong>Allowed next transitions:</strong> ${normalizedTransitions.length === 0 ? "none" : normalizedTransitions.map((transition) => `<code>${escapeHtml(transition)}</code>`).join(", ")}</p>
+  </article>`;
+}
+
+function renderStateVisualizationSection(snapshot) {
+  if (snapshot === null || snapshot === undefined) {
+    return `<section>
+      <h2>State visualization</h2>
+      <p>Snapshot unavailable, so no state graph can be rendered yet.</p>
+    </section>`;
+  }
+
+  return `<section>
+    <h2>State visualization</h2>
+    <p class="state-graph-intro">Graph-first view of the authoritative inspection snapshot.</p>
+    <div class="state-graph-grid">
+      ${renderStateGraph({
+    title: "outer-loop family",
+    currentState: snapshot.activeFamilyState,
+    transitions: [],
+  })}
+      ${renderStateGraph({
+    title: "copilot layer",
+    currentState: snapshot.layers?.copilot?.currentState,
+    transitions: snapshot.layers?.copilot?.allowedTransitions,
+  })}
+      ${renderStateGraph({
+    title: "reviewer layer",
+    currentState: snapshot.layers?.reviewer?.currentState,
+    transitions: snapshot.layers?.reviewer?.allowedTransitions,
+  })}
+    </div>
+  </section>`;
+}
+
 function renderCompactSection({ title, entries = [], lists = [] }) {
   if (entries.length === 0 && lists.length === 0) {
     return `<section><h2>${escapeHtml(title)}</h2><p>not present / unavailable</p></section>`;
@@ -386,6 +446,18 @@ export function renderInspectRunViewerHtml({
       body { font-family: sans-serif; margin: 1rem auto; max-width: 70rem; line-height: 1.4; }
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
+      .state-graph-intro { margin-top: 0; color: #333; }
+      .state-graph-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+      .state-graph-card { border: 1px solid #cfd8dc; border-radius: 0.5rem; padding: 0.75rem; background: #fafcff; }
+      .state-graph-card h3 { margin-top: 0; margin-bottom: 0.5rem; }
+      .state-graph-current-label { margin: 0 0 0.5rem 0; font-size: 0.85rem; color: #455a64; text-transform: uppercase; letter-spacing: 0.03em; }
+      .state-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }
+      .state-node { display: inline-flex; align-items: center; border: 1px solid #90a4ae; border-radius: 999px; padding: 0.2rem 0.55rem; background: #fff; font-size: 0.9rem; }
+      .state-node-current { border-color: #1565c0; background: #e3f2fd; font-weight: 700; }
+      .state-node-next { border-color: #5c6bc0; background: #f3f4ff; }
+      .state-node-idle { border-style: dashed; color: #546e7a; }
+      .state-arrow { color: #607d8b; font-weight: 700; }
+      .state-graph-meta { margin: 0; font-size: 0.9rem; }
       dl { display: grid; grid-template-columns: 14rem 1fr; gap: 0.35rem 0.75rem; }
       dt { font-weight: 600; }
       section { border: 1px solid #ddd; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; }
@@ -397,6 +469,7 @@ export function renderInspectRunViewerHtml({
     <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
     <p><strong>Refresh:</strong> manual reload only.</p>
     <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
+    ${renderStateVisualizationSection(normalizedSnapshot)}
     ${topSummary}
     ${renderOuterLoopSummarySection(normalizedSnapshot)}
     ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
