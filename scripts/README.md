@@ -432,10 +432,15 @@ Contract:
 - surfaces steering as a best-effort drill-down layer when `--steering-state-file` is provided,
   including latest acknowledgement plus queued/effective stop summaries for the current run,
   without exposing full steering history/detail or raw steering-file locator paths
+- when live GitHub PR facts are available, surfaces a deterministic `loopIterations` summary for the
+  remote Copilot review/fix loop (completed rounds, pending round indicator, Copilot review comments,
+  current resolved/unresolved review-thread counts, and fix commits after feedback)
+- keeps `loopIterations` unavailable in snapshot-only / non-live inspection paths instead of
+  inventing local phase-loop iteration semantics
 - rejects mismatched steering-state files from the targeted repo/pr instead of projecting their state onto the inspected run
 
 Success output shape:
-- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "layers": { "reviewer": { "currentState": "...", "scope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, ... }, ... } }`
+- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "loopIterations": { "available": true|false, ... }, "layers": { "reviewer": { "currentState": "...", "scope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, ... }, ... } }`
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
@@ -467,7 +472,7 @@ Contract:
 - uses one thin adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace
 - serves two explicit read-only endpoints for the same target:
-  - `/` → operator-facing HTML with the top summary, compact outer-loop summary, copilot layer, reviewer layer, and steering summary
+  - `/` → operator-facing HTML with the top summary, compact outer-loop summary, Copilot loop iteration summary, copilot layer, reviewer layer, and steering summary
   - `/snapshot.json` → the full authoritative inspection snapshot JSON returned by the adapter
 - HTML includes a visible link to `/snapshot.json` so machine-readable state no longer depends on an inline full-snapshot dump in the page itself
 - `/snapshot.json` returns `application/json; charset=utf-8` on success and deterministic JSON error output with non-2xx status when snapshot loading throws or yields no snapshot

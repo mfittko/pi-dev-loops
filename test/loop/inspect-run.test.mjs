@@ -59,6 +59,7 @@ async function writeGhStub(tempDir) {
   const script = `#!/usr/bin/env node
 const args = process.argv.slice(2);
 const out = (value) => process.stdout.write(JSON.stringify(value));
+const apiPath = args[0] === "api" ? args.find((arg) => arg.startsWith("repos/")) : null;
 
 if (args[0] === "pr" && args[1] === "view") {
   const fields = args[args.indexOf("--json") + 1] || "";
@@ -87,8 +88,35 @@ if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/requested_review
   process.exit(0);
 }
 
-if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/reviews") {
-  out([{ id: 41, state: "COMMENTED", user: { login: "reviewer-user" }, commit_id: "abc123", html_url: "https://example.test/review/41" }]);
+if (apiPath === "repos/owner/repo/pulls/55/reviews" || apiPath === "repos/owner/repo/pulls/55/reviews?per_page=100") {
+  out([
+    { id: 40, state: "COMMENTED", user: { login: "copilot-pull-request-reviewer[bot]" }, submitted_at: "2026-05-20T09:00:00Z", commit_id: "oldsha", html_url: "https://example.test/review/40" },
+    { id: 41, state: "COMMENTED", user: { login: "reviewer-user" }, submitted_at: "2026-05-20T10:00:00Z", commit_id: "abc123", html_url: "https://example.test/review/41" },
+  ]);
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/issues/55/timeline?per_page=100") {
+  out([
+    { event: "review_requested", created_at: "2026-05-20T08:55:00Z", requested_reviewer: { login: "copilot-pull-request-reviewer[bot]" } },
+    { event: "review_requested", created_at: "2026-05-20T11:00:00Z", requested_reviewer: { login: "copilot-pull-request-reviewer[bot]" } },
+  ]);
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/pulls/55/comments?per_page=100") {
+  out([
+    { id: 101, created_at: "2026-05-20T09:01:00Z", user: { login: "copilot-pull-request-reviewer[bot]" } },
+    { id: 102, created_at: "2026-05-20T09:02:00Z", user: { login: "copilot-pull-request-reviewer[bot]" } },
+  ]);
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/pulls/55/commits?per_page=100") {
+  out([
+    { sha: "oldsha", commit: { committer: { date: "2026-05-20T08:00:00Z" } }, author: { login: "copilot-swe-agent" } },
+    { sha: "abc123", commit: { committer: { date: "2026-05-20T10:30:00Z" } }, author: { login: "author-user" } },
+  ]);
   process.exit(0);
 }
 
@@ -258,6 +286,11 @@ test("composeRunInspectionSnapshot: complete live evidence returns all required 
   assert.deepEqual(snapshot.markers.conflicts, []);
 
   // Layers (best-effort)
+  assert.deepEqual(snapshot.loopIterations, {
+    available: false,
+    source: "github_pr_timeline",
+    reason: "unavailable",
+  });
   assert.equal(snapshot.layers.copilot.currentState, "waiting_for_copilot_review");
   assert.equal(snapshot.layers.reviewer.currentState, "waiting_for_author_followup");
   assert.equal(snapshot.layers.steering.status, "unavailable");
@@ -659,7 +692,7 @@ test("composeRunInspectionSnapshot: output has stable required top-level fields"
     "ok", "schemaVersion", "target", "inspectedAt",
     "activeStateFamily", "outerAction", "activeFamilyState",
     "statusClass", "needsAttention", "sourceMode", "trust",
-    "evidence", "markers",
+    "evidence", "markers", "loopIterations",
   ];
 
   for (const field of requiredFields) {
@@ -865,6 +898,11 @@ test("inspect-run CLI: complete snapshot inputs -> partial sourceMode (degraded 
     assert.ok(Array.isArray(output.markers.missing));
     assert.ok(Array.isArray(output.markers.stale));
     assert.ok(Array.isArray(output.markers.conflicts));
+    assert.deepEqual(output.loopIterations, {
+      available: false,
+      source: "github_pr_timeline",
+      reason: "requires_live_github_facts",
+    });
   });
 });
 
@@ -929,6 +967,255 @@ test("inspect-run CLI: successful live detectors still derive authoritative top-
     assert.equal(output.needsAttention, false);
     assert.equal(output.layers.reviewer.scope.mode, "all_reviewers");
     assert.equal(output.layers.reviewer.scope.reviewerLogin, null);
+    assert.deepEqual(output.loopIterations, {
+      available: true,
+      source: "github_pr_timeline",
+      completedCopilotReviewRounds: 1,
+      pendingCopilotReviewRounds: 1,
+      copilotReviewRequests: 2,
+      copilotReviewComments: 2,
+      resolvedReviewThreads: 0,
+      unresolvedReviewThreads: 0,
+      fixCommitsAfterFeedback: 1,
+    });
+  });
+});
+
+test("inspect-run CLI: live PR counts a pending round when the current head differs from the latest Copilot review sha", async () => {
+  await withTempDir(async (tempDir) => {
+    const ghPath = path.join(tempDir, "gh");
+    await writeFile(
+      ghPath,
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const out = (value) => process.stdout.write(JSON.stringify(value));
+const apiPath = args[0] === "api" ? args.find((arg) => arg.startsWith("repos/")) : null;
+
+if (args[0] === "pr" && args[1] === "view") {
+  const fields = args[args.indexOf("--json") + 1] || "";
+  if (fields.includes("reviews")) {
+    out({
+      headRefOid: "newsha",
+      isDraft: false,
+      state: "OPEN",
+      number: 55,
+      reviews: [{ id: 40, state: "COMMENTED", author: { login: "copilot-pull-request-reviewer[bot]" }, commit: { oid: "oldsha" } }],
+      statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+    });
+  } else {
+    out({ isDraft: false, state: "OPEN", number: 55, headRefOid: "newsha" });
+  }
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/requested_reviewers") {
+  out({ users: [{ login: "copilot-pull-request-reviewer[bot]" }], teams: [] });
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/pulls/55/reviews" || apiPath === "repos/owner/repo/pulls/55/reviews?per_page=100") {
+  out([{ id: 40, state: "COMMENTED", user: { login: "copilot-pull-request-reviewer[bot]" }, submitted_at: "2026-05-20T09:00:00Z", commit_id: "oldsha" }]);
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/issues/55/timeline?per_page=100") {
+  out([{ event: "review_requested", created_at: "2026-05-20T08:55:00Z", requested_reviewer: { login: "copilot-pull-request-reviewer[bot]" } }]);
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/pulls/55/comments?per_page=100") {
+  out([]);
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/pulls/55/commits?per_page=100") {
+  out([{ sha: "newsha", commit: { committer: { date: "2026-05-20T10:30:00Z" } }, author: { login: "author-user" } }]);
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "graphql") {
+  out({
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  });
+  process.exit(0);
+}
+
+process.stderr.write("unexpected gh args: " + args.join(" ") + "\\n");
+process.exit(1);
+`,
+      "utf8",
+    );
+    await chmod(ghPath, 0o755);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+    ], {
+      cwd: tempDir,
+      env: { ...process.env, PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter) },
+    });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.loopIterations.available, true);
+    assert.equal(output.loopIterations.completedCopilotReviewRounds, 1);
+    assert.equal(output.loopIterations.pendingCopilotReviewRounds, 1);
+  });
+});
+
+test("inspect-run CLI: truncated sources surface degraded loopIterations metadata", async () => {
+  await withTempDir(async (tempDir) => {
+    const ghPath = path.join(tempDir, "gh");
+    await writeFile(
+      ghPath,
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const out = (value) => process.stdout.write(JSON.stringify(value));
+const apiPath = args[0] === "api" ? args.find((arg) => arg.startsWith("repos/")) : null;
+
+if (args[0] === "pr" && args[1] === "view") {
+  const fields = args[args.indexOf("--json") + 1] || "";
+  if (fields.includes("reviews")) {
+    out({ headRefOid: "abc123", isDraft: false, state: "OPEN", number: 55, reviews: [], statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }] });
+  } else {
+    out({ isDraft: false, state: "OPEN", number: 55, headRefOid: "abc123" });
+  }
+  process.exit(0);
+}
+if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/requested_reviewers") {
+  out({ users: [{ login: "copilot-pull-request-reviewer[bot]" }], teams: [] });
+  process.exit(0);
+}
+if (apiPath === "repos/owner/repo/pulls/55/reviews" || apiPath === "repos/owner/repo/pulls/55/reviews?per_page=100") {
+  out(Array.from({ length: 100 }, (_, index) => ({ id: index + 1, state: "COMMENTED", user: { login: "copilot-pull-request-reviewer[bot]" }, submitted_at: "2026-05-20T09:00:00Z", commit_id: "abc123" })));
+  process.exit(0);
+}
+if (apiPath === "repos/owner/repo/issues/55/timeline?per_page=100") { out([]); process.exit(0); }
+if (apiPath === "repos/owner/repo/pulls/55/comments?per_page=100") { out([]); process.exit(0); }
+if (apiPath === "repos/owner/repo/pulls/55/commits?per_page=100") { out([]); process.exit(0); }
+if (args[0] === "api" && args[1] === "graphql") {
+  out({ data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: true, endCursor: "cursor-1" } } } } } });
+  process.exit(0);
+}
+process.stderr.write("unexpected gh args: " + args.join(" ") + "\\n");
+process.exit(1);
+`,
+      "utf8",
+    );
+    await chmod(ghPath, 0o755);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "55"], {
+      cwd: tempDir,
+      env: { ...process.env, PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter) },
+    });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.loopIterations.available, true);
+    assert.equal(output.loopIterations.degraded, true);
+    assert.deepEqual(output.loopIterations.degradedReasons, ["reviews_page_cap", "review_threads_has_next_page"]);
+  });
+});
+
+test("inspect-run CLI: live PR with no Copilot review history marks loopIterations unavailable", async () => {
+  await withTempDir(async (tempDir) => {
+    const ghPath = path.join(tempDir, "gh");
+    await writeFile(
+      ghPath,
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const out = (value) => process.stdout.write(JSON.stringify(value));
+const apiPath = args[0] === "api" ? args.find((arg) => arg.startsWith("repos/")) : null;
+
+if (args[0] === "pr" && args[1] === "view") {
+  const fields = args[args.indexOf("--json") + 1] || "";
+  if (fields.includes("reviews")) {
+    out({
+      headRefOid: "abc123",
+      isDraft: false,
+      state: "OPEN",
+      number: 55,
+      reviews: [],
+      statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
+    });
+  } else {
+    out({ isDraft: false, state: "OPEN", number: 55, headRefOid: "abc123" });
+  }
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/requested_reviewers") {
+  out({ users: [], teams: [] });
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/pulls/55/reviews" || apiPath === "repos/owner/repo/pulls/55/reviews?per_page=100") {
+  out([]);
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/issues/55/timeline?per_page=100") {
+  out([]);
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/pulls/55/comments?per_page=100") {
+  out([]);
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/pulls/55/commits?per_page=100") {
+  out([{ sha: "abc123", commit: { committer: { date: "2026-05-20T10:30:00Z" } }, author: { login: "author-user" } }]);
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "graphql") {
+  out({
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  });
+  process.exit(0);
+}
+
+process.stderr.write("unexpected gh args: " + args.join(" ") + "\\n");
+process.exit(1);
+`,
+      "utf8",
+    );
+    await chmod(ghPath, 0o755);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+    ], {
+      cwd: tempDir,
+      env: { ...process.env, PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter) },
+    });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.deepEqual(output.loopIterations, {
+      available: false,
+      source: "github_pr_timeline",
+      reason: "no_copilot_review_history",
+    });
   });
 });
 

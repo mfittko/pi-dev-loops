@@ -15,7 +15,7 @@
  *   sourceMode, trust, evidence, markers
  *
  * Best-effort output fields:
- *   layers (copilot, reviewer, steering drill-down)
+ *   loopIterations, layers (copilot, reviewer, steering drill-down)
  *
  * Source precedence:
  *   1. Authoritative live detector-backed facts
@@ -164,6 +164,9 @@ function buildReviewerScope(snapshotLike) {
  *   cannot be trusted for this inspected target.
  * @param {object | null} [params.steeringReadback]
  *   Precomputed steering readback summary for the inspection surface.
+ * @param {object} [params.loopIterations]
+ *   Best-effort Copilot remote-loop iteration summary. This is intended for
+ *   GitHub-backed PR loops where durable review/timeline facts are available.
  * @returns {object} inspection snapshot with always-present and best-effort fields
  */
 export function composeRunInspectionSnapshot({
@@ -183,6 +186,11 @@ export function composeRunInspectionSnapshot({
   steeringLoadFailed = false,
   steeringUnavailableReason = null,
   steeringReadback = null,
+  loopIterations = {
+    available: false,
+    source: "github_pr_timeline",
+    reason: "unavailable",
+  },
 }) {
   const { repo, pr } = target;
   const runId = deriveRunIdForInspectionTarget(target);
@@ -451,6 +459,7 @@ export function composeRunInspectionSnapshot({
       checkpoint: evidenceCheckpoint,
     },
     markers,
+    loopIterations,
     layers,
   };
 }

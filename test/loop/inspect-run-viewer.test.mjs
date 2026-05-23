@@ -30,6 +30,17 @@ function makeSnapshot(overrides = {}) {
     trust: "authoritative",
     evidence: { summary: "Live detectors agree.", authoritative: ["live"], checkpoint: [] },
     markers: { missing: [], stale: [], conflicts: [] },
+    loopIterations: {
+      available: true,
+      source: "github_pr_timeline",
+      completedCopilotReviewRounds: 4,
+      pendingCopilotReviewRounds: 1,
+      copilotReviewRequests: 5,
+      copilotReviewComments: 8,
+      resolvedReviewThreads: 8,
+      unresolvedReviewThreads: 0,
+      fixCommitsAfterFeedback: 3,
+    },
     layers: {
       copilot: { currentState: "waiting_for_copilot_review" },
       reviewer: { currentState: "waiting_for_author_followup", scope: { mode: "all_reviewers", reviewerLogin: null } },
@@ -259,6 +270,9 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.stale/);
   assert.match(html, /markers\.conflicts/);
   assert.match(html, /outer-loop summary/);
+  assert.match(html, /Copilot loop iterations/);
+  assert.match(html, /4 completed, 1 pending/);
+  assert.match(html, /fix commits: 3/);
   assert.match(html, /copilot layer/);
   assert.match(html, /reviewer layer/);
   assert.match(html, /steering summary/);
@@ -280,6 +294,11 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
       outerAction: "unknown",
       activeFamilyState: "unknown",
       statusClass: "unknown",
+      loopIterations: {
+        available: false,
+        source: "github_pr_timeline",
+        reason: "no_copilot_review_history",
+      },
       layers: {
         steering: { status: "unavailable", reason: "no_steering_file" },
       },
@@ -288,6 +307,7 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
 
   assert.match(html, /checkpoint-only/);
   assert.match(html, /not present \/ unavailable/);
+  assert.match(html, /no_copilot_review_history/);
   assert.match(html, /no_steering_file/);
 });
 
