@@ -234,19 +234,19 @@ function renderStateVisualizationIntro(snapshot) {
   const stateLabel = renderSnapshotStateLabel(snapshot);
 
   if (stateLabel === "authoritative") {
-    return "Full authoritative outer, Copilot, and reviewer state graphs from the authoritative inspection snapshot.";
+    return "Authoritative graph view from the current inspection snapshot, showing the full authoritative outer, Copilot, and reviewer state graphs.";
   }
   if (stateLabel === "degraded") {
-    return "Full authoritative outer, Copilot, and reviewer state graphs from a degraded inspection snapshot. Missing current-state or next-state highlights stay explicitly unavailable instead of being guessed.";
+    return "Degraded graph view of the full authoritative outer, Copilot, and reviewer state graphs; missing highlights stay explicitly unavailable instead of being guessed.";
   }
   if (stateLabel === "checkpoint-only") {
-    return "Full authoritative outer, Copilot, and reviewer state graphs from a checkpoint-only inspection snapshot. Treat current-state and next-state highlights as advisory until live inspection is available.";
+    return "Checkpoint-only graph view of the full authoritative outer, Copilot, and reviewer state graphs; current and next highlights are advisory until live inspection is available.";
   }
   if (stateLabel === "conflicting") {
-    return "Full authoritative outer, Copilot, and reviewer state graphs from a conflicting inspection snapshot. Resolve the conflicting evidence before treating the highlights as authoritative.";
+    return "Conflicting graph view of the full authoritative outer, Copilot, and reviewer state graphs; resolve the evidence conflict before trusting the highlights.";
   }
 
-  return "Full authoritative outer, Copilot, and reviewer state graphs from the current inspection snapshot.";
+  return "Graph view from the current inspection snapshot, showing the full authoritative outer, Copilot, and reviewer state graphs.";
 }
 
 const COPILOT_TERMINAL_STATES = new Set(
@@ -578,12 +578,106 @@ function renderStateGraphSummaries(graph) {
   </ul>`;
 }
 
+function renderStateGraphDetails(graph) {
+  return `<details class="state-graph-details">
+    <summary>Graph guide and lane details</summary>
+    ${renderStateGraphHelp()}
+    ${renderStateGraphSummaries(graph)}
+  </details>`;
+}
+
 function renderMermaidBootScript() {
   return `<script src="${MERMAID_BROWSER_ASSET_ROUTE}"></script>
     <script>
       (() => {
+        const frames = Array.from(document.querySelectorAll(".state-graph-frame"));
         const graphs = Array.from(document.querySelectorAll(".mermaid-state-graph"));
-        if (graphs.length === 0 || typeof window.mermaid === "undefined") {
+        const clampScale = (value) => Math.max(0.5, Math.min(2.5, value));
+        const updateFrameScale = (frame, requestedScale) => {
+          const scale = clampScale(requestedScale);
+          frame.dataset.graphScale = String(scale);
+          const zoomValue = frame.querySelector("[data-graph-zoom-value]");
+          if (zoomValue) {
+            zoomValue.textContent = String(Math.round(scale * 100)) + "%";
+          }
+          const svg = frame.querySelector(".mermaid-state-graph svg");
+          if (svg) {
+            svg.style.width = String(Math.round(scale * 100)) + "%";
+            svg.style.maxWidth = "none";
+            svg.style.height = "auto";
+          }
+        };
+        const renderFallback = (message) => {
+          graphs.forEach((graph) => {
+            const fallback = document.createElement("p");
+            fallback.className = "state-graph-render-error";
+            fallback.textContent = message;
+            graph.replaceWith(fallback);
+          });
+        };
+
+        frames.forEach((frame) => {
+          updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
+          frame.querySelector("[data-graph-zoom-in]")?.addEventListener("click", () => {
+            updateFrameScale(frame, Number(frame.dataset.graphScale || 1) + 0.25);
+          });
+          frame.querySelector("[data-graph-zoom-out]")?.addEventListener("click", () => {
+            updateFrameScale(frame, Number(frame.dataset.graphScale || 1) - 0.25);
+          });
+          frame.querySelector("[data-graph-zoom-reset]")?.addEventListener("click", () => {
+            updateFrameScale(frame, 1);
+          });
+          frame.querySelector("[data-graph-fullscreen]")?.addEventListener("click", async () => {
+            if (document.fullscreenElement === frame) {
+              await document.exitFullscreen?.();
+              return;
+            }
+            await frame.requestFullscreen?.();
+          });
+
+          const graphViewport = frame.querySelector(".mermaid-state-graph");
+          if (graphViewport) {
+            let dragState = null;
+            graphViewport.addEventListener("pointerdown", (event) => {
+              if (event.button !== 0) {
+                return;
+              }
+              dragState = {
+                pointerId: event.pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                startScrollLeft: graphViewport.scrollLeft,
+                startScrollTop: graphViewport.scrollTop,
+              };
+              graphViewport.dataset.dragging = "true";
+              graphViewport.setPointerCapture?.(event.pointerId);
+              event.preventDefault();
+            });
+            graphViewport.addEventListener("pointermove", (event) => {
+              if (!dragState || dragState.pointerId !== event.pointerId) {
+                return;
+              }
+              graphViewport.scrollLeft = dragState.startScrollLeft - (event.clientX - dragState.startX);
+              graphViewport.scrollTop = dragState.startScrollTop - (event.clientY - dragState.startY);
+            });
+            const stopDragging = (event) => {
+              if (!dragState || dragState.pointerId !== event.pointerId) {
+                return;
+              }
+              graphViewport.dataset.dragging = "false";
+              graphViewport.releasePointerCapture?.(event.pointerId);
+              dragState = null;
+            };
+            graphViewport.addEventListener("pointerup", stopDragging);
+            graphViewport.addEventListener("pointercancel", stopDragging);
+          }
+        });
+
+        if (graphs.length === 0) {
+          return;
+        }
+        if (typeof window.mermaid === "undefined") {
+          renderFallback("Mermaid browser asset unavailable. Use the details below or open /snapshot.json.");
           return;
         }
 
@@ -601,14 +695,13 @@ function renderMermaidBootScript() {
         window.mermaid.run({ nodes: graphs }).then(() => {
           graphs.forEach((graph) => {
             graph.dataset.rendered = "true";
+            const frame = graph.closest(".state-graph-frame");
+            if (frame) {
+              updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
+            }
           });
         }).catch(() => {
-          graphs.forEach((graph) => {
-            const fallback = document.createElement("p");
-            fallback.className = "state-graph-render-error";
-            fallback.textContent = "Mermaid could not render this snapshot safely. Use the summaries below or open /snapshot.json.";
-            graph.replaceWith(fallback);
-          });
+          renderFallback("Mermaid could not render this snapshot safely. Use the details below or open /snapshot.json.");
         });
       })();
     </script>`;
@@ -618,22 +711,26 @@ function renderStateVisualizationSection(snapshot) {
   const graph = buildInspectionMermaidGraph(snapshot);
 
   if (graph === null) {
-    return `<section>
-      <h2>State visualization</h2>
-      <p>Snapshot unavailable, so no state graph can be rendered yet.</p>
-    </section>`;
+    return `<div class="state-graph-block">
+      <p class="state-graph-intro">Snapshot unavailable, so no state graph can be rendered yet.</p>
+    </div>`;
   }
 
-  return `<section>
-    <h2>State visualization</h2>
+  return `<div class="state-graph-block">
     <p class="state-graph-intro">${escapeHtml(renderStateVisualizationIntro(snapshot))}</p>
-    ${renderStateGraphLegend()}
-    ${renderStateGraphHelp()}
-    <div class="state-graph-frame">
+    <div class="state-graph-frame" data-graph-scale="1">
+      <div class="state-graph-toolbar" aria-label="Graph controls">
+        <button type="button" data-graph-zoom-out aria-label="Zoom out">−</button>
+        <button type="button" data-graph-zoom-in aria-label="Zoom in">+</button>
+        <button type="button" data-graph-zoom-reset aria-label="Reset zoom">100%</button>
+        <span class="state-graph-zoom-value" data-graph-zoom-value>100%</span>
+        <button type="button" data-graph-fullscreen aria-label="Open graph fullscreen">⤢</button>
+      </div>
       <div class="mermaid-state-graph mermaid" data-rendered="pending" aria-label="Mermaid inspection state graph">${escapeHtml(graph.definition)}</div>
     </div>
-    ${renderStateGraphSummaries(graph)}
-  </section>`;
+    ${renderStateGraphLegend()}
+    ${renderStateGraphDetails(graph)}
+  </div>`;
 }
 
 function renderCompactSection({ title, entries = [], lists = [] }) {
@@ -649,6 +746,13 @@ function renderCompactSection({ title, entries = [], lists = [] }) {
       ${renderList(items)}
     `).join("")}
   </section>`;
+}
+
+function renderCollapsedDetailsPanel(content) {
+  return `<details class="inspection-details">
+    <summary>Details</summary>
+    ${content}
+  </details>`;
 }
 
 function renderOuterLoopSummarySection(snapshot) {
@@ -760,6 +864,9 @@ function renderSteeringSummarySection(layer) {
 
 function renderSnapshotStateLabel(snapshot) {
   if (!snapshot) {
+    return "unavailable";
+  }
+  if (snapshot.sourceMode === "unavailable") {
     return "unavailable";
   }
   if (Array.isArray(snapshot.markers?.conflicts) && snapshot.markers.conflicts.length > 0) {
@@ -958,21 +1065,51 @@ function summarizeCurrentPrStatus(snapshot) {
   };
 }
 
-function renderCurrentStateBanner(snapshot, target, stateLabel) {
+function renderCurrentStateNote(snapshot) {
+  if (!snapshot) {
+    return "Unable to determine the current PR state yet.";
+  }
+
+  if (snapshot.sourceMode === "unavailable") {
+    return "Snapshot unavailable. Open /snapshot.json or reload once the inspection surface is available again.";
+  }
+
+  if ((snapshot.markers?.conflicts?.length ?? 0) > 0) {
+    return "Conflicting evidence is present. Treat the current-state fields below as advisory until the snapshot is reconciled.";
+  }
+
+  if (snapshot.sourceMode === "checkpoint-only") {
+    return "This is a checkpoint-only snapshot. The current-state fields below are advisory, not live-confirmed.";
+  }
+
+  if (snapshot.sourceMode === "partial" || snapshot.trust === "degraded") {
+    return "This snapshot is degraded. The current-state fields below may be incomplete and should be cross-checked against the graph and raw snapshot.";
+  }
+
+  return "These fields are shown directly from the loaded inspection snapshot so the current state stays visible without inventing a second viewer-only status model.";
+}
+
+function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
   const summary = summarizeCurrentPrStatus(snapshot);
   return `<section class="current-pr-state-banner" aria-label="Current PR state">
-    <p class="current-pr-state-kicker">Current PR state</p>
-    <h2>${escapeHtml(summary.headline)}</h2>
+    <h2>Current PR state</h2>
+    <p class="current-pr-state-summary-headline">${escapeHtml(summary.headline)}</p>
     <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
+    <div class="current-pr-state-visualization">
+      ${renderStateVisualizationSection(snapshot, graph)}
+    </div>
+    <p class="current-pr-state-detail">${escapeHtml(renderCurrentStateNote(snapshot))}</p>
     <dl class="current-pr-state-grid">
       <dt>target</dt><dd><code>${escapeHtml(target.repo)}#${escapeHtml(target.pr)}</code></dd>
+      <dt>snapshot trust</dt><dd><span class="badge">${escapeHtml(stateLabel)}</span></dd>
+      <dt>status class</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.statusClass))}</code></dd>
       <dt>outer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerState))}</code></dd>
       <dt>outerAction (compatibility)</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
       <dt>current Copilot state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.copilot?.currentState))}</code></dd>
       <dt>current reviewer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.reviewer?.currentState))}</code></dd>
-      <dt>snapshot trust</dt><dd><span class="badge">${escapeHtml(stateLabel)}</span></dd>
       <dt>needs attention</dt><dd>${escapeHtml(String(snapshot?.needsAttention ?? "not present"))}</dd>
       <dt>next action</dt><dd>${escapeHtml(summary.nextAction)}</dd>
+      <dt>trust</dt><dd>${escapeHtml(snapshot?.evidence?.summary ?? "not present")}</dd>
     </dl>
   </section>`;
 }
@@ -983,6 +1120,7 @@ export function renderInspectRunViewerHtml({
   error = null,
 }) {
   const normalizedSnapshot = snapshot ?? null;
+  const graph = buildInspectionMermaidGraph(normalizedSnapshot);
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
   const title = `${target.repo}#${target.pr} inspection snapshot`;
   const pageHeading = `PR #${target.pr} inspection`;
@@ -1022,11 +1160,23 @@ export function renderInspectRunViewerHtml({
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .current-pr-state-banner { border: 1px solid #cfe0f5; background: linear-gradient(180deg, #f8fbff 0%, #eef5fd 100%); box-shadow: 0 8px 24px rgba(21, 101, 192, 0.08); }
       .current-pr-state-banner h2 { margin: 0.2rem 0 0.5rem 0; font-size: 1.9rem; line-height: 1.15; }
-      .current-pr-state-kicker { margin: 0; color: #1565c0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.82rem; }
-      .current-pr-state-detail { margin: 0 0 0.8rem 0; color: #274766; font-size: 1.02rem; }
-      .current-pr-state-grid { grid-template-columns: 14rem 1fr; background: rgba(255,255,255,0.6); padding: 0.85rem; border-radius: 0.6rem; }
-      .state-graph-intro { margin-top: 0; color: #333; }
-      .state-graph-cues { display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; margin: 0.5rem 0 0.75rem 0; }
+      .current-pr-state-summary-headline { margin: 0 0 0.4rem 0; color: #1565c0; font-weight: 700; font-size: 1.1rem; }
+      .current-pr-state-detail { margin: 0.6rem 0 0.8rem 0; color: #274766; font-size: 0.98rem; }
+      .current-pr-state-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); background: rgba(255,255,255,0.6); padding: 0.85rem; border-radius: 0.6rem; }
+      .current-pr-state-grid dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: #4c6478; }
+      .current-pr-state-grid dd { margin: 0 0 0.5rem 0; }
+      .state-graph-block { margin-top: 0.4rem; }
+      .state-graph-intro { margin-top: 0; margin-bottom: 0.6rem; color: #333; font-size: 0.98rem; }
+      .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); overflow: hidden; }
+      .state-graph-toolbar { display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.65rem; border-bottom: 1px solid #d7e3f4; background: rgba(255,255,255,0.85); }
+      .state-graph-toolbar button { border: 1px solid #9fb6cb; background: #fff; border-radius: 0.45rem; padding: 0.3rem 0.6rem; font: inherit; cursor: pointer; }
+      .state-graph-toolbar button:hover { background: #f3f8fd; }
+      .state-graph-zoom-value { margin-left: auto; font-size: 0.88rem; color: #486174; }
+      .mermaid-state-graph { min-height: 16rem; padding: 0.75rem; overflow: auto; cursor: grab; user-select: none; touch-action: none; }
+      .mermaid-state-graph[data-dragging="true"] { cursor: grabbing; }
+      .mermaid-state-graph[data-rendered="pending"] { color: #5a7184; }
+      .mermaid-state-graph svg { display: block; width: 100%; height: auto; transition: width 120ms ease; }
+      .state-graph-cues { display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; margin: 0.75rem 0 0.35rem 0; }
       .state-graph-cue { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; color: #355061; }
       .state-graph-cue-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 2.5rem; padding: 0.14rem 0.5rem; border-radius: 999px; border: 1px solid #90a4ae; background: #fff; font-weight: 700; }
       .state-graph-cue-chip-start { border-color: #78909c; background: #f5f7f9; }
@@ -1034,35 +1184,42 @@ export function renderInspectRunViewerHtml({
       .state-graph-cue-chip-next { border-color: #5c6bc0; background: #f3f4ff; }
       .state-graph-cue-chip-end { border-color: #2e7d32; background: #e8f5e9; }
       .state-graph-cue-chip-loop { border-color: #ef6c00; background: #fff3e0; }
-      .state-graph-help { margin: 0 0 0.85rem 1.1rem; padding: 0; color: #425d70; }
+      .state-graph-details { margin-top: 0.7rem; }
+      .state-graph-details summary { cursor: pointer; font-weight: 600; color: #355061; }
+      .state-graph-help { margin: 0.75rem 0 0.85rem 1.1rem; padding: 0; color: #425d70; }
       .state-graph-help li + li { margin-top: 0.35rem; }
-      .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); overflow: hidden; }
-      .mermaid-state-graph { min-height: 16rem; padding: 0.75rem; overflow-x: auto; }
-      .mermaid-state-graph[data-rendered="pending"] { color: #5a7184; }
-      .mermaid-state-graph svg { display: block; width: 100%; height: auto; }
       .state-graph-render-error { margin: 0; padding: 0.9rem; color: #7f4b00; }
       .state-graph-summaries { margin: 0.85rem 0 0 0; padding-left: 1.1rem; }
       .state-graph-summary + .state-graph-summary { margin-top: 0.3rem; }
+      .inspection-details { margin-top: 1rem; }
+      .inspection-details summary { cursor: pointer; font-weight: 700; }
       dl { display: grid; grid-template-columns: 14rem 1fr; gap: 0.35rem 0.75rem; }
       dt { font-weight: 600; }
       section { border: 1px solid #ddd; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; }
+      @media (max-width: 900px) {
+        .current-pr-state-grid { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 640px) {
+        .current-pr-state-grid { grid-template-columns: 1fr; }
+        .state-graph-toolbar { flex-wrap: wrap; }
+        .state-graph-zoom-value { margin-left: 0; }
+      }
     </style>
   </head>
   <body>
     <h1>${escapeHtml(pageHeading)}</h1>
-    <p><strong>Target:</strong> <code>${escapeHtml(target.repo)}</code></p>
     <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
-    <p><strong>Refresh:</strong> manual reload only.</p>
-    <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
-    ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel)}
-    ${renderStateVisualizationSection(normalizedSnapshot)}
-    ${topSummary}
-    ${renderOuterLoopSummarySection(normalizedSnapshot)}
-    ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
-    ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
-    ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
-    ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
-    ${renderMermaidBootScript()}
+    <p><strong>Refresh:</strong> manual reload only. <strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
+    ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph)}
+    ${renderCollapsedDetailsPanel(`
+      ${topSummary}
+      ${renderOuterLoopSummarySection(normalizedSnapshot)}
+      ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
+      ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
+      ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
+      ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
+    `)}
+    ${graph === null ? "" : renderMermaidBootScript()}
   </body>
 </html>`;
 }

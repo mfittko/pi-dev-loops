@@ -386,11 +386,15 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /Current PR state/);
   assert.match(html, /Waiting for Copilot review/);
   assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
+  assert.match(html, /These fields are shown directly from the loaded inspection snapshot/i);
+  assert.match(html, /status class/);
   assert.match(html, /outer state/);
   assert.match(html, /outerAction \(compatibility\)/);
   assert.match(html, /current Copilot state/);
   assert.match(html, /current reviewer state/);
   assert.match(html, /next action/);
+  assert.match(html, /Graph guide and lane details/);
+  assert.match(html, /Details/);
   assert.match(html, /target\.repo/);
   assert.match(html, /owner\/repo/);
   assert.match(html, /target\.pr/);
@@ -409,11 +413,16 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.missing/);
   assert.match(html, /markers\.stale/);
   assert.match(html, /markers\.conflicts/);
-  assert.match(html, /State visualization/);
-  assert.match(html, /authoritative inspection snapshot/i);
+  assert.match(html, /authoritative graph view from the current inspection snapshot/i);
   assert.match(html, /full authoritative outer, copilot, and reviewer state graphs/i);
   assert.match(html, /class="state-graph-cues"/);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
+  assert.match(html, /data-graph-zoom-in/);
+  assert.match(html, /data-graph-zoom-out/);
+  assert.match(html, /data-graph-zoom-reset/);
+  assert.match(html, /data-graph-fullscreen/);
+  assert.match(html, /cursor: grab/);
+  assert.match(html, /data-dragging="true"/);
   assert.match(html, /assets\/mermaid\.min\.js/);
   assert.match(html, /Start/);
   assert.match(html, /End/);
@@ -423,6 +432,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
   assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; waiting_for_re_request, waiting_for_review_request/);
   assert.match(html, /Dimmed nodes are still part of the authoritative state machine/);
+  assert.ok(html.indexOf('class="mermaid-state-graph mermaid"') < html.indexOf('class="state-graph-cues"'));
   assert.match(html, /outer lane now comes from the shared authoritative outer-loop graph contract/);
   assert.match(html, /outer-loop summary/);
   assert.match(html, /Copilot loop iterations/);
@@ -463,9 +473,10 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
   });
 
   assert.match(html, /checkpoint-only/);
-  assert.match(html, /checkpoint-only inspection snapshot/i);
+  assert.match(html, /checkpoint-only graph view[\s\S]*current and next highlights are advisory until live inspection is available\./i);
   assert.match(html, /Needs attention/);
   assert.match(html, /The current snapshot is not authoritative enough to collapse to one trusted outer state/);
+  assert.match(html, /This is a checkpoint-only snapshot\. The current-state fields below are advisory, not live-confirmed\./i);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
@@ -521,8 +532,11 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
     }),
   });
 
+  assert.match(html, /Current PR state/);
   assert.match(html, /PR complete/);
   assert.match(html, /The current inspection says this PR is in a terminal done state/);
+  assert.match(html, /status class[\s\S]*<code>done<\/code>/);
+  assert.match(html, /outerAction \(compatibility\)[\s\S]*<code>done<\/code>/);
 
   const graph = buildInspectionMermaidGraph(makeSnapshot({
     outerState: "done_terminal",
@@ -615,7 +629,8 @@ test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
   });
 
   assert.match(html, /Snapshot state:[\s\S]*conflicting/);
-  assert.match(html, /conflicting inspection snapshot/i);
+  assert.match(html, /Conflicting graph view[\s\S]*resolve the evidence conflict before trusting the highlights\./i);
+  assert.match(html, /Conflicting evidence is present\. Treat the current-state fields below as advisory until the snapshot is reconciled\./i);
   assert.match(html, /checkpoint outerAction/);
 });
 
@@ -644,6 +659,28 @@ test("renderInspectRunViewerHtml treats undefined snapshots as unavailable", () 
   assert.match(html, /Unable to load inspect-run snapshot/);
 });
 
+test("buildInspectionMermaidGraph suppresses graph rendering for sourceMode unavailable even with conflicting markers", () => {
+  const graph = buildInspectionMermaidGraph(makeSnapshot({
+    sourceMode: "unavailable",
+    trust: "unknown",
+    markers: {
+      missing: [],
+      stale: [],
+      conflicts: ["live and checkpoint disagree"],
+    },
+  }));
+
+  assert.equal(graph, null);
+});
+
+test("renderInspectRunViewerHtml includes deterministic Mermaid asset fallback messaging", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+  });
+
+  assert.match(html, /Mermaid browser asset unavailable\. Use the details below or open \/snapshot\.json\./);
+});
 test("renderInspectRunViewerHtml fail-closes the graph for unavailable snapshots", () => {
   const html = renderInspectRunViewerHtml({
     target: { repo: "owner/repo", pr: 55 },
