@@ -24,3 +24,9 @@ jobs:
 
       - name: Run test suite
         run: npm test
+
+      - name: Install Playwright WebKit runtime
+        run: npx playwright install --with-deps webkit
+
+      - name: Run inspect-run viewer WebKit smoke
+        run: npm run test:playwright:viewer

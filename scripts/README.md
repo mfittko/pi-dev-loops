@@ -472,7 +472,7 @@ Contract:
 - uses one thin adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace
 - serves two explicit read-only endpoints for the same target:
-  - `/` → operator-facing HTML with the top summary, compact outer-loop summary, Copilot loop iteration summary, copilot layer, reviewer layer, and steering summary
+  - `/` → operator-facing HTML with a Mermaid-first graph that renders the full authoritative Copilot and reviewer state machines, highlights snapshot-derived current and immediate-next states when available, keeps inactive known states visible but dimmed, keeps outer-loop visualization fail-closed because a full authoritative outer transition graph is not exported yet, and preserves supporting textual summary/evidence
   - `/snapshot.json` → the full authoritative inspection snapshot JSON returned by the adapter
 - HTML includes a visible link to `/snapshot.json` so machine-readable state no longer depends on an inline full-snapshot dump in the page itself
 - `/snapshot.json` returns `application/json; charset=utf-8` on success and deterministic JSON error output with non-2xx status when snapshot loading throws or yields no snapshot
@@ -487,8 +487,15 @@ Local manual verification path:
 2. Open the printed URL in a local browser and verify the human-oriented `/` page
 3. Open `<printed-url>/snapshot.json` and verify it returns the full inspection snapshot JSON for the same target
 4. Use browser refresh or the reload button for point-in-time re-inspection
-5. Optionally hit `/favicon.ico` or an unsupported path to confirm those paths stay deterministic and do not perform snapshot rendering
-6. For deterministic/local test mode, pass `--copilot-input` and `--reviewer-input` fixtures to viewer; these are forwarded to `inspect-run`
+
+Local WebKit/Playwright smoke path:
+1. Install the Safari/WebKit browser runtime once:
+   - `npm run playwright:install:safari`
+2. Run the viewer smoke suite:
+   - `npm run test:playwright:viewer`
+3. Review screenshots/traces under `test-results/` and the HTML report under `playwright-report/inspect-run-viewer/`
+4. Optionally hit `/favicon.ico` or an unsupported path to confirm those paths stay deterministic and do not perform snapshot rendering
+5. For deterministic/local test mode, pass `--copilot-input` and `--reviewer-input` fixtures to viewer; these are forwarded to `inspect-run`
 
 ### `scripts/loop/steer-loop.mjs`
 

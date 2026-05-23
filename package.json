@@ -25,7 +25,9 @@
     "test:extension": "node --import tsx --test test/extension-checks.test.mjs test/extension-installer.test.mjs test/extension-command-contract.test.mjs test/extension-package-contract.test.mjs test/dev-loops-core.test.mjs test/dev-loops-cli.test.mjs",
     "test:scripts": "node --test test/github/*.test.mjs test/loop/*.test.mjs",
     "test:core": "node --test packages/core/test/*.test.mjs",
-    "test:dev-loop": "npm --prefix skills/dev-loop test"
+    "test:dev-loop": "npm --prefix skills/dev-loop test",
+    "playwright:install:safari": "playwright install webkit",
+    "test:playwright:viewer": "playwright test -c playwright.inspect-run-viewer.config.mjs"
   },
   "bin": {
     "pi-dev-loops": "./bin/pi-dev-loops.mjs"
@@ -35,11 +37,15 @@
     "@mariozechner/pi-tui": "*"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "tsx": "^4.22.0"
   },
   "pi": {
     "extensions": [
       "./index.ts"
     ]
+  },
+  "dependencies": {
+    "mermaid": "11.15.0"
   }
 }

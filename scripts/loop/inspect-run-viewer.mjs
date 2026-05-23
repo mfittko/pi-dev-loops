@@ -1,11 +1,21 @@
 #!/usr/bin/env node
 import { execFile as execFileCallback } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { formatCliError } from "../_core-helpers.mjs";
+import {
+  STATE as COPILOT_STATE,
+  TRANSITIONS as COPILOT_TRANSITIONS,
+} from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import {
+  REVIEWER_STATE,
+  REVIEWER_TRANSITIONS,
+} from "../../packages/core/src/loop/reviewer-loop-state.mjs";
 import {
   createInspectionViewerAdapter,
   normalizeInspectionTarget,
@@ -41,6 +51,10 @@ Optional:
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4311;
 const execFile = promisify(execFileCallback);
+const MERMAID_BROWSER_ASSET_ROUTE = "/assets/mermaid.min.js";
+const require = createRequire(import.meta.url);
+
+let mermaidBrowserScriptPromise = null;
 
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
@@ -203,6 +217,593 @@ function renderDefinitionList(entries) {
   return `<dl>${entries.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl>`;
 }
 
+function normalizeTransitions(transitions) {
+  if (!Array.isArray(transitions)) {
+    return null;
+  }
+  return [...new Set(
+    transitions
+      .filter((transition) => typeof transition === "string")
+      .map((transition) => transition.trim())
+      .filter((transition) => transition.length > 0),
+  )];
+}
+
+function renderStateVisualizationIntro(snapshot) {
+  const stateLabel = renderSnapshotStateLabel(snapshot);
+
+  if (stateLabel === "authoritative") {
+    return "Authoritative graph view from the current inspection snapshot.";
+  }
+  if (stateLabel === "degraded") {
+    return "Degraded graph view; missing highlights stay unavailable instead of being guessed.";
+  }
+  if (stateLabel === "checkpoint-only") {
+    return "Checkpoint-only graph view; current and next highlights are advisory until live inspection is available.";
+  }
+  if (stateLabel === "conflicting") {
+    return "Conflicting graph view; resolve the evidence conflict before trusting the highlights.";
+  }
+
+  return "Graph view from the current inspection snapshot.";
+}
+
+const OUTER_LOOP_KNOWN_ACTIONS = Object.freeze([
+  "continue_wait",
+  "reenter_copilot_loop",
+  "reenter_reviewer_loop",
+  "stop",
+  "done",
+]);
+const OUTER_LOOP_TERMINAL_STATES = new Set(["stop", "done"]);
+
+function normalizeCurrentStateInfo(currentState, { knownStates = null, terminalStates = null } = {}) {
+  if (typeof currentState === "string" && currentState.length > 0) {
+    const normalized = currentState.trim();
+
+    if (normalized.toLowerCase() === "unknown") {
+      return { label: "current state unavailable", available: false, terminal: false };
+    }
+    if (knownStates instanceof Set && !knownStates.has(normalized)) {
+      return { label: "current state unavailable", available: false, terminal: false };
+    }
+
+    return {
+      label: normalized,
+      available: true,
+      terminal: terminalStates instanceof Set ? terminalStates.has(normalized) : false,
+    };
+  }
+
+  return { label: "current state unavailable", available: false, terminal: false };
+}
+
+function summarizeTransitionAvailability(transitions) {
+  const normalizedTransitions = normalizeTransitions(transitions);
+  const unavailable = normalizedTransitions === null;
+  const empty = !unavailable && normalizedTransitions.length === 0;
+  const summary = unavailable
+    ? "transition data unavailable in this snapshot"
+    : empty
+      ? "no allowed transitions"
+      : normalizedTransitions.join(", ");
+
+  return {
+    unavailable,
+    empty,
+    summary,
+    normalizedTransitions: unavailable ? [] : normalizedTransitions,
+  };
+}
+
+export function resolveMermaidBrowserAssetPath(resolveImpl = require.resolve) {
+  const mermaidPackageJsonPath = resolveImpl("mermaid/package.json");
+  return path.join(path.dirname(mermaidPackageJsonPath), "dist", "mermaid.min.js");
+}
+
+export async function loadMermaidBrowserScript({
+  readFileImpl = readFile,
+  resolveMermaidBrowserAssetPathImpl = resolveMermaidBrowserAssetPath,
+} = {}) {
+  if (mermaidBrowserScriptPromise === null) {
+    mermaidBrowserScriptPromise = Promise.resolve()
+      .then(() => readFileImpl(resolveMermaidBrowserAssetPathImpl(), "utf8"))
+      .catch((error) => {
+        mermaidBrowserScriptPromise = null;
+        throw error;
+      });
+  }
+  return mermaidBrowserScriptPromise;
+}
+
+function escapeMermaidLabel(value) {
+  return String(value)
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"');
+}
+
+function renderMermaidNode(id, label, shape = "box") {
+  const escapedLabel = escapeMermaidLabel(label);
+
+  if (shape === "pill") {
+    return `${id}(["${escapedLabel}"])`;
+  }
+  if (shape === "circle") {
+    return `${id}(("${escapedLabel}"))`;
+  }
+
+  return `${id}["${escapedLabel}"]`;
+}
+
+function renderMermaidNodeId(laneKey, state) {
+  return `${laneKey}_${String(state).replaceAll(/[^a-zA-Z0-9_]+/g, "_")}`;
+}
+
+function buildOuterLoopSummaryLane({ laneKey, title, currentState, transitions }) {
+  const knownStates = new Set(OUTER_LOOP_KNOWN_ACTIONS);
+  const currentInfo = normalizeCurrentStateInfo(currentState, {
+    knownStates,
+    terminalStates: OUTER_LOOP_TERMINAL_STATES,
+  });
+  const transitionInfo = summarizeTransitionAvailability(transitions);
+  const classIds = {
+    cue: [],
+    current: [],
+    currentTerminal: [],
+    next: [],
+    nextTerminal: [],
+    terminal: [],
+    inactive: [],
+    unavailable: [],
+    note: [],
+  };
+  const lines = [
+    `  subgraph ${laneKey}["${escapeMermaidLabel(title)}"]`,
+    "    direction LR",
+  ];
+
+  for (const state of OUTER_LOOP_KNOWN_ACTIONS) {
+    const nodeId = renderMermaidNodeId(laneKey, state);
+    const terminal = OUTER_LOOP_TERMINAL_STATES.has(state);
+    lines.push(`    ${renderMermaidNode(nodeId, state)}`);
+
+    if (currentInfo.available && currentInfo.label === state) {
+      classIds[terminal ? "currentTerminal" : "current"].push(nodeId);
+    } else if (terminal) {
+      classIds.terminal.push(nodeId);
+    } else {
+      classIds.inactive.push(nodeId);
+    }
+  }
+
+  const limitationId = `${laneKey}_limitation`;
+  lines.push(`    ${renderMermaidNode(limitationId, "authoritative full transition graph not exported")}`);
+  classIds.note.push(limitationId);
+
+  let currentId = limitationId;
+  if (!currentInfo.available) {
+    const unavailableId = `${laneKey}_current_unavailable`;
+    lines.push(`    ${renderMermaidNode(unavailableId, currentInfo.label)}`);
+    lines.push(`    ${unavailableId} -.-> ${limitationId}`);
+    classIds.unavailable.push(unavailableId);
+    currentId = unavailableId;
+  } else {
+    currentId = renderMermaidNodeId(laneKey, currentInfo.label);
+    lines.push(`    ${currentId} -.-> ${limitationId}`);
+  }
+
+  if (transitionInfo.unavailable) {
+    const noteId = `${laneKey}_transitions_unavailable`;
+    lines.push(`    ${renderMermaidNode(noteId, "snapshot next transitions unavailable")}`);
+    lines.push(`    ${currentId} -.-> ${noteId}`);
+    classIds.note.push(noteId);
+  }
+
+  lines.push("  end");
+
+  return {
+    title,
+    currentLabel: currentInfo.label,
+    transitionInfo,
+    currentId,
+    lines,
+    classIds,
+    summary: "known outer actions shown, but authoritative full transitions are not exported",
+  };
+}
+
+function buildFullStateMachineLane({ laneKey, title, states, transitionTable, currentState, transitions, startStates = [] }) {
+  const knownStates = new Set(states);
+  const terminalStates = new Set(
+    states.filter((state) => Array.isArray(transitionTable[state]) && transitionTable[state].length === 0),
+  );
+  const currentInfo = normalizeCurrentStateInfo(currentState, { knownStates, terminalStates });
+  const transitionInfo = summarizeTransitionAvailability(transitions);
+  const authoritativeCurrentNextStates = currentInfo.available
+    ? new Set(Array.isArray(transitionTable[currentInfo.label]) ? transitionTable[currentInfo.label] : [])
+    : new Set();
+  const validNormalizedTransitions = transitionInfo.unavailable || !currentInfo.available
+    ? []
+    : transitionInfo.normalizedTransitions.filter((state) => authoritativeCurrentNextStates.has(state));
+  const invalidNormalizedTransitions = transitionInfo.unavailable || !currentInfo.available
+    ? []
+    : transitionInfo.normalizedTransitions.filter((state) => !authoritativeCurrentNextStates.has(state));
+  const highlightedNextStates = new Set(validNormalizedTransitions);
+  const classIds = {
+    cue: [],
+    current: [],
+    currentTerminal: [],
+    next: [],
+    nextTerminal: [],
+    terminal: [],
+    inactive: [],
+    unavailable: [],
+    note: [],
+  };
+  const lines = [
+    `  subgraph ${laneKey}["${escapeMermaidLabel(title)}"]`,
+    "    direction LR",
+  ];
+  const startId = `${laneKey}_start`;
+  const endId = `${laneKey}_end`;
+
+  if (startStates.length > 0) {
+    lines.push(`    ${renderMermaidNode(startId, "Start", "pill")}`);
+    classIds.cue.push(startId);
+  }
+
+  for (const state of states) {
+    const nodeId = renderMermaidNodeId(laneKey, state);
+    const terminal = terminalStates.has(state);
+    lines.push(`    ${renderMermaidNode(nodeId, state)}`);
+
+    if (currentInfo.available && currentInfo.label === state) {
+      classIds[terminal ? "currentTerminal" : "current"].push(nodeId);
+    } else if (highlightedNextStates.has(state)) {
+      classIds[terminal ? "nextTerminal" : "next"].push(nodeId);
+    } else if (terminal) {
+      classIds.terminal.push(nodeId);
+    } else {
+      classIds.inactive.push(nodeId);
+    }
+  }
+
+  let endVisible = false;
+  const ensureEndNode = () => {
+    if (!endVisible) {
+      lines.push(`    ${renderMermaidNode(endId, "End", "circle")}`);
+      classIds.cue.push(endId);
+      endVisible = true;
+    }
+    return endId;
+  };
+
+  for (const startState of startStates) {
+    if (knownStates.has(startState)) {
+      lines.push(`    ${startId} --> ${renderMermaidNodeId(laneKey, startState)}`);
+    }
+  }
+
+  for (const state of states) {
+    const fromId = renderMermaidNodeId(laneKey, state);
+    const nextStates = Array.isArray(transitionTable[state]) ? transitionTable[state] : [];
+
+    if (nextStates.length === 0) {
+      lines.push(`    ${fromId} --> ${ensureEndNode()}`);
+      continue;
+    }
+
+    for (const nextState of nextStates) {
+      if (knownStates.has(nextState)) {
+        lines.push(`    ${fromId} --> ${renderMermaidNodeId(laneKey, nextState)}`);
+      }
+    }
+  }
+
+  let currentId = startStates.length > 0 ? startId : renderMermaidNodeId(laneKey, states[0]);
+  if (!currentInfo.available) {
+    const unavailableId = `${laneKey}_current_unavailable`;
+    lines.push(`    ${renderMermaidNode(unavailableId, currentInfo.label)}`);
+    classIds.unavailable.push(unavailableId);
+    currentId = unavailableId;
+  } else {
+    currentId = renderMermaidNodeId(laneKey, currentInfo.label);
+  }
+
+  if (transitionInfo.unavailable) {
+    const noteId = `${laneKey}_transitions_unavailable`;
+    lines.push(`    ${renderMermaidNode(noteId, "snapshot next transitions unavailable")}`);
+    lines.push(`    ${currentId} -.-> ${noteId}`);
+    classIds.note.push(noteId);
+  }
+
+  lines.push("  end");
+
+  const validatedTransitionSummary = transitionInfo.unavailable
+    ? "next transitions unavailable in this snapshot"
+    : !currentInfo.available
+      ? "next transitions unavailable because current state is unavailable"
+      : transitionInfo.empty
+        ? "no allowed transitions"
+        : validNormalizedTransitions.length === 0
+          ? "no authoritative next states confirmed from snapshot"
+          : `validated next states: ${validNormalizedTransitions.join(", ")}${invalidNormalizedTransitions.length === 0 ? "" : ` (${invalidNormalizedTransitions.length} invalid snapshot token${invalidNormalizedTransitions.length === 1 ? "" : "s"} ignored)`}`;
+
+  return {
+    title,
+    currentLabel: currentInfo.label,
+    transitionInfo,
+    validatedTransitionSummary,
+    currentId,
+    lines,
+    classIds,
+    summary: "full authoritative state machine shown",
+  };
+}
+
+export function buildInspectionMermaidGraph(snapshot) {
+  if (snapshot === null || snapshot === undefined || snapshot?.sourceMode === "unavailable" || renderSnapshotStateLabel(snapshot) === "unavailable") {
+    return null;
+  }
+
+  const lanes = [
+    buildOuterLoopSummaryLane({
+      laneKey: "outer_loop_family",
+      title: "outer-loop family",
+      currentState: snapshot.activeFamilyState,
+      transitions: snapshot.allowedTransitions,
+    }),
+    buildFullStateMachineLane({
+      laneKey: "copilot_layer",
+      title: "copilot layer",
+      states: Object.values(COPILOT_STATE),
+      transitionTable: COPILOT_TRANSITIONS,
+      currentState: snapshot.layers?.copilot?.currentState,
+      transitions: snapshot.layers?.copilot?.allowedTransitions,
+      startStates: [COPILOT_STATE.PR_DRAFT],
+    }),
+    buildFullStateMachineLane({
+      laneKey: "reviewer_layer",
+      title: "reviewer layer",
+      states: Object.values(REVIEWER_STATE),
+      transitionTable: REVIEWER_TRANSITIONS,
+      currentState: snapshot.layers?.reviewer?.currentState,
+      transitions: snapshot.layers?.reviewer?.allowedTransitions,
+      startStates: [REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST],
+    }),
+  ];
+
+  const classIds = {
+    cue: [],
+    current: [],
+    currentTerminal: [],
+    next: [],
+    nextTerminal: [],
+    terminal: [],
+    inactive: [],
+    unavailable: [],
+    note: [],
+  };
+
+  for (const lane of lanes) {
+    for (const [className, ids] of Object.entries(lane.classIds)) {
+      classIds[className].push(...ids);
+    }
+  }
+
+  const lines = [
+    "flowchart TB",
+    "  classDef cue fill:#f5f7f9,stroke:#78909c,stroke-width:1.5px,color:#355061,font-weight:bold;",
+    "  classDef current fill:#e3f2fd,stroke:#1565c0,stroke-width:4px,color:#12344d,font-weight:bold;",
+    "  classDef currentTerminal fill:#d9f2df,stroke:#1565c0,stroke-width:4px,color:#12344d,font-weight:800;",
+    "  classDef next fill:#f3f4ff,stroke:#5c6bc0,stroke-width:2px,color:#233242,font-weight:700;",
+    "  classDef nextTerminal fill:#eef7ef,stroke:#5c6bc0,stroke-width:3px,color:#1b5e20,font-weight:700;",
+    "  classDef terminal fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px,color:#1b5e20,font-weight:bold;",
+    "  classDef inactive fill:#ffffff,stroke:#b0bec5,stroke-width:1.5px,color:#607d8b;",
+    "  classDef unavailable fill:#f8fafc,stroke:#90a4ae,stroke-width:2px,color:#546e7a,stroke-dasharray: 6 4;",
+    "  classDef note fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#7f4b00;",
+    ...lanes.flatMap((lane) => lane.lines),
+    `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[1].currentId}`,
+    `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
+  ];
+
+  for (const [className, ids] of Object.entries(classIds)) {
+    if (ids.length > 0) {
+      lines.push(`  class ${ids.join(",")} ${className};`);
+    }
+  }
+
+  return {
+    definition: lines.join("\n"),
+    lanes: lanes.map((lane) => ({
+      title: lane.title,
+      currentLabel: lane.currentLabel,
+      transitionInfo: lane.transitionInfo,
+      validatedTransitionSummary: lane.validatedTransitionSummary ?? lane.transitionInfo.summary,
+      summary: lane.summary,
+    })),
+  };
+}
+
+function renderStateGraphLegend() {
+  return `<div class="state-graph-cues" aria-label="State graph cues">
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-start">Start</span> lane entry</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-current">Current</span> snapshot-derived current state</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-next">Next</span> immediate allowed next state</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-end">End</span> terminal / no-transition outcome</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-loop">🔁</span> manual re-inspection cue</span>
+  </div>`;
+}
+
+function renderStateGraphHelp() {
+  return `<ul class="state-graph-help">
+    <li><strong>Current:</strong> emphasized nodes show the snapshot-derived current state for each lane when that state is actually known.</li>
+    <li><strong>Next:</strong> purple nodes mark immediate allowed next states from the snapshot. Dimmed nodes are still part of the authoritative state machine; they are simply inactive right now.</li>
+    <li><strong>Start / End:</strong> Mermaid entry and exit nodes make lane boundaries easier to scan for the full authoritative graph.</li>
+    <li><strong>Outer loop:</strong> the viewer shows known outer actions but stays fail-closed about full outer-loop transitions until the repo exports that transition graph authoritatively.</li>
+    <li><strong>🔁 Loop cue:</strong> this viewer is revisited by manual reload, so the same current state can recur across inspections until evidence changes.</li>
+  </ul>`;
+}
+
+function renderStateGraphSummaries(graph) {
+  return `<ul class="state-graph-summaries">
+    ${graph.lanes.map((lane) => `<li class="state-graph-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.summary ?? lane.transitionInfo.summary)}; ${escapeHtml(lane.validatedTransitionSummary ?? lane.transitionInfo.summary)}</li>`).join("")}
+  </ul>`;
+}
+
+function renderStateGraphDetails(graph) {
+  return `<details class="state-graph-details">
+    <summary>Graph guide and lane details</summary>
+    ${renderStateGraphHelp()}
+    ${renderStateGraphSummaries(graph)}
+  </details>`;
+}
+
+function renderMermaidBootScript() {
+  return `<script src="${MERMAID_BROWSER_ASSET_ROUTE}"></script>
+    <script>
+      (() => {
+        const frames = Array.from(document.querySelectorAll(".state-graph-frame"));
+        const graphs = Array.from(document.querySelectorAll(".mermaid-state-graph"));
+        const clampScale = (value) => Math.max(0.5, Math.min(2.5, value));
+        const updateFrameScale = (frame, requestedScale) => {
+          const scale = clampScale(requestedScale);
+          frame.dataset.graphScale = String(scale);
+          const zoomValue = frame.querySelector("[data-graph-zoom-value]");
+          if (zoomValue) {
+            zoomValue.textContent = String(Math.round(scale * 100)) + "%";
+          }
+          const svg = frame.querySelector(".mermaid-state-graph svg");
+          if (svg) {
+            svg.style.width = String(Math.round(scale * 100)) + "%";
+            svg.style.maxWidth = "none";
+            svg.style.height = "auto";
+          }
+        };
+        const renderFallback = (message) => {
+          graphs.forEach((graph) => {
+            const fallback = document.createElement("p");
+            fallback.className = "state-graph-render-error";
+            fallback.textContent = message;
+            graph.replaceWith(fallback);
+          });
+        };
+
+        frames.forEach((frame) => {
+          updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
+          frame.querySelector("[data-graph-zoom-in]")?.addEventListener("click", () => {
+            updateFrameScale(frame, Number(frame.dataset.graphScale || 1) + 0.25);
+          });
+          frame.querySelector("[data-graph-zoom-out]")?.addEventListener("click", () => {
+            updateFrameScale(frame, Number(frame.dataset.graphScale || 1) - 0.25);
+          });
+          frame.querySelector("[data-graph-zoom-reset]")?.addEventListener("click", () => {
+            updateFrameScale(frame, 1);
+          });
+          frame.querySelector("[data-graph-fullscreen]")?.addEventListener("click", async () => {
+            if (document.fullscreenElement === frame) {
+              await document.exitFullscreen?.();
+              return;
+            }
+            await frame.requestFullscreen?.();
+          });
+
+          const graphViewport = frame.querySelector(".mermaid-state-graph");
+          if (graphViewport) {
+            let dragState = null;
+            graphViewport.addEventListener("pointerdown", (event) => {
+              if (event.button !== 0) {
+                return;
+              }
+              dragState = {
+                pointerId: event.pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                startScrollLeft: graphViewport.scrollLeft,
+                startScrollTop: graphViewport.scrollTop,
+              };
+              graphViewport.dataset.dragging = "true";
+              graphViewport.setPointerCapture?.(event.pointerId);
+              event.preventDefault();
+            });
+            graphViewport.addEventListener("pointermove", (event) => {
+              if (!dragState || dragState.pointerId !== event.pointerId) {
+                return;
+              }
+              graphViewport.scrollLeft = dragState.startScrollLeft - (event.clientX - dragState.startX);
+              graphViewport.scrollTop = dragState.startScrollTop - (event.clientY - dragState.startY);
+            });
+            const stopDragging = (event) => {
+              if (!dragState || dragState.pointerId !== event.pointerId) {
+                return;
+              }
+              graphViewport.dataset.dragging = "false";
+              graphViewport.releasePointerCapture?.(event.pointerId);
+              dragState = null;
+            };
+            graphViewport.addEventListener("pointerup", stopDragging);
+            graphViewport.addEventListener("pointercancel", stopDragging);
+          }
+        });
+
+        if (graphs.length === 0) {
+          return;
+        }
+        if (typeof window.mermaid === "undefined") {
+          renderFallback("Mermaid browser asset unavailable. Use the details below or open /snapshot.json.");
+          return;
+        }
+
+        window.mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: "base",
+          flowchart: {
+            useMaxWidth: true,
+            htmlLabels: false,
+            curve: "basis",
+          },
+        });
+
+        window.mermaid.run({ nodes: graphs }).then(() => {
+          graphs.forEach((graph) => {
+            graph.dataset.rendered = "true";
+            const frame = graph.closest(".state-graph-frame");
+            if (frame) {
+              updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
+            }
+          });
+        }).catch(() => {
+          renderFallback("Mermaid could not render this snapshot safely. Use the details below or open /snapshot.json.");
+        });
+      })();
+    </script>`;
+}
+
+function renderStateVisualizationSection(snapshot, graph) {
+  if (graph === null) {
+    return `<div class="state-graph-block">
+      <p class="state-graph-intro">Snapshot unavailable, so no state graph can be rendered yet.</p>
+    </div>`;
+  }
+
+  return `<div class="state-graph-block">
+    <p class="state-graph-intro">${escapeHtml(renderStateVisualizationIntro(snapshot))}</p>
+    <div class="state-graph-frame" data-graph-scale="1">
+      <div class="state-graph-toolbar" aria-label="Graph controls">
+        <button type="button" data-graph-zoom-out aria-label="Zoom out">−</button>
+        <button type="button" data-graph-zoom-in aria-label="Zoom in">+</button>
+        <button type="button" data-graph-zoom-reset aria-label="Reset zoom">100%</button>
+        <span class="state-graph-zoom-value" data-graph-zoom-value>100%</span>
+        <button type="button" data-graph-fullscreen aria-label="Open graph fullscreen">⤢</button>
+      </div>
+      <div class="mermaid-state-graph mermaid" data-rendered="pending" aria-label="Mermaid inspection state graph">${escapeHtml(graph.definition)}</div>
+    </div>
+    ${renderStateGraphLegend()}
+    ${renderStateGraphDetails(graph)}
+  </div>`;
+}
+
 function renderCompactSection({ title, entries = [], lists = [] }) {
   if (entries.length === 0 && lists.length === 0) {
     return `<section><h2>${escapeHtml(title)}</h2><p>not present / unavailable</p></section>`;
@@ -216,6 +817,13 @@ function renderCompactSection({ title, entries = [], lists = [] }) {
       ${renderList(items)}
     `).join("")}
   </section>`;
+}
+
+function renderCollapsedDetailsPanel(content) {
+  return `<details class="inspection-details">
+    <summary>Details</summary>
+    ${content}
+  </details>`;
 }
 
 function renderOuterLoopSummarySection(snapshot) {
@@ -328,6 +936,9 @@ function renderSnapshotStateLabel(snapshot) {
   if (!snapshot) {
     return "unavailable";
   }
+  if (snapshot.sourceMode === "unavailable") {
+    return "unavailable";
+  }
   if (Array.isArray(snapshot.markers?.conflicts) && snapshot.markers.conflicts.length > 0) {
     return "conflicting";
   }
@@ -337,10 +948,57 @@ function renderSnapshotStateLabel(snapshot) {
   if (snapshot.sourceMode === "partial") {
     return "degraded";
   }
-  if (snapshot.sourceMode === "unavailable") {
-    return "unavailable";
-  }
   return "authoritative";
+}
+
+function formatStateToken(value, fallback = "not present") {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return fallback;
+  }
+  return value.trim();
+}
+
+function renderCurrentStateNote(snapshot) {
+  if (!snapshot) {
+    return "Unable to determine the current PR state yet.";
+  }
+
+  if (snapshot.sourceMode === "unavailable") {
+    return "Snapshot unavailable. Open /snapshot.json or reload once the inspection surface is available again.";
+  }
+
+  if ((snapshot.markers?.conflicts?.length ?? 0) > 0) {
+    return "Conflicting evidence is present. Treat the current-state fields below as advisory until the snapshot is reconciled.";
+  }
+
+  if (snapshot.sourceMode === "checkpoint-only") {
+    return "This is a checkpoint-only snapshot. The current-state fields below are advisory, not live-confirmed.";
+  }
+
+  if (snapshot.sourceMode === "partial" || snapshot.trust === "degraded") {
+    return "This snapshot is degraded. The current-state fields below may be incomplete and should be cross-checked against the graph and raw snapshot.";
+  }
+
+  return "These fields are shown directly from the loaded inspection snapshot so the current state stays visible without inventing a second viewer-only status model.";
+}
+
+function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
+  return `<section class="current-pr-state-banner" aria-label="Current PR state">
+    <h2>Current PR state</h2>
+    <div class="current-pr-state-visualization">
+      ${renderStateVisualizationSection(snapshot, graph)}
+    </div>
+    <p class="current-pr-state-detail">${escapeHtml(renderCurrentStateNote(snapshot))}</p>
+    <dl class="current-pr-state-grid">
+      <dt>target</dt><dd><code>${escapeHtml(target.repo)}#${escapeHtml(target.pr)}</code></dd>
+      <dt>snapshot trust</dt><dd><span class="badge">${escapeHtml(stateLabel)}</span></dd>
+      <dt>status class</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.statusClass))}</code></dd>
+      <dt>outer</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
+      <dt>copilot</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.copilot?.currentState))}</code></dd>
+      <dt>reviewer</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.reviewer?.currentState))}</code></dd>
+      <dt>trust</dt><dd>${escapeHtml(snapshot?.evidence?.summary ?? "not present")}</dd>
+    </dl>
+  </section>`;
 }
 
 export function renderInspectRunViewerHtml({
@@ -349,6 +1007,7 @@ export function renderInspectRunViewerHtml({
   error = null,
 }) {
   const normalizedSnapshot = snapshot ?? null;
+  const graph = buildInspectionMermaidGraph(normalizedSnapshot);
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
   const title = `${target.repo}#${target.pr} inspection snapshot`;
   const pageHeading = `PR #${target.pr} inspection`;
@@ -386,23 +1045,67 @@ export function renderInspectRunViewerHtml({
       body { font-family: sans-serif; margin: 1rem auto; max-width: 70rem; line-height: 1.4; }
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
+      .current-pr-state-banner { border: 1px solid #cfe0f5; background: linear-gradient(180deg, #f8fbff 0%, #eef5fd 100%); box-shadow: 0 8px 24px rgba(21, 101, 192, 0.08); }
+      .current-pr-state-banner h2 { margin: 0.2rem 0 0.5rem 0; font-size: 1.9rem; line-height: 1.15; }
+      .current-pr-state-detail { margin: 0.6rem 0 0.8rem 0; color: #274766; font-size: 0.98rem; }
+      .current-pr-state-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); background: rgba(255,255,255,0.6); padding: 0.85rem; border-radius: 0.6rem; }
+      .current-pr-state-grid dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: #4c6478; }
+      .current-pr-state-grid dd { margin: 0 0 0.5rem 0; }
+      .state-graph-block { margin-top: 0.4rem; }
+      .state-graph-intro { margin-top: 0; margin-bottom: 0.6rem; color: #333; font-size: 0.98rem; }
+      .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); overflow: hidden; }
+      .state-graph-toolbar { display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.65rem; border-bottom: 1px solid #d7e3f4; background: rgba(255,255,255,0.85); }
+      .state-graph-toolbar button { border: 1px solid #9fb6cb; background: #fff; border-radius: 0.45rem; padding: 0.3rem 0.6rem; font: inherit; cursor: pointer; }
+      .state-graph-toolbar button:hover { background: #f3f8fd; }
+      .state-graph-zoom-value { margin-left: auto; font-size: 0.88rem; color: #486174; }
+      .mermaid-state-graph { min-height: 16rem; padding: 0.75rem; overflow: auto; cursor: grab; user-select: none; touch-action: none; }
+      .mermaid-state-graph[data-dragging="true"] { cursor: grabbing; }
+      .mermaid-state-graph[data-rendered="pending"] { color: #5a7184; }
+      .mermaid-state-graph svg { display: block; width: 100%; height: auto; transition: width 120ms ease; }
+      .state-graph-cues { display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; margin: 0.75rem 0 0.35rem 0; }
+      .state-graph-cue { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; color: #355061; }
+      .state-graph-cue-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 2.5rem; padding: 0.14rem 0.5rem; border-radius: 999px; border: 1px solid #90a4ae; background: #fff; font-weight: 700; }
+      .state-graph-cue-chip-start { border-color: #78909c; background: #f5f7f9; }
+      .state-graph-cue-chip-current { border-color: #1565c0; background: #e3f2fd; }
+      .state-graph-cue-chip-next { border-color: #5c6bc0; background: #f3f4ff; }
+      .state-graph-cue-chip-end { border-color: #2e7d32; background: #e8f5e9; }
+      .state-graph-cue-chip-loop { border-color: #ef6c00; background: #fff3e0; }
+      .state-graph-details { margin-top: 0.7rem; }
+      .state-graph-details summary { cursor: pointer; font-weight: 600; color: #355061; }
+      .state-graph-help { margin: 0.75rem 0 0.85rem 1.1rem; padding: 0; color: #425d70; }
+      .state-graph-help li + li { margin-top: 0.35rem; }
+      .state-graph-render-error { margin: 0; padding: 0.9rem; color: #7f4b00; }
+      .state-graph-summaries { margin: 0.85rem 0 0 0; padding-left: 1.1rem; }
+      .state-graph-summary + .state-graph-summary { margin-top: 0.3rem; }
+      .inspection-details { margin-top: 1rem; }
+      .inspection-details summary { cursor: pointer; font-weight: 700; }
       dl { display: grid; grid-template-columns: 14rem 1fr; gap: 0.35rem 0.75rem; }
       dt { font-weight: 600; }
       section { border: 1px solid #ddd; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; }
+      @media (max-width: 900px) {
+        .current-pr-state-grid { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 640px) {
+        .current-pr-state-grid { grid-template-columns: 1fr; }
+        .state-graph-toolbar { flex-wrap: wrap; }
+        .state-graph-zoom-value { margin-left: 0; }
+      }
     </style>
   </head>
   <body>
     <h1>${escapeHtml(pageHeading)}</h1>
-    <p><strong>Target:</strong> <code>${escapeHtml(target.repo)}</code></p>
     <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
-    <p><strong>Refresh:</strong> manual reload only.</p>
-    <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
-    ${topSummary}
-    ${renderOuterLoopSummarySection(normalizedSnapshot)}
-    ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
-    ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
-    ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
-    ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
+    <p><strong>Refresh:</strong> manual reload only. <strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
+    ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph)}
+    ${renderCollapsedDetailsPanel(`
+      ${topSummary}
+      ${renderOuterLoopSummarySection(normalizedSnapshot)}
+      ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
+      ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
+      ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
+      ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
+    `)}
+    ${graph === null ? "" : renderMermaidBootScript()}
   </body>
 </html>`;
 }
@@ -538,6 +1241,7 @@ export async function restartExistingPortListener(
 
 export function createInspectRunViewerServer(options, deps = {}) {
   const adapter = deps.adapter ?? createInspectionViewerAdapter();
+  const loadMermaidBrowserScriptImpl = deps.loadMermaidBrowserScriptImpl ?? loadMermaidBrowserScript;
   const target = normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
   const adapterOptions = makeAdapterOptions(options);
 
@@ -552,7 +1256,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         return;
       }
 
-      if (requestPath !== "/" && requestPath !== "/snapshot.json") {
+      if (requestPath !== "/" && requestPath !== "/snapshot.json" && requestPath !== MERMAID_BROWSER_ASSET_ROUTE) {
         writeText(response, 404, "Not Found", {
           "content-type": "text/plain; charset=utf-8",
         });
@@ -564,6 +1268,20 @@ export function createInspectRunViewerServer(options, deps = {}) {
           allow: "GET",
           "content-type": "text/plain; charset=utf-8",
         });
+        return;
+      }
+
+      if (requestPath === MERMAID_BROWSER_ASSET_ROUTE) {
+        try {
+          const mermaidBrowserScript = await loadMermaidBrowserScriptImpl();
+          writeText(response, 200, mermaidBrowserScript, {
+            "content-type": "application/javascript; charset=utf-8",
+          });
+        } catch {
+          writeText(response, 500, "Mermaid browser asset unavailable. Restart the viewer after reinstalling dependencies.", {
+            "content-type": "text/plain; charset=utf-8",
+          });
+        }
         return;
       }
 
