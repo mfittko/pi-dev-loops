@@ -2,6 +2,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -50,9 +51,8 @@ Optional:
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4311;
 const execFile = promisify(execFileCallback);
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MERMAID_BROWSER_ASSET_ROUTE = "/assets/mermaid.min.js";
-const MERMAID_BROWSER_ASSET_PATH = path.join(REPO_ROOT, "node_modules", "mermaid", "dist", "mermaid.min.js");
+const require = createRequire(import.meta.url);
 
 let mermaidBrowserScriptPromise = null;
 
@@ -301,9 +301,22 @@ function summarizeTransitionAvailability(transitions) {
   };
 }
 
-async function loadMermaidBrowserScript() {
+export function resolveMermaidBrowserAssetPath(resolveImpl = require.resolve) {
+  const mermaidPackageJsonPath = resolveImpl("mermaid/package.json");
+  return path.join(path.dirname(mermaidPackageJsonPath), "dist", "mermaid.min.js");
+}
+
+export async function loadMermaidBrowserScript({
+  readFileImpl = readFile,
+  resolveMermaidBrowserAssetPathImpl = resolveMermaidBrowserAssetPath,
+} = {}) {
   if (mermaidBrowserScriptPromise === null) {
-    mermaidBrowserScriptPromise = readFile(MERMAID_BROWSER_ASSET_PATH, "utf8");
+    mermaidBrowserScriptPromise = Promise.resolve()
+      .then(() => readFileImpl(resolveMermaidBrowserAssetPathImpl(), "utf8"))
+      .catch((error) => {
+        mermaidBrowserScriptPromise = null;
+        throw error;
+      });
   }
   return mermaidBrowserScriptPromise;
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { get, request } from "node:http";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -8,8 +9,10 @@ import {
   createInspectRunViewerServer,
   formatInspectRunViewerUrl,
   listListeningPidsForPort,
+  loadMermaidBrowserScript,
   parseInspectRunViewerCliArgs,
   renderInspectRunViewerHtml,
+  resolveMermaidBrowserAssetPath,
   restartExistingPortListener,
   runCli,
 } from "../../scripts/loop/inspect-run-viewer.mjs";
@@ -645,6 +648,41 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("resolveMermaidBrowserAssetPath derives the asset path from the Mermaid package location", () => {
+  const resolved = resolveMermaidBrowserAssetPath((specifier) => {
+    assert.equal(specifier, "mermaid/package.json");
+    return "/tmp/custom-layout/mermaid/package.json";
+  });
+
+  assert.equal(resolved, path.join("/tmp/custom-layout/mermaid", "dist", "mermaid.min.js"));
+});
+
+test("loadMermaidBrowserScript clears cached rejection so a later retry can recover", async () => {
+  let attempts = 0;
+
+  await assert.rejects(
+    () => loadMermaidBrowserScript({
+      resolveMermaidBrowserAssetPathImpl: () => "/tmp/mermaid.min.js",
+      readFileImpl: async () => {
+        attempts += 1;
+        throw new Error("missing mermaid");
+      },
+    }),
+    /missing mermaid/,
+  );
+
+  const recovered = await loadMermaidBrowserScript({
+    resolveMermaidBrowserAssetPathImpl: () => "/tmp/mermaid.min.js",
+    readFileImpl: async () => {
+      attempts += 1;
+      return "window.mermaid = {};";
+    },
+  });
+
+  assert.equal(recovered, "window.mermaid = {};");
+  assert.equal(attempts, 2);
 });
 
 test("createInspectRunViewerServer serves the Mermaid browser asset without loading a snapshot", async () => {
