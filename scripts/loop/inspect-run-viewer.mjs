@@ -306,7 +306,7 @@ function createStateMapLane({ title, currentState, transitions, startX, startY }
       : transitionInfo.empty
         ? "no allowed transitions"
         : null,
-    guide: laneGuideText(title),
+    guide: null,
     startX,
     startY,
     nodes,
@@ -347,14 +347,18 @@ function renderStateMapLegend() {
   </div>`;
 }
 
-function laneGuideText(title) {
+function laneGuideText(title, snapshotStateLabel = "authoritative") {
   switch (title) {
-    case "outer-loop family":
+    case "outer-loop family": {
+      const start = snapshotStateLabel === "authoritative"
+        ? "Start: routed from authoritative inspection"
+        : "Start: routed from the best available inspection evidence";
       return {
-        start: "Start: routed from authoritative inspection",
+        start,
         loop: "🔁 Loop: continue_wait can repeat across re-inspections",
         end: "End: stop or done",
       };
+    }
     case "copilot layer":
       return {
         start: "Start: pr_ready_no_feedback",
@@ -411,6 +415,11 @@ function buildInspectionStateMap(snapshot) {
     startX: 120,
     startY: 460,
   });
+  const snapshotStateLabel = renderSnapshotStateLabel(snapshot);
+  outerLane.guide = laneGuideText(outerLane.title, snapshotStateLabel);
+  copilotLane.guide = laneGuideText(copilotLane.title, snapshotStateLabel);
+  reviewerLane.guide = laneGuideText(reviewerLane.title, snapshotStateLabel);
+
   const lanes = [outerLane, copilotLane, reviewerLane];
   const width = Math.max(
     1180,
