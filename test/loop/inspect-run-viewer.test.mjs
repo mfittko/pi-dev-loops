@@ -414,8 +414,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
     snapshot: makeSnapshot(),
   });
 
-  assert.match(html, /PR #55 inspection/);
-  assert.match(html, /Current PR state/);
+  assert.match(html, /PR #55 State/);
+  assert.match(html, /aria-label="PR #55 State"/);
   assert.match(html, /Waiting for Copilot review/);
   assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
   assert.match(html, /These fields are shown directly from the loaded inspection snapshot/i);
@@ -445,8 +445,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.missing/);
   assert.match(html, /markers\.stale/);
   assert.match(html, /markers\.conflicts/);
-  assert.match(html, /authoritative graph view from the current inspection snapshot/i);
-  assert.match(html, /full authoritative outer, copilot, and reviewer state graphs/i);
+  assert.doesNotMatch(html, /authoritative graph view from the current inspection snapshot/i);
   assert.match(html, /class="state-graph-cues"/);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /data-graph-zoom-in/);
@@ -474,7 +473,6 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /reviewer layer/);
   assert.match(html, /steering summary/);
   assert.match(html, /href="\/snapshot\.json"/);
-  assert.match(html, /title="Reload snapshot"/);
   assert.match(html, /manual reload only/i);
   assert.doesNotMatch(html, /Connected state map/);
   assert.doesNotMatch(html, /"schemaVersion": 1/);
@@ -505,7 +503,7 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
   });
 
   assert.match(html, /checkpoint-only/);
-  assert.match(html, /checkpoint-only graph view[\s\S]*current and next highlights are advisory until live inspection is available\./i);
+  assert.doesNotMatch(html, /checkpoint-only graph view[\s\S]*current and next highlights are advisory until live inspection is available\./i);
   assert.match(html, /Needs attention/);
   assert.match(html, /The current snapshot is not authoritative enough to collapse to one trusted outer state/);
   assert.match(html, /This is a checkpoint-only snapshot\. The current-state fields below are advisory, not live-confirmed\./i);
@@ -564,7 +562,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
     }),
   });
 
-  assert.match(html, /Current PR state/);
+  assert.match(html, /PR #55 State/);
   assert.match(html, /PR complete/);
   assert.match(html, /The current inspection says this PR is in a terminal done state/);
   assert.match(html, /status class[\s\S]*<code>done<\/code>/);
@@ -661,7 +659,7 @@ test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
   });
 
   assert.match(html, /Snapshot state:[\s\S]*conflicting/);
-  assert.match(html, /Conflicting graph view[\s\S]*resolve the evidence conflict before trusting the highlights\./i);
+  assert.doesNotMatch(html, /Conflicting graph view[\s\S]*resolve the evidence conflict before trusting the highlights\./i);
   assert.match(html, /Conflicting evidence is present\. Treat the current-state fields below as advisory until the snapshot is reconciled\./i);
   assert.match(html, /checkpoint outerAction/);
 });
@@ -789,7 +787,7 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
     assert.equal(response.headers["cache-control"], "no-store");
-    assert.match(response.body, /PR #55 inspection/);
+    assert.match(response.body, /PR #55 State/);
     assert.match(response.body, /owner\/repo/);
     assert.match(response.body, /degraded/);
     assert.match(response.body, /manual reload only/i);
