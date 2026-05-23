@@ -376,6 +376,48 @@ test("composeRunInspectionSnapshot: live evidence + reenter_copilot_loop → act
   assert.equal(snapshot.sourceMode, SOURCE_MODE.LIVE_DETECTOR_BACKED);
 });
 
+test("composeRunInspectionSnapshot: evidence summary preserves stay_with_current_live_owner", () => {
+  const snapshot = composeRunInspectionSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "stay_with_current_live_owner",
+    outerAllowedTransitions: ["continue_current_wait"],
+    outerAction: "continue_wait",
+    copilotEvidence: makeCopilotEvidence("ready_to_rerequest_review"),
+    reviewerEvidence: makeReviewerEvidence("waiting_for_review_request"),
+    existingCheckpoint: null,
+    liveAvailability: { copilot: "ok", reviewer: "ok" },
+    steeringLocatorPath: null,
+    steeringEvidence: null,
+    steeringLoadFailed: false,
+  });
+
+  assert.match(snapshot.evidence.summary, /live owner already controls this run/i);
+  assert.doesNotMatch(snapshot.evidence.summary, /outerAction: continue_wait/i);
+});
+
+
+test("composeRunInspectionSnapshot: evidence summary preserves needs_reconcile", () => {
+  const snapshot = composeRunInspectionSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "needs_reconcile",
+    outerAllowedTransitions: [],
+    outerAction: "stop",
+    outerReason: "ownership_conflict",
+    copilotEvidence: makeCopilotEvidence("waiting_for_copilot_review"),
+    reviewerEvidence: makeReviewerEvidence("waiting_for_review_request"),
+    existingCheckpoint: null,
+    liveAvailability: { copilot: "ok", reviewer: "ok" },
+    steeringLocatorPath: null,
+    steeringEvidence: null,
+    steeringLoadFailed: false,
+  });
+
+  assert.match(snapshot.evidence.summary, /must reconcile before continuing/i);
+  assert.doesNotMatch(snapshot.evidence.summary, /blocked\/stop state/i);
+});
+
 // ---------------------------------------------------------------------------
 // Unit tests: checkpoint-only fixture
 // ---------------------------------------------------------------------------

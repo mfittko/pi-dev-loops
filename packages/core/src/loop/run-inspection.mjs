@@ -362,16 +362,24 @@ export function composeRunInspectionSnapshot({
   if (explicitTargetMissing) {
     evidenceSummary = "The explicit target PR was not found; no current run state could be determined.";
   } else if (sourceMode === SOURCE_MODE.LIVE_DETECTOR_BACKED) {
-    if (effectiveOuterAction === "continue_wait") {
-      evidenceSummary = `Live detectors agree the PR is in a wait state (outerAction: ${effectiveOuterAction}).`;
-    } else if (effectiveOuterAction === "done") {
+    if (effectiveOuterState === "stay_with_current_live_owner") {
+      evidenceSummary = "Live detectors agree a live owner already controls this run, so the outer loop should not issue a new handoff yet.";
+    } else if (effectiveOuterState === "needs_reconcile") {
+      evidenceSummary = "Live detectors found ambiguous or conflicting state, so the outer loop must reconcile before continuing.";
+    } else if (effectiveOuterState === "stop_needs_human") {
+      evidenceSummary = `Live detectors indicate a blocked outer state that needs human intervention${effectiveOuterReason !== undefined ? ` (reason: ${effectiveOuterReason})` : ""}.`;
+    } else if (effectiveOuterState === "done_terminal") {
       evidenceSummary = "Live detectors agree the PR is complete.";
-    } else if (effectiveOuterAction === "stop") {
-      evidenceSummary = `Live detectors indicate a blocked/stop state${effectiveOuterReason !== undefined ? ` (reason: ${effectiveOuterReason})` : ""}.`;
+    } else if (effectiveOuterState === "continue_current_wait") {
+      evidenceSummary = "Live detectors agree the outer loop is in its durable wait state.";
+    } else if (effectiveOuterState === "handoff_to_copilot_loop") {
+      evidenceSummary = "Live detectors indicate the next meaningful work belongs to the Copilot loop.";
+    } else if (effectiveOuterState === "handoff_to_reviewer_loop") {
+      evidenceSummary = "Live detectors indicate the next meaningful work belongs to the reviewer loop.";
     } else if (effectiveOuterAction !== undefined) {
-      evidenceSummary = `Live detectors indicate active work is needed (outerAction: ${effectiveOuterAction}).`;
+      evidenceSummary = `Live detectors returned results, but only the compatibility outerAction could be determined (outerAction: ${effectiveOuterAction}).`;
     } else {
-      evidenceSummary = "Live detectors returned results but outer action could not be determined.";
+      evidenceSummary = "Live detectors returned results but outer state could not be determined.";
     }
     if (markers.conflicts.length > 0) {
       evidenceSummary += " Checkpoint state conflicts with live facts.";

@@ -42,7 +42,8 @@ async function seedPackagedSupport(tempDir) {
     "github/repo-slug.mjs": "export const normalizeRepoSlug = (repo) => repo;\nexport const parseRepoSlugParts = (repo) => ({ owner: repo, name: repo });\n",
     "github/review-threads.mjs": "export const reviewThreads = true;\n",
     "loop/copilot-loop-state.mjs": "export const copilotState = true;\n",
-    "loop/outer-loop-state.mjs": "export const outerLoopState = true;\n",
+    "loop/conductor-routing.mjs": "export const ROUTING_OUTCOME = { CONTINUE_CURRENT_WAIT: 'continue_current_wait' };\n",
+    "loop/outer-loop-state.mjs": "import { ROUTING_OUTCOME } from './conductor-routing.mjs';\nexport const outerLoopState = ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT;\n",
     "loop/phase-files.mjs": "export const phaseFiles = true;\n",
     "loop/reviewer-loop-state.mjs": "export const reviewerState = true;\n",
     "loop/steering.mjs": "export const steeringState = true;\n",
@@ -84,6 +85,30 @@ async function runNodeScript(scriptPath, args = []) {
   });
 }
 
+async function runNodeInline(code) {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--input-type=module", "--eval", code], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
 async function assertInstalledCopilotHelpersExecute(targetRoot, skillName = "copilot-autopilot") {
   const detectScriptPath = path.join(targetRoot, skillName, "scripts", "loop", "detect-copilot-loop-state.mjs");
   const detectResult = await runNodeScript(detectScriptPath, ["--help"]);
@@ -96,6 +121,17 @@ async function assertInstalledCopilotHelpersExecute(targetRoot, skillName = "cop
   assert.equal(handoffResult.code, 0);
   assert.match(handoffResult.stdout, /Usage:/);
   assert.doesNotMatch(handoffResult.stderr, /ERR_MODULE_NOT_FOUND/);
+}
+
+async function assertInstalledOuterLoopContractImports(targetRoot, skillName = "copilot-autopilot") {
+  const outerLoopStatePath = path.join(targetRoot, skillName, "packages", "core", "src", "loop", "outer-loop-state.mjs");
+  const result = await runNodeInline(`
+    const mod = await import(${JSON.stringify(`file://${outerLoopStatePath}`)});
+    process.stdout.write(String(mod.outerLoopState ?? mod.OUTER_STATE?.CONTINUE_CURRENT_WAIT ?? 'missing'));
+  `);
+  assert.equal(result.code, 0);
+  assert.doesNotMatch(result.stderr, /ERR_MODULE_NOT_FOUND/);
+  assert.match(result.stdout, /continue_current_wait/);
 }
 
 test("resolveSystemSkillsRoot targets ~/.pi/agent/skills", () => {
@@ -148,7 +184,7 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-dev-loop", "packages", "core", "src", "loop", "outer-loop-state.mjs"), "utf8"),
-    "export const outerLoopState = true;\n",
+    "import { ROUTING_OUTCOME } from './conductor-routing.mjs';\nexport const outerLoopState = ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT;\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "copilot-loop-state-graph.md"), "utf8"),
@@ -193,7 +229,7 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "loop", "outer-loop-state.mjs"), "utf8"),
-    "export const outerLoopState = true;\n",
+    "import { ROUTING_OUTCOME } from './conductor-routing.mjs';\nexport const outerLoopState = ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT;\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "loop", "steering.mjs"), "utf8"),
@@ -288,6 +324,7 @@ test("install supports executing packaged copilot helper entrypoints from instal
   });
 
   await assertInstalledCopilotHelpersExecute(targetRoot);
+  await assertInstalledOuterLoopContractImports(targetRoot);
 });
 
 test("install supports executing packaged copilot helper entrypoints through a symlinked path alias", async () => {
@@ -303,6 +340,7 @@ test("install supports executing packaged copilot helper entrypoints through a s
   await symlink(targetRoot, aliasRoot);
 
   await assertInstalledCopilotHelpersExecute(aliasRoot);
+  await assertInstalledOuterLoopContractImports(aliasRoot);
 });
 
 test("update refreshes packaged copilot helper entrypoints for existing installed targets", async () => {
@@ -327,6 +365,7 @@ test("update refreshes packaged copilot helper entrypoints for existing installe
     ],
   );
   await assertInstalledCopilotHelpersExecute(targetRoot);
+  await assertInstalledOuterLoopContractImports(targetRoot);
 });
 
 test("install refuses symlinked roots, symlinked ancestors, and skill targets to avoid mutating the symlink source unexpectedly", async () => {

@@ -421,9 +421,9 @@ Optional:
 
 Contract:
 - is strictly read-only: it does not write checkpoints, mutate GitHub state, or create local artifacts
-- returns a stable top-level inspection shape with target identity, derived `runId`, outer action, active family state,
+- returns a stable top-level inspection shape with target identity, derived `runId`, authoritative `outerState`, compatibility `outerAction`, active family state,
   status class, trust/source semantics, evidence, markers, and best-effort drill-down layers
-- only derives top-level `outerAction` / `activeFamilyState` / `statusClass` when inspection has a complete current inner-loop picture, whether from live detectors and/or caller-supplied snapshot inputs
+- only derives top-level `outerState` / `outerAction` / `activeFamilyState` / `statusClass` when inspection has a complete current inner-loop picture, whether from live detectors and/or caller-supplied snapshot inputs
 - when inspection falls back to checkpoint-only data or mixed live + checkpoint evidence, checkpoint-backed drill-down layers and checkpoint evidence paths remain available as advisory context while the top-level state stays `"unknown"`
 - reports not-found or unavailable targets as structured success output with `statusClass: "unknown"`
   rather than by throwing a synthetic blocked-run error
@@ -440,7 +440,7 @@ Contract:
 - rejects mismatched steering-state files from the targeted repo/pr instead of projecting their state onto the inspected run
 
 Success output shape:
-- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "loopIterations": { "available": true|false, ... }, "layers": { "reviewer": { "currentState": "...", "scope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, ... }, ... } }`
+- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerState": "...", "allowedTransitions": [...], "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "loopIterations": { "available": true|false, ... }, "layers": { "reviewer": { "currentState": "...", "scope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, ... }, ... } }`
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
