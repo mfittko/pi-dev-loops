@@ -68,7 +68,7 @@ When `action` is `"watch"`, use the returned `watchArgs` with `watch-copilot-rev
 ```sh
 node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>
 ```
-Runs the handoff first, then — when the state is still `waiting_for_copilot_review` — keeps the emitted non-zero watch timeout instead of degrading normal async waiting into a zero-timeout `idle` probe. The result includes `{ ok: true, handoffAction, state, watchStatus?, loopDisposition, terminal }`.
+Runs the handoff first, then — when the state is still `waiting_for_copilot_review` — keeps the emitted non-zero watch timeout instead of degrading normal async waiting into a zero-timeout `idle` probe. The result preserves the shared `loopDisposition` contract from the Copilot state machine and adds a separate coarse `cycleDisposition` field for the helper's wait-boundary summary: `{ ok: true, handoffAction, state, watchStatus?, loopDisposition, cycleDisposition, terminal }`.
 Use `--probe-only` only for an explicit one-shot status/reattach probe; it is not the normal async wait path.
 
 **Request status reference**

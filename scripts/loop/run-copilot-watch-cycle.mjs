@@ -25,10 +25,11 @@ Output (stdout, JSON):
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
     "reviewRequestStatus"?: "...", "watchArgs"?: { ... },
     "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... },
-    "loopDisposition": "pending"|"needs_followup"|"terminal",
+    "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done",
+    "cycleDisposition": "pending"|"needs_followup"|"terminal",
     "terminal": true|false }
 
-Loop disposition:
+Cycle disposition:
   pending         Watch state persists; keep waiting or re-enter later
   needs_followup  Fresh review activity or fix-state follow-up needs action
   terminal        No automatic next step remains
@@ -136,8 +137,9 @@ export async function runWatchCycle(
     allowedTransitions: handoff.allowedTransitions,
     nextAction: handoff.nextAction,
     snapshot: handoff.snapshot,
-    loopDisposition: handoff.action === "stop" ? "terminal" : "needs_followup",
-    terminal: handoff.action === "stop",
+    loopDisposition: handoff.loopDisposition,
+    cycleDisposition: handoff.action === "stop" ? "terminal" : "needs_followup",
+    terminal: Boolean(handoff.terminal),
   };
 
   if (handoff.reviewRequestStatus !== undefined) {
@@ -161,7 +163,7 @@ export async function runWatchCycle(
   result.watchArgs = watchOptions;
   result.watchStatus = watch.status;
   result.watch = watch;
-  result.loopDisposition = watch.status === "changed" ? "needs_followup" : "pending";
+  result.cycleDisposition = watch.status === "changed" ? "needs_followup" : "pending";
   result.terminal = false;
   return result;
 }

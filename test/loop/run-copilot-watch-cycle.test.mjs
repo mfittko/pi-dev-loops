@@ -99,6 +99,8 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
         allowedTransitions: ["unresolved_feedback_present"],
         nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
         snapshot: { repo: "owner/repo", pr: 17 },
+        loopDisposition: "pending",
+        terminal: false,
         watchArgs: {
           repo: "owner/repo",
           pr: 17,
@@ -125,6 +127,7 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
   assert.equal(watcherOptions.timeoutMs, 86_400_000);
   assert.notEqual(watcherOptions.timeoutMs, 0);
   assert.equal(result.loopDisposition, "pending");
+  assert.equal(result.cycleDisposition, "pending");
   assert.equal(result.terminal, false);
   assert.equal(result.watchStatus, "timeout");
   assert.equal(result.state, "waiting_for_copilot_review");
@@ -148,6 +151,8 @@ test("runWatchCycle uses zero-timeout idle probes only when explicitly requested
         allowedTransitions: ["unresolved_feedback_present"],
         nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
         snapshot: { repo: "owner/repo", pr: 17 },
+        loopDisposition: "pending",
+        terminal: false,
         watchArgs: {
           repo: "owner/repo",
           pr: 17,
@@ -173,11 +178,12 @@ test("runWatchCycle uses zero-timeout idle probes only when explicitly requested
 
   assert.equal(watcherOptions.timeoutMs, 0);
   assert.equal(result.loopDisposition, "pending");
+  assert.equal(result.cycleDisposition, "pending");
   assert.equal(result.terminal, false);
   assert.equal(result.watchStatus, "idle");
 });
 
-test("runWatchCycle returns needs_followup when fresh Copilot activity appears", async () => {
+test("runWatchCycle keeps shared loopDisposition and reports needs_followup in cycleDisposition when fresh Copilot activity appears", async () => {
   const result = await runWatchCycle(
     {
       repo: "owner/repo",
@@ -193,6 +199,8 @@ test("runWatchCycle returns needs_followup when fresh Copilot activity appears",
         allowedTransitions: ["unresolved_feedback_present"],
         nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
         snapshot: { repo: "owner/repo", pr: 17 },
+        loopDisposition: "pending",
+        terminal: false,
         watchArgs: {
           repo: "owner/repo",
           pr: 17,
@@ -213,12 +221,13 @@ test("runWatchCycle returns needs_followup when fresh Copilot activity appears",
     },
   );
 
-  assert.equal(result.loopDisposition, "needs_followup");
+  assert.equal(result.loopDisposition, "pending");
+  assert.equal(result.cycleDisposition, "needs_followup");
   assert.equal(result.terminal, false);
   assert.equal(result.watchStatus, "changed");
 });
 
-test("runWatchCycle returns needs_followup immediately for fix states without invoking the watcher", async () => {
+test("runWatchCycle preserves unresolved_feedback loopDisposition for fix states without invoking the watcher", async () => {
   let watcherCalled = false;
 
   const result = await runWatchCycle(
@@ -236,6 +245,8 @@ test("runWatchCycle returns needs_followup immediately for fix states without in
         allowedTransitions: ["already_fixed_needs_reply_resolve"],
         nextAction: "Address unresolved feedback",
         snapshot: { repo: "owner/repo", pr: 17 },
+        loopDisposition: "unresolved_feedback",
+        terminal: false,
       }),
       watchCopilotReviewImpl: async () => {
         watcherCalled = true;
@@ -245,12 +256,13 @@ test("runWatchCycle returns needs_followup immediately for fix states without in
   );
 
   assert.equal(watcherCalled, false);
-  assert.equal(result.loopDisposition, "needs_followup");
+  assert.equal(result.loopDisposition, "unresolved_feedback");
+  assert.equal(result.cycleDisposition, "needs_followup");
   assert.equal(result.terminal, false);
   assert.equal(result.watchStatus, undefined);
 });
 
-test("runWatchCycle returns terminal for stop states without invoking the watcher", async () => {
+test("runWatchCycle preserves done loopDisposition for stop states without invoking the watcher", async () => {
   let watcherCalled = false;
 
   const result = await runWatchCycle(
@@ -268,6 +280,8 @@ test("runWatchCycle returns terminal for stop states without invoking the watche
         allowedTransitions: [],
         nextAction: "Report completion",
         snapshot: { repo: "owner/repo", pr: 17 },
+        loopDisposition: "done",
+        terminal: true,
       }),
       watchCopilotReviewImpl: async () => {
         watcherCalled = true;
@@ -277,7 +291,8 @@ test("runWatchCycle returns terminal for stop states without invoking the watche
   );
 
   assert.equal(watcherCalled, false);
-  assert.equal(result.loopDisposition, "terminal");
+  assert.equal(result.loopDisposition, "done");
+  assert.equal(result.cycleDisposition, "terminal");
   assert.equal(result.terminal, true);
   assert.equal(result.watchStatus, undefined);
 });

@@ -242,13 +242,15 @@ Contract:
 - runs `copilot-pr-handoff.mjs` first and preserves its current state / next action / watch args
 - when handoff returns `action: "watch"`, runs `watch-copilot-review.mjs` with the emitted non-zero `watchArgs`
 - treats `waiting_for_copilot_review` as a persistence boundary, not a completion boundary
-- reports `loopDisposition: "pending"` for quiet watch results (`timeout` or explicit probe `idle`) instead of pretending the loop concluded cleanly
+- preserves the shared Copilot-loop `loopDisposition` contract from the handoff/state-machine output (`pending`, `unresolved_feedback`, `clean_converged`, `blocked`, `action_required`, `done`)
+- exposes the helper's coarser wait-cycle summary separately as `cycleDisposition`
+- reports `cycleDisposition: "pending"` for quiet watch results (`timeout` or explicit probe `idle`) instead of pretending the loop concluded cleanly
 - reserves zero-timeout `idle` probes for explicit status/reattach checks; normal async waiting should use the emitted non-zero watch timeout
-- returns `loopDisposition: "needs_followup"` when fresh Copilot activity appears or handoff already routed directly to `fix`
-- returns `loopDisposition: "terminal"` only when handoff routed to `stop`
+- returns `cycleDisposition: "needs_followup"` when fresh Copilot activity appears or handoff already routed directly to `fix`
+- returns `cycleDisposition: "terminal"` only when handoff routed to `stop`
 
 Success output shape:
-- `{ "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... }, "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... }, "loopDisposition": "pending"|"needs_followup"|"terminal", "terminal": true|false }`
+- `{ "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... }, "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... }, "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done", "cycleDisposition": "pending"|"needs_followup"|"terminal", "terminal": true|false }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
