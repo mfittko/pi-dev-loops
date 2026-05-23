@@ -295,6 +295,7 @@ test("buildInspectionMermaidGraph renders full authoritative Mermaid state machi
   assert.match(graph.definition, /subgraph outer_loop_family\["outer-loop family"\]/);
   assert.match(graph.definition, /outer_loop_family_start\(\["Start"\]\)/);
   assert.match(graph.definition, /outer_loop_family_end\(\("End"\)\)/);
+  assert.match(graph.definition, /outer_loop_family_continue_current_wait\["continue current wait"\]/);
   assert.match(graph.definition, /copilot_layer_start\(\["Start"\]\)/);
   assert.match(graph.definition, /reviewer_layer_start\(\["Start"\]\)/);
   assert.match(graph.definition, /copilot_layer_no_pr\["no_pr"\]/);
@@ -302,6 +303,7 @@ test("buildInspectionMermaidGraph renders full authoritative Mermaid state machi
   assert.match(graph.definition, /reviewer_layer_review_requested\["review_requested"\]/);
   assert.match(graph.definition, /reviewer_layer_waiting_for_re_request\["waiting_for_re_request"\]/);
   assert.match(graph.definition, /layer view/);
+  assert.match(graph.definition, /next evaluation may resolve to any shown state/);
   assert.match(graph.definition, /class outer_loop_family_continue_current_wait,reviewer_layer_waiting_for_author_followup current;/);
   assert.match(graph.definition, /class copilot_layer_done currentTerminal;/);
   assert.match(graph.definition, /class [^\n]*reviewer_layer_waiting_for_re_request next;/);
@@ -313,7 +315,8 @@ test("buildInspectionMermaidGraph covers every exported outer, Copilot, and revi
   assert.ok(graph);
 
   for (const state of Object.values(OUTER_STATE)) {
-    assert.match(graph.definition, new RegExp(`outer_loop_family_${state}\\["${state}"\\]`));
+    const humanized = state.replaceAll("_", " ");
+    assert.match(graph.definition, new RegExp(`outer_loop_family_${state}\\["${humanized}"\\]`));
   }
   for (const [state, nextStates] of Object.entries(OUTER_TRANSITIONS)) {
     if (nextStates.length === 0) {

@@ -53,7 +53,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(page.locator(".state-graph-help")).toContainText(/Dimmed nodes are still part of the authoritative state machine/i);
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/Start/);
-    await expect(graph).toContainText(/continue_current_wait/);
+    await expect(graph).toContainText(/continue current wait/);
     await expect(graph).toContainText(/waiting_for_copilot_review/);
     await expect(graph).toContainText(/review_requested/);
     await expect(page.getByText(/outer-loop family:\s*current\s*continue_current_wait; continue_current_wait; full authoritative state machine shown; continue_current_wait, handoff_to_copilot_loop, handoff_to_reviewer_loop, stay_with_current_live_owner, stop_needs_human, done_terminal, needs_reconcile/i)).toBeVisible();

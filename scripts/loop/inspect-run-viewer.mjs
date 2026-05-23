@@ -330,7 +330,11 @@ function renderMermaidNodeId(laneKey, state) {
   return `${laneKey}_${String(state).replaceAll(/[^a-zA-Z0-9_]+/g, "_")}`;
 }
 
-function buildFullStateMachineLane({ laneKey, title, states, transitionTable, currentState, transitions, startStates = [], startLabel = "Start", endLabel = "End", terminalStates = null }) {
+function humanizeGraphStateLabel(state) {
+  return String(state).replaceAll("_", " ");
+}
+
+function buildFullStateMachineLane({ laneKey, title, states, transitionTable, currentState, transitions, startStates = [], startLabel = "Start", endLabel = "End", terminalStates = null, displayLabelForState = (state) => state, suppressSaturatedNextHighlights = false }) {
   const knownStates = new Set(states);
   const resolvedTerminalStates = terminalStates instanceof Set
     ? terminalStates
@@ -345,6 +349,10 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
       ? []
       : transitionInfo.normalizedTransitions.filter((state) => authoritativeCurrentNextStates.has(state)),
   );
+  const broadNextSet = suppressSaturatedNextHighlights
+    && currentInfo.available
+    && highlightedNextStates.size === knownStates.size;
+  const effectiveHighlightedNextStates = broadNextSet ? new Set() : highlightedNextStates;
   const classIds = {
     cue: [],
     current: [],
@@ -371,11 +379,11 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
   for (const state of states) {
     const nodeId = renderMermaidNodeId(laneKey, state);
     const terminal = resolvedTerminalStates.has(state);
-    lines.push(`    ${renderMermaidNode(nodeId, state)}`);
+    lines.push(`    ${renderMermaidNode(nodeId, displayLabelForState(state))}`);
 
     if (currentInfo.available && currentInfo.label === state) {
       classIds[terminal ? "currentTerminal" : "current"].push(nodeId);
-    } else if (highlightedNextStates.has(state)) {
+    } else if (effectiveHighlightedNextStates.has(state)) {
       classIds[terminal ? "nextTerminal" : "next"].push(nodeId);
     } else if (terminal) {
       classIds.terminal.push(nodeId);
@@ -431,6 +439,11 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
     lines.push(`    ${renderMermaidNode(noteId, "snapshot next transitions unavailable")}`);
     lines.push(`    ${currentId} -.-> ${noteId}`);
     classIds.note.push(noteId);
+  } else if (broadNextSet) {
+    const noteId = `${laneKey}_broad_next_set`;
+    lines.push(`    ${renderMermaidNode(noteId, "next evaluation may resolve to any shown state")}`);
+    lines.push(`    ${currentId} -.-> ${noteId}`);
+    classIds.note.push(noteId);
   }
 
   lines.push("  end");
@@ -463,6 +476,8 @@ export function buildInspectionMermaidGraph(snapshot) {
       startLabel: OUTER_GRAPH.start.label,
       endLabel: OUTER_GRAPH.end.label,
       terminalStates: OUTER_TERMINAL_STATE_SET,
+      displayLabelForState: humanizeGraphStateLabel,
+      suppressSaturatedNextHighlights: true,
     }),
     buildFullStateMachineLane({
       laneKey: "copilot_layer",
