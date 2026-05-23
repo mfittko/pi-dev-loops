@@ -353,6 +353,13 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   });
 
   assert.match(html, /PR #55 inspection/);
+  assert.match(html, /Current PR state/);
+  assert.match(html, /Waiting for Copilot review/);
+  assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
+  assert.match(html, /overall outer state/);
+  assert.match(html, /current Copilot state/);
+  assert.match(html, /current reviewer state/);
+  assert.match(html, /next action/);
   assert.match(html, /target\.repo/);
   assert.match(html, /owner\/repo/);
   assert.match(html, /target\.pr/);
@@ -424,6 +431,8 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
 
   assert.match(html, /checkpoint-only/);
   assert.match(html, /checkpoint-only inspection snapshot/i);
+  assert.match(html, /Needs attention/);
+  assert.match(html, /The inspection found a blocked or attention-needed state/);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
@@ -477,6 +486,9 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
       },
     }),
   });
+
+  assert.match(html, /PR complete/);
+  assert.match(html, /The current inspection says this PR is in a terminal done state/);
 
   const graph = buildInspectionMermaidGraph(makeSnapshot({
     activeFamilyState: "done",
