@@ -19,6 +19,7 @@ test("package metadata exposes the extension entrypoint and root extension test 
   assert.match(packageJson.scripts["test:extension"], /extension-installer/);
   assert.match(packageJson.scripts["test:extension"], /extension-command-contract/);
   assert.match(packageJson.scripts["test:extension"], /extension-package-contract/);
+  assert.equal(packageJson.dependencies.mermaid, "11.15.0");
   assert.equal(packageJson.pi.skills, undefined);
 });
 
