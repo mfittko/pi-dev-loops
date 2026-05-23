@@ -32,6 +32,20 @@ function runNode(args = [], options = {}) {
   });
 }
 
+function createReviewThreadsPayload(threads) {
+  return `${JSON.stringify({
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: {
+            nodes: threads,
+          },
+        },
+      },
+    },
+  })}\n`;
+}
+
 async function writeGhStub(tempDir, entries) {
   const sequencePath = path.join(tempDir, "gh-sequence.json");
   const counterPath = path.join(tempDir, "gh-counter.txt");
@@ -109,6 +123,19 @@ test("reply-resolve-review-thread posts a reply then resolves the thread", async
   try {
     const gh = await writeGhStub(tempDir, [
       {
+        assertArgs: ["api", "graphql", "--field", "owner=owner", "--field", "name=repo", "--field", "pr=17"],
+        stdout: createReviewThreadsPayload([
+          {
+            id: "THREAD_123",
+            comments: {
+              nodes: [
+                { id: "PRRC_node_123", databaseId: 123 },
+              ],
+            },
+          },
+        ]),
+      },
+      {
         assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies", "--input", "-"],
         assertStdinIncludes: ['"body":"Fixed in 93cd7f8. Added the missing symlinked-ancestor guard and coverage.\\n"'],
         stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
@@ -138,9 +165,9 @@ test("reply-resolve-review-thread posts a reply then resolves the thread", async
     });
 
     const ghLog = (await readFile(gh.ghLogPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
-    assert.equal(ghLog.length, 2);
-    assert(ghLog[0].includes("--input"));
-    assert.equal(ghLog[0].some((entry) => entry.startsWith("body=")), false);
+    assert.equal(ghLog.length, 3);
+    assert.equal(ghLog[1].includes("--input"), true);
+    assert.equal(ghLog[1].some((entry) => entry.startsWith("body=")), false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -199,6 +226,19 @@ test("reply-resolve-review-thread preserves leading whitespace in the reply body
   try {
     const gh = await writeGhStub(tempDir, [
       {
+        assertArgs: ["api", "graphql", "--field", "owner=owner", "--field", "name=repo", "--field", "pr=17"],
+        stdout: createReviewThreadsPayload([
+          {
+            id: "THREAD_123",
+            comments: {
+              nodes: [
+                { id: "PRRC_node_123", databaseId: 123 },
+              ],
+            },
+          },
+        ]),
+      },
+      {
         assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies", "--input", "-"],
         assertStdinIncludes: ['"body":"  indented line\\n"'],
         stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
@@ -229,6 +269,18 @@ test("reply-resolve-review-thread reports reply and resolve failures determinist
   try {
     const gh = await writeGhStub(tempDir, [
       {
+        stdout: createReviewThreadsPayload([
+          {
+            id: "THREAD_123",
+            comments: {
+              nodes: [
+                { id: "PRRC_node_123", databaseId: 123 },
+              ],
+            },
+          },
+        ]),
+      },
+      {
         stderr: "gh: forbidden\n",
         exitCode: 1,
       },
@@ -247,6 +299,18 @@ test("reply-resolve-review-thread reports reply and resolve failures determinist
 
     const ghMissingReplyFields = await writeGhStub(tempDir, [
       {
+        stdout: createReviewThreadsPayload([
+          {
+            id: "THREAD_123",
+            comments: {
+              nodes: [
+                { id: "PRRC_node_123", databaseId: 123 },
+              ],
+            },
+          },
+        ]),
+      },
+      {
         stdout: '{"id":456}\n',
       },
     ]);
@@ -263,6 +327,18 @@ test("reply-resolve-review-thread reports reply and resolve failures determinist
     });
 
     const ghResolve = await writeGhStub(tempDir, [
+      {
+        stdout: createReviewThreadsPayload([
+          {
+            id: "THREAD_123",
+            comments: {
+              nodes: [
+                { id: "PRRC_node_123", databaseId: 123 },
+              ],
+            },
+          },
+        ]),
+      },
       {
         stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
       },
@@ -281,6 +357,55 @@ test("reply-resolve-review-thread reports reply and resolve failures determinist
       ok: false,
       error: "Review thread did not resolve successfully: THREAD_123",
     });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reply-resolve-review-thread fails closed before mutating when comment and thread do not match", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-mismatch-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "Fixed in 93cd7f8.\n", "utf8");
+
+  try {
+    const gh = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "--field", "owner=owner", "--field", "name=repo", "--field", "pr=17"],
+        stdout: createReviewThreadsPayload([
+          {
+            id: "THREAD_123",
+            comments: {
+              nodes: [
+                { id: "PRRC_node_999", databaseId: 999 },
+              ],
+            },
+          },
+          {
+            id: "THREAD_OLD",
+            comments: {
+              nodes: [
+                { id: "PRRC_node_123", databaseId: 123 },
+              ],
+            },
+          },
+        ]),
+      },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: gh.env },
+    );
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "Review comment 123 does not belong to review thread THREAD_123 on pull request owner/repo#17",
+    });
+
+    const ghLog = (await readFile(gh.ghLogPath, "utf8")).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    assert.equal(ghLog.length, 1);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
