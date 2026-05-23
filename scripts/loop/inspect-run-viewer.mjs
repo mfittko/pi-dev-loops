@@ -205,9 +205,28 @@ function renderDefinitionList(entries) {
 
 function normalizeTransitions(transitions) {
   if (!Array.isArray(transitions)) {
-    return [];
+    return null;
   }
   return transitions.filter((transition) => typeof transition === "string" && transition.trim().length > 0);
+}
+
+function renderStateVisualizationIntro(snapshot) {
+  const stateLabel = renderSnapshotStateLabel(snapshot);
+
+  if (stateLabel === "authoritative") {
+    return "Graph-first view of the authoritative inspection snapshot.";
+  }
+  if (stateLabel === "degraded") {
+    return "Graph-first view of a degraded inspection snapshot. Missing graph fields stay explicitly unavailable instead of being guessed.";
+  }
+  if (stateLabel === "checkpoint-only") {
+    return "Graph-first view of a checkpoint-only inspection snapshot. Treat this graph as advisory until live inspection is available.";
+  }
+  if (stateLabel === "conflicting") {
+    return "Graph-first view of a conflicting inspection snapshot. Resolve the conflicting evidence before treating the graph as authoritative.";
+  }
+
+  return "Graph-first view of the current inspection snapshot.";
 }
 
 function renderStateGraph({ title, currentState, transitions }) {
@@ -215,20 +234,28 @@ function renderStateGraph({ title, currentState, transitions }) {
     ? currentState
     : "not present";
   const normalizedTransitions = normalizeTransitions(transitions);
-  const transitionNodes = normalizedTransitions.length === 0
-    ? `<span class="state-node state-node-idle">no allowed transitions</span>`
-    : normalizedTransitions
-      .map((transition) => `<span class="state-arrow" aria-hidden="true">→</span><span class="state-node state-node-next">${escapeHtml(transition)}</span>`)
-      .join("");
+  const transitionsUnavailable = normalizedTransitions === null;
+  const transitionSummary = transitionsUnavailable
+    ? "transition data unavailable in this snapshot"
+    : normalizedTransitions.length === 0
+      ? "no allowed transitions"
+      : normalizedTransitions.join(", ");
+  const transitionNodes = transitionsUnavailable
+    ? `<span class="state-node state-node-idle">transition data unavailable</span>`
+    : normalizedTransitions.length === 0
+      ? `<span class="state-node state-node-idle">no allowed transitions</span>`
+      : normalizedTransitions
+        .map((transition) => `<span class="state-arrow" aria-hidden="true">→</span><span class="state-node state-node-next">${escapeHtml(transition)}</span>`)
+        .join("");
 
   return `<article class="state-graph-card">
     <h3>${escapeHtml(title)}</h3>
     <p class="state-graph-current-label">Current</p>
-    <div class="state-flow" role="img" aria-label="${escapeHtml(`${title} state flow with current state ${normalizedCurrentState}`)}">
+    <div class="state-flow" role="img" aria-label="${escapeHtml(`${title} state flow with current state ${normalizedCurrentState}; ${transitionSummary}`)}">
       <span class="state-node state-node-current">${escapeHtml(normalizedCurrentState)}</span>
       ${transitionNodes}
     </div>
-    <p class="state-graph-meta"><strong>Allowed next transitions:</strong> ${normalizedTransitions.length === 0 ? "none" : normalizedTransitions.map((transition) => `<code>${escapeHtml(transition)}</code>`).join(", ")}</p>
+    <p class="state-graph-meta"><strong>Allowed next transitions:</strong> ${transitionsUnavailable ? "unavailable in this snapshot" : normalizedTransitions.length === 0 ? "none" : normalizedTransitions.map((transition) => `<code>${escapeHtml(transition)}</code>`).join(", ")}</p>
   </article>`;
 }
 
@@ -242,7 +269,7 @@ function renderStateVisualizationSection(snapshot) {
 
   return `<section>
     <h2>State visualization</h2>
-    <p class="state-graph-intro">Graph-first view of the authoritative inspection snapshot.</p>
+    <p class="state-graph-intro">${escapeHtml(renderStateVisualizationIntro(snapshot))}</p>
     <div class="state-graph-grid">
       ${renderStateGraph({
     title: "outer-loop family",

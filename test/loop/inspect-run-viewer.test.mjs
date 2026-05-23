@@ -277,8 +277,10 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.stale/);
   assert.match(html, /markers\.conflicts/);
   assert.match(html, /State visualization/);
+  assert.match(html, /authoritative inspection snapshot/i);
   assert.match(html, /outer-loop family/);
   assert.match(html, /state-node state-node-current/);
+  assert.match(html, /copilot layer state flow with current state waiting_for_copilot_review; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
   assert.match(html, /Allowed next transitions:[\s\S]*ready_to_rerequest_review/);
   assert.match(html, /outer-loop summary/);
   assert.match(html, /Copilot loop iterations/);
@@ -317,8 +319,10 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
   });
 
   assert.match(html, /checkpoint-only/);
+  assert.match(html, /checkpoint-only inspection snapshot/i);
   assert.match(html, /not present \/ unavailable/);
-  assert.match(html, /no allowed transitions/);
+  assert.match(html, /transition data unavailable in this snapshot/);
+  assert.match(html, /Allowed next transitions:<\/strong> unavailable in this snapshot/);
   assert.match(html, /no_copilot_review_history/);
   assert.match(html, /no_steering_file/);
 });
@@ -337,6 +341,7 @@ test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
   });
 
   assert.match(html, /Snapshot state:[\s\S]*conflicting/);
+  assert.match(html, /conflicting inspection snapshot/i);
   assert.match(html, /checkpoint outerAction/);
 });
 

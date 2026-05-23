@@ -36,13 +36,41 @@ test("webkit renders the state-graph-first inspect-run viewer and captures a scr
     await expect(page.getByRole("heading", { name: "PR #55 inspection" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "State visualization" })).toBeVisible();
     await expect(page.locator(".state-graph-card")).toHaveCount(3);
+    await expect(page.getByText(/authoritative inspection snapshot/i)).toBeVisible();
     await expect(page.locator(".state-graph-card").nth(0)).toContainText("outer-loop family");
     await expect(page.locator(".state-graph-card").nth(1)).toContainText("waiting_for_copilot_review");
     await expect(page.locator(".state-graph-card").nth(2)).toContainText("waiting_for_author_followup");
+    await expect(page.getByRole("img", { name: /copilot layer state flow with current state waiting_for_copilot_review; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i })).toBeVisible();
     await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-webkit.png"),
+      fullPage: true,
+    });
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+test("webkit shows checkpoint-only graph uncertainty without guessing missing transitions", async ({ page }, testInfo) => {
+  const { server, url } = await startViewer(makeInspectionSnapshot({
+    sourceMode: "checkpoint-only",
+    trust: "checkpoint",
+    layers: {
+      steering: { status: "unavailable", reason: "no_steering_file" },
+    },
+  }));
+
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+
+    await expect(page.getByText(/checkpoint-only inspection snapshot/i)).toBeVisible();
+    await expect(page.getByRole("img", { name: /copilot layer state flow with current state not present; transition data unavailable in this snapshot/i })).toBeVisible();
+    await expect(page.locator(".state-graph-card").nth(1)).toContainText("Allowed next transitions: unavailable in this snapshot");
+
+    await page.screenshot({
+      path: testInfo.outputPath("inspect-run-viewer-checkpoint-webkit.png"),
       fullPage: true,
     });
   } finally {
