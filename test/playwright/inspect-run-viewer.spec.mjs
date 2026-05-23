@@ -41,9 +41,9 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("heading", { name: "PR #55 inspection" })).toBeVisible();
-    await expect(page.getByText("Current PR state")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Waiting for Copilot review" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "State visualization" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Current PR state" })).toBeVisible();
+    await expect(page.locator("body")).toContainText(/These fields are shown directly from the loaded inspection snapshot/i);
     await expect(page.locator(".state-graph-intro")).toContainText(/full authoritative copilot and reviewer state machines/i);
     await expect(page.locator(".state-graph-cues")).toContainText(/Start/);
     await expect(page.locator(".state-graph-cues")).toContainText(/Current/);
@@ -82,7 +82,8 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "Waiting for follow-up" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Current PR state" })).toBeVisible();
+    await expect(page.locator(".current-pr-state-detail")).toContainText(/checkpoint-only snapshot/i);
     await expect(page.locator(".state-graph-intro")).toContainText(/checkpoint-only inspection snapshot/i);
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/current state unavailable/);
@@ -143,7 +144,9 @@ test("webkit shows terminal merged states clearly in the Mermaid graph", async (
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "PR complete" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Current PR state" })).toBeVisible();
+    await expect(page.locator(".current-pr-state-grid")).toContainText(/status class/);
+    await expect(page.locator(".current-pr-state-grid")).toContainText(/done/);
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/End/);
     await expect(graph).toContainText(/done/);

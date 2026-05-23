@@ -354,12 +354,12 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
 
   assert.match(html, /PR #55 inspection/);
   assert.match(html, /Current PR state/);
-  assert.match(html, /Waiting for Copilot review/);
-  assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
+  assert.match(html, /These fields are shown directly from the loaded inspection snapshot/i);
+  assert.match(html, /status class/);
   assert.match(html, /overall outer state/);
   assert.match(html, /current Copilot state/);
   assert.match(html, /current reviewer state/);
-  assert.match(html, /next action/);
+  assert.match(html, /evidence summary/);
   assert.match(html, /target\.repo/);
   assert.match(html, /owner\/repo/);
   assert.match(html, /target\.pr/);
@@ -378,6 +378,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.missing/);
   assert.match(html, /markers\.stale/);
   assert.match(html, /markers\.conflicts/);
+  assert.ok(html.indexOf("State visualization") < html.indexOf("Current PR state"));
   assert.match(html, /State visualization/);
   assert.match(html, /authoritative inspection snapshot/i);
   assert.match(html, /full authoritative copilot and reviewer state machines/i);
@@ -431,8 +432,7 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
 
   assert.match(html, /checkpoint-only/);
   assert.match(html, /checkpoint-only inspection snapshot/i);
-  assert.match(html, /Needs attention/);
-  assert.match(html, /The inspection found a blocked or attention-needed state/);
+  assert.match(html, /This is a checkpoint-only snapshot\. The current-state fields below are advisory, not live-confirmed\./i);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
@@ -487,8 +487,9 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
     }),
   });
 
-  assert.match(html, /PR complete/);
-  assert.match(html, /The current inspection says this PR is in a terminal done state/);
+  assert.match(html, /Current PR state/);
+  assert.match(html, /status class[\s\S]*<code>done<\/code>/);
+  assert.match(html, /overall outer state[\s\S]*<code>done<\/code>/);
 
   const graph = buildInspectionMermaidGraph(makeSnapshot({
     activeFamilyState: "done",
@@ -529,6 +530,7 @@ test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
 
   assert.match(html, /Snapshot state:[\s\S]*conflicting/);
   assert.match(html, /conflicting inspection snapshot/i);
+  assert.match(html, /Conflicting evidence is present\. Treat the current-state fields below as advisory until the snapshot is reconciled\./i);
   assert.match(html, /checkpoint outerAction/);
 });
 

@@ -850,145 +850,43 @@ function titleCaseWords(value) {
     .join(" ");
 }
 
-function summarizeCurrentPrStatus(snapshot) {
+function renderCurrentStateNote(snapshot) {
   if (!snapshot) {
-    return {
-      headline: "Snapshot unavailable",
-      detail: "Unable to determine the current PR state yet.",
-      nextAction: "Reload the snapshot or open /snapshot.json for the raw error payload.",
-    };
+    return "Unable to determine the current PR state yet.";
   }
 
-  const copilotState = formatStateToken(snapshot.layers?.copilot?.currentState);
-  const reviewerState = formatStateToken(snapshot.layers?.reviewer?.currentState);
-  const statusClass = formatStateToken(snapshot.statusClass, "unknown");
-  const outerAction = formatStateToken(snapshot.outerAction, "unknown");
-
-  if (statusClass === "done" || outerAction === "done" || copilotState === "done") {
-    return {
-      headline: "PR complete",
-      detail: "The current inspection says this PR is in a terminal done state.",
-      nextAction: "Confirm merge/readiness context or inspect the raw snapshot for terminal evidence.",
-    };
+  if ((snapshot.markers?.conflicts?.length ?? 0) > 0) {
+    return "Conflicting evidence is present. Treat the current-state fields below as advisory until the snapshot is reconciled.";
   }
 
-  if (copilotState === "unresolved_feedback_present") {
-    return {
-      headline: "Needs author fixes",
-      detail: "Copilot has unresolved feedback on the current PR head.",
-      nextAction: "Address the feedback, then reply to and resolve each addressed thread.",
-    };
+  if (snapshot.sourceMode === "checkpoint-only") {
+    return "This is a checkpoint-only snapshot. The current-state fields below are advisory, not live-confirmed.";
   }
 
-  if (copilotState === "already_fixed_needs_reply_resolve") {
-    return {
-      headline: "Fixes applied; threads still need resolution",
-      detail: "Local fixes appear applied, but GitHub review threads still need reply/resolve follow-up.",
-      nextAction: "Reply to and resolve the addressed review threads before requesting another Copilot pass.",
-    };
+  if (snapshot.sourceMode === "partial" || snapshot.trust === "degraded") {
+    return "This snapshot is degraded. The current-state fields below may be incomplete and should be cross-checked against the graph and raw snapshot.";
   }
 
-  if (copilotState === "waiting_for_copilot_review") {
-    return {
-      headline: "Waiting for Copilot review",
-      detail: "Copilot review has been requested and the PR is waiting for new review activity.",
-      nextAction: "Wait for Copilot review or refresh the snapshot after review activity lands.",
-    };
+  if (snapshot.sourceMode === "unavailable") {
+    return "Snapshot unavailable. Open /snapshot.json or reload once the inspection surface is available again.";
   }
 
-  if (copilotState === "ready_to_rerequest_review") {
-    return {
-      headline: "Ready to re-request Copilot review",
-      detail: "The current head looks clean enough for another Copilot pass or final confirmation.",
-      nextAction: "Re-request Copilot review only after the smallest honest local validation is green, or confirm the PR is done.",
-    };
-  }
-
-  if (copilotState === "waiting_for_ci") {
-    return {
-      headline: "Waiting for CI",
-      detail: "The current head has progressed past review but is still waiting on CI readiness.",
-      nextAction: "Wait for CI to complete or become available.",
-    };
-  }
-
-  if (reviewerState === "waiting_for_author_followup") {
-    return {
-      headline: "Waiting for author follow-up",
-      detail: "Reviewer work is done for this round and the PR is waiting on author-side changes.",
-      nextAction: "Wait for author commits or refresh after follow-up lands.",
-    };
-  }
-
-  if (reviewerState === "waiting_for_re_request") {
-    return {
-      headline: "Waiting for reviewer re-request",
-      detail: "Reviewer work is paused until a new explicit review request arrives.",
-      nextAction: "Wait for a reviewer re-request after follow-up commits.",
-    };
-  }
-
-  if (reviewerState === "review_requested" || reviewerState === "determine_review_plan" || reviewerState === "reviews_running" || reviewerState === "merge_results" || reviewerState === "draft_review_ready" || reviewerState === "draft_review_posted" || reviewerState === "waiting_for_user_submit" || reviewerState === "submitted_review" || reviewerState === "review_invalidated") {
-    return {
-      headline: "Reviewer loop active",
-      detail: `Reviewer lane is currently at ${humanizeStateToken(reviewerState)}.`,
-      nextAction: "Follow the reviewer lane details below and refresh after the next review event.",
-    };
-  }
-
-  if (outerAction === "stop" || statusClass === "blocked" || snapshot.needsAttention) {
-    return {
-      headline: "Needs attention",
-      detail: "The inspection found a blocked or attention-needed state.",
-      nextAction: "Read the stop reason, trust markers, and layer summaries before proceeding.",
-    };
-  }
-
-  if (outerAction === "continue_wait") {
-    return {
-      headline: "Waiting for follow-up",
-      detail: "The outer loop is in a wait state, but this snapshot does not expose a narrower active inner-loop state.",
-      nextAction: "Refresh after new review, CI, or author activity lands.",
-    };
-  }
-
-  if (outerAction === "reenter_copilot_loop") {
-    return {
-      headline: "Copilot loop needs action",
-      detail: "The outer loop says the next meaningful work is in the Copilot lane.",
-      nextAction: "Inspect the Copilot state and act on the requested follow-up.",
-    };
-  }
-
-  if (outerAction === "reenter_reviewer_loop") {
-    return {
-      headline: "Reviewer loop needs action",
-      detail: "The outer loop says the next meaningful work is in the reviewer lane.",
-      nextAction: "Inspect the reviewer state and act on the requested follow-up.",
-    };
-  }
-
-  return {
-    headline: titleCaseWords(humanizeStateToken(copilotState === "not present" ? outerAction : copilotState)),
-    detail: "The viewer could not collapse this to a narrower plain-English status than the current exported loop states.",
-    nextAction: "Use the current-state banner fields plus the graph and summaries below.",
-  };
+  return "These fields are shown directly from the loaded inspection snapshot so the current state stays visible without inventing a second viewer-only status model.";
 }
 
 function renderCurrentStateBanner(snapshot, target, stateLabel) {
-  const summary = summarizeCurrentPrStatus(snapshot);
   return `<section class="current-pr-state-banner" aria-label="Current PR state">
-    <p class="current-pr-state-kicker">Current PR state</p>
-    <h2>${escapeHtml(summary.headline)}</h2>
-    <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
+    <h2>Current PR state</h2>
+    <p class="current-pr-state-detail">${escapeHtml(renderCurrentStateNote(snapshot))}</p>
     <dl class="current-pr-state-grid">
       <dt>target</dt><dd><code>${escapeHtml(target.repo)}#${escapeHtml(target.pr)}</code></dd>
+      <dt>snapshot trust</dt><dd><span class="badge">${escapeHtml(stateLabel)}</span></dd>
+      <dt>status class</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.statusClass))}</code></dd>
       <dt>overall outer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
       <dt>current Copilot state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.copilot?.currentState))}</code></dd>
       <dt>current reviewer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.reviewer?.currentState))}</code></dd>
-      <dt>snapshot trust</dt><dd><span class="badge">${escapeHtml(stateLabel)}</span></dd>
       <dt>needs attention</dt><dd>${escapeHtml(String(snapshot?.needsAttention ?? "not present"))}</dd>
-      <dt>next action</dt><dd>${escapeHtml(summary.nextAction)}</dd>
+      <dt>evidence summary</dt><dd>${escapeHtml(snapshot?.evidence?.summary ?? "not present")}</dd>
     </dl>
   </section>`;
 }
@@ -1070,8 +968,8 @@ export function renderInspectRunViewerHtml({
     <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
     <p><strong>Refresh:</strong> manual reload only.</p>
     <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
-    ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel)}
     ${renderStateVisualizationSection(normalizedSnapshot)}
+    ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel)}
     ${topSummary}
     ${renderOuterLoopSummarySection(normalizedSnapshot)}
     ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
