@@ -35,9 +35,37 @@ The authoritative first-slice evaluator is:
 
 - `packages/core/src/loop/public-dev-loop-routing.mjs`
 
+Authoritative status-report helper:
+
+- `resolveAuthoritativeDevLoopStatus()` in `packages/core/src/loop/public-dev-loop-routing.mjs`
+
 Its tests are:
 
 - `packages/core/test/public-dev-loop-routing.test.mjs`
+
+## Authoritative-state-first status reporting contract
+
+Before answering status/progress/readiness/merge-state/next-step questions, consumers must:
+
+1. resolve the authoritative active artifact identity (issue/PR/branch/phase as applicable)
+   - for issue targets, this includes authoritative issue↔PR linkage resolution (for example via timeline linkage detection such as `scripts/github/detect-linked-issue-pr.mjs`)
+2. resolve artifact state (`open` \| `closed` \| `merged` \| `not_applicable`)
+3. resolve current loop state
+4. resolve the next action from routed canonical state
+
+Prior chat context is only a hint, never state authority.
+
+If authoritative identity/state (including issue↔PR linkage when relevant) cannot be resolved confidently, fail closed to reconcile/unknown instead of guessing.
+
+Expected answer shape (field names may vary by surface, but semantics must match):
+
+```text
+Active issue: <owner/repo>#<n> (when applicable)
+Active PR: <owner/repo>#<n> (when applicable)
+Artifact state: open|closed|merged|not_applicable
+Loop state: <resolved loop state>
+Next action: <resolved next action>
+```
 
 ## Internal strategy families
 

@@ -139,6 +139,29 @@ test("repo docs define dev-loop as the public façade and keep specialized loops
   }
 });
 
+test("status reporting contract requires authoritative state-first resolution and fail-closed reconcile behavior", async () => {
+  const [publicContract, devLoopSkill, copilotSkill] = await Promise.all([
+    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/dev-loop/SKILL.md"),
+    readRepo("skills/copilot-dev-loop/SKILL.md"),
+  ]);
+
+  assert.match(publicContract, /Authoritative-state-first status reporting contract/i);
+  assert.match(publicContract, /fail closed to reconcile\/unknown instead of guessing/i);
+  assert.match(publicContract, /resolveAuthoritativeDevLoopStatus/i);
+  assert.match(publicContract, /issue↔PR linkage resolution/i);
+  assert.match(publicContract, /detect-linked-issue-pr\.mjs/i);
+
+  assert.match(devLoopSkill, /status\/progress\/readiness\/merge-state\/next-step/i);
+  assert.match(devLoopSkill, /fail closed to reconcile\/unknown/i);
+  assert.match(devLoopSkill, /issue↔PR linkage resolution/i);
+  assert.match(devLoopSkill, /detect-linked-issue-pr\.mjs/i);
+
+  assert.match(copilotSkill, /status\/progress\/readiness\/merge-state\/next-step/i);
+  assert.match(copilotSkill, /reconcile\/unknown instead of guessing from chat context/i);
+  assert.match(copilotSkill, /do not assert "no open PR" until authoritative issue↔PR linkage is resolved/i);
+});
+
 test("copilot skill still contains its core workflow guidance", async () => {
   const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
 
