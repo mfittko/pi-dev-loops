@@ -280,6 +280,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /authoritative inspection snapshot/i);
   assert.match(html, /outer-loop family/);
   assert.match(html, /state-node state-node-current/);
+  assert.match(html, /outer-loop family state flow with current state continue_wait; transition data unavailable in this snapshot/);
+  assert.match(html, /Allowed next transitions:<\/strong> unavailable in this snapshot/);
   assert.match(html, /copilot layer state flow with current state waiting_for_copilot_review; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
   assert.match(html, /Allowed next transitions:[\s\S]*ready_to_rerequest_review/);
   assert.match(html, /outer-loop summary/);

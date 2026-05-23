@@ -274,7 +274,7 @@ function renderStateVisualizationSection(snapshot) {
       ${renderStateGraph({
     title: "outer-loop family",
     currentState: snapshot.activeFamilyState,
-    transitions: [],
+    transitions: snapshot.allowedTransitions,
   })}
       ${renderStateGraph({
     title: "copilot layer",
