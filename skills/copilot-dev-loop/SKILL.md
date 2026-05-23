@@ -73,10 +73,9 @@ Use `--probe-only` only for an explicit one-shot status/reattach probe; it is no
 
 For explicit async loop entry or continuation, this is a persistent async watch/fix loop, not handoff-only behavior:
 - if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary instead of reporting completion
-- if fresh Copilot activity moves the loop to follow-up work, continue into the narrow fixer flow in Step 7
 - after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, resume this watcher again in the same async session
-- only stop when the state machine reaches a true terminal / needs-human state, the user interrupts the run, or a clearly documented timeout/idle policy ends the run
 - if the user explicitly asks for async handoff-only behavior, say that out loud and stop after the handoff boundary; otherwise do not silently reinterpret async loop entry as handoff-only
+- follow Step 6 and Step 7 below for the fuller wait/watch and fixer-loop policy details
 
 **Request status reference**
 | Status | Meaning | Next step |
