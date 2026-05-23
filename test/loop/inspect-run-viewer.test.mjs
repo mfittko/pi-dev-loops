@@ -328,6 +328,7 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
   assert.match(html, /checkpoint-only/);
   assert.match(html, /checkpoint-only inspection snapshot/i);
   assert.match(html, /class="state-map-svg"/);
+  assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
   assert.match(html, /copilot layer:[\s\S]*transition data unavailable in this snapshot/);
   assert.match(html, /reviewer layer:[\s\S]*transition data unavailable in this snapshot/);

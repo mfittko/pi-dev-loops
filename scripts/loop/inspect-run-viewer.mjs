@@ -233,10 +233,16 @@ const TERMINAL_STATE_LABELS = new Set(["done", "review_request_unavailable", "bl
 
 function normalizeCurrentStateInfo(currentState) {
   if (typeof currentState === "string" && currentState.length > 0) {
+    const normalized = currentState.trim();
+
+    if (normalized.toLowerCase() === "unknown") {
+      return { label: "current state unavailable", available: false, terminal: false };
+    }
+
     return {
-      label: currentState,
+      label: normalized,
       available: true,
-      terminal: TERMINAL_STATE_LABELS.has(currentState),
+      terminal: TERMINAL_STATE_LABELS.has(normalized),
     };
   }
 
