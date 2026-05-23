@@ -762,9 +762,7 @@ function renderMermaidBootScript() {
     </script>`;
 }
 
-function renderStateVisualizationSection(snapshot) {
-  const graph = buildInspectionMermaidGraph(snapshot);
-
+function renderStateVisualizationSection(snapshot, graph = buildInspectionMermaidGraph(snapshot)) {
   if (graph === null) {
     return `<div class="state-graph-block">
       <p class="state-graph-intro">Snapshot unavailable, so no state graph can be rendered yet.</p>
