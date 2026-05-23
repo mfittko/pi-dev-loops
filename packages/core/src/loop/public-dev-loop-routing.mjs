@@ -368,7 +368,9 @@ function buildStatusArtifactIdentity(canonicalState) {
 
 function buildAuthoritativeStatusNextAction(routed, issueLinkageResolution) {
   if (
-    routed?.canonicalState?.target?.kind === DEV_LOOP_TARGET_KIND.ISSUE
+    routed?.routeKind === DEV_LOOP_ROUTE_KIND.ROUTE
+    && routed?.selectedStrategy === INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE
+    && routed?.canonicalState?.target?.kind === DEV_LOOP_TARGET_KIND.ISSUE
     && issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR
   ) {
     return "Proceed with issue intake on the issue itself; authoritative linkage resolution already established that no open PR exists.";

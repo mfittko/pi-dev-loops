@@ -489,6 +489,29 @@ test("authoritative status resolution accepts issue state only after explicit no
   );
 });
 
+test("authoritative status resolution keeps waiting nextAction for waiting issue states", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    loopState: "waiting_for_copilot",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+  assert.equal(
+    report.nextAction,
+    "Keep waiting or watching against the same canonical state instead of switching public loop names.",
+  );
+});
+
 test("authoritative status resolution fails closed when loop state is the unknown sentinel", () => {
   const report = resolveAuthoritativeDevLoopStatus({
     currentState: {
