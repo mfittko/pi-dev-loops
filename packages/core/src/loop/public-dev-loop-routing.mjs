@@ -182,7 +182,10 @@ function normalizeOptionalLoopState(value) {
     return null;
   }
   const normalized = typeof value === "string" ? value.trim() : "";
-  return normalized.length > 0 ? normalized : null;
+  if (normalized.length === 0 || normalized.toLowerCase() === "unknown") {
+    return null;
+  }
+  return normalized;
 }
 
 function normalizeIssueLinkageResolution(value) {

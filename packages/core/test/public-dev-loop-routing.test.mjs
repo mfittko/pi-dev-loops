@@ -489,6 +489,25 @@ test("authoritative status resolution accepts issue state only after explicit no
   );
 });
 
+test("authoritative status resolution fails closed when loop state is the unknown sentinel", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, issue: 89, pr: 92 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "UnKnOwN",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.loopState, "unknown");
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+});
+
 test("authoritative status resolution fails closed when loop state was not explicitly resolved", () => {
   const report = resolveAuthoritativeDevLoopStatus({
     currentState: {
