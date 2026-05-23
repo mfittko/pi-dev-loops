@@ -850,6 +850,9 @@ function renderSnapshotStateLabel(snapshot) {
   if (!snapshot) {
     return "unavailable";
   }
+  if (snapshot.sourceMode === "unavailable") {
+    return "unavailable";
+  }
   if (Array.isArray(snapshot.markers?.conflicts) && snapshot.markers.conflicts.length > 0) {
     return "conflicting";
   }
@@ -858,9 +861,6 @@ function renderSnapshotStateLabel(snapshot) {
   }
   if (snapshot.sourceMode === "partial") {
     return "degraded";
-  }
-  if (snapshot.sourceMode === "unavailable") {
-    return "unavailable";
   }
   return "authoritative";
 }
@@ -877,6 +877,10 @@ function renderCurrentStateNote(snapshot) {
     return "Unable to determine the current PR state yet.";
   }
 
+  if (snapshot.sourceMode === "unavailable") {
+    return "Snapshot unavailable. Open /snapshot.json or reload once the inspection surface is available again.";
+  }
+
   if ((snapshot.markers?.conflicts?.length ?? 0) > 0) {
     return "Conflicting evidence is present. Treat the current-state fields below as advisory until the snapshot is reconciled.";
   }
@@ -887,10 +891,6 @@ function renderCurrentStateNote(snapshot) {
 
   if (snapshot.sourceMode === "partial" || snapshot.trust === "degraded") {
     return "This snapshot is degraded. The current-state fields below may be incomplete and should be cross-checked against the graph and raw snapshot.";
-  }
-
-  if (snapshot.sourceMode === "unavailable") {
-    return "Snapshot unavailable. Open /snapshot.json or reload once the inspection surface is available again.";
   }
 
   return "These fields are shown directly from the loaded inspection snapshot so the current state stays visible without inventing a second viewer-only status model.";

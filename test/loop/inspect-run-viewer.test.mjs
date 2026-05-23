@@ -650,6 +650,29 @@ test("renderInspectRunViewerHtml fail-closes the graph for unavailable snapshots
   assert.doesNotMatch(html, /class="mermaid-state-graph mermaid"/);
 });
 
+
+test("renderInspectRunViewerHtml keeps unavailable badge and guidance when conflicts are present", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      sourceMode: "unavailable",
+      trust: "unknown",
+      markers: {
+        missing: [],
+        stale: [],
+        conflicts: ["live and checkpoint disagree"],
+      },
+      layers: {
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /Snapshot state:[\s\S]*unavailable/);
+  assert.match(html, /Snapshot unavailable\. Open \/snapshot\.json or reload once the inspection surface is available again\./);
+  assert.doesNotMatch(html, /Conflicting evidence is present\. Treat the current-state fields below as advisory until the snapshot is reconciled\./);
+});
+
 test("createInspectionViewerAdapter loadSnapshot validates target deterministically", async () => {
   const adapter = createInspectionViewerAdapter({
     inspectRunImpl: async () => ({ ok: true }),
