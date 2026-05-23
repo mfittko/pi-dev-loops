@@ -256,16 +256,6 @@ const OUTER_LOOP_KNOWN_ACTIONS = Object.freeze([
   "done",
 ]);
 const OUTER_LOOP_TERMINAL_STATES = new Set(["stop", "done"]);
-const COPILOT_TERMINAL_STATES = new Set(
-  Object.entries(COPILOT_TRANSITIONS)
-    .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
-    .map(([state]) => state),
-);
-const REVIEWER_TERMINAL_STATES = new Set(
-  Object.entries(REVIEWER_TRANSITIONS)
-    .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
-    .map(([state]) => state),
-);
 
 function normalizeCurrentStateInfo(currentState, { knownStates = null, terminalStates = null } = {}) {
   if (typeof currentState === "string" && currentState.length > 0) {
