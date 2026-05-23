@@ -57,9 +57,15 @@
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { formatCliError, isCopilotLogin, parseJsonText, parseReviewThreads, summarizeCopilotReviews } from "../_core-helpers.mjs";
+import {
+  formatCliError,
+  isCopilotLogin,
+  isDirectCliRun,
+  parseJsonText,
+  parseReviewThreads,
+  summarizeCopilotReviews,
+} from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { buildSnapshotFromPrFacts, interpretLoopState, normalizeSnapshot, summarizeLoopInterpretation } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
@@ -486,9 +492,7 @@ export async function runCli(
   })}\n`);
 }
 
-const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-
-if (isDirectRun) {
+if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);
     process.exitCode = 1;

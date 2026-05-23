@@ -82,6 +82,20 @@ async function runNodeScript(scriptPath, args = []) {
   });
 }
 
+async function assertInstalledCopilotHelpersExecute(targetRoot, skillName = "copilot-autopilot") {
+  const detectScriptPath = path.join(targetRoot, skillName, "scripts", "loop", "detect-copilot-loop-state.mjs");
+  const detectResult = await runNodeScript(detectScriptPath, ["--help"]);
+  assert.equal(detectResult.code, 0);
+  assert.match(detectResult.stdout, /Usage:/);
+  assert.doesNotMatch(detectResult.stderr, /ERR_MODULE_NOT_FOUND/);
+
+  const handoffScriptPath = path.join(targetRoot, skillName, "scripts", "loop", "copilot-pr-handoff.mjs");
+  const handoffResult = await runNodeScript(handoffScriptPath, ["--help"]);
+  assert.equal(handoffResult.code, 0);
+  assert.match(handoffResult.stdout, /Usage:/);
+  assert.doesNotMatch(handoffResult.stderr, /ERR_MODULE_NOT_FOUND/);
+}
+
 test("resolveSystemSkillsRoot targets ~/.pi/agent/skills", () => {
   assert.equal(resolveSystemSkillsRoot("/tmp/home"), path.join("/tmp/home", ".pi", "agent", "skills"));
 });
@@ -255,29 +269,46 @@ test("install supports executing packaged copilot helper entrypoints from instal
     targetRoot,
   });
 
-  const detectScriptPath = path.join(
-    targetRoot,
-    "copilot-autopilot",
-    "scripts",
-    "loop",
-    "detect-copilot-loop-state.mjs",
-  );
-  const detectResult = await runNodeScript(detectScriptPath, ["--help"]);
-  assert.equal(detectResult.code, 0);
-  assert.match(detectResult.stdout, /Usage:/);
-  assert.doesNotMatch(detectResult.stderr, /ERR_MODULE_NOT_FOUND/);
+  await assertInstalledCopilotHelpersExecute(targetRoot);
+});
 
-  const handoffScriptPath = path.join(
+test("install supports executing packaged copilot helper entrypoints through a symlinked path alias", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-extension-installed-alias-"));
+  const targetRoot = path.join(tempDir, "target");
+  const aliasRoot = path.join(tempDir, "target-alias");
+
+  await syncPackagedSkills({
+    mode: "install",
+    scope: "repo",
     targetRoot,
-    "copilot-autopilot",
-    "scripts",
-    "loop",
-    "copilot-pr-handoff.mjs",
+  });
+  await symlink(targetRoot, aliasRoot);
+
+  await assertInstalledCopilotHelpersExecute(aliasRoot);
+});
+
+test("update refreshes packaged copilot helper entrypoints for existing installed targets", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-extension-update-exec-"));
+  const targetRoot = path.join(tempDir, "target");
+
+  await mkdir(path.join(targetRoot, "copilot-autopilot"), { recursive: true });
+  await writeFile(path.join(targetRoot, "copilot-autopilot", "SKILL.md"), "stale local copy\n");
+
+  const result = await syncPackagedSkills({
+    mode: "update",
+    scope: "repo",
+    targetRoot,
+  });
+
+  assert.deepEqual(
+    result.results.map((entry) => [entry.skillName, entry.status]),
+    [
+      ["dev-loop", "missing"],
+      ["copilot-dev-loop", "missing"],
+      ["copilot-autopilot", "updated"],
+    ],
   );
-  const handoffResult = await runNodeScript(handoffScriptPath, ["--help"]);
-  assert.equal(handoffResult.code, 0);
-  assert.match(handoffResult.stdout, /Usage:/);
-  assert.doesNotMatch(handoffResult.stderr, /ERR_MODULE_NOT_FOUND/);
+  await assertInstalledCopilotHelpersExecute(targetRoot);
 });
 
 test("install refuses symlinked roots, symlinked ancestors, and skill targets to avoid mutating the symlink source unexpectedly", async () => {

@@ -2,10 +2,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 import {
   formatCliError,
+  isDirectCliRun,
   parseJsonText,
   parseReviewThreads,
   readInput,
@@ -219,9 +219,7 @@ export async function runCli(
   stdout.write(`${JSON.stringify(payload)}\n`);
 }
 
-const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-
-if (isDirectRun) {
+if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);
     process.exitCode = 1;

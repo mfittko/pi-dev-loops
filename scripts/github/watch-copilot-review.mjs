@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { fileURLToPath } from "node:url";
 
-import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
+import { formatCliError, isDirectCliRun, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "./capture-review-threads.mjs";
 
 const USAGE = `Usage: watch-copilot-review.mjs --repo <owner/name> --pr <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
@@ -386,9 +384,7 @@ export async function runCli(
   stdout.write(`${JSON.stringify(buildNoChangePayload(status, options.repo, options.pr, attemptBudget))}\n`);
 }
 
-const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-
-if (isDirectRun) {
+if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);
     process.exitCode = 1;
