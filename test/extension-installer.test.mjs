@@ -42,6 +42,7 @@ async function seedPackagedSupport(tempDir) {
     "github/repo-slug.mjs": "export const normalizeRepoSlug = (repo) => repo;\nexport const parseRepoSlugParts = (repo) => ({ owner: repo, name: repo });\n",
     "github/review-threads.mjs": "export const reviewThreads = true;\n",
     "loop/copilot-loop-state.mjs": "export const copilotState = true;\n",
+    "loop/outer-loop-state.mjs": "export const outerLoopState = true;\n",
     "loop/phase-files.mjs": "export const phaseFiles = true;\n",
     "loop/reviewer-loop-state.mjs": "export const reviewerState = true;\n",
     "loop/steering.mjs": "export const steeringState = true;\n",
@@ -51,6 +52,7 @@ async function seedPackagedSupport(tempDir) {
   await seedFiles(docsRoot, {
     "copilot-loop-state-graph.md": "copilot graph\n",
     "reviewer-loop-state-graph.md": "reviewer graph\n",
+    "outer-loop-state-graph.md": "outer graph\n",
     "tracker-first-mvp-state-graph.md": "tracker graph\n",
     "IMPLEMENTATION_STATE.md": "not bundled\n",
   });
@@ -145,8 +147,16 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
     "export const copilotState = true;\n",
   );
   assert.equal(
+    await readFile(path.join(targetRoot, "copilot-dev-loop", "packages", "core", "src", "loop", "outer-loop-state.mjs"), "utf8"),
+    "export const outerLoopState = true;\n",
+  );
+  assert.equal(
     await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "copilot-loop-state-graph.md"), "utf8"),
     "copilot graph\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "outer-loop-state-graph.md"), "utf8"),
+    "outer graph\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "tracker-first-mvp-state-graph.md"), "utf8"),
@@ -182,6 +192,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
     "export const copilotState = true;\n",
   );
   assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "loop", "outer-loop-state.mjs"), "utf8"),
+    "export const outerLoopState = true;\n",
+  );
+  assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "loop", "steering.mjs"), "utf8"),
     "export const steeringState = true;\n",
   );
@@ -192,6 +206,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "docs", "copilot-loop-state-graph.md"), "utf8"),
     "copilot graph\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "docs", "outer-loop-state-graph.md"), "utf8"),
+    "outer graph\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "docs", "tracker-first-mvp-state-graph.md"), "utf8"),

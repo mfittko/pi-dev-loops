@@ -12,6 +12,10 @@ test("packages/core exports public loop contract modules in package metadata", a
     "./src/loop/conductor-ownership.mjs",
   );
   assert.equal(
+    packageJson.exports["./loop/outer-loop-state"],
+    "./src/loop/outer-loop-state.mjs",
+  );
+  assert.equal(
     packageJson.exports["./loop/public-dev-loop-routing"],
     "./src/loop/public-dev-loop-routing.mjs",
   );

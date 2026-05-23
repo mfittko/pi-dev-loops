@@ -32,7 +32,7 @@
  * Success output shape (stdout, JSON):
  *   { "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": N },
  *     "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop",
- *     "outerAction": "...", "activeFamilyState": "...",
+ *     "outerState": "...", "outerAction": "...", "activeFamilyState": "...",
  *     "statusClass": "...", "needsAttention": false,
  *     "sourceMode": "...", "trust": "...",
  *     "evidence": { "summary": "...", "authoritative": [...], "checkpoint": [...] },
@@ -72,7 +72,7 @@ import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
-import { decideOuterAction } from "./outer-loop.mjs";
+import { interpretOuterLoopState } from "../../packages/core/src/loop/outer-loop-state.mjs";
 import {
   composeRunInspectionSnapshot,
   deriveRunIdForInspectionTarget,
@@ -120,7 +120,7 @@ Test / snapshot-mode flags:
 Output (stdout, JSON):
   Always-present fields:
     ok, schemaVersion, target, inspectedAt, activeStateFamily,
-    outerAction, activeFamilyState, statusClass, needsAttention,
+    outerState, outerAction, activeFamilyState, statusClass, needsAttention,
     sourceMode, trust, evidence, markers, loopIterations
   Best-effort fields:
     layers (copilot, reviewer, steering drill-down)
@@ -559,6 +559,8 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   // that the outer action decision is based purely on PR/GitHub state.
   // -------------------------------------------------------------------------
 
+  let outerState;
+  let outerAllowedTransitions;
   let outerAction;
   let outerReason;
 
@@ -574,13 +576,19 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
     && reviewerEvidence !== null;
 
   if (hasCompleteCurrentInnerLoopState) {
-    const decision = decideOuterAction({
+    const outerInterpretation = interpretOuterLoopState({
+      target: { repo, pr },
       copilotState: copilotEvidence.interpretation.state,
       reviewerState: reviewerEvidence.interpretation.state,
-      gitStatus: { isDirty: false, isDetached: false },
+      sourceMode: evidenceSourceKinds.copilot === "live" && evidenceSourceKinds.reviewer === "live"
+        ? "authoritative"
+        : "snapshot",
+      requiresLocalIsolation: false,
     });
-    outerAction = decision.outerAction;
-    outerReason = decision.reason;
+    outerState = outerInterpretation.state;
+    outerAllowedTransitions = outerInterpretation.allowedTransitions;
+    outerAction = outerInterpretation.outerAction;
+    outerReason = outerInterpretation.stopReason;
   }
 
   // -------------------------------------------------------------------------
@@ -647,6 +655,8 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   return composeRunInspectionSnapshot({
     target: { repo, pr },
     inspectedAt,
+    outerState,
+    outerAllowedTransitions,
     outerAction,
     outerReason,
     copilotEvidence,

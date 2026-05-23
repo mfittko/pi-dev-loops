@@ -12,6 +12,12 @@ import {
   TRANSITIONS as COPILOT_TRANSITIONS,
 } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
+  OUTER_GRAPH,
+  OUTER_STATE,
+  OUTER_TERMINAL_STATES,
+  OUTER_TRANSITIONS,
+} from "../../packages/core/src/loop/outer-loop-state.mjs";
+import {
   REVIEWER_STATE,
   REVIEWER_TRANSITIONS,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
@@ -228,34 +234,27 @@ function renderStateVisualizationIntro(snapshot) {
   const stateLabel = renderSnapshotStateLabel(snapshot);
 
   if (stateLabel === "authoritative") {
-    return "Full authoritative Copilot and reviewer state machines, plus fail-closed outer-loop summary from the authoritative inspection snapshot.";
+    return "Full authoritative outer, Copilot, and reviewer state graphs from the authoritative inspection snapshot.";
   }
   if (stateLabel === "degraded") {
-    return "Full authoritative Copilot and reviewer state machines from a degraded inspection snapshot. Missing current-state or next-state highlights stay explicitly unavailable instead of being guessed.";
+    return "Full authoritative outer, Copilot, and reviewer state graphs from a degraded inspection snapshot. Missing current-state or next-state highlights stay explicitly unavailable instead of being guessed.";
   }
   if (stateLabel === "checkpoint-only") {
-    return "Full authoritative Copilot and reviewer state machines from a checkpoint-only inspection snapshot. Treat current-state and next-state highlights as advisory until live inspection is available.";
+    return "Full authoritative outer, Copilot, and reviewer state graphs from a checkpoint-only inspection snapshot. Treat current-state and next-state highlights as advisory until live inspection is available.";
   }
   if (stateLabel === "conflicting") {
-    return "Full authoritative Copilot and reviewer state machines from a conflicting inspection snapshot. Resolve the conflicting evidence before treating the highlights as authoritative.";
+    return "Full authoritative outer, Copilot, and reviewer state graphs from a conflicting inspection snapshot. Resolve the conflicting evidence before treating the highlights as authoritative.";
   }
 
-  return "Full authoritative Copilot and reviewer state machines from the current inspection snapshot.";
+  return "Full authoritative outer, Copilot, and reviewer state graphs from the current inspection snapshot.";
 }
 
-const OUTER_LOOP_KNOWN_ACTIONS = Object.freeze([
-  "continue_wait",
-  "reenter_copilot_loop",
-  "reenter_reviewer_loop",
-  "stop",
-  "done",
-]);
-const OUTER_LOOP_TERMINAL_STATES = new Set(["stop", "done"]);
 const COPILOT_TERMINAL_STATES = new Set(
   Object.entries(COPILOT_TRANSITIONS)
     .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
     .map(([state]) => state),
 );
+const OUTER_TERMINAL_STATE_SET = new Set(OUTER_TERMINAL_STATES);
 const REVIEWER_TERMINAL_STATES = new Set(
   Object.entries(REVIEWER_TRANSITIONS)
     .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
@@ -331,85 +330,12 @@ function renderMermaidNodeId(laneKey, state) {
   return `${laneKey}_${String(state).replaceAll(/[^a-zA-Z0-9_]+/g, "_")}`;
 }
 
-function buildOuterLoopSummaryLane({ laneKey, title, currentState, transitions }) {
-  const knownStates = new Set(OUTER_LOOP_KNOWN_ACTIONS);
-  const currentInfo = normalizeCurrentStateInfo(currentState, {
-    knownStates,
-    terminalStates: OUTER_LOOP_TERMINAL_STATES,
-  });
-  const transitionInfo = summarizeTransitionAvailability(transitions);
-  const classIds = {
-    cue: [],
-    current: [],
-    currentTerminal: [],
-    next: [],
-    nextTerminal: [],
-    terminal: [],
-    inactive: [],
-    unavailable: [],
-    note: [],
-  };
-  const lines = [
-    `  subgraph ${laneKey}["${escapeMermaidLabel(title)}"]`,
-    "    direction LR",
-  ];
-
-  for (const state of OUTER_LOOP_KNOWN_ACTIONS) {
-    const nodeId = renderMermaidNodeId(laneKey, state);
-    const terminal = OUTER_LOOP_TERMINAL_STATES.has(state);
-    lines.push(`    ${renderMermaidNode(nodeId, state)}`);
-
-    if (currentInfo.available && currentInfo.label === state) {
-      classIds[terminal ? "currentTerminal" : "current"].push(nodeId);
-    } else if (terminal) {
-      classIds.terminal.push(nodeId);
-    } else {
-      classIds.inactive.push(nodeId);
-    }
-  }
-
-  const limitationId = `${laneKey}_limitation`;
-  lines.push(`    ${renderMermaidNode(limitationId, "authoritative full transition graph not exported")}`);
-  classIds.note.push(limitationId);
-
-  let currentId = limitationId;
-  if (!currentInfo.available) {
-    const unavailableId = `${laneKey}_current_unavailable`;
-    lines.push(`    ${renderMermaidNode(unavailableId, currentInfo.label)}`);
-    lines.push(`    ${unavailableId} -.-> ${limitationId}`);
-    classIds.unavailable.push(unavailableId);
-    currentId = unavailableId;
-  } else {
-    currentId = renderMermaidNodeId(laneKey, currentInfo.label);
-    lines.push(`    ${currentId} -.-> ${limitationId}`);
-  }
-
-  if (transitionInfo.unavailable) {
-    const noteId = `${laneKey}_transitions_unavailable`;
-    lines.push(`    ${renderMermaidNode(noteId, "snapshot next transitions unavailable")}`);
-    lines.push(`    ${currentId} -.-> ${noteId}`);
-    classIds.note.push(noteId);
-  }
-
-  lines.push("  end");
-
-  return {
-    title,
-    currentLabel: currentInfo.label,
-    transitionInfo,
-    currentId,
-    lines,
-    classIds,
-    summary: `${currentInfo.label}; known outer actions shown, but authoritative full transitions are not exported`,
-  };
-}
-
-function buildFullStateMachineLane({ laneKey, title, states, transitionTable, currentState, transitions, startStates = [] }) {
+function buildFullStateMachineLane({ laneKey, title, states, transitionTable, currentState, transitions, startStates = [], startLabel = "Start", endLabel = "End", terminalStates = null }) {
   const knownStates = new Set(states);
-  const terminalStates = new Set(
-    states.filter((state) => Array.isArray(transitionTable[state]) && transitionTable[state].length === 0),
-  );
-  const currentInfo = normalizeCurrentStateInfo(currentState, { knownStates, terminalStates });
+  const resolvedTerminalStates = terminalStates instanceof Set
+    ? terminalStates
+    : new Set(states.filter((state) => Array.isArray(transitionTable[state]) && transitionTable[state].length === 0));
+  const currentInfo = normalizeCurrentStateInfo(currentState, { knownStates, terminalStates: resolvedTerminalStates });
   const transitionInfo = summarizeTransitionAvailability(transitions);
   const authoritativeCurrentNextStates = currentInfo.available
     ? new Set(Array.isArray(transitionTable[currentInfo.label]) ? transitionTable[currentInfo.label] : [])
@@ -438,13 +364,13 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
   const endId = `${laneKey}_end`;
 
   if (startStates.length > 0) {
-    lines.push(`    ${renderMermaidNode(startId, "Start", "pill")}`);
+    lines.push(`    ${renderMermaidNode(startId, startLabel, "pill")}`);
     classIds.cue.push(startId);
   }
 
   for (const state of states) {
     const nodeId = renderMermaidNodeId(laneKey, state);
-    const terminal = terminalStates.has(state);
+    const terminal = resolvedTerminalStates.has(state);
     lines.push(`    ${renderMermaidNode(nodeId, state)}`);
 
     if (currentInfo.available && currentInfo.label === state) {
@@ -461,7 +387,7 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
   let endVisible = false;
   const ensureEndNode = () => {
     if (!endVisible) {
-      lines.push(`    ${renderMermaidNode(endId, "End", "circle")}`);
+      lines.push(`    ${renderMermaidNode(endId, endLabel, "circle")}`);
       classIds.cue.push(endId);
       endVisible = true;
     }
@@ -526,11 +452,17 @@ export function buildInspectionMermaidGraph(snapshot) {
   }
 
   const lanes = [
-    buildOuterLoopSummaryLane({
+    buildFullStateMachineLane({
       laneKey: "outer_loop_family",
       title: "outer-loop family",
-      currentState: snapshot.activeFamilyState,
+      states: Object.values(OUTER_STATE),
+      transitionTable: OUTER_TRANSITIONS,
+      currentState: snapshot.outerState,
       transitions: snapshot.allowedTransitions,
+      startStates: OUTER_GRAPH.entryStates,
+      startLabel: OUTER_GRAPH.start.label,
+      endLabel: OUTER_GRAPH.end.label,
+      terminalStates: OUTER_TERMINAL_STATE_SET,
     }),
     buildFullStateMachineLane({
       laneKey: "copilot_layer",
@@ -540,6 +472,7 @@ export function buildInspectionMermaidGraph(snapshot) {
       currentState: snapshot.layers?.copilot?.currentState,
       transitions: snapshot.layers?.copilot?.allowedTransitions,
       startStates: [COPILOT_STATE.PR_DRAFT],
+      terminalStates: COPILOT_TERMINAL_STATES,
     }),
     buildFullStateMachineLane({
       laneKey: "reviewer_layer",
@@ -549,6 +482,7 @@ export function buildInspectionMermaidGraph(snapshot) {
       currentState: snapshot.layers?.reviewer?.currentState,
       transitions: snapshot.layers?.reviewer?.allowedTransitions,
       startStates: [REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST],
+      terminalStates: REVIEWER_TERMINAL_STATES,
     }),
   ];
 
@@ -618,7 +552,7 @@ function renderStateGraphHelp() {
     <li><strong>Current:</strong> emphasized nodes show the snapshot-derived current state for each lane when that state is actually known.</li>
     <li><strong>Next:</strong> purple nodes mark immediate allowed next states from the snapshot. Dimmed nodes are still part of the authoritative state machine; they are simply inactive right now.</li>
     <li><strong>Start / End:</strong> Mermaid entry and exit nodes make lane boundaries easier to scan for the full authoritative graph.</li>
-    <li><strong>Outer loop:</strong> the viewer shows known outer actions but stays fail-closed about full outer-loop transitions until the repo exports that transition graph authoritatively.</li>
+    <li><strong>Outer loop:</strong> the outer lane now comes from the shared authoritative outer-loop graph contract; outerAction remains visible only as a compatibility projection.</li>
     <li><strong>🔁 Loop cue:</strong> this viewer is revisited by manual reload, so the same current state can recur across inspections until evidence changes.</li>
   </ul>`;
 }
@@ -711,7 +645,8 @@ function renderOuterLoopSummarySection(snapshot) {
     title: "outer-loop summary",
     entries: [
       ["activeStateFamily", snapshot.activeStateFamily ?? "not present"],
-      ["outerAction", snapshot.outerAction ?? "not present"],
+      ["outerState", snapshot.outerState ?? "not present"],
+      ["outerAction (compatibility)", snapshot.outerAction ?? "not present"],
       ["activeFamilyState", snapshot.activeFamilyState ?? "not present"],
       ["statusClass", snapshot.statusClass ?? "not present"],
       ["needsAttention", String(snapshot.needsAttention ?? "not present")],
@@ -862,13 +797,38 @@ function summarizeCurrentPrStatus(snapshot) {
   const copilotState = formatStateToken(snapshot.layers?.copilot?.currentState);
   const reviewerState = formatStateToken(snapshot.layers?.reviewer?.currentState);
   const statusClass = formatStateToken(snapshot.statusClass, "unknown");
+  const outerState = formatStateToken(snapshot.outerState, "unknown");
   const outerAction = formatStateToken(snapshot.outerAction, "unknown");
 
-  if (statusClass === "done" || outerAction === "done" || copilotState === "done") {
+  if (outerState === OUTER_STATE.DONE_TERMINAL || statusClass === "done" || outerAction === "done" || copilotState === "done") {
     return {
       headline: "PR complete",
       detail: "The current inspection says this PR is in a terminal done state.",
       nextAction: "Confirm merge/readiness context or inspect the raw snapshot for terminal evidence.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.NEEDS_RECONCILE) {
+    return {
+      headline: "Needs reconcile",
+      detail: "The authoritative outer state is needs_reconcile, which means the current inputs are ambiguous, conflicting, or insufficient.",
+      nextAction: "Reconcile the conflicting state before trusting the current routing result.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.STAY_WITH_CURRENT_LIVE_OWNER) {
+    return {
+      headline: "Live owner already active",
+      detail: "The authoritative outer state is stay_with_current_live_owner, so the loop should not issue a new handoff yet.",
+      nextAction: "Wait for the live owner to progress the run, then refresh the inspection.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.STOP_NEEDS_HUMAN) {
+    return {
+      headline: "Needs attention",
+      detail: "The authoritative outer state is stop_needs_human, so automated progress should stop until a human resolves the blocking condition.",
+      nextAction: "Read the stop reason, trust markers, and layer summaries before proceeding.",
     };
   }
 
@@ -936,40 +896,48 @@ function summarizeCurrentPrStatus(snapshot) {
     };
   }
 
-  if (outerAction === "stop" || statusClass === "blocked" || snapshot.needsAttention) {
+  if (outerState === "unknown" && snapshot.needsAttention) {
     return {
       headline: "Needs attention",
-      detail: "The inspection found a blocked or attention-needed state.",
+      detail: "The current snapshot is not authoritative enough to collapse to one trusted outer state.",
+      nextAction: "Check trust markers and layer summaries before acting on this snapshot.",
+    };
+  }
+
+  if (outerAction === "stop" || statusClass === "blocked") {
+    return {
+      headline: "Needs attention",
+      detail: "The inspection found a blocked or stop-like state, but the authoritative outer state was not specific enough to classify it more narrowly here.",
       nextAction: "Read the stop reason, trust markers, and layer summaries before proceeding.",
     };
   }
 
-  if (outerAction === "continue_wait") {
+  if (outerState === OUTER_STATE.CONTINUE_CURRENT_WAIT || outerAction === "continue_wait") {
     return {
       headline: "Waiting for follow-up",
-      detail: "The outer loop is in a wait state, but this snapshot does not expose a narrower active inner-loop state.",
+      detail: "The authoritative outer state is continue_current_wait, so the loop should remain in its durable wait path for now.",
       nextAction: "Refresh after new review, CI, or author activity lands.",
     };
   }
 
-  if (outerAction === "reenter_copilot_loop") {
+  if (outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP || outerAction === "reenter_copilot_loop") {
     return {
       headline: "Copilot loop needs action",
-      detail: "The outer loop says the next meaningful work is in the Copilot lane.",
+      detail: "The authoritative outer state is handoff_to_copilot_loop, so the next meaningful work is in the Copilot lane.",
       nextAction: "Inspect the Copilot state and act on the requested follow-up.",
     };
   }
 
-  if (outerAction === "reenter_reviewer_loop") {
+  if (outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP || outerAction === "reenter_reviewer_loop") {
     return {
       headline: "Reviewer loop needs action",
-      detail: "The outer loop says the next meaningful work is in the reviewer lane.",
+      detail: "The authoritative outer state is handoff_to_reviewer_loop, so the next meaningful work is in the reviewer lane.",
       nextAction: "Inspect the reviewer state and act on the requested follow-up.",
     };
   }
 
   return {
-    headline: titleCaseWords(humanizeStateToken(copilotState === "not present" ? outerAction : copilotState)),
+    headline: titleCaseWords(humanizeStateToken(copilotState === "not present" ? (outerState === "unknown" ? outerAction : outerState) : copilotState)),
     detail: "The viewer could not collapse this to a narrower plain-English status than the current exported loop states.",
     nextAction: "Use the current-state banner fields plus the graph and summaries below.",
   };
@@ -983,7 +951,8 @@ function renderCurrentStateBanner(snapshot, target, stateLabel) {
     <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
     <dl class="current-pr-state-grid">
       <dt>target</dt><dd><code>${escapeHtml(target.repo)}#${escapeHtml(target.pr)}</code></dd>
-      <dt>overall outer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
+      <dt>outer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerState))}</code></dd>
+      <dt>outerAction (compatibility)</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
       <dt>current Copilot state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.copilot?.currentState))}</code></dd>
       <dt>current reviewer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.reviewer?.currentState))}</code></dd>
       <dt>snapshot trust</dt><dd><span class="badge">${escapeHtml(stateLabel)}</span></dd>

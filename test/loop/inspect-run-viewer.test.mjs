@@ -18,6 +18,10 @@ import {
   TRANSITIONS as COPILOT_TRANSITIONS,
 } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
+  OUTER_STATE,
+  OUTER_TRANSITIONS,
+} from "../../packages/core/src/loop/outer-loop-state.mjs";
+import {
   REVIEWER_STATE,
   REVIEWER_TRANSITIONS,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
@@ -31,6 +35,16 @@ function makeSnapshot(overrides = {}) {
     runId: "pr-55",
     inspectedAt: "2026-05-21T00:00:00.000Z",
     activeStateFamily: "copilot-pr-outer-loop",
+    outerState: "continue_current_wait",
+    allowedTransitions: [
+      "continue_current_wait",
+      "handoff_to_copilot_loop",
+      "handoff_to_reviewer_loop",
+      "stay_with_current_live_owner",
+      "stop_needs_human",
+      "done_terminal",
+      "needs_reconcile",
+    ],
     outerAction: "continue_wait",
     activeFamilyState: "continue_wait",
     statusClass: "waiting",
@@ -279,24 +293,37 @@ test("buildInspectionMermaidGraph renders full authoritative Mermaid state machi
   assert.ok(graph);
   assert.match(graph.definition, /flowchart TB/);
   assert.match(graph.definition, /subgraph outer_loop_family\["outer-loop family"\]/);
-  assert.match(graph.definition, /outer_loop_family_limitation\["authoritative full transition graph not exported"\]/);
+  assert.match(graph.definition, /outer_loop_family_start\(\["Start"\]\)/);
+  assert.match(graph.definition, /outer_loop_family_end\(\("End"\)\)/);
   assert.match(graph.definition, /copilot_layer_start\(\["Start"\]\)/);
   assert.match(graph.definition, /reviewer_layer_start\(\["Start"\]\)/);
   assert.match(graph.definition, /copilot_layer_no_pr\["no_pr"\]/);
   assert.match(graph.definition, /copilot_layer_ready_to_rerequest_review\["ready_to_rerequest_review"\]/);
   assert.match(graph.definition, /reviewer_layer_review_requested\["review_requested"\]/);
   assert.match(graph.definition, /reviewer_layer_waiting_for_re_request\["waiting_for_re_request"\]/);
-  assert.match(graph.definition, /snapshot next transitions unavailable/);
   assert.match(graph.definition, /layer view/);
-  assert.match(graph.definition, /class outer_loop_family_continue_wait,reviewer_layer_waiting_for_author_followup current;/);
+  assert.match(graph.definition, /class outer_loop_family_continue_current_wait,reviewer_layer_waiting_for_author_followup current;/);
   assert.match(graph.definition, /class copilot_layer_done currentTerminal;/);
-  assert.match(graph.definition, /class reviewer_layer_waiting_for_re_request next;/);
+  assert.match(graph.definition, /class [^\n]*reviewer_layer_waiting_for_re_request next;/);
 });
 
-test("buildInspectionMermaidGraph covers every exported Copilot and reviewer state and edge", () => {
+test("buildInspectionMermaidGraph covers every exported outer, Copilot, and reviewer state and edge", () => {
   const graph = buildInspectionMermaidGraph(makeSnapshot());
 
   assert.ok(graph);
+
+  for (const state of Object.values(OUTER_STATE)) {
+    assert.match(graph.definition, new RegExp(`outer_loop_family_${state}\\["${state}"\\]`));
+  }
+  for (const [state, nextStates] of Object.entries(OUTER_TRANSITIONS)) {
+    if (nextStates.length === 0) {
+      assert.match(graph.definition, new RegExp(`outer_loop_family_${state} --> outer_loop_family_end`));
+      continue;
+    }
+    for (const nextState of nextStates) {
+      assert.match(graph.definition, new RegExp(`outer_loop_family_${state} --> outer_loop_family_${nextState}`));
+    }
+  }
 
   for (const state of Object.values(COPILOT_STATE)) {
     assert.match(graph.definition, new RegExp(`copilot_layer_${state}\\["${state}"\\]`));
@@ -356,7 +383,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /Current PR state/);
   assert.match(html, /Waiting for Copilot review/);
   assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
-  assert.match(html, /overall outer state/);
+  assert.match(html, /outer state/);
+  assert.match(html, /outerAction \(compatibility\)/);
   assert.match(html, /current Copilot state/);
   assert.match(html, /current reviewer state/);
   assert.match(html, /next action/);
@@ -380,7 +408,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.conflicts/);
   assert.match(html, /State visualization/);
   assert.match(html, /authoritative inspection snapshot/i);
-  assert.match(html, /full authoritative copilot and reviewer state machines/i);
+  assert.match(html, /full authoritative outer, copilot, and reviewer state graphs/i);
   assert.match(html, /class="state-graph-cues"/);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /assets\/mermaid\.min\.js/);
@@ -388,11 +416,11 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /End/);
   assert.match(html, /Next/);
   assert.match(html, /🔁/);
-  assert.match(html, /outer-loop family:\s*<\/strong> current <code>continue_wait<\/code>; continue_wait; known outer actions shown, but authoritative full transitions are not exported; transition data unavailable in this snapshot/);
+  assert.match(html, /outer-loop family:[\s\S]*current <code>continue_current_wait<\/code>; continue_current_wait; full authoritative state machine shown; continue_current_wait, handoff_to_copilot_loop, handoff_to_reviewer_loop, stay_with_current_live_owner, stop_needs_human, done_terminal, needs_reconcile/);
   assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
   assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; waiting_for_re_request, waiting_for_review_request/);
   assert.match(html, /Dimmed nodes are still part of the authoritative state machine/);
-  assert.match(html, /full outer-loop transitions until the repo exports that transition graph authoritatively/);
+  assert.match(html, /outer lane now comes from the shared authoritative outer-loop graph contract/);
   assert.match(html, /outer-loop summary/);
   assert.match(html, /Copilot loop iterations/);
   assert.match(html, /4 completed, 1 pending/);
@@ -415,6 +443,8 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
       sourceMode: "checkpoint-only",
       trust: "checkpoint",
       needsAttention: true,
+      outerState: "unknown",
+      allowedTransitions: undefined,
       outerAction: "unknown",
       activeFamilyState: "unknown",
       statusClass: "unknown",
@@ -432,7 +462,7 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
   assert.match(html, /checkpoint-only/);
   assert.match(html, /checkpoint-only inspection snapshot/i);
   assert.match(html, /Needs attention/);
-  assert.match(html, /The inspection found a blocked or attention-needed state/);
+  assert.match(html, /The current snapshot is not authoritative enough to collapse to one trusted outer state/);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
@@ -469,6 +499,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   const html = renderInspectRunViewerHtml({
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
+      outerState: "done_terminal",
       activeFamilyState: "done",
       outerAction: "done",
       statusClass: "done",
@@ -491,6 +522,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   assert.match(html, /The current inspection says this PR is in a terminal done state/);
 
   const graph = buildInspectionMermaidGraph(makeSnapshot({
+    outerState: "done_terminal",
     activeFamilyState: "done",
     outerAction: "done",
     statusClass: "done",
@@ -509,9 +541,61 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   }));
 
   assert.ok(graph);
-  assert.match(graph.definition, /class outer_loop_family_done,copilot_layer_done currentTerminal;/);
+  assert.match(graph.definition, /class outer_loop_family_done_terminal,copilot_layer_done currentTerminal;/);
   assert.match(graph.definition, /copilot_layer_done --> copilot_layer_end/);
   assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; done; full authoritative state machine shown; no allowed transitions/);
+});
+
+test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and needs_reconcile in the banner", () => {
+  const liveOwnerHtml = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      outerState: "stay_with_current_live_owner",
+      outerAction: "continue_wait",
+      layers: {
+        copilot: {
+          currentState: "ready_to_rerequest_review",
+          allowedTransitions: ["waiting_for_copilot_review", "review_request_unavailable", "done"],
+        },
+        reviewer: {
+          currentState: "review_requested",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["determine_review_plan", "blocked_needs_user_decision"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(liveOwnerHtml, /Live owner already active/);
+  assert.match(liveOwnerHtml, /stay_with_current_live_owner/);
+  assert.doesNotMatch(liveOwnerHtml, /Reviewer loop active/);
+
+  const reconcileHtml = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      outerState: "needs_reconcile",
+      outerAction: "stop",
+      statusClass: "blocked",
+      needsAttention: true,
+      layers: {
+        copilot: {
+          currentState: "waiting_for_copilot_review",
+          allowedTransitions: ["unresolved_feedback_present", "ready_to_rerequest_review", "waiting_for_ci"],
+        },
+        reviewer: {
+          currentState: "waiting_for_review_request",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["review_requested"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(reconcileHtml, /Needs reconcile/);
+  assert.match(reconcileHtml, /needs_reconcile/);
+  assert.doesNotMatch(reconcileHtml, /The inspection found a blocked or stop-like state/);
 });
 
 test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {

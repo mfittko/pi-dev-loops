@@ -54,6 +54,7 @@ import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+import { interpretOuterLoopState } from "../../packages/core/src/loop/outer-loop-state.mjs";
 import { evaluateConductorRouting } from "../../packages/core/src/loop/conductor-routing.mjs";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
@@ -384,15 +385,15 @@ function shouldCarryForwardWaitCycles(previousCheckpoint, { repo, pr, headSha, o
  * @returns {{ outerAction: string, reason?: string }}
  */
 export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
-  const routing = evaluateConductorRouting({
+  const interpretation = interpretOuterLoopState({
     target: { repo: "routing/sentinel", pr: 1 },
     copilotState,
     reviewerState,
     requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
   });
   return {
-    outerAction: routing.outerAction,
-    ...(routing.stopReason !== null ? { reason: routing.stopReason } : {}),
+    outerAction: interpretation.outerAction,
+    ...(interpretation.stopReason !== null ? { reason: interpretation.stopReason } : {}),
   };
 }
 
@@ -456,10 +457,18 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     sourceMode,
     requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
   });
+  const outerInterpretation = interpretOuterLoopState({
+    target: { repo: normalizedRepo, pr },
+    copilotState: copilotInterpretation.state,
+    reviewerState: reviewerInterpretation.state,
+    sourceMode,
+    requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
+  });
 
-  // Derive outer-loop action from the routing result (backward-compat output shape)
-  const outerAction = conductorRouting.outerAction;
-  const outerReason = conductorRouting.stopReason;
+  // Derive outer-loop action from the authoritative outer interpretation
+  // while preserving the existing backward-compat output shape.
+  const outerAction = outerInterpretation.outerAction;
+  const outerReason = outerInterpretation.stopReason;
 
   // Read previous checkpoint to track wait cycles
   const { checkpoint: prevCheckpoint } = await readResolvedCheckpoint({

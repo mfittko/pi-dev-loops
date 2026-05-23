@@ -250,6 +250,8 @@ test("composeRunInspectionSnapshot: complete live evidence returns all required 
   const snapshot = composeRunInspectionSnapshot({
     target: { repo: "owner/repo", pr: 55 },
     inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "continue_current_wait",
+    outerAllowedTransitions: ["continue_current_wait", "handoff_to_copilot_loop"],
     outerAction: "continue_wait",
     outerReason: undefined,
     copilotEvidence,
@@ -267,6 +269,8 @@ test("composeRunInspectionSnapshot: complete live evidence returns all required 
   assert.deepEqual(snapshot.target, { repo: "owner/repo", pr: 55 });
   assert.equal(snapshot.inspectedAt, "2026-05-18T12:00:00Z");
   assert.equal(snapshot.activeStateFamily, ACTIVE_STATE_FAMILY);
+  assert.equal(snapshot.outerState, "continue_current_wait");
+  assert.deepEqual(snapshot.allowedTransitions, ["continue_current_wait", "handoff_to_copilot_loop"]);
   assert.equal(snapshot.outerAction, "continue_wait");
   assert.equal(snapshot.activeFamilyState, "continue_wait");
   assert.equal(snapshot.statusClass, STATUS_CLASS.WAITING);
@@ -305,6 +309,8 @@ test("composeRunInspectionSnapshot: live evidence + done → statusClass done, n
   const snapshot = composeRunInspectionSnapshot({
     target: { repo: "owner/repo", pr: 55 },
     inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "done_terminal",
+    outerAllowedTransitions: [],
     outerAction: "done",
     copilotEvidence,
     reviewerEvidence,
@@ -328,6 +334,8 @@ test("composeRunInspectionSnapshot: live evidence + stop → statusClass blocked
   const snapshot = composeRunInspectionSnapshot({
     target: { repo: "owner/repo", pr: 55 },
     inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "stop_needs_human",
+    outerAllowedTransitions: [],
     outerAction: "stop",
     outerReason: "copilot_blocked",
     copilotEvidence,
@@ -351,6 +359,8 @@ test("composeRunInspectionSnapshot: live evidence + reenter_copilot_loop → act
   const snapshot = composeRunInspectionSnapshot({
     target: { repo: "owner/repo", pr: 55 },
     inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "handoff_to_copilot_loop",
+    outerAllowedTransitions: ["continue_current_wait", "handoff_to_copilot_loop"],
     outerAction: "reenter_copilot_loop",
     copilotEvidence,
     reviewerEvidence,
@@ -678,6 +688,8 @@ test("composeRunInspectionSnapshot: output has stable required top-level fields"
   const snapshot = composeRunInspectionSnapshot({
     target: { repo: "owner/repo", pr: 55 },
     inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "continue_current_wait",
+    outerAllowedTransitions: ["continue_current_wait"],
     outerAction: "continue_wait",
     copilotEvidence: makeCopilotEvidence("waiting_for_copilot_review"),
     reviewerEvidence: makeReviewerEvidence("waiting_for_author_followup"),
@@ -690,7 +702,7 @@ test("composeRunInspectionSnapshot: output has stable required top-level fields"
 
   const requiredFields = [
     "ok", "schemaVersion", "target", "inspectedAt",
-    "activeStateFamily", "outerAction", "activeFamilyState",
+    "activeStateFamily", "outerState", "outerAction", "activeFamilyState",
     "statusClass", "needsAttention", "sourceMode", "trust",
     "evidence", "markers", "loopIterations",
   ];

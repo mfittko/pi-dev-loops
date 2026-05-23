@@ -133,9 +133,15 @@ function buildReviewerScope(snapshotLike) {
  *   Explicit target identity.
  * @param {string} params.inspectedAt
  *   ISO 8601 timestamp of when the inspection was initiated.
+ * @param {string | undefined} [params.outerState]
+ *   Authoritative outer-loop state derived by the caller from a complete
+ *   current-state picture, or undefined when the outer state cannot be determined.
+ * @param {string[] | undefined} [params.outerAllowedTransitions]
+ *   Authoritative allowed next outer states when `outerState` is available.
  * @param {string | undefined} params.outerAction
- *   Outer-loop action derived by the caller from decideOuterAction with neutral
- *   git status, or undefined when the outer action cannot be determined.
+ *   Backward-compatible outer-loop action projection derived by the caller from
+ *   the authoritative outer interpretation, or undefined when the outer action
+ *   cannot be determined.
  * @param {string | undefined} [params.outerReason]
  *   Optional reason string from decideOuterAction (e.g. "copilot_blocked").
  * @param {{ snapshot: object, interpretation: { state: string, allowedTransitions: string[], nextAction: string } } | null} params.copilotEvidence
@@ -172,6 +178,8 @@ function buildReviewerScope(snapshotLike) {
 export function composeRunInspectionSnapshot({
   target,
   inspectedAt,
+  outerState,
+  outerAllowedTransitions,
   outerAction,
   outerReason,
   copilotEvidence,
@@ -310,14 +318,17 @@ export function composeRunInspectionSnapshot({
   }
 
   // -------------------------------------------------------------------------
-  // Top-level outerAction surfacing eligibility
+  // Top-level outer-state / outerAction surfacing eligibility
   // -------------------------------------------------------------------------
 
-  // Top-level outer action is only surfaced when the caller derived it from a
-  // complete current evidence set. Checkpoint-backed or mixed fallback remains
+  // Top-level outer fields are only surfaced when the caller derived them from
+  // a complete current evidence set. Checkpoint-backed or mixed fallback remains
   // available only as advisory drill-down evidence in this chunk.
+  const effectiveOuterState = typeof outerState === "string" ? outerState : undefined;
+  const effectiveOuterAllowedTransitions = Array.isArray(outerAllowedTransitions)
+    ? [...outerAllowedTransitions]
+    : undefined;
   const effectiveOuterAction = outerAction;
-
   const effectiveOuterReason = outerReason;
 
   // -------------------------------------------------------------------------
@@ -447,6 +458,8 @@ export function composeRunInspectionSnapshot({
     runId,
     inspectedAt,
     activeStateFamily: ACTIVE_STATE_FAMILY,
+    outerState: effectiveOuterState ?? "unknown",
+    ...(effectiveOuterAllowedTransitions !== undefined ? { allowedTransitions: effectiveOuterAllowedTransitions } : {}),
     outerAction: effectiveOuterAction ?? "unknown",
     activeFamilyState: effectiveOuterAction ?? "unknown",
     statusClass,
