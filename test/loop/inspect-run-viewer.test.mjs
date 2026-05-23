@@ -392,7 +392,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /End/);
   assert.match(html, /Next/);
   assert.match(html, /🔁/);
-  assert.match(html, /outer-loop family:\s*<\/strong> current <code>continue_wait<\/code>; continue_wait; known outer actions shown, but authoritative full transitions are not exported; transition data unavailable in this snapshot/);
+  assert.match(html, /outer-loop family:\s*<\/strong> current <code>continue_wait<\/code>; known outer actions shown, but authoritative full transitions are not exported; transition data unavailable in this snapshot/);
   assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; validated next states: unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
   assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; validated next states: waiting_for_re_request, waiting_for_review_request/);
   assert.match(html, /Dimmed nodes are still part of the authoritative state machine/);
@@ -562,7 +562,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   assert.ok(graph);
   assert.match(graph.definition, /class outer_loop_family_done,copilot_layer_done currentTerminal;/);
   assert.match(graph.definition, /copilot_layer_done --> copilot_layer_end/);
-  assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; done; full authoritative state machine shown; no allowed transitions/);
+  assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; full authoritative state machine shown; no allowed transitions/);
 });
 
 test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
@@ -777,6 +777,42 @@ test("loadMermaidBrowserScript clears cached rejection so a later retry can reco
 
   assert.equal(recovered, "window.mermaid = {};");
   assert.equal(attempts, 2);
+});
+
+test("createInspectRunViewerServer keeps Mermaid asset failures stable and path-free", async () => {
+  const adapter = {
+    async loadSnapshot() {
+      return makeSnapshot();
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    {
+      adapter,
+      loadMermaidBrowserScriptImpl: async () => {
+        throw new Error("ENOENT: no such file or directory, open '/tmp/private-layout/mermaid.min.js'");
+      },
+    },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/assets/mermaid.min.js`);
+
+    assert.equal(response.statusCode, 500);
+    assert.equal(response.headers["content-type"], "text/plain; charset=utf-8");
+    assert.equal(response.headers["cache-control"], "no-store");
+    assert.equal(response.body, "Mermaid browser asset unavailable. Restart the viewer after reinstalling dependencies.");
+    assert.doesNotMatch(response.body, /private-layout/);
+    assert.doesNotMatch(response.body, /ENOENT/);
+    assert.doesNotMatch(response.body, /\/tmp\/private-layout\/mermaid\.min\.js/);
+    assert.doesNotMatch(response.body, /open '/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test("createInspectRunViewerServer serves the Mermaid browser asset without loading a snapshot", async () => {

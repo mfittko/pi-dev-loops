@@ -418,7 +418,7 @@ function buildOuterLoopSummaryLane({ laneKey, title, currentState, transitions }
     currentId,
     lines,
     classIds,
-    summary: `${currentInfo.label}; known outer actions shown, but authoritative full transitions are not exported`,
+    summary: "known outer actions shown, but authoritative full transitions are not exported",
   };
 }
 
@@ -547,7 +547,7 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
     currentId,
     lines,
     classIds,
-    summary: `${currentInfo.label}; full authoritative state machine shown`,
+    summary: "full authoritative state machine shown",
   };
 }
 
@@ -1134,6 +1134,7 @@ export async function restartExistingPortListener(
 
 export function createInspectRunViewerServer(options, deps = {}) {
   const adapter = deps.adapter ?? createInspectionViewerAdapter();
+  const loadMermaidBrowserScriptImpl = deps.loadMermaidBrowserScriptImpl ?? loadMermaidBrowserScript;
   const target = normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
   const adapterOptions = makeAdapterOptions(options);
 
@@ -1165,12 +1166,12 @@ export function createInspectRunViewerServer(options, deps = {}) {
 
       if (requestPath === MERMAID_BROWSER_ASSET_ROUTE) {
         try {
-          const mermaidBrowserScript = await loadMermaidBrowserScript();
+          const mermaidBrowserScript = await loadMermaidBrowserScriptImpl();
           writeText(response, 200, mermaidBrowserScript, {
             "content-type": "application/javascript; charset=utf-8",
           });
-        } catch (error) {
-          writeText(response, 500, error instanceof Error ? error.message : String(error), {
+        } catch {
+          writeText(response, 500, "Mermaid browser asset unavailable. Restart the viewer after reinstalling dependencies.", {
             "content-type": "text/plain; charset=utf-8",
           });
         }
