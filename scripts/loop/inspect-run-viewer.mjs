@@ -227,7 +227,25 @@ function normalizeTransitions(transitions) {
   if (!Array.isArray(transitions)) {
     return null;
   }
-  return transitions.filter((transition) => typeof transition === "string" && transition.trim().length > 0);
+
+  const normalizedTransitions = [];
+  const seenTransitions = new Set();
+
+  for (const transition of transitions) {
+    if (typeof transition !== "string") {
+      continue;
+    }
+
+    const normalizedTransition = transition.trim();
+    if (normalizedTransition.length === 0 || seenTransitions.has(normalizedTransition)) {
+      continue;
+    }
+
+    seenTransitions.add(normalizedTransition);
+    normalizedTransitions.push(normalizedTransition);
+  }
+
+  return normalizedTransitions;
 }
 
 function renderStateVisualizationIntro(snapshot) {
@@ -300,11 +318,20 @@ function summarizeTransitionAvailability(transitions) {
   };
 }
 
-async function loadMermaidBrowserScript() {
+export async function loadMermaidBrowserScript({ readFileImpl = readFile } = {}) {
   if (mermaidBrowserScriptPromise === null) {
-    mermaidBrowserScriptPromise = readFile(MERMAID_BROWSER_ASSET_PATH, "utf8");
+    mermaidBrowserScriptPromise = Promise.resolve()
+      .then(() => readFileImpl(MERMAID_BROWSER_ASSET_PATH, "utf8"))
+      .catch((error) => {
+        mermaidBrowserScriptPromise = null;
+        throw error;
+      });
   }
   return mermaidBrowserScriptPromise;
+}
+
+export function resetMermaidBrowserScriptCache() {
+  mermaidBrowserScriptPromise = null;
 }
 
 function escapeMermaidLabel(value) {
@@ -878,9 +905,6 @@ function renderSnapshotStateLabel(snapshot) {
   if (snapshot.sourceMode === "partial") {
     return "degraded";
   }
-  if (snapshot.sourceMode === "unavailable") {
-    return "unavailable";
-  }
   return "authoritative";
 }
 
@@ -1355,6 +1379,8 @@ export async function restartExistingPortListener(
 
 export function createInspectRunViewerServer(options, deps = {}) {
   const adapter = deps.adapter ?? createInspectionViewerAdapter();
+  const loadMermaidBrowserScriptImpl = deps.loadMermaidBrowserScriptImpl ?? loadMermaidBrowserScript;
+  const logErrorImpl = deps.logErrorImpl ?? (() => {});
   const target = normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
   const adapterOptions = makeAdapterOptions(options);
 
@@ -1386,12 +1412,13 @@ export function createInspectRunViewerServer(options, deps = {}) {
 
       if (requestPath === MERMAID_BROWSER_ASSET_ROUTE) {
         try {
-          const mermaidBrowserScript = await loadMermaidBrowserScript();
+          const mermaidBrowserScript = await loadMermaidBrowserScriptImpl();
           writeText(response, 200, mermaidBrowserScript, {
             "content-type": "application/javascript; charset=utf-8",
           });
         } catch (error) {
-          writeText(response, 500, error instanceof Error ? error.message : String(error), {
+          logErrorImpl(error);
+          writeText(response, 500, "Mermaid browser asset unavailable", {
             "content-type": "text/plain; charset=utf-8",
           });
         }

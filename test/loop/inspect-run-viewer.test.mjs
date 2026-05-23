@@ -8,8 +8,10 @@ import {
   createInspectRunViewerServer,
   formatInspectRunViewerUrl,
   listListeningPidsForPort,
+  loadMermaidBrowserScript,
   parseInspectRunViewerCliArgs,
   renderInspectRunViewerHtml,
+  resetMermaidBrowserScriptCache,
   restartExistingPortListener,
   runCli,
 } from "../../scripts/loop/inspect-run-viewer.mjs";
@@ -374,6 +376,36 @@ test("buildInspectionMermaidGraph fails closed for invalid next-state highlights
   assert.ok(graph);
   assert.doesNotMatch(graph.definition, /class [^\n]*copilot_layer_done nextTerminal;/);
   assert.doesNotMatch(graph.definition, /class [^\n]*reviewer_layer_review_requested next;/);
+});
+
+
+test("buildInspectionMermaidGraph normalizes and de-duplicates transition tokens before highlighting", () => {
+  const snapshot = makeSnapshot({
+    layers: {
+      copilot: {
+        currentState: "waiting_for_copilot_review",
+        allowedTransitions: [" waiting_for_ci ", "waiting_for_ci", " ready_to_rerequest_review "],
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+
+  const graph = buildInspectionMermaidGraph(snapshot);
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot,
+  });
+
+  assert.ok(graph);
+  assert.match(graph.definition, /class [^\n]*copilot_layer_waiting_for_ci[^\n]* next;/);
+  assert.match(graph.definition, /class [^\n]*copilot_layer_ready_to_rerequest_review[^\n]* next;/);
+  assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; waiting_for_ci, ready_to_rerequest_review/);
+  assert.doesNotMatch(html, /waiting_for_ci,\s*waiting_for_ci/);
 });
 
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
@@ -794,6 +826,84 @@ test("createInspectRunViewerServer serves the Mermaid browser asset without load
     assert.equal(response.headers["cache-control"], "no-store");
     assert.match(response.body, /mermaid/i);
     assert.equal(loadCount, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+
+test("loadMermaidBrowserScript clears failed cache entries so later retries can recover", async () => {
+  let callCount = 0;
+  resetMermaidBrowserScriptCache();
+
+  try {
+    await assert.rejects(
+      () => loadMermaidBrowserScript({
+        readFileImpl: async () => {
+          callCount += 1;
+          throw new Error("missing mermaid asset");
+        },
+      }),
+      /missing mermaid asset/,
+    );
+
+    const firstSuccess = await loadMermaidBrowserScript({
+      readFileImpl: async () => {
+        callCount += 1;
+        return "mermaid browser bundle";
+      },
+    });
+    const secondSuccess = await loadMermaidBrowserScript({
+      readFileImpl: async () => {
+        callCount += 1;
+        return "should stay cached";
+      },
+    });
+
+    assert.equal(firstSuccess, "mermaid browser bundle");
+    assert.equal(secondSuccess, "mermaid browser bundle");
+    assert.equal(callCount, 2);
+  } finally {
+    resetMermaidBrowserScriptCache();
+  }
+});
+
+test("createInspectRunViewerServer keeps Mermaid asset failures generic and path-free", async () => {
+  let loadCount = 0;
+  const loggedErrors = [];
+  const adapter = {
+    async loadSnapshot() {
+      loadCount += 1;
+      return makeSnapshot();
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    {
+      adapter,
+      loadMermaidBrowserScriptImpl: async () => {
+        throw new Error("ENOENT: open '/Users/tester/project/node_modules/mermaid/dist/mermaid.min.js'");
+      },
+      logErrorImpl: (error) => {
+        loggedErrors.push(error instanceof Error ? error.message : String(error));
+      },
+    },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/assets/mermaid.min.js`);
+
+    assert.equal(response.statusCode, 500);
+    assert.equal(response.headers["content-type"], "text/plain; charset=utf-8");
+    assert.equal(response.headers["cache-control"], "no-store");
+    assert.equal(response.body, "Mermaid browser asset unavailable");
+    assert.doesNotMatch(response.body, /Users\/tester/);
+    assert.equal(loadCount, 0);
+    assert.deepEqual(loggedErrors, ["ENOENT: open '/Users/tester/project/node_modules/mermaid/dist/mermaid.min.js'"]);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
