@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
+import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../github/_github-helpers.mjs";
 import { detectLinkedIssuePr } from "../github/detect-linked-issue-pr.mjs";
 
@@ -331,9 +329,7 @@ export async function runCli(
   stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-
-if (isDirectRun) {
+if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);
     process.exitCode = 1;

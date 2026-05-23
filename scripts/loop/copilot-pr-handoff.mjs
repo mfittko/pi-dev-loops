@@ -29,10 +29,7 @@
  *   on stderr and exit non-zero.
  *   gh failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-import { formatCliError } from "../_core-helpers.mjs";
+import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../github/capture-review-threads.mjs";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
@@ -283,9 +280,7 @@ export async function runCli(
   stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-
-if (isDirectRun) {
+if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);
     process.exitCode = 1;

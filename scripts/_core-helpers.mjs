@@ -1,3 +1,6 @@
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 export {
   formatCliError,
   parseJsonText,
@@ -22,6 +25,18 @@ export function extractReviewCommitSha(review) {
   const restSha = typeof review?.commit_id === "string" ? review.commit_id.trim() : "";
   const sha = graphqlSha || restSha;
   return sha.length > 0 ? sha : null;
+}
+
+export function isDirectCliRun(importMetaUrl, argv1 = process.argv[1]) {
+  if (typeof argv1 !== "string" || argv1.length === 0) {
+    return false;
+  }
+
+  try {
+    return realpathSync(argv1) === realpathSync(fileURLToPath(importMetaUrl));
+  } catch {
+    return false;
+  }
 }
 
 export function summarizeCopilotReviews(reviews, { headSha } = {}) {
