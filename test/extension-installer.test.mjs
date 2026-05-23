@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { access, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 
 import { resolveSystemSkillsRoot, syncPackagedSkills } from "../extension/installer.ts";
@@ -29,6 +30,7 @@ async function seedPackagedSupport(tempDir) {
     "github/stage-reviewer-draft.mjs": "export const stage = true;\n",
     "github/watch-copilot-review.mjs": "export const watch = true;\n",
     "loop/copilot-pr-handoff.mjs": "export const handoff = true;\n",
+    "loop/_steering-state-file.mjs": "export const steeringFile = true;\n",
     "loop/detect-initial-copilot-pr-state.mjs": "export const initialState = true;\n",
     "loop/detect-copilot-loop-state.mjs": "#!/usr/bin/env node\n",
     "loop/detect-reviewer-loop-state.mjs": "export const reviewer = true;\n",
@@ -37,10 +39,12 @@ async function seedPackagedSupport(tempDir) {
   });
 
   await seedFiles(coreSourceRoot, {
+    "github/repo-slug.mjs": "export const normalizeRepoSlug = (repo) => repo;\nexport const parseRepoSlugParts = (repo) => ({ owner: repo, name: repo });\n",
     "github/review-threads.mjs": "export const reviewThreads = true;\n",
     "loop/copilot-loop-state.mjs": "export const copilotState = true;\n",
     "loop/phase-files.mjs": "export const phaseFiles = true;\n",
     "loop/reviewer-loop-state.mjs": "export const reviewerState = true;\n",
+    "loop/steering.mjs": "export const steeringState = true;\n",
     "other/not-needed.mjs": "export const notNeeded = true;\n",
   });
 
@@ -52,6 +56,30 @@ async function seedPackagedSupport(tempDir) {
   });
 
   return { scriptsRoot, coreSourceRoot, docsRoot };
+}
+
+async function runNodeScript(scriptPath, args = []) {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [scriptPath, ...args], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
 }
 
 test("resolveSystemSkillsRoot targets ~/.pi/agent/skills", () => {
@@ -128,12 +156,24 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
     "export const initialState = true;\n",
   );
   assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "loop", "_steering-state-file.mjs"), "utf8"),
+    "export const steeringFile = true;\n",
+  );
+  assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "github", "_github-helpers.mjs"), "utf8"),
     "export const repoHelper = true;\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "loop", "copilot-loop-state.mjs"), "utf8"),
     "export const copilotState = true;\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "loop", "steering.mjs"), "utf8"),
+    "export const steeringState = true;\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "github", "repo-slug.mjs"), "utf8"),
+    "export const normalizeRepoSlug = (repo) => repo;\nexport const parseRepoSlugParts = (repo) => ({ owner: repo, name: repo });\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "docs", "copilot-loop-state-graph.md"), "utf8"),
@@ -203,6 +243,41 @@ test("update refreshes existing target directories from the packaged source and 
   assert.equal(await readFile(path.join(targetRoot, "dev-loop", "SKILL.md"), "utf8"), "dev-loop v2\n");
   await assert.rejects(readFile(path.join(targetRoot, "copilot-dev-loop", "SKILL.md"), "utf8"));
   await assert.rejects(readFile(path.join(targetRoot, "copilot-autopilot", "SKILL.md"), "utf8"));
+});
+
+test("install supports executing packaged copilot helper entrypoints from installed layout", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-extension-installed-exec-"));
+  const targetRoot = path.join(tempDir, "target");
+
+  await syncPackagedSkills({
+    mode: "install",
+    scope: "repo",
+    targetRoot,
+  });
+
+  const detectScriptPath = path.join(
+    targetRoot,
+    "copilot-autopilot",
+    "scripts",
+    "loop",
+    "detect-copilot-loop-state.mjs",
+  );
+  const detectResult = await runNodeScript(detectScriptPath, ["--help"]);
+  assert.equal(detectResult.code, 0);
+  assert.match(detectResult.stdout, /Usage:/);
+  assert.doesNotMatch(detectResult.stderr, /ERR_MODULE_NOT_FOUND/);
+
+  const handoffScriptPath = path.join(
+    targetRoot,
+    "copilot-autopilot",
+    "scripts",
+    "loop",
+    "copilot-pr-handoff.mjs",
+  );
+  const handoffResult = await runNodeScript(handoffScriptPath, ["--help"]);
+  assert.equal(handoffResult.code, 0);
+  assert.match(handoffResult.stdout, /Usage:/);
+  assert.doesNotMatch(handoffResult.stderr, /ERR_MODULE_NOT_FOUND/);
 });
 
 test("install refuses symlinked roots, symlinked ancestors, and skill targets to avoid mutating the symlink source unexpectedly", async () => {
