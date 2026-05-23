@@ -110,6 +110,8 @@ export function summarizeCopilotLoopIterations({
   reviewThreadSummary,
   currentHeadSha = null,
   currentReviewRequestStatus = "none",
+  degraded = false,
+  degradedReasons = [],
 } = {}) {
   const normalizedReviewRequests = normalizeReviewRequestEvents(reviewRequestEvents);
   const normalizedReviews = normalizeReviews(reviews);
@@ -158,6 +160,7 @@ export function summarizeCopilotLoopIterations({
   return {
     available: true,
     source: "github_pr_timeline",
+    ...(degraded ? { degraded: true, degradedReasons: Array.isArray(degradedReasons) ? degradedReasons : [] } : {}),
     completedCopilotReviewRounds,
     pendingCopilotReviewRounds,
     copilotReviewRequests: normalizedReviewRequests.length,

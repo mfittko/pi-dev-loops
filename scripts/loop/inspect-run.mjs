@@ -343,7 +343,8 @@ function normalizeCommitsPayload(payload) {
 }
 
 async function fetchCopilotLoopIterations({ repo, pr, snapshot }, { env, ghCommand }) {
-  const [timelinePayload, reviewsPayload, reviewCommentsPayload, commitsPayload, reviewThreadsPayload] = await Promise.all([
+  const [prViewPayload, timelinePayload, reviewsPayload, reviewCommentsPayload, commitsPayload, reviewThreadsPayload] = await Promise.all([
+    runGhJson(["pr", "view", String(pr), "--repo", repo, "--json", "headRefOid"], { env, ghCommand }),
     runGhJson(
       ["api", "-H", "Accept: application/vnd.github+json", `repos/${repo}/issues/${pr}/timeline?per_page=100`],
       { env, ghCommand },
@@ -354,14 +355,26 @@ async function fetchCopilotLoopIterations({ repo, pr, snapshot }, { env, ghComma
     fetchGithubReviewThreadsPayload({ repo, pr }, { env, ghCommand }),
   ]);
 
+  const reviewThreads = parseReviewThreads(reviewThreadsPayload);
+  const degradedReasons = [];
+  if (Array.isArray(timelinePayload) && timelinePayload.length >= 100) degradedReasons.push("timeline_page_cap");
+  if (Array.isArray(reviewsPayload) && reviewsPayload.length >= 100) degradedReasons.push("reviews_page_cap");
+  if (Array.isArray(reviewCommentsPayload) && reviewCommentsPayload.length >= 100) degradedReasons.push("review_comments_page_cap");
+  if (Array.isArray(commitsPayload) && commitsPayload.length >= 100) degradedReasons.push("commits_page_cap");
+  if (reviewThreadsPayload?.data?.repository?.pullRequest?.reviewThreads?.pageInfo?.hasNextPage) {
+    degradedReasons.push("review_threads_has_next_page");
+  }
+
   return summarizeCopilotLoopIterations({
     reviewRequestEvents: normalizeTimelineReviewRequestEvents(timelinePayload),
     reviews: normalizeReviewPayload(reviewsPayload),
     reviewComments: normalizeReviewCommentsPayload(reviewCommentsPayload),
     commits: normalizeCommitsPayload(commitsPayload),
-    reviewThreadSummary: parseReviewThreads(reviewThreadsPayload).summary,
-    currentHeadSha: snapshot?.prHeadSha ?? null,
+    reviewThreadSummary: reviewThreads.summary,
+    currentHeadSha: typeof prViewPayload?.headRefOid === "string" ? prViewPayload.headRefOid : null,
     currentReviewRequestStatus: snapshot?.copilotReviewRequestStatus ?? "none",
+    degraded: degradedReasons.length > 0,
+    degradedReasons,
   });
 }
 

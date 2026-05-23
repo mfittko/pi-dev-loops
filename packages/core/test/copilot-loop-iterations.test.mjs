@@ -85,6 +85,54 @@ test("summarizeCopilotLoopIterations keeps duplicate post-review request events 
   assert.equal(summary.copilotReviewRequests, 4);
 });
 
+test("summarizeCopilotLoopIterations marks pending round when current head differs from latest review sha without a later request event", () => {
+  const summary = summarizeCopilotLoopIterations({
+    reviewRequestEvents: [
+      { createdAt: "2026-05-01T10:00:00Z", requestedReviewerLogin: "copilot-pull-request-reviewer[bot]" },
+    ],
+    reviews: [
+      { state: "COMMENTED", submittedAt: "2026-05-01T10:05:00Z", authorLogin: "copilot-pull-request-reviewer[bot]", commitSha: "sha-1" },
+    ],
+    reviewComments: [],
+    commits: [],
+    reviewThreadSummary: {
+      totalThreads: 0,
+      unresolvedThreads: 0,
+    },
+    currentHeadSha: "sha-2",
+    currentReviewRequestStatus: "requested",
+  });
+
+  assert.equal(summary.available, true);
+  assert.equal(summary.completedCopilotReviewRounds, 1);
+  assert.equal(summary.pendingCopilotReviewRounds, 1);
+});
+
+test("summarizeCopilotLoopIterations surfaces degraded flags for truncated sources", () => {
+  const summary = summarizeCopilotLoopIterations({
+    reviewRequestEvents: [
+      { createdAt: "2026-05-01T10:00:00Z", requestedReviewerLogin: "copilot-pull-request-reviewer[bot]" },
+    ],
+    reviews: [
+      { state: "COMMENTED", submittedAt: "2026-05-01T10:05:00Z", authorLogin: "copilot-pull-request-reviewer[bot]", commitSha: "sha-1" },
+    ],
+    reviewComments: [],
+    commits: [],
+    reviewThreadSummary: {
+      totalThreads: 1,
+      unresolvedThreads: 0,
+    },
+    currentHeadSha: "sha-1",
+    currentReviewRequestStatus: "none",
+    degraded: true,
+    degradedReasons: ["reviews_page_cap"],
+  });
+
+  assert.equal(summary.available, true);
+  assert.equal(summary.degraded, true);
+  assert.deepEqual(summary.degradedReasons, ["reviews_page_cap"]);
+});
+
 test("summarizeCopilotLoopIterations marks no-review/no-request PRs unavailable", () => {
   const summary = summarizeCopilotLoopIterations({
     reviewRequestEvents: [],
