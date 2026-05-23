@@ -42,8 +42,10 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
 
     await expect(page.getByRole("heading", { name: "PR #55 inspection" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Current PR state" })).toBeVisible();
+    await expect(page.getByText("Waiting for Copilot review")).toBeVisible();
     await expect(page.locator("body")).toContainText(/These fields are shown directly from the loaded inspection snapshot/i);
     await expect(page.locator(".state-graph-intro")).toContainText(/authoritative graph view from the current inspection snapshot/i);
+    await expect(page.locator(".state-graph-intro")).toContainText(/full authoritative outer, copilot, and reviewer state graphs/i);
     await expect(page.locator(".state-graph-cues")).toContainText(/Start/);
     await expect(page.locator(".state-graph-cues")).toContainText(/Current/);
     await expect(page.locator(".state-graph-cues")).toContainText(/Next/);
@@ -60,11 +62,11 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toHaveCSS("cursor", "grab");
     await expect(graph).toContainText(/Start/);
-    await expect(graph).toContainText(/continue_wait/);
+    await expect(graph).toContainText(/continue current wait/);
     await expect(graph).toContainText(/waiting_for_copilot_review/);
     await expect(graph).toContainText(/review_requested/);
-    await expect(page.getByText(/outer-loop family:\s*current\s*continue_wait; known outer actions shown, but authoritative full transitions are not exported; transition data unavailable in this snapshot/i)).toBeVisible();
-    await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; full authoritative state machine shown; validated next states: unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
+    await expect(page.getByText(/outer-loop family:\s*current\s*continue_current_wait; continue_current_wait; full authoritative state machine shown; continue_current_wait, handoff_to_copilot_loop, handoff_to_reviewer_loop, stay_with_current_live_owner, stop_needs_human, done_terminal, needs_reconcile/i)).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; waiting_for_copilot_review; full authoritative state machine shown; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
 
     await graphBox.getByRole("button", { name: "Zoom in" }).click();
     await graphBox.getByRole("button", { name: "Zoom in" }).click();
@@ -78,6 +80,26 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await page.mouse.up();
     const afterScroll = await scroller.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
     expect(afterScroll.left !== beforeScroll.left || afterScroll.top !== beforeScroll.top).toBeTruthy();
+
+    await graphBox.getByRole("button", { name: "Reset zoom" }).click();
+    await expect(graphBox.locator("[data-graph-zoom-value]")).toHaveText("100%");
+    await scroller.evaluate((node) => {
+      node.scrollLeft = 0;
+      node.scrollTop = 0;
+    });
+    await scroller.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      const clientX = rect.left + (rect.width * 0.8);
+      const clientY = rect.top + (rect.height * 0.75);
+      node.dispatchEvent(new MouseEvent("dblclick", {
+        bubbles: true,
+        cancelable: true,
+        clientX,
+        clientY,
+      }));
+    });
+    await expect(graphBox.locator("[data-graph-zoom-value]")).toHaveText("125%");
+
     await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
 
     await page.screenshot({
@@ -94,6 +116,11 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
   const { server, url } = await startViewer(makeInspectionSnapshot({
     sourceMode: "checkpoint-only",
     trust: "checkpoint",
+    needsAttention: true,
+    statusClass: "unknown",
+    outerState: "unknown",
+    allowedTransitions: undefined,
+    outerAction: "unknown",
     layers: {
       steering: { status: "unavailable", reason: "no_steering_file" },
     },
@@ -103,13 +130,14 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("heading", { name: "Current PR state" })).toBeVisible();
-    await expect(page.locator(".current-pr-state-detail")).toContainText(/checkpoint-only snapshot/i);
+    await expect(page.locator(".current-pr-state-summary-headline")).toContainText(/Needs attention/);
+    await expect(page.locator(".current-pr-state-detail").last()).toContainText(/checkpoint-only snapshot/i);
     await expect(page.locator(".state-graph-intro")).toContainText(/checkpoint-only graph view/i);
     await page.getByText(/Graph guide and lane details/).click();
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/current state unavailable/);
-    await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; full authoritative state machine shown; next transitions unavailable in this snapshot/i)).toBeVisible();
-    await expect(page.getByText(/reviewer layer:\s*current\s*current state unavailable; full authoritative state machine shown; next transitions unavailable in this snapshot/i)).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; transition data unavailable in this snapshot/i)).toBeVisible();
+    await expect(page.getByText(/reviewer layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; transition data unavailable in this snapshot/i)).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-checkpoint-webkit.png"),
@@ -145,6 +173,7 @@ test("webkit shows degraded graph messaging when snapshot trust is partial", asy
 
 test("webkit shows terminal merged states clearly in the Mermaid graph", async ({ page }, testInfo) => {
   const { server, url } = await startViewer(makeInspectionSnapshot({
+    outerState: "done_terminal",
     activeFamilyState: "done",
     outerAction: "done",
     statusClass: "done",
@@ -166,13 +195,14 @@ test("webkit shows terminal merged states clearly in the Mermaid graph", async (
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("heading", { name: "Current PR state" })).toBeVisible();
+    await expect(page.getByText("PR complete")).toBeVisible();
     await expect(page.locator(".current-pr-state-grid")).toContainText(/status class/);
     await expect(page.locator(".current-pr-state-grid")).toContainText(/done/);
     await page.getByText(/Graph guide and lane details/).click();
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/End/);
     await expect(graph).toContainText(/done/);
-    await expect(page.getByText(/copilot layer:\s*current\s*done; full authoritative state machine shown; no allowed transitions/i)).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*done; done; full authoritative state machine shown; no allowed transitions/i)).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-merged-webkit.png"),

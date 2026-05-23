@@ -76,6 +76,7 @@ Current exported areas include:
 - `./loop/phase-files`
 - `./loop/copilot-loop-state`
 - `./loop/reviewer-loop-state`
+- `./loop/outer-loop-state`
 - `./loop/conductor-ownership`
 - `./loop/tracker-pr-state`
 - `./loop/public-dev-loop-routing`
@@ -118,6 +119,7 @@ Reference docs:
 - `docs/conductor-routing-contract.md`
 - `docs/copilot-loop-state-graph.md`
 - `docs/reviewer-loop-state-graph.md`
+- `docs/outer-loop-state-graph.md`
 - `docs/steering-contract.md`
 - `docs/tracker-first-mvp-state-graph.md`
 - `docs/tracker-story-pr-contract.md`

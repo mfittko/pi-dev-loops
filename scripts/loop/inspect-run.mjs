@@ -32,7 +32,8 @@
  * Success output shape (stdout, JSON):
  *   { "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": N },
  *     "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop",
- *     "outerAction": "...", "activeFamilyState": "...",
+ *     "outerState": "...", "allowedTransitions"?: [...], "outerAction": "...",
+ *     "activeFamilyState": "...",
  *     "statusClass": "...", "needsAttention": false,
  *     "sourceMode": "...", "trust": "...",
  *     "evidence": { "summary": "...", "authoritative": [...], "checkpoint": [...] },
@@ -72,7 +73,7 @@ import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
-import { decideOuterAction } from "./outer-loop.mjs";
+import { interpretOuterLoopState } from "../../packages/core/src/loop/outer-loop-state.mjs";
 import {
   composeRunInspectionSnapshot,
   deriveRunIdForInspectionTarget,
@@ -120,9 +121,10 @@ Test / snapshot-mode flags:
 Output (stdout, JSON):
   Always-present fields:
     ok, schemaVersion, target, inspectedAt, activeStateFamily,
-    outerAction, activeFamilyState, statusClass, needsAttention,
+    outerState, outerAction, activeFamilyState, statusClass, needsAttention,
     sourceMode, trust, evidence, markers, loopIterations
   Best-effort fields:
+    allowedTransitions (when authoritative outerState is available),
     layers (copilot, reviewer, steering drill-down)
 
 statusClass values:
@@ -553,12 +555,15 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   const { checkpoint: existingCheckpoint, filePath: checkpointEvidencePath } = await readExistingCheckpoint(repo, pr);
 
   // -------------------------------------------------------------------------
-  // Derive outerAction from best-available states
+  // Derive authoritative outer state, allowed transitions, and compatibility
+  // outerAction from best-available states
   //
   // Git status is out of scope for v1 inspection; neutral values are used so
   // that the outer action decision is based purely on PR/GitHub state.
   // -------------------------------------------------------------------------
 
+  let outerState;
+  let outerAllowedTransitions;
   let outerAction;
   let outerReason;
 
@@ -574,13 +579,19 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
     && reviewerEvidence !== null;
 
   if (hasCompleteCurrentInnerLoopState) {
-    const decision = decideOuterAction({
+    const outerInterpretation = interpretOuterLoopState({
+      target: { repo, pr },
       copilotState: copilotEvidence.interpretation.state,
       reviewerState: reviewerEvidence.interpretation.state,
-      gitStatus: { isDirty: false, isDetached: false },
+      sourceMode: evidenceSourceKinds.copilot === "live" && evidenceSourceKinds.reviewer === "live"
+        ? "authoritative"
+        : "snapshot",
+      requiresLocalIsolation: false,
     });
-    outerAction = decision.outerAction;
-    outerReason = decision.reason;
+    outerState = outerInterpretation.state;
+    outerAllowedTransitions = outerInterpretation.allowedTransitions;
+    outerAction = outerInterpretation.outerAction;
+    outerReason = outerInterpretation.stopReason;
   }
 
   // -------------------------------------------------------------------------
@@ -647,6 +658,8 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   return composeRunInspectionSnapshot({
     target: { repo, pr },
     inspectedAt,
+    outerState,
+    outerAllowedTransitions,
     outerAction,
     outerReason,
     copilotEvidence,

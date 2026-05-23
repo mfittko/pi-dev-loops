@@ -421,9 +421,9 @@ Optional:
 
 Contract:
 - is strictly read-only: it does not write checkpoints, mutate GitHub state, or create local artifacts
-- returns a stable top-level inspection shape with target identity, derived `runId`, outer action, active family state,
+- returns a stable top-level inspection shape with target identity, derived `runId`, authoritative `outerState`, conditional top-level `allowedTransitions`, compatibility `outerAction`, active family state,
   status class, trust/source semantics, evidence, markers, and best-effort drill-down layers
-- only derives top-level `outerAction` / `activeFamilyState` / `statusClass` when inspection has a complete current inner-loop picture, whether from live detectors and/or caller-supplied snapshot inputs
+- only derives top-level `outerState` / `allowedTransitions` / `outerAction` / `activeFamilyState` / `statusClass` when inspection has a complete current inner-loop picture, whether from live detectors and/or caller-supplied snapshot inputs
 - when inspection falls back to checkpoint-only data or mixed live + checkpoint evidence, checkpoint-backed drill-down layers and checkpoint evidence paths remain available as advisory context while the top-level state stays `"unknown"`
 - reports not-found or unavailable targets as structured success output with `statusClass: "unknown"`
   rather than by throwing a synthetic blocked-run error
@@ -440,7 +440,7 @@ Contract:
 - rejects mismatched steering-state files from the targeted repo/pr instead of projecting their state onto the inspected run
 
 Success output shape:
-- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "loopIterations": { "available": true|false, ... }, "layers": { "reviewer": { "currentState": "...", "scope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, ... }, ... } }`
+- `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerState": "...", "allowedTransitions"?: [...], "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "loopIterations": { "available": true|false, ... }, "layers": { "reviewer": { "currentState": "...", "scope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, ... }, ... } }`
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
@@ -472,7 +472,7 @@ Contract:
 - uses one thin adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace
 - serves two explicit read-only endpoints for the same target:
-  - `/` → operator-facing HTML with a Mermaid-first graph that renders the full authoritative Copilot and reviewer state machines, highlights snapshot-derived current and immediate-next states when available, keeps inactive known states visible but dimmed, keeps outer-loop visualization fail-closed because a full authoritative outer transition graph is not exported yet, and preserves supporting textual summary/evidence
+  - `/` → operator-facing HTML with a Mermaid-first graph that renders the authoritative outer, Copilot, and reviewer state graphs, highlights snapshot-derived current and immediate-next states when available, keeps inactive known states visible but dimmed, surfaces a prominent current-PR-state banner that prefers authoritative `outerState` over compatibility `outerAction`, and preserves supporting textual summary/evidence
   - `/snapshot.json` → the full authoritative inspection snapshot JSON returned by the adapter
 - HTML includes a visible link to `/snapshot.json` so machine-readable state no longer depends on an inline full-snapshot dump in the page itself
 - `/snapshot.json` returns `application/json; charset=utf-8` on success and deterministic JSON error output with non-2xx status when snapshot loading throws or yields no snapshot

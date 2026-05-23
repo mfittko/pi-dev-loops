@@ -2,7 +2,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -12,6 +11,12 @@ import {
   STATE as COPILOT_STATE,
   TRANSITIONS as COPILOT_TRANSITIONS,
 } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import {
+  OUTER_GRAPH,
+  OUTER_STATE,
+  OUTER_TERMINAL_STATES,
+  OUTER_TRANSITIONS,
+} from "../../packages/core/src/loop/outer-loop-state.mjs";
 import {
   REVIEWER_STATE,
   REVIEWER_TRANSITIONS,
@@ -51,8 +56,9 @@ Optional:
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4311;
 const execFile = promisify(execFileCallback);
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MERMAID_BROWSER_ASSET_ROUTE = "/assets/mermaid.min.js";
-const require = createRequire(import.meta.url);
+const MERMAID_BROWSER_ASSET_PATH = path.join(REPO_ROOT, "node_modules", "mermaid", "dist", "mermaid.min.js");
 
 let mermaidBrowserScriptPromise = null;
 
@@ -221,41 +227,57 @@ function normalizeTransitions(transitions) {
   if (!Array.isArray(transitions)) {
     return null;
   }
-  return [...new Set(
-    transitions
-      .filter((transition) => typeof transition === "string")
-      .map((transition) => transition.trim())
-      .filter((transition) => transition.length > 0),
-  )];
+
+  const normalizedTransitions = [];
+  const seenTransitions = new Set();
+
+  for (const transition of transitions) {
+    if (typeof transition !== "string") {
+      continue;
+    }
+
+    const normalizedTransition = transition.trim();
+    if (normalizedTransition.length === 0 || seenTransitions.has(normalizedTransition)) {
+      continue;
+    }
+
+    seenTransitions.add(normalizedTransition);
+    normalizedTransitions.push(normalizedTransition);
+  }
+
+  return normalizedTransitions;
 }
 
 function renderStateVisualizationIntro(snapshot) {
   const stateLabel = renderSnapshotStateLabel(snapshot);
 
   if (stateLabel === "authoritative") {
-    return "Authoritative graph view from the current inspection snapshot.";
+    return "Authoritative graph view from the current inspection snapshot, showing the full authoritative outer, Copilot, and reviewer state graphs.";
   }
   if (stateLabel === "degraded") {
-    return "Degraded graph view; missing highlights stay unavailable instead of being guessed.";
+    return "Degraded graph view of the full authoritative outer, Copilot, and reviewer state graphs; missing highlights stay explicitly unavailable instead of being guessed.";
   }
   if (stateLabel === "checkpoint-only") {
-    return "Checkpoint-only graph view; current and next highlights are advisory until live inspection is available.";
+    return "Checkpoint-only graph view of the full authoritative outer, Copilot, and reviewer state graphs; current and next highlights are advisory until live inspection is available.";
   }
   if (stateLabel === "conflicting") {
-    return "Conflicting graph view; resolve the evidence conflict before trusting the highlights.";
+    return "Conflicting graph view of the full authoritative outer, Copilot, and reviewer state graphs; resolve the evidence conflict before trusting the highlights.";
   }
 
-  return "Graph view from the current inspection snapshot.";
+  return "Graph view from the current inspection snapshot, showing the full authoritative outer, Copilot, and reviewer state graphs.";
 }
 
-const OUTER_LOOP_KNOWN_ACTIONS = Object.freeze([
-  "continue_wait",
-  "reenter_copilot_loop",
-  "reenter_reviewer_loop",
-  "stop",
-  "done",
-]);
-const OUTER_LOOP_TERMINAL_STATES = new Set(["stop", "done"]);
+const COPILOT_TERMINAL_STATES = new Set(
+  Object.entries(COPILOT_TRANSITIONS)
+    .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
+    .map(([state]) => state),
+);
+const OUTER_TERMINAL_STATE_SET = new Set(OUTER_TERMINAL_STATES);
+const REVIEWER_TERMINAL_STATES = new Set(
+  Object.entries(REVIEWER_TRANSITIONS)
+    .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
+    .map(([state]) => state),
+);
 
 function normalizeCurrentStateInfo(currentState, { knownStates = null, terminalStates = null } = {}) {
   if (typeof currentState === "string" && currentState.length > 0) {
@@ -296,24 +318,20 @@ function summarizeTransitionAvailability(transitions) {
   };
 }
 
-export function resolveMermaidBrowserAssetPath(resolveImpl = require.resolve) {
-  const mermaidPackageJsonPath = resolveImpl("mermaid/package.json");
-  return path.join(path.dirname(mermaidPackageJsonPath), "dist", "mermaid.min.js");
-}
-
-export async function loadMermaidBrowserScript({
-  readFileImpl = readFile,
-  resolveMermaidBrowserAssetPathImpl = resolveMermaidBrowserAssetPath,
-} = {}) {
+export async function loadMermaidBrowserScript({ readFileImpl = readFile } = {}) {
   if (mermaidBrowserScriptPromise === null) {
     mermaidBrowserScriptPromise = Promise.resolve()
-      .then(() => readFileImpl(resolveMermaidBrowserAssetPathImpl(), "utf8"))
+      .then(() => readFileImpl(MERMAID_BROWSER_ASSET_PATH, "utf8"))
       .catch((error) => {
         mermaidBrowserScriptPromise = null;
         throw error;
       });
   }
   return mermaidBrowserScriptPromise;
+}
+
+export function resetMermaidBrowserScriptCache() {
+  mermaidBrowserScriptPromise = null;
 }
 
 function escapeMermaidLabel(value) {
@@ -339,96 +357,29 @@ function renderMermaidNodeId(laneKey, state) {
   return `${laneKey}_${String(state).replaceAll(/[^a-zA-Z0-9_]+/g, "_")}`;
 }
 
-function buildOuterLoopSummaryLane({ laneKey, title, currentState, transitions }) {
-  const knownStates = new Set(OUTER_LOOP_KNOWN_ACTIONS);
-  const currentInfo = normalizeCurrentStateInfo(currentState, {
-    knownStates,
-    terminalStates: OUTER_LOOP_TERMINAL_STATES,
-  });
-  const transitionInfo = summarizeTransitionAvailability(transitions);
-  const classIds = {
-    cue: [],
-    current: [],
-    currentTerminal: [],
-    next: [],
-    nextTerminal: [],
-    terminal: [],
-    inactive: [],
-    unavailable: [],
-    note: [],
-  };
-  const lines = [
-    `  subgraph ${laneKey}["${escapeMermaidLabel(title)}"]`,
-    "    direction LR",
-  ];
-
-  for (const state of OUTER_LOOP_KNOWN_ACTIONS) {
-    const nodeId = renderMermaidNodeId(laneKey, state);
-    const terminal = OUTER_LOOP_TERMINAL_STATES.has(state);
-    lines.push(`    ${renderMermaidNode(nodeId, state)}`);
-
-    if (currentInfo.available && currentInfo.label === state) {
-      classIds[terminal ? "currentTerminal" : "current"].push(nodeId);
-    } else if (terminal) {
-      classIds.terminal.push(nodeId);
-    } else {
-      classIds.inactive.push(nodeId);
-    }
-  }
-
-  const limitationId = `${laneKey}_limitation`;
-  lines.push(`    ${renderMermaidNode(limitationId, "authoritative full transition graph not exported")}`);
-  classIds.note.push(limitationId);
-
-  let currentId = limitationId;
-  if (!currentInfo.available) {
-    const unavailableId = `${laneKey}_current_unavailable`;
-    lines.push(`    ${renderMermaidNode(unavailableId, currentInfo.label)}`);
-    lines.push(`    ${unavailableId} -.-> ${limitationId}`);
-    classIds.unavailable.push(unavailableId);
-    currentId = unavailableId;
-  } else {
-    currentId = renderMermaidNodeId(laneKey, currentInfo.label);
-    lines.push(`    ${currentId} -.-> ${limitationId}`);
-  }
-
-  if (transitionInfo.unavailable) {
-    const noteId = `${laneKey}_transitions_unavailable`;
-    lines.push(`    ${renderMermaidNode(noteId, "snapshot next transitions unavailable")}`);
-    lines.push(`    ${currentId} -.-> ${noteId}`);
-    classIds.note.push(noteId);
-  }
-
-  lines.push("  end");
-
-  return {
-    title,
-    currentLabel: currentInfo.label,
-    transitionInfo,
-    currentId,
-    lines,
-    classIds,
-    summary: "known outer actions shown, but authoritative full transitions are not exported",
-  };
+function humanizeGraphStateLabel(state) {
+  return String(state).replaceAll("_", " ");
 }
 
-function buildFullStateMachineLane({ laneKey, title, states, transitionTable, currentState, transitions, startStates = [] }) {
+function buildFullStateMachineLane({ laneKey, title, states, transitionTable, currentState, transitions, startStates = [], startLabel = "Start", endLabel = "End", terminalStates = null, displayLabelForState = (state) => state, suppressSaturatedNextHighlights = false }) {
   const knownStates = new Set(states);
-  const terminalStates = new Set(
-    states.filter((state) => Array.isArray(transitionTable[state]) && transitionTable[state].length === 0),
-  );
-  const currentInfo = normalizeCurrentStateInfo(currentState, { knownStates, terminalStates });
+  const resolvedTerminalStates = terminalStates instanceof Set
+    ? terminalStates
+    : new Set(states.filter((state) => Array.isArray(transitionTable[state]) && transitionTable[state].length === 0));
+  const currentInfo = normalizeCurrentStateInfo(currentState, { knownStates, terminalStates: resolvedTerminalStates });
   const transitionInfo = summarizeTransitionAvailability(transitions);
   const authoritativeCurrentNextStates = currentInfo.available
     ? new Set(Array.isArray(transitionTable[currentInfo.label]) ? transitionTable[currentInfo.label] : [])
     : new Set();
-  const validNormalizedTransitions = transitionInfo.unavailable || !currentInfo.available
-    ? []
-    : transitionInfo.normalizedTransitions.filter((state) => authoritativeCurrentNextStates.has(state));
-  const invalidNormalizedTransitions = transitionInfo.unavailable || !currentInfo.available
-    ? []
-    : transitionInfo.normalizedTransitions.filter((state) => !authoritativeCurrentNextStates.has(state));
-  const highlightedNextStates = new Set(validNormalizedTransitions);
+  const highlightedNextStates = new Set(
+    transitionInfo.unavailable || !currentInfo.available
+      ? []
+      : transitionInfo.normalizedTransitions.filter((state) => authoritativeCurrentNextStates.has(state)),
+  );
+  const broadNextSet = suppressSaturatedNextHighlights
+    && currentInfo.available
+    && highlightedNextStates.size === knownStates.size;
+  const effectiveHighlightedNextStates = broadNextSet ? new Set() : highlightedNextStates;
   const classIds = {
     cue: [],
     current: [],
@@ -448,18 +399,18 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
   const endId = `${laneKey}_end`;
 
   if (startStates.length > 0) {
-    lines.push(`    ${renderMermaidNode(startId, "Start", "pill")}`);
+    lines.push(`    ${renderMermaidNode(startId, startLabel, "pill")}`);
     classIds.cue.push(startId);
   }
 
   for (const state of states) {
     const nodeId = renderMermaidNodeId(laneKey, state);
-    const terminal = terminalStates.has(state);
-    lines.push(`    ${renderMermaidNode(nodeId, state)}`);
+    const terminal = resolvedTerminalStates.has(state);
+    lines.push(`    ${renderMermaidNode(nodeId, displayLabelForState(state))}`);
 
     if (currentInfo.available && currentInfo.label === state) {
       classIds[terminal ? "currentTerminal" : "current"].push(nodeId);
-    } else if (highlightedNextStates.has(state)) {
+    } else if (effectiveHighlightedNextStates.has(state)) {
       classIds[terminal ? "nextTerminal" : "next"].push(nodeId);
     } else if (terminal) {
       classIds.terminal.push(nodeId);
@@ -471,7 +422,7 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
   let endVisible = false;
   const ensureEndNode = () => {
     if (!endVisible) {
-      lines.push(`    ${renderMermaidNode(endId, "End", "circle")}`);
+      lines.push(`    ${renderMermaidNode(endId, endLabel, "circle")}`);
       classIds.cue.push(endId);
       endVisible = true;
     }
@@ -515,43 +466,45 @@ function buildFullStateMachineLane({ laneKey, title, states, transitionTable, cu
     lines.push(`    ${renderMermaidNode(noteId, "snapshot next transitions unavailable")}`);
     lines.push(`    ${currentId} -.-> ${noteId}`);
     classIds.note.push(noteId);
+  } else if (broadNextSet) {
+    const noteId = `${laneKey}_broad_next_set`;
+    lines.push(`    ${renderMermaidNode(noteId, "next evaluation may resolve to any shown state")}`);
+    lines.push(`    ${currentId} -.-> ${noteId}`);
+    classIds.note.push(noteId);
   }
 
   lines.push("  end");
-
-  const validatedTransitionSummary = transitionInfo.unavailable
-    ? "next transitions unavailable in this snapshot"
-    : !currentInfo.available
-      ? "next transitions unavailable because current state is unavailable"
-      : transitionInfo.empty
-        ? "no allowed transitions"
-        : validNormalizedTransitions.length === 0
-          ? "no authoritative next states confirmed from snapshot"
-          : `validated next states: ${validNormalizedTransitions.join(", ")}${invalidNormalizedTransitions.length === 0 ? "" : ` (${invalidNormalizedTransitions.length} invalid snapshot token${invalidNormalizedTransitions.length === 1 ? "" : "s"} ignored)`}`;
 
   return {
     title,
     currentLabel: currentInfo.label,
     transitionInfo,
-    validatedTransitionSummary,
     currentId,
     lines,
     classIds,
-    summary: "full authoritative state machine shown",
+    summary: `${currentInfo.label}; full authoritative state machine shown`,
   };
 }
 
 export function buildInspectionMermaidGraph(snapshot) {
-  if (snapshot === null || snapshot === undefined || snapshot?.sourceMode === "unavailable" || renderSnapshotStateLabel(snapshot) === "unavailable") {
+  if (snapshot === null || snapshot === undefined || renderSnapshotStateLabel(snapshot) === "unavailable") {
     return null;
   }
 
   const lanes = [
-    buildOuterLoopSummaryLane({
+    buildFullStateMachineLane({
       laneKey: "outer_loop_family",
       title: "outer-loop family",
-      currentState: snapshot.activeFamilyState,
+      states: Object.values(OUTER_STATE),
+      transitionTable: OUTER_TRANSITIONS,
+      currentState: snapshot.outerState,
       transitions: snapshot.allowedTransitions,
+      startStates: OUTER_GRAPH.entryStates,
+      startLabel: OUTER_GRAPH.start.label,
+      endLabel: OUTER_GRAPH.end.label,
+      terminalStates: OUTER_TERMINAL_STATE_SET,
+      displayLabelForState: humanizeGraphStateLabel,
+      suppressSaturatedNextHighlights: true,
     }),
     buildFullStateMachineLane({
       laneKey: "copilot_layer",
@@ -561,6 +514,7 @@ export function buildInspectionMermaidGraph(snapshot) {
       currentState: snapshot.layers?.copilot?.currentState,
       transitions: snapshot.layers?.copilot?.allowedTransitions,
       startStates: [COPILOT_STATE.PR_DRAFT],
+      terminalStates: COPILOT_TERMINAL_STATES,
     }),
     buildFullStateMachineLane({
       laneKey: "reviewer_layer",
@@ -570,6 +524,7 @@ export function buildInspectionMermaidGraph(snapshot) {
       currentState: snapshot.layers?.reviewer?.currentState,
       transitions: snapshot.layers?.reviewer?.allowedTransitions,
       startStates: [REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST],
+      terminalStates: REVIEWER_TERMINAL_STATES,
     }),
   ];
 
@@ -619,7 +574,6 @@ export function buildInspectionMermaidGraph(snapshot) {
       title: lane.title,
       currentLabel: lane.currentLabel,
       transitionInfo: lane.transitionInfo,
-      validatedTransitionSummary: lane.validatedTransitionSummary ?? lane.transitionInfo.summary,
       summary: lane.summary,
     })),
   };
@@ -640,14 +594,14 @@ function renderStateGraphHelp() {
     <li><strong>Current:</strong> emphasized nodes show the snapshot-derived current state for each lane when that state is actually known.</li>
     <li><strong>Next:</strong> purple nodes mark immediate allowed next states from the snapshot. Dimmed nodes are still part of the authoritative state machine; they are simply inactive right now.</li>
     <li><strong>Start / End:</strong> Mermaid entry and exit nodes make lane boundaries easier to scan for the full authoritative graph.</li>
-    <li><strong>Outer loop:</strong> the viewer shows known outer actions but stays fail-closed about full outer-loop transitions until the repo exports that transition graph authoritatively.</li>
+    <li><strong>Outer loop:</strong> the outer lane now comes from the shared authoritative outer-loop graph contract; outerAction remains visible only as a compatibility projection.</li>
     <li><strong>🔁 Loop cue:</strong> this viewer is revisited by manual reload, so the same current state can recur across inspections until evidence changes.</li>
   </ul>`;
 }
 
 function renderStateGraphSummaries(graph) {
   return `<ul class="state-graph-summaries">
-    ${graph.lanes.map((lane) => `<li class="state-graph-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.summary ?? lane.transitionInfo.summary)}; ${escapeHtml(lane.validatedTransitionSummary ?? lane.transitionInfo.summary)}</li>`).join("")}
+    ${graph.lanes.map((lane) => `<li class="state-graph-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.summary ?? lane.transitionInfo.summary)}; ${escapeHtml(lane.transitionInfo.summary)}</li>`).join("")}
   </ul>`;
 }
 
@@ -679,6 +633,19 @@ function renderMermaidBootScript() {
             svg.style.maxWidth = "none";
             svg.style.height = "auto";
           }
+          return scale;
+        };
+        const zoomGraphViewport = (frame, graphViewport, requestedScale, focusPoint = null) => {
+          const previousScale = Number(frame.dataset.graphScale || 1);
+          const nextScale = updateFrameScale(frame, requestedScale);
+          if (!focusPoint || nextScale === previousScale) {
+            return;
+          }
+          const scaleRatio = nextScale / previousScale;
+          requestAnimationFrame(() => {
+            graphViewport.scrollLeft = (focusPoint.contentX * scaleRatio) - focusPoint.viewportX;
+            graphViewport.scrollTop = (focusPoint.contentY * scaleRatio) - focusPoint.viewportY;
+          });
         };
         const renderFallback = (message) => {
           graphs.forEach((graph) => {
@@ -743,6 +710,21 @@ function renderMermaidBootScript() {
             };
             graphViewport.addEventListener("pointerup", stopDragging);
             graphViewport.addEventListener("pointercancel", stopDragging);
+            graphViewport.addEventListener("dblclick", (event) => {
+              const rect = graphViewport.getBoundingClientRect();
+              zoomGraphViewport(
+                frame,
+                graphViewport,
+                Number(frame.dataset.graphScale || 1) + 0.25,
+                {
+                  viewportX: event.clientX - rect.left,
+                  viewportY: event.clientY - rect.top,
+                  contentX: graphViewport.scrollLeft + (event.clientX - rect.left),
+                  contentY: graphViewport.scrollTop + (event.clientY - rect.top),
+                },
+              );
+              event.preventDefault();
+            });
           }
         });
 
@@ -780,7 +762,7 @@ function renderMermaidBootScript() {
     </script>`;
 }
 
-function renderStateVisualizationSection(snapshot, graph) {
+function renderStateVisualizationSection(snapshot, graph = buildInspectionMermaidGraph(snapshot)) {
   if (graph === null) {
     return `<div class="state-graph-block">
       <p class="state-graph-intro">Snapshot unavailable, so no state graph can be rendered yet.</p>
@@ -835,7 +817,8 @@ function renderOuterLoopSummarySection(snapshot) {
     title: "outer-loop summary",
     entries: [
       ["activeStateFamily", snapshot.activeStateFamily ?? "not present"],
-      ["outerAction", snapshot.outerAction ?? "not present"],
+      ["outerState", snapshot.outerState ?? "not present"],
+      ["outerAction (compatibility)", snapshot.outerAction ?? "not present"],
       ["activeFamilyState", snapshot.activeFamilyState ?? "not present"],
       ["statusClass", snapshot.statusClass ?? "not present"],
       ["needsAttention", String(snapshot.needsAttention ?? "not present")],
@@ -958,6 +941,180 @@ function formatStateToken(value, fallback = "not present") {
   return value.trim();
 }
 
+function humanizeStateToken(value) {
+  const token = formatStateToken(value, "not present");
+  if (token === "not present") {
+    return token;
+  }
+  return token.replaceAll("_", " ");
+}
+
+function titleCaseWords(value) {
+  return String(value)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function summarizeCurrentPrStatus(snapshot) {
+  if (!snapshot) {
+    return {
+      headline: "Snapshot unavailable",
+      detail: "Unable to determine the current PR state yet.",
+      nextAction: "Reload the snapshot or open /snapshot.json for the raw error payload.",
+    };
+  }
+
+  const copilotState = formatStateToken(snapshot.layers?.copilot?.currentState);
+  const reviewerState = formatStateToken(snapshot.layers?.reviewer?.currentState);
+  const statusClass = formatStateToken(snapshot.statusClass, "unknown");
+  const outerState = formatStateToken(snapshot.outerState, "unknown");
+  const outerAction = formatStateToken(snapshot.outerAction, "unknown");
+
+  if (outerState === OUTER_STATE.DONE_TERMINAL || statusClass === "done" || outerAction === "done" || copilotState === "done") {
+    return {
+      headline: "PR complete",
+      detail: "The current inspection says this PR is in a terminal done state.",
+      nextAction: "Confirm merge/readiness context or inspect the raw snapshot for terminal evidence.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.NEEDS_RECONCILE) {
+    return {
+      headline: "Needs reconcile",
+      detail: "The authoritative outer state is needs_reconcile, which means the current inputs are ambiguous, conflicting, or insufficient.",
+      nextAction: "Reconcile the conflicting state before trusting the current routing result.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.STAY_WITH_CURRENT_LIVE_OWNER) {
+    return {
+      headline: "Live owner already active",
+      detail: "The authoritative outer state is stay_with_current_live_owner, so the loop should not issue a new handoff yet.",
+      nextAction: "Wait for the live owner to progress the run, then refresh the inspection.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.STOP_NEEDS_HUMAN) {
+    return {
+      headline: "Needs attention",
+      detail: "The authoritative outer state is stop_needs_human, so automated progress should stop until a human resolves the blocking condition.",
+      nextAction: "Read the stop reason, trust markers, and layer summaries before proceeding.",
+    };
+  }
+
+  if (copilotState === "unresolved_feedback_present") {
+    return {
+      headline: "Needs author fixes",
+      detail: "Copilot has unresolved feedback on the current PR head.",
+      nextAction: "Address the feedback, then reply to and resolve each addressed thread.",
+    };
+  }
+
+  if (copilotState === "already_fixed_needs_reply_resolve") {
+    return {
+      headline: "Fixes applied; threads still need resolution",
+      detail: "Local fixes appear applied, but GitHub review threads still need reply/resolve follow-up.",
+      nextAction: "Reply to and resolve the addressed review threads before requesting another Copilot pass.",
+    };
+  }
+
+  if (copilotState === "waiting_for_copilot_review") {
+    return {
+      headline: "Waiting for Copilot review",
+      detail: "Copilot review has been requested and the PR is waiting for new review activity.",
+      nextAction: "Wait for Copilot review or refresh the snapshot after review activity lands.",
+    };
+  }
+
+  if (copilotState === "ready_to_rerequest_review") {
+    return {
+      headline: "Ready to re-request Copilot review",
+      detail: "The current head looks clean enough for another Copilot pass or final confirmation.",
+      nextAction: "Re-request Copilot review only after the smallest honest local validation is green, or confirm the PR is done.",
+    };
+  }
+
+  if (copilotState === "waiting_for_ci") {
+    return {
+      headline: "Waiting for CI",
+      detail: "The current head has progressed past review but is still waiting on CI readiness.",
+      nextAction: "Wait for CI to complete or become available.",
+    };
+  }
+
+  if (reviewerState === "waiting_for_author_followup") {
+    return {
+      headline: "Waiting for author follow-up",
+      detail: "Reviewer work is done for this round and the PR is waiting on author-side changes.",
+      nextAction: "Wait for author commits or refresh after follow-up lands.",
+    };
+  }
+
+  if (reviewerState === "waiting_for_re_request") {
+    return {
+      headline: "Waiting for reviewer re-request",
+      detail: "Reviewer work is paused until a new explicit review request arrives.",
+      nextAction: "Wait for a reviewer re-request after follow-up commits.",
+    };
+  }
+
+  if (reviewerState === "review_requested" || reviewerState === "determine_review_plan" || reviewerState === "reviews_running" || reviewerState === "merge_results" || reviewerState === "draft_review_ready" || reviewerState === "draft_review_posted" || reviewerState === "waiting_for_user_submit" || reviewerState === "submitted_review" || reviewerState === "review_invalidated") {
+    return {
+      headline: "Reviewer loop active",
+      detail: `Reviewer lane is currently at ${humanizeStateToken(reviewerState)}.`,
+      nextAction: "Follow the reviewer lane details below and refresh after the next review event.",
+    };
+  }
+
+  if (outerState === "unknown" && snapshot.needsAttention) {
+    return {
+      headline: "Needs attention",
+      detail: "The current snapshot is not authoritative enough to collapse to one trusted outer state.",
+      nextAction: "Check trust markers and layer summaries before acting on this snapshot.",
+    };
+  }
+
+  if (outerAction === "stop" || statusClass === "blocked") {
+    return {
+      headline: "Needs attention",
+      detail: "The inspection found a blocked or stop-like state, but the authoritative outer state was not specific enough to classify it more narrowly here.",
+      nextAction: "Read the stop reason, trust markers, and layer summaries before proceeding.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.CONTINUE_CURRENT_WAIT || outerAction === "continue_wait") {
+    return {
+      headline: "Waiting for follow-up",
+      detail: "The authoritative outer state is continue_current_wait, so the loop should remain in its durable wait path for now.",
+      nextAction: "Refresh after new review, CI, or author activity lands.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP || outerAction === "reenter_copilot_loop") {
+    return {
+      headline: "Copilot loop needs action",
+      detail: "The authoritative outer state is handoff_to_copilot_loop, so the next meaningful work is in the Copilot lane.",
+      nextAction: "Inspect the Copilot state and act on the requested follow-up.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP || outerAction === "reenter_reviewer_loop") {
+    return {
+      headline: "Reviewer loop needs action",
+      detail: "The authoritative outer state is handoff_to_reviewer_loop, so the next meaningful work is in the reviewer lane.",
+      nextAction: "Inspect the reviewer state and act on the requested follow-up.",
+    };
+  }
+
+  return {
+    headline: titleCaseWords(humanizeStateToken(copilotState === "not present" ? (outerState === "unknown" ? outerAction : outerState) : copilotState)),
+    detail: "The viewer could not collapse this to a narrower plain-English status than the current exported loop states.",
+    nextAction: "Use the current-state banner fields plus the graph and summaries below.",
+  };
+}
+
 function renderCurrentStateNote(snapshot) {
   if (!snapshot) {
     return "Unable to determine the current PR state yet.";
@@ -983,8 +1140,11 @@ function renderCurrentStateNote(snapshot) {
 }
 
 function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
+  const summary = summarizeCurrentPrStatus(snapshot);
   return `<section class="current-pr-state-banner" aria-label="Current PR state">
     <h2>Current PR state</h2>
+    <p class="current-pr-state-summary-headline">${escapeHtml(summary.headline)}</p>
+    <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
     <div class="current-pr-state-visualization">
       ${renderStateVisualizationSection(snapshot, graph)}
     </div>
@@ -993,9 +1153,12 @@ function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
       <dt>target</dt><dd><code>${escapeHtml(target.repo)}#${escapeHtml(target.pr)}</code></dd>
       <dt>snapshot trust</dt><dd><span class="badge">${escapeHtml(stateLabel)}</span></dd>
       <dt>status class</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.statusClass))}</code></dd>
-      <dt>outer</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
-      <dt>copilot</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.copilot?.currentState))}</code></dd>
-      <dt>reviewer</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.reviewer?.currentState))}</code></dd>
+      <dt>outer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerState))}</code></dd>
+      <dt>outerAction (compatibility)</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
+      <dt>current Copilot state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.copilot?.currentState))}</code></dd>
+      <dt>current reviewer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.reviewer?.currentState))}</code></dd>
+      <dt>needs attention</dt><dd>${escapeHtml(String(snapshot?.needsAttention ?? "not present"))}</dd>
+      <dt>next action</dt><dd>${escapeHtml(summary.nextAction)}</dd>
       <dt>trust</dt><dd>${escapeHtml(snapshot?.evidence?.summary ?? "not present")}</dd>
     </dl>
   </section>`;
@@ -1047,6 +1210,7 @@ export function renderInspectRunViewerHtml({
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .current-pr-state-banner { border: 1px solid #cfe0f5; background: linear-gradient(180deg, #f8fbff 0%, #eef5fd 100%); box-shadow: 0 8px 24px rgba(21, 101, 192, 0.08); }
       .current-pr-state-banner h2 { margin: 0.2rem 0 0.5rem 0; font-size: 1.9rem; line-height: 1.15; }
+      .current-pr-state-summary-headline { margin: 0 0 0.4rem 0; color: #1565c0; font-weight: 700; font-size: 1.1rem; }
       .current-pr-state-detail { margin: 0.6rem 0 0.8rem 0; color: #274766; font-size: 0.98rem; }
       .current-pr-state-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); background: rgba(255,255,255,0.6); padding: 0.85rem; border-radius: 0.6rem; }
       .current-pr-state-grid dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: #4c6478; }
@@ -1242,6 +1406,7 @@ export async function restartExistingPortListener(
 export function createInspectRunViewerServer(options, deps = {}) {
   const adapter = deps.adapter ?? createInspectionViewerAdapter();
   const loadMermaidBrowserScriptImpl = deps.loadMermaidBrowserScriptImpl ?? loadMermaidBrowserScript;
+  const logErrorImpl = deps.logErrorImpl ?? (() => {});
   const target = normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
   const adapterOptions = makeAdapterOptions(options);
 
@@ -1277,8 +1442,9 @@ export function createInspectRunViewerServer(options, deps = {}) {
           writeText(response, 200, mermaidBrowserScript, {
             "content-type": "application/javascript; charset=utf-8",
           });
-        } catch {
-          writeText(response, 500, "Mermaid browser asset unavailable. Restart the viewer after reinstalling dependencies.", {
+        } catch (error) {
+          logErrorImpl(error);
+          writeText(response, 500, "Mermaid browser asset unavailable", {
             "content-type": "text/plain; charset=utf-8",
           });
         }

@@ -23,6 +23,8 @@
  *   3. Unknown/unavailable markers when neither is sufficient
  */
 
+import { isKnownOuterState } from "./outer-loop-state.mjs";
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -133,11 +135,19 @@ function buildReviewerScope(snapshotLike) {
  *   Explicit target identity.
  * @param {string} params.inspectedAt
  *   ISO 8601 timestamp of when the inspection was initiated.
+ * @param {string | undefined} [params.outerState]
+ *   Authoritative outer-loop state derived by the caller from a complete
+ *   current-state picture, or undefined when the outer state cannot be determined.
+ * @param {string[] | undefined} [params.outerAllowedTransitions]
+ *   Authoritative allowed next outer states when `outerState` is available.
  * @param {string | undefined} params.outerAction
- *   Outer-loop action derived by the caller from decideOuterAction with neutral
- *   git status, or undefined when the outer action cannot be determined.
+ *   Backward-compatible outer-loop action projection derived by the caller from
+ *   the authoritative outer interpretation, or undefined when the outer action
+ *   cannot be determined.
  * @param {string | undefined} [params.outerReason]
- *   Optional reason string from decideOuterAction (e.g. "copilot_blocked").
+ *   Optional stop reason string from the authoritative outer-loop interpretation
+ *   (for example `interpretOuterLoopState(...).stopReason`, such as
+ *   "copilot_blocked").
  * @param {{ snapshot: object, interpretation: { state: string, allowedTransitions: string[], nextAction: string } } | null} params.copilotEvidence
  *   Live copilot inner-loop facts. null when live detection was unavailable.
  * @param {{ snapshot: object, interpretation: { state: string, allowedTransitions: string[], nextAction: string } } | null} params.reviewerEvidence
@@ -172,6 +182,8 @@ function buildReviewerScope(snapshotLike) {
 export function composeRunInspectionSnapshot({
   target,
   inspectedAt,
+  outerState,
+  outerAllowedTransitions,
   outerAction,
   outerReason,
   copilotEvidence,
@@ -310,14 +322,17 @@ export function composeRunInspectionSnapshot({
   }
 
   // -------------------------------------------------------------------------
-  // Top-level outerAction surfacing eligibility
+  // Top-level outer-state / outerAction surfacing eligibility
   // -------------------------------------------------------------------------
 
-  // Top-level outer action is only surfaced when the caller derived it from a
-  // complete current evidence set. Checkpoint-backed or mixed fallback remains
+  // Top-level outer fields are only surfaced when the caller derived them from
+  // a complete current evidence set. Checkpoint-backed or mixed fallback remains
   // available only as advisory drill-down evidence in this chunk.
+  const effectiveOuterState = isKnownOuterState(outerState) ? outerState : undefined;
+  const effectiveOuterAllowedTransitions = effectiveOuterState !== undefined && Array.isArray(outerAllowedTransitions)
+    ? [...outerAllowedTransitions]
+    : undefined;
   const effectiveOuterAction = outerAction;
-
   const effectiveOuterReason = outerReason;
 
   // -------------------------------------------------------------------------
@@ -351,16 +366,24 @@ export function composeRunInspectionSnapshot({
   if (explicitTargetMissing) {
     evidenceSummary = "The explicit target PR was not found; no current run state could be determined.";
   } else if (sourceMode === SOURCE_MODE.LIVE_DETECTOR_BACKED) {
-    if (effectiveOuterAction === "continue_wait") {
-      evidenceSummary = `Live detectors agree the PR is in a wait state (outerAction: ${effectiveOuterAction}).`;
-    } else if (effectiveOuterAction === "done") {
+    if (effectiveOuterState === "stay_with_current_live_owner") {
+      evidenceSummary = "Live detectors agree a live owner already controls this run, so the outer loop should not issue a new handoff yet.";
+    } else if (effectiveOuterState === "needs_reconcile") {
+      evidenceSummary = "Live detectors found ambiguous or conflicting state, so the outer loop must reconcile before continuing.";
+    } else if (effectiveOuterState === "stop_needs_human") {
+      evidenceSummary = `Live detectors indicate a blocked outer state that needs human intervention${effectiveOuterReason !== undefined ? ` (reason: ${effectiveOuterReason})` : ""}.`;
+    } else if (effectiveOuterState === "done_terminal") {
       evidenceSummary = "Live detectors agree the PR is complete.";
-    } else if (effectiveOuterAction === "stop") {
-      evidenceSummary = `Live detectors indicate a blocked/stop state${effectiveOuterReason !== undefined ? ` (reason: ${effectiveOuterReason})` : ""}.`;
+    } else if (effectiveOuterState === "continue_current_wait") {
+      evidenceSummary = "Live detectors agree the outer loop is in its durable wait state.";
+    } else if (effectiveOuterState === "handoff_to_copilot_loop") {
+      evidenceSummary = "Live detectors indicate the next meaningful work belongs to the Copilot loop.";
+    } else if (effectiveOuterState === "handoff_to_reviewer_loop") {
+      evidenceSummary = "Live detectors indicate the next meaningful work belongs to the reviewer loop.";
     } else if (effectiveOuterAction !== undefined) {
-      evidenceSummary = `Live detectors indicate active work is needed (outerAction: ${effectiveOuterAction}).`;
+      evidenceSummary = `Live detectors returned results, but only the compatibility outerAction could be determined (outerAction: ${effectiveOuterAction}).`;
     } else {
-      evidenceSummary = "Live detectors returned results but outer action could not be determined.";
+      evidenceSummary = "Live detectors returned results but outer state could not be determined.";
     }
     if (markers.conflicts.length > 0) {
       evidenceSummary += " Checkpoint state conflicts with live facts.";
@@ -447,6 +470,8 @@ export function composeRunInspectionSnapshot({
     runId,
     inspectedAt,
     activeStateFamily: ACTIVE_STATE_FAMILY,
+    outerState: effectiveOuterState ?? "unknown",
+    ...(effectiveOuterAllowedTransitions !== undefined ? { allowedTransitions: effectiveOuterAllowedTransitions } : {}),
     outerAction: effectiveOuterAction ?? "unknown",
     activeFamilyState: effectiveOuterAction ?? "unknown",
     statusClass,
