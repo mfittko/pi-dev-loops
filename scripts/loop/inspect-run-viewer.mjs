@@ -834,22 +834,6 @@ function formatStateToken(value, fallback = "not present") {
   return value.trim();
 }
 
-function humanizeStateToken(value) {
-  const token = formatStateToken(value, "not present");
-  if (token === "not present") {
-    return token;
-  }
-  return token.replaceAll("_", " ");
-}
-
-function titleCaseWords(value) {
-  return String(value)
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
 function renderCurrentStateNote(snapshot) {
   if (!snapshot) {
     return "Unable to determine the current PR state yet.";
@@ -936,7 +920,6 @@ export function renderInspectRunViewerHtml({
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .current-pr-state-banner { border: 1px solid #cfe0f5; background: linear-gradient(180deg, #f8fbff 0%, #eef5fd 100%); box-shadow: 0 8px 24px rgba(21, 101, 192, 0.08); }
       .current-pr-state-banner h2 { margin: 0.2rem 0 0.5rem 0; font-size: 1.9rem; line-height: 1.15; }
-      .current-pr-state-kicker { margin: 0; color: #1565c0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.82rem; }
       .current-pr-state-detail { margin: 0 0 0.8rem 0; color: #274766; font-size: 1.02rem; }
       .current-pr-state-grid { grid-template-columns: 14rem 1fr; background: rgba(255,255,255,0.6); padding: 0.85rem; border-radius: 0.6rem; }
       .state-graph-intro { margin-top: 0; color: #333; }
