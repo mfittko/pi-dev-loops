@@ -32,7 +32,7 @@
  * Success output shape (stdout, JSON):
  *   { "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": N },
  *     "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop",
- *     "outerState": "...", "allowedTransitions": [...], "outerAction": "...",
+ *     "outerState": "...", "allowedTransitions"?: [...], "outerAction": "...",
  *     "activeFamilyState": "...",
  *     "statusClass": "...", "needsAttention": false,
  *     "sourceMode": "...", "trust": "...",
