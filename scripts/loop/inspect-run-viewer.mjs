@@ -633,6 +633,19 @@ function renderMermaidBootScript() {
             svg.style.maxWidth = "none";
             svg.style.height = "auto";
           }
+          return scale;
+        };
+        const zoomGraphViewport = (frame, graphViewport, requestedScale, focusPoint = null) => {
+          const previousScale = Number(frame.dataset.graphScale || 1);
+          const nextScale = updateFrameScale(frame, requestedScale);
+          if (!focusPoint || nextScale === previousScale) {
+            return;
+          }
+          const scaleRatio = nextScale / previousScale;
+          requestAnimationFrame(() => {
+            graphViewport.scrollLeft = (focusPoint.contentX * scaleRatio) - focusPoint.viewportX;
+            graphViewport.scrollTop = (focusPoint.contentY * scaleRatio) - focusPoint.viewportY;
+          });
         };
         const renderFallback = (message) => {
           graphs.forEach((graph) => {
@@ -697,6 +710,21 @@ function renderMermaidBootScript() {
             };
             graphViewport.addEventListener("pointerup", stopDragging);
             graphViewport.addEventListener("pointercancel", stopDragging);
+            graphViewport.addEventListener("dblclick", (event) => {
+              const rect = graphViewport.getBoundingClientRect();
+              zoomGraphViewport(
+                frame,
+                graphViewport,
+                Number(frame.dataset.graphScale || 1) + 0.25,
+                {
+                  viewportX: event.clientX - rect.left,
+                  viewportY: event.clientY - rect.top,
+                  contentX: graphViewport.scrollLeft + (event.clientX - rect.left),
+                  contentY: graphViewport.scrollTop + (event.clientY - rect.top),
+                },
+              );
+              event.preventDefault();
+            });
           }
         });
 
