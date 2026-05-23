@@ -418,6 +418,29 @@ test("composeRunInspectionSnapshot: evidence summary preserves needs_reconcile",
   assert.doesNotMatch(snapshot.evidence.summary, /blocked\/stop state/i);
 });
 
+test("composeRunInspectionSnapshot: invalid outerState normalizes to unknown and hides allowedTransitions", () => {
+  const snapshot = composeRunInspectionSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "not_a_real_outer_state",
+    outerAllowedTransitions: ["continue_current_wait", "handoff_to_copilot_loop"],
+    outerAction: "continue_wait",
+    copilotEvidence: makeCopilotEvidence("waiting_for_copilot_review"),
+    reviewerEvidence: makeReviewerEvidence("waiting_for_author_followup"),
+    existingCheckpoint: null,
+    liveAvailability: { copilot: "ok", reviewer: "ok" },
+    steeringLocatorPath: null,
+    steeringEvidence: null,
+    steeringLoadFailed: false,
+  });
+
+  assert.equal(snapshot.outerState, "unknown");
+  assert.equal("allowedTransitions" in snapshot, false);
+  assert.equal(snapshot.outerAction, "continue_wait");
+  assert.equal(snapshot.statusClass, STATUS_CLASS.WAITING);
+  assert.match(snapshot.evidence.summary, /only the compatibility outerAction could be determined/i);
+});
+
 // ---------------------------------------------------------------------------
 // Unit tests: checkpoint-only fixture
 // ---------------------------------------------------------------------------

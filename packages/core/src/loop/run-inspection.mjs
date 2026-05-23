@@ -23,6 +23,8 @@
  *   3. Unknown/unavailable markers when neither is sufficient
  */
 
+import { isKnownOuterState } from "./outer-loop-state.mjs";
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -324,8 +326,8 @@ export function composeRunInspectionSnapshot({
   // Top-level outer fields are only surfaced when the caller derived them from
   // a complete current evidence set. Checkpoint-backed or mixed fallback remains
   // available only as advisory drill-down evidence in this chunk.
-  const effectiveOuterState = typeof outerState === "string" ? outerState : undefined;
-  const effectiveOuterAllowedTransitions = Array.isArray(outerAllowedTransitions)
+  const effectiveOuterState = isKnownOuterState(outerState) ? outerState : undefined;
+  const effectiveOuterAllowedTransitions = effectiveOuterState !== undefined && Array.isArray(outerAllowedTransitions)
     ? [...outerAllowedTransitions]
     : undefined;
   const effectiveOuterAction = outerAction;

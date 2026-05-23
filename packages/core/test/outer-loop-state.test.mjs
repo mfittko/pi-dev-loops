@@ -175,6 +175,38 @@ test("interpretOuterLoopState: done_terminal", () => {
   assert.equal(result.isTerminal, true);
 });
 
+test("interpretOuterLoopState reuses a precomputed routing result when provided", () => {
+  const routing = {
+    routingOutcome: ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP,
+    outerAction: "reenter_copilot_loop",
+    stopReason: null,
+    handoffEnvelope: {
+      targetIdentity: { repo: "owner/repo", pr: 42 },
+      loopFamily: "copilot_loop",
+      entrypoint: "copilot_pr_handoff",
+      reason: "copilot_needs_action",
+      requiredArgs: { repo: "owner/repo", pr: 42 },
+      requiresLocalIsolation: false,
+      confidence: "authoritative",
+    },
+  };
+
+  const result = interpretOuterLoopState({
+    target: null,
+    copilotState: "",
+    reviewerState: "",
+    routing,
+  });
+
+  assert.equal(result.state, OUTER_STATE.HANDOFF_TO_COPILOT_LOOP);
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP);
+  assert.equal(result.outerAction, "reenter_copilot_loop");
+  assert.equal(result.stopReason, null);
+  assert.equal(result.isTerminal, false);
+  assert.deepEqual(result.allowedTransitions, Object.values(OUTER_STATE));
+  assert.equal(result.handoffEnvelope, routing.handoffEnvelope);
+});
+
 test("interpretOuterLoopState fails closed for malformed inputs", () => {
   const result = interpretOuterLoopState({
     target: null,

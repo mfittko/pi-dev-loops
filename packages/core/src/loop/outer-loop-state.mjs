@@ -98,6 +98,10 @@ function normalizeOuterState(routingOutcome) {
   return OUTER_STATE_SET.has(routingOutcome) ? routingOutcome : OUTER_STATE.NEEDS_RECONCILE;
 }
 
+export function isKnownOuterState(value) {
+  return OUTER_STATE_SET.has(value);
+}
+
 export function interpretOuterLoopState({
   target,
   ownershipState,
@@ -105,22 +109,25 @@ export function interpretOuterLoopState({
   reviewerState,
   sourceMode,
   requiresLocalIsolation = false,
+  routing = null,
 } = {}) {
-  const routing = evaluateConductorRouting({
-    target,
-    ownershipState,
-    copilotState,
-    reviewerState,
-    sourceMode,
-    requiresLocalIsolation,
-  });
+  const effectiveRouting = routing && typeof routing === "object" && typeof routing.routingOutcome === "string"
+    ? routing
+    : evaluateConductorRouting({
+      target,
+      ownershipState,
+      copilotState,
+      reviewerState,
+      sourceMode,
+      requiresLocalIsolation,
+    });
 
-  const state = normalizeOuterState(routing.routingOutcome);
+  const state = normalizeOuterState(effectiveRouting.routingOutcome);
   const allowedTransitions = getAllowedOuterTransitions(state);
   const nextAction = OUTER_NEXT_ACTIONS[state] ?? OUTER_NEXT_ACTIONS[OUTER_STATE.NEEDS_RECONCILE];
   const isTerminal = OUTER_TERMINAL_STATE_SET.has(state);
 
-  if (state === OUTER_STATE.NEEDS_RECONCILE && routing.routingOutcome !== OUTER_STATE.NEEDS_RECONCILE) {
+  if (state === OUTER_STATE.NEEDS_RECONCILE && effectiveRouting.routingOutcome !== OUTER_STATE.NEEDS_RECONCILE) {
     return {
       state,
       allowedTransitions: [],
@@ -129,7 +136,7 @@ export function interpretOuterLoopState({
       routingOutcome: OUTER_STATE.NEEDS_RECONCILE,
       outerAction: "stop",
       stopReason: STOP_REASON.UNKNOWN_STATE,
-      handoffEnvelope: routing.handoffEnvelope,
+      handoffEnvelope: effectiveRouting.handoffEnvelope,
     };
   }
 
@@ -138,9 +145,9 @@ export function interpretOuterLoopState({
     allowedTransitions,
     nextAction,
     isTerminal,
-    routingOutcome: routing.routingOutcome,
-    outerAction: routing.outerAction,
-    stopReason: routing.stopReason,
-    handoffEnvelope: routing.handoffEnvelope,
+    routingOutcome: effectiveRouting.routingOutcome,
+    outerAction: effectiveRouting.outerAction,
+    stopReason: effectiveRouting.stopReason,
+    handoffEnvelope: effectiveRouting.handoffEnvelope,
   };
 }

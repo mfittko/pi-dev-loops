@@ -463,6 +463,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     reviewerState: reviewerInterpretation.state,
     sourceMode,
     requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
+    routing: conductorRouting,
   });
 
   // Derive outer-loop action from the authoritative outer interpretation
