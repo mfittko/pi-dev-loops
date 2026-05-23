@@ -266,7 +266,7 @@ Useful checks:
 If the user asks for status/progress/readiness/merge-state/next-step (including “what is next”):
 - resolve authoritative active artifact identity first (issue/PR, plus branch/head SHA when useful)
 - for issue targets, do not assert "no open PR" until authoritative issue↔PR linkage is resolved (for example via `detect-linked-issue-pr.mjs` timeline-linkage checks)
-- resolve artifact state (`open`/`closed`/`merged`)
+- resolve artifact state (`open`/`closed`/`merged`/`not_applicable`)
 - resolve current loop state and next action from deterministic helper/state output
 - include explicit resolved artifact identity in the answer
 - if identity/state cannot be resolved confidently, stop with reconcile/unknown instead of guessing from chat context

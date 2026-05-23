@@ -369,7 +369,7 @@ test("invalid or incomplete inputs fail closed to needs_reconcile", () => {
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
 });
 
-test("authoritative status resolution uses active linked PR identity instead of stale context hints", () => {
+test("authoritative status resolution uses the canonically linked PR identity", () => {
   const report = resolveAuthoritativeDevLoopStatus({
     currentState: {
       target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 89, linkedPr: 92 },
@@ -381,7 +381,6 @@ test("authoritative status resolution uses active linked PR identity instead of 
     artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
     issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
     loopState: "unresolved_feedback_present",
-    staleContextPr: 91,
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
@@ -389,6 +388,7 @@ test("authoritative status resolution uses active linked PR identity instead of 
   assert.equal(report.activeArtifact.issue, 89);
   assert.equal(report.activeArtifact.pr, 92);
 });
+
 
 test("authoritative status resolution does not classify unresolved feedback as final review", () => {
   const report = resolveAuthoritativeDevLoopStatus({
@@ -407,6 +407,26 @@ test("authoritative status resolution does not classify unresolved feedback as f
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
   assert.equal(report.loopState, "unresolved_feedback_present");
   assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+});
+
+test("authoritative status resolution fails closed when routing itself cannot resolve a strategy", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, issue: 89, pr: 92 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.loopState, "unknown");
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
 });
 
 test("authoritative status resolution fails closed when merged/closed state conflicts with active/open claim", () => {

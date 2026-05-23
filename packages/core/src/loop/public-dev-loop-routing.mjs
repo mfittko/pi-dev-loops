@@ -439,6 +439,9 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
   }
 
   const routed = routeForState(canonicalState);
+  if (routed.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) {
+    return buildStatusReconcile(routed.reason, routed.canonicalState);
+  }
 
   const artifactState = normalizeArtifactState(input.artifactState);
   if (!artifactState) {
