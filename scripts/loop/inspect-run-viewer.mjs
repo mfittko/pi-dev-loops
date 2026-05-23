@@ -8,6 +8,14 @@ import { promisify } from "node:util";
 
 import { formatCliError } from "../_core-helpers.mjs";
 import {
+  STATE as COPILOT_STATE,
+  TRANSITIONS as COPILOT_TRANSITIONS,
+} from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import {
+  REVIEWER_STATE,
+  REVIEWER_TRANSITIONS,
+} from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+import {
   createInspectionViewerAdapter,
   normalizeInspectionTarget,
 } from "./_inspect-run-viewer-adapter.mjs";
@@ -220,35 +228,55 @@ function renderStateVisualizationIntro(snapshot) {
   const stateLabel = renderSnapshotStateLabel(snapshot);
 
   if (stateLabel === "authoritative") {
-    return "Graph-first view of the authoritative inspection snapshot.";
+    return "Full authoritative Copilot and reviewer state machines, plus fail-closed outer-loop summary from the authoritative inspection snapshot.";
   }
   if (stateLabel === "degraded") {
-    return "Graph-first view of a degraded inspection snapshot. Missing graph fields stay explicitly unavailable instead of being guessed.";
+    return "Full authoritative Copilot and reviewer state machines from a degraded inspection snapshot. Missing current-state or next-state highlights stay explicitly unavailable instead of being guessed.";
   }
   if (stateLabel === "checkpoint-only") {
-    return "Graph-first view of a checkpoint-only inspection snapshot. Treat this graph as advisory until live inspection is available.";
+    return "Full authoritative Copilot and reviewer state machines from a checkpoint-only inspection snapshot. Treat current-state and next-state highlights as advisory until live inspection is available.";
   }
   if (stateLabel === "conflicting") {
-    return "Graph-first view of a conflicting inspection snapshot. Resolve the conflicting evidence before treating the graph as authoritative.";
+    return "Full authoritative Copilot and reviewer state machines from a conflicting inspection snapshot. Resolve the conflicting evidence before treating the highlights as authoritative.";
   }
 
-  return "Graph-first view of the current inspection snapshot.";
+  return "Full authoritative Copilot and reviewer state machines from the current inspection snapshot.";
 }
 
-const TERMINAL_STATE_LABELS = new Set(["done", "review_request_unavailable", "blocked_needs_user_decision", "no_pr"]);
+const OUTER_LOOP_KNOWN_ACTIONS = Object.freeze([
+  "continue_wait",
+  "reenter_copilot_loop",
+  "reenter_reviewer_loop",
+  "stop",
+  "done",
+]);
+const OUTER_LOOP_TERMINAL_STATES = new Set(["stop", "done"]);
+const COPILOT_TERMINAL_STATES = new Set(
+  Object.entries(COPILOT_TRANSITIONS)
+    .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
+    .map(([state]) => state),
+);
+const REVIEWER_TERMINAL_STATES = new Set(
+  Object.entries(REVIEWER_TRANSITIONS)
+    .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
+    .map(([state]) => state),
+);
 
-function normalizeCurrentStateInfo(currentState) {
+function normalizeCurrentStateInfo(currentState, { knownStates = null, terminalStates = null } = {}) {
   if (typeof currentState === "string" && currentState.length > 0) {
     const normalized = currentState.trim();
 
     if (normalized.toLowerCase() === "unknown") {
       return { label: "current state unavailable", available: false, terminal: false };
     }
+    if (knownStates instanceof Set && !knownStates.has(normalized)) {
+      return { label: "current state unavailable", available: false, terminal: false };
+    }
 
     return {
       label: normalized,
       available: true,
-      terminal: TERMINAL_STATE_LABELS.has(normalized),
+      terminal: terminalStates instanceof Set ? terminalStates.has(normalized) : false,
     };
   }
 
@@ -299,70 +327,68 @@ function renderMermaidNode(id, label, shape = "box") {
   return `${id}["${escapedLabel}"]`;
 }
 
-function buildMermaidLane({ laneKey, title, currentState, transitions }) {
-  const currentInfo = normalizeCurrentStateInfo(currentState);
+function renderMermaidNodeId(laneKey, state) {
+  return `${laneKey}_${String(state).replaceAll(/[^a-zA-Z0-9_]+/g, "_")}`;
+}
+
+function buildOuterLoopSummaryLane({ laneKey, title, currentState, transitions }) {
+  const knownStates = new Set(OUTER_LOOP_KNOWN_ACTIONS);
+  const currentInfo = normalizeCurrentStateInfo(currentState, {
+    knownStates,
+    terminalStates: OUTER_LOOP_TERMINAL_STATES,
+  });
   const transitionInfo = summarizeTransitionAvailability(transitions);
-  const startId = `${laneKey}_start`;
-  const currentId = `${laneKey}_current`;
-  const endId = `${laneKey}_end`;
   const classIds = {
-    cue: [startId],
+    cue: [],
     current: [],
+    currentTerminal: [],
     next: [],
+    nextTerminal: [],
     terminal: [],
+    inactive: [],
     unavailable: [],
     note: [],
   };
   const lines = [
     `  subgraph ${laneKey}["${escapeMermaidLabel(title)}"]`,
     "    direction LR",
-    `    ${renderMermaidNode(startId, "Start", "pill")}`,
-    `    ${renderMermaidNode(currentId, currentInfo.label)}`,
-    `    ${startId} --> ${currentId}`,
   ];
 
-  if (currentInfo.available) {
-    classIds[currentInfo.terminal ? "terminal" : "current"].push(currentId);
-  } else {
-    classIds.unavailable.push(currentId);
+  for (const state of OUTER_LOOP_KNOWN_ACTIONS) {
+    const nodeId = renderMermaidNodeId(laneKey, state);
+    const terminal = OUTER_LOOP_TERMINAL_STATES.has(state);
+    lines.push(`    ${renderMermaidNode(nodeId, state)}`);
+
+    if (currentInfo.available && currentInfo.label === state) {
+      classIds[terminal ? "currentTerminal" : "current"].push(nodeId);
+    } else if (terminal) {
+      classIds.terminal.push(nodeId);
+    } else {
+      classIds.inactive.push(nodeId);
+    }
   }
 
-  let endVisible = false;
-  let currentConnectedToEnd = false;
-  const ensureEndNode = () => {
-    if (!endVisible) {
-      lines.push(`    ${renderMermaidNode(endId, "End", "circle")}`);
-      classIds.cue.push(endId);
-      endVisible = true;
-    }
-    return endId;
-  };
+  const limitationId = `${laneKey}_limitation`;
+  lines.push(`    ${renderMermaidNode(limitationId, "authoritative full transition graph not exported")}`);
+  classIds.note.push(limitationId);
 
-  if (currentInfo.terminal) {
-    lines.push(`    ${currentId} --> ${ensureEndNode()}`);
-    currentConnectedToEnd = true;
+  let currentId = limitationId;
+  if (!currentInfo.available) {
+    const unavailableId = `${laneKey}_current_unavailable`;
+    lines.push(`    ${renderMermaidNode(unavailableId, currentInfo.label)}`);
+    lines.push(`    ${unavailableId} -.-> ${limitationId}`);
+    classIds.unavailable.push(unavailableId);
+    currentId = unavailableId;
+  } else {
+    currentId = renderMermaidNodeId(laneKey, currentInfo.label);
+    lines.push(`    ${currentId} -.-> ${limitationId}`);
   }
 
   if (transitionInfo.unavailable) {
     const noteId = `${laneKey}_transitions_unavailable`;
-    lines.push(`    ${renderMermaidNode(noteId, "transition data unavailable")}`);
+    lines.push(`    ${renderMermaidNode(noteId, "snapshot next transitions unavailable")}`);
     lines.push(`    ${currentId} -.-> ${noteId}`);
     classIds.note.push(noteId);
-  } else if (transitionInfo.empty) {
-    if (!currentConnectedToEnd) {
-      lines.push(`    ${currentId} --> ${ensureEndNode()}`);
-    }
-  } else {
-    transitionInfo.normalizedTransitions.forEach((label, index) => {
-      const nodeId = `${laneKey}_next_${index + 1}`;
-      const terminal = TERMINAL_STATE_LABELS.has(label);
-      lines.push(`    ${renderMermaidNode(nodeId, label)}`);
-      lines.push(`    ${currentId} --> ${nodeId}`);
-      classIds[terminal ? "terminal" : "next"].push(nodeId);
-      if (terminal) {
-        lines.push(`    ${nodeId} --> ${ensureEndNode()}`);
-      }
-    });
   }
 
   lines.push("  end");
@@ -374,6 +400,123 @@ function buildMermaidLane({ laneKey, title, currentState, transitions }) {
     currentId,
     lines,
     classIds,
+    summary: `${currentInfo.label}; known outer actions shown, but authoritative full transitions are not exported`,
+  };
+}
+
+function buildFullStateMachineLane({ laneKey, title, states, transitionTable, currentState, transitions, startStates = [] }) {
+  const knownStates = new Set(states);
+  const terminalStates = new Set(
+    states.filter((state) => Array.isArray(transitionTable[state]) && transitionTable[state].length === 0),
+  );
+  const currentInfo = normalizeCurrentStateInfo(currentState, { knownStates, terminalStates });
+  const transitionInfo = summarizeTransitionAvailability(transitions);
+  const authoritativeCurrentNextStates = currentInfo.available
+    ? new Set(Array.isArray(transitionTable[currentInfo.label]) ? transitionTable[currentInfo.label] : [])
+    : new Set();
+  const highlightedNextStates = new Set(
+    transitionInfo.unavailable || !currentInfo.available
+      ? []
+      : transitionInfo.normalizedTransitions.filter((state) => authoritativeCurrentNextStates.has(state)),
+  );
+  const classIds = {
+    cue: [],
+    current: [],
+    currentTerminal: [],
+    next: [],
+    nextTerminal: [],
+    terminal: [],
+    inactive: [],
+    unavailable: [],
+    note: [],
+  };
+  const lines = [
+    `  subgraph ${laneKey}["${escapeMermaidLabel(title)}"]`,
+    "    direction LR",
+  ];
+  const startId = `${laneKey}_start`;
+  const endId = `${laneKey}_end`;
+
+  if (startStates.length > 0) {
+    lines.push(`    ${renderMermaidNode(startId, "Start", "pill")}`);
+    classIds.cue.push(startId);
+  }
+
+  for (const state of states) {
+    const nodeId = renderMermaidNodeId(laneKey, state);
+    const terminal = terminalStates.has(state);
+    lines.push(`    ${renderMermaidNode(nodeId, state)}`);
+
+    if (currentInfo.available && currentInfo.label === state) {
+      classIds[terminal ? "currentTerminal" : "current"].push(nodeId);
+    } else if (highlightedNextStates.has(state)) {
+      classIds[terminal ? "nextTerminal" : "next"].push(nodeId);
+    } else if (terminal) {
+      classIds.terminal.push(nodeId);
+    } else {
+      classIds.inactive.push(nodeId);
+    }
+  }
+
+  let endVisible = false;
+  const ensureEndNode = () => {
+    if (!endVisible) {
+      lines.push(`    ${renderMermaidNode(endId, "End", "circle")}`);
+      classIds.cue.push(endId);
+      endVisible = true;
+    }
+    return endId;
+  };
+
+  for (const startState of startStates) {
+    if (knownStates.has(startState)) {
+      lines.push(`    ${startId} --> ${renderMermaidNodeId(laneKey, startState)}`);
+    }
+  }
+
+  for (const state of states) {
+    const fromId = renderMermaidNodeId(laneKey, state);
+    const nextStates = Array.isArray(transitionTable[state]) ? transitionTable[state] : [];
+
+    if (nextStates.length === 0) {
+      lines.push(`    ${fromId} --> ${ensureEndNode()}`);
+      continue;
+    }
+
+    for (const nextState of nextStates) {
+      if (knownStates.has(nextState)) {
+        lines.push(`    ${fromId} --> ${renderMermaidNodeId(laneKey, nextState)}`);
+      }
+    }
+  }
+
+  let currentId = startStates.length > 0 ? startId : renderMermaidNodeId(laneKey, states[0]);
+  if (!currentInfo.available) {
+    const unavailableId = `${laneKey}_current_unavailable`;
+    lines.push(`    ${renderMermaidNode(unavailableId, currentInfo.label)}`);
+    classIds.unavailable.push(unavailableId);
+    currentId = unavailableId;
+  } else {
+    currentId = renderMermaidNodeId(laneKey, currentInfo.label);
+  }
+
+  if (transitionInfo.unavailable) {
+    const noteId = `${laneKey}_transitions_unavailable`;
+    lines.push(`    ${renderMermaidNode(noteId, "snapshot next transitions unavailable")}`);
+    lines.push(`    ${currentId} -.-> ${noteId}`);
+    classIds.note.push(noteId);
+  }
+
+  lines.push("  end");
+
+  return {
+    title,
+    currentLabel: currentInfo.label,
+    transitionInfo,
+    currentId,
+    lines,
+    classIds,
+    summary: `${currentInfo.label}; full authoritative state machine shown`,
   };
 }
 
@@ -383,31 +526,40 @@ export function buildInspectionMermaidGraph(snapshot) {
   }
 
   const lanes = [
-    buildMermaidLane({
+    buildOuterLoopSummaryLane({
       laneKey: "outer_loop_family",
       title: "outer-loop family",
       currentState: snapshot.activeFamilyState,
       transitions: snapshot.allowedTransitions,
     }),
-    buildMermaidLane({
+    buildFullStateMachineLane({
       laneKey: "copilot_layer",
       title: "copilot layer",
+      states: Object.values(COPILOT_STATE),
+      transitionTable: COPILOT_TRANSITIONS,
       currentState: snapshot.layers?.copilot?.currentState,
       transitions: snapshot.layers?.copilot?.allowedTransitions,
+      startStates: [COPILOT_STATE.PR_DRAFT],
     }),
-    buildMermaidLane({
+    buildFullStateMachineLane({
       laneKey: "reviewer_layer",
       title: "reviewer layer",
+      states: Object.values(REVIEWER_STATE),
+      transitionTable: REVIEWER_TRANSITIONS,
       currentState: snapshot.layers?.reviewer?.currentState,
       transitions: snapshot.layers?.reviewer?.allowedTransitions,
+      startStates: [REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST],
     }),
   ];
 
   const classIds = {
     cue: [],
     current: [],
+    currentTerminal: [],
     next: [],
+    nextTerminal: [],
     terminal: [],
+    inactive: [],
     unavailable: [],
     note: [],
   };
@@ -422,8 +574,11 @@ export function buildInspectionMermaidGraph(snapshot) {
     "flowchart TB",
     "  classDef cue fill:#f5f7f9,stroke:#78909c,stroke-width:1.5px,color:#355061,font-weight:bold;",
     "  classDef current fill:#e3f2fd,stroke:#1565c0,stroke-width:4px,color:#12344d,font-weight:bold;",
-    "  classDef next fill:#f3f4ff,stroke:#5c6bc0,stroke-width:2px,color:#233242;",
+    "  classDef currentTerminal fill:#d9f2df,stroke:#1565c0,stroke-width:4px,color:#12344d,font-weight:800;",
+    "  classDef next fill:#f3f4ff,stroke:#5c6bc0,stroke-width:2px,color:#233242,font-weight:700;",
+    "  classDef nextTerminal fill:#eef7ef,stroke:#5c6bc0,stroke-width:3px,color:#1b5e20,font-weight:700;",
     "  classDef terminal fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px,color:#1b5e20,font-weight:bold;",
+    "  classDef inactive fill:#ffffff,stroke:#b0bec5,stroke-width:1.5px,color:#607d8b;",
     "  classDef unavailable fill:#f8fafc,stroke:#90a4ae,stroke-width:2px,color:#546e7a,stroke-dasharray: 6 4;",
     "  classDef note fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#7f4b00;",
     ...lanes.flatMap((lane) => lane.lines),
@@ -443,6 +598,7 @@ export function buildInspectionMermaidGraph(snapshot) {
       title: lane.title,
       currentLabel: lane.currentLabel,
       transitionInfo: lane.transitionInfo,
+      summary: lane.summary,
     })),
   };
 }
@@ -450,23 +606,26 @@ export function buildInspectionMermaidGraph(snapshot) {
 function renderStateGraphLegend() {
   return `<div class="state-graph-cues" aria-label="State graph cues">
     <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-start">Start</span> lane entry</span>
-    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-current">Current</span> highlighted current state</span>
-    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-end">End</span> visible terminal / no-transition outcome</span>
-    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-loop">🔁</span> iterative inspection loop cue</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-current">Current</span> snapshot-derived current state</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-next">Next</span> immediate allowed next state</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-end">End</span> terminal / no-transition outcome</span>
+    <span class="state-graph-cue"><span class="state-graph-cue-chip state-graph-cue-chip-loop">🔁</span> manual re-inspection cue</span>
   </div>`;
 }
 
 function renderStateGraphHelp() {
   return `<ul class="state-graph-help">
-    <li><strong>Current:</strong> emphasized nodes show the snapshot-derived current state for each lane.</li>
-    <li><strong>Start / End:</strong> Mermaid entry and exit nodes make lane boundaries easier to scan.</li>
+    <li><strong>Current:</strong> emphasized nodes show the snapshot-derived current state for each lane when that state is actually known.</li>
+    <li><strong>Next:</strong> purple nodes mark immediate allowed next states from the snapshot. Dimmed nodes are still part of the authoritative state machine; they are simply inactive right now.</li>
+    <li><strong>Start / End:</strong> Mermaid entry and exit nodes make lane boundaries easier to scan for the full authoritative graph.</li>
+    <li><strong>Outer loop:</strong> the viewer shows known outer actions but stays fail-closed about full outer-loop transitions until the repo exports that transition graph authoritatively.</li>
     <li><strong>🔁 Loop cue:</strong> this viewer is revisited by manual reload, so the same current state can recur across inspections until evidence changes.</li>
   </ul>`;
 }
 
 function renderStateGraphSummaries(graph) {
   return `<ul class="state-graph-summaries">
-    ${graph.lanes.map((lane) => `<li class="state-graph-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.transitionInfo.summary)}</li>`).join("")}
+    ${graph.lanes.map((lane) => `<li class="state-graph-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.summary ?? lane.transitionInfo.summary)}; ${escapeHtml(lane.transitionInfo.summary)}</li>`).join("")}
   </ul>`;
 }
 
@@ -717,6 +876,7 @@ export function renderInspectRunViewerHtml({
       .state-graph-cue-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 2.5rem; padding: 0.14rem 0.5rem; border-radius: 999px; border: 1px solid #90a4ae; background: #fff; font-weight: 700; }
       .state-graph-cue-chip-start { border-color: #78909c; background: #f5f7f9; }
       .state-graph-cue-chip-current { border-color: #1565c0; background: #e3f2fd; }
+      .state-graph-cue-chip-next { border-color: #5c6bc0; background: #f3f4ff; }
       .state-graph-cue-chip-end { border-color: #2e7d32; background: #e8f5e9; }
       .state-graph-cue-chip-loop { border-color: #ef6c00; background: #fff3e0; }
       .state-graph-help { margin: 0 0 0.85rem 1.1rem; padding: 0; color: #425d70; }

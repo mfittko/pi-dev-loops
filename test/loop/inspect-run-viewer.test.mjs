@@ -13,6 +13,14 @@ import {
   restartExistingPortListener,
   runCli,
 } from "../../scripts/loop/inspect-run-viewer.mjs";
+import {
+  STATE as COPILOT_STATE,
+  TRANSITIONS as COPILOT_TRANSITIONS,
+} from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import {
+  REVIEWER_STATE,
+  REVIEWER_TRANSITIONS,
+} from "../../packages/core/src/loop/reviewer-loop-state.mjs";
 import { createInspectionViewerAdapter } from "../../scripts/loop/_inspect-run-viewer-adapter.mjs";
 
 function makeSnapshot(overrides = {}) {
@@ -252,7 +260,7 @@ test("formatInspectRunViewerUrl formats IPv4 and IPv6 hosts for copy-pasteable o
   assert.equal(formatInspectRunViewerUrl("0.0.0.0", 4311), "http://0.0.0.0:4311");
 });
 
-test("buildInspectionMermaidGraph renders authoritative Mermaid definitions with start/current/end cues", () => {
+test("buildInspectionMermaidGraph renders full authoritative Mermaid state machines with current/next/terminal cues", () => {
   const graph = buildInspectionMermaidGraph(makeSnapshot({
     layers: {
       copilot: {
@@ -262,7 +270,7 @@ test("buildInspectionMermaidGraph renders authoritative Mermaid definitions with
       reviewer: {
         currentState: "waiting_for_author_followup",
         scope: { mode: "all_reviewers", reviewerLogin: null },
-        allowedTransitions: ["waiting_for_re_request", "done"],
+        allowedTransitions: ["waiting_for_re_request"],
       },
       steering: { status: "unavailable", reason: "no_steering_locator" },
     },
@@ -271,12 +279,71 @@ test("buildInspectionMermaidGraph renders authoritative Mermaid definitions with
   assert.ok(graph);
   assert.match(graph.definition, /flowchart TB/);
   assert.match(graph.definition, /subgraph outer_loop_family\["outer-loop family"\]/);
-  assert.match(graph.definition, /outer_loop_family_start\(\["Start"\]\)/);
-  assert.match(graph.definition, /copilot_layer_end\(\("End"\)\)/);
-  assert.match(graph.definition, /transition data unavailable/);
+  assert.match(graph.definition, /outer_loop_family_limitation\["authoritative full transition graph not exported"\]/);
+  assert.match(graph.definition, /copilot_layer_start\(\["Start"\]\)/);
+  assert.match(graph.definition, /reviewer_layer_start\(\["Start"\]\)/);
+  assert.match(graph.definition, /copilot_layer_no_pr\["no_pr"\]/);
+  assert.match(graph.definition, /copilot_layer_ready_to_rerequest_review\["ready_to_rerequest_review"\]/);
+  assert.match(graph.definition, /reviewer_layer_review_requested\["review_requested"\]/);
+  assert.match(graph.definition, /reviewer_layer_waiting_for_re_request\["waiting_for_re_request"\]/);
+  assert.match(graph.definition, /snapshot next transitions unavailable/);
   assert.match(graph.definition, /layer view/);
-  assert.match(graph.definition, /class outer_loop_family_current,reviewer_layer_current current;/);
-  assert.match(graph.definition, /class copilot_layer_current,reviewer_layer_next_2 terminal;/);
+  assert.match(graph.definition, /class outer_loop_family_continue_wait,reviewer_layer_waiting_for_author_followup current;/);
+  assert.match(graph.definition, /class copilot_layer_done currentTerminal;/);
+  assert.match(graph.definition, /class reviewer_layer_waiting_for_re_request next;/);
+});
+
+test("buildInspectionMermaidGraph covers every exported Copilot and reviewer state and edge", () => {
+  const graph = buildInspectionMermaidGraph(makeSnapshot());
+
+  assert.ok(graph);
+
+  for (const state of Object.values(COPILOT_STATE)) {
+    assert.match(graph.definition, new RegExp(`copilot_layer_${state}\\["${state}"\\]`));
+  }
+  for (const [state, nextStates] of Object.entries(COPILOT_TRANSITIONS)) {
+    if (nextStates.length === 0) {
+      assert.match(graph.definition, new RegExp(`copilot_layer_${state} --> copilot_layer_end`));
+      continue;
+    }
+    for (const nextState of nextStates) {
+      assert.match(graph.definition, new RegExp(`copilot_layer_${state} --> copilot_layer_${nextState}`));
+    }
+  }
+
+  for (const state of Object.values(REVIEWER_STATE)) {
+    assert.match(graph.definition, new RegExp(`reviewer_layer_${state}\\["${state}"\\]`));
+  }
+  for (const [state, nextStates] of Object.entries(REVIEWER_TRANSITIONS)) {
+    if (nextStates.length === 0) {
+      assert.match(graph.definition, new RegExp(`reviewer_layer_${state} --> reviewer_layer_end`));
+      continue;
+    }
+    for (const nextState of nextStates) {
+      assert.match(graph.definition, new RegExp(`reviewer_layer_${state} --> reviewer_layer_${nextState}`));
+    }
+  }
+});
+
+test("buildInspectionMermaidGraph fails closed for invalid next-state highlights", () => {
+  const graph = buildInspectionMermaidGraph(makeSnapshot({
+    layers: {
+      copilot: {
+        currentState: "waiting_for_copilot_review",
+        allowedTransitions: ["done"],
+      },
+      reviewer: {
+        currentState: "unknown",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["review_requested"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  }));
+
+  assert.ok(graph);
+  assert.doesNotMatch(graph.definition, /class [^\n]*copilot_layer_done nextTerminal;/);
+  assert.doesNotMatch(graph.definition, /class [^\n]*reviewer_layer_review_requested next;/);
 });
 
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
@@ -306,16 +373,19 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.conflicts/);
   assert.match(html, /State visualization/);
   assert.match(html, /authoritative inspection snapshot/i);
+  assert.match(html, /full authoritative copilot and reviewer state machines/i);
   assert.match(html, /class="state-graph-cues"/);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /assets\/mermaid\.min\.js/);
   assert.match(html, /Start/);
   assert.match(html, /End/);
+  assert.match(html, /Next/);
   assert.match(html, /🔁/);
-  assert.match(html, /outer-loop family:\s*<\/strong> current <code>continue_wait<\/code>; transition data unavailable in this snapshot/);
-  assert.match(html, /copilot layer:[\s\S]*unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
-  assert.match(html, /copilot layer:[\s\S]*ready_to_rerequest_review/);
-  assert.match(html, /Mermaid entry and exit nodes make lane boundaries easier to scan/);
+  assert.match(html, /outer-loop family:\s*<\/strong> current <code>continue_wait<\/code>; continue_wait; known outer actions shown, but authoritative full transitions are not exported; transition data unavailable in this snapshot/);
+  assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
+  assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; waiting_for_re_request, waiting_for_review_request/);
+  assert.match(html, /Dimmed nodes are still part of the authoritative state machine/);
+  assert.match(html, /full outer-loop transitions until the repo exports that transition graph authoritatively/);
   assert.match(html, /outer-loop summary/);
   assert.match(html, /Copilot loop iterations/);
   assert.match(html, /4 completed, 1 pending/);
@@ -357,8 +427,8 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
-  assert.match(html, /copilot layer:[\s\S]*transition data unavailable in this snapshot/);
-  assert.match(html, /reviewer layer:[\s\S]*transition data unavailable in this snapshot/);
+  assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; transition data unavailable in this snapshot/);
+  assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; transition data unavailable in this snapshot/);
   assert.match(html, /no_copilot_review_history/);
   assert.match(html, /no_steering_file/);
 });
@@ -382,8 +452,8 @@ test("renderInspectRunViewerHtml distinguishes empty transitions from unavailabl
     }),
   });
 
-  assert.match(html, /copilot layer:[\s\S]*no allowed transitions/);
-  assert.doesNotMatch(html, /copilot layer:[\s\S]*transition data unavailable in this snapshot/);
+  assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; no allowed transitions/);
+  assert.doesNotMatch(html, /copilot layer:[\s\S]*full authoritative state machine shown; transition data unavailable in this snapshot/);
 });
 
 test("renderInspectRunViewerHtml highlights terminal merged states", () => {
@@ -427,9 +497,9 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   }));
 
   assert.ok(graph);
-  assert.match(graph.definition, /class outer_loop_family_current,copilot_layer_current terminal;/);
-  assert.match(graph.definition, /copilot_layer_current --> copilot_layer_end/);
-  assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; no allowed transitions/);
+  assert.match(graph.definition, /class outer_loop_family_done,copilot_layer_done currentTerminal;/);
+  assert.match(graph.definition, /copilot_layer_done --> copilot_layer_end/);
+  assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; done; full authoritative state machine shown; no allowed transitions/);
 });
 
 test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {

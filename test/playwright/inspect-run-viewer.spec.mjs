@@ -42,18 +42,20 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
 
     await expect(page.getByRole("heading", { name: "PR #55 inspection" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "State visualization" })).toBeVisible();
-    await expect(page.locator(".state-graph-intro")).toContainText(/authoritative inspection snapshot/i);
+    await expect(page.locator(".state-graph-intro")).toContainText(/full authoritative copilot and reviewer state machines/i);
     await expect(page.locator(".state-graph-cues")).toContainText(/Start/);
     await expect(page.locator(".state-graph-cues")).toContainText(/Current/);
+    await expect(page.locator(".state-graph-cues")).toContainText(/Next/);
     await expect(page.locator(".state-graph-cues")).toContainText(/End/);
     await expect(page.locator(".state-graph-cues")).toContainText(/🔁/);
-    await expect(page.locator(".state-graph-help")).toContainText(/Mermaid entry and exit nodes/i);
+    await expect(page.locator(".state-graph-help")).toContainText(/Dimmed nodes are still part of the authoritative state machine/i);
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/Start/);
     await expect(graph).toContainText(/continue_wait/);
     await expect(graph).toContainText(/waiting_for_copilot_review/);
-    await expect(page.getByText(/outer-loop family:\s*current\s*continue_wait; transition data unavailable in this snapshot/i)).toBeVisible();
-    await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
+    await expect(graph).toContainText(/review_requested/);
+    await expect(page.getByText(/outer-loop family:\s*current\s*continue_wait; continue_wait; known outer actions shown, but authoritative full transitions are not exported; transition data unavailable in this snapshot/i)).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; waiting_for_copilot_review; full authoritative state machine shown; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
     await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
 
     await page.screenshot({
@@ -81,8 +83,8 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
     await expect(page.locator(".state-graph-intro")).toContainText(/checkpoint-only inspection snapshot/i);
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/current state unavailable/);
-    await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; transition data unavailable in this snapshot/i)).toBeVisible();
-    await expect(page.getByText(/reviewer layer:\s*current\s*current state unavailable; transition data unavailable in this snapshot/i)).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; transition data unavailable in this snapshot/i)).toBeVisible();
+    await expect(page.getByText(/reviewer layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; transition data unavailable in this snapshot/i)).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-checkpoint-webkit.png"),
@@ -141,7 +143,7 @@ test("webkit shows terminal merged states clearly in the Mermaid graph", async (
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/End/);
     await expect(graph).toContainText(/done/);
-    await expect(page.getByText(/copilot layer:\s*current\s*done; no allowed transitions/i)).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*done; done; full authoritative state machine shown; no allowed transitions/i)).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-merged-webkit.png"),
