@@ -1240,7 +1240,7 @@ export function renderInspectRunViewerHtml({
   <body>
     ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph)}
     ${renderCollapsedDetailsPanel(`
-      <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span></p>
+      <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
       <p><strong>Refresh:</strong> manual reload only. <strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
       ${topSummary}
       ${renderOuterLoopSummarySection(normalizedSnapshot)}
