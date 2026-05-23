@@ -41,23 +41,43 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("heading", { name: "PR #55 inspection" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "State visualization" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Current PR state" })).toBeVisible();
     await expect(page.locator("body")).toContainText(/These fields are shown directly from the loaded inspection snapshot/i);
-    await expect(page.locator(".state-graph-intro")).toContainText(/full authoritative copilot and reviewer state machines/i);
+    await expect(page.locator(".state-graph-intro")).toContainText(/authoritative graph view from the current inspection snapshot/i);
     await expect(page.locator(".state-graph-cues")).toContainText(/Start/);
     await expect(page.locator(".state-graph-cues")).toContainText(/Current/);
     await expect(page.locator(".state-graph-cues")).toContainText(/Next/);
     await expect(page.locator(".state-graph-cues")).toContainText(/End/);
     await expect(page.locator(".state-graph-cues")).toContainText(/🔁/);
-    await expect(page.locator(".state-graph-help")).toContainText(/Dimmed nodes are still part of the authoritative state machine/i);
+    const graphGuide = page.getByText(/Graph guide and lane details/);
+    await expect(graphGuide).toBeVisible();
+    await graphGuide.click();
+    const graphBox = page.locator(".current-pr-state-visualization");
+    await expect(graphBox.getByRole("button", { name: "Zoom in" })).toBeVisible();
+    await expect(graphBox.getByRole("button", { name: "Zoom out" })).toBeVisible();
+    await expect(graphBox.getByRole("button", { name: "Reset zoom" })).toBeVisible();
+    await expect(graphBox.getByRole("button", { name: "Open graph fullscreen" })).toBeVisible();
     const graph = await waitForMermaidGraph(page);
+    await expect(graph).toHaveCSS("cursor", "grab");
     await expect(graph).toContainText(/Start/);
     await expect(graph).toContainText(/continue_wait/);
     await expect(graph).toContainText(/waiting_for_copilot_review/);
     await expect(graph).toContainText(/review_requested/);
     await expect(page.getByText(/outer-loop family:\s*current\s*continue_wait; known outer actions shown, but authoritative full transitions are not exported; transition data unavailable in this snapshot/i)).toBeVisible();
     await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; full authoritative state machine shown; validated next states: unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
+
+    await graphBox.getByRole("button", { name: "Zoom in" }).click();
+    await graphBox.getByRole("button", { name: "Zoom in" }).click();
+    const scroller = page.locator(".mermaid-state-graph");
+    const beforeScroll = await scroller.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
+    const box = await scroller.boundingBox();
+    if (!box) throw new Error("graph scroller bounding box unavailable");
+    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.5);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35, { steps: 8 });
+    await page.mouse.up();
+    const afterScroll = await scroller.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
+    expect(afterScroll.left !== beforeScroll.left || afterScroll.top !== beforeScroll.top).toBeTruthy();
     await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
 
     await page.screenshot({
@@ -84,7 +104,8 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
 
     await expect(page.getByRole("heading", { name: "Current PR state" })).toBeVisible();
     await expect(page.locator(".current-pr-state-detail")).toContainText(/checkpoint-only snapshot/i);
-    await expect(page.locator(".state-graph-intro")).toContainText(/checkpoint-only inspection snapshot/i);
+    await expect(page.locator(".state-graph-intro")).toContainText(/checkpoint-only graph view/i);
+    await page.getByText(/Graph guide and lane details/).click();
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/current state unavailable/);
     await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; full authoritative state machine shown; next transitions unavailable in this snapshot/i)).toBeVisible();
@@ -109,7 +130,7 @@ test("webkit shows degraded graph messaging when snapshot trust is partial", asy
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.locator(".state-graph-intro")).toContainText(/degraded inspection snapshot/i);
+    await expect(page.locator(".state-graph-intro")).toContainText(/degraded graph view/i);
     await waitForMermaidGraph(page);
 
     await page.screenshot({
@@ -147,6 +168,7 @@ test("webkit shows terminal merged states clearly in the Mermaid graph", async (
     await expect(page.getByRole("heading", { name: "Current PR state" })).toBeVisible();
     await expect(page.locator(".current-pr-state-grid")).toContainText(/status class/);
     await expect(page.locator(".current-pr-state-grid")).toContainText(/done/);
+    await page.getByText(/Graph guide and lane details/).click();
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/End/);
     await expect(graph).toContainText(/done/);
