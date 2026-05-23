@@ -81,11 +81,24 @@ export const COMPATIBILITY_ENTRYPOINT = Object.freeze({
   NONE: null,
 });
 
+export const DEV_LOOP_ARTIFACT_STATE = Object.freeze({
+  OPEN: "open",
+  CLOSED: "closed",
+  MERGED: "merged",
+  NOT_APPLICABLE: "not_applicable",
+});
+
+export const DEV_LOOP_STATUS_REPORT_KIND = Object.freeze({
+  RESOLVED: "resolved",
+  NEEDS_RECONCILE: "needs_reconcile",
+});
+
 const TARGET_KIND_SET = new Set(Object.values(DEV_LOOP_TARGET_KIND));
 const ACTOR_SET = new Set(Object.values(DEV_LOOP_ACTOR));
 const STATUS_SET = new Set(Object.values(DEV_LOOP_STATUS));
 const AUTHORIZATION_SET = new Set(Object.values(DEV_LOOP_AUTHORIZATION));
 const INTENT_SET = new Set(Object.values(DEV_LOOP_PUBLIC_INTENT));
+const ARTIFACT_STATE_SET = new Set(Object.values(DEV_LOOP_ARTIFACT_STATE));
 
 function normalizeIntent(intent) {
   const normalized = typeof intent === "string" ? intent.trim().toLowerCase() : "";
@@ -150,6 +163,19 @@ function normalizeState(currentState) {
   }
 
   return { target, ownership, nextActor, status, authorization };
+}
+
+function normalizeArtifactState(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return ARTIFACT_STATE_SET.has(normalized) ? normalized : null;
+}
+
+function normalizeOptionalLoopState(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized.length > 0 ? normalized : null;
 }
 
 function buildResult({
@@ -313,6 +339,82 @@ function routeForState(canonicalState) {
   }
 
   return buildReconcile("The canonical current state does not map cleanly to any first-slice internal strategy.", canonicalState);
+}
+
+function buildStatusArtifactIdentity(canonicalState) {
+  return {
+    kind: canonicalState.target.kind,
+    issue: canonicalState.target.issue,
+    pr: canonicalState.target.pr,
+    branch: canonicalState.target.branch,
+    phase: canonicalState.target.phase,
+  };
+}
+
+function buildStatusReconcile(reason, canonicalState = null) {
+  return {
+    statusKind: DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE,
+    reason,
+    activeArtifact: canonicalState ? buildStatusArtifactIdentity(canonicalState) : null,
+    artifactState: null,
+    loopState: "unknown",
+    nextAction: "Stop and reconcile the authoritative active artifact and current loop state before answering status.",
+    routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
+    selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
+    compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+    canonicalState,
+  };
+}
+
+function isArtifactStateCompatible(canonicalState, artifactState) {
+  if (canonicalState.target.kind !== DEV_LOOP_TARGET_KIND.PR) {
+    return artifactState === DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE;
+  }
+
+  if (canonicalState.status === DEV_LOOP_STATUS.DONE) {
+    return artifactState === DEV_LOOP_ARTIFACT_STATE.CLOSED || artifactState === DEV_LOOP_ARTIFACT_STATE.MERGED;
+  }
+
+  return artifactState === DEV_LOOP_ARTIFACT_STATE.OPEN;
+}
+
+export function resolveAuthoritativeDevLoopStatus(input = {}) {
+  const canonicalState = normalizeState(input.currentState);
+  if (!canonicalState) {
+    return buildStatusReconcile("Authoritative status reporting requires a valid canonical current state.");
+  }
+
+  const routed = routeForState(canonicalState);
+
+  const artifactState = normalizeArtifactState(input.artifactState);
+  if (!artifactState) {
+    return buildStatusReconcile(
+      "Authoritative status reporting requires an explicit artifact state (open|closed|merged|not_applicable).",
+      routed.canonicalState,
+    );
+  }
+
+  if (!isArtifactStateCompatible(routed.canonicalState, artifactState)) {
+    return buildStatusReconcile(
+      "Canonical current state conflicts with the provided artifact state; reconcile before answering status.",
+      routed.canonicalState,
+    );
+  }
+
+  const loopState = normalizeOptionalLoopState(input.loopState) ?? canonicalState.status;
+
+  return {
+    statusKind: DEV_LOOP_STATUS_REPORT_KIND.RESOLVED,
+    activeArtifact: buildStatusArtifactIdentity(routed.canonicalState),
+    artifactState,
+    loopState,
+    nextAction: routed.nextAction,
+    routeKind: routed.routeKind,
+    selectedStrategy: routed.selectedStrategy,
+    compatibilityEntrypoint: routed.compatibilityEntrypoint,
+    canonicalState: routed.canonicalState,
+    reason: routed.reason,
+  };
 }
 
 export function evaluatePublicDevLoopRouting(input = {}) {

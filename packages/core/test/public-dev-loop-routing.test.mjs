@@ -5,13 +5,16 @@ import {
   COMPATIBILITY_ENTRYPOINT,
   DEV_LOOP_ACTOR,
   DEV_LOOP_AUTHORIZATION,
+  DEV_LOOP_ARTIFACT_STATE,
   DEV_LOOP_PUBLIC_INTENT,
   DEV_LOOP_ROUTE_KIND,
+  DEV_LOOP_STATUS_REPORT_KIND,
   DEV_LOOP_STATUS,
   DEV_LOOP_TARGET_KIND,
   INTERNAL_DEV_LOOP_STRATEGY,
   PUBLIC_DEV_LOOP_ENTRYPOINT,
   evaluatePublicDevLoopRouting,
+  resolveAuthoritativeDevLoopStatus,
 } from "../src/loop/public-dev-loop-routing.mjs";
 
 test("public dev-loop routing exports the single public façade name", () => {
@@ -363,4 +366,60 @@ test("invalid or incomplete inputs fail closed to needs_reconcile", () => {
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
+});
+
+test("authoritative status resolution uses active linked PR identity instead of stale context hints", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 89, linkedPr: 92 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    loopState: "unresolved_feedback_present",
+    staleContextPr: 91,
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(report.activeArtifact.issue, 89);
+  assert.equal(report.activeArtifact.pr, 92);
+});
+
+test("authoritative status resolution does not classify unresolved feedback as final review", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, issue: 89, pr: 92 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    loopState: "unresolved_feedback_present",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.loopState, "unresolved_feedback_present");
+  assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+});
+
+test("authoritative status resolution fails closed when merged/closed state conflicts with active/open claim", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, issue: 89, pr: 91 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.MERGED,
+    loopState: "final_review_gate",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.loopState, "unknown");
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
 });

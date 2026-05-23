@@ -263,7 +263,12 @@ Useful checks:
 - `gh issue view <number>`
 - `gh pr list --state open`
 
-If the user says “what is next,” use GitHub issue readiness plus current PR state to answer.
+If the user asks for status/progress/readiness/merge-state/next-step (including “what is next”):
+- resolve authoritative active artifact identity first (issue/PR, plus branch/head SHA when useful)
+- resolve artifact state (`open`/`closed`/`merged`)
+- resolve current loop state and next action from deterministic helper/state output
+- include explicit resolved artifact identity in the answer
+- if identity/state cannot be resolved confidently, stop with reconcile/unknown instead of guessing from chat context
 
 ## Step 2: Confirm issue scope before execution
 
