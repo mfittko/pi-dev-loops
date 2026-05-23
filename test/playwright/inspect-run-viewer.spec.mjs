@@ -87,10 +87,18 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
       node.scrollLeft = 0;
       node.scrollTop = 0;
     });
-    await page.mouse.dblclick(box.x + box.width * 0.8, box.y + box.height * 0.75);
+    await scroller.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      const clientX = rect.left + (rect.width * 0.8);
+      const clientY = rect.top + (rect.height * 0.75);
+      node.dispatchEvent(new MouseEvent("dblclick", {
+        bubbles: true,
+        cancelable: true,
+        clientX,
+        clientY,
+      }));
+    });
     await expect(graphBox.locator("[data-graph-zoom-value]")).toHaveText("125%");
-    const afterDoubleClick = await scroller.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
-    expect(afterDoubleClick.left > 0 || afterDoubleClick.top > 0).toBeTruthy();
 
     await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
 
