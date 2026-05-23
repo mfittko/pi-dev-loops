@@ -98,7 +98,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     });
     await expect(graphBox.locator("[data-graph-zoom-value]")).toHaveText("125%");
 
-    await page.getByText(/Details/).click();
+    await page.locator(".inspection-details > summary").click();
     await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
 
     await page.screenshot({

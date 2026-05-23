@@ -1121,7 +1121,7 @@ function renderCurrentStateNote(snapshot) {
 
 function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
   const summary = summarizeCurrentPrStatus(snapshot);
-  return `<section class="current-pr-state-banner" aria-label="Current PR state">
+  return `<section class="current-pr-state-banner" aria-label="PR #${escapeHtml(target.pr)} State">
     <h1>PR #${escapeHtml(target.pr)} State</h1>
     <p class="current-pr-state-summary-headline">${escapeHtml(summary.headline)}</p>
     <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>

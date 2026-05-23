@@ -415,6 +415,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   });
 
   assert.match(html, /PR #55 State/);
+  assert.match(html, /aria-label="PR #55 State"/);
   assert.match(html, /Waiting for Copilot review/);
   assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
   assert.match(html, /These fields are shown directly from the loaded inspection snapshot/i);
