@@ -8,6 +8,7 @@ import {
   DEV_LOOP_ARTIFACT_STATE,
   DEV_LOOP_PUBLIC_INTENT,
   DEV_LOOP_ROUTE_KIND,
+  DEV_LOOP_ISSUE_LINKAGE_RESOLUTION,
   DEV_LOOP_STATUS_REPORT_KIND,
   DEV_LOOP_STATUS,
   DEV_LOOP_TARGET_KIND,
@@ -378,6 +379,7 @@ test("authoritative status resolution uses active linked PR identity instead of 
       authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
     },
     artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
     loopState: "unresolved_feedback_present",
     staleContextPr: 91,
   });
@@ -398,6 +400,7 @@ test("authoritative status resolution does not classify unresolved feedback as f
       authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
     },
     artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
     loopState: "unresolved_feedback_present",
   });
 
@@ -416,10 +419,48 @@ test("authoritative status resolution fails closed when merged/closed state conf
       authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
     },
     artifactState: DEV_LOOP_ARTIFACT_STATE.MERGED,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
     loopState: "final_review_gate",
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
   assert.equal(report.loopState, "unknown");
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+});
+
+test("authoritative status resolution fails closed for issue targets when linkage was not resolved authoritatively", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.USER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "active",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.loopState, "unknown");
+});
+
+test("authoritative status resolution accepts issue state only after explicit no-open-PR linkage resolution", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.USER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    loopState: "active",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.activeArtifact.kind, DEV_LOOP_TARGET_KIND.ISSUE);
+  assert.equal(report.activeArtifact.issue, 93);
+  assert.equal(report.activeArtifact.pr, null);
 });

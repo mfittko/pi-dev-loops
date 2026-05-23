@@ -48,13 +48,14 @@ Its tests are:
 Before answering status/progress/readiness/merge-state/next-step questions, consumers must:
 
 1. resolve the authoritative active artifact identity (issue/PR/branch/phase as applicable)
+   - for issue targets, this includes authoritative issue↔PR linkage resolution (for example via timeline linkage detection such as `scripts/github/detect-linked-issue-pr.mjs`)
 2. resolve artifact state (`open` \| `closed` \| `merged` \| `not_applicable`)
 3. resolve current loop state
 4. resolve the next action from routed canonical state
 
 Prior chat context is only a hint, never state authority.
 
-If authoritative identity/state cannot be resolved confidently, fail closed to reconcile/unknown instead of guessing.
+If authoritative identity/state (including issue↔PR linkage when relevant) cannot be resolved confidently, fail closed to reconcile/unknown instead of guessing.
 
 Expected answer shape (field names may vary by surface, but semantics must match):
 

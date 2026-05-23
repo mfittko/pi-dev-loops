@@ -93,12 +93,19 @@ export const DEV_LOOP_STATUS_REPORT_KIND = Object.freeze({
   NEEDS_RECONCILE: "needs_reconcile",
 });
 
+export const DEV_LOOP_ISSUE_LINKAGE_RESOLUTION = Object.freeze({
+  RESOLVED_LINKED_PR: "resolved_linked_pr",
+  RESOLVED_NO_OPEN_PR: "resolved_no_open_pr",
+  NOT_APPLICABLE: "not_applicable",
+});
+
 const TARGET_KIND_SET = new Set(Object.values(DEV_LOOP_TARGET_KIND));
 const ACTOR_SET = new Set(Object.values(DEV_LOOP_ACTOR));
 const STATUS_SET = new Set(Object.values(DEV_LOOP_STATUS));
 const AUTHORIZATION_SET = new Set(Object.values(DEV_LOOP_AUTHORIZATION));
 const INTENT_SET = new Set(Object.values(DEV_LOOP_PUBLIC_INTENT));
 const ARTIFACT_STATE_SET = new Set(Object.values(DEV_LOOP_ARTIFACT_STATE));
+const ISSUE_LINKAGE_RESOLUTION_SET = new Set(Object.values(DEV_LOOP_ISSUE_LINKAGE_RESOLUTION));
 
 function normalizeIntent(intent) {
   const normalized = typeof intent === "string" ? intent.trim().toLowerCase() : "";
@@ -176,6 +183,11 @@ function normalizeOptionalLoopState(value) {
   }
   const normalized = typeof value === "string" ? value.trim() : "";
   return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeIssueLinkageResolution(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return ISSUE_LINKAGE_RESOLUTION_SET.has(normalized) ? normalized : null;
 }
 
 function buildResult({
@@ -378,10 +390,41 @@ function isArtifactStateCompatible(canonicalState, artifactState) {
   return artifactState === DEV_LOOP_ARTIFACT_STATE.OPEN;
 }
 
+function validateIssueLinkageResolution(canonicalState, issueLinkageResolution) {
+  if (canonicalState.target.kind !== DEV_LOOP_TARGET_KIND.ISSUE) {
+    return issueLinkageResolution === null
+      || issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE;
+  }
+
+  if (canonicalState.target.linkedPr !== null) {
+    return issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR;
+  }
+
+  return issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR;
+}
+
 export function resolveAuthoritativeDevLoopStatus(input = {}) {
   const canonicalState = normalizeState(input.currentState);
   if (!canonicalState) {
     return buildStatusReconcile("Authoritative status reporting requires a valid canonical current state.");
+  }
+
+  const issueLinkageResolution = normalizeIssueLinkageResolution(input.issueLinkageResolution);
+  if (
+    canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
+    && issueLinkageResolution === null
+  ) {
+    return buildStatusReconcile(
+      "Issue targets require explicit authoritative issue↔PR linkage resolution before answering status.",
+      canonicalState,
+    );
+  }
+
+  if (!validateIssueLinkageResolution(canonicalState, issueLinkageResolution)) {
+    return buildStatusReconcile(
+      "Issue↔PR linkage resolution is incomplete or conflicts with canonical current state; reconcile before answering status.",
+      canonicalState,
+    );
   }
 
   const routed = routeForState(canonicalState);
