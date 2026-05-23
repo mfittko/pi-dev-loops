@@ -363,6 +363,17 @@ function buildStatusArtifactIdentity(canonicalState) {
   };
 }
 
+function buildAuthoritativeStatusNextAction(routed, issueLinkageResolution) {
+  if (
+    routed?.canonicalState?.target?.kind === DEV_LOOP_TARGET_KIND.ISSUE
+    && issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR
+  ) {
+    return "Proceed with issue intake on the issue itself; authoritative linkage resolution already established that no open PR exists.";
+  }
+
+  return routed?.nextAction ?? "Reconcile the current state before answering status.";
+}
+
 function buildStatusReconcile(reason, canonicalState = null) {
   return {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE,
@@ -444,14 +455,20 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     );
   }
 
-  const loopState = normalizeOptionalLoopState(input.loopState) ?? canonicalState.status;
+  const loopState = normalizeOptionalLoopState(input.loopState);
+  if (loopState === null) {
+    return buildStatusReconcile(
+      "Authoritative status reporting requires an explicit resolved loop state before answering status.",
+      routed.canonicalState,
+    );
+  }
 
   return {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.RESOLVED,
     activeArtifact: buildStatusArtifactIdentity(routed.canonicalState),
     artifactState,
     loopState,
-    nextAction: routed.nextAction,
+    nextAction: buildAuthoritativeStatusNextAction(routed, issueLinkageResolution),
     routeKind: routed.routeKind,
     selectedStrategy: routed.selectedStrategy,
     compatibilityEntrypoint: routed.compatibilityEntrypoint,
