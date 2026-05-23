@@ -30,6 +30,7 @@ async function seedPackagedSupport(tempDir) {
     "github/stage-reviewer-draft.mjs": "export const stage = true;\n",
     "github/watch-copilot-review.mjs": "export const watch = true;\n",
     "loop/copilot-pr-handoff.mjs": "export const handoff = true;\n",
+    "loop/run-copilot-watch-cycle.mjs": "export const watchCycle = true;\n",
     "loop/_steering-state-file.mjs": "export const steeringFile = true;\n",
     "loop/detect-initial-copilot-pr-state.mjs": "export const initialState = true;\n",
     "loop/detect-copilot-loop-state.mjs": "#!/usr/bin/env node\n",
@@ -121,6 +122,12 @@ async function assertInstalledCopilotHelpersExecute(targetRoot, skillName = "cop
   assert.equal(handoffResult.code, 0);
   assert.match(handoffResult.stdout, /Usage:/);
   assert.doesNotMatch(handoffResult.stderr, /ERR_MODULE_NOT_FOUND/);
+
+  const watchCycleScriptPath = path.join(targetRoot, skillName, "scripts", "loop", "run-copilot-watch-cycle.mjs");
+  const watchCycleResult = await runNodeScript(watchCycleScriptPath, ["--help"]);
+  assert.equal(watchCycleResult.code, 0);
+  assert.match(watchCycleResult.stdout, /Usage:/);
+  assert.doesNotMatch(watchCycleResult.stderr, /ERR_MODULE_NOT_FOUND/);
 }
 
 async function assertInstalledOuterLoopContractImports(targetRoot, skillName = "copilot-autopilot") {
@@ -206,6 +213,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "loop", "copilot-pr-handoff.mjs"), "utf8"),
     "export const handoff = true;\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "loop", "run-copilot-watch-cycle.mjs"), "utf8"),
+    "export const watchCycle = true;\n",
   );
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "scripts", "github", "detect-linked-issue-pr.mjs"), "utf8"),

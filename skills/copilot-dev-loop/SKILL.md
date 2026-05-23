@@ -64,6 +64,13 @@ node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --
 Detects state, requests review when appropriate, and emits JSON including `{ ok: true, action, state, allowedTransitions, nextAction, snapshot, reviewRequestStatus?, watchStatus?, autoRerequestEligible, sameHeadCleanConverged, loopDisposition, terminal, watchArgs? }`.
 When `action` is `"watch"`, use the returned `watchArgs` with `watch-copilot-review.mjs` directly.
 
+**5. Preferred async wait-boundary helper**
+```sh
+node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>
+```
+Runs the handoff first, then — when the state is still `waiting_for_copilot_review` — keeps the emitted non-zero watch timeout instead of degrading normal async waiting into a zero-timeout `idle` probe. The result includes `{ ok: true, handoffAction, state, watchStatus?, loopDisposition, terminal }`.
+Use `--probe-only` only for an explicit one-shot status/reattach probe; it is not the normal async wait path.
+
 **Request status reference**
 | Status | Meaning | Next step |
 | --- | --- | --- |
@@ -75,6 +82,7 @@ When `action` is `"watch"`, use the returned `watchArgs` with `watch-copilot-rev
 **Pass `--help` to any helper for full usage:**
 ```sh
 node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --help
+node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --help
 node <resolved-skill-scripts>/github/request-copilot-review.mjs --help
 node <resolved-skill-scripts>/github/watch-copilot-review.mjs --help
 node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --help
@@ -431,6 +439,7 @@ Preferred approach for Copilot review follow-up:
 - after a PR leaves draft, explicitly request Copilot review first, preferably through the resolved `request-copilot-review.mjs` helper
 - after any follow-up fix commit is pushed and another Copilot pass is wanted, first return the updated head to a green or credibly green validation posture, then explicitly request Copilot review again for that head before waiting
 - only enter the watch loop after the request state is confirmed as `requested` or `already-requested`
+- for explicit async loop entry or continuation, prefer `run-copilot-watch-cycle.mjs` so the handoff → watch boundary stays deterministic and uses the emitted non-zero watch timeout
 - baseline current Copilot review activity only after that confirmed request state, unless the user explicitly asked for passive waiting without a fresh request
 - poll for new Copilot-authored review activity across review-thread comments, review summaries, and PR issue comments
 - keep the watcher in the current Pi/TelePi session
@@ -438,6 +447,8 @@ Preferred approach for Copilot review follow-up:
 - after new review activity appears, launch an async Pi fixer in-session
 - if the watcher returns `timeout` or `idle`, immediately refresh deterministic state with `copilot-pr-handoff.mjs --watch-status <status>` (or `detect-copilot-loop-state.mjs`) before deciding anything about completion
 - watcher timeout/idle is observational only; it is non-terminal unless the refreshed detector output proves `terminal=true`
+- zero-timeout `idle` probes are for explicit one-shot status/reattach checks only; they are not the normal async wait mechanism
+- after a successful fix / reply-resolve / re-request cycle, returning to `waiting_for_copilot_review` is a persistence boundary: resume the watcher instead of reporting completion
 - do not report the loop complete while fresh Copilot comments remain unresolved; a new Copilot pass must flow back into fixer/reply/resolve work before completion when authorization exists
 - use explicit long timeouts from the timeout policy above rather than short defaults
 
