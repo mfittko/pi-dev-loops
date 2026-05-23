@@ -221,7 +221,12 @@ function normalizeTransitions(transitions) {
   if (!Array.isArray(transitions)) {
     return null;
   }
-  return transitions.filter((transition) => typeof transition === "string" && transition.trim().length > 0);
+  return [...new Set(
+    transitions
+      .filter((transition) => typeof transition === "string")
+      .map((transition) => transition.trim())
+      .filter((transition) => transition.length > 0),
+  )];
 }
 
 function renderStateVisualizationIntro(snapshot) {
@@ -678,9 +683,7 @@ function renderMermaidBootScript() {
     </script>`;
 }
 
-function renderStateVisualizationSection(snapshot) {
-  const graph = buildInspectionMermaidGraph(snapshot);
-
+function renderStateVisualizationSection(snapshot, graph) {
   if (graph === null) {
     return `<section>
       <h2>State visualization</h2>
@@ -894,6 +897,7 @@ export function renderInspectRunViewerHtml({
   error = null,
 }) {
   const normalizedSnapshot = snapshot ?? null;
+  const graph = buildInspectionMermaidGraph(normalizedSnapshot);
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
   const title = `${target.repo}#${target.pr} inspection snapshot`;
   const pageHeading = `PR #${target.pr} inspection`;
@@ -964,7 +968,7 @@ export function renderInspectRunViewerHtml({
     <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
     <p><strong>Refresh:</strong> manual reload only.</p>
     <p><strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
-    ${renderStateVisualizationSection(normalizedSnapshot)}
+    ${renderStateVisualizationSection(normalizedSnapshot, graph)}
     ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel)}
     ${topSummary}
     ${renderOuterLoopSummarySection(normalizedSnapshot)}
@@ -972,7 +976,7 @@ export function renderInspectRunViewerHtml({
     ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
     ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
     ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
-    ${renderMermaidBootScript()}
+    ${graph === null ? "" : renderMermaidBootScript()}
   </body>
 </html>`;
 }

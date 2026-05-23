@@ -468,6 +468,30 @@ test("renderInspectRunViewerHtml distinguishes empty transitions from unavailabl
   assert.doesNotMatch(html, /copilot layer:[\s\S]*full authoritative state machine shown; transition data unavailable in this snapshot/);
 });
 
+test("renderInspectRunViewerHtml trims and de-duplicates transition summaries", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      layers: {
+        copilot: {
+          currentState: "waiting_for_copilot_review",
+          allowedTransitions: ["waiting_for_ci ", " waiting_for_ci", "ready_to_rerequest_review"],
+        },
+        reviewer: {
+          currentState: "waiting_for_author_followup",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["waiting_for_re_request"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /copilot layer:[\s\S]*waiting_for_ci, ready_to_rerequest_review/i);
+  assert.doesNotMatch(html, /waiting_for_ci\s+,/i);
+  assert.doesNotMatch(html, /waiting_for_ci, waiting_for_ci/i);
+});
+
 test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   const html = renderInspectRunViewerHtml({
     target: { repo: "owner/repo", pr: 55 },
@@ -549,6 +573,7 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
   assert.match(html, /no state graph can be rendered yet/i);
   assert.match(html, /manual reload only/i);
   assert.match(html, /href="\/snapshot\.json"/);
+  assert.doesNotMatch(html, /assets\/mermaid\.min\.js/);
 });
 
 
