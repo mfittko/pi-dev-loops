@@ -248,25 +248,6 @@ function normalizeTransitions(transitions) {
   return normalizedTransitions;
 }
 
-function renderStateVisualizationIntro(snapshot) {
-  const stateLabel = renderSnapshotStateLabel(snapshot);
-
-  if (stateLabel === "authoritative") {
-    return "Authoritative graph view from the current inspection snapshot, showing the full authoritative outer, Copilot, and reviewer state graphs.";
-  }
-  if (stateLabel === "degraded") {
-    return "Degraded graph view of the full authoritative outer, Copilot, and reviewer state graphs; missing highlights stay explicitly unavailable instead of being guessed.";
-  }
-  if (stateLabel === "checkpoint-only") {
-    return "Checkpoint-only graph view of the full authoritative outer, Copilot, and reviewer state graphs; current and next highlights are advisory until live inspection is available.";
-  }
-  if (stateLabel === "conflicting") {
-    return "Conflicting graph view of the full authoritative outer, Copilot, and reviewer state graphs; resolve the evidence conflict before trusting the highlights.";
-  }
-
-  return "Graph view from the current inspection snapshot, showing the full authoritative outer, Copilot, and reviewer state graphs.";
-}
-
 const COPILOT_TERMINAL_STATES = new Set(
   Object.entries(COPILOT_TRANSITIONS)
     .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
@@ -765,12 +746,11 @@ function renderMermaidBootScript() {
 function renderStateVisualizationSection(snapshot, graph = buildInspectionMermaidGraph(snapshot)) {
   if (graph === null) {
     return `<div class="state-graph-block">
-      <p class="state-graph-intro">Snapshot unavailable, so no state graph can be rendered yet.</p>
+      <p>Snapshot unavailable, so no state graph can be rendered yet.</p>
     </div>`;
   }
 
   return `<div class="state-graph-block">
-    <p class="state-graph-intro">${escapeHtml(renderStateVisualizationIntro(snapshot))}</p>
     <div class="state-graph-frame" data-graph-scale="1">
       <div class="state-graph-toolbar" aria-label="Graph controls">
         <button type="button" data-graph-zoom-out aria-label="Zoom out">−</button>
@@ -1142,12 +1122,9 @@ function renderCurrentStateNote(snapshot) {
 function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
   const summary = summarizeCurrentPrStatus(snapshot);
   return `<section class="current-pr-state-banner" aria-label="Current PR state">
-    <h2>Current PR state</h2>
+    <h1>PR #${escapeHtml(target.pr)} State</h1>
     <p class="current-pr-state-summary-headline">${escapeHtml(summary.headline)}</p>
     <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
-    <div class="current-pr-state-visualization">
-      ${renderStateVisualizationSection(snapshot, graph)}
-    </div>
     <p class="current-pr-state-detail">${escapeHtml(renderCurrentStateNote(snapshot))}</p>
     <dl class="current-pr-state-grid">
       <dt>target</dt><dd><code>${escapeHtml(target.repo)}#${escapeHtml(target.pr)}</code></dd>
@@ -1161,6 +1138,9 @@ function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
       <dt>next action</dt><dd>${escapeHtml(summary.nextAction)}</dd>
       <dt>trust</dt><dd>${escapeHtml(snapshot?.evidence?.summary ?? "not present")}</dd>
     </dl>
+    <div class="current-pr-state-visualization">
+      ${renderStateVisualizationSection(snapshot, graph)}
+    </div>
   </section>`;
 }
 
@@ -1173,7 +1153,6 @@ export function renderInspectRunViewerHtml({
   const graph = buildInspectionMermaidGraph(normalizedSnapshot);
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
   const title = `${target.repo}#${target.pr} inspection snapshot`;
-  const pageHeading = `PR #${target.pr} inspection`;
   const runId = normalizedSnapshot?.runId ?? "not present";
   const topSummary = normalizedSnapshot === null
     ? `<section>
@@ -1205,18 +1184,17 @@ export function renderInspectRunViewerHtml({
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
     <style>
-      body { font-family: sans-serif; margin: 1rem auto; max-width: 70rem; line-height: 1.4; }
+      body { font-family: sans-serif; margin: 1rem; max-width: none; line-height: 1.4; }
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
-      .current-pr-state-banner { border: 1px solid #cfe0f5; background: linear-gradient(180deg, #f8fbff 0%, #eef5fd 100%); box-shadow: 0 8px 24px rgba(21, 101, 192, 0.08); }
-      .current-pr-state-banner h2 { margin: 0.2rem 0 0.5rem 0; font-size: 1.9rem; line-height: 1.15; }
+      .current-pr-state-banner { border: none; background: none; box-shadow: none; padding: 0; margin-top: 0; }
+      .current-pr-state-banner h1 { margin: 0 0 0.5rem 0; font-size: 2.2rem; line-height: 1.15; }
       .current-pr-state-summary-headline { margin: 0 0 0.4rem 0; color: #1565c0; font-weight: 700; font-size: 1.1rem; }
-      .current-pr-state-detail { margin: 0.6rem 0 0.8rem 0; color: #274766; font-size: 0.98rem; }
-      .current-pr-state-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); background: rgba(255,255,255,0.6); padding: 0.85rem; border-radius: 0.6rem; }
+      .current-pr-state-detail { margin: 0.25rem 0 0.8rem 0; color: #274766; font-size: 0.98rem; }
+      .current-pr-state-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); background: none; padding: 0; border-radius: 0; margin-bottom: 1rem; }
       .current-pr-state-grid dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: #4c6478; }
-      .current-pr-state-grid dd { margin: 0 0 0.5rem 0; }
+      .current-pr-state-grid dd { margin: 0 0 0.75rem 0; }
       .state-graph-block { margin-top: 0.4rem; }
-      .state-graph-intro { margin-top: 0; margin-bottom: 0.6rem; color: #333; font-size: 0.98rem; }
       .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); overflow: hidden; }
       .state-graph-toolbar { display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.65rem; border-bottom: 1px solid #d7e3f4; background: rgba(255,255,255,0.85); }
       .state-graph-toolbar button { border: 1px solid #9fb6cb; background: #fff; border-radius: 0.45rem; padding: 0.3rem 0.6rem; font: inherit; cursor: pointer; }
@@ -1246,6 +1224,9 @@ export function renderInspectRunViewerHtml({
       dl { display: grid; grid-template-columns: 14rem 1fr; gap: 0.35rem 0.75rem; }
       dt { font-weight: 600; }
       section { border: 1px solid #ddd; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; }
+      .current-pr-state-banner section,
+      .current-pr-state-banner .state-graph-block,
+      .current-pr-state-banner .current-pr-state-visualization { border: none; padding: 0; margin-top: 0; }
       @media (max-width: 900px) {
         .current-pr-state-grid { grid-template-columns: 1fr 1fr; }
       }
@@ -1257,11 +1238,10 @@ export function renderInspectRunViewerHtml({
     </style>
   </head>
   <body>
-    <h1>${escapeHtml(pageHeading)}</h1>
-    <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
-    <p><strong>Refresh:</strong> manual reload only. <strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
     ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph)}
     ${renderCollapsedDetailsPanel(`
+      <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span></p>
+      <p><strong>Refresh:</strong> manual reload only. <strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
       ${topSummary}
       ${renderOuterLoopSummarySection(normalizedSnapshot)}
       ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
