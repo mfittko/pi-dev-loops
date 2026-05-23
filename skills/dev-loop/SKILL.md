@@ -356,6 +356,7 @@ After the phase plan passes review:
    - `npm run check`
    - `npm test`
    - `npm run test:coverage`
+   - for user-facing HTML/UI/component slices when the user opts in, add a bounded deterministic browser smoke harness (prefer fixture-backed Playwright WebKit plus screenshot capture), keep the covered UI states explicit and small, and wire it into CI once it becomes required validation for that slice
 4. Review the implementation against the merged phase plan.
 5. Run the default pre-approval gate as a full review / fix loop on the branch before calling it review-complete, approval-ready, merge-ready, or ready for final handoff:
    - use DRY, KISS, and YAGNI as the default three focused review lenses

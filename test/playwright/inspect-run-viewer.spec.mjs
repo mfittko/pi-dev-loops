@@ -35,12 +35,12 @@ test("webkit renders the state-graph-first inspect-run viewer and captures a scr
 
     await expect(page.getByRole("heading", { name: "PR #55 inspection" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "State visualization" })).toBeVisible();
-    await expect(page.locator(".state-graph-card")).toHaveCount(3);
-    await expect(page.getByText(/authoritative inspection snapshot/i)).toBeVisible();
-    await expect(page.locator(".state-graph-card").nth(0)).toContainText("outer-loop family");
-    await expect(page.locator(".state-graph-card").nth(1)).toContainText("waiting_for_copilot_review");
-    await expect(page.locator(".state-graph-card").nth(2)).toContainText("waiting_for_author_followup");
-    await expect(page.getByRole("img", { name: /copilot layer state flow with current state waiting_for_copilot_review; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i })).toBeVisible();
+    await expect(page.locator(".state-graph-intro")).toContainText(/authoritative inspection snapshot/i);
+    await expect(page.locator(".state-map-svg")).toBeVisible();
+    await expect(page.locator(".state-map-lane-label")).toHaveCount(3);
+    await expect(page.locator(".state-map-node-current")).toHaveCount(3);
+    await expect(page.getByText(/outer-loop family:\s*current\s*continue_wait; transition data unavailable in this snapshot/i)).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
     await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
 
     await page.screenshot({
@@ -65,9 +65,10 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByText(/checkpoint-only inspection snapshot/i)).toBeVisible();
-    await expect(page.getByRole("img", { name: /copilot layer state flow with current state not present; transition data unavailable in this snapshot/i })).toBeVisible();
-    await expect(page.locator(".state-graph-card").nth(1)).toContainText("Allowed next transitions: unavailable in this snapshot");
+    await expect(page.locator(".state-graph-intro")).toContainText(/checkpoint-only inspection snapshot/i);
+    await expect(page.locator(".state-map-svg")).toBeVisible();
+    await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; transition data unavailable in this snapshot/i)).toBeVisible();
+    await expect(page.getByText(/reviewer layer:\s*current\s*current state unavailable; transition data unavailable in this snapshot/i)).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-checkpoint-webkit.png"),
@@ -79,14 +80,43 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
   }
 });
 
-test("webkit shows the unavailable-state fallback when no snapshot is present", async ({ page }, testInfo) => {
-  const { server, url } = await startViewer(null);
+test("webkit shows degraded graph messaging when snapshot trust is partial", async ({ page }, testInfo) => {
+  const { server, url } = await startViewer(makeInspectionSnapshot({
+    sourceMode: "partial",
+    trust: "degraded",
+  }));
 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "Snapshot unavailable" })).toBeVisible();
-    await expect(page.getByText(/no state graph can be rendered yet/i)).toBeVisible();
+    await expect(page.locator(".state-graph-intro")).toContainText(/degraded inspection snapshot/i);
+    await expect(page.locator(".state-map-svg")).toBeVisible();
+
+    await page.screenshot({
+      path: testInfo.outputPath("inspect-run-viewer-degraded-webkit.png"),
+      fullPage: true,
+    });
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+test("webkit shows the unavailable-state fallback for unavailable snapshots", async ({ page }, testInfo) => {
+  const { server, url } = await startViewer(makeInspectionSnapshot({
+    sourceMode: "unavailable",
+    trust: "unknown",
+    activeFamilyState: "unknown",
+    layers: {
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  }));
+
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+
+    await expect(page.locator(".state-map-svg")).toHaveCount(0);
+    await expect(page.getByText(/Snapshot unavailable, so no state graph can be rendered yet/i)).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-unavailable-webkit.png"),

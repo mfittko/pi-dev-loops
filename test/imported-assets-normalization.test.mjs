@@ -77,6 +77,14 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
   assert.match(reviewerGraph, /do not replace the state machine's supported\s+review-angle taxonomy/i);
 });
 
+test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices", async () => {
+  const devLoopSkill = await readRepo("skills/dev-loop/SKILL.md");
+
+  assert.match(devLoopSkill, /user-facing HTML\/UI\/component slices when the user opts in/i);
+  assert.match(devLoopSkill, /Playwright WebKit plus screenshot capture/i);
+  assert.match(devLoopSkill, /wire it into CI once it becomes required validation for that slice/i);
+});
+
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {
   const [workflowDoc, scriptsReadme, devLoopSkill] = await Promise.all([
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),

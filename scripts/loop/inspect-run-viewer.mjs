@@ -229,38 +229,197 @@ function renderStateVisualizationIntro(snapshot) {
   return "Graph-first view of the current inspection snapshot.";
 }
 
-function renderStateGraph({ title, currentState, transitions }) {
-  const normalizedCurrentState = typeof currentState === "string" && currentState.length > 0
-    ? currentState
-    : "not present";
+function normalizeCurrentStateInfo(currentState) {
+  if (typeof currentState === "string" && currentState.length > 0) {
+    return { label: currentState, available: true };
+  }
+
+  return { label: "current state unavailable", available: false };
+}
+
+function summarizeTransitionAvailability(transitions) {
   const normalizedTransitions = normalizeTransitions(transitions);
-  const transitionsUnavailable = normalizedTransitions === null;
-  const transitionSummary = transitionsUnavailable
+  const unavailable = normalizedTransitions === null;
+  const empty = !unavailable && normalizedTransitions.length === 0;
+  const summary = unavailable
     ? "transition data unavailable in this snapshot"
-    : normalizedTransitions.length === 0
+    : empty
       ? "no allowed transitions"
       : normalizedTransitions.join(", ");
-  const transitionNodes = transitionsUnavailable
-    ? `<span class="state-node state-node-idle">transition data unavailable</span>`
-    : normalizedTransitions.length === 0
-      ? `<span class="state-node state-node-idle">no allowed transitions</span>`
-      : normalizedTransitions
-        .map((transition) => `<span class="state-arrow" aria-hidden="true">→</span><span class="state-node state-node-next">${escapeHtml(transition)}</span>`)
-        .join("");
 
-  return `<article class="state-graph-card">
-    <h3>${escapeHtml(title)}</h3>
-    <p class="state-graph-current-label">Current</p>
-    <div class="state-flow" role="img" aria-label="${escapeHtml(`${title} state flow with current state ${normalizedCurrentState}; ${transitionSummary}`)}">
-      <span class="state-node state-node-current">${escapeHtml(normalizedCurrentState)}</span>
-      ${transitionNodes}
-    </div>
-    <p class="state-graph-meta"><strong>Allowed next transitions:</strong> ${transitionsUnavailable ? "unavailable in this snapshot" : normalizedTransitions.length === 0 ? "none" : normalizedTransitions.map((transition) => `<code>${escapeHtml(transition)}</code>`).join(", ")}</p>
-  </article>`;
+  return {
+    unavailable,
+    empty,
+    summary,
+    normalizedTransitions: unavailable ? [] : normalizedTransitions,
+  };
+}
+
+function estimateNodeWidth(label) {
+  return Math.max(164, Math.min(292, Math.round(label.length * 8.4) + 34));
+}
+
+function createStateMapLane({ title, currentState, transitions, startX, startY }) {
+  const currentInfo = normalizeCurrentStateInfo(currentState);
+  const transitionInfo = summarizeTransitionAvailability(transitions);
+  const nodes = [];
+  const edges = [];
+  const currentNode = {
+    kind: currentInfo.available ? "current" : "idle",
+    label: currentInfo.label,
+    x: startX,
+    y: startY,
+    width: estimateNodeWidth(currentInfo.label),
+    height: 46,
+  };
+  nodes.push(currentNode);
+
+  let cursorX = currentNode.x + currentNode.width + 48;
+
+  for (const label of transitionInfo.normalizedTransitions) {
+    const node = {
+      kind: "next",
+      label,
+      x: cursorX,
+      y: startY,
+      width: estimateNodeWidth(label),
+      height: 42,
+    };
+    nodes.push(node);
+    edges.push({ from: currentNode, to: node });
+    cursorX += node.width + 34;
+  }
+
+  return {
+    title,
+    currentLabel: currentInfo.label,
+    currentAvailable: currentInfo.available,
+    transitionInfo,
+    annotation: transitionInfo.unavailable
+      ? "transition data unavailable in this snapshot"
+      : transitionInfo.empty
+        ? "no allowed transitions"
+        : null,
+    startX,
+    startY,
+    nodes,
+    edges,
+  };
+}
+
+function nodeAnchor(node, side) {
+  const centerY = node.y + node.height / 2;
+
+  if (side === "left") {
+    return { x: node.x, y: centerY };
+  }
+  if (side === "right") {
+    return { x: node.x + node.width, y: centerY };
+  }
+  if (side === "top") {
+    return { x: node.x + node.width / 2, y: node.y };
+  }
+
+  return { x: node.x + node.width / 2, y: node.y + node.height };
+}
+
+function renderStateMapNode(node) {
+  return `<g class="state-map-node state-map-node-${node.kind}">
+    <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="23" ry="23" />
+    <text x="${node.x + node.width / 2}" y="${node.y + node.height / 2 + 5}" text-anchor="middle">${escapeHtml(node.label)}</text>
+  </g>`;
+}
+
+function renderStateMapEdge(edge) {
+  const from = nodeAnchor(edge.from, "right");
+  const to = nodeAnchor(edge.to, "left");
+  return `<path class="state-map-edge" d="M ${from.x} ${from.y} L ${to.x} ${to.y}" marker-end="url(#state-map-arrow)" />`;
+}
+
+function renderStateMapBridge(fromNode, toNode) {
+  const from = nodeAnchor(fromNode, "bottom");
+  const to = nodeAnchor(toNode, "top");
+  const midY = (from.y + to.y) / 2;
+  return `<path class="state-map-bridge" d="M ${from.x} ${from.y} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y}" marker-end="url(#state-map-arrow-soft)" />`;
+}
+
+function buildInspectionStateMap(snapshot) {
+  const outerLane = createStateMapLane({
+    title: "outer-loop family",
+    currentState: snapshot.activeFamilyState,
+    transitions: snapshot.allowedTransitions,
+    startX: 120,
+    startY: 112,
+  });
+  const copilotLane = createStateMapLane({
+    title: "copilot layer",
+    currentState: snapshot.layers?.copilot?.currentState,
+    transitions: snapshot.layers?.copilot?.allowedTransitions,
+    startX: 120,
+    startY: 286,
+  });
+  const reviewerLane = createStateMapLane({
+    title: "reviewer layer",
+    currentState: snapshot.layers?.reviewer?.currentState,
+    transitions: snapshot.layers?.reviewer?.allowedTransitions,
+    startX: 120,
+    startY: 460,
+  });
+  const lanes = [outerLane, copilotLane, reviewerLane];
+  const width = Math.max(
+    1180,
+    ...lanes.flatMap((lane) => lane.nodes.map((node) => node.x + node.width + 40)),
+  );
+
+  return {
+    width,
+    height: 640,
+    lanes,
+    bridges: [
+      { from: outerLane.nodes[0], to: copilotLane.nodes[0] },
+      { from: outerLane.nodes[0], to: reviewerLane.nodes[0] },
+    ],
+  };
+}
+
+function renderStateMapSvg(snapshot) {
+  const map = buildInspectionStateMap(snapshot);
+
+  return `<svg class="state-map-svg" viewBox="0 0 ${map.width} ${map.height}" role="img" aria-labelledby="state-map-title" aria-describedby="state-map-desc" focusable="false">
+    <title id="state-map-title">Connected inspection state map</title>
+    <desc id="state-map-desc">${escapeHtml(renderStateVisualizationIntro(snapshot))}</desc>
+    <defs>
+      <marker id="state-map-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+        <path d="M 0 0 L 12 6 L 0 12 z" />
+      </marker>
+      <marker id="state-map-arrow-soft" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+        <path d="M 0 0 L 12 6 L 0 12 z" />
+      </marker>
+    </defs>
+    <text class="state-map-heading" x="40" y="36">Connected state map</text>
+    <text class="state-map-subheading" x="40" y="60">Current states are emphasized; interconnections show how the outer loop fans into Copilot and reviewer layers.</text>
+    ${map.bridges.map(({ from, to }) => renderStateMapBridge(from, to)).join("")}
+    ${map.lanes.map((lane) => `
+      <g class="state-map-lane state-map-lane-${escapeHtml(lane.title.replaceAll(" ", "-").toLowerCase())}">
+        <text class="state-map-lane-label" x="${lane.startX}" y="${lane.startY - 18}">${escapeHtml(lane.title)}</text>
+        ${lane.edges.map((edge) => renderStateMapEdge(edge)).join("")}
+        ${lane.nodes.map((node) => renderStateMapNode(node)).join("")}
+        ${lane.annotation === null ? "" : `<text class="state-map-lane-note" x="${lane.startX}" y="${lane.startY + 78}">${escapeHtml(lane.annotation)}</text>`}
+      </g>
+    `).join("")}
+  </svg>`;
+}
+
+function renderStateMapSummaries(snapshot) {
+  const map = buildInspectionStateMap(snapshot);
+
+  return `<ul class="state-map-summaries">
+    ${map.lanes.map((lane) => `<li class="state-map-summary"><strong>${escapeHtml(lane.title)}:</strong> current <code>${escapeHtml(lane.currentLabel)}</code>; ${escapeHtml(lane.transitionInfo.summary)}</li>`).join("")}
+  </ul>`;
 }
 
 function renderStateVisualizationSection(snapshot) {
-  if (snapshot === null || snapshot === undefined) {
+  if (snapshot === null || snapshot === undefined || renderSnapshotStateLabel(snapshot) === "unavailable") {
     return `<section>
       <h2>State visualization</h2>
       <p>Snapshot unavailable, so no state graph can be rendered yet.</p>
@@ -270,23 +429,8 @@ function renderStateVisualizationSection(snapshot) {
   return `<section>
     <h2>State visualization</h2>
     <p class="state-graph-intro">${escapeHtml(renderStateVisualizationIntro(snapshot))}</p>
-    <div class="state-graph-grid">
-      ${renderStateGraph({
-    title: "outer-loop family",
-    currentState: snapshot.activeFamilyState,
-    transitions: snapshot.allowedTransitions,
-  })}
-      ${renderStateGraph({
-    title: "copilot layer",
-    currentState: snapshot.layers?.copilot?.currentState,
-    transitions: snapshot.layers?.copilot?.allowedTransitions,
-  })}
-      ${renderStateGraph({
-    title: "reviewer layer",
-    currentState: snapshot.layers?.reviewer?.currentState,
-    transitions: snapshot.layers?.reviewer?.allowedTransitions,
-  })}
-    </div>
+    ${renderStateMapSvg(snapshot)}
+    ${renderStateMapSummaries(snapshot)}
   </section>`;
 }
 
@@ -474,17 +618,24 @@ export function renderInspectRunViewerHtml({
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .state-graph-intro { margin-top: 0; color: #333; }
-      .state-graph-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
-      .state-graph-card { border: 1px solid #cfd8dc; border-radius: 0.5rem; padding: 0.75rem; background: #fafcff; }
-      .state-graph-card h3 { margin-top: 0; margin-bottom: 0.5rem; }
-      .state-graph-current-label { margin: 0 0 0.5rem 0; font-size: 0.85rem; color: #455a64; text-transform: uppercase; letter-spacing: 0.03em; }
-      .state-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }
-      .state-node { display: inline-flex; align-items: center; border: 1px solid #90a4ae; border-radius: 999px; padding: 0.2rem 0.55rem; background: #fff; font-size: 0.9rem; }
-      .state-node-current { border-color: #1565c0; background: #e3f2fd; font-weight: 700; }
-      .state-node-next { border-color: #5c6bc0; background: #f3f4ff; }
-      .state-node-idle { border-style: dashed; color: #546e7a; }
-      .state-arrow { color: #607d8b; font-weight: 700; }
-      .state-graph-meta { margin: 0; font-size: 0.9rem; }
+      .state-map-svg { width: 100%; height: auto; margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); }
+      .state-map-heading { font-size: 1.1rem; font-weight: 700; fill: #12344d; }
+      .state-map-subheading { font-size: 0.88rem; fill: #496579; }
+      .state-map-lane-label { font-size: 0.92rem; font-weight: 700; fill: #29434e; text-transform: uppercase; letter-spacing: 0.03em; }
+      .state-map-lane-note { font-size: 0.84rem; fill: #607d8b; }
+      .state-map-edge { stroke: #738ba0; stroke-width: 2.2; fill: none; }
+      .state-map-bridge { stroke: #a7b7c5; stroke-width: 2; fill: none; stroke-dasharray: 8 8; }
+      #state-map-arrow path { fill: #738ba0; }
+      #state-map-arrow-soft path { fill: #a7b7c5; }
+      .state-map-node rect { stroke-width: 2; }
+      .state-map-node text { font-size: 0.9rem; fill: #173042; }
+      .state-map-node-current rect { fill: #e3f2fd; stroke: #1565c0; }
+      .state-map-node-current text { font-weight: 700; }
+      .state-map-node-next rect { fill: #f3f4ff; stroke: #5c6bc0; }
+      .state-map-node-idle rect { fill: #f8fafc; stroke: #90a4ae; stroke-dasharray: 7 6; }
+      .state-map-node-idle text { fill: #546e7a; }
+      .state-map-summaries { margin: 0.85rem 0 0 0; padding-left: 1.1rem; }
+      .state-map-summary + .state-map-summary { margin-top: 0.3rem; }
       dl { display: grid; grid-template-columns: 14rem 1fr; gap: 0.35rem 0.75rem; }
       dt { font-weight: 600; }
       section { border: 1px solid #ddd; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; }

@@ -278,12 +278,13 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /markers\.conflicts/);
   assert.match(html, /State visualization/);
   assert.match(html, /authoritative inspection snapshot/i);
+  assert.match(html, /Connected state map/);
+  assert.match(html, /class="state-map-svg"/);
   assert.match(html, /outer-loop family/);
-  assert.match(html, /state-node state-node-current/);
-  assert.match(html, /outer-loop family state flow with current state continue_wait; transition data unavailable in this snapshot/);
-  assert.match(html, /Allowed next transitions:<\/strong> unavailable in this snapshot/);
-  assert.match(html, /copilot layer state flow with current state waiting_for_copilot_review; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
-  assert.match(html, /Allowed next transitions:[\s\S]*ready_to_rerequest_review/);
+  assert.match(html, /state-map-node-current/);
+  assert.match(html, /outer-loop family:[\s\S]*transition data unavailable in this snapshot/);
+  assert.match(html, /copilot layer:[\s\S]*unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/);
+  assert.match(html, /copilot layer:[\s\S]*ready_to_rerequest_review/);
   assert.match(html, /outer-loop summary/);
   assert.match(html, /Copilot loop iterations/);
   assert.match(html, /4 completed, 1 pending/);
@@ -322,11 +323,35 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
 
   assert.match(html, /checkpoint-only/);
   assert.match(html, /checkpoint-only inspection snapshot/i);
+  assert.match(html, /class="state-map-svg"/);
   assert.match(html, /not present \/ unavailable/);
-  assert.match(html, /transition data unavailable in this snapshot/);
-  assert.match(html, /Allowed next transitions:<\/strong> unavailable in this snapshot/);
+  assert.match(html, /copilot layer:[\s\S]*transition data unavailable in this snapshot/);
+  assert.match(html, /reviewer layer:[\s\S]*transition data unavailable in this snapshot/);
   assert.match(html, /no_copilot_review_history/);
   assert.match(html, /no_steering_file/);
+});
+
+test("renderInspectRunViewerHtml distinguishes empty transitions from unavailable transition data", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      layers: {
+        copilot: {
+          currentState: "waiting_for_copilot_review",
+          allowedTransitions: [],
+        },
+        reviewer: {
+          currentState: "waiting_for_author_followup",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["waiting_for_re_request"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /copilot layer:[\s\S]*no allowed transitions/);
+  assert.doesNotMatch(html, /copilot layer:[\s\S]*transition data unavailable in this snapshot/);
 });
 
 test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
@@ -370,6 +395,23 @@ test("renderInspectRunViewerHtml treats undefined snapshots as unavailable", () 
 
   assert.match(html, /Snapshot unavailable/);
   assert.match(html, /Unable to load inspect-run snapshot/);
+});
+
+test("renderInspectRunViewerHtml fail-closes the graph for unavailable snapshots", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      sourceMode: "unavailable",
+      trust: "unknown",
+      activeFamilyState: "unknown",
+      layers: {
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /Snapshot unavailable, so no state graph can be rendered yet/);
+  assert.doesNotMatch(html, /class="state-map-svg"/);
 });
 
 test("createInspectionViewerAdapter loadSnapshot validates target deterministically", async () => {
