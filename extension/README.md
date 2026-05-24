@@ -56,9 +56,11 @@ The extension currently reports on:
 - `gh` authenticated
 - `pi-subagents` available
 - inside a git repository
-- `/skill:dev-loop` discoverable
-- `/skill:copilot-dev-loop` discoverable
-- `/skill:copilot-autopilot` discoverable
+- `/skill:dev-loop` discoverable as the single public workflow entrypoint
+- `/skill:copilot-dev-loop` discoverable as a compatibility/internal follow-up path
+- `/skill:copilot-autopilot` discoverable as a compatibility/internal intake path
+
+Readiness and help messaging should lead with `dev-loop`; the compatibility/internal skills remain installable and inspectable, but they are not presented as equal public workflow choices.
 
 The messaging distinguishes between local loop readiness and remote GitHub/Copilot readiness. Missing `gh` or `gh auth` blocks remote-loop readiness, but does not imply that local phase-based work is completely unavailable.
 

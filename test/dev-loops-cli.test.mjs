@@ -128,6 +128,48 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
   assert.match(malformedStderr.read(), /Usage:\n- pi-dev-loops status/);
 });
 
+test("CLI help leads with dev-loop as the primary workflow entry", async () => {
+  const helpStdout = createBufferStream();
+  const helpStderr = createBufferStream();
+  const helpExitCode = await runCli({
+    argv: ["help"],
+    runtime: createRuntime(),
+    stdout: helpStdout.stream,
+    stderr: helpStderr.stream,
+    homeDirectory: "/tmp/home",
+  });
+
+  assert.equal(helpExitCode, 0);
+  assert.match(helpStdout.read(), /\/skill:dev-loop/, "CLI help should mention /skill:dev-loop as workflow entry");
+  assert.match(helpStdout.read(), /single public entry/, "CLI help should describe dev-loop as single public entry");
+  assert.equal(helpStderr.read(), "");
+});
+
+test("CLI status next steps lead with dev-loop when all checks pass", async () => {
+  const statusStdout = createBufferStream();
+  const statusStderr = createBufferStream();
+  const statusExitCode = await runCli({
+    argv: ["status"],
+    runtime: createRuntime({
+      async getSkillAvailability(skillName) {
+        return {
+          ok: true,
+          availableDetail: `skill available: ${skillName}`,
+          unavailableDetail: `skill missing: ${skillName}`,
+        };
+      },
+    }),
+    stdout: statusStdout.stream,
+    stderr: statusStderr.stream,
+    homeDirectory: "/tmp/home",
+  });
+
+  assert.equal(statusExitCode, 0);
+  assert.match(statusStdout.read(), /\/skill:dev-loop/, "CLI status should suggest /skill:dev-loop when all checks pass");
+  assert.match(statusStdout.read(), /single public entry/, "CLI status should describe dev-loop as single public entry when ready");
+  assert.equal(statusStderr.read(), "");
+});
+
 
 test("createCliRuntime rejects path-like command probes", async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-path-guard-"));

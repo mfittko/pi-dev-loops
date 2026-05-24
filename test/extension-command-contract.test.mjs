@@ -106,6 +106,8 @@ test("help is the default action and malformed commands stay non-mutating", asyn
   assert(widget.lines.some((line) => /^- \/dev-loops install$/i.test(line)));
   assert(widget.lines.some((line) => /prompts for `repo` or `system`/i.test(line)));
   assert(widget.lines.some((line) => /skills are installed explicitly/i.test(line)));
+  assert(widget.lines.some((line) => /\/skill:dev-loop/i.test(line)), "help should mention /skill:dev-loop as workflow entry");
+  assert(widget.lines.some((line) => /single public entry/i.test(line)), "help should describe dev-loop as single public entry");
   assert.equal(calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const invalidArgsContext = createCommandContext();
@@ -145,6 +147,18 @@ test("status keeps existing remote readiness ready when copilot-dev-loop is inst
   const lines = calls.widgets.at(-1).lines;
   assert(lines.some((line) => /Local loop readiness: ready/i.test(line)));
   assert(lines.some((line) => /Remote GitHub\/Copilot readiness: ready/i.test(line)));
+});
+
+test("status next steps lead with dev-loop when all checks pass", async () => {
+  const pi = readyPi();
+  registerExtension(pi);
+
+  const { ctx, calls } = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("status", ctx);
+
+  const lines = calls.widgets.at(-1).lines;
+  assert(lines.some((line) => /\/skill:dev-loop/i.test(line)), "status should suggest /skill:dev-loop as primary workflow entry when ready");
+  assert(lines.some((line) => /single public entry/i.test(line)), "status should describe dev-loop as single public entry when ready");
 });
 
 test("status keeps remote readiness blocked outside a git repo", async () => {

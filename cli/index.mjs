@@ -112,6 +112,8 @@ function formatInstallStatus(status) {
 function buildCliHelpLines() {
   return [
     "pi-dev-loops help",
+    "Workflow entry:",
+    "- /skill:dev-loop (in Pi) or `subagent dev-loop` — single public entrypoint; routing handles the rest",
     "Commands:",
     "- pi-dev-loops status",
     "- pi-dev-loops doctor",
@@ -192,8 +194,9 @@ function orderedCliSetupSteps(checks) {
   }
 
   return [
-    "1. Run `pi-dev-loops status` whenever you want a concise readiness snapshot.",
-    "2. Use `pi-dev-loops update repo` or `pi-dev-loops update system` to refresh installed skills when the package changes.",
+    "1. Use `/skill:dev-loop` (in Pi) or `subagent dev-loop` to start or continue a dev loop — the single public entry.",
+    "2. Run `pi-dev-loops status` whenever you want a concise readiness snapshot.",
+    "3. Use `pi-dev-loops update repo` or `pi-dev-loops update system` to refresh installed skills when the package changes.",
   ];
 }
 

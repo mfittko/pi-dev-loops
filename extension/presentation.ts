@@ -50,14 +50,17 @@ export function orderedSetupSteps(checks: DevLoopCheck[]): string[] {
   }
 
   return [
-    "1. Run `/dev-loops status` whenever you want a concise readiness snapshot.",
-    "2. Use `/dev-loops update repo` or `/dev-loops update system` to refresh installed skills when the package changes.",
+    "1. Use `/skill:dev-loop` to start or continue a dev loop — the single public entry; routing handles the rest.",
+    "2. Run `/dev-loops status` whenever you want a concise readiness snapshot.",
+    "3. Use `/dev-loops update repo` or `/dev-loops update system` to refresh installed skills when the package changes.",
   ];
 }
 
 export function buildHelpLines(): string[] {
   return [
     "pi-dev-loops help",
+    "Workflow entry:",
+    "- /skill:dev-loop — single public entrypoint; routing handles the rest",
     "Commands:",
     "- /dev-loops status",
     "- /dev-loops doctor",
