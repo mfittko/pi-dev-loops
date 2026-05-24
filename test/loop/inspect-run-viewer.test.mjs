@@ -565,6 +565,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /data-empty-search="No assigned PRs match this search\."/);
   assert.match(html, /aria-current="page"/);
   assert.ok(html.indexOf('class="assigned-pr-list"') < html.indexOf('class="assigned-pr-pagination"'));
+  assert.match(html, /aria-label="Previous page"/);
+  assert.match(html, /aria-label="Next page"/);
   assert.doesNotMatch(html, /assigned-pr-title-indicator/);
   assert.match(html, /pr=77/);
   assert.match(html, /PR #55 State/);

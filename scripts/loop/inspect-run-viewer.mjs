@@ -1422,9 +1422,9 @@ function renderInboxPagination({ selectedTarget = null, scopeFilter = null, upda
   const nextPage = Math.min(totalPages, page + 1);
 
   return `<nav class="assigned-pr-pagination" aria-label="Sidebar pagination">
-    <a class="assigned-pr-page-link ${page <= DEFAULT_INBOX_PAGE ? "is-disabled" : ""}" href="${escapeHtml(renderInboxPageHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page: previousPage }))}" ${page <= DEFAULT_INBOX_PAGE ? 'aria-disabled="true" tabindex="-1"' : ""}>←</a>
+    <a class="assigned-pr-page-link ${page <= DEFAULT_INBOX_PAGE ? "is-disabled" : ""}" href="${escapeHtml(renderInboxPageHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page: previousPage }))}" aria-label="Previous page" ${page <= DEFAULT_INBOX_PAGE ? 'aria-disabled="true" tabindex="-1"' : ""}>←</a>
     <span class="assigned-pr-page-status">${escapeHtml(String(page))}/${escapeHtml(String(totalPages))}</span>
-    <a class="assigned-pr-page-link ${page >= totalPages ? "is-disabled" : ""}" href="${escapeHtml(renderInboxPageHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page: nextPage }))}" ${page >= totalPages ? 'aria-disabled="true" tabindex="-1"' : ""}>→</a>
+    <a class="assigned-pr-page-link ${page >= totalPages ? "is-disabled" : ""}" href="${escapeHtml(renderInboxPageHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page: nextPage }))}" aria-label="Next page" ${page >= totalPages ? 'aria-disabled="true" tabindex="-1"' : ""}>→</a>
   </nav>`;
 }
 
