@@ -444,6 +444,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
 
   assert.match(html, /Assigned PR inbox/);
   assert.match(html, /Search assigned PRs/);
+  assert.match(html, /grid-template-columns: auto minmax\(0, 1fr\)/);
+  assert.match(html, /\.assigned-pr-inbox \{[^}]*width: 22rem;[^}]*box-sizing: border-box;/);
   assert.match(html, /data-inbox-search/);
   assert.match(html, /data-inbox-item/);
   assert.match(html, /aria-current="page"/);
@@ -952,6 +954,38 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
     assert.doesNotMatch(response.body, /"schemaVersion": 1/);
     assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer skips malformed assigned inbox entries instead of blanking the list", async () => {
+  const adapter = {
+    async loadSnapshot(target) {
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "../../bad", pr: 99 }, title: "Broken" },
+        { target: { repo: "other/repo", pr: 77 }, title: "Still visible" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /Still visible/);
+    assert.doesNotMatch(response.body, /Broken/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

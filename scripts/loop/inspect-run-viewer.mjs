@@ -1326,8 +1326,8 @@ export function renderInspectRunViewerHtml({
     <style>
       body { font-family: sans-serif; margin: 1rem; max-width: none; line-height: 1.4; }
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
-      .inspection-shell { display: grid; grid-template-columns: 22rem minmax(0, 1fr); gap: 1rem; align-items: start; }
-      .assigned-pr-inbox { position: sticky; top: 1rem; border: 1px solid #d9e5f2; border-radius: 0.65rem; padding: 0.7rem; background: #fbfdff; max-height: calc(100vh - 2rem); overflow: auto; }
+      .inspection-shell { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1rem; align-items: start; }
+      .assigned-pr-inbox { position: sticky; top: 1rem; width: 22rem; max-width: 100%; border: 1px solid #d9e5f2; border-radius: 0.65rem; padding: 0.7rem; background: #fbfdff; max-height: calc(100vh - 2rem); overflow: auto; box-sizing: border-box; }
       .assigned-pr-inbox[data-sidebar-collapsed="true"] { width: 3rem; overflow: hidden; }
       .assigned-pr-inbox[data-sidebar-collapsed="true"] h2,
       .assigned-pr-inbox[data-sidebar-collapsed="true"] .inbox-search-label,
@@ -1660,10 +1660,10 @@ export function createInspectRunViewerServer(options, deps = {}) {
           const rawAssignedEntries = await listAssignedPullRequests(adapterOptions);
           assignedEntries = Array.isArray(rawAssignedEntries)
             ? rawAssignedEntries.flatMap((entry) => {
-              if (entry && typeof entry === "object" && entry.target) {
-                return [{ target: normalizeInspectionTarget(entry.target), title: entry.title ?? null }];
-              }
               try {
+                if (entry && typeof entry === "object" && entry.target) {
+                  return [{ target: normalizeInspectionTarget(entry.target), title: entry.title ?? null }];
+                }
                 return [{ target: normalizeInspectionTarget(entry), title: null }];
               } catch {
                 return [];
