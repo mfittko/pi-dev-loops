@@ -554,6 +554,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /PR inbox/);
   assert.match(html, /Search PRs/);
   assert.match(html, /id="assigned-pr-mode-select"[^>]*aria-label="Assignment mode"/);
+  assert.match(html, /<label class="assigned-pr-filter-label" for="assigned-pr-state-select">State<\/label>/);
   assert.match(html, /id="assigned-pr-updated-select"[^>]*aria-label="Updated window"/);
   assert.match(html, /grid-template-columns: auto minmax\(0, 1fr\)/);
   assert.match(html, /\.assigned-pr-inbox \{[^}]*width: 22rem;[^}]*box-sizing: border-box;/);
@@ -1064,6 +1065,40 @@ test("createInspectionViewerAdapter omits --updated when updatedWithinDays is nu
   for (const args of seenArgs) {
     assert.equal(args.includes("--updated"), false);
   }
+});
+
+test("createInspectionViewerAdapter refreshes expired assigned PR cache entries", async () => {
+  let nowMs = Date.parse("2026-05-21T00:00:00.000Z");
+  let ghCalls = 0;
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    nowImpl: () => nowMs,
+    runGhJsonImpl: async (args) => {
+      ghCalls += 1;
+      if (args.includes("changes_requested") || args.includes("failure") || args.includes("pending") || args.includes("approved")) {
+        return [];
+      }
+      return [
+        {
+          number: 55,
+          title: "Primary PR",
+          repository: { nameWithOwner: "owner/repo" },
+          state: "OPEN",
+          isDraft: false,
+        },
+      ];
+    },
+  });
+
+  await adapter.listAssignedPullRequests({ repo: "owner/repo" });
+  assert.equal(ghCalls, 5);
+
+  await adapter.listAssignedPullRequests({ repo: "owner/repo" });
+  assert.equal(ghCalls, 5);
+
+  nowMs += 16_000;
+  await adapter.listAssignedPullRequests({ repo: "owner/repo" });
+  assert.equal(ghCalls, 10);
 });
 
 test("createInspectionViewerAdapter lists assigned open PRs for the current user", async () => {

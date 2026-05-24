@@ -1456,7 +1456,7 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
         </select>
       </div>
       <div class="assigned-pr-control-row assigned-pr-secondary-controls">
-        <label class="assigned-pr-filter-label" for="assigned-pr-state-select">Filters</label>
+        <label class="assigned-pr-filter-label" for="assigned-pr-state-select">State</label>
         <select id="assigned-pr-mode-select" class="assigned-pr-select assigned-pr-select-mid" data-nav-select aria-label="Assignment mode">
           ${INBOX_MODE_FILTER_PRESETS.map((preset) => {
     const selected = preset.value === mode;

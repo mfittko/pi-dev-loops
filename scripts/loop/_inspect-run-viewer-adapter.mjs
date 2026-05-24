@@ -312,9 +312,15 @@ export function createInspectionViewerAdapter({ inspectRunImpl = inspectRun, run
       const normalizedUpdatedWithinDays = parseUpdatedWithinDays(updatedWithinDays);
       const normalizedState = parsePrState(state);
       const normalizedMode = parseInboxMode(mode);
+      const nowMs = nowImpl();
+      for (const [key, entry] of assignedPrListCache.entries()) {
+        if ((nowMs - entry.cachedAt) > ASSIGNED_PR_LIST_CACHE_TTL_MS) {
+          assignedPrListCache.delete(key);
+        }
+      }
       const cacheKey = `${ghCommand}::${repoSlug.length > 0 ? repoSlug.toLowerCase() : "all-repos"}::${normalizedMode}::${normalizedState}::${normalizedLimit}::${normalizedUpdatedWithinDays ?? "all"}`;
       const cached = assignedPrListCache.get(cacheKey);
-      if (cached && (nowImpl() - cached.cachedAt) <= ASSIGNED_PR_LIST_CACHE_TTL_MS) {
+      if (cached && (nowMs - cached.cachedAt) <= ASSIGNED_PR_LIST_CACHE_TTL_MS) {
         return cached.payload.map((entry) => ({
           target: { ...entry.target },
           title: entry.title,
@@ -323,7 +329,6 @@ export function createInspectionViewerAdapter({ inspectRunImpl = inspectRun, run
         }));
       }
 
-      const nowMs = nowImpl();
       const baseQueryArgs = buildPrSearchArgs({
         repoSlug,
         mode: normalizedMode,
@@ -395,7 +400,7 @@ export function createInspectionViewerAdapter({ inspectRunImpl = inspectRun, run
       }
 
       assignedPrListCache.set(cacheKey, {
-        cachedAt: nowImpl(),
+        cachedAt: nowMs,
         payload: normalized.map((entry) => ({
           target: { ...entry.target },
           title: entry.title,
