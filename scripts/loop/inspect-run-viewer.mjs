@@ -699,7 +699,6 @@ function renderMermaidBootScript() {
           const scaleRatio = nextScale / previousScale;
           return new Promise((resolve) => {
             requestAnimationFrame(() => {
-              const svgEl = frame.querySelector(".mermaid-state-graph svg");
               const newScrollLeft = (focusPoint.contentX * scaleRatio) - focusPoint.viewportX;
               const newScrollTop = (focusPoint.contentY * scaleRatio) - focusPoint.viewportY;
               graphViewport.scrollLeft = newScrollLeft;
