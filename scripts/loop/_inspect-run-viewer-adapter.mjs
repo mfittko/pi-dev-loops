@@ -36,10 +36,10 @@ function parsePositivePr(value) {
 }
 
 function parseUpdatedWithinDays(value) {
-  if (value === undefined || value === null || value === "") {
+  if (value === undefined || value === "") {
     return DEFAULT_UPDATED_WITHIN_DAYS;
   }
-  if (value === "all") {
+  if (value === null || value === "all") {
     return null;
   }
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {

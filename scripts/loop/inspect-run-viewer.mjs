@@ -26,7 +26,7 @@ import {
   normalizeInspectionTarget,
 } from "./_inspect-run-viewer-adapter.mjs";
 
-const USAGE = `Usage: inspect-run-viewer.mjs --repo <owner/name>
+const USAGE = `Usage: inspect-run-viewer.mjs [--repo <owner/name>]
   [--host <host>] [--port <port>] [--allow-non-localhost] [--restart]
   [--steering-state-file <path>] [--reviewer-login <login>]
   [--copilot-input <path>] [--reviewer-input <path>]
@@ -1471,8 +1471,8 @@ export function renderInspectRunViewerHtml({
   const topSummary = target === null
     ? `<section>
       <h2>No PR selected</h2>
-      <p>No assigned open PR in ${escapeHtml(scopeLabel)} matched the current filter yet.</p>
-      <p>Pick a PR from the sidebar, or widen the updated or limit filters.</p>
+      <p>No assigned PR in ${escapeHtml(scopeLabel)} matched the current view yet.</p>
+      <p>Pick a PR from the sidebar, widen the state or updated filters, or move to another inbox page.</p>
     </section>`
     : normalizedSnapshot === null
       ? `<section>
@@ -2037,7 +2037,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         : Math.min(Math.max(requestedPage, DEFAULT_INBOX_PAGE), totalPages);
       const pageStart = (effectivePage - 1) * DEFAULT_INBOX_PAGE_SIZE;
       const pagedEntries = assignedEntries.slice(pageStart, pageStart + DEFAULT_INBOX_PAGE_SIZE);
-      const requestTarget = effectiveSelectedTarget ?? pagedEntries[0]?.target ?? null;
+      const requestTarget = requestedView.target ?? effectiveSelectedTarget ?? pagedEntries[0]?.target ?? null;
 
       if (requestPath === "/snapshot.json") {
         if (requestTarget === null) {

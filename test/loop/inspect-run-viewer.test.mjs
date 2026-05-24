@@ -145,6 +145,7 @@ test("parseInspectRunViewerCliArgs normalizes repo values and rejects malformed 
   assert.match(malformedTargetError.message, /Invalid repository slug|owner\/name|Repository slug/i);
   assert.equal(typeof malformedTargetError.usage, "string");
   assert.ok(malformedTargetError.usage.length > 0);
+  assert.match(malformedTargetError.usage, /Usage: inspect-run-viewer\.mjs \[--repo <owner\/name>\]/);
 
   assert.throws(
     () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55"]),
@@ -414,6 +415,25 @@ test("buildInspectionMermaidGraph normalizes and de-duplicates transition tokens
   assert.match(graph.definition, /class [^\n]*copilot_layer_ready_to_rerequest_review[^\n]* next;/);
   assert.match(html, /copilot layer:[\s\S]*full authoritative state machine shown; waiting_for_ci, ready_to_rerequest_review/);
   assert.doesNotMatch(html, /waiting_for_ci,\s*waiting_for_ci/);
+});
+
+test("renderInspectRunViewerHtml keeps the empty inbox copy generic across state and paging filters", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: null,
+    snapshot: null,
+    inboxItems: [],
+    inboxUpdatedWithinDays: null,
+    inboxState: "all",
+    inboxPage: 3,
+    inboxTotalPages: 5,
+  });
+
+  assert.match(html, /No PR selected/);
+  assert.match(html, /No assigned PR in all repos matched the current view yet\./);
+  assert.match(html, /widen the state or updated filters, or move to another inbox page\./);
+  assert.doesNotMatch(html, /assigned open PR/i);
+  assert.doesNotMatch(html, /limit filters/i);
 });
 
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
@@ -888,6 +908,38 @@ test("createInspectionViewerAdapter keeps normalized target authoritative over o
   });
 });
 
+test("createInspectionViewerAdapter omits --updated when updatedWithinDays is null", async () => {
+  let seenArgs = null;
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    runGhJsonImpl: async (args) => {
+      seenArgs = args;
+      return [];
+    },
+  });
+
+  await adapter.listAssignedPullRequests({ repo: "owner/repo", updatedWithinDays: null });
+
+  assert.deepEqual(seenArgs, [
+    "search",
+    "prs",
+    "--assignee",
+    "@me",
+    "--repo",
+    "owner/repo",
+    "--state",
+    "open",
+    "--sort",
+    "updated",
+    "--order",
+    "desc",
+    "--limit",
+    "25",
+    "--json",
+    "number,title,repository,updatedAt",
+  ]);
+});
+
 test("createInspectionViewerAdapter lists assigned open PRs for the current user", async () => {
   let seenArgs = null;
   const adapter = createInspectionViewerAdapter({
@@ -1262,6 +1314,45 @@ test("createInspectRunViewerServer serves authoritative snapshot JSON on /snapsh
     assert.equal(response.headers["cache-control"], "no-store");
     assert.deepEqual(JSON.parse(response.body), snapshot);
     assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer keeps explicit query targets even when they are not in the current inbox page", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(target);
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR", updatedAt: "2026-05-21T00:00:00Z" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const htmlResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=77`);
+    assert.equal(htmlResponse.statusCode, 200);
+    assert.match(htmlResponse.body, /PR #77 State/);
+    assert.match(htmlResponse.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
+
+    const jsonResponse = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=owner/repo&pr=77`);
+    assert.equal(jsonResponse.statusCode, 200);
+    const payload = JSON.parse(jsonResponse.body);
+    assert.equal(payload.target.repo, "owner/repo");
+    assert.equal(payload.target.pr, 77);
+    assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 77));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
