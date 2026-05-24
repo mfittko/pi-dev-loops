@@ -508,7 +508,7 @@ Before running `gh pr ready`, confirm the implementation passes these angles:
 
 - **Correctness vs acceptance criteria**: does the implementation satisfy the issue's acceptance criteria?
 - **Scope compliance**: are there any unrelated or out-of-scope changes in the diff?
-- **Test coverage adequacy**: are the changed or added behaviours covered by tests as the acceptance criteria require?
+- **Test coverage adequacy**: are the changed or added behaviors covered by tests as the acceptance criteria require?
 - **CI and check status**: are all required checks passing or credibly passing on the current head?
 - **No unrelated files**: no files outside the accepted fix scope are included
 
