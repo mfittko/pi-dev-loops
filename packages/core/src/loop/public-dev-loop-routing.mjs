@@ -95,7 +95,6 @@ export const DEV_LOOP_STATUS_REPORT_KIND = Object.freeze({
 });
 
 export const DEV_LOOP_EXECUTION_MODE = Object.freeze({
-  INSPECT_PROBE: "inspect_probe",
   BOUNDED_HANDOFF: "bounded_handoff",
   DURABLE_AUTO: "durable_auto",
 });
@@ -288,20 +287,19 @@ function routeForState(canonicalState, { executionMode = DEV_LOOP_EXECUTION_MODE
           ? COMPATIBILITY_ENTRYPOINT.DEV_LOOP
           : COMPATIBILITY_ENTRYPOINT.NONE;
 
+    const isDurableAuto = executionMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO;
     return buildResult({
       routeKind: DEV_LOOP_ROUTE_KIND.WAIT,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH,
       compatibilityEntrypoint,
       executionMode,
-      waitSemantics:
-        executionMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO
-          ? DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT
-          : DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
+      waitSemantics: isDurableAuto
+        ? DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT
+        : DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
       canonicalState,
-      nextAction:
-        executionMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO
-          ? "Remain in durable auto ownership while waiting on the same canonical state; do not escalate timeout/no-activity alone as attention."
-          : "Keep waiting or watching against the same canonical state instead of switching public loop names.",
+      nextAction: isDurableAuto
+        ? "Remain in durable auto ownership while waiting on the same canonical state; do not escalate timeout/no-activity alone as attention."
+        : "Keep waiting or watching against the same canonical state instead of switching public loop names.",
       reason: "Waiting states route to the shared wait/watch strategy.",
     });
   }
@@ -533,14 +531,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE) {
     if (!explicitState) {
-      return buildReconcile(
-        "`inspect_state` requires a valid canonical current state.",
-        null,
-        DEV_LOOP_EXECUTION_MODE.INSPECT_PROBE,
-      );
+      return buildReconcile("`inspect_state` requires a valid canonical current state.");
     }
 
-    const routed = routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.INSPECT_PROBE });
+    const routed = routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
     return {
       ...routed,
       routeKind: DEV_LOOP_ROUTE_KIND.INSPECT,
