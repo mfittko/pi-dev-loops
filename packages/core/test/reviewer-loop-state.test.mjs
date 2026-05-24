@@ -40,6 +40,7 @@ test("normalizeReviewerSnapshot returns deterministic defaults", () => {
     draftReviewNotificationStatus: "none",
     submittedReviewPresent: false,
     submittedReviewCommitSha: null,
+    submittedReviewState: null,
     reviewSubmissionStatus: "none",
   });
 });

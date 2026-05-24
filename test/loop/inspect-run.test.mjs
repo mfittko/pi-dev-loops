@@ -180,7 +180,7 @@ function makeCopilotEvidence(state = "waiting_for_copilot_review", { sameHeadCle
 }
 
 // Canonical live reviewer evidence fixture
-function makeReviewerEvidence(state = "waiting_for_author_followup") {
+function makeReviewerEvidence(state = "waiting_for_author_followup", { submittedReviewState = "COMMENTED" } = {}) {
   return {
     snapshot: {
       prExists: true,
@@ -201,6 +201,7 @@ function makeReviewerEvidence(state = "waiting_for_author_followup") {
       draftReviewNotificationStatus: "none",
       submittedReviewPresent: true,
       submittedReviewCommitSha: "abc123",
+      submittedReviewState,
       reviewSubmissionStatus: "submitted",
     },
     interpretation: {
@@ -301,6 +302,8 @@ test("composeRunInspectionSnapshot: complete live evidence returns all required 
   assert.equal(snapshot.layers.copilot.loopDisposition, "pending");
   assert.equal(snapshot.layers.copilot.terminal, false);
   assert.equal(snapshot.layers.reviewer.currentState, "waiting_for_author_followup");
+  assert.equal(snapshot.layers.reviewer.submittedReviewState, "COMMENTED");
+  assert.equal(snapshot.layers.reviewer.approvedOnCurrentHead, false);
   assert.equal(snapshot.layers.steering.status, "unavailable");
   assert.equal(snapshot.layers.steering.reason, "no_steering_locator");
 });
@@ -356,6 +359,32 @@ test("composeRunInspectionSnapshot: clean-converged Copilot state carries same-h
   assert.equal(snapshot.layers.copilot.sameHeadCleanConverged, true);
   assert.equal(snapshot.layers.copilot.loopDisposition, "clean_converged");
   assert.equal(snapshot.layers.copilot.terminal, true);
+});
+
+test("composeRunInspectionSnapshot: approved reviewer verdict on current head is surfaced in reviewer layer", () => {
+  const copilotEvidence = makeCopilotEvidence("ready_to_rerequest_review", { sameHeadCleanConverged: true });
+  copilotEvidence.snapshot.copilotReviewPresent = true;
+  copilotEvidence.snapshot.copilotReviewOnCurrentHead = true;
+  const reviewerEvidence = makeReviewerEvidence("waiting_for_author_followup", { submittedReviewState: "APPROVED" });
+
+  const snapshot = composeRunInspectionSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "continue_current_wait",
+    outerAllowedTransitions: ["continue_current_wait", "handoff_to_copilot_loop"],
+    outerAction: "continue_wait",
+    copilotEvidence,
+    reviewerEvidence,
+    existingCheckpoint: null,
+    liveAvailability: { copilot: "ok", reviewer: "ok" },
+    steeringLocatorPath: null,
+    steeringEvidence: null,
+    steeringLoadFailed: false,
+  });
+
+  assert.equal(snapshot.layers.reviewer.currentState, "waiting_for_author_followup");
+  assert.equal(snapshot.layers.reviewer.submittedReviewState, "APPROVED");
+  assert.equal(snapshot.layers.reviewer.approvedOnCurrentHead, true);
 });
 
 test("composeRunInspectionSnapshot: live evidence + stop → statusClass blocked, needsAttention true", () => {

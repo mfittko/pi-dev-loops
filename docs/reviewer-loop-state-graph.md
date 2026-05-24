@@ -38,14 +38,14 @@ Implementation:
 - reviewer-scope metadata: `reviewerScope`, `reviewerLogin`
 - local planning/run/merge status: `localPlanningStatus`, `localReviewRunsStatus`, `localMergeStatus`, `draftReviewPrepared`
 - staged draft review state: `draftReviewPosted`, `draftReviewId`, `draftReviewUrl`, `draftReviewCommitSha`, `draftReviewNotificationStatus`
-- submitted review state: `submittedReviewPresent`, `submittedReviewCommitSha`
+- submitted review state: `submittedReviewPresent`, `submittedReviewCommitSha`, `submittedReviewState`
 - explicit prior action-result state: `reviewSubmissionStatus`
 
 `reviewerScope` is explicit machine-readable contract, not an inferred side note:
 - `single_reviewer` means detection was scoped to one reviewer identity and `reviewerLogin` is that normalized login
 - `all_reviewers` means `--reviewer-login` was omitted and the detector intentionally aggregated reviewer state across the PR
 
-The contract separates observable current state (`submittedReviewPresent`, `draftReviewPosted`, `reviewRequested`) from prior action-result state (`reviewSubmissionStatus`) to avoid overloading one field.
+The contract separates observable current state (`submittedReviewPresent`, `submittedReviewCommitSha`, `submittedReviewState`, `draftReviewPosted`, `reviewRequested`) from prior action-result state (`reviewSubmissionStatus`) to avoid overloading one field.
 
 ## Deterministic Review Plan Contract
 

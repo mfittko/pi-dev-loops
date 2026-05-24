@@ -424,6 +424,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /outerAction \(compatibility\)/);
   assert.match(html, /current Copilot state/);
   assert.match(html, /current reviewer state/);
+  assert.match(html, /reviewer verdict/);
   assert.match(html, /next action/);
   assert.match(html, /Graph guide and lane details/);
   assert.match(html, /Details/);
@@ -591,6 +592,40 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   assert.match(graph.definition, /class outer_loop_family_done_terminal,copilot_layer_done currentTerminal;/);
   assert.match(graph.definition, /copilot_layer_done --> copilot_layer_end/);
   assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; done; full authoritative state machine shown; no allowed transitions/);
+});
+
+test("renderInspectRunViewerHtml shows approved current head when clean convergence also has human approval", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      outerState: "continue_current_wait",
+      outerAction: "continue_wait",
+      statusClass: "waiting",
+      layers: {
+        copilot: {
+          currentState: "ready_to_rerequest_review",
+          allowedTransitions: ["waiting_for_copilot_review", "review_request_unavailable", "done"],
+          sameHeadCleanConverged: true,
+          loopDisposition: "clean_converged",
+          terminal: true,
+        },
+        reviewer: {
+          currentState: "waiting_for_author_followup",
+          submittedReviewState: "APPROVED",
+          approvedOnCurrentHead: true,
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["waiting_for_re_request", "waiting_for_review_request"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /Approved current head/);
+  assert.match(html, /clean submitted Copilot review and an approved human review/i);
+  assert.match(html, /Proceed to merge if authorized/i);
+  assert.match(html, /reviewer verdict[\s\S]*approved on current head/i);
+  assert.doesNotMatch(html, /Copilot pass complete/);
 });
 
 test("renderInspectRunViewerHtml shows clean convergence instead of re-request language for same-head clean Copilot reviews", () => {

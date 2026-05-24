@@ -397,6 +397,7 @@ test("detect-reviewer-loop-state auto-detect keeps fresh pending review ahead of
     assert.equal(output.state, "waiting_for_user_submit");
     assert.equal(output.snapshot.submittedReviewPresent, true);
     assert.equal(output.snapshot.submittedReviewCommitSha, "oldsha");
+    assert.equal(output.snapshot.submittedReviewState, "COMMENTED");
     assert.equal(output.snapshot.draftReviewCommitSha, "newsha");
   } finally {
     await rm(tempDir, { recursive: true, force: true });

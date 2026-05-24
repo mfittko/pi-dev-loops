@@ -937,6 +937,19 @@ function titleCaseWords(value) {
     .join(" ");
 }
 
+function renderReviewerVerdict(snapshot) {
+  if (!snapshot) {
+    return "not present";
+  }
+
+  if (snapshot.layers?.reviewer?.approvedOnCurrentHead === true) {
+    return "approved on current head";
+  }
+
+  const submittedReviewState = formatStateToken(snapshot.layers?.reviewer?.submittedReviewState);
+  return submittedReviewState;
+}
+
 function summarizeCurrentPrStatus(snapshot) {
   if (!snapshot) {
     return {
@@ -954,6 +967,7 @@ function summarizeCurrentPrStatus(snapshot) {
   const sameHeadCleanConverged = snapshot.layers?.copilot?.sameHeadCleanConverged === true;
   const copilotLoopDisposition = formatStateToken(snapshot.layers?.copilot?.loopDisposition);
   const copilotTerminal = snapshot.layers?.copilot?.terminal === true;
+  const reviewerApprovedOnCurrentHead = snapshot.layers?.reviewer?.approvedOnCurrentHead === true;
 
   if (outerState === OUTER_STATE.DONE_TERMINAL || statusClass === "done" || outerAction === "done" || copilotState === "done") {
     return {
@@ -1008,6 +1022,14 @@ function summarizeCurrentPrStatus(snapshot) {
       headline: "Waiting for Copilot review",
       detail: "Copilot review has been requested and the PR is waiting for new review activity.",
       nextAction: "Wait for Copilot review or refresh the snapshot after review activity lands.",
+    };
+  }
+
+  if (copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead && (sameHeadCleanConverged || copilotLoopDisposition === "clean_converged" || copilotTerminal)) {
+    return {
+      headline: "Approved current head",
+      detail: "The current head has both a clean submitted Copilot review and an approved human review.",
+      nextAction: "Proceed to merge if authorized, or wait for any additional required review/approval signal before merging.",
     };
   }
 
@@ -1145,6 +1167,7 @@ function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
       <dt>outerAction (compatibility)</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
       <dt>current Copilot state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.copilot?.currentState))}</code></dd>
       <dt>current reviewer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.reviewer?.currentState))}</code></dd>
+      <dt>reviewer verdict</dt><dd>${escapeHtml(renderReviewerVerdict(snapshot))}</dd>
       <dt>needs attention</dt><dd>${escapeHtml(String(snapshot?.needsAttention ?? "not present"))}</dd>
       <dt>next action</dt><dd>${escapeHtml(summary.nextAction)}</dd>
       <dt>trust</dt><dd>${escapeHtml(snapshot?.evidence?.summary ?? "not present")}</dd>
