@@ -959,6 +959,42 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
   }
 });
 
+test("createInspectRunViewerServer caps eager inbox snapshot loads for non-selected rows", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(`${target.repo}#${target.pr}`);
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return Array.from({ length: 15 }, (_, index) => ({
+        target: { repo: `other/repo-${index + 1}`, pr: index + 1 },
+        title: `PR ${index + 1}`,
+      }));
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(seenTargets.length, 11);
+    assert.equal(seenTargets[0], "owner/repo#55");
+    assert.match(response.body, /PR 15/);
+    assert.match(response.body, /Snapshot unavailable/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("createInspectRunViewerServer skips malformed assigned inbox entries instead of blanking the list", async () => {
   const adapter = {
     async loadSnapshot(target) {
@@ -1332,6 +1368,31 @@ test("createInspectRunViewerServer keeps favicon, unsupported paths, and unsuppo
   }
 });
 
+
+test("createInspectRunViewerServer treats malformed repo/pr query params as bad requests", async () => {
+  const adapter = {
+    async loadSnapshot() {
+      throw new Error("should not load snapshot for malformed targets");
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=../../bad&pr=nope`);
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.body, "Bad Request");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 
 test("createInspectRunViewerServer guards malformed request URLs and undefined snapshots", async () => {
   let loadCount = 0;

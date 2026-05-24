@@ -59,6 +59,7 @@ const execFile = promisify(execFileCallback);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MERMAID_BROWSER_ASSET_ROUTE = "/assets/mermaid.min.js";
 const MERMAID_BROWSER_ASSET_PATH = path.join(REPO_ROOT, "node_modules", "mermaid", "dist", "mermaid.min.js");
+const MAX_EAGER_INBOX_SNAPSHOTS = 10;
 
 let mermaidBrowserScriptPromise = null;
 
@@ -1686,6 +1687,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
       }
 
       const inboxItems = [];
+      let remainingInboxSnapshotBudget = MAX_EAGER_INBOX_SNAPSHOTS;
       for (const inboxEntry of inboxEntries) {
         const inboxTarget = inboxEntry.target;
         if (renderTargetKey(inboxTarget) === renderTargetKey(requestTarget)) {
@@ -1696,6 +1698,15 @@ export function createInspectRunViewerServer(options, deps = {}) {
           });
           continue;
         }
+        if (remainingInboxSnapshotBudget <= 0) {
+          inboxItems.push({
+            target: inboxTarget,
+            title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
+            snapshot: null,
+          });
+          continue;
+        }
+        remainingInboxSnapshotBudget -= 1;
         try {
           const inboxSnapshot = await adapter.loadSnapshot(inboxTarget, adapterOptions);
           inboxItems.push({ target: inboxTarget, title: inboxEntry.title ?? `PR #${inboxTarget.pr}`, snapshot: inboxSnapshot ?? null });
@@ -1717,7 +1728,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
       writeHtml(response, html);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
-      const malformedRequest = /invalid url|uri malformed/i.test(message);
+      const malformedRequest = /invalid url|uri malformed/i.test(message) || caught?.code === "MALFORMED_TARGET";
       writeText(
         response,
         malformedRequest ? 400 : 500,
