@@ -424,7 +424,8 @@ export function composeRunInspectionSnapshot({
 
   if (reviewerLiveOk && reviewerEvidence !== null) {
     const reviewerSubmittedReviewState = reviewerEvidence.snapshot.submittedReviewState ?? null;
-    const reviewerApprovedOnCurrentHead = reviewerSubmittedReviewState === "APPROVED"
+    const reviewerApprovedOnCurrentHead = reviewerEvidence.snapshot.submittedReviewPresent === true
+      && reviewerSubmittedReviewState === "APPROVED"
       && reviewerEvidence.snapshot.prHeadSha !== null
       && reviewerEvidence.snapshot.submittedReviewCommitSha !== null
       && reviewerEvidence.snapshot.prHeadSha === reviewerEvidence.snapshot.submittedReviewCommitSha;
