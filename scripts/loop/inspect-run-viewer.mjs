@@ -144,7 +144,6 @@ export function parseInspectRunViewerCliArgs(argv) {
   const options = {
     help: false,
     repo: undefined,
-    pr: undefined,
     host: DEFAULT_HOST,
     port: DEFAULT_PORT,
     steeringStateFile: undefined,
@@ -209,7 +208,6 @@ export function parseInspectRunViewerCliArgs(argv) {
     }
 
     options.repo = options.repo === undefined ? undefined : normalizeCliRepoOption(options.repo);
-    options.pr = options.pr === undefined ? undefined : (options.repo === undefined ? options.pr : normalizeInspectionTarget({ repo: options.repo, pr: options.pr }).pr);
     if (!options.allowNonLocalhost && !isLoopbackHost(options.host)) {
       throw parseError("--host must stay on localhost/loopback unless --allow-non-localhost is set");
     }

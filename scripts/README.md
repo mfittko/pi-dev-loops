@@ -485,14 +485,11 @@ Failure behavior:
 
 ### `scripts/loop/inspect-run-viewer.mjs`
 
-Read-only single-run local browser viewer for one explicit Copilot PR outer-loop target.
+Read-only single-run local browser viewer for the `inspect-run` outer-loop snapshot.
 This viewer is a downstream consumer of `inspect-run` and does not invent a second status model.
 
-Required:
-- `--repo <owner/name>`
-- `--pr <number>`
-
 Optional:
+- `--repo <owner/name>` (repo-scope the inbox; otherwise the viewer starts in inbox-first mode)
 - `--host <host>` (default: `127.0.0.1`; non-loopback binds require `--allow-non-localhost`)
 - `--port <port>` (default: `4311`)
 - `--allow-non-localhost` (explicit opt-in for non-loopback binds such as `0.0.0.0` or LAN IPs)
@@ -505,12 +502,12 @@ Optional:
 Contract:
 - read-only: no GitHub mutations, no checkpoint writes, no steering writes, no worker attachment
 - local-viewer safety: default host remains loopback-only; non-loopback binds require explicit `--allow-non-localhost` because they may expose local inspection state on the network
-- GitHub-first launch boundary: one explicit target (`repo` + `pr`)
+- GitHub-first launch boundary: repo scope is optional and PR selection happens through the viewer URL/query state, not a CLI `--pr` flag
 - uses one thin adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace
-- serves two explicit read-only endpoints for the same target:
-  - `/` → operator-facing HTML with a Mermaid-first graph that renders the authoritative outer, Copilot, and reviewer state graphs, highlights snapshot-derived current and immediate-next states when available, keeps inactive known states visible but dimmed, surfaces a prominent current-PR-state banner that prefers authoritative `outerState` over compatibility `outerAction`, and preserves supporting textual summary/evidence
-  - `/snapshot.json` → the full authoritative inspection snapshot JSON returned by the adapter
+- serves two explicit read-only endpoints:
+  - `/` → operator-facing HTML with an assigned-PR inbox shell and, when a PR is selected via URL or sidebar, the Mermaid-first graph plus current-PR-state banner and supporting textual summary/evidence
+  - `/snapshot.json` → the full authoritative inspection snapshot JSON for the currently selected PR/query target
 - HTML includes a visible link to `/snapshot.json` so machine-readable state no longer depends on an inline full-snapshot dump in the page itself
 - `/snapshot.json` returns `application/json; charset=utf-8` on success and deterministic JSON error output with non-2xx status when snapshot loading throws or yields no snapshot
 - unsupported paths return deterministic `404` without loading a snapshot (even for unsupported methods on unknown paths); `/favicon.ico` returns deterministic `204`; unsupported methods on supported routes return `405 Allow: GET`
@@ -519,11 +516,13 @@ Contract:
 - manual reload only (`window.location.reload()`); no polling/watch/timeout/control semantics
 
 Local manual verification path:
-1. Start viewer for one explicit target:
-   - `node scripts/loop/inspect-run-viewer.mjs --repo <owner/name> --pr <number>`
+1. Start the viewer in inbox-first or repo-scoped mode:
+   - `node scripts/loop/inspect-run-viewer.mjs`
+   - `node scripts/loop/inspect-run-viewer.mjs --repo <owner/name>`
 2. Open the printed URL in a local browser and verify the human-oriented `/` page
-3. Open `<printed-url>/snapshot.json` and verify it returns the full inspection snapshot JSON for the same target
-4. Use browser refresh or the reload button for point-in-time re-inspection
+3. Select a PR via the sidebar or by adding `?repo=<owner/name>&pr=<number>` to the viewer URL
+4. Open `/snapshot.json` for that selected/query-targeted PR and verify it returns the matching full inspection snapshot JSON
+5. Use browser refresh or the reload button for point-in-time re-inspection
 
 Local WebKit/Playwright smoke path:
 1. Install the Safari/WebKit browser runtime once:

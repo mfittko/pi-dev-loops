@@ -109,11 +109,11 @@ function requestOnce(url, { method = "GET" } = {}) {
 test("parseInspectRunViewerCliArgs normalizes repo values and rejects malformed input with usage", () => {
   const parsed = parseInspectRunViewerCliArgs(["--repo", "  owner/repo  "]);
   assert.equal(parsed.repo, "owner/repo");
-  assert.equal(parsed.pr, undefined);
+  assert.equal("pr" in parsed, false);
 
   const unscoped = parseInspectRunViewerCliArgs([]);
   assert.equal(unscoped.repo, undefined);
-  assert.equal(unscoped.pr, undefined);
+  assert.equal("pr" in unscoped, false);
 
   const bracketedIpv6Host = parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--host", "[::1]"]);
   assert.equal(bracketedIpv6Host.host, "::1");
