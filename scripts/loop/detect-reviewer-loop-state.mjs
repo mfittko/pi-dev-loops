@@ -278,6 +278,7 @@ async function fetchReviewState({ repo, pr, reviewerLogin }, deps) {
     draftReviewCommitSha: typeof pendingReview?.commit_id === "string" ? pendingReview.commit_id : null,
     submittedReviewPresent: Boolean(submittedReview),
     submittedReviewCommitSha: typeof submittedReview?.commit_id === "string" ? submittedReview.commit_id : null,
+    submittedReviewState: typeof submittedReview?.state === "string" ? submittedReview.state.toUpperCase() : null,
   };
 }
 

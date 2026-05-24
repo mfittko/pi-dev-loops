@@ -86,6 +86,7 @@ const VALID_LOCAL_RUN_STATUSES = new Set(["none", "running", "completed", "faile
 const VALID_LOCAL_MERGE_STATUSES = new Set(["none", "ready", "failed"]);
 const VALID_DRAFT_NOTIFICATION_STATUSES = new Set(["none", "notified"]);
 const VALID_SUBMISSION_STATUSES = new Set(["none", "submitted", "failed"]);
+const VALID_SUBMITTED_REVIEW_STATES = new Set(["APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"]);
 
 const SUPPORTED_REVIEW_ANGLES = Object.freeze([
   "correctness",
@@ -115,6 +116,15 @@ function normalizeReviewerLogin(value) {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim().toLowerCase()
     : null;
+}
+
+function normalizeSubmittedReviewState(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toUpperCase();
+  return VALID_SUBMITTED_REVIEW_STATES.has(normalized) ? normalized : null;
 }
 
 /**
@@ -163,6 +173,7 @@ export function normalizeReviewerSnapshot(raw) {
 
     submittedReviewPresent: Boolean(raw.submittedReviewPresent),
     submittedReviewCommitSha: normalizeSha(raw.submittedReviewCommitSha),
+    submittedReviewState: normalizeSubmittedReviewState(raw.submittedReviewState),
     reviewSubmissionStatus: normalizeStatus(raw.reviewSubmissionStatus, VALID_SUBMISSION_STATUSES, "none"),
   };
 }

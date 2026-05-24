@@ -423,10 +423,19 @@ export function composeRunInspectionSnapshot({
   }
 
   if (reviewerLiveOk && reviewerEvidence !== null) {
+    const reviewerSubmittedReviewState = reviewerEvidence.snapshot.submittedReviewState ?? null;
+    const reviewerApprovedOnCurrentHead = reviewerEvidence.snapshot.submittedReviewPresent === true
+      && reviewerSubmittedReviewState === "APPROVED"
+      && reviewerEvidence.snapshot.prHeadSha !== null
+      && reviewerEvidence.snapshot.submittedReviewCommitSha !== null
+      && reviewerEvidence.snapshot.prHeadSha === reviewerEvidence.snapshot.submittedReviewCommitSha;
+
     layers.reviewer = {
       currentState: reviewerEvidence.interpretation.state,
       allowedTransitions: reviewerEvidence.interpretation.allowedTransitions,
       scope: buildReviewerScope(reviewerEvidence.snapshot),
+      submittedReviewState: reviewerSubmittedReviewState,
+      approvedOnCurrentHead: reviewerApprovedOnCurrentHead,
     };
   } else if (typeof existingCheckpoint?.reviewerState === "string") {
     layers.reviewer = {

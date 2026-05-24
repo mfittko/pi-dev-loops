@@ -40,6 +40,7 @@ test("normalizeReviewerSnapshot returns deterministic defaults", () => {
     draftReviewNotificationStatus: "none",
     submittedReviewPresent: false,
     submittedReviewCommitSha: null,
+    submittedReviewState: null,
     reviewSubmissionStatus: "none",
   });
 });
@@ -61,6 +62,23 @@ test("normalizeReviewerSnapshot derives reviewer scope metadata deterministicall
       reviewerScope: "all_reviewers",
       reviewerLogin: null,
     },
+  );
+});
+
+test("normalizeReviewerSnapshot canonicalizes submittedReviewState and drops unknown values", () => {
+  assert.equal(
+    normalizeReviewerSnapshot({ submittedReviewState: " approved " }).submittedReviewState,
+    "APPROVED",
+  );
+
+  assert.equal(
+    normalizeReviewerSnapshot({ submittedReviewState: "cHaNgEs_ReQuEsTeD" }).submittedReviewState,
+    "CHANGES_REQUESTED",
+  );
+
+  assert.equal(
+    normalizeReviewerSnapshot({ submittedReviewState: "needs-work" }).submittedReviewState,
+    null,
   );
 });
 

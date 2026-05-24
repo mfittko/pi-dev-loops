@@ -390,6 +390,8 @@ Optional (auto-detect mode only):
 
 Success output shape:
 - `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }`
+- reviewer snapshots preserve the latest submitted review metadata via `submittedReviewPresent`, `submittedReviewCommitSha`, and `submittedReviewState`
+- together those fields let read-only inspection UIs distinguish an approved current head from generic author-followup waiting
 
 Failure behavior:
 - malformed arguments, unexpected `gh` failures, and invalid input/local-state JSON emit
