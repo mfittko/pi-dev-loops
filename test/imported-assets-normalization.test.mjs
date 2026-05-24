@@ -464,12 +464,16 @@ test("copilot-autopilot Phase 6 names explicit draft-gate review angles distinct
   assert.match(devLoopDraftGate, /no unrelated files/i);
   assert.match(devLoopDraftGate, /[Dd]o \*?\*?not\*?\*? apply DRY.*KISS.*YAGNI here/);
 
-  // DRY/KISS/YAGNI must appear in the pre-approval gate section of both skills
+  // DRY/KISS/YAGNI must appear in each skill's extracted pre-approval gate section
   const autopilotPreApprovalMatch = autopilotSkill.match(/### Pre-approval gate[\s\S]*?(?=\n## |\n### |$)/);
   const autopilotPreApproval = autopilotPreApprovalMatch ? autopilotPreApprovalMatch[0] : "";
   assert.ok(autopilotPreApproval.length > 0, "copilot-autopilot pre-approval gate section not found");
   assert.match(autopilotPreApproval, /\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/);
-  assert.match(copilotDevLoopSkill, /pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i);
+
+  const devLoopPreApprovalMatch = copilotDevLoopSkill.match(/### Pre-approval gate[\s\S]*?(?=\n## |\n### |$)/);
+  const devLoopPreApproval = devLoopPreApprovalMatch ? devLoopPreApprovalMatch[0] : "";
+  assert.ok(devLoopPreApproval.length > 0, "copilot-dev-loop pre-approval gate section not found");
+  assert.match(devLoopPreApproval, /\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/);
 });
 
 test("copilot-dev-loop skill keeps async watch persistence explicit", async () => {

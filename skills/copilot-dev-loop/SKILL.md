@@ -470,6 +470,10 @@ Key rules:
 
 ## Step 7: Pi review/fix follow-up loop
 
+This step covers both the draft gate right before `gh pr ready` and the narrower post-review follow-up loop once actionable feedback exists.
+
+### Follow-up loop when actionable review feedback exists
+
 When actionable review feedback exists, use a narrow follow-up loop:
 
 1. inspect unresolved comments/threads and failing checks
