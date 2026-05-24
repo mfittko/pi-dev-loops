@@ -951,6 +951,9 @@ function summarizeCurrentPrStatus(snapshot) {
   const statusClass = formatStateToken(snapshot.statusClass, "unknown");
   const outerState = formatStateToken(snapshot.outerState, "unknown");
   const outerAction = formatStateToken(snapshot.outerAction, "unknown");
+  const sameHeadCleanConverged = snapshot.layers?.copilot?.sameHeadCleanConverged === true;
+  const copilotLoopDisposition = formatStateToken(snapshot.layers?.copilot?.loopDisposition);
+  const copilotTerminal = snapshot.layers?.copilot?.terminal === true;
 
   if (outerState === OUTER_STATE.DONE_TERMINAL || statusClass === "done" || outerAction === "done" || copilotState === "done") {
     return {
@@ -1005,6 +1008,14 @@ function summarizeCurrentPrStatus(snapshot) {
       headline: "Waiting for Copilot review",
       detail: "Copilot review has been requested and the PR is waiting for new review activity.",
       nextAction: "Wait for Copilot review or refresh the snapshot after review activity lands.",
+    };
+  }
+
+  if (copilotState === "ready_to_rerequest_review" && (sameHeadCleanConverged || copilotLoopDisposition === "clean_converged" || copilotTerminal)) {
+    return {
+      headline: "Copilot pass complete",
+      detail: "The current head already has a clean submitted Copilot review with no unresolved feedback.",
+      nextAction: "Proceed to final human review or approval, or wait for a meaningful remediation event before requesting another Copilot pass.",
     };
   }
 
