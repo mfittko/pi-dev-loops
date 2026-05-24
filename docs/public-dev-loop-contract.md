@@ -20,6 +20,7 @@ Day-one user-intent forms:
 - start issue `<n>` locally
 - start issue `<n>` locally, then continue the loop
 - continue the current dev loop
+- auto dev loop (durable auto ownership over the detected routed loop)
 - what state is the dev loop in?
 
 Users should not have to choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front.
@@ -117,6 +118,17 @@ First-match-wins routing posture:
 9. PR owned by reviewer or next actor reviewer -> `reviewer_fixer`
 10. PR owned by Copilot -> `copilot_pr_followup`
 11. anything else -> fail closed to `needs_reconcile`
+
+## `auto dev loop` durable auto contract
+
+When the public intent is `auto dev loop`, the router must:
+
+1. require canonical current state resolution first
+2. route to the same detected internal strategy as normal state-based routing
+3. mark execution mode as durable auto ownership (`durable_auto`)
+4. keep waiting/watch states in healthy-wait semantics (`auto_healthy_wait`)
+
+In healthy waiting states, quiet watcher observations (for example `timeout` or `idle`) are observational only and must not be surfaced as attention by themselves. Escalation is still expected for true blocked/authorization/reconcile/action-required states.
 
 ## Internal / external model
 
