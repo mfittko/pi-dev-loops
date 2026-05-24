@@ -412,8 +412,43 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   const html = renderInspectRunViewerHtml({
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot(),
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+      {
+        target: { repo: "other/repo", pr: 77 },
+        title: "Waiting PR",
+        snapshot: makeSnapshot({
+          target: { repo: "other/repo", pr: 77 },
+          statusClass: "blocked",
+          needsAttention: true,
+          layers: {
+            copilot: {
+              currentState: "unresolved_feedback_present",
+              allowedTransitions: ["already_fixed_needs_reply_resolve"],
+            },
+            reviewer: {
+              currentState: "waiting_for_author_followup",
+              scope: { mode: "all_reviewers", reviewerLogin: null },
+              allowedTransitions: ["waiting_for_re_request"],
+            },
+            steering: { status: "unavailable", reason: "no_steering_locator" },
+          },
+        }),
+      },
+    ],
   });
 
+  assert.match(html, /Assigned PR inbox/);
+  assert.match(html, /Search assigned PRs/);
+  assert.match(html, /data-inbox-search/);
+  assert.match(html, /data-inbox-item/);
+  assert.match(html, /aria-current="page"/);
+  assert.match(html, /⚠ needs attention/);
+  assert.match(html, /\?repo=other%2Frepo&pr=77/);
   assert.match(html, /PR #55 State/);
   assert.match(html, /aria-label="PR #55 State"/);
   assert.match(html, /Waiting for Copilot review/);
@@ -830,6 +865,63 @@ test("createInspectionViewerAdapter keeps normalized target authoritative over o
   });
 });
 
+test("createInspectionViewerAdapter lists assigned open PRs for the current user", async () => {
+  let seenArgs = null;
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    runGhJsonImpl: async (args) => {
+      seenArgs = args;
+      return [
+        {
+          number: 77,
+          title: "Needs attention PR",
+          repository: { owner: { login: "other" }, name: "repo" },
+        },
+        {
+          number: 55,
+          title: "Primary PR",
+          repository: { nameWithOwner: "owner/repo" },
+        },
+      ];
+    },
+  });
+
+  const assigned = await adapter.listAssignedPullRequests();
+
+  assert.deepEqual(seenArgs, [
+    "search",
+    "prs",
+    "--assignee",
+    "@me",
+    "--state",
+    "open",
+    "--limit",
+    "50",
+    "--json",
+    "number,title,repository",
+  ]);
+  assert.deepEqual(assigned, [
+    { target: { repo: "other/repo", pr: 77 }, title: "Needs attention PR" },
+    { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR" },
+  ]);
+});
+
+test("createInspectionViewerAdapter listAssignedPullRequests skips malformed search rows", async () => {
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    runGhJsonImpl: async () => [
+      { number: 0, repository: { nameWithOwner: "owner/repo" } },
+      { number: 12, repository: null },
+      { number: 44, repository: { owner: { login: "owner" }, name: "repo" } },
+    ],
+  });
+
+  const assigned = await adapter.listAssignedPullRequests();
+  assert.deepEqual(assigned, [
+    { target: { repo: "owner/repo", pr: 44 }, title: null },
+  ]);
+});
+
 test("createInspectRunViewerServer serves browser html from adapter snapshot without inline full snapshot dump", async () => {
   let loadCount = 0;
   const adapter = {
@@ -860,6 +952,44 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.match(response.body, /href="\/snapshot\.json"/);
     assert.doesNotMatch(response.body, /"schemaVersion": 1/);
     assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer supports selecting another PR from query params", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(target);
+      return makeSnapshot({
+        target,
+        runId: `pr-${target.pr}`,
+      });
+    },
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Default" },
+        { target: { repo: "other/repo", pr: 77 }, title: "Selected from inbox" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=other/repo&pr=77`);
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /PR #77 State/);
+    assert.match(response.body, /Selected from inbox/);
+    assert.ok(seenTargets.some((target) => target.repo === "other/repo" && target.pr === 77));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -999,6 +1129,36 @@ test("createInspectRunViewerServer serves authoritative snapshot JSON on /snapsh
     assert.equal(response.headers["cache-control"], "no-store");
     assert.deepEqual(JSON.parse(response.body), snapshot);
     assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer resolves /snapshot.json target from query params", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(target);
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=other/repo&pr=77`);
+
+    assert.equal(response.statusCode, 200);
+    const payload = JSON.parse(response.body);
+    assert.equal(payload.target.repo, "other/repo");
+    assert.equal(payload.target.pr, 77);
+    assert.ok(seenTargets.some((target) => target.repo === "other/repo" && target.pr === 77));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
