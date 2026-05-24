@@ -367,17 +367,7 @@ When the Copilot draft PR appears:
 
 ## Phase 6 — Local review/fix loop
 
-Before marking the PR ready for review, run a local Pi review/fix pass.
-
-Follow the `copilot-dev-loop` Step 7 (Pi review/fix follow-up loop) exactly:
-
-1. Inspect unresolved comments/threads and failing checks.
-2. Classify findings: must fix / worth fixing / defer.
-3. Apply only accepted narrow fixes.
-4. Run narrowest honest validation.
-5. If files changed, push the resolving commit.
-6. When a GitHub comment or thread was actually addressed, reply on GitHub with a resolution note referencing the commit.
-7. Resolve addressed threads after the reply is attached successfully.
+Before marking the PR ready for review, run a local Pi review/fix pass following `copilot-dev-loop` Step 7 exactly.
 
 Do not mark the PR ready until:
 - all must-fix findings are addressed or explicitly deferred with rationale
@@ -394,7 +384,7 @@ Before running `gh pr ready`, inspect the implementation through these angles:
 - **CI and check status**: are all required checks passing or credibly passing on the current head?
 - **No unrelated files**: no files outside the accepted fix scope are part of the diff
 
-Do **not** run DRY, KISS, or YAGNI at this gate. Those lenses belong exclusively to the pre-approval gate in `copilot-dev-loop` (before calling the PR merge-ready or ready for final handoff).
+Do **not** run DRY, KISS, or YAGNI at this gate. Those lenses belong exclusively to the pre-approval gate (Phase 7 below).
 
 Mark ready:
 ```sh
@@ -427,6 +417,17 @@ Exit the Copilot review loop only when **one** of:
 - a `review_request_unavailable` or `blocked_needs_user_decision` stop state is reached
 
 Do **not** merge while Copilot review threads remain unresolved unless the user has explicitly deferred them with rationale.
+
+### Pre-approval gate (before calling PR merge-ready)
+
+Before calling the PR review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate using three focused review lenses:
+- DRY
+- KISS
+- YAGNI
+
+Run these three lens-focused passes in fresh context and in parallel when practical. If parallel execution is impractical, still run all three lenses and explicitly record the limitation.
+
+Do not make unrelated cleanup changes just because the branch is already open.
 
 ## Phase 8 — Final independent review
 
