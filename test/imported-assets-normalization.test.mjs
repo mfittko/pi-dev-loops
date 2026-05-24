@@ -186,10 +186,14 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
     assert.doesNotMatch(content, /public workflow entrypoint/i, `${roleAgentFile} should stay a reusable role agent`);
   }
 
-  const skillEntrypoints = (await readdir(fromRepoRoot("skills")))
-    .sort()
-    .filter((name) => !name.startsWith("."));
-  assert.deepEqual(skillEntrypoints, ["copilot-autopilot", "copilot-dev-loop", "dev-loop"]);
+  const userInvocableSkillEntrypoints = [];
+  for (const skillDir of (await readdir(fromRepoRoot("skills"))).sort().filter((name) => !name.startsWith("."))) {
+    const content = await readRepo(`skills/${skillDir}/SKILL.md`);
+    if (/^user-invocable:\s*true\s*$/m.test(content)) {
+      userInvocableSkillEntrypoints.push(skillDir);
+    }
+  }
+  assert.deepEqual(userInvocableSkillEntrypoints, ["copilot-autopilot", "copilot-dev-loop", "dev-loop"]);
 });
 
 test("status reporting contract requires authoritative state-first resolution and fail-closed reconcile behavior", async () => {
