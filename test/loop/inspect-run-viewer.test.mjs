@@ -670,6 +670,42 @@ test("renderInspectRunViewerHtml keeps selected handoff-to-copilot rows on the a
   assert.match(html, /Copilot loop needs action/);
 });
 
+test("renderInspectRunViewerHtml keeps selected closed inbox rows on the closed border", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 3 },
+    snapshot: makeSnapshot({
+      target: { repo: "owner/repo", pr: 3 },
+      outerState: "continue_current_wait",
+      outerAction: "continue_wait",
+      activeFamilyState: "continue_wait",
+      statusClass: "waiting",
+      needsAttention: false,
+    }),
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 3 },
+        title: "docs: add IAM policy guide",
+        updatedAt: "2026-05-22T00:00:00Z",
+        signal: "closed",
+        snapshot: makeSnapshot({
+          target: { repo: "owner/repo", pr: 3 },
+          outerState: "continue_current_wait",
+          outerAction: "continue_wait",
+          activeFamilyState: "continue_wait",
+          statusClass: "waiting",
+          needsAttention: false,
+        }),
+      },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row-closed/);
+  assert.match(html, /data-inbox-signal="closed"/);
+  assert.match(html, /is-selected/);
+  assert.match(html, /Waiting for Copilot review/);
+});
+
 test("renderInspectRunViewerHtml renders checkpoint-only \/ degraded cues and absent sections", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",

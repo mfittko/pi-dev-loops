@@ -1287,7 +1287,12 @@ function describeInboxSignal(signal) {
 }
 
 function summarizeInboxRow(snapshot, fallbackSignal = "unknown") {
-  const signal = snapshot ? deriveInboxSignalFromSnapshot(snapshot) : fallbackSignal;
+  const normalizedFallbackSignal = normalizeInboxSignal(fallbackSignal);
+  const signal = normalizedFallbackSignal === "closed"
+    ? "closed"
+    : snapshot
+      ? deriveInboxSignalFromSnapshot(snapshot)
+      : normalizedFallbackSignal;
   if (!snapshot) {
     return {
       signal,
