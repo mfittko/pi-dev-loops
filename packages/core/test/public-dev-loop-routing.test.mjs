@@ -382,6 +382,40 @@ test("auto_continue_current keeps healthy watch states non-escalating", () => {
   assert.match(result.nextAction, /do not escalate timeout\/no-activity alone as attention/i);
 });
 
+test("auto_continue_current without canonical state fails closed with durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+  });
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+});
+
+test("auto_continue_current with blocked or not-authorized state still stops (escalates)", () => {
+  for (const currentState of [
+    {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.BLOCKED,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NOT_AUTHORIZED,
+    },
+  ]) {
+    const result = evaluatePublicDevLoopRouting({
+      intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+      currentState,
+    });
+    assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+    assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  }
+});
+
 test("inspect_state reports the canonical state without switching public entrypoints", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
