@@ -1211,17 +1211,84 @@ function formatInboxUpdatedAt(updatedAt) {
   return `updated ${new Date(parsed).toISOString().slice(0, 10)}`;
 }
 
-function summarizeInboxRow(snapshot) {
+function deriveInboxSignalFromSnapshot(snapshot) {
+  if (!snapshot) {
+    return "unknown";
+  }
+
+  const outerState = formatStateToken(snapshot.outerState, "unknown");
+  const outerAction = formatStateToken(snapshot.outerAction, "unknown");
+  const statusClass = formatStateToken(snapshot.statusClass, "unknown");
+  const copilotState = formatStateToken(snapshot.layers?.copilot?.currentState);
+  const reviewerApprovedOnCurrentHead = snapshot.layers?.reviewer?.approvedOnCurrentHead === true;
+  const sameHeadCleanConverged = snapshot.layers?.copilot?.sameHeadCleanConverged === true;
+  const copilotLoopDisposition = formatStateToken(snapshot.layers?.copilot?.loopDisposition);
+  const copilotTerminal = snapshot.layers?.copilot?.terminal === true;
+
+  if (snapshot.needsAttention === true
+    || outerState === OUTER_STATE.NEEDS_RECONCILE
+    || outerState === OUTER_STATE.STOP_NEEDS_HUMAN
+    || outerAction === "stop"
+    || statusClass === "blocked"
+    || copilotState === "unresolved_feedback_present"
+    || copilotState === "already_fixed_needs_reply_resolve") {
+    return "attention";
+  }
+
+  if (copilotState === "waiting_for_ci") {
+    return "pending";
+  }
+
+  if (outerState === OUTER_STATE.DONE_TERMINAL
+    || statusClass === "done"
+    || (copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead)
+    || sameHeadCleanConverged
+    || copilotLoopDisposition === "clean_converged"
+    || copilotTerminal) {
+    return "ready";
+  }
+
+  if (snapshot.sourceMode === "unavailable") {
+    return "unknown";
+  }
+
+  return "waiting";
+}
+
+function describeInboxSignal(signal) {
+  switch (signal) {
+    case "attention":
+      return { label: "Needs attention", shortLabel: "Attention" };
+    case "pending":
+      return { label: "CI pending", shortLabel: "CI" };
+    case "ready":
+      return { label: "Ready", shortLabel: "Ready" };
+    case "closed":
+      return { label: "Closed", shortLabel: "Closed" };
+    case "unknown":
+      return { label: "State unavailable", shortLabel: "Unknown" };
+    case "waiting":
+    default:
+      return { label: "Waiting", shortLabel: "Waiting" };
+  }
+}
+
+function summarizeInboxRow(snapshot, fallbackSignal = "unknown") {
+  const signal = snapshot ? deriveInboxSignalFromSnapshot(snapshot) : fallbackSignal;
   if (!snapshot) {
     return {
+      signal,
+      signalLabel: describeInboxSignal(signal),
       statusClass: null,
       trustLabel: null,
-      needsAttention: false,
+      needsAttention: signal === "attention",
       headline: null,
     };
   }
 
   return {
+    signal,
+    signalLabel: describeInboxSignal(signal),
     statusClass: formatStateToken(snapshot.statusClass, "unknown"),
     trustLabel: renderSnapshotStateLabel(snapshot),
     needsAttention: snapshot.needsAttention === true,
@@ -1367,14 +1434,18 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
     <input id="inbox-search" class="inbox-search-input" type="search" placeholder="Search PR # or title…" data-inbox-search />
     <ul class="assigned-pr-list" data-inbox-list>
       ${items.map((item) => {
-    const summary = summarizeInboxRow(item.snapshot ?? null);
+    const summary = summarizeInboxRow(item.snapshot ?? null, item.signal ?? "unknown");
     const target = item.target;
     const key = renderTargetKey(target);
     const selected = key === selectedKey;
-    const searchText = `${target.repo} #${target.pr} ${item.title ?? ""} ${summary.statusClass ?? ""} ${summary.trustLabel ?? ""} ${summary.headline ?? ""} ${item.updatedAt ?? ""}`.toLowerCase();
-    return `<li class="assigned-pr-row ${selected ? "is-selected" : ""}" data-inbox-item data-search="${escapeHtml(searchText)}">
+    const searchText = `${target.repo} #${target.pr} ${item.title ?? ""} ${summary.signalLabel.label} ${summary.statusClass ?? ""} ${summary.trustLabel ?? ""} ${summary.headline ?? ""} ${item.updatedAt ?? ""}`.toLowerCase();
+    return `<li class="assigned-pr-row assigned-pr-row-${escapeHtml(summary.signal)} ${selected ? "is-selected" : ""}" data-inbox-item data-inbox-signal="${escapeHtml(summary.signal)}" data-search="${escapeHtml(searchText)}">
           <a class="assigned-pr-link" href="${escapeHtml(buildInboxHref(target, { scopeFilter, updatedWithinDays, state, mode, page }))}" ${selected ? 'aria-current="page"' : ""}>
-            <div class="assigned-pr-line">
+            <div class="assigned-pr-line assigned-pr-title-line">
+              <span class="assigned-pr-signal assigned-pr-signal-${escapeHtml(summary.signal)}" aria-label="${escapeHtml(summary.signalLabel.label)}" title="${escapeHtml(summary.signalLabel.label)}">
+                <span class="assigned-pr-signal-dot" aria-hidden="true"></span>
+                <span class="assigned-pr-signal-text">${escapeHtml(summary.signalLabel.shortLabel)}</span>
+              </span>
               <span class="assigned-pr-id">#${escapeHtml(String(target.pr))}</span>
               <span class="assigned-pr-title">${escapeHtml(item.title ?? "Untitled pull request")}</span>
             </div>
@@ -1386,7 +1457,6 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
               ${summary.statusClass ? `<span class="assigned-pr-status">${escapeHtml(summary.statusClass)}</span>` : ""}
               ${summary.trustLabel ? `<span class="assigned-pr-trust">${escapeHtml(summary.trustLabel)}</span>` : ""}
               ${summary.headline ? `<span class="assigned-pr-headline">${escapeHtml(summary.headline)}</span>` : ""}
-              ${summary.needsAttention ? '<span class="assigned-pr-attention" aria-label="Needs attention">⚠ needs attention</span>' : ""}
             </div>
           </a>
         </li>`;
@@ -1531,17 +1601,31 @@ export function renderInspectRunViewerHtml({
       .inbox-search-label { display: block; font-size: 0.82rem; font-weight: 600; color: #355061; margin-bottom: 0.18rem; margin-top: 0.1rem; }
       .inbox-search-input { width: 100%; border: 1px solid #bfd0e2; border-radius: 0.4rem; padding: 0.28rem 0.42rem; margin-bottom: 0.45rem; }
       .assigned-pr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.36rem; }
-      .assigned-pr-row { border: 1px solid #d6e0ea; border-radius: 0.5rem; background: #fff; }
+      .assigned-pr-row { border: 1px solid #d6e0ea; border-left: 0.32rem solid #8ca3b8; border-radius: 0.5rem; background: #fff; }
+      .assigned-pr-row.assigned-pr-row-attention { border-left-color: #c87400; }
+      .assigned-pr-row.assigned-pr-row-pending { border-left-color: #b88900; }
+      .assigned-pr-row.assigned-pr-row-ready { border-left-color: #2e7d32; }
+      .assigned-pr-row.assigned-pr-row-closed { border-left-color: #7a8694; }
+      .assigned-pr-row.assigned-pr-row-unknown { border-left-color: #8ca3b8; }
+      .assigned-pr-row.assigned-pr-row-waiting { border-left-color: #1565c0; }
       .assigned-pr-row.is-selected { border-color: #1565c0; box-shadow: inset 0 0 0 1px #1565c0; }
       .assigned-pr-link { display: block; padding: 0.38rem 0.45rem; color: inherit; text-decoration: none; }
-      .assigned-pr-id { font-weight: 700; margin-right: 0.35rem; }
-      .assigned-pr-title { font-weight: 600; }
+      .assigned-pr-title-line { display: flex; align-items: center; gap: 0.35rem; }
+      .assigned-pr-id { font-weight: 700; margin-right: 0.15rem; }
+      .assigned-pr-title { font-weight: 600; min-width: 0; }
       .assigned-pr-line + .assigned-pr-line { margin-top: 0.18rem; }
       .assigned-pr-meta { display: flex; flex-wrap: wrap; gap: 0.22rem 0.36rem; font-size: 0.76rem; color: #486174; }
       .assigned-pr-meta-primary { justify-content: space-between; align-items: baseline; gap: 0.5rem; }
       .assigned-pr-meta-primary .assigned-pr-repo { text-align: left; min-width: 0; }
       .assigned-pr-meta-primary .assigned-pr-updated { margin-left: auto; text-align: right; white-space: nowrap; }
-      .assigned-pr-attention { color: #a34a00; font-weight: 700; }
+      .assigned-pr-signal { display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 999px; padding: 0.08rem 0.36rem; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.01em; text-transform: uppercase; white-space: nowrap; }
+      .assigned-pr-signal-dot { width: 0.42rem; height: 0.42rem; border-radius: 999px; background: currentColor; flex: 0 0 auto; }
+      .assigned-pr-signal-attention { color: #8a4b00; background: #fff1de; }
+      .assigned-pr-signal-pending { color: #7a5d00; background: #fff7d6; }
+      .assigned-pr-signal-ready { color: #25692c; background: #e8f5e9; }
+      .assigned-pr-signal-closed { color: #556270; background: #eef2f5; }
+      .assigned-pr-signal-unknown { color: #486174; background: #edf3f8; }
+      .assigned-pr-signal-waiting { color: #1254a1; background: #e8f1fd; }
       .inspection-main { min-width: 0; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .current-pr-state-banner { border: none; background: none; box-shadow: none; padding: 0; margin-top: 0; }
@@ -1812,12 +1896,16 @@ function dedupeInboxEntries(entries) {
       if ((existing.updatedAt === null || existing.updatedAt === undefined) && entry.updatedAt) {
         existing.updatedAt = entry.updatedAt;
       }
+      if ((existing.signal === null || existing.signal === undefined || existing.signal === "unknown") && entry.signal) {
+        existing.signal = entry.signal;
+      }
       continue;
     }
     const normalizedEntry = {
       target: entry.target,
       title: entry.title ?? null,
       updatedAt: entry.updatedAt ?? null,
+      signal: entry.signal ?? "unknown",
     };
     seen.set(key, normalizedEntry);
     deduped.push(normalizedEntry);
@@ -1982,9 +2070,10 @@ export function createInspectRunViewerServer(options, deps = {}) {
                 target: normalizeInspectionTarget(entry.target),
                 title: entry.title ?? null,
                 updatedAt: entry.updatedAt ?? null,
+                signal: typeof entry.signal === "string" ? entry.signal : "unknown",
               }];
             }
-            return [{ target: normalizeInspectionTarget(entry), title: null, updatedAt: null }];
+            return [{ target: normalizeInspectionTarget(entry), title: null, updatedAt: null, signal: "unknown" }];
           } catch {
             return [];
           }
@@ -2075,6 +2164,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
           target: inboxTarget,
           title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
           updatedAt: inboxEntry.updatedAt ?? null,
+          signal: inboxEntry.signal ?? "unknown",
           snapshot: selected ? (snapshot ?? null) : null,
         };
       });

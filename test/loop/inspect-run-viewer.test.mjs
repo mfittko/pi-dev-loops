@@ -478,7 +478,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /data-inbox-search/);
   assert.match(html, /data-inbox-item/);
   assert.match(html, /aria-current="page"/);
-  assert.match(html, /⚠ needs attention/);
+  assert.match(html, /assigned-pr-signal-attention/);
+  assert.match(html, />Attention</);
   assert.match(html, /pr=77/);
   assert.match(html, /PR #55 State/);
   assert.match(html, /aria-label="PR #55 State"/);
@@ -909,18 +910,18 @@ test("createInspectionViewerAdapter keeps normalized target authoritative over o
 });
 
 test("createInspectionViewerAdapter omits --updated when updatedWithinDays is null", async () => {
-  let seenArgs = null;
+  const seenArgs = [];
   const adapter = createInspectionViewerAdapter({
     inspectRunImpl: async () => ({ ok: true }),
     runGhJsonImpl: async (args) => {
-      seenArgs = args;
+      seenArgs.push(args);
       return [];
     },
   });
 
   await adapter.listAssignedPullRequests({ repo: "owner/repo", updatedWithinDays: null });
 
-  assert.deepEqual(seenArgs, [
+  assert.deepEqual(seenArgs[0], [
     "search",
     "prs",
     "--assignee",
@@ -936,27 +937,50 @@ test("createInspectionViewerAdapter omits --updated when updatedWithinDays is nu
     "--limit",
     "25",
     "--json",
-    "number,title,repository,updatedAt",
+    "number,title,repository,updatedAt,state,isDraft",
   ]);
+  for (const args of seenArgs) {
+    assert.equal(args.includes("--updated"), false);
+  }
 });
 
 test("createInspectionViewerAdapter lists assigned open PRs for the current user", async () => {
-  let seenArgs = null;
+  const seenArgs = [];
   const adapter = createInspectionViewerAdapter({
     inspectRunImpl: async () => ({ ok: true }),
     nowImpl: () => Date.parse("2026-05-21T00:00:00.000Z"),
     runGhJsonImpl: async (args) => {
-      seenArgs = args;
+      seenArgs.push(args);
+      if (args.includes("changes_requested")) {
+        return [
+          { number: 77, repository: { owner: { login: "other" }, name: "repo" } },
+        ];
+      }
+      if (args.includes("failure")) {
+        return [];
+      }
+      if (args.includes("pending")) {
+        return [];
+      }
+      if (args.includes("approved")) {
+        return [
+          { number: 55, repository: { nameWithOwner: "owner/repo" } },
+        ];
+      }
       return [
         {
           number: 77,
           title: "Needs attention PR",
           repository: { owner: { login: "other" }, name: "repo" },
+          state: "OPEN",
+          isDraft: false,
         },
         {
           number: 55,
           title: "Primary PR",
           repository: { nameWithOwner: "owner/repo" },
+          state: "OPEN",
+          isDraft: false,
         },
       ];
     },
@@ -964,7 +988,7 @@ test("createInspectionViewerAdapter lists assigned open PRs for the current user
 
   const assigned = await adapter.listAssignedPullRequests({ repo: "owner/repo" });
 
-  assert.deepEqual(seenArgs, [
+  assert.deepEqual(seenArgs[0], [
     "search",
     "prs",
     "--assignee",
@@ -982,11 +1006,12 @@ test("createInspectionViewerAdapter lists assigned open PRs for the current user
     "--limit",
     "25",
     "--json",
-    "number,title,repository,updatedAt",
+    "number,title,repository,updatedAt,state,isDraft",
   ]);
+  assert.equal(seenArgs.length, 5);
   assert.deepEqual(assigned, [
-    { target: { repo: "other/repo", pr: 77 }, title: "Needs attention PR", updatedAt: null },
-    { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR", updatedAt: null },
+    { target: { repo: "other/repo", pr: 77 }, title: "Needs attention PR", updatedAt: null, signal: "attention" },
+    { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR", updatedAt: null, signal: "ready" },
   ]);
 });
 
@@ -1022,16 +1047,21 @@ test("createInspectionViewerAdapter listAssignedPullRequests reports invalid gh 
 test("createInspectionViewerAdapter listAssignedPullRequests skips malformed search rows", async () => {
   const adapter = createInspectionViewerAdapter({
     inspectRunImpl: async () => ({ ok: true }),
-    runGhJsonImpl: async () => [
-      { number: 0, repository: { nameWithOwner: "owner/repo" } },
-      { number: 12, repository: null },
-      { number: 44, repository: { owner: { login: "owner" }, name: "repo" } },
-    ],
+    runGhJsonImpl: async (args) => {
+      if (args.includes("changes_requested") || args.includes("failure") || args.includes("pending") || args.includes("approved")) {
+        return [];
+      }
+      return [
+        { number: 0, repository: { nameWithOwner: "owner/repo" } },
+        { number: 12, repository: null },
+        { number: 44, repository: { owner: { login: "owner" }, name: "repo" }, state: "OPEN", isDraft: false },
+      ];
+    },
   });
 
   const assigned = await adapter.listAssignedPullRequests({ repo: "owner/repo" });
   assert.deepEqual(assigned, [
-    { target: { repo: "owner/repo", pr: 44 }, title: null, updatedAt: null },
+    { target: { repo: "owner/repo", pr: 44 }, title: null, updatedAt: null, signal: "waiting" },
   ]);
 });
 

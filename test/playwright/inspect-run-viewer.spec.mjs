@@ -42,7 +42,7 @@ async function waitForMermaidGraph(page) {
 
 test("webkit renders the Mermaid-first inspect-run viewer and captures a screenshot", async ({ page }, testInfo) => {
   const { server, url } = await startViewer(makeInspectionSnapshot(), [
-    { target: { repo: "other/repo", pr: 77 }, title: "Waiting PR" },
+    { target: { repo: "other/repo", pr: 77 }, title: "Waiting PR", signal: "attention" },
   ]);
 
   try {
@@ -67,6 +67,9 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(sidebarToggle).toHaveText("⏩");
     await sidebarToggle.click();
     await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
+
+    await expect(page.locator('[data-inbox-item][data-inbox-signal="waiting"] .assigned-pr-signal-text')).toContainText("Waiting");
+    await expect(page.locator('[data-inbox-item][data-inbox-signal="attention"] .assigned-pr-signal-text')).toContainText("Attention");
 
     const inboxSearch = page.locator("[data-inbox-search]");
     await inboxSearch.fill("other/repo");
