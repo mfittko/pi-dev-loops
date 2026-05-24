@@ -5,13 +5,19 @@ import { test, expect } from "@playwright/test";
 import { createInspectRunViewerServer } from "../../scripts/loop/inspect-run-viewer.mjs";
 import { makeInspectionSnapshot } from "./fixtures/inspect-run-viewer-fixture.mjs";
 
-async function startViewer(snapshot = makeInspectionSnapshot()) {
+async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequests = []) {
+  const normalizedAssignedPullRequests = assignedPullRequests.some((entry) => entry?.target?.repo === "owner/repo" && entry?.target?.pr === 55)
+    ? assignedPullRequests
+    : [{ target: { repo: "owner/repo", pr: 55 }, title: "Current PR" }, ...assignedPullRequests];
   const server = createInspectRunViewerServer(
     { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
     {
       adapter: {
         async loadSnapshot() {
           return snapshot;
+        },
+        async listAssignedPullRequests() {
+          return normalizedAssignedPullRequests;
         },
       },
     },
@@ -35,13 +41,24 @@ async function waitForMermaidGraph(page) {
 }
 
 test("webkit renders the Mermaid-first inspect-run viewer and captures a screenshot", async ({ page }, testInfo) => {
-  const { server, url } = await startViewer();
+  const { server, url } = await startViewer(makeInspectionSnapshot(), [
+    { target: { repo: "other/repo", pr: 77 }, title: "Waiting PR", signal: "attention" },
+    ...Array.from({ length: 26 }, (_, index) => ({
+      target: { repo: `other/repo-${index + 1}`, pr: 200 + index },
+      title: `Extra PR ${index + 1}`,
+      signal: "waiting",
+    })),
+  ]);
 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "PR #55 State" })).toBeVisible();
-    await expect(page.getByText("Waiting for Copilot review")).toBeVisible();
+    await expect(page.getByRole("link", { name: "PR #55" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Current PR" })).toBeVisible();
+    const currentStateBanner = page.locator('section[aria-label="PR #55"]');
+    await expect(currentStateBanner).toBeVisible();
+    await expect(currentStateBanner.getByTitle("Waiting state")).toBeVisible();
+    await expect(currentStateBanner.getByText("Waiting for Copilot review")).toBeVisible();
     await expect(page.locator("body")).toContainText(/These fields are shown directly from the loaded inspection snapshot/i);
     await expect(page.locator(".state-graph-intro")).toHaveCount(0);
     await expect(page.locator(".state-graph-cues")).toContainText(/Start/);
@@ -49,6 +66,45 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(page.locator(".state-graph-cues")).toContainText(/Next/);
     await expect(page.locator(".state-graph-cues")).toContainText(/End/);
     await expect(page.locator(".state-graph-cues")).toContainText(/🔁/);
+    const sidebar = page.locator(".assigned-pr-inbox");
+    await expect(page.getByRole("heading", { name: "PR inbox" })).toBeVisible();
+    await expect(page.getByLabel("Assignment mode")).toBeVisible();
+    await expect(page.getByLabel("Updated window")).toBeVisible();
+    const sidebarToggle = page.locator("[data-inbox-toggle]");
+    await expect(sidebarToggle).toHaveText("◀");
+    await sidebarToggle.click();
+    await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "true");
+    await expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(sidebarToggle).toHaveText("▶");
+    await sidebarToggle.click();
+    await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
+
+    await expect(page.locator('.assigned-pr-title-indicator')).toHaveCount(0);
+    const paginationAfterList = await page.locator('.assigned-pr-inbox').evaluate((node) => {
+      const list = node.querySelector('.assigned-pr-list');
+      const pagination = node.querySelector('.assigned-pr-pagination');
+      return Boolean(list && pagination && (list.compareDocumentPosition(pagination) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+    expect(paginationAfterList).toBeTruthy();
+
+    await page.getByRole('link', { name: 'Next page' }).click();
+    await expect(page.locator('.assigned-pr-page-status')).toHaveText('2/2');
+    await expect(page.getByRole('heading', { name: 'Current PR' })).toBeVisible();
+    await expect(page.locator('[aria-current="page"]')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Previous page' }).click();
+    await expect(page.locator('.assigned-pr-page-status')).toHaveText('1/2');
+
+    const inboxSearch = page.locator("[data-inbox-search]");
+    const inboxList = page.locator('.assigned-pr-list');
+    await inboxSearch.fill("other/repo");
+    await expect(inboxList.getByRole("link", { name: /Waiting PR/ })).toBeVisible();
+    await expect(inboxList.getByRole("link", { name: /Current PR/ })).toBeHidden();
+    await inboxSearch.fill("no matches here");
+    await expect(page.locator("[data-inbox-empty]")).toBeVisible();
+    await inboxSearch.fill("");
+    await expect(page.locator("[data-inbox-empty]")).toBeHidden();
+    await expect(inboxList.getByRole("link", { name: /Current PR/ })).toBeVisible();
+
     const graphGuide = page.getByText(/Graph guide and lane details/);
     await expect(graphGuide).toBeVisible();
     await graphGuide.click();
@@ -58,6 +114,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(graphBox.getByRole("button", { name: "Reset zoom" })).toBeVisible();
     await expect(graphBox.getByRole("button", { name: "Open graph fullscreen" })).toBeVisible();
     const graph = await waitForMermaidGraph(page);
+    await expect(graphBox.locator('[data-graph-zoom-value]')).toHaveText('300%');
     await expect(graph).toHaveCSS("cursor", "grab");
     await expect(graph).toContainText(/Start/);
     await expect(graph).toContainText(/continue current wait/);
@@ -69,13 +126,28 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await graphBox.getByRole("button", { name: "Zoom in" }).click();
     await graphBox.getByRole("button", { name: "Zoom in" }).click();
     const scroller = page.locator(".mermaid-state-graph");
+    const scrollRoom = await scroller.evaluate((node) => ({
+      maxLeft: Math.max(0, node.scrollWidth - node.clientWidth),
+      maxTop: Math.max(0, node.scrollHeight - node.clientHeight),
+    }));
+    expect(scrollRoom.maxLeft > 0 || scrollRoom.maxTop > 0).toBeTruthy();
+    await scroller.evaluate((node) => {
+      node.scrollLeft = 0;
+      node.scrollTop = 0;
+    });
     const beforeScroll = await scroller.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
-    const box = await scroller.boundingBox();
-    if (!box) throw new Error("graph scroller bounding box unavailable");
-    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.5);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35, { steps: 8 });
-    await page.mouse.up();
+    // Dispatch pointer events directly to bypass Playwright mouse routing
+    // issues with the nested zoom wrapper in WebKit.
+    await scroller.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      const startX = rect.left + rect.width * 0.7;
+      const startY = rect.top + rect.height * 0.5;
+      const endX = rect.left + rect.width * 0.3;
+      const endY = rect.top + rect.height * 0.5;
+      node.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: startX, clientY: startY }));
+      node.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 1, clientX: endX, clientY: endY }));
+      node.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, clientX: endX, clientY: endY }));
+    });
     const afterScroll = await scroller.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
     expect(afterScroll.left !== beforeScroll.left || afterScroll.top !== beforeScroll.top).toBeTruthy();
 
@@ -99,7 +171,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(graphBox.locator("[data-graph-zoom-value]")).toHaveText("125%");
 
     await page.locator(".inspection-details > summary").click();
-    await expect(page.locator('a[href="/snapshot.json"]')).toBeVisible();
+    await expect(page.getByRole("link", { name: /\/snapshot\.json\?repo=owner%2Frepo&pr=55/ })).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("inspect-run-viewer-webkit.png"),
@@ -128,7 +200,7 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "PR #55 State" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Current PR" })).toBeVisible();
     await expect(page.locator(".current-pr-state-summary-headline")).toContainText(/Needs attention/);
     await expect(page.locator(".current-pr-state-detail").last()).toContainText(/checkpoint-only snapshot/i);
     await expect(page.locator(".state-graph-intro")).toHaveCount(0);
@@ -193,8 +265,9 @@ test("webkit shows terminal merged states clearly in the Mermaid graph", async (
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "PR #55 State" })).toBeVisible();
-    await expect(page.getByText("PR complete")).toBeVisible();
+    const currentStateBanner = page.locator('section[aria-label="PR #55"]');
+    await expect(currentStateBanner.getByRole("heading", { name: "Current PR" })).toBeVisible();
+    await expect(currentStateBanner.getByText("PR complete")).toBeVisible();
     await expect(page.locator(".current-pr-state-grid")).toContainText(/status class/);
     await expect(page.locator(".current-pr-state-grid")).toContainText(/done/);
     await page.getByText(/Graph guide and lane details/).click();

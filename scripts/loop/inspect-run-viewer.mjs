@@ -26,18 +26,16 @@ import {
   normalizeInspectionTarget,
 } from "./_inspect-run-viewer-adapter.mjs";
 
-const USAGE = `Usage: inspect-run-viewer.mjs --repo <owner/name> --pr <number>
+const USAGE = `Usage: inspect-run-viewer.mjs [--repo <owner/name>]
   [--host <host>] [--port <port>] [--allow-non-localhost] [--restart]
   [--steering-state-file <path>] [--reviewer-login <login>]
   [--copilot-input <path>] [--reviewer-input <path>]
 
 Single-run local browser viewer for the inspect-run read-only snapshot.
-
-Required:
-  --repo <owner/name>
-  --pr <number>
+Use ?pr=<number> and optionally ?repo=<owner/name> in the browser URL.
 
 Optional:
+  --repo <owner/name>                     Restrict the inbox to one repo
   --host <host>                         Bind host (default: 127.0.0.1)
   --port <port>                         Bind port (default: 4311)
   --allow-non-localhost                 Permit non-loopback binds
@@ -59,6 +57,28 @@ const execFile = promisify(execFileCallback);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MERMAID_BROWSER_ASSET_ROUTE = "/assets/mermaid.min.js";
 const MERMAID_BROWSER_ASSET_PATH = path.join(REPO_ROOT, "node_modules", "mermaid", "dist", "mermaid.min.js");
+const DEFAULT_INBOX_UPDATED_WITHIN_DAYS = 7;
+const DEFAULT_INBOX_PAGE_SIZE = 25;
+const MAX_INBOX_RESULT_LIMIT = 100;
+const DEFAULT_INBOX_PR_STATE = "open";
+const DEFAULT_INBOX_MODE = "assignee";
+const DEFAULT_INBOX_PAGE = 1;
+const INBOX_UPDATED_FILTER_PRESETS = [
+  { label: "7d", value: 7 },
+  { label: "30d", value: 30 },
+  { label: "90d", value: 90 },
+  { label: "All", value: null },
+];
+const INBOX_STATE_FILTER_PRESETS = [
+  { label: "Open", value: "open" },
+  { label: "Closed", value: "closed" },
+  { label: "All", value: "all" },
+];
+const INBOX_MODE_FILTER_PRESETS = [
+  { label: "Assigned", value: "assignee" },
+  { label: "Reviewer", value: "reviewer" },
+  { label: "Involved", value: "involved" },
+];
 
 let mermaidBrowserScriptPromise = null;
 
@@ -111,9 +131,9 @@ function parseReviewerLogin(rawLogin) {
   return reviewerLogin;
 }
 
-function normalizeCliTargetOptions(options) {
+function normalizeCliRepoOption(rawRepo) {
   try {
-    return normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
+    return normalizeInspectionTarget({ repo: rawRepo, pr: 1 }).repo;
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
@@ -124,7 +144,6 @@ export function parseInspectRunViewerCliArgs(argv) {
   const options = {
     help: false,
     repo: undefined,
-    pr: undefined,
     host: DEFAULT_HOST,
     port: DEFAULT_PORT,
     steeringStateFile: undefined,
@@ -146,8 +165,7 @@ export function parseInspectRunViewerCliArgs(argv) {
       continue;
     }
     if (token === "--pr") {
-      options.pr = requireOptionValue(args, "--pr");
-      continue;
+      throw parseError("--pr is no longer supported on the CLI; choose a PR with ?pr=<number> in the viewer URL");
     }
     if (token === "--host") {
       options.host = parseHost(requireOptionValue(args, "--host"));
@@ -185,16 +203,11 @@ export function parseInspectRunViewerCliArgs(argv) {
   }
 
   if (!options.help) {
-    if (options.repo === undefined || options.pr === undefined) {
-      throw parseError("inspect-run-viewer requires both --repo <owner/name> and --pr <number>");
-    }
     if (options.reviewerInputPath !== undefined && options.reviewerLogin !== undefined) {
       throw parseError("--reviewer-input cannot be combined with --reviewer-login");
     }
 
-    const normalizedTarget = normalizeCliTargetOptions(options);
-    options.repo = normalizedTarget.repo;
-    options.pr = normalizedTarget.pr;
+    options.repo = options.repo === undefined ? undefined : normalizeCliRepoOption(options.repo);
     if (!options.allowNonLocalhost && !isLoopbackHost(options.host)) {
       throw parseError("--host must stay on localhost/loopback unless --allow-non-localhost is set");
     }
@@ -549,8 +562,24 @@ export function buildInspectionMermaidGraph(snapshot) {
     }
   }
 
+  const outerState = formatStateToken(snapshot.outerState, "unknown");
+  const outerAction = formatStateToken(snapshot.outerAction, "unknown");
+  let focusIds = lanes.map((lane) => lane.currentId);
+  if (outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP || outerAction === "reenter_copilot_loop") {
+    focusIds = [lanes[1].currentId];
+  } else if (outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP || outerAction === "reenter_reviewer_loop") {
+    focusIds = [lanes[2].currentId];
+  } else {
+    // Default: focus only on the copilot layer current state as the primary active state,
+    // falling back to all lanes if copilot is unavailable.
+    const copilotFocusId = lanes[1].currentId;
+    const copilotAvailable = !copilotFocusId.includes("unavailable");
+    focusIds = copilotAvailable ? [copilotFocusId] : lanes.map((lane) => lane.currentId);
+  }
+
   return {
     definition: lines.join("\n"),
+    focusIds,
     lanes: lanes.map((lane) => ({
       title: lane.title,
       currentLabel: lane.currentLabel,
@@ -600,7 +629,7 @@ function renderMermaidBootScript() {
       (() => {
         const frames = Array.from(document.querySelectorAll(".state-graph-frame"));
         const graphs = Array.from(document.querySelectorAll(".mermaid-state-graph"));
-        const clampScale = (value) => Math.max(0.5, Math.min(2.5, value));
+        const clampScale = (value) => Math.max(0.5, Math.min(5, value));
         const updateFrameScale = (frame, requestedScale) => {
           const scale = clampScale(requestedScale);
           frame.dataset.graphScale = String(scale);
@@ -608,24 +637,116 @@ function renderMermaidBootScript() {
           if (zoomValue) {
             zoomValue.textContent = String(Math.round(scale * 100)) + "%";
           }
-          const svg = frame.querySelector(".mermaid-state-graph svg");
-          if (svg) {
-            svg.style.width = String(Math.round(scale * 100)) + "%";
-            svg.style.maxWidth = "none";
-            svg.style.height = "auto";
+          const graphViewport = frame.querySelector(".mermaid-state-graph");
+          const svg = graphViewport ? graphViewport.querySelector("svg") : null;
+          if (svg && graphViewport) {
+            // Use a wrapper div for scrollable dimensions because SVG width
+            // changes don't reliably expand scrollWidth in WebKit.  The wrapper
+            // is a plain div whose pixel size WebKit always respects.
+            let wrapper = graphViewport.querySelector(":scope > .mermaid-zoom-inner");
+            if (!wrapper) {
+              const svgRect = svg.getBoundingClientRect();
+              wrapper = document.createElement("div");
+              wrapper.className = "mermaid-zoom-inner";
+              wrapper.style.transformOrigin = "0 0";
+              graphViewport.insertBefore(wrapper, svg);
+              wrapper.appendChild(svg);
+              svg.style.display = "block";
+              svg.style.maxWidth = "none";
+              if (svgRect.width > 0) {
+                frame.dataset.graphNaturalWidth = String(svgRect.width);
+                svg.style.width = svgRect.width + "px";
+              }
+              if (svgRect.height > 0) {
+                frame.dataset.graphNaturalHeight = String(svgRect.height);
+                svg.style.height = svgRect.height + "px";
+              }
+            }
+            const naturalWidth = Number(frame.dataset.graphNaturalWidth) || graphViewport.getBoundingClientRect().width;
+            const naturalHeight = Number(frame.dataset.graphNaturalHeight) || 256;
+            wrapper.style.width = Math.round(naturalWidth * scale) + "px";
+            wrapper.style.height = Math.round(naturalHeight * scale) + "px";
+            svg.style.transform = "scale(" + scale + ")";
+            svg.style.transformOrigin = "0 0";
+            void graphViewport.offsetWidth;
           }
           return scale;
         };
+        const settleGraphViewport = (delayMs = 180) => new Promise((resolve) => {
+          let done = false;
+          const finish = () => {
+            if (done) {
+              return;
+            }
+            done = true;
+            resolve();
+          };
+          requestAnimationFrame(() => {
+            requestAnimationFrame(finish);
+          });
+          window.setTimeout(finish, delayMs);
+        });
         const zoomGraphViewport = (frame, graphViewport, requestedScale, focusPoint = null) => {
           const previousScale = Number(frame.dataset.graphScale || 1);
           const nextScale = updateFrameScale(frame, requestedScale);
-          if (!focusPoint || nextScale === previousScale) {
-            return;
+          // Force a synchronous reflow so the new SVG width is fully applied
+          // before we read scrollWidth or set scrollLeft. Without this the
+          // browser may not have expanded the content yet.
+          void frame.offsetWidth;
+          if (!focusPoint) {
+            return settleGraphViewport();
           }
           const scaleRatio = nextScale / previousScale;
-          requestAnimationFrame(() => {
-            graphViewport.scrollLeft = (focusPoint.contentX * scaleRatio) - focusPoint.viewportX;
-            graphViewport.scrollTop = (focusPoint.contentY * scaleRatio) - focusPoint.viewportY;
+          return new Promise((resolve) => {
+            requestAnimationFrame(() => {
+              const newScrollLeft = (focusPoint.contentX * scaleRatio) - focusPoint.viewportX;
+              const newScrollTop = (focusPoint.contentY * scaleRatio) - focusPoint.viewportY;
+              graphViewport.scrollLeft = newScrollLeft;
+              graphViewport.scrollTop = newScrollTop;
+              settleGraphViewport().then(resolve);
+            });
+          });
+        };
+        const fitGraphToCurrentState = (frame, graphViewport) => {
+          return new Promise((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              const svg = graphViewport.querySelector("svg");
+              const focusIds = (graphViewport.dataset.graphFocusIds ?? "")
+                .split(",").map((id) => id.trim()).filter(Boolean);
+              const allNodes = Array.from(svg.querySelectorAll(".node"));
+              const focusNodes = focusIds.length === 0
+                ? []
+                : allNodes.filter((node) => focusIds.some((focusId) => node.id.includes(focusId)));
+              const targetNodes = focusNodes.length > 0
+                ? focusNodes
+                : Array.from(svg.querySelectorAll(".node.current, .node.currentTerminal, .node.unavailable"));
+              const viewportRect = graphViewport.getBoundingClientRect();
+              const targetRects = targetNodes
+                .map((node) => {
+                  const r = node.getBoundingClientRect();
+                  return r;
+                })
+                .filter((rect) => rect.width > 0 && rect.height > 0);
+              const unionRect = targetRects.reduce((combined, rect) => ({
+                left: Math.min(combined.left, rect.left),
+                top: Math.min(combined.top, rect.top),
+                right: Math.max(combined.right, rect.right),
+                bottom: Math.max(combined.bottom, rect.bottom),
+              }), { left: targetRects[0].left, top: targetRects[0].top, right: targetRects[0].right, bottom: targetRects[0].bottom });
+              const unionWidth = unionRect.right - unionRect.left;
+              const unionHeight = unionRect.bottom - unionRect.top;
+              const targetScale = 3;
+              const contentCenterX = graphViewport.scrollLeft + ((unionRect.left - viewportRect.left) + (unionWidth / 2));
+              const contentCenterY = graphViewport.scrollTop + ((unionRect.top - viewportRect.top) + (unionHeight / 2));
+              zoomGraphViewport(frame, graphViewport, targetScale, {
+                viewportX: viewportRect.width / 2,
+                viewportY: viewportRect.height / 2,
+                contentX: contentCenterX,
+                contentY: contentCenterY,
+              }).then(() => {
+                resolve(true);
+              });
+            }));
           });
         };
         const renderFallback = (message) => {
@@ -728,14 +849,26 @@ function renderMermaidBootScript() {
           },
         });
 
-        window.mermaid.run({ nodes: graphs }).then(() => {
-          graphs.forEach((graph) => {
-            graph.dataset.rendered = "true";
+        window.mermaid.run({ nodes: graphs }).then(async () => {
+          await Promise.all(graphs.map(async (graph) => {
+            graph.dataset.rendered = "settling";
             const frame = graph.closest(".state-graph-frame");
-            if (frame) {
-              updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
+            if (!frame) {
+              graph.dataset.rendered = "true";
+              return;
             }
-          });
+            updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
+            const graphViewport = frame.querySelector(".mermaid-state-graph");
+            if (graphViewport) {
+              const focused = await fitGraphToCurrentState(frame, graphViewport);
+              if (!focused) {
+                await settleGraphViewport();
+              }
+            } else {
+              await settleGraphViewport();
+            }
+            graph.dataset.rendered = "true";
+          }));
         }).catch(() => {
           renderFallback("Mermaid could not render this snapshot safely. Use the details below or open /snapshot.json.");
         });
@@ -759,7 +892,7 @@ function renderStateVisualizationSection(snapshot, graph = buildInspectionMermai
         <span class="state-graph-zoom-value" data-graph-zoom-value>100%</span>
         <button type="button" data-graph-fullscreen aria-label="Open graph fullscreen">⤢</button>
       </div>
-      <div class="mermaid-state-graph mermaid" data-rendered="pending" aria-label="Mermaid inspection state graph">${escapeHtml(graph.definition)}</div>
+      <div class="mermaid-state-graph mermaid" data-rendered="pending" data-graph-focus-ids="${escapeHtml((graph.focusIds ?? []).join(","))}" aria-label="Mermaid inspection state graph">${escapeHtml(graph.definition)}</div>
     </div>
     ${renderStateGraphLegend()}
     ${renderStateGraphDetails(graph)}
@@ -1152,10 +1285,69 @@ function renderCurrentStateNote(snapshot) {
   return "These fields are shown directly from the loaded inspection snapshot so the current state stays visible without inventing a second viewer-only status model.";
 }
 
-function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
+function buildPullRequestHref(target) {
+  if (!target?.repo || target?.pr === null || target?.pr === undefined) {
+    return null;
+  }
+  return `https://github.com/${encodeURIComponent(target.repo).replaceAll("%2F", "/")}/pull/${encodeURIComponent(String(target.pr))}`;
+}
+
+function summarizeCurrentPrMode(snapshot) {
+  if (!snapshot) {
+    return null;
+  }
+
+  const copilotState = formatStateToken(snapshot.layers?.copilot?.currentState);
+  const reviewerState = formatStateToken(snapshot.layers?.reviewer?.currentState);
+  const outerState = formatStateToken(snapshot.outerState, "unknown");
+  const outerAction = formatStateToken(snapshot.outerAction, "unknown");
+
+  if (copilotState === "waiting_for_copilot_review"
+    || copilotState === "waiting_for_ci"
+    || reviewerState === "waiting_for_author_followup"
+    || reviewerState === "waiting_for_re_request"
+    || outerState === OUTER_STATE.CONTINUE_CURRENT_WAIT
+    || outerState === OUTER_STATE.STAY_WITH_CURRENT_LIVE_OWNER
+    || outerAction === "continue_wait") {
+    return { emoji: "⏳", label: "Waiting state" };
+  }
+
+  if (outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP
+    || outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP
+    || outerAction === "reenter_copilot_loop"
+    || outerAction === "reenter_reviewer_loop"
+    || reviewerState === "review_requested"
+    || reviewerState === "determine_review_plan"
+    || reviewerState === "reviews_running"
+    || reviewerState === "merge_results"
+    || reviewerState === "draft_review_ready"
+    || reviewerState === "draft_review_posted"
+    || reviewerState === "waiting_for_user_submit"
+    || reviewerState === "submitted_review"
+    || reviewerState === "review_invalidated") {
+    return { emoji: "🔁", label: "Active loop" };
+  }
+
+  return null;
+}
+
+function renderCurrentStateBanner(snapshot, target, stateLabel, graph, selectedTitle = null) {
   const summary = summarizeCurrentPrStatus(snapshot);
-  return `<section class="current-pr-state-banner" aria-label="PR #${escapeHtml(target.pr)} State">
-    <h1>PR #${escapeHtml(target.pr)} State</h1>
+  const pullRequestHref = buildPullRequestHref(target);
+  const mode = summarizeCurrentPrMode(snapshot);
+  const heading = typeof selectedTitle === "string" && selectedTitle.trim().length > 0
+    ? selectedTitle.trim()
+    : `PR #${target.pr}`;
+  return `<section class="current-pr-state-banner" aria-label="PR #${escapeHtml(target.pr)}">
+    <div class="current-pr-state-heading-row">
+      <div class="current-pr-state-heading-copy">
+        <p class="current-pr-state-kicker">${pullRequestHref
+          ? `<a href="${escapeHtml(pullRequestHref)}">PR #${escapeHtml(target.pr)}</a>`
+          : `PR #${escapeHtml(target.pr)}`}</p>
+        <h1>${escapeHtml(heading)}</h1>
+      </div>
+      ${mode ? `<span class="current-pr-state-mode-indicator" title="${escapeHtml(mode.label)}" aria-label="${escapeHtml(mode.label)}">${escapeHtml(mode.emoji)}</span>` : ""}
+    </div>
     <p class="current-pr-state-summary-headline">${escapeHtml(summary.headline)}</p>
     <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
     <p class="current-pr-state-detail">${escapeHtml(renderCurrentStateNote(snapshot))}</p>
@@ -1178,38 +1370,436 @@ function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
   </section>`;
 }
 
+function renderTargetKey(target) {
+  if (!target || target.pr === null || target.pr === undefined) {
+    return "";
+  }
+  const normalizedRepo = normalizeRepoSlug(target.repo);
+  if (normalizedRepo === null) {
+    return "";
+  }
+  return `${normalizedRepo}#${target.pr}`;
+}
+
+function formatInboxUpdatedAt(updatedAt) {
+  if (typeof updatedAt !== "string" || updatedAt.trim().length === 0) {
+    return "updated unknown";
+  }
+  const parsed = Date.parse(updatedAt);
+  if (Number.isNaN(parsed)) {
+    return `updated ${updatedAt.trim()}`;
+  }
+  return `updated ${new Date(parsed).toISOString().slice(0, 10)}`;
+}
+
+function deriveInboxSignalFromSnapshot(snapshot) {
+  if (!snapshot) {
+    return "unknown";
+  }
+
+  const outerState = formatStateToken(snapshot.outerState, "unknown");
+  const outerAction = formatStateToken(snapshot.outerAction, "unknown");
+  const statusClass = formatStateToken(snapshot.statusClass, "unknown");
+  const copilotState = formatStateToken(snapshot.layers?.copilot?.currentState);
+  const reviewerApprovedOnCurrentHead = snapshot.layers?.reviewer?.approvedOnCurrentHead === true;
+  const sameHeadCleanConverged = snapshot.layers?.copilot?.sameHeadCleanConverged === true;
+  const copilotLoopDisposition = formatStateToken(snapshot.layers?.copilot?.loopDisposition);
+  const copilotTerminal = snapshot.layers?.copilot?.terminal === true;
+
+  if (snapshot.needsAttention === true
+    || outerState === OUTER_STATE.NEEDS_RECONCILE
+    || outerState === OUTER_STATE.STOP_NEEDS_HUMAN
+    || outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP
+    || outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP
+    || outerAction === "stop"
+    || outerAction === "reenter_copilot_loop"
+    || outerAction === "reenter_reviewer_loop"
+    || statusClass === "blocked"
+    || copilotState === "unresolved_feedback_present"
+    || copilotState === "already_fixed_needs_reply_resolve") {
+    return "attention";
+  }
+
+  if (copilotState === "waiting_for_ci") {
+    return "pending";
+  }
+
+  if (outerState === OUTER_STATE.DONE_TERMINAL
+    || statusClass === "done"
+    || (copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead)
+    || sameHeadCleanConverged
+    || copilotLoopDisposition === "clean_converged"
+    || copilotTerminal) {
+    return "ready";
+  }
+
+  if (snapshot.sourceMode === "unavailable") {
+    return "unknown";
+  }
+
+  return "waiting";
+}
+
+const VALID_INBOX_SIGNALS = new Set(["attention", "pending", "ready", "closed", "unknown", "waiting"]);
+
+function normalizeInboxSignal(signal, fallback = "unknown") {
+  const normalized = typeof signal === "string" ? signal.trim().toLowerCase() : "";
+  return VALID_INBOX_SIGNALS.has(normalized) ? normalized : fallback;
+}
+
+function describeInboxSignal(signal) {
+  switch (signal) {
+    case "attention":
+      return { label: "Needs attention", shortLabel: "Attention" };
+    case "pending":
+      return { label: "CI pending", shortLabel: "CI" };
+    case "ready":
+      return { label: "Ready", shortLabel: "Ready" };
+    case "closed":
+      return { label: "Closed", shortLabel: "Closed" };
+    case "unknown":
+      return { label: "State unavailable", shortLabel: "Unknown" };
+    case "waiting":
+    default:
+      return { label: "Waiting", shortLabel: "Waiting" };
+  }
+}
+
+function summarizeInboxRow(snapshot, fallbackSignal = "unknown") {
+  const normalizedFallbackSignal = normalizeInboxSignal(fallbackSignal);
+  const signal = normalizedFallbackSignal === "closed"
+    ? "closed"
+    : snapshot
+      ? deriveInboxSignalFromSnapshot(snapshot)
+      : normalizedFallbackSignal;
+  if (!snapshot) {
+    return {
+      signal,
+      signalLabel: describeInboxSignal(signal),
+      statusClass: null,
+      trustLabel: null,
+      needsAttention: signal === "attention",
+      headline: null,
+    };
+  }
+
+  return {
+    signal,
+    signalLabel: describeInboxSignal(signal),
+    statusClass: formatStateToken(snapshot.statusClass, "unknown"),
+    trustLabel: renderSnapshotStateLabel(snapshot),
+    needsAttention: snapshot.needsAttention === true,
+    headline: summarizeCurrentPrStatus(snapshot).headline,
+  };
+}
+
+function appendInboxViewParams(params, {
+  selectedTarget = null,
+  scopeFilter = null,
+  updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS,
+  state = DEFAULT_INBOX_PR_STATE,
+  mode = DEFAULT_INBOX_MODE,
+  page = DEFAULT_INBOX_PAGE,
+} = {}) {
+  if (typeof scopeFilter === "string" && scopeFilter.trim().length > 0) {
+    params.set("scope", scopeFilter.trim());
+  }
+  if (selectedTarget?.repo !== undefined && selectedTarget?.repo !== null) {
+    params.set("repo", String(selectedTarget.repo));
+  }
+  if (selectedTarget?.pr !== undefined && selectedTarget?.pr !== null) {
+    params.set("pr", String(selectedTarget.pr));
+  }
+  if (updatedWithinDays === null) {
+    params.set("updated", "all");
+  } else if (updatedWithinDays !== DEFAULT_INBOX_UPDATED_WITHIN_DAYS) {
+    params.set("updated", String(updatedWithinDays));
+  }
+  if (page > DEFAULT_INBOX_PAGE) {
+    params.set("page", String(page));
+  }
+  params.set("state", state);
+  params.set("mode", mode);
+}
+
+function buildInboxHref(target, { scopeFilter = null, updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE } = {}) {
+  const params = new URLSearchParams();
+  appendInboxViewParams(params, { selectedTarget: target, scopeFilter, updatedWithinDays, state, mode, page });
+  return `/?${params.toString()}`;
+}
+
+function buildSnapshotHref(target, scopeFilter = null) {
+  if (!target) {
+    return null;
+  }
+  const params = new URLSearchParams();
+  appendInboxViewParams(params, { selectedTarget: target, scopeFilter, updatedWithinDays: DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state: DEFAULT_INBOX_PR_STATE, mode: DEFAULT_INBOX_MODE, page: DEFAULT_INBOX_PAGE });
+  params.delete("scope");
+  params.delete("updated");
+  params.delete("limit");
+  params.delete("state");
+  params.delete("mode");
+  return `/snapshot.json?${params.toString()}`;
+}
+
+function renderInboxFilterHref(selectedTarget, { scopeFilter = null, updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE } = {}) {
+  const params = new URLSearchParams();
+  appendInboxViewParams(params, { selectedTarget, scopeFilter, updatedWithinDays, state, mode, page });
+  const query = params.toString();
+  return query.length === 0 ? "/" : `/?${query}`;
+}
+
+function normalizeRepoSlug(slug) {
+  if (typeof slug !== "string") {
+    return null;
+  }
+  const trimmed = slug.trim();
+  return trimmed.length > 0 ? trimmed.toLowerCase() : null;
+}
+
+function repoSlugEquals(left, right) {
+  const normalizedLeft = normalizeRepoSlug(left);
+  const normalizedRight = normalizeRepoSlug(right);
+  if (normalizedLeft === null || normalizedRight === null) {
+    return left === right;
+  }
+  return normalizedLeft === normalizedRight;
+}
+
+function dedupeRepoSlugOptions(options) {
+  const uniqueOptions = [];
+  const seen = new Set();
+  for (const option of options) {
+    if (typeof option !== "string") {
+      continue;
+    }
+    const trimmed = option.trim();
+    const normalized = normalizeRepoSlug(trimmed);
+    if (normalized === null || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    uniqueOptions.push(trimmed);
+  }
+  return uniqueOptions;
+}
+
+function renderScopeSelectHref(selectedTarget, scopeFilter, { updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE } = {}) {
+  const retainedTarget = selectedTarget && (scopeFilter === null || repoSlugEquals(selectedTarget.repo, scopeFilter))
+    ? selectedTarget
+    : null;
+  return renderInboxFilterHref(retainedTarget, { scopeFilter, updatedWithinDays, state, mode, page: DEFAULT_INBOX_PAGE });
+}
+
+function renderInboxPageHref(selectedTarget, { scopeFilter = null, updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE } = {}) {
+  return renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page });
+}
+
+function renderInboxPagination({ selectedTarget = null, scopeFilter = null, updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE, totalPages = 1 } = {}) {
+  if (totalPages <= 1) {
+    return "";
+  }
+
+  const previousPage = Math.max(DEFAULT_INBOX_PAGE, page - 1);
+  const nextPage = Math.min(totalPages, page + 1);
+
+  return `<nav class="assigned-pr-pagination" aria-label="Sidebar pagination">
+    <a class="assigned-pr-page-link ${page <= DEFAULT_INBOX_PAGE ? "is-disabled" : ""}" href="${escapeHtml(renderInboxPageHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page: previousPage }))}" aria-label="Previous page" ${page <= DEFAULT_INBOX_PAGE ? 'aria-disabled="true" tabindex="-1"' : ""}>←</a>
+    <span class="assigned-pr-page-status">${escapeHtml(String(page))}/${escapeHtml(String(totalPages))}</span>
+    <a class="assigned-pr-page-link ${page >= totalPages ? "is-disabled" : ""}" href="${escapeHtml(renderInboxPageHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page: nextPage }))}" aria-label="Next page" ${page >= totalPages ? 'aria-disabled="true" tabindex="-1"' : ""}>→</a>
+  </nav>`;
+}
+
+function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOptions = [], updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE, totalPages = 1 } = {}) {
+  const selectedKey = renderTargetKey(selectedTarget);
+  const uniqueScopeOptions = ["All repos", ...dedupeRepoSlugOptions(scopeOptions)].sort((left, right) => {
+    if (left === "All repos") {
+      return -1;
+    }
+    if (right === "All repos") {
+      return 1;
+    }
+    return left.localeCompare(right);
+  });
+  return `<aside class="assigned-pr-inbox" data-sidebar-collapsed="false">
+    <div class="assigned-pr-inbox-header">
+      <h2>PR inbox</h2>
+      <button type="button" class="inbox-collapse-toggle" data-inbox-toggle aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar">◀</button>
+    </div>
+    <div class="assigned-pr-controls">
+      <div class="assigned-pr-control-row assigned-pr-scope-row">
+        <label class="assigned-pr-filter-label" for="assigned-pr-scope-select">Scope</label>
+        <select id="assigned-pr-scope-select" class="assigned-pr-select" data-nav-select>
+          ${uniqueScopeOptions.map((option) => {
+    const optionScope = option === "All repos" ? null : option;
+    const selected = optionScope === null ? scopeFilter === null : repoSlugEquals(optionScope, scopeFilter);
+    return `<option value="${escapeHtml(renderScopeSelectHref(selectedTarget, optionScope, { updatedWithinDays, state, mode }))}" ${selected ? "selected" : ""}>${escapeHtml(option)}</option>`;
+  }).join("")}
+        </select>
+      </div>
+      <div class="assigned-pr-control-row assigned-pr-secondary-controls">
+        <label class="assigned-pr-filter-label" for="assigned-pr-state-select">State</label>
+        <select id="assigned-pr-mode-select" class="assigned-pr-select assigned-pr-select-mid" data-nav-select aria-label="Assignment mode">
+          ${INBOX_MODE_FILTER_PRESETS.map((preset) => {
+    const selected = preset.value === mode;
+    return `<option value="${escapeHtml(renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode: preset.value, page: DEFAULT_INBOX_PAGE }))}" ${selected ? "selected" : ""}>${escapeHtml(preset.label)}</option>`;
+  }).join("")}
+        </select>
+        <select id="assigned-pr-state-select" class="assigned-pr-select assigned-pr-select-mid" data-nav-select>
+          ${INBOX_STATE_FILTER_PRESETS.map((preset) => {
+    const selected = preset.value === state;
+    return `<option value="${escapeHtml(renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays, state: preset.value, mode, page: DEFAULT_INBOX_PAGE }))}" ${selected ? "selected" : ""}>${escapeHtml(preset.label)}</option>`;
+  }).join("")}
+        </select>
+        <select id="assigned-pr-updated-select" class="assigned-pr-select assigned-pr-select-sm assigned-pr-select-updated" data-nav-select aria-label="Updated window">
+          ${INBOX_UPDATED_FILTER_PRESETS.map((preset) => {
+    const selected = preset.value === updatedWithinDays;
+    return `<option value="${escapeHtml(renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays: preset.value, state, mode, page: DEFAULT_INBOX_PAGE }))}" ${selected ? "selected" : ""}>${escapeHtml(preset.label)}</option>`;
+  }).join("")}
+        </select>
+      </div>
+    </div>
+    <label class="inbox-search-label" for="inbox-search">Search PRs</label>
+    <input id="inbox-search" class="inbox-search-input" type="search" placeholder="Search PR # or title…" data-inbox-search />
+    <ul class="assigned-pr-list" data-inbox-list>
+      ${items.map((item) => {
+    const summary = summarizeInboxRow(item.snapshot ?? null, item.signal ?? "unknown");
+    const target = item.target;
+    const key = renderTargetKey(target);
+    const selected = key === selectedKey;
+    const searchText = `${target.repo} #${target.pr} ${item.title ?? ""} ${summary.signalLabel.label} ${summary.statusClass ?? ""} ${summary.trustLabel ?? ""} ${summary.headline ?? ""} ${item.updatedAt ?? ""}`.toLowerCase();
+    return `<li class="assigned-pr-row assigned-pr-row-${escapeHtml(summary.signal)} ${selected ? "is-selected" : ""}" data-inbox-item data-inbox-signal="${escapeHtml(summary.signal)}" data-search="${escapeHtml(searchText)}">
+          <a class="assigned-pr-link" href="${escapeHtml(buildInboxHref(target, { scopeFilter, updatedWithinDays, state, mode, page }))}" ${selected ? 'aria-current="page"' : ""}>
+            <div class="assigned-pr-line assigned-pr-title-line">
+              <span class="assigned-pr-id">#${escapeHtml(String(target.pr))}</span>
+              <span class="assigned-pr-title">${escapeHtml(item.title ?? "Untitled pull request")}</span>
+            </div>
+            <div class="assigned-pr-line assigned-pr-meta assigned-pr-meta-primary">
+              ${scopeFilter === null ? `<span class="assigned-pr-repo">${escapeHtml(target.repo)}</span>` : ""}
+              <span class="assigned-pr-updated">${escapeHtml(formatInboxUpdatedAt(item.updatedAt))}</span>
+            </div>
+            <div class="assigned-pr-line assigned-pr-meta assigned-pr-meta-secondary">
+              ${summary.statusClass ? `<span class="assigned-pr-status">${escapeHtml(summary.statusClass)}</span>` : ""}
+              ${summary.trustLabel ? `<span class="assigned-pr-trust">${escapeHtml(summary.trustLabel)}</span>` : ""}
+              ${summary.headline ? `<span class="assigned-pr-headline">${escapeHtml(summary.headline)}</span>` : ""}
+            </div>
+          </a>
+        </li>`;
+  }).join("")}
+    </ul>
+    <p class="assigned-pr-empty" data-inbox-empty data-empty-default="No assigned PRs are visible in this view." data-empty-search="No assigned PRs match this search." hidden>No assigned PRs are visible in this view.</p>
+    ${renderInboxPagination({ selectedTarget, scopeFilter, updatedWithinDays, state, mode, page, totalPages })}
+  </aside>`;
+}
+
+function renderInboxShellScript() {
+  return `<script>
+    (() => {
+      const sidebar = document.querySelector(".assigned-pr-inbox");
+      const toggle = document.querySelector("[data-inbox-toggle]");
+      const search = document.querySelector("[data-inbox-search]");
+      const navSelects = Array.from(document.querySelectorAll("[data-nav-select]"));
+      const items = Array.from(document.querySelectorAll("[data-inbox-item]"));
+      const empty = document.querySelector("[data-inbox-empty]");
+      const updateFilter = () => {
+        const query = (search?.value ?? "").trim().toLowerCase();
+        let visibleCount = 0;
+        items.forEach((item) => {
+          const haystack = item.getAttribute("data-search") ?? "";
+          const visible = query.length === 0 || haystack.includes(query);
+          item.hidden = !visible;
+          if (visible) {
+            visibleCount += 1;
+          }
+        });
+        if (empty) {
+          const defaultMessage = empty.dataset.emptyDefault ?? "No assigned PRs are visible in this view.";
+          const searchMessage = empty.dataset.emptySearch ?? "No assigned PRs match this search.";
+          empty.textContent = query.length === 0 ? defaultMessage : searchMessage;
+          empty.hidden = visibleCount !== 0;
+        }
+      };
+      toggle?.addEventListener("click", () => {
+        const collapsed = sidebar?.dataset.sidebarCollapsed === "true";
+        if (!sidebar) {
+          return;
+        }
+        sidebar.dataset.sidebarCollapsed = collapsed ? "false" : "true";
+        toggle.textContent = collapsed ? "◀" : "▶";
+        toggle.setAttribute("aria-label", collapsed ? "Collapse sidebar" : "Expand sidebar");
+        toggle.setAttribute("title", collapsed ? "Collapse sidebar" : "Expand sidebar");
+        toggle.setAttribute("aria-expanded", collapsed ? "true" : "false");
+      });
+      search?.addEventListener("input", updateFilter);
+      navSelects.forEach((select) => {
+        select.addEventListener("change", () => {
+          const href = select.value;
+          if (typeof href === "string" && href.length > 0) {
+            window.location.assign(href);
+          }
+        });
+      });
+      updateFilter();
+    })();
+  </script>`;
+}
+
 export function renderInspectRunViewerHtml({
-  target,
+  repo = null,
+  target = null,
   snapshot = null,
   error = null,
+  inboxItems = [],
+  selectedTitle = null,
+  scopeOptions = [],
+  inboxUpdatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS,
+  inboxState = DEFAULT_INBOX_PR_STATE,
+  inboxMode = DEFAULT_INBOX_MODE,
+  inboxPage = DEFAULT_INBOX_PAGE,
+  inboxTotalPages = 1,
 }) {
   const normalizedSnapshot = snapshot ?? null;
-  const graph = buildInspectionMermaidGraph(normalizedSnapshot);
+  const graph = target ? buildInspectionMermaidGraph(normalizedSnapshot) : null;
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
-  const title = `${target.repo}#${target.pr} inspection snapshot`;
+  const selectedInboxItem = target === null
+    ? null
+    : inboxItems.find((item) => renderTargetKey(item.target) === renderTargetKey(target)) ?? null;
+  const effectiveSelectedTitle = selectedTitle ?? selectedInboxItem?.title ?? null;
+  const scopeFilter = typeof repo === "string" && repo.length > 0 ? repo : null;
+  const scopeLabel = scopeFilter ?? "all repos";
+  const title = target
+    ? `${target.repo}#${target.pr} inspection snapshot`
+    : `${scopeLabel} PR inbox`;
   const runId = normalizedSnapshot?.runId ?? "not present";
-  const topSummary = normalizedSnapshot === null
+  const rawSnapshotHref = buildSnapshotHref(target, scopeFilter);
+  const topSummary = target === null
     ? `<section>
-      <h2>Snapshot unavailable</h2>
-      <p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p>
-      <p>Manual reload only: use the reload button or browser refresh.</p>
+      <h2>No PR selected</h2>
+      <p>No assigned PR in ${escapeHtml(scopeLabel)} matched the current view yet.</p>
+      <p>Pick a PR from the sidebar, widen the state or updated filters, or move to another inbox page.</p>
     </section>`
-    : `<section>
-      <h2>Top summary</h2>
-      ${renderDefinitionList([
-        ["target.repo", normalizedSnapshot.target?.repo ?? target.repo],
-        ["target.pr", normalizedSnapshot.target?.pr ?? target.pr],
-        ["runId", runId],
-        ["inspectedAt", normalizedSnapshot.inspectedAt ?? "not present"],
-      ])}
-      <h3>Markers</h3>
-      <h4>markers.missing</h4>
-      ${renderList(normalizedSnapshot.markers?.missing)}
-      <h4>markers.stale</h4>
-      ${renderList(normalizedSnapshot.markers?.stale)}
-      <h4>markers.conflicts</h4>
-      ${renderList(normalizedSnapshot.markers?.conflicts)}
-    </section>`;
+    : normalizedSnapshot === null
+      ? `<section>
+        <h2>Snapshot unavailable</h2>
+        <p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p>
+        <p>Manual reload only: use the reload button or browser refresh.</p>
+      </section>`
+      : `<section>
+        <h2>Top summary</h2>
+        ${renderDefinitionList([
+          ["target.repo", normalizedSnapshot.target?.repo ?? target.repo],
+          ["target.pr", normalizedSnapshot.target?.pr ?? target.pr],
+          ["runId", runId],
+          ["inspectedAt", normalizedSnapshot.inspectedAt ?? "not present"],
+        ])}
+        <h3>Markers</h3>
+        <h4>markers.missing</h4>
+        ${renderList(normalizedSnapshot.markers?.missing)}
+        <h4>markers.stale</h4>
+        ${renderList(normalizedSnapshot.markers?.stale)}
+        <h4>markers.conflicts</h4>
+        ${renderList(normalizedSnapshot.markers?.conflicts)}
+      </section>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -1220,8 +1810,62 @@ export function renderInspectRunViewerHtml({
     <style>
       body { font-family: sans-serif; margin: 1rem; max-width: none; line-height: 1.4; }
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+      .inspection-shell { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1rem; align-items: start; }
+      .assigned-pr-inbox { position: sticky; top: 1rem; width: 22rem; max-width: 100%; border: 1px solid #d9e5f2; border-radius: 0.65rem; padding: 0.65rem; background: #fbfdff; max-height: calc(100vh - 2rem); overflow: auto; box-sizing: border-box; }
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] { width: 2.15rem; overflow: hidden; padding: 0.22rem; border-color: transparent; background: transparent; box-shadow: none; }
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] h2,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-controls,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-filter-note,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .inbox-search-label,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .inbox-search-input,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-list,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-empty,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-pagination { display: none; }
+      .assigned-pr-inbox-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.45rem; }
+      .assigned-pr-inbox-header h2 { margin: 0; font-size: 0.98rem; flex: 1; }
+      .assigned-pr-controls { display: flex; flex-wrap: wrap; gap: 0.32rem 0.45rem; margin-bottom: 0.35rem; align-items: center; }
+      .assigned-pr-control-row { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+      .assigned-pr-scope-row { align-items: center; }
+      .assigned-pr-secondary-controls { flex: 999 1 18rem; flex-wrap: nowrap; }
+      .assigned-pr-filter-label { display: inline-block; min-width: 3.6rem; margin: 0; font-size: 0.74rem; font-weight: 700; color: #355061; text-transform: uppercase; letter-spacing: 0.03em; }
+      .assigned-pr-select { flex: 1; min-width: 0; max-width: 100%; border: 1px solid #bfd0e2; border-radius: 0.42rem; padding: 0.22rem 0.4rem; font: inherit; font-size: 0.8rem; color: #355061; background: #fff; }
+      .assigned-pr-select-mid { flex: 0 1 auto; width: min(7.25rem, 100%); max-width: 7.25rem; min-width: 5.2rem; }
+      .assigned-pr-select-sm { flex: 0 1 auto; width: min(4.8rem, 100%); max-width: 4.8rem; min-width: 3.6rem; }
+      .assigned-pr-select-updated { margin-left: auto; }
+      .inbox-collapse-toggle { border: none; outline: none; box-shadow: none; appearance: none; -webkit-appearance: none; background: #355061; color: #fff; border-radius: 0.4rem; padding: 0.12rem 0.22rem; cursor: pointer; font-size: 1rem; line-height: 1; }
+      .inbox-search-label { display: block; font-size: 0.82rem; font-weight: 600; color: #355061; margin-bottom: 0.18rem; margin-top: 0.1rem; }
+      .inbox-search-input { width: 100%; border: 1px solid #bfd0e2; border-radius: 0.4rem; padding: 0.28rem 0.42rem; margin-bottom: 0.45rem; }
+      .assigned-pr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.36rem; }
+      .assigned-pr-row { border: 1px solid #d6e0ea; border-left: 0.32rem solid #8ca3b8; border-radius: 0.5rem; background: #fff; }
+      .assigned-pr-row.assigned-pr-row-attention { border-left-color: #c87400; }
+      .assigned-pr-row.assigned-pr-row-pending { border-left-color: #b88900; }
+      .assigned-pr-row.assigned-pr-row-ready { border-left-color: #2e7d32; }
+      .assigned-pr-row.assigned-pr-row-closed { border-left-color: #7a8694; }
+      .assigned-pr-row.assigned-pr-row-unknown { border-left-color: #8ca3b8; }
+      .assigned-pr-row.assigned-pr-row-waiting { border-left-color: #1565c0; }
+      .assigned-pr-link { display: block; padding: 0.38rem 0.45rem; color: inherit; text-decoration: none; }
+      .assigned-pr-row.is-selected .assigned-pr-link { box-shadow: inset 0 0 0 1px #1565c0; border-radius: 0.3rem; }
+      .assigned-pr-title-line { display: flex; align-items: flex-start; gap: 0.35rem; }
+      .assigned-pr-id { font-weight: 700; margin-right: 0.15rem; }
+      .assigned-pr-title { font-weight: 600; min-width: 0; flex: 1 1 auto; }
+      .assigned-pr-line + .assigned-pr-line { margin-top: 0.18rem; }
+      .assigned-pr-meta { display: flex; flex-wrap: wrap; gap: 0.22rem 0.36rem; font-size: 0.76rem; color: #486174; }
+      .assigned-pr-meta-primary { justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+      .assigned-pr-meta-primary .assigned-pr-repo { text-align: left; min-width: 0; }
+      .assigned-pr-meta-primary .assigned-pr-updated { margin-left: auto; text-align: right; white-space: nowrap; }
+      .assigned-pr-pagination { display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-top: 0.45rem; }
+      .assigned-pr-page-link { color: #5b2ca0; text-decoration: none; font-weight: 700; }
+      .assigned-pr-page-link.is-disabled { color: #9aa9b8; pointer-events: none; }
+      .assigned-pr-page-status { font-weight: 700; color: #253b53; }
+      .inspection-main { min-width: 0; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .current-pr-state-banner { border: none; background: none; box-shadow: none; padding: 0; margin-top: 0; }
+      .current-pr-state-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+      .current-pr-state-heading-copy { min-width: 0; }
+      .current-pr-state-kicker { margin: 0 0 0.28rem 0; font-size: 0.96rem; font-weight: 700; }
+      .current-pr-state-kicker a { color: #355061; text-decoration: none; }
+      .current-pr-state-kicker a:hover { text-decoration: underline; }
+      .current-pr-state-mode-indicator { flex: 0 0 auto; font-size: 1.55rem; line-height: 1; margin-top: 0.08rem; }
       .current-pr-state-banner h1 { margin: 0 0 0.5rem 0; font-size: 2.2rem; line-height: 1.15; }
       .current-pr-state-summary-headline { margin: 0 0 0.4rem 0; color: #1565c0; font-weight: 700; font-size: 1.1rem; }
       .current-pr-state-detail { margin: 0.25rem 0 0.8rem 0; color: #274766; font-size: 0.98rem; }
@@ -1229,14 +1873,15 @@ export function renderInspectRunViewerHtml({
       .current-pr-state-grid dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: #4c6478; }
       .current-pr-state-grid dd { margin: 0 0 0.75rem 0; }
       .state-graph-block { margin-top: 0.4rem; }
-      .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); overflow: hidden; }
+      .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); }
       .state-graph-toolbar { display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.65rem; border-bottom: 1px solid #d7e3f4; background: rgba(255,255,255,0.85); }
       .state-graph-toolbar button { border: 1px solid #9fb6cb; background: #fff; border-radius: 0.45rem; padding: 0.3rem 0.6rem; font: inherit; cursor: pointer; }
       .state-graph-toolbar button:hover { background: #f3f8fd; }
       .state-graph-zoom-value { margin-left: auto; font-size: 0.88rem; color: #486174; }
       .mermaid-state-graph { min-height: 16rem; padding: 0.75rem; overflow: auto; cursor: grab; user-select: none; touch-action: none; }
       .mermaid-state-graph[data-dragging="true"] { cursor: grabbing; }
-      .mermaid-state-graph[data-rendered="pending"] { color: #5a7184; }
+      .mermaid-state-graph[data-rendered="pending"] { color: #5a7184; opacity: 0; pointer-events: none; }
+      .mermaid-state-graph[data-rendered="settling"] { opacity: 0; pointer-events: none; }
       .mermaid-state-graph svg { display: block; width: 100%; height: auto; transition: width 120ms ease; }
       .state-graph-cues { display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; margin: 0.75rem 0 0.35rem 0; }
       .state-graph-cue { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; color: #355061; }
@@ -1262,27 +1907,45 @@ export function renderInspectRunViewerHtml({
       .current-pr-state-banner .state-graph-block,
       .current-pr-state-banner .current-pr-state-visualization { border: none; padding: 0; margin-top: 0; }
       @media (max-width: 900px) {
+        .inspection-shell { grid-template-columns: minmax(0, 1fr); }
+        .assigned-pr-inbox { position: static; max-height: none; }
         .current-pr-state-grid { grid-template-columns: 1fr 1fr; }
       }
       @media (max-width: 640px) {
         .current-pr-state-grid { grid-template-columns: 1fr; }
         .state-graph-toolbar { flex-wrap: wrap; }
         .state-graph-zoom-value { margin-left: 0; }
+        .assigned-pr-secondary-controls { flex-wrap: wrap; }
+        .assigned-pr-select-mid,
+        .assigned-pr-select-sm,
+        .assigned-pr-select-updated { width: 100%; max-width: none; margin-left: 0; flex: 1 1 6rem; }
       }
     </style>
   </head>
   <body>
-    ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph)}
-    ${renderCollapsedDetailsPanel(`
+    <div class="inspection-shell">
+      ${renderInboxSidebar(inboxItems, target, { scopeFilter, scopeOptions, updatedWithinDays: inboxUpdatedWithinDays, state: inboxState, mode: inboxMode, page: inboxPage, totalPages: inboxTotalPages })}
+      <main class="inspection-main">
+        ${target === null
+          ? `<section class="current-pr-state-banner" aria-label="${escapeHtml(scopeLabel)} inbox state">
+              <h1>${escapeHtml(scopeLabel)} PR inbox</h1>
+              <p class="current-pr-state-summary-headline">Choose a PR from the sidebar</p>
+              <p class="current-pr-state-detail">This viewer can span all assigned repos or be narrowed to one repo. The sidebar defaults to open PRs from the last 7 days and paginates through the result set.</p>
+            </section>`
+          : renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
+        ${renderCollapsedDetailsPanel(`
       <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
-      <p><strong>Refresh:</strong> manual reload only. <strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
+      <p><strong>Refresh:</strong> manual reload only.${rawSnapshotHref ? ` <strong>Raw snapshot:</strong> <a href="${escapeHtml(rawSnapshotHref)}"><code>${escapeHtml(rawSnapshotHref)}</code></a>` : ""}</p>
       ${topSummary}
-      ${renderOuterLoopSummarySection(normalizedSnapshot)}
-      ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
-      ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
-      ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
-      ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
+      ${target === null ? "" : renderOuterLoopSummarySection(normalizedSnapshot)}
+      ${target === null ? "" : renderCopilotLoopIterationsSection(normalizedSnapshot)}
+      ${target === null ? "" : renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
+      ${target === null ? "" : renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
+      ${target === null ? "" : renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
     `)}
+      </main>
+    </div>
+    ${renderInboxShellScript()}
     ${graph === null ? "" : renderMermaidBootScript()}
   </body>
 </html>`;
@@ -1349,6 +2012,172 @@ function requireSnapshotForJson(snapshot) {
   }
 
   return snapshot;
+}
+
+function parseUpdatedWithinDaysFromUrl(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
+    return DEFAULT_INBOX_UPDATED_WITHIN_DAYS;
+  }
+  const trimmed = rawValue.trim().toLowerCase();
+  if (trimmed === "all") {
+    return null;
+  }
+  if (/^\d+$/.test(trimmed) && Number(trimmed) > 0) {
+    return Number(trimmed);
+  }
+  const error = new Error("updated must be a positive integer or 'all'");
+  error.code = "MALFORMED_TARGET";
+  throw error;
+}
+
+function parseInboxPageFromUrl(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
+    return DEFAULT_INBOX_PAGE;
+  }
+  const trimmed = rawValue.trim().toLowerCase();
+  if (/^\d+$/.test(trimmed) && Number(trimmed) > 0) {
+    return Number(trimmed);
+  }
+  const error = new Error("page must be a positive integer");
+  error.code = "MALFORMED_TARGET";
+  throw error;
+}
+
+function parseInboxStateFromUrl(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
+    return DEFAULT_INBOX_PR_STATE;
+  }
+  const trimmed = rawValue.trim().toLowerCase();
+  if (trimmed === "open" || trimmed === "closed" || trimmed === "all") {
+    return trimmed;
+  }
+  const error = new Error("state must be one of: open, closed, all");
+  error.code = "MALFORMED_TARGET";
+  throw error;
+}
+
+function parseInboxModeFromUrl(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
+    return DEFAULT_INBOX_MODE;
+  }
+  const trimmed = rawValue.trim().toLowerCase();
+  if (trimmed === "assignee" || trimmed === "reviewer" || trimmed === "involved") {
+    return trimmed;
+  }
+  const error = new Error("mode must be one of: assignee, reviewer, involved");
+  error.code = "MALFORMED_TARGET";
+  throw error;
+}
+
+function normalizeRepoQueryParam(rawValue) {
+  try {
+    return normalizeCliRepoOption(rawValue);
+  } catch (error) {
+    const wrapped = new Error(error instanceof Error ? error.message : String(error));
+    wrapped.code = "MALFORMED_TARGET";
+    wrapped.cause = error;
+    throw wrapped;
+  }
+}
+
+function normalizeRequestedViewFromUrl(rawUrl, fixedRepo = null, fallbackTarget = null) {
+  if (typeof rawUrl !== "string" || rawUrl.length === 0) {
+    return {
+      scopeFilter: fixedRepo,
+      target: fallbackTarget,
+      updatedWithinDays: DEFAULT_INBOX_UPDATED_WITHIN_DAYS,
+      state: DEFAULT_INBOX_PR_STATE,
+      mode: DEFAULT_INBOX_MODE,
+      page: DEFAULT_INBOX_PAGE,
+      pageExplicit: false,
+    };
+  }
+
+  const url = new URL(rawUrl, "http://localhost");
+  const requestedScope = url.searchParams.get("scope");
+  const normalizedScope = requestedScope === null || requestedScope.trim().length === 0
+    ? null
+    : normalizeRepoQueryParam(requestedScope);
+  const selectedRepo = url.searchParams.get("repo");
+  const normalizedSelectedRepo = selectedRepo === null || selectedRepo.trim().length === 0
+    ? null
+    : normalizeRepoQueryParam(selectedRepo);
+
+  if (fixedRepo !== null && normalizedScope !== null && normalizedScope.toLowerCase() !== fixedRepo.toLowerCase()) {
+    const error = new Error("scope query param must match the repo-scoped viewer");
+    error.code = "MALFORMED_TARGET";
+    throw error;
+  }
+  if (fixedRepo !== null && normalizedSelectedRepo !== null && normalizedSelectedRepo.toLowerCase() !== fixedRepo.toLowerCase()) {
+    const error = new Error("repo query param must match the repo-scoped viewer");
+    error.code = "MALFORMED_TARGET";
+    throw error;
+  }
+
+  const effectiveScope = fixedRepo ?? normalizedScope;
+  const effectiveSelectedRepo = fixedRepo ?? normalizedSelectedRepo;
+  const pr = url.searchParams.get("pr");
+  if (pr !== null && effectiveSelectedRepo === null) {
+    const error = new Error("repo is required when selecting a PR without --repo");
+    error.code = "MALFORMED_TARGET";
+    throw error;
+  }
+
+  return {
+    scopeFilter: effectiveScope,
+    target: pr === null ? fallbackTarget : normalizeInspectionTarget({ repo: effectiveSelectedRepo, pr }),
+    updatedWithinDays: parseUpdatedWithinDaysFromUrl(url.searchParams.get("updated")),
+    state: parseInboxStateFromUrl(url.searchParams.get("state")),
+    mode: parseInboxModeFromUrl(url.searchParams.get("mode")),
+    page: parseInboxPageFromUrl(url.searchParams.get("page")),
+    pageExplicit: url.searchParams.has("page"),
+  };
+}
+
+function dedupeInboxEntries(entries) {
+  const seen = new Map();
+  const deduped = [];
+  for (const entry of entries) {
+    const key = renderTargetKey(entry.target);
+    const existing = seen.get(key);
+    if (existing) {
+      if ((existing.title === null || existing.title === undefined) && entry.title) {
+        existing.title = entry.title;
+      }
+      if ((existing.updatedAt === null || existing.updatedAt === undefined) && entry.updatedAt) {
+        existing.updatedAt = entry.updatedAt;
+      }
+      if ((existing.signal === null || existing.signal === undefined || existing.signal === "unknown") && entry.signal) {
+        existing.signal = normalizeInboxSignal(entry.signal);
+      }
+      continue;
+    }
+    const normalizedEntry = {
+      target: entry.target,
+      title: entry.title ?? null,
+      updatedAt: entry.updatedAt ?? null,
+      signal: normalizeInboxSignal(entry.signal),
+    };
+    seen.set(key, normalizedEntry);
+    deduped.push(normalizedEntry);
+  }
+  return deduped;
+}
+
+function collectScopeOptions(entries, { selectedTarget = null, scopeFilter = null } = {}) {
+  const repos = [];
+  if (typeof scopeFilter === "string") {
+    repos.push(scopeFilter);
+  }
+  if (selectedTarget?.repo) {
+    repos.push(selectedTarget.repo);
+  }
+  for (const entry of entries) {
+    if (entry?.target?.repo) {
+      repos.push(entry.target.repo);
+    }
+  }
+  return dedupeRepoSlugOptions(repos).sort((left, right) => left.localeCompare(right));
 }
 
 export function formatInspectRunViewerUrl(host, port) {
@@ -1421,8 +2250,21 @@ export function createInspectRunViewerServer(options, deps = {}) {
   const adapter = deps.adapter ?? createInspectionViewerAdapter();
   const loadMermaidBrowserScriptImpl = deps.loadMermaidBrowserScriptImpl ?? loadMermaidBrowserScript;
   const logErrorImpl = deps.logErrorImpl ?? (() => {});
-  const target = normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
+  const fixedRepo = options.repo === undefined ? null : normalizeCliRepoOption(options.repo);
+  const fallbackTarget = options.pr === undefined || options.pr === null || fixedRepo === null
+    ? null
+    : normalizeInspectionTarget({ repo: fixedRepo, pr: options.pr });
   const adapterOptions = makeAdapterOptions(options);
+  const supportsAssignedInbox = options.copilotInputPath === undefined && options.reviewerInputPath === undefined;
+  const jsonErrorTarget = fallbackTarget ?? { repo: fixedRepo, pr: null };
+  const cachedInboxSignals = new Map();
+  const CACHED_INBOX_SIGNALS_MAX = 200;
+  function setCachedInboxSignal(key, value) {
+    if (cachedInboxSignals.size >= CACHED_INBOX_SIGNALS_MAX) {
+      cachedInboxSignals.delete(cachedInboxSignals.keys().next().value);
+    }
+    cachedInboxSignals.set(key, value);
+  }
 
   return createServer(async (request, response) => {
     try {
@@ -1465,29 +2307,163 @@ export function createInspectRunViewerServer(options, deps = {}) {
         return;
       }
 
-      if (requestPath === "/snapshot.json") {
+      let requestedView;
+      try {
+        requestedView = normalizeRequestedViewFromUrl(request.url, fixedRepo, fallbackTarget);
+      } catch (error) {
+        if (requestPath === "/snapshot.json" && error?.code === "MALFORMED_TARGET") {
+          writeJson(response, 400, jsonErrorPayload(jsonErrorTarget, error));
+          return;
+        }
+        throw error;
+      }
+
+      const listAssignedPullRequests = typeof adapter.listAssignedPullRequests === "function"
+        ? adapter.listAssignedPullRequests.bind(adapter)
+        : async () => [];
+      const normalizeAssignedEntries = (rawEntries) => (Array.isArray(rawEntries)
+        ? rawEntries.flatMap((entry) => {
+          try {
+            if (entry && typeof entry === "object" && entry.target) {
+              return [{
+                target: normalizeInspectionTarget(entry.target),
+                title: entry.title ?? null,
+                updatedAt: entry.updatedAt ?? null,
+                signal: normalizeInboxSignal(entry.signal),
+              }];
+            }
+            return [{ target: normalizeInspectionTarget(entry), title: null, updatedAt: null, signal: "unknown" }];
+          } catch {
+            return [];
+          }
+        })
+        : []);
+
+      let assignedEntries = [];
+      let scopeSourceEntries = [];
+      if (supportsAssignedInbox) {
         try {
-          const snapshot = requireSnapshotForJson(await adapter.loadSnapshot(target, adapterOptions));
+          if (fixedRepo !== null) {
+            const rawAssignedEntries = await listAssignedPullRequests({
+              ...adapterOptions,
+              repo: fixedRepo,
+              updatedWithinDays: requestedView.updatedWithinDays,
+              limit: MAX_INBOX_RESULT_LIMIT,
+              state: requestedView.state,
+              mode: requestedView.mode,
+            });
+            assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+            scopeSourceEntries = assignedEntries;
+          } else {
+            const loadAssignedEntries = (repo) => listAssignedPullRequests({
+              ...adapterOptions,
+              repo,
+              updatedWithinDays: requestedView.updatedWithinDays,
+              limit: MAX_INBOX_RESULT_LIMIT,
+              state: requestedView.state,
+              mode: requestedView.mode,
+            });
+            if (requestedView.scopeFilter === null) {
+              const rawAssignedEntries = await loadAssignedEntries(undefined);
+              assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+              scopeSourceEntries = assignedEntries;
+            } else {
+              const [rawScopeEntries, rawAssignedEntries] = await Promise.all([
+                loadAssignedEntries(undefined),
+                loadAssignedEntries(requestedView.scopeFilter),
+              ]);
+              scopeSourceEntries = normalizeAssignedEntries(rawScopeEntries);
+              assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+            }
+          }
+        } catch (error) {
+          logErrorImpl(error);
+          assignedEntries = [];
+          scopeSourceEntries = [];
+        }
+      }
+
+      const requestedPage = requestedView.page ?? DEFAULT_INBOX_PAGE;
+      const selectedTargetMatches = requestedView.target !== null
+        && assignedEntries.some((entry) => renderTargetKey(entry.target) === renderTargetKey(requestedView.target));
+      const effectiveSelectedTarget = supportsAssignedInbox && requestedView.target !== null
+        ? (assignedEntries.length === 0 || selectedTargetMatches ? requestedView.target : null)
+        : requestedView.target;
+      const selectedIndex = effectiveSelectedTarget === null
+        ? -1
+        : assignedEntries.findIndex((entry) => renderTargetKey(entry.target) === renderTargetKey(effectiveSelectedTarget));
+      const totalPages = Math.max(1, Math.ceil(assignedEntries.length / DEFAULT_INBOX_PAGE_SIZE));
+      const explicitRequestedPage = requestedView.pageExplicit === true;
+      const effectivePage = !explicitRequestedPage && selectedIndex >= 0
+        ? (Math.floor(selectedIndex / DEFAULT_INBOX_PAGE_SIZE) + 1)
+        : Math.min(Math.max(requestedPage, DEFAULT_INBOX_PAGE), totalPages);
+      const pageStart = (effectivePage - 1) * DEFAULT_INBOX_PAGE_SIZE;
+      const pagedEntries = assignedEntries.slice(pageStart, pageStart + DEFAULT_INBOX_PAGE_SIZE);
+      const requestTarget = requestedView.target ?? effectiveSelectedTarget ?? pagedEntries[0]?.target ?? null;
+
+      if (requestPath === "/snapshot.json") {
+        if (requestTarget === null) {
+          writeJson(response, 400, jsonErrorPayload(jsonErrorTarget, new Error("snapshot.json requires ?pr=<number> when no PR is currently selected")));
+          return;
+        }
+        try {
+          const snapshot = requireSnapshotForJson(await adapter.loadSnapshot(requestTarget, adapterOptions));
+          setCachedInboxSignal(renderTargetKey(requestTarget), deriveInboxSignalFromSnapshot(snapshot));
           writeJson(response, 200, snapshot);
         } catch (error) {
-          writeJson(response, 500, jsonErrorPayload(target, error));
+          writeJson(response, 500, jsonErrorPayload(requestTarget, error));
         }
         return;
       }
 
+      const inboxEntries = dedupeInboxEntries(pagedEntries);
+
       let snapshot = null;
       let error = null;
-      try {
-        snapshot = await adapter.loadSnapshot(target, adapterOptions);
-      } catch (caught) {
-        error = caught instanceof Error ? caught : new Error(String(caught));
+      if (requestTarget !== null) {
+        try {
+          snapshot = await adapter.loadSnapshot(requestTarget, adapterOptions);
+          if (snapshot !== null && snapshot !== undefined) {
+            setCachedInboxSignal(renderTargetKey(requestTarget), deriveInboxSignalFromSnapshot(snapshot));
+          }
+        } catch (caught) {
+          error = caught instanceof Error ? caught : new Error(String(caught));
+        }
       }
 
-      const html = renderInspectRunViewerHtml({ target, snapshot: snapshot ?? null, error });
+      const inboxItems = inboxEntries.map((inboxEntry) => {
+        const inboxTarget = inboxEntry.target;
+        const inboxTargetKey = renderTargetKey(inboxTarget);
+        const selected = requestTarget !== null && inboxTargetKey === renderTargetKey(requestTarget);
+        return {
+          target: inboxTarget,
+          title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
+          updatedAt: inboxEntry.updatedAt ?? null,
+          signal: normalizeInboxSignal(cachedInboxSignals.get(inboxTargetKey), normalizeInboxSignal(inboxEntry.signal)),
+          snapshot: selected ? (snapshot ?? null) : null,
+        };
+      });
+
+      const html = renderInspectRunViewerHtml({
+        repo: requestedView.scopeFilter,
+        target: requestTarget,
+        snapshot: snapshot ?? null,
+        error,
+        inboxItems,
+        selectedTitle: requestTarget === null
+          ? null
+          : assignedEntries.find((entry) => renderTargetKey(entry.target) === renderTargetKey(requestTarget))?.title ?? null,
+        scopeOptions: collectScopeOptions(scopeSourceEntries, { selectedTarget: requestTarget, scopeFilter: requestedView.scopeFilter }),
+        inboxUpdatedWithinDays: requestedView.updatedWithinDays,
+        inboxState: requestedView.state,
+        inboxMode: requestedView.mode,
+        inboxPage: effectivePage,
+        inboxTotalPages: totalPages,
+      });
       writeHtml(response, html);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
-      const malformedRequest = /invalid url|uri malformed/i.test(message);
+      const malformedRequest = /invalid url|uri malformed/i.test(message) || caught?.code === "MALFORMED_TARGET";
       writeText(
         response,
         malformedRequest ? 400 : 500,
@@ -1543,7 +2519,7 @@ export async function runCli(
     `${JSON.stringify({
       ok: true,
       message: "read-only inspect-run viewer started",
-      target: normalizeInspectionTarget({ repo: options.repo, pr: options.pr }),
+      scope: { repo: options.repo },
       url: formatInspectRunViewerUrl(options.host, options.port),
       reload: "manual",
     })}\n`,

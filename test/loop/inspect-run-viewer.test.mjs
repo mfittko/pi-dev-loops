@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { once } from "node:events";
 import { get, request } from "node:http";
 import test from "node:test";
@@ -27,7 +30,7 @@ import {
   REVIEWER_STATE,
   REVIEWER_TRANSITIONS,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
-import { createInspectionViewerAdapter } from "../../scripts/loop/_inspect-run-viewer-adapter.mjs";
+import { createInspectionViewerAdapter, parseGhJsonOutput } from "../../scripts/loop/_inspect-run-viewer-adapter.mjs";
 
 function makeSnapshot(overrides = {}) {
   return {
@@ -103,24 +106,26 @@ function requestOnce(url, { method = "GET" } = {}) {
   });
 }
 
-test("parseInspectRunViewerCliArgs normalizes target values and rejects malformed input with usage", () => {
-  const parsed = parseInspectRunViewerCliArgs(["--repo", "  owner/repo  ", "--pr", "55"]);
+test("parseInspectRunViewerCliArgs normalizes repo values and rejects malformed input with usage", () => {
+  const parsed = parseInspectRunViewerCliArgs(["--repo", "  owner/repo  "]);
   assert.equal(parsed.repo, "owner/repo");
-  assert.equal(parsed.pr, 55);
+  assert.equal("pr" in parsed, false);
 
-  const bracketedIpv6Host = parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "[::1]"]);
+  const unscoped = parseInspectRunViewerCliArgs([]);
+  assert.equal(unscoped.repo, undefined);
+  assert.equal("pr" in unscoped, false);
+
+  const bracketedIpv6Host = parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--host", "[::1]"]);
   assert.equal(bracketedIpv6Host.host, "::1");
 
   assert.throws(
-    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "0.0.0.0"]),
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--host", "0.0.0.0"]),
     /--host must stay on localhost\/loopback unless --allow-non-localhost is set/i,
   );
 
   const nonLocalhostOptIn = parseInspectRunViewerCliArgs([
     "--repo",
     "owner/repo",
-    "--pr",
-    "55",
     "--host",
     "0.0.0.0",
     "--allow-non-localhost",
@@ -132,7 +137,7 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
 
   let malformedTargetError;
   try {
-    parseInspectRunViewerCliArgs(["--repo", "../../bad", "--pr", "55"]);
+    parseInspectRunViewerCliArgs(["--repo", "../../bad"]);
   } catch (error) {
     malformedTargetError = error;
   }
@@ -140,13 +145,16 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
   assert.match(malformedTargetError.message, /Invalid repository slug|owner\/name|Repository slug/i);
   assert.equal(typeof malformedTargetError.usage, "string");
   assert.ok(malformedTargetError.usage.length > 0);
+  assert.match(malformedTargetError.usage, /Usage: inspect-run-viewer\.mjs \[--repo <owner\/name>\]/);
 
+  assert.throws(
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55"]),
+    /--pr is no longer supported on the CLI/i,
+  );
   assert.throws(
     () => parseInspectRunViewerCliArgs([
       "--repo",
       "owner/repo",
-      "--pr",
-      "55",
       "--reviewer-login",
       "reviewer",
       "--reviewer-input",
@@ -155,11 +163,11 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
     /cannot be combined/i,
   );
   assert.throws(
-    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--reviewer-login", "   "]),
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--reviewer-login", "   "]),
     /must not be empty/i,
   );
   assert.throws(
-    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "   "]),
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--host", "   "]),
     /--host must not be empty/i,
   );
 });
@@ -397,6 +405,7 @@ test("buildInspectionMermaidGraph normalizes and de-duplicates transition tokens
 
   const graph = buildInspectionMermaidGraph(snapshot);
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot,
   });
@@ -408,14 +417,167 @@ test("buildInspectionMermaidGraph normalizes and de-duplicates transition tokens
   assert.doesNotMatch(html, /waiting_for_ci,\s*waiting_for_ci/);
 });
 
-test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
+test("renderInspectRunViewerHtml keeps the empty inbox copy generic across state and paging filters", () => {
   const html = renderInspectRunViewerHtml({
-    target: { repo: "owner/repo", pr: 55 },
-    snapshot: makeSnapshot(),
+    repo: null,
+    target: null,
+    snapshot: null,
+    inboxItems: [],
+    inboxUpdatedWithinDays: null,
+    inboxState: "all",
+    inboxPage: 3,
+    inboxTotalPages: 5,
   });
 
-  assert.match(html, /PR #55 State/);
-  assert.match(html, /aria-label="PR #55 State"/);
+  assert.match(html, /No PR selected/);
+  assert.match(html, /No assigned PR in all repos matched the current view yet\./);
+  assert.match(html, /widen the state or updated filters, or move to another inbox page\./);
+  assert.doesNotMatch(html, /assigned open PR/i);
+  assert.doesNotMatch(html, /limit filters/i);
+});
+
+test("renderInspectRunViewerHtml keeps scope selection and retained target when repo casing differs", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "Owner/Repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    scopeOptions: ["owner/repo", "other/repo"],
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+  });
+
+  assert.match(html, /<option value="\/\?scope=owner%2Frepo&amp;repo=owner%2Frepo&amp;pr=55&amp;state=open&amp;mode=assignee" selected>owner\/repo<\/option>/);
+  assert.match(html, /<option value="\/\?scope=other%2Frepo&amp;state=open&amp;mode=assignee" >other\/repo<\/option>/);
+});
+
+
+test("renderInspectRunViewerHtml de-dupes scope options case-insensitively", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "Owner/Repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    scopeOptions: [" Owner/Repo ", "owner/repo", "other/repo"],
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+  });
+
+  assert.equal(html.match(/<option[^>]*>Owner\/Repo<\/option>/g)?.length ?? 0, 1);
+  assert.equal(html.match(/<option[^>]*>owner\/repo<\/option>/g)?.length ?? 0, 0);
+  assert.match(html, /<option value="\/\?scope=other%2Frepo&amp;state=open&amp;mode=assignee" >other\/repo<\/option>/);
+});
+
+test("renderInspectRunViewerHtml keeps inbox selection stable when repo casing differs", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "Owner/Repo",
+    target: { repo: "Owner/Repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    scopeOptions: ["owner/repo"],
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+  });
+
+  assert.match(html, /class="assigned-pr-row assigned-pr-row-waiting is-selected"/);
+  assert.match(html, /href="\/\?scope=Owner%2FRepo&amp;repo=owner%2Frepo&amp;pr=55&amp;state=open&amp;mode=assignee" aria-current="page"/);
+});
+
+test("renderInspectRunViewerHtml hides pagination controls in the collapsed sidebar", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    scopeOptions: ["owner/repo"],
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+    inboxTotalPages: 2,
+  });
+
+  assert.match(html, /\.assigned-pr-inbox\[data-sidebar-collapsed="true"\] \.assigned-pr-pagination \{ display: none; \}/);
+});
+
+test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+      {
+        target: { repo: "other/repo", pr: 77 },
+        title: "Waiting PR",
+        snapshot: makeSnapshot({
+          target: { repo: "other/repo", pr: 77 },
+          statusClass: "blocked",
+          needsAttention: true,
+          layers: {
+            copilot: {
+              currentState: "unresolved_feedback_present",
+              allowedTransitions: ["already_fixed_needs_reply_resolve"],
+            },
+            reviewer: {
+              currentState: "waiting_for_author_followup",
+              scope: { mode: "all_reviewers", reviewerLogin: null },
+              allowedTransitions: ["waiting_for_re_request"],
+            },
+            steering: { status: "unavailable", reason: "no_steering_locator" },
+          },
+        }),
+      },
+    ],
+    inboxPage: 1,
+    inboxTotalPages: 2,
+  });
+
+  assert.match(html, /PR inbox/);
+  assert.match(html, /Search PRs/);
+  assert.match(html, /id="assigned-pr-mode-select"[^>]*aria-label="Assignment mode"/);
+  assert.match(html, /<label class="assigned-pr-filter-label" for="assigned-pr-state-select">State<\/label>/);
+  assert.match(html, /id="assigned-pr-updated-select"[^>]*aria-label="Updated window"/);
+  assert.match(html, /grid-template-columns: auto minmax\(0, 1fr\)/);
+  assert.match(html, /\.assigned-pr-inbox \{[^}]*width: 22rem;[^}]*box-sizing: border-box;/);
+  assert.match(html, /\.assigned-pr-row\.is-selected \.assigned-pr-link \{ box-shadow: inset 0 0 0 1px #1565c0; border-radius: 0\.3rem; \}/);
+  assert.doesNotMatch(html, /\.assigned-pr-row\.is-selected \{[^}]*border-color:/);
+  assert.match(html, /data-inbox-search/);
+  assert.match(html, /inbox-collapse-toggle/);
+  assert.match(html, />◀<\/button>/);
+  assert.match(html, /\.inbox-collapse-toggle \{[^}]*background: #355061;[^}]*color: #fff;/);
+  assert.match(html, /data-inbox-item/);
+  assert.match(html, /data-empty-default="No assigned PRs are visible in this view\."/);
+  assert.match(html, /data-empty-search="No assigned PRs match this search\."/);
+  assert.match(html, /aria-current="page"/);
+  assert.ok(html.indexOf('class="assigned-pr-list"') < html.indexOf('class="assigned-pr-pagination"'));
+  assert.match(html, /aria-label="Previous page"/);
+  assert.match(html, /aria-label="Next page"/);
+  assert.doesNotMatch(html, /assigned-pr-title-indicator/);
+  assert.match(html, /pr=77/);
+  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
+  assert.match(html, /<h1>Selected PR<\/h1>/);
+  assert.match(html, /aria-label="PR #55"/);
+  assert.match(html, /title="Waiting state"/);
+  assert.match(html, /⏳/);
   assert.match(html, /Waiting for Copilot review/);
   assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
   assert.match(html, /These fields are shown directly from the loaded inspection snapshot/i);
@@ -473,15 +635,88 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /copilot layer/);
   assert.match(html, /reviewer layer/);
   assert.match(html, /steering summary/);
-  assert.match(html, /href="\/snapshot\.json"/);
+  assert.match(html, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
   assert.match(html, /manual reload only/i);
   assert.doesNotMatch(html, /Connected state map/);
   assert.doesNotMatch(html, /"schemaVersion": 1/);
   assert.doesNotMatch(html, /"ok": true/);
 });
 
-test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and absent sections", () => {
+test("renderInspectRunViewerHtml keeps selected handoff-to-copilot rows on the attention border", () => {
   const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 3 },
+    snapshot: makeSnapshot({
+      target: { repo: "owner/repo", pr: 3 },
+      outerState: "handoff_to_copilot_loop",
+      outerAction: "reenter_copilot_loop",
+      activeFamilyState: "reenter_copilot_loop",
+      statusClass: "active",
+      needsAttention: false,
+      layers: {
+        copilot: {
+          currentState: "review_requested",
+          allowedTransitions: ["determine_review_plan"],
+        },
+        reviewer: {
+          currentState: "waiting_for_review_request",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["review_requested"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 3 }, title: "docs: add IAM policy guide", updatedAt: "2026-05-22T00:00:00Z" },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row-attention/);
+  assert.match(html, /is-selected/);
+  assert.match(html, /Copilot loop needs action/);
+  assert.match(html, /title="Active loop"/);
+  assert.match(html, /🔁/);
+});
+
+test("renderInspectRunViewerHtml keeps selected closed inbox rows on the closed border", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 3 },
+    snapshot: makeSnapshot({
+      target: { repo: "owner/repo", pr: 3 },
+      outerState: "continue_current_wait",
+      outerAction: "continue_wait",
+      activeFamilyState: "continue_wait",
+      statusClass: "waiting",
+      needsAttention: false,
+    }),
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 3 },
+        title: "docs: add IAM policy guide",
+        updatedAt: "2026-05-22T00:00:00Z",
+        signal: "closed",
+        snapshot: makeSnapshot({
+          target: { repo: "owner/repo", pr: 3 },
+          outerState: "continue_current_wait",
+          outerAction: "continue_wait",
+          activeFamilyState: "continue_wait",
+          statusClass: "waiting",
+          needsAttention: false,
+        }),
+      },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row-closed/);
+  assert.match(html, /data-inbox-signal="closed"/);
+  assert.match(html, /is-selected/);
+  assert.match(html, /Waiting for Copilot review/);
+});
+
+test("renderInspectRunViewerHtml renders checkpoint-only \/ degraded cues and absent sections", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       sourceMode: "checkpoint-only",
@@ -519,6 +754,7 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
 
 test("renderInspectRunViewerHtml distinguishes empty transitions from unavailable transition data", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       layers: {
@@ -542,6 +778,7 @@ test("renderInspectRunViewerHtml distinguishes empty transitions from unavailabl
 
 test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "done_terminal",
@@ -563,7 +800,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
     }),
   });
 
-  assert.match(html, /PR #55 State/);
+  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
   assert.match(html, /PR complete/);
   assert.match(html, /The current inspection says this PR is in a terminal done state/);
   assert.match(html, /status class[\s\S]*<code>done<\/code>/);
@@ -596,6 +833,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
 
 test("renderInspectRunViewerHtml shows approved current head when clean convergence also has human approval", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "continue_current_wait",
@@ -630,6 +868,7 @@ test("renderInspectRunViewerHtml shows approved current head when clean converge
 
 test("renderInspectRunViewerHtml shows clean convergence instead of re-request language for same-head clean Copilot reviews", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "continue_current_wait",
@@ -661,6 +900,7 @@ test("renderInspectRunViewerHtml shows clean convergence instead of re-request l
 
 test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and needs_reconcile in the banner", () => {
   const liveOwnerHtml = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "stay_with_current_live_owner",
@@ -685,6 +925,7 @@ test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and need
   assert.doesNotMatch(liveOwnerHtml, /Reviewer loop active/);
 
   const reconcileHtml = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "needs_reconcile",
@@ -713,6 +954,7 @@ test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and need
 
 test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       needsAttention: true,
@@ -732,6 +974,7 @@ test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
 
 test("renderInspectRunViewerHtml renders unavailable snapshot and malformed target load errors explicitly", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "bad target", pr: "x" },
     snapshot: null,
     error: new Error("target.pr must be a positive integer"),
@@ -741,12 +984,13 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
   assert.match(html, /target\.pr must be a positive integer/);
   assert.match(html, /no state graph can be rendered yet/i);
   assert.match(html, /manual reload only/i);
-  assert.match(html, /href="\/snapshot\.json"/);
+  assert.match(html, /href="\/snapshot\.json\?repo=bad(?:\+|%20)target&amp;pr=x"/);
 });
 
 
 test("renderInspectRunViewerHtml treats undefined snapshots as unavailable", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: undefined,
   });
@@ -771,6 +1015,7 @@ test("buildInspectionMermaidGraph suppresses graph rendering for sourceMode unav
 
 test("renderInspectRunViewerHtml includes deterministic Mermaid asset fallback messaging", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot(),
   });
@@ -779,6 +1024,7 @@ test("renderInspectRunViewerHtml includes deterministic Mermaid asset fallback m
 });
 test("renderInspectRunViewerHtml fail-closes the graph for unavailable snapshots", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       sourceMode: "unavailable",
@@ -830,6 +1076,210 @@ test("createInspectionViewerAdapter keeps normalized target authoritative over o
   });
 });
 
+test("createInspectionViewerAdapter omits --updated when updatedWithinDays is null", async () => {
+  const seenArgs = [];
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    runGhJsonImpl: async (args) => {
+      seenArgs.push(args);
+      return [];
+    },
+  });
+
+  await adapter.listAssignedPullRequests({ repo: "owner/repo", updatedWithinDays: null });
+
+  assert.deepEqual(seenArgs[0], [
+    "search",
+    "prs",
+    "--assignee",
+    "@me",
+    "--repo",
+    "owner/repo",
+    "--state",
+    "open",
+    "--sort",
+    "updated",
+    "--order",
+    "desc",
+    "--limit",
+    "25",
+    "--json",
+    "number,title,repository,updatedAt,state,isDraft",
+  ]);
+  for (const args of seenArgs) {
+    assert.equal(args.includes("--updated"), false);
+  }
+});
+
+test("createInspectionViewerAdapter refreshes expired assigned PR cache entries", async () => {
+  let nowMs = Date.parse("2026-05-21T00:00:00.000Z");
+  let ghCalls = 0;
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    nowImpl: () => nowMs,
+    runGhJsonImpl: async (args) => {
+      ghCalls += 1;
+      if (args.includes("changes_requested") || args.includes("failure") || args.includes("pending") || args.includes("approved")) {
+        return [];
+      }
+      return [
+        {
+          number: 55,
+          title: "Primary PR",
+          repository: { nameWithOwner: "owner/repo" },
+          state: "OPEN",
+          isDraft: false,
+        },
+      ];
+    },
+  });
+
+  await adapter.listAssignedPullRequests({ repo: "owner/repo" });
+  assert.equal(ghCalls, 5);
+
+  await adapter.listAssignedPullRequests({ repo: "owner/repo" });
+  assert.equal(ghCalls, 5);
+
+  nowMs += 16_000;
+  await adapter.listAssignedPullRequests({ repo: "owner/repo" });
+  assert.equal(ghCalls, 10);
+});
+
+test("createInspectionViewerAdapter lists assigned open PRs for the current user", async () => {
+  const seenArgs = [];
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    nowImpl: () => Date.parse("2026-05-21T00:00:00.000Z"),
+    runGhJsonImpl: async (args) => {
+      seenArgs.push(args);
+      if (args.includes("changes_requested")) {
+        return [
+          { number: 77, repository: { owner: { login: "other" }, name: "repo" } },
+        ];
+      }
+      if (args.includes("failure")) {
+        return [];
+      }
+      if (args.includes("pending")) {
+        return [];
+      }
+      if (args.includes("approved")) {
+        return [
+          { number: 55, repository: { nameWithOwner: "owner/repo" } },
+        ];
+      }
+      return [
+        {
+          number: 77,
+          title: "Needs attention PR",
+          repository: { owner: { login: "other" }, name: "repo" },
+          state: "OPEN",
+          isDraft: false,
+        },
+        {
+          number: 55,
+          title: "Primary PR",
+          repository: { nameWithOwner: "owner/repo" },
+          state: "OPEN",
+          isDraft: false,
+        },
+      ];
+    },
+  });
+
+  const assigned = await adapter.listAssignedPullRequests({ repo: "owner/repo" });
+
+  assert.deepEqual(seenArgs[0], [
+    "search",
+    "prs",
+    "--assignee",
+    "@me",
+    "--repo",
+    "owner/repo",
+    "--state",
+    "open",
+    "--sort",
+    "updated",
+    "--order",
+    "desc",
+    "--updated",
+    ">=2026-05-14",
+    "--limit",
+    "25",
+    "--json",
+    "number,title,repository,updatedAt,state,isDraft",
+  ]);
+  assert.equal(seenArgs.length, 5);
+  assert.deepEqual(assigned, [
+    { target: { repo: "other/repo", pr: 77 }, title: "Needs attention PR", updatedAt: null, signal: "attention" },
+    { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR", updatedAt: null, signal: "ready" },
+  ]);
+});
+
+test("parseGhJsonOutput wraps invalid gh JSON deterministically", () => {
+  assert.throws(
+    () => parseGhJsonOutput("not json\n"),
+    /Invalid JSON from gh: not json/,
+  );
+});
+
+test("createInspectionViewerAdapter listAssignedPullRequests reports invalid gh JSON deterministically", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "inspect-viewer-gh-"));
+
+  try {
+    const fakeGh = path.join(dir, "fake-gh.sh");
+    await writeFile(fakeGh, "#!/bin/sh\nprintf 'not json\n'\n", "utf8");
+    await chmod(fakeGh, 0o755);
+
+    const adapter = createInspectionViewerAdapter({
+      inspectRunImpl: async () => ({ ok: true }),
+    });
+
+    await assert.rejects(
+      () => adapter.listAssignedPullRequests({ repo: "owner/repo", ghCommand: fakeGh }),
+      /Invalid JSON from gh: not json/,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+
+test("createInspectionViewerAdapter listAssignedPullRequests wraps malformed repo filters deterministically", async () => {
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    runGhJsonImpl: async () => {
+      throw new Error("should not reach gh");
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.listAssignedPullRequests({ repo: "owner" }),
+    (error) => error?.code === "MALFORMED_TARGET" && /repo must match <owner\/name>/.test(String(error?.message)),
+  );
+});
+
+test("createInspectionViewerAdapter listAssignedPullRequests skips malformed search rows", async () => {
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    runGhJsonImpl: async (args) => {
+      if (args.includes("changes_requested") || args.includes("failure") || args.includes("pending") || args.includes("approved")) {
+        return [];
+      }
+      return [
+        { number: 0, repository: { nameWithOwner: "owner/repo" } },
+        { number: 12, repository: null },
+        { number: 44, repository: { owner: { login: "owner" }, name: "repo" }, state: "OPEN", isDraft: false },
+      ];
+    },
+  });
+
+  const assigned = await adapter.listAssignedPullRequests({ repo: "owner/repo" });
+  assert.deepEqual(assigned, [
+    { target: { repo: "owner/repo", pr: 44 }, title: null, updatedAt: null, signal: "waiting" },
+  ]);
+});
+
 test("createInspectRunViewerServer serves browser html from adapter snapshot without inline full snapshot dump", async () => {
   let loadCount = 0;
   const adapter = {
@@ -853,13 +1303,124 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
     assert.equal(response.headers["cache-control"], "no-store");
-    assert.match(response.body, /PR #55 State/);
+    assert.match(response.body, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
     assert.match(response.body, /owner\/repo/);
     assert.match(response.body, /degraded/);
     assert.match(response.body, /manual reload only/i);
-    assert.match(response.body, /href="\/snapshot\.json"/);
+    assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
     assert.doesNotMatch(response.body, /"schemaVersion": 1/);
     assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer does not eager-load non-selected sidebar snapshots", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(`${target.repo}#${target.pr}`);
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Current PR" },
+        ...Array.from({ length: 15 }, (_, index) => ({
+          target: { repo: `other/repo-${index + 1}`, pr: index + 1 },
+          title: `PR ${index + 1}`,
+        })),
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(seenTargets.length, 1);
+    assert.equal(seenTargets[0], "owner/repo#55");
+    assert.match(response.body, /PR 15/);
+    assert.doesNotMatch(response.body, /Snapshot unavailable/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer skips malformed assigned inbox entries instead of blanking the list", async () => {
+  const adapter = {
+    async loadSnapshot(target) {
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "../../bad", pr: 99 }, title: "Broken" },
+        { target: { repo: "other/repo", pr: 77 }, title: "Still visible" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /Still visible/);
+    assert.doesNotMatch(response.body, /Broken/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer supports selecting another PR from query params", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(target);
+      return makeSnapshot({
+        target,
+        runId: `pr-${target.pr}`,
+      });
+    },
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Default" },
+        { target: { repo: "owner/repo", pr: 77 }, title: "Selected from inbox" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?pr=77`);
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /aria-label="PR #77"/);
+    assert.match(response.body, /<h1>Selected from inbox<\/h1>/);
+    assert.match(response.body, /Selected from inbox/);
+    assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
+    assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 77));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -1004,6 +1565,171 @@ test("createInspectRunViewerServer serves authoritative snapshot JSON on /snapsh
   }
 });
 
+test("createInspectRunViewerServer preserves cached authoritative inbox signals after another PR is selected", async () => {
+  const adapter = {
+    async loadSnapshot(target) {
+      if (target.pr === 55) {
+        return makeSnapshot({
+          target,
+          layers: {
+            copilot: {
+              currentState: "ready_to_rerequest_review",
+              allowedTransitions: [],
+              sameHeadCleanConverged: true,
+              loopDisposition: "clean_converged",
+              terminal: false,
+            },
+            reviewer: {
+              currentState: "waiting_for_review_request",
+              scope: { mode: "all_reviewers", reviewerLogin: null },
+              allowedTransitions: [],
+            },
+            steering: { status: "unavailable", reason: "no_steering_locator" },
+          },
+        });
+      }
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Ready PR", signal: "waiting", updatedAt: "2026-05-21T00:00:00Z" },
+        { target: { repo: "owner/repo", pr: 77 }, title: "Selected later", signal: "waiting", updatedAt: "2026-05-22T00:00:00Z" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const firstResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=55`);
+    assert.equal(firstResponse.statusCode, 200);
+    assert.match(firstResponse.body, /assigned-pr-row-ready/);
+
+    const secondResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=77`);
+    assert.equal(secondResponse.statusCode, 200);
+    assert.match(secondResponse.body, /Ready PR/);
+    assert.match(secondResponse.body, /assigned-pr-row-ready/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer honors an explicit inbox page even when a selected PR exists", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(target);
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return Array.from({ length: 30 }, (_, index) => ({
+        target: { repo: "owner/repo", pr: index + 1 },
+        title: `PR ${index + 1}`,
+        updatedAt: `2026-05-${String((index % 9) + 10).padStart(2, "0")}T00:00:00Z`,
+      }));
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=1&page=2`);
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /aria-label="PR #1"/);
+    assert.match(response.body, /<h1>PR 1<\/h1>/);
+    assert.match(response.body, /class="assigned-pr-page-status">2\/2</);
+    assert.match(response.body, /PR 30/);
+    assert.doesNotMatch(response.body, /aria-current="page"/);
+    assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 1));
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer keeps explicit query targets even when they are not in the current inbox page", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(target);
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR", updatedAt: "2026-05-21T00:00:00Z" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const htmlResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=77`);
+    assert.equal(htmlResponse.statusCode, 200);
+    assert.match(htmlResponse.body, /aria-label="PR #77"/);
+    assert.match(htmlResponse.body, /<h1>PR #77<\/h1>/);
+    assert.match(htmlResponse.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
+    assert.doesNotMatch(htmlResponse.body, /aria-current="page"/);
+    assert.doesNotMatch(htmlResponse.body, /#77<\/span>/);
+
+    const jsonResponse = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=owner/repo&pr=77`);
+    assert.equal(jsonResponse.statusCode, 200);
+    const payload = JSON.parse(jsonResponse.body);
+    assert.equal(payload.target.repo, "owner/repo");
+    assert.equal(payload.target.pr, 77);
+    assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 77));
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer resolves /snapshot.json target from query params", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(target);
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?pr=77`);
+
+    assert.equal(response.statusCode, 200);
+    const payload = JSON.parse(response.body);
+    assert.equal(payload.target.repo, "owner/repo");
+    assert.equal(payload.target.pr, 77);
+    assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 77));
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("createInspectRunViewerServer treats missing JSON snapshots as machine-readable failures", async () => {
   let loadCount = 0;
   const adapter = {
@@ -1138,6 +1864,218 @@ test("createInspectRunViewerServer keeps favicon, unsupported paths, and unsuppo
 });
 
 
+test("createInspectRunViewerServer treats malformed repo slug query params as bad requests", async () => {
+  let loadCount = 0;
+  const adapter = {
+    async loadSnapshot() {
+      loadCount += 1;
+      throw new Error("should not load snapshot for malformed targets");
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const htmlResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=../../bad&pr=77`);
+    assert.equal(htmlResponse.statusCode, 400);
+    assert.equal(htmlResponse.body, "Bad Request");
+
+    const jsonResponse = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=../../bad&pr=77`);
+    assert.equal(jsonResponse.statusCode, 400);
+    assert.equal(jsonResponse.headers["content-type"], "application/json; charset=utf-8");
+    assert.deepEqual(JSON.parse(jsonResponse.body), {
+      ok: false,
+      target: { repo: "owner/repo", pr: 55 },
+      error: { message: "target.repo must match <owner/name>" },
+    });
+    assert.equal(loadCount, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer reuses the all-repos inbox query for the default unscoped view", async () => {
+  const listCalls = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests(options = {}) {
+      listCalls.push({
+        repo: options.repo,
+        updatedWithinDays: options.updatedWithinDays ?? null,
+        state: options.state ?? null,
+        mode: options.mode ?? null,
+        limit: options.limit ?? null,
+      });
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Inbox PR", updatedAt: "2026-05-21T00:00:00Z" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=55`);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(listCalls, [
+      {
+        repo: undefined,
+        updatedWithinDays: 7,
+        state: "open",
+        mode: "assignee",
+        limit: 100,
+      },
+    ]);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer normalizes unsupported assigned inbox signals before rendering", async () => {
+  const adapter = {
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR", updatedAt: "2026-05-21T00:00:00Z" },
+        { target: { repo: "owner/repo", pr: 55 }, title: null, updatedAt: null, signal: "mystery-state" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /assigned-pr-row-unknown/);
+    assert.match(response.body, /data-inbox-signal="unknown"/);
+    assert.doesNotMatch(response.body, /assigned-pr-row-mystery-state/);
+    assert.doesNotMatch(response.body, /data-inbox-signal="mystery-state"/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer constrains repo-scoped inbox discovery to the fixed repo", async () => {
+  const listCalls = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests(options = {}) {
+      listCalls.push({
+        repo: options.repo ?? null,
+        updatedWithinDays: options.updatedWithinDays ?? null,
+        state: options.state ?? null,
+        mode: options.mode ?? null,
+        limit: options.limit ?? null,
+      });
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Scoped PR", updatedAt: "2026-05-21T00:00:00Z" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(listCalls, [
+      {
+        repo: "owner/repo",
+        updatedWithinDays: 7,
+        state: "open",
+        mode: "assignee",
+        limit: 100,
+      },
+    ]);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer returns JSON for malformed /snapshot.json repo/pr query params", async () => {
+  const adapter = {
+    async loadSnapshot() {
+      throw new Error("should not load snapshot for malformed targets");
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=other/repo&pr=77`);
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.headers["content-type"], "application/json; charset=utf-8");
+    assert.deepEqual(JSON.parse(response.body), {
+      ok: false,
+      target: { repo: "owner/repo", pr: 55 },
+      error: { message: "repo query param must match the repo-scoped viewer" },
+    });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer treats malformed repo/pr query params as bad requests", async () => {
+  const adapter = {
+    async loadSnapshot() {
+      throw new Error("should not load snapshot for malformed targets");
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=other/repo&pr=77`);
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.body, "Bad Request");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("createInspectRunViewerServer guards malformed request URLs and undefined snapshots", async () => {
   let loadCount = 0;
   const adapter = {
@@ -1160,7 +2098,7 @@ test("createInspectRunViewerServer guards malformed request URLs and undefined s
 
     assert.equal(response.statusCode, 200);
     assert.match(response.body, /Snapshot unavailable/);
-    assert.match(response.body, /href="\/snapshot\.json"/);
+    assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
     assert.equal(loadCount, 1);
 
     const malformedResponse = await new Promise((resolve) => {
@@ -1205,8 +2143,6 @@ test("runCli explains missing lsof when --restart is requested", async () => {
     () => runCli([
       "--repo",
       "owner/repo",
-      "--pr",
-      "55",
       "--restart",
     ], {
       stdout: { write() {} },
