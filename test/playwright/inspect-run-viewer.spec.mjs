@@ -43,6 +43,11 @@ async function waitForMermaidGraph(page) {
 test("webkit renders the Mermaid-first inspect-run viewer and captures a screenshot", async ({ page }, testInfo) => {
   const { server, url } = await startViewer(makeInspectionSnapshot(), [
     { target: { repo: "other/repo", pr: 77 }, title: "Waiting PR", signal: "attention" },
+    ...Array.from({ length: 26 }, (_, index) => ({
+      target: { repo: `other/repo-${index + 1}`, pr: 200 + index },
+      title: `Extra PR ${index + 1}`,
+      signal: "waiting",
+    })),
   ]);
 
   try {
@@ -60,6 +65,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(page.locator(".state-graph-cues")).toContainText(/End/);
     await expect(page.locator(".state-graph-cues")).toContainText(/🔁/);
     const sidebar = page.locator(".assigned-pr-inbox");
+    await expect(page.getByRole("heading", { name: "PR inbox" })).toBeVisible();
     await expect(page.getByLabel("Assignment mode")).toBeVisible();
     await expect(page.getByLabel("Updated window")).toBeVisible();
     const sidebarToggle = page.locator("[data-inbox-toggle]");
@@ -70,8 +76,13 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await sidebarToggle.click();
     await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
 
-    await expect(page.locator('[data-inbox-item][data-inbox-signal="waiting"] .assigned-pr-signal-text')).toContainText("Waiting");
-    await expect(page.locator('[data-inbox-item][data-inbox-signal="attention"] .assigned-pr-signal-text')).toContainText("Attention");
+    await expect(page.locator('.assigned-pr-title-indicator')).toHaveCount(0);
+    const paginationAfterList = await page.locator('.assigned-pr-inbox').evaluate((node) => {
+      const list = node.querySelector('.assigned-pr-list');
+      const pagination = node.querySelector('.assigned-pr-pagination');
+      return Boolean(list && pagination && (list.compareDocumentPosition(pagination) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+    expect(paginationAfterList).toBeTruthy();
 
     const inboxSearch = page.locator("[data-inbox-search]");
     await inboxSearch.fill("other/repo");

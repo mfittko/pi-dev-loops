@@ -1228,7 +1228,11 @@ function deriveInboxSignalFromSnapshot(snapshot) {
   if (snapshot.needsAttention === true
     || outerState === OUTER_STATE.NEEDS_RECONCILE
     || outerState === OUTER_STATE.STOP_NEEDS_HUMAN
+    || outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP
+    || outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP
     || outerAction === "stop"
+    || outerAction === "reenter_copilot_loop"
+    || outerAction === "reenter_reviewer_loop"
     || statusClass === "blocked"
     || copilotState === "unresolved_feedback_present"
     || copilotState === "already_fixed_needs_reply_resolve") {
@@ -1393,7 +1397,7 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
   });
   return `<aside class="assigned-pr-inbox" data-sidebar-collapsed="false">
     <div class="assigned-pr-inbox-header">
-      <h2>Assigned PR inbox</h2>
+      <h2>PR inbox</h2>
       <button type="button" class="inbox-collapse-toggle" data-inbox-toggle aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar">⏪</button>
     </div>
     <div class="assigned-pr-controls">
@@ -1429,7 +1433,6 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
         </select>
       </div>
     </div>
-    ${renderInboxPagination({ selectedTarget, scopeFilter, updatedWithinDays, state, mode, page, totalPages })}
     <label class="inbox-search-label" for="inbox-search">Search PRs</label>
     <input id="inbox-search" class="inbox-search-input" type="search" placeholder="Search PR # or title…" data-inbox-search />
     <ul class="assigned-pr-list" data-inbox-list>
@@ -1442,10 +1445,6 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
     return `<li class="assigned-pr-row assigned-pr-row-${escapeHtml(summary.signal)} ${selected ? "is-selected" : ""}" data-inbox-item data-inbox-signal="${escapeHtml(summary.signal)}" data-search="${escapeHtml(searchText)}">
           <a class="assigned-pr-link" href="${escapeHtml(buildInboxHref(target, { scopeFilter, updatedWithinDays, state, mode, page }))}" ${selected ? 'aria-current="page"' : ""}>
             <div class="assigned-pr-line assigned-pr-title-line">
-              <span class="assigned-pr-signal assigned-pr-signal-${escapeHtml(summary.signal)}" aria-label="${escapeHtml(summary.signalLabel.label)}" title="${escapeHtml(summary.signalLabel.label)}">
-                <span class="assigned-pr-signal-dot" aria-hidden="true"></span>
-                <span class="assigned-pr-signal-text">${escapeHtml(summary.signalLabel.shortLabel)}</span>
-              </span>
               <span class="assigned-pr-id">#${escapeHtml(String(target.pr))}</span>
               <span class="assigned-pr-title">${escapeHtml(item.title ?? "Untitled pull request")}</span>
             </div>
@@ -1463,6 +1462,7 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
   }).join("")}
     </ul>
     <p class="assigned-pr-empty" data-inbox-empty data-empty-default="No assigned PRs are visible in this view." data-empty-search="No assigned PRs match this search." hidden>No assigned PRs are visible in this view.</p>
+    ${renderInboxPagination({ selectedTarget, scopeFilter, updatedWithinDays, state, mode, page, totalPages })}
   </aside>`;
 }
 
@@ -1611,24 +1611,20 @@ export function renderInspectRunViewerHtml({
       .assigned-pr-row.assigned-pr-row-closed { border-left-color: #7a8694; }
       .assigned-pr-row.assigned-pr-row-unknown { border-left-color: #8ca3b8; }
       .assigned-pr-row.assigned-pr-row-waiting { border-left-color: #1565c0; }
-      .assigned-pr-row.is-selected { border-color: #1565c0; box-shadow: inset 0 0 0 1px #1565c0; }
+      .assigned-pr-row.is-selected { box-shadow: inset 0 0 0 1px #1565c0; }
       .assigned-pr-link { display: block; padding: 0.38rem 0.45rem; color: inherit; text-decoration: none; }
-      .assigned-pr-title-line { display: flex; align-items: center; gap: 0.35rem; }
+      .assigned-pr-title-line { display: flex; align-items: flex-start; gap: 0.35rem; }
       .assigned-pr-id { font-weight: 700; margin-right: 0.15rem; }
-      .assigned-pr-title { font-weight: 600; min-width: 0; }
+      .assigned-pr-title { font-weight: 600; min-width: 0; flex: 1 1 auto; }
       .assigned-pr-line + .assigned-pr-line { margin-top: 0.18rem; }
       .assigned-pr-meta { display: flex; flex-wrap: wrap; gap: 0.22rem 0.36rem; font-size: 0.76rem; color: #486174; }
       .assigned-pr-meta-primary { justify-content: space-between; align-items: baseline; gap: 0.5rem; }
       .assigned-pr-meta-primary .assigned-pr-repo { text-align: left; min-width: 0; }
       .assigned-pr-meta-primary .assigned-pr-updated { margin-left: auto; text-align: right; white-space: nowrap; }
-      .assigned-pr-signal { display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 999px; padding: 0.08rem 0.36rem; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.01em; text-transform: uppercase; white-space: nowrap; }
-      .assigned-pr-signal-dot { width: 0.42rem; height: 0.42rem; border-radius: 999px; background: currentColor; flex: 0 0 auto; }
-      .assigned-pr-signal-attention { color: #8a4b00; background: #fff1de; }
-      .assigned-pr-signal-pending { color: #7a5d00; background: #fff7d6; }
-      .assigned-pr-signal-ready { color: #25692c; background: #e8f5e9; }
-      .assigned-pr-signal-closed { color: #556270; background: #eef2f5; }
-      .assigned-pr-signal-unknown { color: #486174; background: #edf3f8; }
-      .assigned-pr-signal-waiting { color: #1254a1; background: #e8f1fd; }
+      .assigned-pr-pagination { display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-top: 0.45rem; }
+      .assigned-pr-page-link { color: #5b2ca0; text-decoration: none; font-weight: 700; }
+      .assigned-pr-page-link.is-disabled { color: #9aa9b8; pointer-events: none; }
+      .assigned-pr-page-status { font-weight: 700; color: #253b53; }
       .inspection-main { min-width: 0; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .current-pr-state-banner { border: none; background: none; box-shadow: none; padding: 0; margin-top: 0; }
@@ -2169,10 +2165,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         return;
       }
 
-      const seedEntries = requestTarget === null
-        ? pagedEntries
-        : [{ target: requestTarget, title: null, updatedAt: null }, ...pagedEntries];
-      const inboxEntries = dedupeInboxEntries(seedEntries);
+      const inboxEntries = dedupeInboxEntries(pagedEntries);
 
       let snapshot = null;
       let error = null;

@@ -469,21 +469,25 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
         }),
       },
     ],
+    inboxPage: 1,
+    inboxTotalPages: 2,
   });
 
-  assert.match(html, /Assigned PR inbox/);
+  assert.match(html, /PR inbox/);
   assert.match(html, /Search PRs/);
   assert.match(html, /id="assigned-pr-mode-select"[^>]*aria-label="Assignment mode"/);
   assert.match(html, /id="assigned-pr-updated-select"[^>]*aria-label="Updated window"/);
   assert.match(html, /grid-template-columns: auto minmax\(0, 1fr\)/);
   assert.match(html, /\.assigned-pr-inbox \{[^}]*width: 22rem;[^}]*box-sizing: border-box;/);
+  assert.match(html, /\.assigned-pr-row\.is-selected \{ box-shadow: inset 0 0 0 1px #1565c0; \}/);
+  assert.doesNotMatch(html, /\.assigned-pr-row\.is-selected \{[^}]*border-color:/);
   assert.match(html, /data-inbox-search/);
   assert.match(html, /data-inbox-item/);
   assert.match(html, /data-empty-default="No assigned PRs are visible in this view\."/);
   assert.match(html, /data-empty-search="No assigned PRs match this search\."/);
   assert.match(html, /aria-current="page"/);
-  assert.match(html, /assigned-pr-signal-attention/);
-  assert.match(html, />Attention</);
+  assert.ok(html.indexOf('class="assigned-pr-list"') < html.indexOf('class="assigned-pr-pagination"'));
+  assert.doesNotMatch(html, /assigned-pr-title-indicator/);
   assert.match(html, /pr=77/);
   assert.match(html, /PR #55 State/);
   assert.match(html, /aria-label="PR #55 State"/);
@@ -551,7 +555,41 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.doesNotMatch(html, /"ok": true/);
 });
 
-test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and absent sections", () => {
+test("renderInspectRunViewerHtml keeps selected handoff-to-copilot rows on the attention border", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 3 },
+    snapshot: makeSnapshot({
+      target: { repo: "owner/repo", pr: 3 },
+      outerState: "handoff_to_copilot_loop",
+      outerAction: "reenter_copilot_loop",
+      activeFamilyState: "reenter_copilot_loop",
+      statusClass: "active",
+      needsAttention: false,
+      layers: {
+        copilot: {
+          currentState: "review_requested",
+          allowedTransitions: ["determine_review_plan"],
+        },
+        reviewer: {
+          currentState: "waiting_for_review_request",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["review_requested"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 3 }, title: "docs: add IAM policy guide", updatedAt: "2026-05-22T00:00:00Z" },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row-attention/);
+  assert.match(html, /is-selected/);
+  assert.match(html, /Copilot loop needs action/);
+});
+
+test("renderInspectRunViewerHtml renders checkpoint-only \/ degraded cues and absent sections", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
@@ -1380,6 +1418,8 @@ test("createInspectRunViewerServer keeps explicit query targets even when they a
     assert.equal(htmlResponse.statusCode, 200);
     assert.match(htmlResponse.body, /PR #77 State/);
     assert.match(htmlResponse.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
+    assert.doesNotMatch(htmlResponse.body, /aria-current="page"/);
+    assert.doesNotMatch(htmlResponse.body, /#77<\/span>/);
 
     const jsonResponse = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=owner/repo&pr=77`);
     assert.equal(jsonResponse.statusCode, 200);
