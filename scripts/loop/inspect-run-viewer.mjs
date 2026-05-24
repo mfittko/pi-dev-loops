@@ -1293,6 +1293,7 @@ export function renderInspectRunViewerHtml({
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
   const title = `${target.repo}#${target.pr} inspection snapshot`;
   const runId = normalizedSnapshot?.runId ?? "not present";
+  const rawSnapshotHref = `/snapshot.json?repo=${encodeURIComponent(target.repo)}&pr=${encodeURIComponent(String(target.pr))}`;
   const topSummary = normalizedSnapshot === null
     ? `<section>
       <h2>Snapshot unavailable</h2>
@@ -1408,7 +1409,7 @@ export function renderInspectRunViewerHtml({
         ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph)}
         ${renderCollapsedDetailsPanel(`
       <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
-      <p><strong>Refresh:</strong> manual reload only. <strong>Raw snapshot:</strong> <a href="/snapshot.json"><code>/snapshot.json</code></a></p>
+      <p><strong>Refresh:</strong> manual reload only. <strong>Raw snapshot:</strong> <a href="${escapeHtml(rawSnapshotHref)}"><code>${escapeHtml(rawSnapshotHref)}</code></a></p>
       ${topSummary}
       ${renderOuterLoopSummarySection(normalizedSnapshot)}
       ${renderCopilotLoopIterationsSection(normalizedSnapshot)}

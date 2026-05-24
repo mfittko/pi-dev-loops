@@ -508,7 +508,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /copilot layer/);
   assert.match(html, /reviewer layer/);
   assert.match(html, /steering summary/);
-  assert.match(html, /href="\/snapshot\.json"/);
+  assert.match(html, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
   assert.match(html, /manual reload only/i);
   assert.doesNotMatch(html, /Connected state map/);
   assert.doesNotMatch(html, /"schemaVersion": 1/);
@@ -776,7 +776,7 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
   assert.match(html, /target\.pr must be a positive integer/);
   assert.match(html, /no state graph can be rendered yet/i);
   assert.match(html, /manual reload only/i);
-  assert.match(html, /href="\/snapshot\.json"/);
+  assert.match(html, /href="\/snapshot\.json\?repo=bad%20target&amp;pr=x"/);
 });
 
 
@@ -949,7 +949,7 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.match(response.body, /owner\/repo/);
     assert.match(response.body, /degraded/);
     assert.match(response.body, /manual reload only/i);
-    assert.match(response.body, /href="\/snapshot\.json"/);
+    assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
     assert.doesNotMatch(response.body, /"schemaVersion": 1/);
     assert.equal(loadCount, 1);
   } finally {
@@ -989,6 +989,7 @@ test("createInspectRunViewerServer supports selecting another PR from query para
     assert.equal(response.statusCode, 200);
     assert.match(response.body, /PR #77 State/);
     assert.match(response.body, /Selected from inbox/);
+    assert.match(response.body, /href="\/snapshot\.json\?repo=other%2Frepo&amp;pr=77"/);
     assert.ok(seenTargets.some((target) => target.repo === "other/repo" && target.pr === 77));
   } finally {
     await new Promise((resolve) => server.close(resolve));
@@ -1320,7 +1321,7 @@ test("createInspectRunViewerServer guards malformed request URLs and undefined s
 
     assert.equal(response.statusCode, 200);
     assert.match(response.body, /Snapshot unavailable/);
-    assert.match(response.body, /href="\/snapshot\.json"/);
+    assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
     assert.equal(loadCount, 1);
 
     const malformedResponse = await new Promise((resolve) => {
