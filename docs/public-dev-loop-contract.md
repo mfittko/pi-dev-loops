@@ -24,6 +24,18 @@ Day-one user-intent forms:
 
 Users should not have to choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front.
 
+## Workflow-surface taxonomy and guardrails
+
+Use this taxonomy consistently across docs, discovery surfaces, and tests:
+
+| Surface class | Entrypoints | Guardrail |
+|---|---|---|
+| Public workflow entrypoint | `dev-loop` | treat as the default first-choice workflow surface |
+| Compatibility/internal strategy entrypoints | `copilot-dev-loop`, `copilot-autopilot` | keep available for routed/backwards-compatible paths, but do not present as equal first-choice public workflows |
+| Reusable role agents | `coordinator`, `developer`, `docs`, `review`, `fixer`, `quality`, `refiner` | keep framed as reusable building blocks, not peer public workflow entrypoints |
+
+Regression tests must fail if this taxonomy drifts in wording or surfaced entrypoint assets.
+
 ## Canonical current state
 
 The public router consumes one canonical current state with these top-level dimensions:

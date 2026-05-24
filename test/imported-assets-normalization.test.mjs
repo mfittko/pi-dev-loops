@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 
 const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), "utf8");
@@ -147,6 +147,49 @@ test("repo docs define dev-loop as the public façade and keep specialized loops
     assert.match(content, /compatibility\/internal/i, `${label} should preserve compatibility/internal framing`);
     assert.match(content, /public `dev-loop`/i, `${label} should point back to the public dev-loop façade`);
   }
+});
+
+test("workflow-surface taxonomy stays explicit and guards the entrypoint asset surface", async () => {
+  const [publicContract, devLoopAgent, copilotAgent, autopilotAgent] = await Promise.all([
+    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("agents/dev-loop.agent.md"),
+    readRepo("agents/copilot-dev-loop.agent.md"),
+    readRepo("agents/copilot-autopilot.agent.md"),
+  ]);
+
+  assert.match(publicContract, /Workflow-surface taxonomy and guardrails/i);
+  assert.match(publicContract, /Public workflow entrypoint/i);
+  assert.match(publicContract, /Compatibility\/internal strategy entrypoints/i);
+  assert.match(publicContract, /Reusable role agents/i);
+  assert.match(publicContract, /Regression tests must fail if this taxonomy drifts/i);
+
+  assert.match(devLoopAgent, /single public workflow entrypoint/i);
+  assert.match(copilotAgent, /compatibility path/i);
+  assert.match(autopilotAgent, /compatibility path/i);
+
+  const agentFiles = (await readdir(fromRepoRoot("agents")))
+    .filter((name) => name.endsWith(".agent.md"))
+    .sort();
+  const workflowEntrypointAgents = agentFiles.filter((name) =>
+    ["dev-loop.agent.md", "copilot-dev-loop.agent.md", "copilot-autopilot.agent.md"].includes(name),
+  );
+  const roleAgentFiles = agentFiles.filter((name) => !workflowEntrypointAgents.includes(name));
+
+  assert.deepEqual(workflowEntrypointAgents, [
+    "copilot-autopilot.agent.md",
+    "copilot-dev-loop.agent.md",
+    "dev-loop.agent.md",
+  ]);
+
+  for (const roleAgentFile of roleAgentFiles) {
+    const content = await readRepo(`agents/${roleAgentFile}`);
+    assert.doesNotMatch(content, /public workflow entrypoint/i, `${roleAgentFile} should stay a reusable role agent`);
+  }
+
+  const skillEntrypoints = (await readdir(fromRepoRoot("skills")))
+    .sort()
+    .filter((name) => !name.startsWith("."));
+  assert.deepEqual(skillEntrypoints, ["copilot-autopilot", "copilot-dev-loop", "dev-loop"]);
 });
 
 test("status reporting contract requires authoritative state-first resolution and fail-closed reconcile behavior", async () => {
