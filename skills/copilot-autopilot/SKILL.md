@@ -394,7 +394,7 @@ Before running `gh pr ready`, inspect the implementation through these angles:
 - **CI and check status**: are all required checks passing or credibly passing on the current head?
 - **No unrelated files**: no files outside the accepted fix scope are part of the diff
 
-Do **not** run DRY, KISS, or YAGNI at this gate. Those lenses belong exclusively to the pre-approval gate, which applies later (in `copilot-dev-loop` Step 7 and Phase 8) before calling the PR merge-ready or ready for final handoff.
+Do **not** run DRY, KISS, or YAGNI at this gate. Those lenses belong exclusively to the pre-approval gate in `copilot-dev-loop` (before calling the PR merge-ready or ready for final handoff).
 
 Mark ready:
 ```sh

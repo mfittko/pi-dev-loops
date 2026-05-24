@@ -435,23 +435,34 @@ test("copilot-autopilot Phase 6 names explicit draft-gate review angles distinct
     readRepo("skills/copilot-dev-loop/SKILL.md"),
   ]);
 
-  // Phase 6 should name the draft-gate review angles explicitly
-  assert.match(autopilotSkill, /draft.gate review angles?/i);
-  assert.match(autopilotSkill, /correctness.*acceptance criteria/i);
-  assert.match(autopilotSkill, /scope compliance/i);
-  assert.match(autopilotSkill, /test coverage/i);
-  assert.match(autopilotSkill, /ci.*check|check.*status/i);
-  assert.match(autopilotSkill, /no unrelated files/i);
+  // Extract the draft-gate section from each skill for scoped assertions
+  const autopilotDraftGateMatch = autopilotSkill.match(/### Draft-gate review angles[\s\S]*?(?=\n## |\n### (?!Draft))/);
+  const autopilotDraftGate = autopilotDraftGateMatch ? autopilotDraftGateMatch[0] : "";
+  assert.ok(autopilotDraftGate.length > 0, "copilot-autopilot draft-gate section not found");
 
-  // Phase 6 should explicitly say DRY/KISS/YAGNI is NOT applied at the draft gate
-  assert.match(autopilotSkill, /[Dd]o \*?\*?not\*?\*? run DRY.*KISS.*YAGNI at this gate/);
+  const devLoopDraftGateMatch = copilotDevLoopSkill.match(/### Draft gate[\s\S]*?(?=\n### (?!Draft))/);
+  const devLoopDraftGate = devLoopDraftGateMatch ? devLoopDraftGateMatch[0] : "";
+  assert.ok(devLoopDraftGate.length > 0, "copilot-dev-loop draft-gate section not found");
 
-  // copilot-dev-loop Step 7 should have a labelled draft-gate section with named angles
-  assert.match(copilotDevLoopSkill, /draft.gate.*before marking PR ready|before marking PR ready.*draft.gate/i);
-  assert.match(copilotDevLoopSkill, /correctness.*acceptance criteria/i);
-  assert.match(copilotDevLoopSkill, /scope compliance/i);
-  assert.match(copilotDevLoopSkill, /test coverage/i);
-  assert.match(copilotDevLoopSkill, /[Dd]o \*?\*?not\*?\*? apply DRY.*KISS.*YAGNI here/);
+  // Phase 6 should name all five draft-gate review angles explicitly (section-scoped)
+  assert.match(autopilotDraftGate, /draft.gate review angles?/i);
+  assert.match(autopilotDraftGate, /correctness.*acceptance criteria/i);
+  assert.match(autopilotDraftGate, /scope compliance/i);
+  assert.match(autopilotDraftGate, /test coverage/i);
+  assert.match(autopilotDraftGate, /ci.*check|check.*status/i);
+  assert.match(autopilotDraftGate, /no unrelated files/i);
+
+  // Phase 6 should explicitly say DRY/KISS/YAGNI is NOT applied at the draft gate (section-scoped)
+  assert.match(autopilotDraftGate, /[Dd]o \*?\*?not\*?\*? run DRY.*KISS.*YAGNI at this gate/);
+
+  // copilot-dev-loop draft-gate section should name all five angles (section-scoped)
+  assert.match(devLoopDraftGate, /draft.gate.*before marking PR ready|before marking PR ready.*draft.gate/i);
+  assert.match(devLoopDraftGate, /correctness.*acceptance criteria/i);
+  assert.match(devLoopDraftGate, /scope compliance/i);
+  assert.match(devLoopDraftGate, /test coverage/i);
+  assert.match(devLoopDraftGate, /ci.*check|check.*status/i);
+  assert.match(devLoopDraftGate, /no unrelated files/i);
+  assert.match(devLoopDraftGate, /[Dd]o \*?\*?not\*?\*? apply DRY.*KISS.*YAGNI here/);
 
   // DRY/KISS/YAGNI must still appear in the pre-approval gate section of both skills
   assert.match(autopilotSkill, /pre-approval gate/i);
