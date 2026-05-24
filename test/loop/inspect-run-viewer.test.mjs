@@ -573,8 +573,11 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /aria-label="Next page"/);
   assert.doesNotMatch(html, /assigned-pr-title-indicator/);
   assert.match(html, /pr=77/);
-  assert.match(html, /PR #55 State/);
-  assert.match(html, /aria-label="PR #55 State"/);
+  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
+  assert.match(html, /<h1>Selected PR<\/h1>/);
+  assert.match(html, /aria-label="PR #55"/);
+  assert.match(html, /title="Waiting state"/);
+  assert.match(html, /⏳/);
   assert.match(html, /Waiting for Copilot review/);
   assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
   assert.match(html, /These fields are shown directly from the loaded inspection snapshot/i);
@@ -671,6 +674,8 @@ test("renderInspectRunViewerHtml keeps selected handoff-to-copilot rows on the a
   assert.match(html, /assigned-pr-row-attention/);
   assert.match(html, /is-selected/);
   assert.match(html, /Copilot loop needs action/);
+  assert.match(html, /title="Active loop"/);
+  assert.match(html, /🔁/);
 });
 
 test("renderInspectRunViewerHtml keeps selected closed inbox rows on the closed border", () => {
@@ -795,7 +800,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
     }),
   });
 
-  assert.match(html, /PR #55 State/);
+  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
   assert.match(html, /PR complete/);
   assert.match(html, /The current inspection says this PR is in a terminal done state/);
   assert.match(html, /status class[\s\S]*<code>done<\/code>/);
@@ -1298,7 +1303,7 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
     assert.equal(response.headers["cache-control"], "no-store");
-    assert.match(response.body, /PR #55 State/);
+    assert.match(response.body, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
     assert.match(response.body, /owner\/repo/);
     assert.match(response.body, /degraded/);
     assert.match(response.body, /manual reload only/i);
@@ -1411,7 +1416,8 @@ test("createInspectRunViewerServer supports selecting another PR from query para
     const response = await requestOnce(`http://127.0.0.1:${address.port}/?pr=77`);
 
     assert.equal(response.statusCode, 200);
-    assert.match(response.body, /PR #77 State/);
+    assert.match(response.body, /aria-label="PR #77"/);
+    assert.match(response.body, /<h1>Selected from inbox<\/h1>/);
     assert.match(response.body, /Selected from inbox/);
     assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
     assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 77));
@@ -1641,7 +1647,8 @@ test("createInspectRunViewerServer honors an explicit inbox page even when a sel
     const address = server.address();
     const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=1&page=2`);
     assert.equal(response.statusCode, 200);
-    assert.match(response.body, /PR #1 State/);
+    assert.match(response.body, /aria-label="PR #1"/);
+    assert.match(response.body, /<h1>PR 1<\/h1>/);
     assert.match(response.body, /class="assigned-pr-page-status">2\/2</);
     assert.match(response.body, /PR 30/);
     assert.doesNotMatch(response.body, /aria-current="page"/);
@@ -1676,7 +1683,8 @@ test("createInspectRunViewerServer keeps explicit query targets even when they a
     const address = server.address();
     const htmlResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=77`);
     assert.equal(htmlResponse.statusCode, 200);
-    assert.match(htmlResponse.body, /PR #77 State/);
+    assert.match(htmlResponse.body, /aria-label="PR #77"/);
+    assert.match(htmlResponse.body, /<h1>PR #77<\/h1>/);
     assert.match(htmlResponse.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
     assert.doesNotMatch(htmlResponse.body, /aria-current="page"/);
     assert.doesNotMatch(htmlResponse.body, /#77<\/span>/);

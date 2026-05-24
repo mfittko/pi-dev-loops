@@ -632,13 +632,62 @@ function renderMermaidBootScript() {
         const zoomGraphViewport = (frame, graphViewport, requestedScale, focusPoint = null) => {
           const previousScale = Number(frame.dataset.graphScale || 1);
           const nextScale = updateFrameScale(frame, requestedScale);
-          if (!focusPoint || nextScale === previousScale) {
+          if (!focusPoint) {
             return;
           }
           const scaleRatio = nextScale / previousScale;
           requestAnimationFrame(() => {
             graphViewport.scrollLeft = (focusPoint.contentX * scaleRatio) - focusPoint.viewportX;
             graphViewport.scrollTop = (focusPoint.contentY * scaleRatio) - focusPoint.viewportY;
+          });
+        };
+        const fitGraphToCurrentState = (frame, graphViewport) => {
+          const svg = graphViewport.querySelector("svg");
+          if (!svg) {
+            return;
+          }
+          const targetNodes = Array.from(svg.querySelectorAll(".node.current, .node.currentTerminal, .node.unavailable"));
+          if (targetNodes.length === 0) {
+            return;
+          }
+          const viewportRect = graphViewport.getBoundingClientRect();
+          if (viewportRect.width <= 0 || viewportRect.height <= 0) {
+            return;
+          }
+          const targetRects = targetNodes
+            .map((node) => node.getBoundingClientRect())
+            .filter((rect) => rect.width > 0 && rect.height > 0);
+          if (targetRects.length === 0) {
+            return;
+          }
+          const unionRect = targetRects.reduce((combined, rect) => ({
+            left: Math.min(combined.left, rect.left),
+            top: Math.min(combined.top, rect.top),
+            right: Math.max(combined.right, rect.right),
+            bottom: Math.max(combined.bottom, rect.bottom),
+          }), {
+            left: targetRects[0].left,
+            top: targetRects[0].top,
+            right: targetRects[0].right,
+            bottom: targetRects[0].bottom,
+          });
+          const unionWidth = unionRect.right - unionRect.left;
+          const unionHeight = unionRect.bottom - unionRect.top;
+          if (unionWidth <= 0 || unionHeight <= 0) {
+            return;
+          }
+          const padding = 48;
+          const availableWidth = Math.max(120, viewportRect.width - padding);
+          const availableHeight = Math.max(120, viewportRect.height - padding);
+          const currentScale = Number(frame.dataset.graphScale || 1);
+          const fittedScale = clampScale(currentScale * Math.min(availableWidth / unionWidth, availableHeight / unionHeight));
+          const contentCenterX = graphViewport.scrollLeft + ((unionRect.left - viewportRect.left) + (unionWidth / 2));
+          const contentCenterY = graphViewport.scrollTop + ((unionRect.top - viewportRect.top) + (unionHeight / 2));
+          zoomGraphViewport(frame, graphViewport, fittedScale, {
+            viewportX: viewportRect.width / 2,
+            viewportY: viewportRect.height / 2,
+            contentX: contentCenterX,
+            contentY: contentCenterY,
           });
         };
         const renderFallback = (message) => {
@@ -747,6 +796,10 @@ function renderMermaidBootScript() {
             const frame = graph.closest(".state-graph-frame");
             if (frame) {
               updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
+              const graphViewport = frame.querySelector(".mermaid-state-graph");
+              if (graphViewport) {
+                fitGraphToCurrentState(frame, graphViewport);
+              }
             }
           });
         }).catch(() => {
@@ -1165,10 +1218,69 @@ function renderCurrentStateNote(snapshot) {
   return "These fields are shown directly from the loaded inspection snapshot so the current state stays visible without inventing a second viewer-only status model.";
 }
 
-function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
+function buildPullRequestHref(target) {
+  if (!target?.repo || target?.pr === null || target?.pr === undefined) {
+    return null;
+  }
+  return `https://github.com/${encodeURIComponent(target.repo).replaceAll("%2F", "/")}/pull/${encodeURIComponent(String(target.pr))}`;
+}
+
+function summarizeCurrentPrMode(snapshot) {
+  if (!snapshot) {
+    return null;
+  }
+
+  const copilotState = formatStateToken(snapshot.layers?.copilot?.currentState);
+  const reviewerState = formatStateToken(snapshot.layers?.reviewer?.currentState);
+  const outerState = formatStateToken(snapshot.outerState, "unknown");
+  const outerAction = formatStateToken(snapshot.outerAction, "unknown");
+
+  if (copilotState === "waiting_for_copilot_review"
+    || copilotState === "waiting_for_ci"
+    || reviewerState === "waiting_for_author_followup"
+    || reviewerState === "waiting_for_re_request"
+    || outerState === OUTER_STATE.CONTINUE_CURRENT_WAIT
+    || outerState === OUTER_STATE.STAY_WITH_CURRENT_LIVE_OWNER
+    || outerAction === "continue_wait") {
+    return { emoji: "⏳", label: "Waiting state" };
+  }
+
+  if (outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP
+    || outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP
+    || outerAction === "reenter_copilot_loop"
+    || outerAction === "reenter_reviewer_loop"
+    || reviewerState === "review_requested"
+    || reviewerState === "determine_review_plan"
+    || reviewerState === "reviews_running"
+    || reviewerState === "merge_results"
+    || reviewerState === "draft_review_ready"
+    || reviewerState === "draft_review_posted"
+    || reviewerState === "waiting_for_user_submit"
+    || reviewerState === "submitted_review"
+    || reviewerState === "review_invalidated") {
+    return { emoji: "🔁", label: "Active loop" };
+  }
+
+  return null;
+}
+
+function renderCurrentStateBanner(snapshot, target, stateLabel, graph, selectedTitle = null) {
   const summary = summarizeCurrentPrStatus(snapshot);
-  return `<section class="current-pr-state-banner" aria-label="PR #${escapeHtml(target.pr)} State">
-    <h1>PR #${escapeHtml(target.pr)} State</h1>
+  const pullRequestHref = buildPullRequestHref(target);
+  const mode = summarizeCurrentPrMode(snapshot);
+  const heading = typeof selectedTitle === "string" && selectedTitle.trim().length > 0
+    ? selectedTitle.trim()
+    : `PR #${target.pr}`;
+  return `<section class="current-pr-state-banner" aria-label="PR #${escapeHtml(target.pr)}">
+    <div class="current-pr-state-heading-row">
+      <div class="current-pr-state-heading-copy">
+        <p class="current-pr-state-kicker">${pullRequestHref
+          ? `<a href="${escapeHtml(pullRequestHref)}">PR #${escapeHtml(target.pr)}</a>`
+          : `PR #${escapeHtml(target.pr)}`}</p>
+        <h1>${escapeHtml(heading)}</h1>
+      </div>
+      ${mode ? `<span class="current-pr-state-mode-indicator" title="${escapeHtml(mode.label)}" aria-label="${escapeHtml(mode.label)}">${escapeHtml(mode.emoji)}</span>` : ""}
+    </div>
     <p class="current-pr-state-summary-headline">${escapeHtml(summary.headline)}</p>
     <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
     <p class="current-pr-state-detail">${escapeHtml(renderCurrentStateNote(snapshot))}</p>
@@ -1571,6 +1683,7 @@ export function renderInspectRunViewerHtml({
   snapshot = null,
   error = null,
   inboxItems = [],
+  selectedTitle = null,
   scopeOptions = [],
   inboxUpdatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS,
   inboxState = DEFAULT_INBOX_PR_STATE,
@@ -1581,6 +1694,10 @@ export function renderInspectRunViewerHtml({
   const normalizedSnapshot = snapshot ?? null;
   const graph = target ? buildInspectionMermaidGraph(normalizedSnapshot) : null;
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
+  const selectedInboxItem = target === null
+    ? null
+    : inboxItems.find((item) => renderTargetKey(item.target) === renderTargetKey(target)) ?? null;
+  const effectiveSelectedTitle = selectedTitle ?? selectedInboxItem?.title ?? null;
   const scopeFilter = typeof repo === "string" && repo.length > 0 ? repo : null;
   const scopeLabel = scopeFilter ?? "all repos";
   const title = target
@@ -1676,6 +1793,12 @@ export function renderInspectRunViewerHtml({
       .inspection-main { min-width: 0; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
       .current-pr-state-banner { border: none; background: none; box-shadow: none; padding: 0; margin-top: 0; }
+      .current-pr-state-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+      .current-pr-state-heading-copy { min-width: 0; }
+      .current-pr-state-kicker { margin: 0 0 0.28rem 0; font-size: 0.96rem; font-weight: 700; }
+      .current-pr-state-kicker a { color: #355061; text-decoration: none; }
+      .current-pr-state-kicker a:hover { text-decoration: underline; }
+      .current-pr-state-mode-indicator { flex: 0 0 auto; font-size: 1.55rem; line-height: 1; margin-top: 0.08rem; }
       .current-pr-state-banner h1 { margin: 0 0 0.5rem 0; font-size: 2.2rem; line-height: 1.15; }
       .current-pr-state-summary-headline { margin: 0 0 0.4rem 0; color: #1565c0; font-weight: 700; font-size: 1.1rem; }
       .current-pr-state-detail { margin: 0.25rem 0 0.8rem 0; color: #274766; font-size: 0.98rem; }
@@ -1741,7 +1864,7 @@ export function renderInspectRunViewerHtml({
               <p class="current-pr-state-summary-headline">Choose a PR from the sidebar</p>
               <p class="current-pr-state-detail">This viewer can span all assigned repos or be narrowed to one repo. The sidebar defaults to open PRs from the last 7 days and paginates through the result set.</p>
             </section>`
-          : renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph)}
+          : renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
         ${renderCollapsedDetailsPanel(`
       <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
       <p><strong>Refresh:</strong> manual reload only.${rawSnapshotHref ? ` <strong>Raw snapshot:</strong> <a href="${escapeHtml(rawSnapshotHref)}"><code>${escapeHtml(rawSnapshotHref)}</code></a>` : ""}</p>
@@ -2252,6 +2375,9 @@ export function createInspectRunViewerServer(options, deps = {}) {
         snapshot: snapshot ?? null,
         error,
         inboxItems,
+        selectedTitle: requestTarget === null
+          ? null
+          : assignedEntries.find((entry) => renderTargetKey(entry.target) === renderTargetKey(requestTarget))?.title ?? null,
         scopeOptions: collectScopeOptions(scopeSourceEntries, { selectedTarget: requestTarget, scopeFilter: requestedView.scopeFilter }),
         inboxUpdatedWithinDays: requestedView.updatedWithinDays,
         inboxState: requestedView.state,

@@ -8,7 +8,7 @@ import { makeInspectionSnapshot } from "./fixtures/inspect-run-viewer-fixture.mj
 async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequests = []) {
   const normalizedAssignedPullRequests = assignedPullRequests.some((entry) => entry?.target?.repo === "owner/repo" && entry?.target?.pr === 55)
     ? assignedPullRequests
-    : [{ target: { repo: "owner/repo", pr: 55 }, title: "PR #55" }, ...assignedPullRequests];
+    : [{ target: { repo: "owner/repo", pr: 55 }, title: "Current PR" }, ...assignedPullRequests];
   const server = createInspectRunViewerServer(
     { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
     {
@@ -53,9 +53,11 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "PR #55 State" })).toBeVisible();
-    const currentStateBanner = page.locator('section[aria-label="PR #55 State"]');
+    await expect(page.getByRole("link", { name: "PR #55" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Current PR" })).toBeVisible();
+    const currentStateBanner = page.locator('section[aria-label="PR #55"]');
     await expect(currentStateBanner).toBeVisible();
+    await expect(currentStateBanner.getByTitle("Waiting state")).toBeVisible();
     await expect(currentStateBanner.getByText("Waiting for Copilot review")).toBeVisible();
     await expect(page.locator("body")).toContainText(/These fields are shown directly from the loaded inspection snapshot/i);
     await expect(page.locator(".state-graph-intro")).toHaveCount(0);
@@ -87,20 +89,21 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
 
     await page.getByRole('link', { name: 'Next page' }).click();
     await expect(page.locator('.assigned-pr-page-status')).toHaveText('2/2');
-    await expect(page.getByRole('heading', { name: 'PR #55 State' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Current PR' })).toBeVisible();
     await expect(page.locator('[aria-current="page"]')).toHaveCount(0);
     await page.getByRole('link', { name: 'Previous page' }).click();
     await expect(page.locator('.assigned-pr-page-status')).toHaveText('1/2');
 
     const inboxSearch = page.locator("[data-inbox-search]");
+    const inboxList = page.locator('.assigned-pr-list');
     await inboxSearch.fill("other/repo");
-    await expect(page.getByRole("link", { name: /Waiting PR/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /PR #55/ })).toBeHidden();
+    await expect(inboxList.getByRole("link", { name: /Waiting PR/ })).toBeVisible();
+    await expect(inboxList.getByRole("link", { name: /Current PR/ })).toBeHidden();
     await inboxSearch.fill("no matches here");
     await expect(page.locator("[data-inbox-empty]")).toBeVisible();
     await inboxSearch.fill("");
     await expect(page.locator("[data-inbox-empty]")).toBeHidden();
-    await expect(page.getByRole("link", { name: /PR #55/ })).toBeVisible();
+    await expect(inboxList.getByRole("link", { name: /Current PR/ })).toBeVisible();
 
     const graphGuide = page.getByText(/Graph guide and lane details/);
     await expect(graphGuide).toBeVisible();
@@ -111,6 +114,8 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(graphBox.getByRole("button", { name: "Reset zoom" })).toBeVisible();
     await expect(graphBox.getByRole("button", { name: "Open graph fullscreen" })).toBeVisible();
     const graph = await waitForMermaidGraph(page);
+    const initialZoomValue = await graphBox.locator('[data-graph-zoom-value]').textContent();
+    expect(initialZoomValue).not.toBe('100%');
     await expect(graph).toHaveCSS("cursor", "grab");
     await expect(graph).toContainText(/Start/);
     await expect(graph).toContainText(/continue current wait/);
@@ -181,7 +186,7 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "PR #55 State" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Current PR" })).toBeVisible();
     await expect(page.locator(".current-pr-state-summary-headline")).toContainText(/Needs attention/);
     await expect(page.locator(".current-pr-state-detail").last()).toContainText(/checkpoint-only snapshot/i);
     await expect(page.locator(".state-graph-intro")).toHaveCount(0);
@@ -246,8 +251,8 @@ test("webkit shows terminal merged states clearly in the Mermaid graph", async (
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    const currentStateBanner = page.locator('section[aria-label="PR #55 State"]');
-    await expect(currentStateBanner.getByRole("heading", { name: "PR #55 State" })).toBeVisible();
+    const currentStateBanner = page.locator('section[aria-label="PR #55"]');
+    await expect(currentStateBanner.getByRole("heading", { name: "Current PR" })).toBeVisible();
     await expect(currentStateBanner.getByText("PR complete")).toBeVisible();
     await expect(page.locator(".current-pr-state-grid")).toContainText(/status class/);
     await expect(page.locator(".current-pr-state-grid")).toContainText(/done/);
