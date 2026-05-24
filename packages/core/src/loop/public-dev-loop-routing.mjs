@@ -21,6 +21,7 @@ export const DEV_LOOP_PUBLIC_INTENT = Object.freeze({
   START_ISSUE_LOCALLY: "start_issue_locally",
   START_ISSUE_LOCALLY_THEN_CONTINUE: "start_issue_locally_then_continue",
   CONTINUE_CURRENT: "continue_current",
+  AUTO_CONTINUE_CURRENT: "auto_continue_current",
   INSPECT_STATE: "inspect_state",
 });
 
@@ -91,6 +92,16 @@ export const DEV_LOOP_ARTIFACT_STATE = Object.freeze({
 export const DEV_LOOP_STATUS_REPORT_KIND = Object.freeze({
   RESOLVED: "resolved",
   NEEDS_RECONCILE: "needs_reconcile",
+});
+
+export const DEV_LOOP_EXECUTION_MODE = Object.freeze({
+  BOUNDED_HANDOFF: "bounded_handoff",
+  DURABLE_AUTO: "durable_auto",
+});
+
+export const DEV_LOOP_WAIT_SEMANTICS = Object.freeze({
+  DEFAULT: "default",
+  AUTO_HEALTHY_WAIT: "auto_healthy_wait",
 });
 
 export const DEV_LOOP_ISSUE_LINKAGE_RESOLUTION = Object.freeze({
@@ -200,35 +211,41 @@ function buildResult({
   canonicalState,
   nextAction,
   reason,
+  executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+  waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
 }) {
   return {
     publicEntrypoint: PUBLIC_DEV_LOOP_ENTRYPOINT,
     routeKind,
     selectedStrategy,
     compatibilityEntrypoint,
+    executionMode,
+    waitSemantics,
     canonicalState,
     nextAction,
     reason,
   };
 }
 
-function buildReconcile(reason, canonicalState = null) {
+function buildReconcile(reason, canonicalState = null, executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF) {
   return buildResult({
     routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
     compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+    executionMode,
     canonicalState,
     nextAction: "Stop and reconcile the canonical current state before choosing an internal strategy.",
     reason,
   });
 }
 
-function routeForState(canonicalState) {
+function routeForState(canonicalState, { executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF } = {}) {
   if (canonicalState.status === DEV_LOOP_STATUS.BLOCKED || canonicalState.authorization === DEV_LOOP_AUTHORIZATION.NOT_AUTHORIZED) {
     return buildResult({
       routeKind: DEV_LOOP_ROUTE_KIND.STOP,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+      executionMode,
       canonicalState,
       nextAction: "Stop for a human decision or authorization before continuing the dev loop.",
       reason: "The canonical state is blocked or not authorized for an automated state change.",
@@ -240,6 +257,7 @@ function routeForState(canonicalState) {
       routeKind: DEV_LOOP_ROUTE_KIND.STOP,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+      executionMode,
       canonicalState,
       nextAction: "Report the terminal state and wait for a new work item.",
       reason: "The canonical state is already done.",
@@ -254,6 +272,7 @@ function routeForState(canonicalState) {
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+      executionMode,
       canonicalState,
       nextAction: "Run the approval/merge gate for the current artifact without changing the public entrypoint.",
       reason: "Approval-ready and merge-ready states route to the final approval strategy.",
@@ -268,12 +287,19 @@ function routeForState(canonicalState) {
           ? COMPATIBILITY_ENTRYPOINT.DEV_LOOP
           : COMPATIBILITY_ENTRYPOINT.NONE;
 
+    const isDurableAuto = executionMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO;
     return buildResult({
       routeKind: DEV_LOOP_ROUTE_KIND.WAIT,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH,
       compatibilityEntrypoint,
+      executionMode,
+      waitSemantics: isDurableAuto
+        ? DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT
+        : DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
       canonicalState,
-      nextAction: "Keep waiting or watching against the same canonical state instead of switching public loop names.",
+      nextAction: isDurableAuto
+        ? "Remain in durable auto ownership while waiting on the same canonical state; do not escalate timeout/no-activity alone as attention."
+        : "Keep waiting or watching against the same canonical state instead of switching public loop names.",
       reason: "Waiting states route to the shared wait/watch strategy.",
     });
   }
@@ -286,6 +312,7 @@ function routeForState(canonicalState) {
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.DEV_LOOP,
+      executionMode,
       canonicalState,
       nextAction: "Run the local implementation strategy for the current branch or phase slice.",
       reason: "Local branch/phase targets stay on the local implementation strategy.",
@@ -304,13 +331,14 @@ function routeForState(canonicalState) {
           branch: null,
           phase: null,
         },
-      });
+      }, { executionMode });
     }
 
     return buildResult({
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.COPILOT_AUTOPILOT,
+      executionMode,
       canonicalState,
       nextAction: "Normalize the issue, confirm scope, and determine whether an existing PR already exists.",
       reason: "Issue targets without a linked PR route to issue intake before PR follow-up.",
@@ -322,6 +350,7 @@ function routeForState(canonicalState) {
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.EXTERNAL_PR_FOLLOWUP,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+      executionMode,
       canonicalState,
       nextAction: "Run the external-contributor PR follow-up strategy against the current PR state.",
       reason: "External-human PR ownership routes to the external PR follow-up strategy.",
@@ -336,6 +365,7 @@ function routeForState(canonicalState) {
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.REVIEWER_FIXER,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+      executionMode,
       canonicalState,
       nextAction: "Run the reviewer/fixer strategy for the current PR.",
       reason: "Reviewer-owned or reviewer-next PR states route to the reviewer/fixer strategy.",
@@ -347,13 +377,18 @@ function routeForState(canonicalState) {
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP,
+      executionMode,
       canonicalState,
       nextAction: "Run the Copilot PR follow-up strategy for the current PR.",
       reason: "Copilot-owned PR states route to the Copilot PR follow-up strategy.",
     });
   }
 
-  return buildReconcile("The canonical current state does not map cleanly to any first-slice internal strategy.", canonicalState);
+  return buildReconcile(
+    "The canonical current state does not map cleanly to any first-slice internal strategy.",
+    canonicalState,
+    executionMode,
+  );
 }
 
 function buildStatusArtifactIdentity(canonicalState) {
@@ -443,7 +478,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     );
   }
 
-  const routed = routeForState(canonicalState);
+  const routed = routeForState(canonicalState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
   if (routed.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) {
     return buildStatusReconcile(routed.reason, routed.canonicalState);
   }
@@ -499,7 +534,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       return buildReconcile("`inspect_state` requires a valid canonical current state.");
     }
 
-    const routed = routeForState(explicitState);
+    const routed = routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
     return {
       ...routed,
       routeKind: DEV_LOOP_ROUTE_KIND.INSPECT,
@@ -520,7 +555,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       if (explicitState.target.issue !== explicitTarget.issue) {
         return buildReconcile("`start_on_issue` target conflicts with the canonical current state.", explicitState);
       }
-      return routeForState(explicitState);
+      return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
     }
 
     return routeForState({
@@ -529,7 +564,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       nextActor: DEV_LOOP_ACTOR.USER,
       status: DEV_LOOP_STATUS.ACTIVE,
       authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
-    });
+    }, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
   }
 
   if (
@@ -551,7 +586,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       ) {
         return buildReconcile("Local issue-start target conflicts with the canonical current state.", explicitState);
       }
-      return routeForState(explicitState);
+      return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
     }
 
     const routed = routeForState({
@@ -566,7 +601,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       nextActor: DEV_LOOP_ACTOR.LOCAL,
       status: DEV_LOOP_STATUS.ACTIVE,
       authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
-    });
+    }, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
 
     return intent === DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY_THEN_CONTINUE
       ? {
@@ -587,14 +622,25 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     if (explicitState.target.pr !== explicitTarget.pr) {
       return buildReconcile("`continue_on_pr` target conflicts with the canonical current PR state.", explicitState);
     }
-    return routeForState(explicitState);
+    return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT) {
     if (!explicitState) {
       return buildReconcile("`continue_current` requires a valid canonical current state.");
     }
-    return routeForState(explicitState);
+    return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
+  }
+
+  if (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT) {
+    if (!explicitState) {
+      return buildReconcile(
+        "`auto_continue_current` requires a valid canonical current state.",
+        null,
+        DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+      );
+    }
+    return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO });
   }
 
   return buildReconcile("The public dev-loop intent is recognized but not implemented in this first slice.");

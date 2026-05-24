@@ -25,6 +25,12 @@ These skills may be provided repo-locally or globally; this contract does not as
 - In PR review/fix loops, do not stop at local code changes alone: after an accepted fix is pushed, reply to the addressed review comments with the resolving commit reference and resolve the corresponding threads when genuinely satisfied.
 - Do not merge directly to `main` without review when a PR-based remote loop is practical.
 
+## Dev loop defaults
+
+- Use the `dev-loop` skill in **dev mode by default** for all local implementation work.
+- After every completed async dev loop run, run a **behavioral review**: inspect what the loop did, whether it followed the working agreement, what it got right and where it drifted, and record any corrective notes before the next loop starts.
+- The behavioral review should be brief but honest — it is not a formality. If the loop made a bad decision or skipped a step, say so explicitly.
+
 ## Core guard rails
 
 - KISS

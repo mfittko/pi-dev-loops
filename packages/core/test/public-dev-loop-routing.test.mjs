@@ -7,7 +7,9 @@ import {
   DEV_LOOP_AUTHORIZATION,
   DEV_LOOP_ARTIFACT_STATE,
   DEV_LOOP_PUBLIC_INTENT,
+  DEV_LOOP_EXECUTION_MODE,
   DEV_LOOP_ROUTE_KIND,
+  DEV_LOOP_WAIT_SEMANTICS,
   DEV_LOOP_ISSUE_LINKAGE_RESOLUTION,
   DEV_LOOP_STATUS_REPORT_KIND,
   DEV_LOOP_STATUS,
@@ -322,6 +324,8 @@ test("waiting states remain deterministic wait/watch states", () => {
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
+  assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.DEFAULT);
 });
 
 test("waiting states with local ownership keep the dev-loop compatibility entrypoint", () => {
@@ -339,6 +343,77 @@ test("waiting states with local ownership keep the dev-loop compatibility entryp
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.DEV_LOOP);
+});
+
+test("auto_continue_current routes detected state with durable auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.DEFAULT);
+});
+
+test("auto_continue_current keeps healthy watch states non-escalating", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.match(result.nextAction, /do not escalate timeout\/no-activity alone as attention/i);
+});
+
+test("auto_continue_current without canonical state fails closed with durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+  });
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+});
+
+test("auto_continue_current with blocked or not-authorized state still stops (escalates)", () => {
+  for (const currentState of [
+    {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.BLOCKED,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NOT_AUTHORIZED,
+    },
+  ]) {
+    const result = evaluatePublicDevLoopRouting({
+      intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+      currentState,
+    });
+    assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+    assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  }
 });
 
 test("inspect_state reports the canonical state without switching public entrypoints", () => {
