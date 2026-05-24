@@ -1462,7 +1462,7 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
         </li>`;
   }).join("")}
     </ul>
-    <p class="assigned-pr-empty" data-inbox-empty hidden>No assigned PRs match this search.</p>
+    <p class="assigned-pr-empty" data-inbox-empty data-empty-default="No assigned PRs are visible in this view." data-empty-search="No assigned PRs match this search." hidden>No assigned PRs are visible in this view.</p>
   </aside>`;
 }
 
@@ -1487,6 +1487,9 @@ function renderInboxShellScript() {
           }
         });
         if (empty) {
+          const defaultMessage = empty.dataset.emptyDefault ?? "No assigned PRs are visible in this view.";
+          const searchMessage = empty.dataset.emptySearch ?? "No assigned PRs match this search.";
+          empty.textContent = query.length === 0 ? defaultMessage : searchMessage;
           empty.hidden = visibleCount !== 0;
         }
       };
@@ -1831,6 +1834,17 @@ function parseInboxModeFromUrl(rawValue) {
   throw error;
 }
 
+function normalizeRepoQueryParam(rawValue) {
+  try {
+    return normalizeCliRepoOption(rawValue);
+  } catch (error) {
+    const wrapped = new Error(error instanceof Error ? error.message : String(error));
+    wrapped.code = "MALFORMED_TARGET";
+    wrapped.cause = error;
+    throw wrapped;
+  }
+}
+
 function normalizeRequestedViewFromUrl(rawUrl, fixedRepo = null, fallbackTarget = null) {
   if (typeof rawUrl !== "string" || rawUrl.length === 0) {
     return {
@@ -1847,11 +1861,11 @@ function normalizeRequestedViewFromUrl(rawUrl, fixedRepo = null, fallbackTarget 
   const requestedScope = url.searchParams.get("scope");
   const normalizedScope = requestedScope === null || requestedScope.trim().length === 0
     ? null
-    : normalizeCliRepoOption(requestedScope);
+    : normalizeRepoQueryParam(requestedScope);
   const selectedRepo = url.searchParams.get("repo");
   const normalizedSelectedRepo = selectedRepo === null || selectedRepo.trim().length === 0
     ? null
-    : normalizeCliRepoOption(selectedRepo);
+    : normalizeRepoQueryParam(selectedRepo);
 
   if (fixedRepo !== null && normalizedScope !== null && normalizedScope.toLowerCase() !== fixedRepo.toLowerCase()) {
     const error = new Error("scope query param must match the repo-scoped viewer");
@@ -2084,26 +2098,39 @@ export function createInspectRunViewerServer(options, deps = {}) {
       let scopeSourceEntries = [];
       if (supportsAssignedInbox) {
         try {
-          const [rawScopeEntries, rawAssignedEntries] = await Promise.all([
-            listAssignedPullRequests({
+          if (fixedRepo !== null) {
+            const rawAssignedEntries = await listAssignedPullRequests({
               ...adapterOptions,
-              repo: undefined,
+              repo: fixedRepo,
               updatedWithinDays: requestedView.updatedWithinDays,
               limit: MAX_INBOX_RESULT_LIMIT,
               state: requestedView.state,
               mode: requestedView.mode,
-            }),
-            listAssignedPullRequests({
-              ...adapterOptions,
-              repo: requestedView.scopeFilter,
-              updatedWithinDays: requestedView.updatedWithinDays,
-              limit: MAX_INBOX_RESULT_LIMIT,
-              state: requestedView.state,
-              mode: requestedView.mode,
-            }),
-          ]);
-          scopeSourceEntries = normalizeAssignedEntries(rawScopeEntries);
-          assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+            });
+            assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+            scopeSourceEntries = assignedEntries;
+          } else {
+            const [rawScopeEntries, rawAssignedEntries] = await Promise.all([
+              listAssignedPullRequests({
+                ...adapterOptions,
+                repo: undefined,
+                updatedWithinDays: requestedView.updatedWithinDays,
+                limit: MAX_INBOX_RESULT_LIMIT,
+                state: requestedView.state,
+                mode: requestedView.mode,
+              }),
+              listAssignedPullRequests({
+                ...adapterOptions,
+                repo: requestedView.scopeFilter,
+                updatedWithinDays: requestedView.updatedWithinDays,
+                limit: MAX_INBOX_RESULT_LIMIT,
+                state: requestedView.state,
+                mode: requestedView.mode,
+              }),
+            ]);
+            scopeSourceEntries = normalizeAssignedEntries(rawScopeEntries);
+            assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+          }
         } catch (error) {
           logErrorImpl(error);
           assignedEntries = [];

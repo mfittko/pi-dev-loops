@@ -477,6 +477,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /\.assigned-pr-inbox \{[^}]*width: 22rem;[^}]*box-sizing: border-box;/);
   assert.match(html, /data-inbox-search/);
   assert.match(html, /data-inbox-item/);
+  assert.match(html, /data-empty-default="No assigned PRs are visible in this view\."/);
+  assert.match(html, /data-empty-search="No assigned PRs match this search\."/);
   assert.match(html, /aria-current="page"/);
   assert.match(html, /assigned-pr-signal-attention/);
   assert.match(html, />Attention</);
@@ -1551,6 +1553,87 @@ test("createInspectRunViewerServer keeps favicon, unsupported paths, and unsuppo
   }
 });
 
+
+test("createInspectRunViewerServer treats malformed repo slug query params as bad requests", async () => {
+  let loadCount = 0;
+  const adapter = {
+    async loadSnapshot() {
+      loadCount += 1;
+      throw new Error("should not load snapshot for malformed targets");
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const htmlResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=../../bad&pr=77`);
+    assert.equal(htmlResponse.statusCode, 400);
+    assert.equal(htmlResponse.body, "Bad Request");
+
+    const jsonResponse = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=../../bad&pr=77`);
+    assert.equal(jsonResponse.statusCode, 400);
+    assert.equal(jsonResponse.headers["content-type"], "application/json; charset=utf-8");
+    assert.deepEqual(JSON.parse(jsonResponse.body), {
+      ok: false,
+      target: { repo: "owner/repo", pr: 55 },
+      error: { message: "target.repo must match <owner/name>" },
+    });
+    assert.equal(loadCount, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer constrains repo-scoped inbox discovery to the fixed repo", async () => {
+  const listCalls = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests(options = {}) {
+      listCalls.push({
+        repo: options.repo ?? null,
+        updatedWithinDays: options.updatedWithinDays ?? null,
+        state: options.state ?? null,
+        mode: options.mode ?? null,
+        limit: options.limit ?? null,
+      });
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Scoped PR", updatedAt: "2026-05-21T00:00:00Z" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(listCalls, [
+      {
+        repo: "owner/repo",
+        updatedWithinDays: 7,
+        state: "open",
+        mode: "assignee",
+        limit: 100,
+      },
+    ]);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 
 test("createInspectRunViewerServer returns JSON for malformed /snapshot.json repo/pr query params", async () => {
   const adapter = {
