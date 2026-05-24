@@ -561,6 +561,9 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /\.assigned-pr-row\.is-selected \.assigned-pr-link \{ box-shadow: inset 0 0 0 1px #1565c0; border-radius: 0\.3rem; \}/);
   assert.doesNotMatch(html, /\.assigned-pr-row\.is-selected \{[^}]*border-color:/);
   assert.match(html, /data-inbox-search/);
+  assert.match(html, /inbox-collapse-toggle/);
+  assert.match(html, />◀<\/button>/);
+  assert.match(html, /\.inbox-collapse-toggle \{[^}]*background: #355061;[^}]*color: #fff;/);
   assert.match(html, /data-inbox-item/);
   assert.match(html, /data-empty-default="No assigned PRs are visible in this view\."/);
   assert.match(html, /data-empty-search="No assigned PRs match this search\."/);
@@ -1551,6 +1554,61 @@ test("createInspectRunViewerServer serves authoritative snapshot JSON on /snapsh
     assert.equal(response.headers["cache-control"], "no-store");
     assert.deepEqual(JSON.parse(response.body), snapshot);
     assert.equal(loadCount, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer preserves cached authoritative inbox signals after another PR is selected", async () => {
+  const adapter = {
+    async loadSnapshot(target) {
+      if (target.pr === 55) {
+        return makeSnapshot({
+          target,
+          layers: {
+            copilot: {
+              currentState: "ready_to_rerequest_review",
+              allowedTransitions: [],
+              sameHeadCleanConverged: true,
+              loopDisposition: "clean_converged",
+              terminal: false,
+            },
+            reviewer: {
+              currentState: "waiting_for_review_request",
+              scope: { mode: "all_reviewers", reviewerLogin: null },
+              allowedTransitions: [],
+            },
+            steering: { status: "unavailable", reason: "no_steering_locator" },
+          },
+        });
+      }
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Ready PR", signal: "waiting", updatedAt: "2026-05-21T00:00:00Z" },
+        { target: { repo: "owner/repo", pr: 77 }, title: "Selected later", signal: "waiting", updatedAt: "2026-05-22T00:00:00Z" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const firstResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=55`);
+    assert.equal(firstResponse.statusCode, 200);
+    assert.match(firstResponse.body, /assigned-pr-row-ready/);
+
+    const secondResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=77`);
+    assert.equal(secondResponse.statusCode, 200);
+    assert.match(secondResponse.body, /Ready PR/);
+    assert.match(secondResponse.body, /assigned-pr-row-ready/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

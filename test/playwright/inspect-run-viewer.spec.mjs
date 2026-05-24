@@ -69,10 +69,11 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(page.getByLabel("Assignment mode")).toBeVisible();
     await expect(page.getByLabel("Updated window")).toBeVisible();
     const sidebarToggle = page.locator("[data-inbox-toggle]");
+    await expect(sidebarToggle).toHaveText("◀");
     await sidebarToggle.click();
     await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "true");
     await expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
-    await expect(sidebarToggle).toHaveText("⏩");
+    await expect(sidebarToggle).toHaveText("▶");
     await sidebarToggle.click();
     await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
 

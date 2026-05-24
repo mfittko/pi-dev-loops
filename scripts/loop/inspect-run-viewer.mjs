@@ -1445,7 +1445,7 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
   return `<aside class="assigned-pr-inbox" data-sidebar-collapsed="false">
     <div class="assigned-pr-inbox-header">
       <h2>PR inbox</h2>
-      <button type="button" class="inbox-collapse-toggle" data-inbox-toggle aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar">⏪</button>
+      <button type="button" class="inbox-collapse-toggle" data-inbox-toggle aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar">◀</button>
     </div>
     <div class="assigned-pr-controls">
       <div class="assigned-pr-control-row assigned-pr-scope-row">
@@ -1546,7 +1546,7 @@ function renderInboxShellScript() {
           return;
         }
         sidebar.dataset.sidebarCollapsed = collapsed ? "false" : "true";
-        toggle.textContent = collapsed ? "⏪" : "⏩";
+        toggle.textContent = collapsed ? "◀" : "▶";
         toggle.setAttribute("aria-label", collapsed ? "Collapse sidebar" : "Expand sidebar");
         toggle.setAttribute("title", collapsed ? "Collapse sidebar" : "Expand sidebar");
         toggle.setAttribute("aria-expanded", collapsed ? "true" : "false");
@@ -1648,7 +1648,7 @@ export function renderInspectRunViewerHtml({
       .assigned-pr-select-mid { flex: 0 1 auto; width: min(7.25rem, 100%); max-width: 7.25rem; min-width: 5.2rem; }
       .assigned-pr-select-sm { flex: 0 1 auto; width: min(4.8rem, 100%); max-width: 4.8rem; min-width: 3.6rem; }
       .assigned-pr-select-updated { margin-left: auto; }
-      .inbox-collapse-toggle { border: none; outline: none; box-shadow: none; appearance: none; -webkit-appearance: none; background: transparent; border-radius: 0.4rem; padding: 0.08rem 0.12rem; cursor: pointer; font-size: 1.05rem; line-height: 1; }
+      .inbox-collapse-toggle { border: none; outline: none; box-shadow: none; appearance: none; -webkit-appearance: none; background: #355061; color: #fff; border-radius: 0.4rem; padding: 0.12rem 0.22rem; cursor: pointer; font-size: 1rem; line-height: 1; }
       .inbox-search-label { display: block; font-size: 0.82rem; font-weight: 600; color: #355061; margin-bottom: 0.18rem; margin-top: 0.1rem; }
       .inbox-search-input { width: 100%; border: 1px solid #bfd0e2; border-radius: 0.4rem; padding: 0.28rem 0.42rem; margin-bottom: 0.45rem; }
       .assigned-pr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.36rem; }
@@ -2066,6 +2066,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
   const adapterOptions = makeAdapterOptions(options);
   const supportsAssignedInbox = options.copilotInputPath === undefined && options.reviewerInputPath === undefined;
   const jsonErrorTarget = fallbackTarget ?? { repo: fixedRepo, pr: null };
+  const cachedInboxSignals = new Map();
 
   return createServer(async (request, response) => {
     try {
@@ -2209,6 +2210,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         }
         try {
           const snapshot = requireSnapshotForJson(await adapter.loadSnapshot(requestTarget, adapterOptions));
+          cachedInboxSignals.set(renderTargetKey(requestTarget), deriveInboxSignalFromSnapshot(snapshot));
           writeJson(response, 200, snapshot);
         } catch (error) {
           writeJson(response, 500, jsonErrorPayload(requestTarget, error));
@@ -2223,6 +2225,9 @@ export function createInspectRunViewerServer(options, deps = {}) {
       if (requestTarget !== null) {
         try {
           snapshot = await adapter.loadSnapshot(requestTarget, adapterOptions);
+          if (snapshot !== null && snapshot !== undefined) {
+            cachedInboxSignals.set(renderTargetKey(requestTarget), deriveInboxSignalFromSnapshot(snapshot));
+          }
         } catch (caught) {
           error = caught instanceof Error ? caught : new Error(String(caught));
         }
@@ -2230,12 +2235,13 @@ export function createInspectRunViewerServer(options, deps = {}) {
 
       const inboxItems = inboxEntries.map((inboxEntry) => {
         const inboxTarget = inboxEntry.target;
-        const selected = requestTarget !== null && renderTargetKey(inboxTarget) === renderTargetKey(requestTarget);
+        const inboxTargetKey = renderTargetKey(inboxTarget);
+        const selected = requestTarget !== null && inboxTargetKey === renderTargetKey(requestTarget);
         return {
           target: inboxTarget,
           title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
           updatedAt: inboxEntry.updatedAt ?? null,
-          signal: normalizeInboxSignal(inboxEntry.signal),
+          signal: normalizeInboxSignal(cachedInboxSignals.get(inboxTargetKey), normalizeInboxSignal(inboxEntry.signal)),
           snapshot: selected ? (snapshot ?? null) : null,
         };
       });
