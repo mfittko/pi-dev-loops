@@ -42,6 +42,9 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.match(readme, /Node[^\n]*>=20/i);
   assert.match(readme, /source-loaded/i);
   assert.match(readme, /does not automatically install skills/i);
+  assert.match(readme, /single public workflow entrypoint/i);
+  assert.match(readme, /compatibility\/internal follow-up path/i);
+  assert.match(readme, /compatibility\/internal intake path/i);
   assert.match(readme, /node --import tsx --test/i);
   assert.match(readme, /does not yet claim a specific supported `gh` version/i);
   assert.match(readme, /npm run test:extension/i);
