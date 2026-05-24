@@ -1677,6 +1677,37 @@ test("createInspectRunViewerServer reuses the all-repos inbox query for the defa
   }
 });
 
+test("createInspectRunViewerServer normalizes unsupported assigned inbox signals before rendering", async () => {
+  const adapter = {
+    async listAssignedPullRequests() {
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR", updatedAt: "2026-05-21T00:00:00Z" },
+        { target: { repo: "owner/repo", pr: 55 }, title: null, updatedAt: null, signal: "mystery-state" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /assigned-pr-row-unknown/);
+    assert.match(response.body, /data-inbox-signal="unknown"/);
+    assert.doesNotMatch(response.body, /assigned-pr-row-mystery-state/);
+    assert.doesNotMatch(response.body, /data-inbox-signal="mystery-state"/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("createInspectRunViewerServer constrains repo-scoped inbox discovery to the fixed repo", async () => {
   const listCalls = [];
   const adapter = {

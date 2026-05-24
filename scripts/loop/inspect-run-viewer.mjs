@@ -1259,6 +1259,13 @@ function deriveInboxSignalFromSnapshot(snapshot) {
   return "waiting";
 }
 
+const VALID_INBOX_SIGNALS = new Set(["attention", "pending", "ready", "closed", "unknown", "waiting"]);
+
+function normalizeInboxSignal(signal, fallback = "unknown") {
+  const normalized = typeof signal === "string" ? signal.trim().toLowerCase() : "";
+  return VALID_INBOX_SIGNALS.has(normalized) ? normalized : fallback;
+}
+
 function describeInboxSignal(signal) {
   switch (signal) {
     case "attention":
@@ -1907,7 +1914,7 @@ function dedupeInboxEntries(entries) {
         existing.updatedAt = entry.updatedAt;
       }
       if ((existing.signal === null || existing.signal === undefined || existing.signal === "unknown") && entry.signal) {
-        existing.signal = entry.signal;
+        existing.signal = normalizeInboxSignal(entry.signal);
       }
       continue;
     }
@@ -1915,7 +1922,7 @@ function dedupeInboxEntries(entries) {
       target: entry.target,
       title: entry.title ?? null,
       updatedAt: entry.updatedAt ?? null,
-      signal: entry.signal ?? "unknown",
+      signal: normalizeInboxSignal(entry.signal),
     };
     seen.set(key, normalizedEntry);
     deduped.push(normalizedEntry);
@@ -2080,7 +2087,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
                 target: normalizeInspectionTarget(entry.target),
                 title: entry.title ?? null,
                 updatedAt: entry.updatedAt ?? null,
-                signal: typeof entry.signal === "string" ? entry.signal : "unknown",
+                signal: normalizeInboxSignal(entry.signal),
               }];
             }
             return [{ target: normalizeInspectionTarget(entry), title: null, updatedAt: null, signal: "unknown" }];
@@ -2184,7 +2191,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
           target: inboxTarget,
           title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
           updatedAt: inboxEntry.updatedAt ?? null,
-          signal: inboxEntry.signal ?? "unknown",
+          signal: normalizeInboxSignal(inboxEntry.signal),
           snapshot: selected ? (snapshot ?? null) : null,
         };
       });
