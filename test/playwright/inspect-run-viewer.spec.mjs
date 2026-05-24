@@ -5,13 +5,16 @@ import { test, expect } from "@playwright/test";
 import { createInspectRunViewerServer } from "../../scripts/loop/inspect-run-viewer.mjs";
 import { makeInspectionSnapshot } from "./fixtures/inspect-run-viewer-fixture.mjs";
 
-async function startViewer(snapshot = makeInspectionSnapshot()) {
+async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequests = []) {
   const server = createInspectRunViewerServer(
     { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
     {
       adapter: {
         async loadSnapshot() {
           return snapshot;
+        },
+        async listAssignedPullRequests() {
+          return assignedPullRequests;
         },
       },
     },
@@ -35,7 +38,9 @@ async function waitForMermaidGraph(page) {
 }
 
 test("webkit renders the Mermaid-first inspect-run viewer and captures a screenshot", async ({ page }, testInfo) => {
-  const { server, url } = await startViewer();
+  const { server, url } = await startViewer(makeInspectionSnapshot(), [
+    { target: { repo: "other/repo", pr: 77 }, title: "Waiting PR" },
+  ]);
 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
@@ -51,6 +56,25 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(page.locator(".state-graph-cues")).toContainText(/Next/);
     await expect(page.locator(".state-graph-cues")).toContainText(/End/);
     await expect(page.locator(".state-graph-cues")).toContainText(/🔁/);
+    const sidebar = page.locator(".assigned-pr-inbox");
+    const sidebarToggle = page.locator("[data-inbox-toggle]");
+    await sidebarToggle.click();
+    await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "true");
+    await expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(sidebarToggle).toHaveText("Expand");
+    await sidebarToggle.click();
+    await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
+
+    const inboxSearch = page.locator("[data-inbox-search]");
+    await inboxSearch.fill("other/repo");
+    await expect(page.getByRole("link", { name: /Waiting PR/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /PR #55/ })).toBeHidden();
+    await inboxSearch.fill("no matches here");
+    await expect(page.locator("[data-inbox-empty]")).toBeVisible();
+    await inboxSearch.fill("");
+    await expect(page.locator("[data-inbox-empty]")).toBeHidden();
+    await expect(page.getByRole("link", { name: /PR #55/ })).toBeVisible();
+
     const graphGuide = page.getByText(/Graph guide and lane details/);
     await expect(graphGuide).toBeVisible();
     await graphGuide.click();
