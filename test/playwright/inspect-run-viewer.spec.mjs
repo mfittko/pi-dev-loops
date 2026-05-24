@@ -60,6 +60,8 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(page.locator(".state-graph-cues")).toContainText(/End/);
     await expect(page.locator(".state-graph-cues")).toContainText(/🔁/);
     const sidebar = page.locator(".assigned-pr-inbox");
+    await expect(page.getByLabel("Assignment mode")).toBeVisible();
+    await expect(page.getByLabel("Updated window")).toBeVisible();
     const sidebarToggle = page.locator("[data-inbox-toggle]");
     await sidebarToggle.click();
     await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "true");

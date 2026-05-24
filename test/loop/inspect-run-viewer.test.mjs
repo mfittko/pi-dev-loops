@@ -473,6 +473,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
 
   assert.match(html, /Assigned PR inbox/);
   assert.match(html, /Search PRs/);
+  assert.match(html, /id="assigned-pr-mode-select"[^>]*aria-label="Assignment mode"/);
+  assert.match(html, /id="assigned-pr-updated-select"[^>]*aria-label="Updated window"/);
   assert.match(html, /grid-template-columns: auto minmax\(0, 1fr\)/);
   assert.match(html, /\.assigned-pr-inbox \{[^}]*width: 22rem;[^}]*box-sizing: border-box;/);
   assert.match(html, /data-inbox-search/);
@@ -1585,6 +1587,51 @@ test("createInspectRunViewerServer treats malformed repo slug query params as ba
       error: { message: "target.repo must match <owner/name>" },
     });
     assert.equal(loadCount, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("createInspectRunViewerServer reuses the all-repos inbox query for the default unscoped view", async () => {
+  const listCalls = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests(options = {}) {
+      listCalls.push({
+        repo: options.repo,
+        updatedWithinDays: options.updatedWithinDays ?? null,
+        state: options.state ?? null,
+        mode: options.mode ?? null,
+        limit: options.limit ?? null,
+      });
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Inbox PR", updatedAt: "2026-05-21T00:00:00Z" },
+      ];
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=55`);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(listCalls, [
+      {
+        repo: undefined,
+        updatedWithinDays: 7,
+        state: "open",
+        mode: "assignee",
+        limit: 100,
+      },
+    ]);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

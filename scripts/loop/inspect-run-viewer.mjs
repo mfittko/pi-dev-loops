@@ -1409,7 +1409,7 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
       </div>
       <div class="assigned-pr-control-row assigned-pr-secondary-controls">
         <label class="assigned-pr-filter-label" for="assigned-pr-state-select">Filters</label>
-        <select id="assigned-pr-mode-select" class="assigned-pr-select assigned-pr-select-mid" data-nav-select>
+        <select id="assigned-pr-mode-select" class="assigned-pr-select assigned-pr-select-mid" data-nav-select aria-label="Assignment mode">
           ${INBOX_MODE_FILTER_PRESETS.map((preset) => {
     const selected = preset.value === mode;
     return `<option value="${escapeHtml(renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode: preset.value, page: DEFAULT_INBOX_PAGE }))}" ${selected ? "selected" : ""}>${escapeHtml(preset.label)}</option>`;
@@ -1421,7 +1421,7 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
     return `<option value="${escapeHtml(renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays, state: preset.value, mode, page: DEFAULT_INBOX_PAGE }))}" ${selected ? "selected" : ""}>${escapeHtml(preset.label)}</option>`;
   }).join("")}
         </select>
-        <select id="assigned-pr-updated-select" class="assigned-pr-select assigned-pr-select-sm assigned-pr-select-updated" data-nav-select>
+        <select id="assigned-pr-updated-select" class="assigned-pr-select assigned-pr-select-sm assigned-pr-select-updated" data-nav-select aria-label="Updated window">
           ${INBOX_UPDATED_FILTER_PRESETS.map((preset) => {
     const selected = preset.value === updatedWithinDays;
     return `<option value="${escapeHtml(renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays: preset.value, state, mode, page: DEFAULT_INBOX_PAGE }))}" ${selected ? "selected" : ""}>${escapeHtml(preset.label)}</option>`;
@@ -2110,26 +2110,26 @@ export function createInspectRunViewerServer(options, deps = {}) {
             assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
             scopeSourceEntries = assignedEntries;
           } else {
-            const [rawScopeEntries, rawAssignedEntries] = await Promise.all([
-              listAssignedPullRequests({
-                ...adapterOptions,
-                repo: undefined,
-                updatedWithinDays: requestedView.updatedWithinDays,
-                limit: MAX_INBOX_RESULT_LIMIT,
-                state: requestedView.state,
-                mode: requestedView.mode,
-              }),
-              listAssignedPullRequests({
-                ...adapterOptions,
-                repo: requestedView.scopeFilter,
-                updatedWithinDays: requestedView.updatedWithinDays,
-                limit: MAX_INBOX_RESULT_LIMIT,
-                state: requestedView.state,
-                mode: requestedView.mode,
-              }),
-            ]);
-            scopeSourceEntries = normalizeAssignedEntries(rawScopeEntries);
-            assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+            const loadAssignedEntries = (repo) => listAssignedPullRequests({
+              ...adapterOptions,
+              repo,
+              updatedWithinDays: requestedView.updatedWithinDays,
+              limit: MAX_INBOX_RESULT_LIMIT,
+              state: requestedView.state,
+              mode: requestedView.mode,
+            });
+            if (requestedView.scopeFilter === null) {
+              const rawAssignedEntries = await loadAssignedEntries(undefined);
+              assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+              scopeSourceEntries = assignedEntries;
+            } else {
+              const [rawScopeEntries, rawAssignedEntries] = await Promise.all([
+                loadAssignedEntries(undefined),
+                loadAssignedEntries(requestedView.scopeFilter),
+              ]);
+              scopeSourceEntries = normalizeAssignedEntries(rawScopeEntries);
+              assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+            }
           }
         } catch (error) {
           logErrorImpl(error);
