@@ -410,3 +410,114 @@ test("reply-resolve-review-thread fails closed before mutating when comment and 
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("reply-resolve-review-thread fails closed before mutating when the target thread is missing", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-missing-thread-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "Fixed in 93cd7f8.\n", "utf8");
+
+  try {
+    const gh = await writeGhStub(tempDir, [
+      {
+        stdout: createReviewThreadsPayload([
+          {
+            id: "THREAD_OTHER",
+            comments: {
+              nodes: [
+                { id: "PRRC_node_999", databaseId: 999 },
+              ],
+            },
+          },
+        ]),
+      },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: gh.env },
+    );
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "Review thread THREAD_123 was not found on pull request owner/repo#17",
+    });
+
+    const ghLog = (await readFile(gh.ghLogPath, "utf8")).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    assert.equal(ghLog.length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reply-resolve-review-thread fails closed before mutating when the target comment is missing", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-missing-comment-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "Fixed in 93cd7f8.\n", "utf8");
+
+  try {
+    const gh = await writeGhStub(tempDir, [
+      {
+        stdout: createReviewThreadsPayload([
+          {
+            id: "THREAD_123",
+            comments: {
+              nodes: [
+                { id: "PRRC_node_999", databaseId: 999 },
+              ],
+            },
+          },
+        ]),
+      },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: gh.env },
+    );
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "Review comment 123 was not found on pull request owner/repo#17",
+    });
+
+    const ghLog = (await readFile(gh.ghLogPath, "utf8")).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    assert.equal(ghLog.length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reply-resolve-review-thread fails closed before mutating when the validation snapshot is malformed", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-malformed-snapshot-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "Fixed in 93cd7f8.\n", "utf8");
+
+  try {
+    const gh = await writeGhStub(tempDir, [
+      {
+        stdout: '{"data":{"repository":{"pullRequest":{}}}}\n',
+      },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: gh.env },
+    );
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "Could not find review threads in payload",
+    });
+
+    const ghLog = (await readFile(gh.ghLogPath, "utf8")).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    assert.equal(ghLog.length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

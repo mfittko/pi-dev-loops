@@ -33,6 +33,8 @@ Optional:
 
 Success output shape:
 - `{ "ok": true, "source": { ... }, "summary": { ... }, "threads": [...], "comments": [...] }`
+- normalized `comments[]` preserve both the GraphQL comment node id (`id`) and the REST-safe numeric review-comment id (`databaseId`) when available
+- normalized `threads[]` include `commentDatabaseIds` and `actionableCommentDatabaseIds` so follow-up helpers can pair `--comment-id` and `--thread-id` from the same fresh snapshot
 - when `--output` is used, success output also includes `"outputPath"`
 
 Failure behavior:
@@ -141,7 +143,7 @@ Success output shape:
 - `{ "ok": true, "repo": "owner/name", "pr": 17, "commentId": 123, "threadId": "...", "replyId": 456, "replyUrl": "...", "resolved": true }`
 
 Failure behavior:
-- malformed arguments, empty body files, comment/thread mismatches, unexpected `gh` failures, and unsuccessful resolve responses emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+- malformed arguments, empty body files, missing threads, missing comments, comment/thread mismatches, unexpected `gh` failures, and unsuccessful resolve responses emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 For new GitHub mutation helpers in this repo, do not stop at fixture-only confidence when a real PR is available and mutation is authorized. Run a bounded real-PR smoke check before depending on the helper inside a longer async review/fix loop.
 
@@ -243,9 +245,6 @@ Contract:
 - runs `copilot-pr-handoff.mjs` first and preserves its current state / next action / watch args
 - when handoff returns `action: "watch"`, runs `watch-copilot-review.mjs` with the emitted non-zero `watchArgs`
 - treats `waiting_for_copilot_review` as a persistence boundary, not a completion boundary
-- for explicit async loop entry/continuation, `cycleDisposition: "pending"` with `terminal: false` means stay attached and run another watch boundary rather than exiting as clean success
-- after a follow-up fix / reply-resolve / re-request path returns to `waiting_for_copilot_review`, resume this helper again instead of treating the re-request handoff as completion
-- handoff-only behavior must be explicitly requested; do not silently reinterpret async loop entry as one-step transition behavior
 - preserves the shared Copilot-loop `loopDisposition` contract from the handoff/state-machine output (`pending`, `unresolved_feedback`, `clean_converged`, `blocked`, `action_required`, `done`)
 - exposes the helper's coarser wait-cycle summary separately as `cycleDisposition`
 - reports `cycleDisposition: "pending"` for quiet watch results (`timeout` or explicit probe `idle`) instead of pretending the loop concluded cleanly

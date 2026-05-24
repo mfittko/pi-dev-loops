@@ -71,12 +71,6 @@ node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/nam
 Runs the handoff first, then — when the state is still `waiting_for_copilot_review` — keeps the emitted non-zero watch timeout instead of degrading normal async waiting into a zero-timeout `idle` probe. The result preserves the shared `loopDisposition` contract from the Copilot state machine and adds a separate coarse `cycleDisposition` field for the helper's wait-boundary summary: `{ ok: true, handoffAction, state, watchStatus?, loopDisposition, cycleDisposition, terminal }`.
 Use `--probe-only` only for an explicit one-shot status/reattach probe; it is not the normal async wait path.
 
-For explicit async loop entry or continuation, this is a persistent async watch/fix loop, not handoff-only behavior:
-- if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary instead of reporting completion
-- after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, resume this watcher again in the same async session
-- if the user explicitly asks for async handoff-only behavior, say that out loud and stop after the handoff boundary; otherwise do not silently reinterpret async loop entry as handoff-only
-- follow Step 6 and Step 7 below for the fuller wait/watch and fixer-loop policy details
-
 **Request status reference**
 | Status | Meaning | Next step |
 | --- | --- | --- |

@@ -99,9 +99,13 @@ export function isActionableThread(thread) {
 function normalizeComment(comment, threadId, index, { isResolved = false } = {}) {
   const author = normalizeAuthor(comment?.author);
   const body = normalizeBody(comment?.body ?? comment?.bodyText ?? comment?.bodyHTML ?? "");
+  const databaseId = comment?.databaseId === null || comment?.databaseId === undefined
+    ? null
+    : normalizeId(comment.databaseId, null);
 
   return {
     id: normalizeId(comment?.id ?? comment?.databaseId, `${threadId}:comment-${index + 1}`),
+    databaseId,
     threadId,
     author,
     body,
@@ -120,18 +124,26 @@ export function parseReviewThreads(payload) {
       .sort((left, right) => compareIds(left.id, right.id));
 
     comments.push(...normalizedComments);
-    const actionableCommentIds = isResolved
+    const commentIds = normalizedComments.map((comment) => comment.id);
+    const commentDatabaseIds = normalizedComments
+      .map((comment) => comment.databaseId)
+      .filter((value) => value !== null);
+    const actionableComments = isResolved
       ? []
-      : normalizedComments
-          .filter((comment) => comment.isActionable)
-          .map((comment) => comment.id);
+      : normalizedComments.filter((comment) => comment.isActionable);
+    const actionableCommentIds = actionableComments.map((comment) => comment.id);
+    const actionableCommentDatabaseIds = actionableComments
+      .map((comment) => comment.databaseId)
+      .filter((value) => value !== null);
 
     return {
       id: threadId,
       isResolved,
       isActionable: actionableCommentIds.length > 0,
-      commentIds: normalizedComments.map((comment) => comment.id),
+      commentIds,
+      commentDatabaseIds,
       actionableCommentIds,
+      actionableCommentDatabaseIds,
     };
   }).sort((left, right) => compareIds(left.id, right.id));
 

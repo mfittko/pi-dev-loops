@@ -2,7 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
-import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { formatCliError, isDirectCliRun, parseReviewThreads } from "../_core-helpers.mjs";
 import { fetchGithubReviewThreadsPayload, parseRepoSlug } from "./capture-review-threads.mjs";
 
 const RESOLVE_REVIEW_THREAD_MUTATION = [
@@ -139,66 +139,26 @@ function parseReplyPayload(payload) {
   };
 }
 
-function extractRawThreads(payload) {
-  const reviewThreads = payload?.data?.repository?.pullRequest?.reviewThreads?.nodes;
-
-  if (!Array.isArray(reviewThreads)) {
-    throw new Error("Could not find review threads in payload");
-  }
-
-  return reviewThreads;
-}
-
-function normalizeCommentDatabaseId(comment) {
-  if (typeof comment?.databaseId === "number" && Number.isFinite(comment.databaseId)) {
-    return String(comment.databaseId);
-  }
-
-  if (typeof comment?.databaseId === "string" && comment.databaseId.trim().length > 0) {
-    return comment.databaseId.trim();
-  }
-
-  return null;
-}
-
 async function validateReplyTarget(
   { repo, pr, commentId, threadId },
   { env = process.env, ghCommand = "gh" } = {},
 ) {
   const payload = await fetchGithubReviewThreadsPayload({ repo, pr }, { env, ghCommand });
-  const rawThreads = extractRawThreads(payload);
+  const parsed = parseReviewThreads(payload);
   const targetCommentId = String(commentId);
-  let threadFound = false;
-  let commentFound = false;
+  const thread = parsed.threads.find((entry) => entry.id === threadId) ?? null;
+  const comment = parsed.comments.find((entry) => entry.databaseId === targetCommentId) ?? null;
 
-  for (const thread of rawThreads) {
-    if (thread?.id === threadId) {
-      threadFound = true;
-    }
-
-    const comments = Array.isArray(thread?.comments?.nodes) ? thread.comments.nodes : [];
-
-    for (const comment of comments) {
-      if (normalizeCommentDatabaseId(comment) !== targetCommentId) {
-        continue;
-      }
-
-      commentFound = true;
-
-      if (thread?.id !== threadId) {
-        throw new Error(`Review comment ${commentId} does not belong to review thread ${threadId} on pull request ${repo}#${pr}`);
-      }
-
-      return;
-    }
-  }
-
-  if (!threadFound) {
+  if (thread === null) {
     throw new Error(`Review thread ${threadId} was not found on pull request ${repo}#${pr}`);
   }
 
-  if (!commentFound) {
+  if (comment === null) {
     throw new Error(`Review comment ${commentId} was not found on pull request ${repo}#${pr}`);
+  }
+
+  if (comment.threadId !== threadId) {
+    throw new Error(`Review comment ${commentId} does not belong to review thread ${threadId} on pull request ${repo}#${pr}`);
   }
 }
 
