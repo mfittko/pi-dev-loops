@@ -26,18 +26,16 @@ import {
   normalizeInspectionTarget,
 } from "./_inspect-run-viewer-adapter.mjs";
 
-const USAGE = `Usage: inspect-run-viewer.mjs --repo <owner/name> --pr <number>
+const USAGE = `Usage: inspect-run-viewer.mjs --repo <owner/name>
   [--host <host>] [--port <port>] [--allow-non-localhost] [--restart]
   [--steering-state-file <path>] [--reviewer-login <login>]
   [--copilot-input <path>] [--reviewer-input <path>]
 
 Single-run local browser viewer for the inspect-run read-only snapshot.
-
-Required:
-  --repo <owner/name>
-  --pr <number>
+Use ?pr=<number> and optionally ?repo=<owner/name> in the browser URL.
 
 Optional:
+  --repo <owner/name>                     Restrict the inbox to one repo
   --host <host>                         Bind host (default: 127.0.0.1)
   --port <port>                         Bind port (default: 4311)
   --allow-non-localhost                 Permit non-loopback binds
@@ -59,7 +57,28 @@ const execFile = promisify(execFileCallback);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MERMAID_BROWSER_ASSET_ROUTE = "/assets/mermaid.min.js";
 const MERMAID_BROWSER_ASSET_PATH = path.join(REPO_ROOT, "node_modules", "mermaid", "dist", "mermaid.min.js");
-const MAX_EAGER_INBOX_SNAPSHOTS = 10;
+const DEFAULT_INBOX_UPDATED_WITHIN_DAYS = 7;
+const DEFAULT_INBOX_PAGE_SIZE = 25;
+const MAX_INBOX_RESULT_LIMIT = 100;
+const DEFAULT_INBOX_PR_STATE = "open";
+const DEFAULT_INBOX_MODE = "assignee";
+const DEFAULT_INBOX_PAGE = 1;
+const INBOX_UPDATED_FILTER_PRESETS = [
+  { label: "7d", value: 7 },
+  { label: "30d", value: 30 },
+  { label: "90d", value: 90 },
+  { label: "All", value: null },
+];
+const INBOX_STATE_FILTER_PRESETS = [
+  { label: "Open", value: "open" },
+  { label: "Closed", value: "closed" },
+  { label: "All", value: "all" },
+];
+const INBOX_MODE_FILTER_PRESETS = [
+  { label: "Assigned", value: "assignee" },
+  { label: "Reviewer", value: "reviewer" },
+  { label: "Involved", value: "involved" },
+];
 
 let mermaidBrowserScriptPromise = null;
 
@@ -112,9 +131,9 @@ function parseReviewerLogin(rawLogin) {
   return reviewerLogin;
 }
 
-function normalizeCliTargetOptions(options) {
+function normalizeCliRepoOption(rawRepo) {
   try {
-    return normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
+    return normalizeInspectionTarget({ repo: rawRepo, pr: 1 }).repo;
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
@@ -147,8 +166,7 @@ export function parseInspectRunViewerCliArgs(argv) {
       continue;
     }
     if (token === "--pr") {
-      options.pr = requireOptionValue(args, "--pr");
-      continue;
+      throw parseError("--pr is no longer supported on the CLI; choose a PR with ?pr=<number> in the viewer URL");
     }
     if (token === "--host") {
       options.host = parseHost(requireOptionValue(args, "--host"));
@@ -186,16 +204,12 @@ export function parseInspectRunViewerCliArgs(argv) {
   }
 
   if (!options.help) {
-    if (options.repo === undefined || options.pr === undefined) {
-      throw parseError("inspect-run-viewer requires both --repo <owner/name> and --pr <number>");
-    }
     if (options.reviewerInputPath !== undefined && options.reviewerLogin !== undefined) {
       throw parseError("--reviewer-input cannot be combined with --reviewer-login");
     }
 
-    const normalizedTarget = normalizeCliTargetOptions(options);
-    options.repo = normalizedTarget.repo;
-    options.pr = normalizedTarget.pr;
+    options.repo = options.repo === undefined ? undefined : normalizeCliRepoOption(options.repo);
+    options.pr = options.pr === undefined ? undefined : (options.repo === undefined ? options.pr : normalizeInspectionTarget({ repo: options.repo, pr: options.pr }).pr);
     if (!options.allowNonLocalhost && !isLoopbackHost(options.host)) {
       throw parseError("--host must stay on localhost/loopback unless --allow-non-localhost is set");
     }
@@ -1180,61 +1194,198 @@ function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
 }
 
 function renderTargetKey(target) {
+  if (!target || typeof target.repo !== "string" || target.repo.length === 0 || target.pr === null || target.pr === undefined) {
+    return "";
+  }
   return `${target.repo}#${target.pr}`;
+}
+
+function formatInboxUpdatedAt(updatedAt) {
+  if (typeof updatedAt !== "string" || updatedAt.trim().length === 0) {
+    return "updated unknown";
+  }
+  const parsed = Date.parse(updatedAt);
+  if (Number.isNaN(parsed)) {
+    return `updated ${updatedAt.trim()}`;
+  }
+  return `updated ${new Date(parsed).toISOString().slice(0, 10)}`;
 }
 
 function summarizeInboxRow(snapshot) {
   if (!snapshot) {
     return {
-      statusClass: "unknown",
-      trustLabel: "unavailable",
+      statusClass: null,
+      trustLabel: null,
       needsAttention: false,
-      freshness: "unknown freshness",
-      headline: "Snapshot unavailable",
+      headline: null,
     };
   }
-
-  const inspectedAt = Date.parse(snapshot.inspectedAt ?? "");
-  const freshness = Number.isNaN(inspectedAt)
-    ? "unknown freshness"
-    : (Date.now() - inspectedAt <= 30 * 60 * 1000 ? "fresh" : "stale");
 
   return {
     statusClass: formatStateToken(snapshot.statusClass, "unknown"),
     trustLabel: renderSnapshotStateLabel(snapshot),
     needsAttention: snapshot.needsAttention === true,
-    freshness,
     headline: summarizeCurrentPrStatus(snapshot).headline,
   };
 }
 
-function renderInboxSidebar(items, selectedTarget) {
+function appendInboxViewParams(params, {
+  selectedTarget = null,
+  scopeFilter = null,
+  updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS,
+  state = DEFAULT_INBOX_PR_STATE,
+  mode = DEFAULT_INBOX_MODE,
+  page = DEFAULT_INBOX_PAGE,
+} = {}) {
+  if (typeof scopeFilter === "string" && scopeFilter.trim().length > 0) {
+    params.set("scope", scopeFilter.trim());
+  }
+  if (selectedTarget?.repo !== undefined && selectedTarget?.repo !== null) {
+    params.set("repo", String(selectedTarget.repo));
+  }
+  if (selectedTarget?.pr !== undefined && selectedTarget?.pr !== null) {
+    params.set("pr", String(selectedTarget.pr));
+  }
+  if (updatedWithinDays === null) {
+    params.set("updated", "all");
+  } else if (updatedWithinDays !== DEFAULT_INBOX_UPDATED_WITHIN_DAYS) {
+    params.set("updated", String(updatedWithinDays));
+  }
+  if (page > DEFAULT_INBOX_PAGE) {
+    params.set("page", String(page));
+  }
+  params.set("state", state);
+  params.set("mode", mode);
+}
+
+function buildInboxHref(target, { scopeFilter = null, updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE } = {}) {
+  const params = new URLSearchParams();
+  appendInboxViewParams(params, { selectedTarget: target, scopeFilter, updatedWithinDays, state, mode, page });
+  return `/?${params.toString()}`;
+}
+
+function buildSnapshotHref(target, scopeFilter = null) {
+  if (!target) {
+    return null;
+  }
+  const params = new URLSearchParams();
+  appendInboxViewParams(params, { selectedTarget: target, scopeFilter, updatedWithinDays: DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state: DEFAULT_INBOX_PR_STATE, mode: DEFAULT_INBOX_MODE, page: DEFAULT_INBOX_PAGE });
+  params.delete("scope");
+  params.delete("updated");
+  params.delete("limit");
+  params.delete("state");
+  params.delete("mode");
+  return `/snapshot.json?${params.toString()}`;
+}
+
+function renderInboxFilterHref(selectedTarget, { scopeFilter = null, updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE } = {}) {
+  const params = new URLSearchParams();
+  appendInboxViewParams(params, { selectedTarget, scopeFilter, updatedWithinDays, state, mode, page });
+  const query = params.toString();
+  return query.length === 0 ? "/" : `/?${query}`;
+}
+
+function renderScopeSelectHref(selectedTarget, scopeFilter, { updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE } = {}) {
+  const retainedTarget = selectedTarget && (scopeFilter === null || selectedTarget.repo === scopeFilter)
+    ? selectedTarget
+    : null;
+  return renderInboxFilterHref(retainedTarget, { scopeFilter, updatedWithinDays, state, mode, page: DEFAULT_INBOX_PAGE });
+}
+
+function renderInboxPageHref(selectedTarget, { scopeFilter = null, updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE } = {}) {
+  return renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page });
+}
+
+function renderInboxPagination({ selectedTarget = null, scopeFilter = null, updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE, totalPages = 1 } = {}) {
+  if (totalPages <= 1) {
+    return "";
+  }
+
+  const previousPage = Math.max(DEFAULT_INBOX_PAGE, page - 1);
+  const nextPage = Math.min(totalPages, page + 1);
+
+  return `<nav class="assigned-pr-pagination" aria-label="Sidebar pagination">
+    <a class="assigned-pr-page-link ${page <= DEFAULT_INBOX_PAGE ? "is-disabled" : ""}" href="${escapeHtml(renderInboxPageHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page: previousPage }))}" ${page <= DEFAULT_INBOX_PAGE ? 'aria-disabled="true" tabindex="-1"' : ""}>←</a>
+    <span class="assigned-pr-page-status">${escapeHtml(String(page))}/${escapeHtml(String(totalPages))}</span>
+    <a class="assigned-pr-page-link ${page >= totalPages ? "is-disabled" : ""}" href="${escapeHtml(renderInboxPageHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode, page: nextPage }))}" ${page >= totalPages ? 'aria-disabled="true" tabindex="-1"' : ""}>→</a>
+  </nav>`;
+}
+
+function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOptions = [], updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE, totalPages = 1 } = {}) {
   const selectedKey = renderTargetKey(selectedTarget);
+  const uniqueScopeOptions = ["All repos", ...new Set(
+    scopeOptions.filter((repo) => typeof repo === "string" && repo.length > 0),
+  )].sort((left, right) => {
+    if (left === "All repos") {
+      return -1;
+    }
+    if (right === "All repos") {
+      return 1;
+    }
+    return left.localeCompare(right);
+  });
   return `<aside class="assigned-pr-inbox" data-sidebar-collapsed="false">
     <div class="assigned-pr-inbox-header">
       <h2>Assigned PR inbox</h2>
-      <button type="button" class="inbox-collapse-toggle" data-inbox-toggle aria-expanded="true">Collapse</button>
+      <button type="button" class="inbox-collapse-toggle" data-inbox-toggle aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar">⏪</button>
     </div>
-    <label class="inbox-search-label" for="inbox-search">Search assigned PRs</label>
-    <input id="inbox-search" class="inbox-search-input" type="search" placeholder="Search repo, PR, title, state…" data-inbox-search />
+    <div class="assigned-pr-controls">
+      <div class="assigned-pr-control-row assigned-pr-scope-row">
+        <label class="assigned-pr-filter-label" for="assigned-pr-scope-select">Scope</label>
+        <select id="assigned-pr-scope-select" class="assigned-pr-select" data-nav-select>
+          ${uniqueScopeOptions.map((option) => {
+    const optionScope = option === "All repos" ? null : option;
+    const selected = optionScope === scopeFilter || (optionScope === null && scopeFilter === null);
+    return `<option value="${escapeHtml(renderScopeSelectHref(selectedTarget, optionScope, { updatedWithinDays, state, mode }))}" ${selected ? "selected" : ""}>${escapeHtml(option)}</option>`;
+  }).join("")}
+        </select>
+      </div>
+      <div class="assigned-pr-control-row assigned-pr-secondary-controls">
+        <label class="assigned-pr-filter-label" for="assigned-pr-state-select">Filters</label>
+        <select id="assigned-pr-mode-select" class="assigned-pr-select assigned-pr-select-mid" data-nav-select>
+          ${INBOX_MODE_FILTER_PRESETS.map((preset) => {
+    const selected = preset.value === mode;
+    return `<option value="${escapeHtml(renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays, state, mode: preset.value, page: DEFAULT_INBOX_PAGE }))}" ${selected ? "selected" : ""}>${escapeHtml(preset.label)}</option>`;
+  }).join("")}
+        </select>
+        <select id="assigned-pr-state-select" class="assigned-pr-select assigned-pr-select-mid" data-nav-select>
+          ${INBOX_STATE_FILTER_PRESETS.map((preset) => {
+    const selected = preset.value === state;
+    return `<option value="${escapeHtml(renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays, state: preset.value, mode, page: DEFAULT_INBOX_PAGE }))}" ${selected ? "selected" : ""}>${escapeHtml(preset.label)}</option>`;
+  }).join("")}
+        </select>
+        <select id="assigned-pr-updated-select" class="assigned-pr-select assigned-pr-select-sm assigned-pr-select-updated" data-nav-select>
+          ${INBOX_UPDATED_FILTER_PRESETS.map((preset) => {
+    const selected = preset.value === updatedWithinDays;
+    return `<option value="${escapeHtml(renderInboxFilterHref(selectedTarget, { scopeFilter, updatedWithinDays: preset.value, state, mode, page: DEFAULT_INBOX_PAGE }))}" ${selected ? "selected" : ""}>${escapeHtml(preset.label)}</option>`;
+  }).join("")}
+        </select>
+      </div>
+    </div>
+    ${renderInboxPagination({ selectedTarget, scopeFilter, updatedWithinDays, state, mode, page, totalPages })}
+    <label class="inbox-search-label" for="inbox-search">Search PRs</label>
+    <input id="inbox-search" class="inbox-search-input" type="search" placeholder="Search PR # or title…" data-inbox-search />
     <ul class="assigned-pr-list" data-inbox-list>
       ${items.map((item) => {
     const summary = summarizeInboxRow(item.snapshot ?? null);
     const target = item.target;
     const key = renderTargetKey(target);
     const selected = key === selectedKey;
-    const searchText = `${target.repo} #${target.pr} ${item.title ?? ""} ${summary.statusClass} ${summary.trustLabel} ${summary.headline}`.toLowerCase();
+    const searchText = `${target.repo} #${target.pr} ${item.title ?? ""} ${summary.statusClass ?? ""} ${summary.trustLabel ?? ""} ${summary.headline ?? ""} ${item.updatedAt ?? ""}`.toLowerCase();
     return `<li class="assigned-pr-row ${selected ? "is-selected" : ""}" data-inbox-item data-search="${escapeHtml(searchText)}">
-          <a class="assigned-pr-link" href="/?repo=${encodeURIComponent(target.repo)}&amp;pr=${encodeURIComponent(String(target.pr))}" ${selected ? 'aria-current="page"' : ""}>
+          <a class="assigned-pr-link" href="${escapeHtml(buildInboxHref(target, { scopeFilter, updatedWithinDays, state, mode, page }))}" ${selected ? 'aria-current="page"' : ""}>
             <div class="assigned-pr-line">
               <span class="assigned-pr-id">#${escapeHtml(String(target.pr))}</span>
               <span class="assigned-pr-title">${escapeHtml(item.title ?? "Untitled pull request")}</span>
             </div>
-            <div class="assigned-pr-line assigned-pr-meta">
-              <span class="assigned-pr-repo">${escapeHtml(target.repo)}</span>
-              <span class="assigned-pr-status">${escapeHtml(summary.statusClass)}</span>
-              <span class="assigned-pr-trust">${escapeHtml(summary.trustLabel)} · ${escapeHtml(summary.freshness)}</span>
-              <span class="assigned-pr-headline">${escapeHtml(summary.headline)}</span>
+            <div class="assigned-pr-line assigned-pr-meta assigned-pr-meta-primary">
+              ${scopeFilter === null ? `<span class="assigned-pr-repo">${escapeHtml(target.repo)}</span>` : ""}
+              <span class="assigned-pr-updated">${escapeHtml(formatInboxUpdatedAt(item.updatedAt))}</span>
+            </div>
+            <div class="assigned-pr-line assigned-pr-meta assigned-pr-meta-secondary">
+              ${summary.statusClass ? `<span class="assigned-pr-status">${escapeHtml(summary.statusClass)}</span>` : ""}
+              ${summary.trustLabel ? `<span class="assigned-pr-trust">${escapeHtml(summary.trustLabel)}</span>` : ""}
+              ${summary.headline ? `<span class="assigned-pr-headline">${escapeHtml(summary.headline)}</span>` : ""}
               ${summary.needsAttention ? '<span class="assigned-pr-attention" aria-label="Needs attention">⚠ needs attention</span>' : ""}
             </div>
           </a>
@@ -1251,6 +1402,7 @@ function renderInboxShellScript() {
       const sidebar = document.querySelector(".assigned-pr-inbox");
       const toggle = document.querySelector("[data-inbox-toggle]");
       const search = document.querySelector("[data-inbox-search]");
+      const navSelects = Array.from(document.querySelectorAll("[data-nav-select]"));
       const items = Array.from(document.querySelectorAll("[data-inbox-item]"));
       const empty = document.querySelector("[data-inbox-empty]");
       const updateFilter = () => {
@@ -1274,49 +1426,76 @@ function renderInboxShellScript() {
           return;
         }
         sidebar.dataset.sidebarCollapsed = collapsed ? "false" : "true";
-        toggle.textContent = collapsed ? "Collapse" : "Expand";
+        toggle.textContent = collapsed ? "⏪" : "⏩";
+        toggle.setAttribute("aria-label", collapsed ? "Collapse sidebar" : "Expand sidebar");
+        toggle.setAttribute("title", collapsed ? "Collapse sidebar" : "Expand sidebar");
         toggle.setAttribute("aria-expanded", collapsed ? "true" : "false");
       });
       search?.addEventListener("input", updateFilter);
+      navSelects.forEach((select) => {
+        select.addEventListener("change", () => {
+          const href = select.value;
+          if (typeof href === "string" && href.length > 0) {
+            window.location.assign(href);
+          }
+        });
+      });
       updateFilter();
     })();
   </script>`;
 }
 
 export function renderInspectRunViewerHtml({
-  target,
+  repo = null,
+  target = null,
   snapshot = null,
   error = null,
   inboxItems = [],
+  scopeOptions = [],
+  inboxUpdatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS,
+  inboxState = DEFAULT_INBOX_PR_STATE,
+  inboxMode = DEFAULT_INBOX_MODE,
+  inboxPage = DEFAULT_INBOX_PAGE,
+  inboxTotalPages = 1,
 }) {
   const normalizedSnapshot = snapshot ?? null;
-  const graph = buildInspectionMermaidGraph(normalizedSnapshot);
+  const graph = target ? buildInspectionMermaidGraph(normalizedSnapshot) : null;
   const stateLabel = renderSnapshotStateLabel(normalizedSnapshot);
-  const title = `${target.repo}#${target.pr} inspection snapshot`;
+  const scopeFilter = typeof repo === "string" && repo.length > 0 ? repo : null;
+  const scopeLabel = scopeFilter ?? "all repos";
+  const title = target
+    ? `${target.repo}#${target.pr} inspection snapshot`
+    : `${scopeLabel} PR inbox`;
   const runId = normalizedSnapshot?.runId ?? "not present";
-  const rawSnapshotHref = `/snapshot.json?repo=${encodeURIComponent(target.repo)}&pr=${encodeURIComponent(String(target.pr))}`;
-  const topSummary = normalizedSnapshot === null
+  const rawSnapshotHref = buildSnapshotHref(target, scopeFilter);
+  const topSummary = target === null
     ? `<section>
-      <h2>Snapshot unavailable</h2>
-      <p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p>
-      <p>Manual reload only: use the reload button or browser refresh.</p>
+      <h2>No PR selected</h2>
+      <p>No assigned open PR in ${escapeHtml(scopeLabel)} matched the current filter yet.</p>
+      <p>Pick a PR from the sidebar, or widen the updated or limit filters.</p>
     </section>`
-    : `<section>
-      <h2>Top summary</h2>
-      ${renderDefinitionList([
-        ["target.repo", normalizedSnapshot.target?.repo ?? target.repo],
-        ["target.pr", normalizedSnapshot.target?.pr ?? target.pr],
-        ["runId", runId],
-        ["inspectedAt", normalizedSnapshot.inspectedAt ?? "not present"],
-      ])}
-      <h3>Markers</h3>
-      <h4>markers.missing</h4>
-      ${renderList(normalizedSnapshot.markers?.missing)}
-      <h4>markers.stale</h4>
-      ${renderList(normalizedSnapshot.markers?.stale)}
-      <h4>markers.conflicts</h4>
-      ${renderList(normalizedSnapshot.markers?.conflicts)}
-    </section>`;
+    : normalizedSnapshot === null
+      ? `<section>
+        <h2>Snapshot unavailable</h2>
+        <p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p>
+        <p>Manual reload only: use the reload button or browser refresh.</p>
+      </section>`
+      : `<section>
+        <h2>Top summary</h2>
+        ${renderDefinitionList([
+          ["target.repo", normalizedSnapshot.target?.repo ?? target.repo],
+          ["target.pr", normalizedSnapshot.target?.pr ?? target.pr],
+          ["runId", runId],
+          ["inspectedAt", normalizedSnapshot.inspectedAt ?? "not present"],
+        ])}
+        <h3>Markers</h3>
+        <h4>markers.missing</h4>
+        ${renderList(normalizedSnapshot.markers?.missing)}
+        <h4>markers.stale</h4>
+        ${renderList(normalizedSnapshot.markers?.stale)}
+        <h4>markers.conflicts</h4>
+        ${renderList(normalizedSnapshot.markers?.conflicts)}
+      </section>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -1328,26 +1507,40 @@ export function renderInspectRunViewerHtml({
       body { font-family: sans-serif; margin: 1rem; max-width: none; line-height: 1.4; }
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
       .inspection-shell { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1rem; align-items: start; }
-      .assigned-pr-inbox { position: sticky; top: 1rem; width: 22rem; max-width: 100%; border: 1px solid #d9e5f2; border-radius: 0.65rem; padding: 0.7rem; background: #fbfdff; max-height: calc(100vh - 2rem); overflow: auto; box-sizing: border-box; }
-      .assigned-pr-inbox[data-sidebar-collapsed="true"] { width: 3rem; overflow: hidden; }
+      .assigned-pr-inbox { position: sticky; top: 1rem; width: 22rem; max-width: 100%; border: 1px solid #d9e5f2; border-radius: 0.65rem; padding: 0.65rem; background: #fbfdff; max-height: calc(100vh - 2rem); overflow: auto; box-sizing: border-box; }
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] { width: 2.15rem; overflow: hidden; padding: 0.22rem; border-color: transparent; background: transparent; box-shadow: none; }
       .assigned-pr-inbox[data-sidebar-collapsed="true"] h2,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-controls,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-filter-note,
       .assigned-pr-inbox[data-sidebar-collapsed="true"] .inbox-search-label,
       .assigned-pr-inbox[data-sidebar-collapsed="true"] .inbox-search-input,
       .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-list,
       .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-empty { display: none; }
-      .assigned-pr-inbox-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
-      .assigned-pr-inbox-header h2 { margin: 0; font-size: 1rem; flex: 1; }
-      .inbox-collapse-toggle { border: 1px solid #a5bed4; background: #fff; border-radius: 0.4rem; padding: 0.25rem 0.45rem; cursor: pointer; }
-      .inbox-search-label { display: block; font-size: 0.82rem; font-weight: 600; color: #355061; margin-bottom: 0.25rem; }
-      .inbox-search-input { width: 100%; border: 1px solid #bfd0e2; border-radius: 0.4rem; padding: 0.35rem 0.45rem; margin-bottom: 0.6rem; }
-      .assigned-pr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+      .assigned-pr-inbox-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.45rem; }
+      .assigned-pr-inbox-header h2 { margin: 0; font-size: 0.98rem; flex: 1; }
+      .assigned-pr-controls { display: flex; flex-wrap: wrap; gap: 0.32rem 0.45rem; margin-bottom: 0.35rem; align-items: center; }
+      .assigned-pr-control-row { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+      .assigned-pr-scope-row { align-items: center; }
+      .assigned-pr-secondary-controls { flex: 999 1 18rem; flex-wrap: nowrap; }
+      .assigned-pr-filter-label { display: inline-block; min-width: 3.6rem; margin: 0; font-size: 0.74rem; font-weight: 700; color: #355061; text-transform: uppercase; letter-spacing: 0.03em; }
+      .assigned-pr-select { flex: 1; min-width: 0; max-width: 100%; border: 1px solid #bfd0e2; border-radius: 0.42rem; padding: 0.22rem 0.4rem; font: inherit; font-size: 0.8rem; color: #355061; background: #fff; }
+      .assigned-pr-select-mid { flex: 0 1 auto; width: min(7.25rem, 100%); max-width: 7.25rem; min-width: 5.2rem; }
+      .assigned-pr-select-sm { flex: 0 1 auto; width: min(4.8rem, 100%); max-width: 4.8rem; min-width: 3.6rem; }
+      .assigned-pr-select-updated { margin-left: auto; }
+      .inbox-collapse-toggle { border: none; outline: none; box-shadow: none; appearance: none; -webkit-appearance: none; background: transparent; border-radius: 0.4rem; padding: 0.08rem 0.12rem; cursor: pointer; font-size: 1.05rem; line-height: 1; }
+      .inbox-search-label { display: block; font-size: 0.82rem; font-weight: 600; color: #355061; margin-bottom: 0.18rem; margin-top: 0.1rem; }
+      .inbox-search-input { width: 100%; border: 1px solid #bfd0e2; border-radius: 0.4rem; padding: 0.28rem 0.42rem; margin-bottom: 0.45rem; }
+      .assigned-pr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.36rem; }
       .assigned-pr-row { border: 1px solid #d6e0ea; border-radius: 0.5rem; background: #fff; }
       .assigned-pr-row.is-selected { border-color: #1565c0; box-shadow: inset 0 0 0 1px #1565c0; }
-      .assigned-pr-link { display: block; padding: 0.45rem 0.5rem; color: inherit; text-decoration: none; }
+      .assigned-pr-link { display: block; padding: 0.38rem 0.45rem; color: inherit; text-decoration: none; }
       .assigned-pr-id { font-weight: 700; margin-right: 0.35rem; }
       .assigned-pr-title { font-weight: 600; }
-      .assigned-pr-line + .assigned-pr-line { margin-top: 0.3rem; }
-      .assigned-pr-meta { display: flex; flex-wrap: wrap; gap: 0.28rem 0.42rem; font-size: 0.82rem; color: #486174; }
+      .assigned-pr-line + .assigned-pr-line { margin-top: 0.18rem; }
+      .assigned-pr-meta { display: flex; flex-wrap: wrap; gap: 0.22rem 0.36rem; font-size: 0.76rem; color: #486174; }
+      .assigned-pr-meta-primary { justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+      .assigned-pr-meta-primary .assigned-pr-repo { text-align: left; min-width: 0; }
+      .assigned-pr-meta-primary .assigned-pr-updated { margin-left: auto; text-align: right; white-space: nowrap; }
       .assigned-pr-attention { color: #a34a00; font-weight: 700; }
       .inspection-main { min-width: 0; }
       .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
@@ -1400,23 +1593,33 @@ export function renderInspectRunViewerHtml({
         .current-pr-state-grid { grid-template-columns: 1fr; }
         .state-graph-toolbar { flex-wrap: wrap; }
         .state-graph-zoom-value { margin-left: 0; }
+        .assigned-pr-secondary-controls { flex-wrap: wrap; }
+        .assigned-pr-select-mid,
+        .assigned-pr-select-sm,
+        .assigned-pr-select-updated { width: 100%; max-width: none; margin-left: 0; flex: 1 1 6rem; }
       }
     </style>
   </head>
   <body>
     <div class="inspection-shell">
-      ${renderInboxSidebar(inboxItems, target)}
+      ${renderInboxSidebar(inboxItems, target, { scopeFilter, scopeOptions, updatedWithinDays: inboxUpdatedWithinDays, state: inboxState, mode: inboxMode, page: inboxPage, totalPages: inboxTotalPages })}
       <main class="inspection-main">
-        ${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph)}
+        ${target === null
+          ? `<section class="current-pr-state-banner" aria-label="${escapeHtml(scopeLabel)} inbox state">
+              <h1>${escapeHtml(scopeLabel)} PR inbox</h1>
+              <p class="current-pr-state-summary-headline">Choose a PR from the sidebar</p>
+              <p class="current-pr-state-detail">This viewer can span all assigned repos or be narrowed to one repo. The sidebar defaults to open PRs from the last 7 days and paginates through the result set.</p>
+            </section>`
+          : renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph)}
         ${renderCollapsedDetailsPanel(`
       <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
-      <p><strong>Refresh:</strong> manual reload only. <strong>Raw snapshot:</strong> <a href="${escapeHtml(rawSnapshotHref)}"><code>${escapeHtml(rawSnapshotHref)}</code></a></p>
+      <p><strong>Refresh:</strong> manual reload only.${rawSnapshotHref ? ` <strong>Raw snapshot:</strong> <a href="${escapeHtml(rawSnapshotHref)}"><code>${escapeHtml(rawSnapshotHref)}</code></a>` : ""}</p>
       ${topSummary}
-      ${renderOuterLoopSummarySection(normalizedSnapshot)}
-      ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
-      ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
-      ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
-      ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
+      ${target === null ? "" : renderOuterLoopSummarySection(normalizedSnapshot)}
+      ${target === null ? "" : renderCopilotLoopIterationsSection(normalizedSnapshot)}
+      ${target === null ? "" : renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
+      ${target === null ? "" : renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
+      ${target === null ? "" : renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
     `)}
       </main>
     </div>
@@ -1489,22 +1692,111 @@ function requireSnapshotForJson(snapshot) {
   return snapshot;
 }
 
-function normalizeRequestedTargetFromUrl(rawUrl, fallbackTarget) {
+function parseUpdatedWithinDaysFromUrl(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
+    return DEFAULT_INBOX_UPDATED_WITHIN_DAYS;
+  }
+  const trimmed = rawValue.trim().toLowerCase();
+  if (trimmed === "all") {
+    return null;
+  }
+  if (/^\d+$/.test(trimmed) && Number(trimmed) > 0) {
+    return Number(trimmed);
+  }
+  const error = new Error("updated must be a positive integer or 'all'");
+  error.code = "MALFORMED_TARGET";
+  throw error;
+}
+
+function parseInboxPageFromUrl(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
+    return DEFAULT_INBOX_PAGE;
+  }
+  const trimmed = rawValue.trim().toLowerCase();
+  if (/^\d+$/.test(trimmed) && Number(trimmed) > 0) {
+    return Number(trimmed);
+  }
+  const error = new Error("page must be a positive integer");
+  error.code = "MALFORMED_TARGET";
+  throw error;
+}
+
+function parseInboxStateFromUrl(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
+    return DEFAULT_INBOX_PR_STATE;
+  }
+  const trimmed = rawValue.trim().toLowerCase();
+  if (trimmed === "open" || trimmed === "closed" || trimmed === "all") {
+    return trimmed;
+  }
+  const error = new Error("state must be one of: open, closed, all");
+  error.code = "MALFORMED_TARGET";
+  throw error;
+}
+
+function parseInboxModeFromUrl(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
+    return DEFAULT_INBOX_MODE;
+  }
+  const trimmed = rawValue.trim().toLowerCase();
+  if (trimmed === "assignee" || trimmed === "reviewer" || trimmed === "involved") {
+    return trimmed;
+  }
+  const error = new Error("mode must be one of: assignee, reviewer, involved");
+  error.code = "MALFORMED_TARGET";
+  throw error;
+}
+
+function normalizeRequestedViewFromUrl(rawUrl, fixedRepo = null, fallbackTarget = null) {
   if (typeof rawUrl !== "string" || rawUrl.length === 0) {
-    return fallbackTarget;
+    return {
+      scopeFilter: fixedRepo,
+      target: fallbackTarget,
+      updatedWithinDays: DEFAULT_INBOX_UPDATED_WITHIN_DAYS,
+      state: DEFAULT_INBOX_PR_STATE,
+      mode: DEFAULT_INBOX_MODE,
+      page: DEFAULT_INBOX_PAGE,
+    };
   }
 
   const url = new URL(rawUrl, "http://localhost");
-  const repo = url.searchParams.get("repo");
-  const pr = url.searchParams.get("pr");
-  if (repo === null && pr === null) {
-    return fallbackTarget;
+  const requestedScope = url.searchParams.get("scope");
+  const normalizedScope = requestedScope === null || requestedScope.trim().length === 0
+    ? null
+    : normalizeCliRepoOption(requestedScope);
+  const selectedRepo = url.searchParams.get("repo");
+  const normalizedSelectedRepo = selectedRepo === null || selectedRepo.trim().length === 0
+    ? null
+    : normalizeCliRepoOption(selectedRepo);
+
+  if (fixedRepo !== null && normalizedScope !== null && normalizedScope.toLowerCase() !== fixedRepo.toLowerCase()) {
+    const error = new Error("scope query param must match the repo-scoped viewer");
+    error.code = "MALFORMED_TARGET";
+    throw error;
+  }
+  if (fixedRepo !== null && normalizedSelectedRepo !== null && normalizedSelectedRepo.toLowerCase() !== fixedRepo.toLowerCase()) {
+    const error = new Error("repo query param must match the repo-scoped viewer");
+    error.code = "MALFORMED_TARGET";
+    throw error;
   }
 
-  return normalizeInspectionTarget({
-    repo: repo ?? fallbackTarget.repo,
-    pr: pr ?? fallbackTarget.pr,
-  });
+  const effectiveScope = fixedRepo ?? normalizedScope;
+  const effectiveSelectedRepo = fixedRepo ?? normalizedSelectedRepo;
+  const pr = url.searchParams.get("pr");
+  if (pr !== null && effectiveSelectedRepo === null) {
+    const error = new Error("repo is required when selecting a PR without --repo");
+    error.code = "MALFORMED_TARGET";
+    throw error;
+  }
+
+  return {
+    scopeFilter: effectiveScope,
+    target: pr === null ? fallbackTarget : normalizeInspectionTarget({ repo: effectiveSelectedRepo, pr }),
+    updatedWithinDays: parseUpdatedWithinDaysFromUrl(url.searchParams.get("updated")),
+    state: parseInboxStateFromUrl(url.searchParams.get("state")),
+    mode: parseInboxModeFromUrl(url.searchParams.get("mode")),
+    page: parseInboxPageFromUrl(url.searchParams.get("page")),
+  };
 }
 
 function dedupeInboxEntries(entries) {
@@ -1517,13 +1809,36 @@ function dedupeInboxEntries(entries) {
       if ((existing.title === null || existing.title === undefined) && entry.title) {
         existing.title = entry.title;
       }
+      if ((existing.updatedAt === null || existing.updatedAt === undefined) && entry.updatedAt) {
+        existing.updatedAt = entry.updatedAt;
+      }
       continue;
     }
-    const normalizedEntry = { target: entry.target, title: entry.title ?? null };
+    const normalizedEntry = {
+      target: entry.target,
+      title: entry.title ?? null,
+      updatedAt: entry.updatedAt ?? null,
+    };
     seen.set(key, normalizedEntry);
     deduped.push(normalizedEntry);
   }
   return deduped;
+}
+
+function collectScopeOptions(entries, { selectedTarget = null, scopeFilter = null } = {}) {
+  const repos = new Set();
+  if (typeof scopeFilter === "string" && scopeFilter.length > 0) {
+    repos.add(scopeFilter);
+  }
+  if (selectedTarget?.repo) {
+    repos.add(selectedTarget.repo);
+  }
+  for (const entry of entries) {
+    if (entry?.target?.repo) {
+      repos.add(entry.target.repo);
+    }
+  }
+  return [...repos].sort((left, right) => left.localeCompare(right));
 }
 
 export function formatInspectRunViewerUrl(host, port) {
@@ -1596,9 +1911,13 @@ export function createInspectRunViewerServer(options, deps = {}) {
   const adapter = deps.adapter ?? createInspectionViewerAdapter();
   const loadMermaidBrowserScriptImpl = deps.loadMermaidBrowserScriptImpl ?? loadMermaidBrowserScript;
   const logErrorImpl = deps.logErrorImpl ?? (() => {});
-  const defaultTarget = normalizeInspectionTarget({ repo: options.repo, pr: options.pr });
+  const fixedRepo = options.repo === undefined ? null : normalizeCliRepoOption(options.repo);
+  const fallbackTarget = options.pr === undefined || options.pr === null || fixedRepo === null
+    ? null
+    : normalizeInspectionTarget({ repo: fixedRepo, pr: options.pr });
   const adapterOptions = makeAdapterOptions(options);
   const supportsAssignedInbox = options.copilotInputPath === undefined && options.reviewerInputPath === undefined;
+  const jsonErrorTarget = fallbackTarget ?? { repo: fixedRepo, pr: null };
 
   return createServer(async (request, response) => {
     try {
@@ -1641,18 +1960,90 @@ export function createInspectRunViewerServer(options, deps = {}) {
         return;
       }
 
-      let requestTarget;
+      let requestedView;
       try {
-        requestTarget = normalizeRequestedTargetFromUrl(request.url, defaultTarget);
+        requestedView = normalizeRequestedViewFromUrl(request.url, fixedRepo, fallbackTarget);
       } catch (error) {
         if (requestPath === "/snapshot.json" && error?.code === "MALFORMED_TARGET") {
-          writeJson(response, 400, jsonErrorPayload(defaultTarget, error));
+          writeJson(response, 400, jsonErrorPayload(jsonErrorTarget, error));
           return;
         }
         throw error;
       }
 
+      const listAssignedPullRequests = typeof adapter.listAssignedPullRequests === "function"
+        ? adapter.listAssignedPullRequests.bind(adapter)
+        : async () => [];
+      const normalizeAssignedEntries = (rawEntries) => (Array.isArray(rawEntries)
+        ? rawEntries.flatMap((entry) => {
+          try {
+            if (entry && typeof entry === "object" && entry.target) {
+              return [{
+                target: normalizeInspectionTarget(entry.target),
+                title: entry.title ?? null,
+                updatedAt: entry.updatedAt ?? null,
+              }];
+            }
+            return [{ target: normalizeInspectionTarget(entry), title: null, updatedAt: null }];
+          } catch {
+            return [];
+          }
+        })
+        : []);
+
+      let assignedEntries = [];
+      let scopeSourceEntries = [];
+      if (supportsAssignedInbox) {
+        try {
+          const [rawScopeEntries, rawAssignedEntries] = await Promise.all([
+            listAssignedPullRequests({
+              ...adapterOptions,
+              repo: undefined,
+              updatedWithinDays: requestedView.updatedWithinDays,
+              limit: MAX_INBOX_RESULT_LIMIT,
+              state: requestedView.state,
+              mode: requestedView.mode,
+            }),
+            listAssignedPullRequests({
+              ...adapterOptions,
+              repo: requestedView.scopeFilter,
+              updatedWithinDays: requestedView.updatedWithinDays,
+              limit: MAX_INBOX_RESULT_LIMIT,
+              state: requestedView.state,
+              mode: requestedView.mode,
+            }),
+          ]);
+          scopeSourceEntries = normalizeAssignedEntries(rawScopeEntries);
+          assignedEntries = normalizeAssignedEntries(rawAssignedEntries);
+        } catch (error) {
+          logErrorImpl(error);
+          assignedEntries = [];
+          scopeSourceEntries = [];
+        }
+      }
+
+      const requestedPage = requestedView.page ?? DEFAULT_INBOX_PAGE;
+      const selectedTargetMatches = requestedView.target !== null
+        && assignedEntries.some((entry) => renderTargetKey(entry.target) === renderTargetKey(requestedView.target));
+      const effectiveSelectedTarget = supportsAssignedInbox && requestedView.target !== null
+        ? (assignedEntries.length === 0 || selectedTargetMatches ? requestedView.target : null)
+        : requestedView.target;
+      const selectedIndex = effectiveSelectedTarget === null
+        ? -1
+        : assignedEntries.findIndex((entry) => renderTargetKey(entry.target) === renderTargetKey(effectiveSelectedTarget));
+      const totalPages = Math.max(1, Math.ceil(assignedEntries.length / DEFAULT_INBOX_PAGE_SIZE));
+      const effectivePage = selectedIndex >= 0
+        ? (Math.floor(selectedIndex / DEFAULT_INBOX_PAGE_SIZE) + 1)
+        : Math.min(Math.max(requestedPage, DEFAULT_INBOX_PAGE), totalPages);
+      const pageStart = (effectivePage - 1) * DEFAULT_INBOX_PAGE_SIZE;
+      const pagedEntries = assignedEntries.slice(pageStart, pageStart + DEFAULT_INBOX_PAGE_SIZE);
+      const requestTarget = effectiveSelectedTarget ?? pagedEntries[0]?.target ?? null;
+
       if (requestPath === "/snapshot.json") {
+        if (requestTarget === null) {
+          writeJson(response, 400, jsonErrorPayload(jsonErrorTarget, new Error("snapshot.json requires ?pr=<number> when no PR is currently selected")));
+          return;
+        }
         try {
           const snapshot = requireSnapshotForJson(await adapter.loadSnapshot(requestTarget, adapterOptions));
           writeJson(response, 200, snapshot);
@@ -1662,78 +2053,44 @@ export function createInspectRunViewerServer(options, deps = {}) {
         return;
       }
 
-      const listAssignedPullRequests = typeof adapter.listAssignedPullRequests === "function"
-        ? adapter.listAssignedPullRequests.bind(adapter)
-        : async () => [];
-      let assignedEntries = [];
-      if (supportsAssignedInbox) {
-        try {
-          const rawAssignedEntries = await listAssignedPullRequests(adapterOptions);
-          assignedEntries = Array.isArray(rawAssignedEntries)
-            ? rawAssignedEntries.flatMap((entry) => {
-              try {
-                if (entry && typeof entry === "object" && entry.target) {
-                  return [{ target: normalizeInspectionTarget(entry.target), title: entry.title ?? null }];
-                }
-                return [{ target: normalizeInspectionTarget(entry), title: null }];
-              } catch {
-                return [];
-              }
-            })
-            : [];
-        } catch (error) {
-          logErrorImpl(error);
-          assignedEntries = [];
-        }
-      }
-      const inboxEntries = dedupeInboxEntries([{ target: requestTarget, title: null }, ...assignedEntries]);
+      const seedEntries = requestTarget === null
+        ? pagedEntries
+        : [{ target: requestTarget, title: null, updatedAt: null }, ...pagedEntries];
+      const inboxEntries = dedupeInboxEntries(seedEntries);
 
       let snapshot = null;
       let error = null;
-      try {
-        snapshot = await adapter.loadSnapshot(requestTarget, adapterOptions);
-      } catch (caught) {
-        error = caught instanceof Error ? caught : new Error(String(caught));
+      if (requestTarget !== null) {
+        try {
+          snapshot = await adapter.loadSnapshot(requestTarget, adapterOptions);
+        } catch (caught) {
+          error = caught instanceof Error ? caught : new Error(String(caught));
+        }
       }
 
-      const inboxItems = [];
-      let remainingInboxSnapshotBudget = MAX_EAGER_INBOX_SNAPSHOTS;
-      for (const inboxEntry of inboxEntries) {
+      const inboxItems = inboxEntries.map((inboxEntry) => {
         const inboxTarget = inboxEntry.target;
-        if (renderTargetKey(inboxTarget) === renderTargetKey(requestTarget)) {
-          inboxItems.push({
-            target: inboxTarget,
-            title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
-            snapshot: snapshot ?? null,
-          });
-          continue;
-        }
-        if (remainingInboxSnapshotBudget <= 0) {
-          inboxItems.push({
-            target: inboxTarget,
-            title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
-            snapshot: null,
-          });
-          continue;
-        }
-        remainingInboxSnapshotBudget -= 1;
-        try {
-          const inboxSnapshot = await adapter.loadSnapshot(inboxTarget, adapterOptions);
-          inboxItems.push({ target: inboxTarget, title: inboxEntry.title ?? `PR #${inboxTarget.pr}`, snapshot: inboxSnapshot ?? null });
-        } catch {
-          inboxItems.push({
-            target: inboxTarget,
-            title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
-            snapshot: null,
-          });
-        }
-      }
+        const selected = requestTarget !== null && renderTargetKey(inboxTarget) === renderTargetKey(requestTarget);
+        return {
+          target: inboxTarget,
+          title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
+          updatedAt: inboxEntry.updatedAt ?? null,
+          snapshot: selected ? (snapshot ?? null) : null,
+        };
+      });
 
       const html = renderInspectRunViewerHtml({
+        repo: requestedView.scopeFilter,
         target: requestTarget,
         snapshot: snapshot ?? null,
         error,
         inboxItems,
+        scopeOptions: collectScopeOptions(scopeSourceEntries, { selectedTarget: requestTarget, scopeFilter: requestedView.scopeFilter }),
+        inboxUpdatedWithinDays: requestedView.updatedWithinDays,
+        inboxState: requestedView.state,
+        inboxMode: requestedView.mode,
+        inboxPage: effectivePage,
+        inboxTotalPages: totalPages,
       });
       writeHtml(response, html);
     } catch (caught) {
@@ -1794,7 +2151,7 @@ export async function runCli(
     `${JSON.stringify({
       ok: true,
       message: "read-only inspect-run viewer started",
-      target: normalizeInspectionTarget({ repo: options.repo, pr: options.pr }),
+      scope: { repo: options.repo },
       url: formatInspectRunViewerUrl(options.host, options.port),
       reload: "manual",
     })}\n`,

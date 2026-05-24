@@ -106,24 +106,26 @@ function requestOnce(url, { method = "GET" } = {}) {
   });
 }
 
-test("parseInspectRunViewerCliArgs normalizes target values and rejects malformed input with usage", () => {
-  const parsed = parseInspectRunViewerCliArgs(["--repo", "  owner/repo  ", "--pr", "55"]);
+test("parseInspectRunViewerCliArgs normalizes repo values and rejects malformed input with usage", () => {
+  const parsed = parseInspectRunViewerCliArgs(["--repo", "  owner/repo  "]);
   assert.equal(parsed.repo, "owner/repo");
-  assert.equal(parsed.pr, 55);
+  assert.equal(parsed.pr, undefined);
 
-  const bracketedIpv6Host = parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "[::1]"]);
+  const unscoped = parseInspectRunViewerCliArgs([]);
+  assert.equal(unscoped.repo, undefined);
+  assert.equal(unscoped.pr, undefined);
+
+  const bracketedIpv6Host = parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--host", "[::1]"]);
   assert.equal(bracketedIpv6Host.host, "::1");
 
   assert.throws(
-    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "0.0.0.0"]),
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--host", "0.0.0.0"]),
     /--host must stay on localhost\/loopback unless --allow-non-localhost is set/i,
   );
 
   const nonLocalhostOptIn = parseInspectRunViewerCliArgs([
     "--repo",
     "owner/repo",
-    "--pr",
-    "55",
     "--host",
     "0.0.0.0",
     "--allow-non-localhost",
@@ -135,7 +137,7 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
 
   let malformedTargetError;
   try {
-    parseInspectRunViewerCliArgs(["--repo", "../../bad", "--pr", "55"]);
+    parseInspectRunViewerCliArgs(["--repo", "../../bad"]);
   } catch (error) {
     malformedTargetError = error;
   }
@@ -145,11 +147,13 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
   assert.ok(malformedTargetError.usage.length > 0);
 
   assert.throws(
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55"]),
+    /--pr is no longer supported on the CLI/i,
+  );
+  assert.throws(
     () => parseInspectRunViewerCliArgs([
       "--repo",
       "owner/repo",
-      "--pr",
-      "55",
       "--reviewer-login",
       "reviewer",
       "--reviewer-input",
@@ -158,11 +162,11 @@ test("parseInspectRunViewerCliArgs normalizes target values and rejects malforme
     /cannot be combined/i,
   );
   assert.throws(
-    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--reviewer-login", "   "]),
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--reviewer-login", "   "]),
     /must not be empty/i,
   );
   assert.throws(
-    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--pr", "55", "--host", "   "]),
+    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--host", "   "]),
     /--host must not be empty/i,
   );
 });
@@ -400,6 +404,7 @@ test("buildInspectionMermaidGraph normalizes and de-duplicates transition tokens
 
   const graph = buildInspectionMermaidGraph(snapshot);
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot,
   });
@@ -413,6 +418,7 @@ test("buildInspectionMermaidGraph normalizes and de-duplicates transition tokens
 
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot(),
     inboxItems: [
@@ -446,14 +452,14 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   });
 
   assert.match(html, /Assigned PR inbox/);
-  assert.match(html, /Search assigned PRs/);
+  assert.match(html, /Search PRs/);
   assert.match(html, /grid-template-columns: auto minmax\(0, 1fr\)/);
   assert.match(html, /\.assigned-pr-inbox \{[^}]*width: 22rem;[^}]*box-sizing: border-box;/);
   assert.match(html, /data-inbox-search/);
   assert.match(html, /data-inbox-item/);
   assert.match(html, /aria-current="page"/);
   assert.match(html, /⚠ needs attention/);
-  assert.match(html, /\?repo=other%2Frepo&amp;pr=77/);
+  assert.match(html, /pr=77/);
   assert.match(html, /PR #55 State/);
   assert.match(html, /aria-label="PR #55 State"/);
   assert.match(html, /Waiting for Copilot review/);
@@ -522,6 +528,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
 
 test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and absent sections", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       sourceMode: "checkpoint-only",
@@ -559,6 +566,7 @@ test("renderInspectRunViewerHtml renders checkpoint-only / degraded cues and abs
 
 test("renderInspectRunViewerHtml distinguishes empty transitions from unavailable transition data", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       layers: {
@@ -582,6 +590,7 @@ test("renderInspectRunViewerHtml distinguishes empty transitions from unavailabl
 
 test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "done_terminal",
@@ -636,6 +645,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
 
 test("renderInspectRunViewerHtml shows approved current head when clean convergence also has human approval", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "continue_current_wait",
@@ -670,6 +680,7 @@ test("renderInspectRunViewerHtml shows approved current head when clean converge
 
 test("renderInspectRunViewerHtml shows clean convergence instead of re-request language for same-head clean Copilot reviews", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "continue_current_wait",
@@ -701,6 +712,7 @@ test("renderInspectRunViewerHtml shows clean convergence instead of re-request l
 
 test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and needs_reconcile in the banner", () => {
   const liveOwnerHtml = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "stay_with_current_live_owner",
@@ -725,6 +737,7 @@ test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and need
   assert.doesNotMatch(liveOwnerHtml, /Reviewer loop active/);
 
   const reconcileHtml = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       outerState: "needs_reconcile",
@@ -753,6 +766,7 @@ test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and need
 
 test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       needsAttention: true,
@@ -772,6 +786,7 @@ test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
 
 test("renderInspectRunViewerHtml renders unavailable snapshot and malformed target load errors explicitly", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "bad target", pr: "x" },
     snapshot: null,
     error: new Error("target.pr must be a positive integer"),
@@ -781,12 +796,13 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
   assert.match(html, /target\.pr must be a positive integer/);
   assert.match(html, /no state graph can be rendered yet/i);
   assert.match(html, /manual reload only/i);
-  assert.match(html, /href="\/snapshot\.json\?repo=bad%20target&amp;pr=x"/);
+  assert.match(html, /href="\/snapshot\.json\?repo=bad(?:\+|%20)target&amp;pr=x"/);
 });
 
 
 test("renderInspectRunViewerHtml treats undefined snapshots as unavailable", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: undefined,
   });
@@ -811,6 +827,7 @@ test("buildInspectionMermaidGraph suppresses graph rendering for sourceMode unav
 
 test("renderInspectRunViewerHtml includes deterministic Mermaid asset fallback messaging", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot(),
   });
@@ -819,6 +836,7 @@ test("renderInspectRunViewerHtml includes deterministic Mermaid asset fallback m
 });
 test("renderInspectRunViewerHtml fail-closes the graph for unavailable snapshots", () => {
   const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
       sourceMode: "unavailable",
@@ -874,6 +892,7 @@ test("createInspectionViewerAdapter lists assigned open PRs for the current user
   let seenArgs = null;
   const adapter = createInspectionViewerAdapter({
     inspectRunImpl: async () => ({ ok: true }),
+    nowImpl: () => Date.parse("2026-05-21T00:00:00.000Z"),
     runGhJsonImpl: async (args) => {
       seenArgs = args;
       return [
@@ -891,23 +910,31 @@ test("createInspectionViewerAdapter lists assigned open PRs for the current user
     },
   });
 
-  const assigned = await adapter.listAssignedPullRequests();
+  const assigned = await adapter.listAssignedPullRequests({ repo: "owner/repo" });
 
   assert.deepEqual(seenArgs, [
     "search",
     "prs",
     "--assignee",
     "@me",
+    "--repo",
+    "owner/repo",
     "--state",
     "open",
+    "--sort",
+    "updated",
+    "--order",
+    "desc",
+    "--updated",
+    ">=2026-05-14",
     "--limit",
-    "50",
+    "25",
     "--json",
-    "number,title,repository",
+    "number,title,repository,updatedAt",
   ]);
   assert.deepEqual(assigned, [
-    { target: { repo: "other/repo", pr: 77 }, title: "Needs attention PR" },
-    { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR" },
+    { target: { repo: "other/repo", pr: 77 }, title: "Needs attention PR", updatedAt: null },
+    { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR", updatedAt: null },
   ]);
 });
 
@@ -931,7 +958,7 @@ test("createInspectionViewerAdapter listAssignedPullRequests reports invalid gh 
     });
 
     await assert.rejects(
-      () => adapter.listAssignedPullRequests({ ghCommand: fakeGh }),
+      () => adapter.listAssignedPullRequests({ repo: "owner/repo", ghCommand: fakeGh }),
       /Invalid JSON from gh: not json/,
     );
   } finally {
@@ -950,9 +977,9 @@ test("createInspectionViewerAdapter listAssignedPullRequests skips malformed sea
     ],
   });
 
-  const assigned = await adapter.listAssignedPullRequests();
+  const assigned = await adapter.listAssignedPullRequests({ repo: "owner/repo" });
   assert.deepEqual(assigned, [
-    { target: { repo: "owner/repo", pr: 44 }, title: null },
+    { target: { repo: "owner/repo", pr: 44 }, title: null, updatedAt: null },
   ]);
 });
 
@@ -991,7 +1018,7 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
   }
 });
 
-test("createInspectRunViewerServer caps eager inbox snapshot loads for non-selected rows", async () => {
+test("createInspectRunViewerServer does not eager-load non-selected sidebar snapshots", async () => {
   const seenTargets = [];
   const adapter = {
     async loadSnapshot(target) {
@@ -999,10 +1026,13 @@ test("createInspectRunViewerServer caps eager inbox snapshot loads for non-selec
       return makeSnapshot({ target, runId: `pr-${target.pr}` });
     },
     async listAssignedPullRequests() {
-      return Array.from({ length: 15 }, (_, index) => ({
-        target: { repo: `other/repo-${index + 1}`, pr: index + 1 },
-        title: `PR ${index + 1}`,
-      }));
+      return [
+        { target: { repo: "owner/repo", pr: 55 }, title: "Current PR" },
+        ...Array.from({ length: 15 }, (_, index) => ({
+          target: { repo: `other/repo-${index + 1}`, pr: index + 1 },
+          title: `PR ${index + 1}`,
+        })),
+      ];
     },
   };
 
@@ -1018,10 +1048,10 @@ test("createInspectRunViewerServer caps eager inbox snapshot loads for non-selec
     const response = await requestOnce(`http://127.0.0.1:${address.port}/`);
 
     assert.equal(response.statusCode, 200);
-    assert.equal(seenTargets.length, 11);
+    assert.equal(seenTargets.length, 1);
     assert.equal(seenTargets[0], "owner/repo#55");
     assert.match(response.body, /PR 15/);
-    assert.match(response.body, /Snapshot unavailable/);
+    assert.doesNotMatch(response.body, /Snapshot unavailable/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -1072,7 +1102,7 @@ test("createInspectRunViewerServer supports selecting another PR from query para
     async listAssignedPullRequests() {
       return [
         { target: { repo: "owner/repo", pr: 55 }, title: "Default" },
-        { target: { repo: "other/repo", pr: 77 }, title: "Selected from inbox" },
+        { target: { repo: "owner/repo", pr: 77 }, title: "Selected from inbox" },
       ];
     },
   };
@@ -1086,13 +1116,13 @@ test("createInspectRunViewerServer supports selecting another PR from query para
 
   try {
     const address = server.address();
-    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=other/repo&pr=77`);
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?pr=77`);
 
     assert.equal(response.statusCode, 200);
     assert.match(response.body, /PR #77 State/);
     assert.match(response.body, /Selected from inbox/);
-    assert.match(response.body, /href="\/snapshot\.json\?repo=other%2Frepo&amp;pr=77"/);
-    assert.ok(seenTargets.some((target) => target.repo === "other/repo" && target.pr === 77));
+    assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
+    assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 77));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -1255,13 +1285,13 @@ test("createInspectRunViewerServer resolves /snapshot.json target from query par
 
   try {
     const address = server.address();
-    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=other/repo&pr=77`);
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?pr=77`);
 
     assert.equal(response.statusCode, 200);
     const payload = JSON.parse(response.body);
-    assert.equal(payload.target.repo, "other/repo");
+    assert.equal(payload.target.repo, "owner/repo");
     assert.equal(payload.target.pr, 77);
-    assert.ok(seenTargets.some((target) => target.repo === "other/repo" && target.pr === 77));
+    assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 77));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -1417,14 +1447,14 @@ test("createInspectRunViewerServer returns JSON for malformed /snapshot.json rep
 
   try {
     const address = server.address();
-    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=../../bad&pr=nope`);
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=other/repo&pr=77`);
 
     assert.equal(response.statusCode, 400);
     assert.equal(response.headers["content-type"], "application/json; charset=utf-8");
     assert.deepEqual(JSON.parse(response.body), {
       ok: false,
       target: { repo: "owner/repo", pr: 55 },
-      error: { message: "target.repo must match <owner/name>" },
+      error: { message: "repo query param must match the repo-scoped viewer" },
     });
   } finally {
     await new Promise((resolve) => server.close(resolve));
@@ -1447,7 +1477,7 @@ test("createInspectRunViewerServer treats malformed repo/pr query params as bad 
 
   try {
     const address = server.address();
-    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=../../bad&pr=nope`);
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=other/repo&pr=77`);
 
     assert.equal(response.statusCode, 400);
     assert.equal(response.body, "Bad Request");
@@ -1523,8 +1553,6 @@ test("runCli explains missing lsof when --restart is requested", async () => {
     () => runCli([
       "--repo",
       "owner/repo",
-      "--pr",
-      "55",
       "--restart",
     ], {
       stdout: { write() {} },

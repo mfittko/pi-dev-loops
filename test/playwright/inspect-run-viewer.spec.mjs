@@ -6,6 +6,9 @@ import { createInspectRunViewerServer } from "../../scripts/loop/inspect-run-vie
 import { makeInspectionSnapshot } from "./fixtures/inspect-run-viewer-fixture.mjs";
 
 async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequests = []) {
+  const normalizedAssignedPullRequests = assignedPullRequests.some((entry) => entry?.target?.repo === "owner/repo" && entry?.target?.pr === 55)
+    ? assignedPullRequests
+    : [{ target: { repo: "owner/repo", pr: 55 }, title: "PR #55" }, ...assignedPullRequests];
   const server = createInspectRunViewerServer(
     { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
     {
@@ -14,7 +17,7 @@ async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequ
           return snapshot;
         },
         async listAssignedPullRequests() {
-          return assignedPullRequests;
+          return normalizedAssignedPullRequests;
         },
       },
     },
@@ -61,7 +64,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await sidebarToggle.click();
     await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "true");
     await expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
-    await expect(sidebarToggle).toHaveText("Expand");
+    await expect(sidebarToggle).toHaveText("⏩");
     await sidebarToggle.click();
     await expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
 
