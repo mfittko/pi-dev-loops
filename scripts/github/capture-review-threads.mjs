@@ -23,6 +23,7 @@ export const REVIEW_THREADS_QUERY = [
   "          comments(first: 100) {",
   "            nodes {",
   "              id",
+  "              databaseId",
   "              body",
   "              author {",
   "                login",

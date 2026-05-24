@@ -181,6 +181,74 @@ test("capture-review-threads supports live gh capture only with explicit --repo 
   }
 });
 
+test("capture-review-threads exposes numeric comment database ids in normalized live output", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-capture-review-database-id-"));
+
+  try {
+    const gh = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "--field", "owner=owner", "--field", "name=repo", "--field", "pr=17"],
+        stdout: JSON.stringify({
+          data: {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  nodes: [
+                    {
+                      id: "THREAD_123",
+                      isResolved: false,
+                      comments: {
+                        nodes: [
+                          {
+                            id: "PRRC_node_456",
+                            databaseId: 456,
+                            body: "Use the numeric comment id for REST follow-up.",
+                            author: { login: "reviewer", __typename: "User" },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        }) + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env: gh.env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.deepEqual(output.threads, [
+      {
+        id: "THREAD_123",
+        isResolved: false,
+        isActionable: true,
+        commentIds: ["PRRC_node_456"],
+        commentDatabaseIds: ["456"],
+        actionableCommentIds: ["PRRC_node_456"],
+        actionableCommentDatabaseIds: ["456"],
+      },
+    ]);
+    assert.deepEqual(output.comments, [
+      {
+        id: "PRRC_node_456",
+        databaseId: "456",
+        threadId: "THREAD_123",
+        author: { login: "reviewer", type: "User", isBot: false },
+        body: "Use the numeric comment id for REST follow-up.",
+        isActionable: true,
+      },
+    ]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("capture-review-threads rejects unsafe repo slugs deterministically", async () => {
   for (const repo of ["../repo", "owner/..", "owner\\repo", "./repo"]) {
     const result = await runNode(["--repo", repo, "--pr", "17"]);

@@ -482,6 +482,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
 5. if files changed, push the resolving commit before any thread reply claims the fix is present
 6. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
    - prefer the deterministic helper `reply-resolve-review-thread.mjs` from the resolved skill scripts directory when it exists
+   - when using that helper, pair `--comment-id` and `--thread-id` from the same fresh PR thread snapshot rather than mixing ids across review rounds
    - use a body file under `tmp/` rather than inline shell text for the reply body
    - when the intent is GitHub linkability, keep commit SHAs and issue/PR refs as plain text (for example 3ee82fc and owner/repo#70) and do not wrap them in backticks
    - keep backticks for actual code/path/CLI literals only

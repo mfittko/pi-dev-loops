@@ -62,27 +62,34 @@ test("parseReviewThreads normalizes fixture-backed review thread data", async ()
       isResolved: false,
       isActionable: true,
       commentIds: ["c-1"],
+      commentDatabaseIds: [],
       actionableCommentIds: ["c-1"],
+      actionableCommentDatabaseIds: [],
     },
     {
       id: "t-2",
       isResolved: true,
       isActionable: false,
       commentIds: ["c-2"],
+      commentDatabaseIds: [],
       actionableCommentIds: [],
+      actionableCommentDatabaseIds: [],
     },
     {
       id: "t-3",
       isResolved: false,
       isActionable: false,
       commentIds: ["c-3", "c-4"],
+      commentDatabaseIds: [],
       actionableCommentIds: [],
+      actionableCommentDatabaseIds: [],
     },
   ]);
 
   assert.deepEqual(result.comments, [
     {
       id: "c-1",
+      databaseId: null,
       threadId: "t-1",
       author: { login: "reviewer", type: "User", isBot: false },
       body: "Please add regression coverage.",
@@ -90,6 +97,7 @@ test("parseReviewThreads normalizes fixture-backed review thread data", async ()
     },
     {
       id: "c-2",
+      databaseId: null,
       threadId: "t-2",
       author: { login: "maintainer", type: "User", isBot: false },
       body: "Resolve after the docs update lands.",
@@ -97,6 +105,7 @@ test("parseReviewThreads normalizes fixture-backed review thread data", async ()
     },
     {
       id: "c-3",
+      databaseId: null,
       threadId: "t-3",
       author: { login: "copilot-pull-request-reviewer[bot]", type: "Bot", isBot: true },
       body: "Automated summary from Copilot.",
@@ -104,10 +113,63 @@ test("parseReviewThreads normalizes fixture-backed review thread data", async ()
     },
     {
       id: "c-4",
+      databaseId: null,
       threadId: "t-3",
       author: { login: "", type: "System", isBot: false },
       body: "Thread metadata event.",
       isActionable: false,
+    },
+  ]);
+});
+
+test("parseReviewThreads preserves numeric review comment database ids for REST follow-up", () => {
+  const result = parseReviewThreads({
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: {
+            nodes: [
+              {
+                id: "THREAD_123",
+                isResolved: false,
+                comments: {
+                  nodes: [
+                    {
+                      id: "PRRC_node_9",
+                      databaseId: 9,
+                      body: "Please use the matching comment id.",
+                      author: { login: "reviewer", __typename: "User" },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(result.threads, [
+    {
+      id: "THREAD_123",
+      isResolved: false,
+      isActionable: true,
+      commentIds: ["PRRC_node_9"],
+      commentDatabaseIds: ["9"],
+      actionableCommentIds: ["PRRC_node_9"],
+      actionableCommentDatabaseIds: ["9"],
+    },
+  ]);
+
+  assert.deepEqual(result.comments, [
+    {
+      id: "PRRC_node_9",
+      databaseId: "9",
+      threadId: "THREAD_123",
+      author: { login: "reviewer", type: "User", isBot: false },
+      body: "Please use the matching comment id.",
+      isActionable: true,
     },
   ]);
 });

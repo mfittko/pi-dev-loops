@@ -33,6 +33,8 @@ Optional:
 
 Success output shape:
 - `{ "ok": true, "source": { ... }, "summary": { ... }, "threads": [...], "comments": [...] }`
+- normalized `comments[]` preserve both the GraphQL comment node id (`id`) and the REST-safe numeric review-comment id (`databaseId`) when available
+- normalized `threads[]` include `commentDatabaseIds` and `actionableCommentDatabaseIds` so follow-up helpers can pair `--comment-id` and `--thread-id` from the same fresh snapshot
 - when `--output` is used, success output also includes `"outputPath"`
 
 Failure behavior:
@@ -132,6 +134,7 @@ Required:
 
 Contract:
 - reads the reply body from a file so shell quoting does not become part of the workflow logic
+- validates the live PR thread snapshot before mutating GitHub so `--comment-id` and `--thread-id` must refer to the same thread on the target PR
 - posts the reply to `repos/<owner>/<name>/pulls/<pr>/comments/<comment-id>/replies`
 - resolves the thread with the GraphQL `resolveReviewThread` mutation
 - fails if the thread does not report resolved after the mutation
@@ -140,7 +143,7 @@ Success output shape:
 - `{ "ok": true, "repo": "owner/name", "pr": 17, "commentId": 123, "threadId": "...", "replyId": 456, "replyUrl": "...", "resolved": true }`
 
 Failure behavior:
-- malformed arguments, empty body files, unexpected `gh` failures, and unsuccessful resolve responses emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+- malformed arguments, empty body files, missing threads, missing comments, comment/thread mismatches, unexpected `gh` failures, and unsuccessful resolve responses emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 For new GitHub mutation helpers in this repo, do not stop at fixture-only confidence when a real PR is available and mutation is authorized. Run a bounded real-PR smoke check before depending on the helper inside a longer async review/fix loop.
 

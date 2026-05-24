@@ -2,8 +2,8 @@
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
-import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "./capture-review-threads.mjs";
+import { formatCliError, isDirectCliRun, parseReviewThreads } from "../_core-helpers.mjs";
+import { fetchGithubReviewThreadsPayload, parseRepoSlug } from "./capture-review-threads.mjs";
 
 const RESOLVE_REVIEW_THREAD_MUTATION = [
   "mutation($threadId: ID!) {",
@@ -139,6 +139,29 @@ function parseReplyPayload(payload) {
   };
 }
 
+async function validateReplyTarget(
+  { repo, pr, commentId, threadId },
+  { env = process.env, ghCommand = "gh" } = {},
+) {
+  const payload = await fetchGithubReviewThreadsPayload({ repo, pr }, { env, ghCommand });
+  const parsed = parseReviewThreads(payload);
+  const targetCommentId = String(commentId);
+  const thread = parsed.threads.find((entry) => entry.id === threadId) ?? null;
+  const comment = parsed.comments.find((entry) => entry.databaseId === targetCommentId) ?? null;
+
+  if (thread === null) {
+    throw new Error(`Review thread ${threadId} was not found on pull request ${repo}#${pr}`);
+  }
+
+  if (comment === null) {
+    throw new Error(`Review comment ${commentId} was not found on pull request ${repo}#${pr}`);
+  }
+
+  if (comment.threadId !== threadId) {
+    throw new Error(`Review comment ${commentId} does not belong to review thread ${threadId} on pull request ${repo}#${pr}`);
+  }
+}
+
 async function postReply({ repo, pr, commentId, body }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
@@ -199,6 +222,16 @@ export async function runCli(
   if (rawBody.trim().length === 0) {
     throw new Error("--body-file must contain non-empty text");
   }
+
+  await validateReplyTarget(
+    {
+      repo: options.repo,
+      pr: options.pr,
+      commentId: options.commentId,
+      threadId: options.threadId,
+    },
+    { env, ghCommand },
+  );
 
   const reply = parseReplyPayload(await postReply(
     {
