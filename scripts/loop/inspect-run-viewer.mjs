@@ -1224,7 +1224,7 @@ function renderInboxSidebar(items, selectedTarget) {
     const selected = key === selectedKey;
     const searchText = `${target.repo} #${target.pr} ${item.title ?? ""} ${summary.statusClass} ${summary.trustLabel} ${summary.headline}`.toLowerCase();
     return `<li class="assigned-pr-row ${selected ? "is-selected" : ""}" data-inbox-item data-search="${escapeHtml(searchText)}">
-          <a class="assigned-pr-link" href="/?repo=${encodeURIComponent(target.repo)}&pr=${encodeURIComponent(String(target.pr))}" ${selected ? 'aria-current="page"' : ""}>
+          <a class="assigned-pr-link" href="/?repo=${encodeURIComponent(target.repo)}&amp;pr=${encodeURIComponent(String(target.pr))}" ${selected ? 'aria-current="page"' : ""}>
             <div class="assigned-pr-line">
               <span class="assigned-pr-id">#${escapeHtml(String(target.pr))}</span>
               <span class="assigned-pr-title">${escapeHtml(item.title ?? "Untitled pull request")}</span>
@@ -1685,26 +1685,28 @@ export function createInspectRunViewerServer(options, deps = {}) {
         error = caught instanceof Error ? caught : new Error(String(caught));
       }
 
-      const inboxItems = await Promise.all(inboxEntries.map(async (inboxEntry) => {
+      const inboxItems = [];
+      for (const inboxEntry of inboxEntries) {
         const inboxTarget = inboxEntry.target;
         if (renderTargetKey(inboxTarget) === renderTargetKey(requestTarget)) {
-          return {
+          inboxItems.push({
             target: inboxTarget,
             title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
             snapshot: snapshot ?? null,
-          };
+          });
+          continue;
         }
         try {
           const inboxSnapshot = await adapter.loadSnapshot(inboxTarget, adapterOptions);
-          return { target: inboxTarget, title: inboxEntry.title ?? `PR #${inboxTarget.pr}`, snapshot: inboxSnapshot ?? null };
+          inboxItems.push({ target: inboxTarget, title: inboxEntry.title ?? `PR #${inboxTarget.pr}`, snapshot: inboxSnapshot ?? null });
         } catch {
-          return {
+          inboxItems.push({
             target: inboxTarget,
             title: inboxEntry.title ?? `PR #${inboxTarget.pr}`,
             snapshot: null,
-          };
+          });
         }
-      }));
+      }
 
       const html = renderInspectRunViewerHtml({
         target: requestTarget,

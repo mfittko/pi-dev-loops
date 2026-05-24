@@ -448,7 +448,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /data-inbox-item/);
   assert.match(html, /aria-current="page"/);
   assert.match(html, /⚠ needs attention/);
-  assert.match(html, /\?repo=other%2Frepo&pr=77/);
+  assert.match(html, /\?repo=other%2Frepo&amp;pr=77/);
   assert.match(html, /PR #55 State/);
   assert.match(html, /aria-label="PR #55 State"/);
   assert.match(html, /Waiting for Copilot review/);
