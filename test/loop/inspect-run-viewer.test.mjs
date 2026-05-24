@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { once } from "node:events";
 import { get, request } from "node:http";
 import test from "node:test";
@@ -27,7 +30,7 @@ import {
   REVIEWER_STATE,
   REVIEWER_TRANSITIONS,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
-import { createInspectionViewerAdapter } from "../../scripts/loop/_inspect-run-viewer-adapter.mjs";
+import { createInspectionViewerAdapter, parseGhJsonOutput } from "../../scripts/loop/_inspect-run-viewer-adapter.mjs";
 
 function makeSnapshot(overrides = {}) {
   return {
@@ -906,6 +909,29 @@ test("createInspectionViewerAdapter lists assigned open PRs for the current user
     { target: { repo: "other/repo", pr: 77 }, title: "Needs attention PR" },
     { target: { repo: "owner/repo", pr: 55 }, title: "Primary PR" },
   ]);
+});
+
+test("parseGhJsonOutput wraps invalid gh JSON deterministically", () => {
+  assert.throws(
+    () => parseGhJsonOutput("not json\n"),
+    /Invalid JSON from gh: not json/,
+  );
+});
+
+test("createInspectionViewerAdapter listAssignedPullRequests reports invalid gh JSON deterministically", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "inspect-viewer-gh-"));
+  const fakeGh = path.join(dir, "fake-gh.sh");
+  await writeFile(fakeGh, "#!/bin/sh\nprintf 'not json\\n'\n", "utf8");
+  await chmod(fakeGh, 0o755);
+
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+  });
+
+  await assert.rejects(
+    () => adapter.listAssignedPullRequests({ ghCommand: fakeGh }),
+    /Invalid JSON from gh: not json/,
+  );
 });
 
 test("createInspectionViewerAdapter listAssignedPullRequests skips malformed search rows", async () => {
