@@ -476,6 +476,44 @@ test("renderInspectRunViewerHtml de-dupes scope options case-insensitively", () 
   assert.match(html, /<option value="\/\?scope=other%2Frepo&amp;state=open&amp;mode=assignee" >other\/repo<\/option>/);
 });
 
+test("renderInspectRunViewerHtml keeps inbox selection stable when repo casing differs", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "Owner/Repo",
+    target: { repo: "Owner/Repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    scopeOptions: ["owner/repo"],
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+  });
+
+  assert.match(html, /class="assigned-pr-row assigned-pr-row-waiting is-selected"/);
+  assert.match(html, /href="\/\?scope=Owner%2FRepo&amp;repo=owner%2Frepo&amp;pr=55&amp;state=open&amp;mode=assignee" aria-current="page"/);
+});
+
+test("renderInspectRunViewerHtml hides pagination controls in the collapsed sidebar", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    scopeOptions: ["owner/repo"],
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+    inboxTotalPages: 2,
+  });
+
+  assert.match(html, /\.assigned-pr-inbox\[data-sidebar-collapsed="true"\] \.assigned-pr-pagination \{ display: none; \}/);
+});
+
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",
@@ -1125,6 +1163,20 @@ test("createInspectionViewerAdapter listAssignedPullRequests reports invalid gh 
   }
 });
 
+
+test("createInspectionViewerAdapter listAssignedPullRequests wraps malformed repo filters deterministically", async () => {
+  const adapter = createInspectionViewerAdapter({
+    inspectRunImpl: async () => ({ ok: true }),
+    runGhJsonImpl: async () => {
+      throw new Error("should not reach gh");
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.listAssignedPullRequests({ repo: "owner" }),
+    (error) => error?.code === "MALFORMED_TARGET" && /repo must match <owner\/name>/.test(String(error?.message)),
+  );
+});
 
 test("createInspectionViewerAdapter listAssignedPullRequests skips malformed search rows", async () => {
   const adapter = createInspectionViewerAdapter({

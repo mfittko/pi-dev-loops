@@ -1194,10 +1194,14 @@ function renderCurrentStateBanner(snapshot, target, stateLabel, graph) {
 }
 
 function renderTargetKey(target) {
-  if (!target || typeof target.repo !== "string" || target.repo.length === 0 || target.pr === null || target.pr === undefined) {
+  if (!target || target.pr === null || target.pr === undefined) {
     return "";
   }
-  return `${target.repo}#${target.pr}`;
+  const normalizedRepo = normalizeRepoSlug(target.repo);
+  if (normalizedRepo === null) {
+    return "";
+  }
+  return `${normalizedRepo}#${target.pr}`;
 }
 
 function formatInboxUpdatedAt(updatedAt) {
@@ -1628,7 +1632,8 @@ export function renderInspectRunViewerHtml({
       .assigned-pr-inbox[data-sidebar-collapsed="true"] .inbox-search-label,
       .assigned-pr-inbox[data-sidebar-collapsed="true"] .inbox-search-input,
       .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-list,
-      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-empty { display: none; }
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-empty,
+      .assigned-pr-inbox[data-sidebar-collapsed="true"] .assigned-pr-pagination { display: none; }
       .assigned-pr-inbox-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.45rem; }
       .assigned-pr-inbox-header h2 { margin: 0; font-size: 0.98rem; flex: 1; }
       .assigned-pr-controls { display: flex; flex-wrap: wrap; gap: 0.32rem 0.45rem; margin-bottom: 0.35rem; align-items: center; }

@@ -301,7 +301,11 @@ export function createInspectionViewerAdapter({ inspectRunImpl = inspectRun, run
 
       const repoSlug = typeof repo === "string" ? repo.trim() : "";
       if (repoSlug.length > 0) {
-        parseRepoSlugParts(repoSlug, { errorMessage: "repo must match <owner/name>" });
+        try {
+          parseRepoSlugParts(repoSlug, { errorMessage: "repo must match <owner/name>" });
+        } catch (error) {
+          throw malformedTargetError(error instanceof Error ? error.message : String(error));
+        }
       }
 
       const normalizedLimit = parseResultLimit(limit);
