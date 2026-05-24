@@ -123,7 +123,7 @@ test("repo docs define dev-loop as the public façade and keep specialized loops
   assert.match(publicContract, /issue_intake/i);
   assert.match(publicContract, /copilot_pr_followup/i);
   assert.match(publicContract, /external_pr_followup/i);
-  assert.match(publicContract, /Compatibility and migration posture/i);
+  assert.match(publicContract, /Single-entrypoint convergence posture/i);
 
   for (const [label, content] of [
     ["README.md", readme],
@@ -159,8 +159,9 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
 
   assert.match(publicContract, /Workflow-surface taxonomy and guardrails/i);
   assert.match(publicContract, /Public workflow entrypoint/i);
-  assert.match(publicContract, /Compatibility\/internal strategy entrypoints/i);
+  assert.match(publicContract, /Temporary internal strategy seams/i);
   assert.match(publicContract, /Reusable role agents/i);
+  assert.match(publicContract, /single public `dev-loop` entrypoint and its bounded API\/parameter surface/i);
   assert.match(publicContract, /Regression tests must fail if this taxonomy drifts/i);
 
   assert.match(devLoopAgent, /single public workflow entrypoint/i);

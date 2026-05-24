@@ -30,9 +30,11 @@ Use this taxonomy consistently across docs, discovery surfaces, and tests:
 
 | Surface class | Entrypoints | Guardrail |
 |---|---|---|
-| Public workflow entrypoint | `dev-loop` | treat as the default first-choice workflow surface |
-| Compatibility/internal strategy entrypoints | `copilot-dev-loop`, `copilot-autopilot` | keep only as routed internal seams when needed; do not preserve or present them as equal first-choice public workflows |
+| Public workflow entrypoint | `dev-loop` | treat as the default and converging public workflow surface |
+| Temporary internal strategy seams | `copilot-dev-loop`, `copilot-autopilot` | keep only as routed transitional seams for now; deprecate them from the intended public surface and do not present them as equal first-choice workflows |
 | Reusable role agents | `coordinator`, `developer`, `docs`, `review`, `fixer`, `quality`, `refiner` | keep framed as reusable building blocks, not peer public workflow entrypoints |
+
+These internal seams are temporary. Keep them only until their routed behavior is absorbed by the single public `dev-loop` entrypoint and its bounded API/parameter surface.
 
 Regression tests must fail if this taxonomy drifts in wording or surfaced entrypoint assets.
 
@@ -141,16 +143,17 @@ flowchart TD
     A --> S
 ```
 
-## Compatibility and migration posture
+## Single-entrypoint convergence posture
 
-- `dev-loop` is the public façade going forward.
-- `copilot-dev-loop` and `copilot-autopilot` stay available as compatibility/internal strategy entrypoints in this slice.
+- `dev-loop` is the only intended public workflow entrypoint.
+- `copilot-dev-loop` and `copilot-autopilot` are temporary internal seams kept only until the cleanup/convergence work lands; this slice does not remove them yet.
 - Documentation and examples should lead with `dev-loop` and explain routed behavior.
-- Compatibility entrypoints can be deprecated only after the public façade is proven and documented well enough.
+- Almost all workflow branching should converge into deterministic state-machine/tooling surfaces behind `dev-loop`.
+- User-visible variation should be expressed through the external `dev-loop` API / bounded parameters or settings, not by preserving multiple public workflow names.
 
 ## Non-goals for this slice
 
-- deleting `copilot-dev-loop` or `copilot-autopilot`
+- deleting `copilot-dev-loop` or `copilot-autopilot` in this one PR
 - flattening actor/ownership differences between local, Copilot, reviewer, maintainer, and external-human paths
 - replacing existing lower-level state machines with prompt-only branching
 - wiring every runtime helper through this façade in one change
@@ -160,9 +163,9 @@ flowchart TD
 
 | User intent | Canonical state / route |
 |---|---|
-| start dev loop on issue `86` with no linked PR | synthesize issue target -> `issue_intake` -> compatibility `copilot-autopilot` |
-| start dev loop on issue `86` with linked PR `88` and Copilot ownership | issue target + `linkedPr=88` -> route as PR `88` -> `copilot_pr_followup` -> compatibility `copilot-dev-loop` |
-| continue dev loop on PR `88` with Copilot ownership | PR target + `ownership=copilot` -> `copilot_pr_followup` -> compatibility `copilot-dev-loop` |
+| start dev loop on issue `86` with no linked PR | synthesize issue target -> `issue_intake` -> current internal seam `copilot-autopilot` |
+| start dev loop on issue `86` with linked PR `88` and Copilot ownership | issue target + `linkedPr=88` -> route as PR `88` -> `copilot_pr_followup` -> current internal seam `copilot-dev-loop` |
+| continue dev loop on PR `88` with Copilot ownership | PR target + `ownership=copilot` -> `copilot_pr_followup` -> current internal seam `copilot-dev-loop` |
 | start issue `86` locally, then continue the loop | local phase slice for issue `86` -> `local_implementation`, then resume via public `dev-loop` against the updated state |
 | continue the current dev loop while waiting | same target + `status=waiting` -> `wait_watch` |
 | what state is the dev loop in? | inspect the canonical state and report the routed internal strategy without switching public entrypoints |
