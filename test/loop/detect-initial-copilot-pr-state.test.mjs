@@ -212,6 +212,31 @@ test("detect-initial-copilot-pr-state returns waiting_for_initial_copilot_implem
   }
 });
 
+test("detect-initial-copilot-pr-state returns waiting_for_initial_copilot_implementation for bootstrap-only copilot-swe-agent draft", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-bootstrap-swe-agent-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload(),
+      },
+      {
+        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
+        stdout: pullRequestFactsPayload({ authorLogin: "copilot-swe-agent" }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.equal(JSON.parse(result.stdout).state, "waiting_for_initial_copilot_implementation");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-initial-copilot-pr-state returns linked_pr_ready_for_followup for substantive linked draft PR", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-substantive-"));
 
