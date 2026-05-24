@@ -38,12 +38,6 @@ Only these three categories are in-bounds for this slice:
 - Reference example: `test/playwright/inspect-run-viewer.spec.mjs`.
 - This slice does not introduce a generalized fixture template or reusable toolkit abstraction.
 
-## Boundary between artifact classes
-
-- Manual review/demo artifacts are communication aids.
-- Deterministic local UI smoke validation is a bounded opt-in validation capability.
-- Broader visual regression tooling is a separate capability and is out of this first slice.
-
 ## Guardrails and non-goals for this slice
 
 This slice will not:
@@ -51,10 +45,6 @@ This slice will not:
 - introduce any new public workflow entrypoint besides `dev-loop`
 - require mandatory multi-browser support
 - make browser validation mandatory for non-UI work
-- create a broad browser-heavy default workflow
-- ship a full visual regression suite
-- make screenshot testing always-on
-- add CI enforcement wiring that makes UI smoke checks required in CI
 - decide the WebKit-vs-Chromium default browser question
 - build a full shared Playwright helper toolkit
 - promote screen recording/video automation as a first-class helper

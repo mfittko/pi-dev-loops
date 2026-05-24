@@ -23,7 +23,7 @@ This skill is the public `dev-loop` façade for this repository. It should route
 ## First-slice public routing contract
 
 The authoritative contract is `docs/public-dev-loop-contract.md`; the executable evaluator is exported as `@pi-dev-loops/core/loop/public-dev-loop-routing` and lives in the source repository at `packages/core/src/loop/public-dev-loop-routing.mjs`.
-For bounded opt-in UI validation under the public `dev-loop` entrypoint, the authoritative contract is `docs/ui-validation-contract.md`.
+For UI validation under `dev-loop`, see `docs/ui-validation-contract.md`.
 
 For installed packaged copies of this skill, do not assume source-repository paths such as `packages/core/...` or `docs/...` exist beside the skill. Treat this section as a summary and use the package export when the runtime is available.
 

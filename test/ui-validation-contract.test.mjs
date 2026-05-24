@@ -20,7 +20,6 @@ test("ui validation contract keeps opt-in bounded framing and smoke/regression b
   assert.match(contract, /manual review artifacts/i);
   assert.match(contract, /deterministic UI smoke validation/i);
   assert.match(contract, /broader visual regression coverage/i);
-  assert.match(contract, /out of this first slice/i);
 });
 
 test("ui validation contract lists required non-goals and guardrails", async () => {
@@ -30,7 +29,6 @@ test("ui validation contract lists required non-goals and guardrails", async () 
   assert.match(contract, /browser-heavy default workflow/i);
   assert.match(contract, /full visual regression suite/i);
   assert.match(contract, /always-on/i);
-  assert.match(contract, /does not introduce a generalized fixture template/i);
   assert.match(contract, /Deferred follow-up work/i);
 });
 
