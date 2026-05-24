@@ -1410,6 +1410,15 @@ function deriveInboxSignalFromSnapshot(snapshot) {
   const copilotLoopDisposition = formatStateToken(snapshot.layers?.copilot?.loopDisposition);
   const copilotTerminal = snapshot.layers?.copilot?.terminal === true;
 
+  // Layer states that represent genuine waiting take priority over outer routing signals
+  // (e.g. waiting_for_copilot_review beats handoff_to_reviewer_loop so sidebar and banner agree).
+  const reviewerState = formatStateToken(snapshot.layers?.reviewer?.currentState);
+  if (copilotState === "waiting_for_copilot_review"
+    || reviewerState === "waiting_for_author_followup"
+    || reviewerState === "waiting_for_re_request") {
+    return "waiting";
+  }
+
   if (snapshot.needsAttention === true
     || outerState === OUTER_STATE.NEEDS_RECONCILE
     || outerState === OUTER_STATE.STOP_NEEDS_HUMAN
