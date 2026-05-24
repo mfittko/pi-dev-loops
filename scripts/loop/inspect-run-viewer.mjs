@@ -1302,6 +1302,10 @@ function summarizeCurrentPrMode(snapshot) {
   const outerState = formatStateToken(snapshot.outerState, "unknown");
   const outerAction = formatStateToken(snapshot.outerAction, "unknown");
 
+  if (deriveInboxSignalFromSnapshot(snapshot) === "ready") {
+    return { emoji: "✅", label: "Approved" };
+  }
+
   if (copilotState === "waiting_for_copilot_review"
     || copilotState === "waiting_for_ci"
     || reviewerState === "waiting_for_author_followup"
@@ -1441,6 +1445,17 @@ function deriveInboxSignalFromSnapshot(snapshot) {
 }
 
 const VALID_INBOX_SIGNALS = new Set(["attention", "pending", "ready", "closed", "unknown", "waiting"]);
+
+function inboxSignalEmoji(signal) {
+  switch (signal) {
+    case "ready": return "✅";
+    case "attention": return "🔴";
+    case "waiting": return "⏳";
+    case "pending": return "🔄";
+    case "closed": return "✖️";
+    default: return "❓";
+  }
+}
 
 function normalizeInboxSignal(signal, fallback = "unknown") {
   const normalized = typeof signal === "string" ? signal.trim().toLowerCase() : "";
@@ -1671,7 +1686,10 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
     return `<li class="assigned-pr-row assigned-pr-row-${escapeHtml(summary.signal)} ${selected ? "is-selected" : ""}" data-inbox-item data-inbox-signal="${escapeHtml(summary.signal)}" data-search="${escapeHtml(searchText)}">
           <a class="assigned-pr-link" href="${escapeHtml(buildInboxHref(target, { scopeFilter, updatedWithinDays, state, mode, page }))}" ${selected ? 'aria-current="page"' : ""}>
             <div class="assigned-pr-line assigned-pr-title-line">
-              <span class="assigned-pr-id">#${escapeHtml(String(target.pr))}</span>
+              <span class="assigned-pr-id-col">
+                <span class="assigned-pr-id">#${escapeHtml(String(target.pr))}</span>
+                <span class="assigned-pr-signal-emoji" aria-label="${escapeHtml(summary.signalLabel.label)}">${inboxSignalEmoji(summary.signal)}</span>
+              </span>
               <span class="assigned-pr-title">${escapeHtml(item.title ?? "Untitled pull request")}</span>
             </div>
             <div class="assigned-pr-line assigned-pr-meta assigned-pr-meta-primary">
@@ -1846,7 +1864,9 @@ export function renderInspectRunViewerHtml({
       .assigned-pr-link { display: block; padding: 0.38rem 0.45rem; color: inherit; text-decoration: none; }
       .assigned-pr-row.is-selected .assigned-pr-link { box-shadow: inset 0 0 0 1px #1565c0; border-radius: 0.3rem; }
       .assigned-pr-title-line { display: flex; align-items: flex-start; gap: 0.35rem; }
-      .assigned-pr-id { font-weight: 700; margin-right: 0.15rem; }
+      .assigned-pr-id-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; min-width: 2.4rem; margin-right: 0.15rem; }
+      .assigned-pr-id { font-weight: 700; }
+      .assigned-pr-signal-emoji { font-size: 0.65rem; line-height: 1.2; }
       .assigned-pr-title { font-weight: 600; min-width: 0; flex: 1 1 auto; }
       .assigned-pr-line + .assigned-pr-line { margin-top: 0.18rem; }
       .assigned-pr-meta { display: flex; flex-wrap: wrap; gap: 0.22rem 0.36rem; font-size: 0.76rem; color: #486174; }
