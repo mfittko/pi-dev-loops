@@ -470,7 +470,7 @@ Key rules:
 
 ## Step 7: Pi review/fix follow-up loop
 
-This step covers both the draft gate right before `gh pr ready` and the narrower post-review follow-up loop once actionable feedback exists.
+This step covers three responsibilities: the draft gate right before `gh pr ready`, the narrower post-review follow-up loop once actionable feedback exists, and the pre-approval gate before calling the PR merge-ready.
 
 ### Follow-up loop when actionable review feedback exists
 
