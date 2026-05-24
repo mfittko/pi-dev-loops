@@ -502,6 +502,20 @@ When actionable review feedback exists, use a narrow follow-up loop:
 
 Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 
+### Draft gate (before marking PR ready for review)
+
+Before running `gh pr ready`, confirm the implementation passes these angles:
+
+- **Correctness vs acceptance criteria**: does the implementation satisfy the issue's acceptance criteria?
+- **Scope compliance**: are there any unrelated or out-of-scope changes in the diff?
+- **Test coverage adequacy**: are the changed or added behaviours covered by tests as the acceptance criteria require?
+- **CI and check status**: are all required checks passing or credibly passing on the current head?
+- **No unrelated files**: no files outside the accepted fix scope are included
+
+These are the draft-gate angles. Do **not** apply DRY, KISS, or YAGNI here; those belong exclusively to the pre-approval gate below.
+
+### Pre-approval gate (before calling PR merge-ready)
+
 Before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate using three focused review lenses:
 - DRY
 - KISS

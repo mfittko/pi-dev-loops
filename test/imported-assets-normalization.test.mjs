@@ -429,6 +429,35 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(planContent, /stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`/i);
 });
 
+test("copilot-autopilot Phase 6 names explicit draft-gate review angles distinct from the pre-approval gate", async () => {
+  const [autopilotSkill, copilotDevLoopSkill] = await Promise.all([
+    readRepo("skills/copilot-autopilot/SKILL.md"),
+    readRepo("skills/copilot-dev-loop/SKILL.md"),
+  ]);
+
+  // Phase 6 should name the draft-gate review angles explicitly
+  assert.match(autopilotSkill, /draft.gate review angles?/i);
+  assert.match(autopilotSkill, /correctness.*acceptance criteria/i);
+  assert.match(autopilotSkill, /scope compliance/i);
+  assert.match(autopilotSkill, /test coverage/i);
+  assert.match(autopilotSkill, /ci.*check|check.*status/i);
+  assert.match(autopilotSkill, /no unrelated files/i);
+
+  // Phase 6 should explicitly say DRY/KISS/YAGNI is NOT applied at the draft gate
+  assert.match(autopilotSkill, /[Dd]o \*?\*?not\*?\*? run DRY.*KISS.*YAGNI at this gate/);
+
+  // copilot-dev-loop Step 7 should have a labelled draft-gate section with named angles
+  assert.match(copilotDevLoopSkill, /draft.gate.*before marking PR ready|before marking PR ready.*draft.gate/i);
+  assert.match(copilotDevLoopSkill, /correctness.*acceptance criteria/i);
+  assert.match(copilotDevLoopSkill, /scope compliance/i);
+  assert.match(copilotDevLoopSkill, /test coverage/i);
+  assert.match(copilotDevLoopSkill, /[Dd]o \*?\*?not\*?\*? apply DRY.*KISS.*YAGNI here/);
+
+  // DRY/KISS/YAGNI must still appear in the pre-approval gate section of both skills
+  assert.match(autopilotSkill, /pre-approval gate/i);
+  assert.match(copilotDevLoopSkill, /pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i);
+});
+
 test("copilot-dev-loop skill keeps async watch persistence explicit", async () => {
   const [skillContent, scriptsReadme, stateGraph] = await Promise.all([
     readRepo("skills/copilot-dev-loop/SKILL.md"),
