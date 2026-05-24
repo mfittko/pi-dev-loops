@@ -216,6 +216,7 @@ function normalizeRepoForComparison(repo) {
 function isCopilotAuthored(authorLogin) {
   const normalized = String(authorLogin).trim().toLowerCase();
   return normalized === "copilot"
+    || normalized === "copilot-swe-agent"
     || normalized === "app/copilot-swe-agent"
     || normalized === "copilot-swe-agent[bot]";
 }

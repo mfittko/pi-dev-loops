@@ -188,7 +188,7 @@ Contract:
 - classifies `waiting_for_initial_copilot_implementation` only for the bounded bootstrap-only draft shape:
   - open same-repo linked PR
   - draft
-  - Copilot-authored
+  - Copilot-authored (`Copilot`, `copilot-swe-agent`, `app/copilot-swe-agent`, or `copilot-swe-agent[bot]`)
   - exactly 1 commit
   - sole commit headline exactly `Initial plan`
   - exactly 0 changed files
