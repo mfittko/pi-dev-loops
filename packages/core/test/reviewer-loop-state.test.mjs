@@ -65,6 +65,23 @@ test("normalizeReviewerSnapshot derives reviewer scope metadata deterministicall
   );
 });
 
+test("normalizeReviewerSnapshot canonicalizes submittedReviewState and drops unknown values", () => {
+  assert.equal(
+    normalizeReviewerSnapshot({ submittedReviewState: " approved " }).submittedReviewState,
+    "APPROVED",
+  );
+
+  assert.equal(
+    normalizeReviewerSnapshot({ submittedReviewState: "cHaNgEs_ReQuEsTeD" }).submittedReviewState,
+    "CHANGES_REQUESTED",
+  );
+
+  assert.equal(
+    normalizeReviewerSnapshot({ submittedReviewState: "needs-work" }).submittedReviewState,
+    null,
+  );
+});
+
 test("REVIEWER_TRANSITIONS covers every REVIEWER_STATE", () => {
   const valid = new Set(Object.values(REVIEWER_STATE));
   for (const state of valid) {
