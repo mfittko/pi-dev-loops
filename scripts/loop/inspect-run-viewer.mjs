@@ -562,8 +562,24 @@ export function buildInspectionMermaidGraph(snapshot) {
     }
   }
 
+  const outerState = formatStateToken(snapshot.outerState, "unknown");
+  const outerAction = formatStateToken(snapshot.outerAction, "unknown");
+  let focusIds = lanes.map((lane) => lane.currentId);
+  if (outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP || outerAction === "reenter_copilot_loop") {
+    focusIds = [lanes[1].currentId];
+  } else if (outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP || outerAction === "reenter_reviewer_loop") {
+    focusIds = [lanes[2].currentId];
+  } else {
+    // Default: focus only on the copilot layer current state as the primary active state,
+    // falling back to all lanes if copilot is unavailable.
+    const copilotFocusId = lanes[1].currentId;
+    const copilotAvailable = !copilotFocusId.includes("unavailable");
+    focusIds = copilotAvailable ? [copilotFocusId] : lanes.map((lane) => lane.currentId);
+  }
+
   return {
     definition: lines.join("\n"),
+    focusIds,
     lanes: lanes.map((lane) => ({
       title: lane.title,
       currentLabel: lane.currentLabel,
@@ -613,7 +629,7 @@ function renderMermaidBootScript() {
       (() => {
         const frames = Array.from(document.querySelectorAll(".state-graph-frame"));
         const graphs = Array.from(document.querySelectorAll(".mermaid-state-graph"));
-        const clampScale = (value) => Math.max(0.5, Math.min(2.5, value));
+        const clampScale = (value) => Math.max(0.5, Math.min(5, value));
         const updateFrameScale = (frame, requestedScale) => {
           const scale = clampScale(requestedScale);
           frame.dataset.graphScale = String(scale);
@@ -621,73 +637,117 @@ function renderMermaidBootScript() {
           if (zoomValue) {
             zoomValue.textContent = String(Math.round(scale * 100)) + "%";
           }
-          const svg = frame.querySelector(".mermaid-state-graph svg");
-          if (svg) {
-            svg.style.width = String(Math.round(scale * 100)) + "%";
-            svg.style.maxWidth = "none";
-            svg.style.height = "auto";
+          const graphViewport = frame.querySelector(".mermaid-state-graph");
+          const svg = graphViewport ? graphViewport.querySelector("svg") : null;
+          if (svg && graphViewport) {
+            // Use a wrapper div for scrollable dimensions because SVG width
+            // changes don't reliably expand scrollWidth in WebKit.  The wrapper
+            // is a plain div whose pixel size WebKit always respects.
+            let wrapper = graphViewport.querySelector(":scope > .mermaid-zoom-inner");
+            if (!wrapper) {
+              const svgRect = svg.getBoundingClientRect();
+              wrapper = document.createElement("div");
+              wrapper.className = "mermaid-zoom-inner";
+              wrapper.style.transformOrigin = "0 0";
+              graphViewport.insertBefore(wrapper, svg);
+              wrapper.appendChild(svg);
+              svg.style.display = "block";
+              svg.style.maxWidth = "none";
+              if (svgRect.width > 0) {
+                frame.dataset.graphNaturalWidth = String(svgRect.width);
+                svg.style.width = svgRect.width + "px";
+              }
+              if (svgRect.height > 0) {
+                frame.dataset.graphNaturalHeight = String(svgRect.height);
+                svg.style.height = svgRect.height + "px";
+              }
+            }
+            const naturalWidth = Number(frame.dataset.graphNaturalWidth) || graphViewport.getBoundingClientRect().width;
+            const naturalHeight = Number(frame.dataset.graphNaturalHeight) || 256;
+            wrapper.style.width = Math.round(naturalWidth * scale) + "px";
+            wrapper.style.height = Math.round(naturalHeight * scale) + "px";
+            svg.style.transform = "scale(" + scale + ")";
+            svg.style.transformOrigin = "0 0";
+            void graphViewport.offsetWidth;
           }
           return scale;
         };
+        const settleGraphViewport = (delayMs = 180) => new Promise((resolve) => {
+          let done = false;
+          const finish = () => {
+            if (done) {
+              return;
+            }
+            done = true;
+            resolve();
+          };
+          requestAnimationFrame(() => {
+            requestAnimationFrame(finish);
+          });
+          window.setTimeout(finish, delayMs);
+        });
         const zoomGraphViewport = (frame, graphViewport, requestedScale, focusPoint = null) => {
           const previousScale = Number(frame.dataset.graphScale || 1);
           const nextScale = updateFrameScale(frame, requestedScale);
+          // Force a synchronous reflow so the new SVG width is fully applied
+          // before we read scrollWidth or set scrollLeft. Without this the
+          // browser may not have expanded the content yet.
+          void frame.offsetWidth;
           if (!focusPoint) {
-            return;
+            return settleGraphViewport();
           }
           const scaleRatio = nextScale / previousScale;
-          requestAnimationFrame(() => {
-            graphViewport.scrollLeft = (focusPoint.contentX * scaleRatio) - focusPoint.viewportX;
-            graphViewport.scrollTop = (focusPoint.contentY * scaleRatio) - focusPoint.viewportY;
+          return new Promise((resolve) => {
+            requestAnimationFrame(() => {
+              const svgEl = frame.querySelector(".mermaid-state-graph svg");
+              const newScrollLeft = (focusPoint.contentX * scaleRatio) - focusPoint.viewportX;
+              const newScrollTop = (focusPoint.contentY * scaleRatio) - focusPoint.viewportY;
+              graphViewport.scrollLeft = newScrollLeft;
+              graphViewport.scrollTop = newScrollTop;
+              settleGraphViewport().then(resolve);
+            });
           });
         };
         const fitGraphToCurrentState = (frame, graphViewport) => {
-          const svg = graphViewport.querySelector("svg");
-          if (!svg) {
-            return;
-          }
-          const targetNodes = Array.from(svg.querySelectorAll(".node.current, .node.currentTerminal, .node.unavailable"));
-          if (targetNodes.length === 0) {
-            return;
-          }
-          const viewportRect = graphViewport.getBoundingClientRect();
-          if (viewportRect.width <= 0 || viewportRect.height <= 0) {
-            return;
-          }
-          const targetRects = targetNodes
-            .map((node) => node.getBoundingClientRect())
-            .filter((rect) => rect.width > 0 && rect.height > 0);
-          if (targetRects.length === 0) {
-            return;
-          }
-          const unionRect = targetRects.reduce((combined, rect) => ({
-            left: Math.min(combined.left, rect.left),
-            top: Math.min(combined.top, rect.top),
-            right: Math.max(combined.right, rect.right),
-            bottom: Math.max(combined.bottom, rect.bottom),
-          }), {
-            left: targetRects[0].left,
-            top: targetRects[0].top,
-            right: targetRects[0].right,
-            bottom: targetRects[0].bottom,
-          });
-          const unionWidth = unionRect.right - unionRect.left;
-          const unionHeight = unionRect.bottom - unionRect.top;
-          if (unionWidth <= 0 || unionHeight <= 0) {
-            return;
-          }
-          const padding = 48;
-          const availableWidth = Math.max(120, viewportRect.width - padding);
-          const availableHeight = Math.max(120, viewportRect.height - padding);
-          const currentScale = Number(frame.dataset.graphScale || 1);
-          const fittedScale = clampScale(currentScale * Math.min(availableWidth / unionWidth, availableHeight / unionHeight));
-          const contentCenterX = graphViewport.scrollLeft + ((unionRect.left - viewportRect.left) + (unionWidth / 2));
-          const contentCenterY = graphViewport.scrollTop + ((unionRect.top - viewportRect.top) + (unionHeight / 2));
-          zoomGraphViewport(frame, graphViewport, fittedScale, {
-            viewportX: viewportRect.width / 2,
-            viewportY: viewportRect.height / 2,
-            contentX: contentCenterX,
-            contentY: contentCenterY,
+          return new Promise((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              const svg = graphViewport.querySelector("svg");
+              const focusIds = (graphViewport.dataset.graphFocusIds ?? "")
+                .split(",").map((id) => id.trim()).filter(Boolean);
+              const allNodes = Array.from(svg.querySelectorAll(".node"));
+              const focusNodes = focusIds.length === 0
+                ? []
+                : allNodes.filter((node) => focusIds.some((focusId) => node.id.includes(focusId)));
+              const targetNodes = focusNodes.length > 0
+                ? focusNodes
+                : Array.from(svg.querySelectorAll(".node.current, .node.currentTerminal, .node.unavailable"));
+              const viewportRect = graphViewport.getBoundingClientRect();
+              const targetRects = targetNodes
+                .map((node) => {
+                  const r = node.getBoundingClientRect();
+                  return r;
+                })
+                .filter((rect) => rect.width > 0 && rect.height > 0);
+              const unionRect = targetRects.reduce((combined, rect) => ({
+                left: Math.min(combined.left, rect.left),
+                top: Math.min(combined.top, rect.top),
+                right: Math.max(combined.right, rect.right),
+                bottom: Math.max(combined.bottom, rect.bottom),
+              }), { left: targetRects[0].left, top: targetRects[0].top, right: targetRects[0].right, bottom: targetRects[0].bottom });
+              const unionWidth = unionRect.right - unionRect.left;
+              const unionHeight = unionRect.bottom - unionRect.top;
+              const targetScale = 3;
+              const contentCenterX = graphViewport.scrollLeft + ((unionRect.left - viewportRect.left) + (unionWidth / 2));
+              const contentCenterY = graphViewport.scrollTop + ((unionRect.top - viewportRect.top) + (unionHeight / 2));
+              zoomGraphViewport(frame, graphViewport, targetScale, {
+                viewportX: viewportRect.width / 2,
+                viewportY: viewportRect.height / 2,
+                contentX: contentCenterX,
+                contentY: contentCenterY,
+              }).then(() => {
+                resolve(true);
+              });
+            }));
           });
         };
         const renderFallback = (message) => {
@@ -790,18 +850,26 @@ function renderMermaidBootScript() {
           },
         });
 
-        window.mermaid.run({ nodes: graphs }).then(() => {
-          graphs.forEach((graph) => {
-            graph.dataset.rendered = "true";
+        window.mermaid.run({ nodes: graphs }).then(async () => {
+          await Promise.all(graphs.map(async (graph) => {
+            graph.dataset.rendered = "settling";
             const frame = graph.closest(".state-graph-frame");
-            if (frame) {
-              updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
-              const graphViewport = frame.querySelector(".mermaid-state-graph");
-              if (graphViewport) {
-                fitGraphToCurrentState(frame, graphViewport);
-              }
+            if (!frame) {
+              graph.dataset.rendered = "true";
+              return;
             }
-          });
+            updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
+            const graphViewport = frame.querySelector(".mermaid-state-graph");
+            if (graphViewport) {
+              const focused = await fitGraphToCurrentState(frame, graphViewport);
+              if (!focused) {
+                await settleGraphViewport();
+              }
+            } else {
+              await settleGraphViewport();
+            }
+            graph.dataset.rendered = "true";
+          }));
         }).catch(() => {
           renderFallback("Mermaid could not render this snapshot safely. Use the details below or open /snapshot.json.");
         });
@@ -825,7 +893,7 @@ function renderStateVisualizationSection(snapshot, graph = buildInspectionMermai
         <span class="state-graph-zoom-value" data-graph-zoom-value>100%</span>
         <button type="button" data-graph-fullscreen aria-label="Open graph fullscreen">⤢</button>
       </div>
-      <div class="mermaid-state-graph mermaid" data-rendered="pending" aria-label="Mermaid inspection state graph">${escapeHtml(graph.definition)}</div>
+      <div class="mermaid-state-graph mermaid" data-rendered="pending" data-graph-focus-ids="${escapeHtml((graph.focusIds ?? []).join(","))}" aria-label="Mermaid inspection state graph">${escapeHtml(graph.definition)}</div>
     </div>
     ${renderStateGraphLegend()}
     ${renderStateGraphDetails(graph)}
@@ -1806,14 +1874,15 @@ export function renderInspectRunViewerHtml({
       .current-pr-state-grid dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: #4c6478; }
       .current-pr-state-grid dd { margin: 0 0 0.75rem 0; }
       .state-graph-block { margin-top: 0.4rem; }
-      .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); overflow: hidden; }
+      .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); }
       .state-graph-toolbar { display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.65rem; border-bottom: 1px solid #d7e3f4; background: rgba(255,255,255,0.85); }
       .state-graph-toolbar button { border: 1px solid #9fb6cb; background: #fff; border-radius: 0.45rem; padding: 0.3rem 0.6rem; font: inherit; cursor: pointer; }
       .state-graph-toolbar button:hover { background: #f3f8fd; }
       .state-graph-zoom-value { margin-left: auto; font-size: 0.88rem; color: #486174; }
       .mermaid-state-graph { min-height: 16rem; padding: 0.75rem; overflow: auto; cursor: grab; user-select: none; touch-action: none; }
       .mermaid-state-graph[data-dragging="true"] { cursor: grabbing; }
-      .mermaid-state-graph[data-rendered="pending"] { color: #5a7184; }
+      .mermaid-state-graph[data-rendered="pending"] { color: #5a7184; opacity: 0; pointer-events: none; }
+      .mermaid-state-graph[data-rendered="settling"] { opacity: 0; pointer-events: none; }
       .mermaid-state-graph svg { display: block; width: 100%; height: auto; transition: width 120ms ease; }
       .state-graph-cues { display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; margin: 0.75rem 0 0.35rem 0; }
       .state-graph-cue { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; color: #355061; }

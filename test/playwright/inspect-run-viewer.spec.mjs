@@ -41,6 +41,10 @@ async function waitForMermaidGraph(page) {
 }
 
 test("webkit renders the Mermaid-first inspect-run viewer and captures a screenshot", async ({ page }, testInfo) => {
+  page.on("console", (msg) => {
+    if (msg.text().includes("[graph-focus]")) {
+    }
+  });
   const { server, url } = await startViewer(makeInspectionSnapshot(), [
     { target: { repo: "other/repo", pr: 77 }, title: "Waiting PR", signal: "attention" },
     ...Array.from({ length: 26 }, (_, index) => ({
@@ -115,7 +119,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(graphBox.getByRole("button", { name: "Open graph fullscreen" })).toBeVisible();
     const graph = await waitForMermaidGraph(page);
     const initialZoomValue = await graphBox.locator('[data-graph-zoom-value]').textContent();
-    expect(initialZoomValue).not.toBe('100%');
+    await expect(graphBox.locator('[data-graph-zoom-value]')).toHaveText('300%');
     await expect(graph).toHaveCSS("cursor", "grab");
     await expect(graph).toContainText(/Start/);
     await expect(graph).toContainText(/continue current wait/);
@@ -127,13 +131,28 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await graphBox.getByRole("button", { name: "Zoom in" }).click();
     await graphBox.getByRole("button", { name: "Zoom in" }).click();
     const scroller = page.locator(".mermaid-state-graph");
+    const scrollRoom = await scroller.evaluate((node) => ({
+      maxLeft: Math.max(0, node.scrollWidth - node.clientWidth),
+      maxTop: Math.max(0, node.scrollHeight - node.clientHeight),
+    }));
+    expect(scrollRoom.maxLeft > 0 || scrollRoom.maxTop > 0).toBeTruthy();
+    await scroller.evaluate((node) => {
+      node.scrollLeft = 0;
+      node.scrollTop = 0;
+    });
     const beforeScroll = await scroller.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
-    const box = await scroller.boundingBox();
-    if (!box) throw new Error("graph scroller bounding box unavailable");
-    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.5);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35, { steps: 8 });
-    await page.mouse.up();
+    // Dispatch pointer events directly to bypass Playwright mouse routing
+    // issues with the nested zoom wrapper in WebKit.
+    await scroller.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      const startX = rect.left + rect.width * 0.7;
+      const startY = rect.top + rect.height * 0.5;
+      const endX = rect.left + rect.width * 0.3;
+      const endY = rect.top + rect.height * 0.5;
+      node.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: startX, clientY: startY }));
+      node.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 1, clientX: endX, clientY: endY }));
+      node.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, clientX: endX, clientY: endY }));
+    });
     const afterScroll = await scroller.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
     expect(afterScroll.left !== beforeScroll.left || afterScroll.top !== beforeScroll.top).toBeTruthy();
 
