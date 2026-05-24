@@ -117,6 +117,8 @@ test("repo docs define dev-loop as the public façade and keep specialized loops
   ]);
 
   assert.match(publicContract, /single public entrypoint/i);
+  assert.match(publicContract, /subagent dev-loop/i);
+  assert.match(publicContract, /\/skill:dev-loop/i);
   assert.match(publicContract, /canonical current state/i);
   assert.match(publicContract, /issue_intake/i);
   assert.match(publicContract, /copilot_pr_followup/i);
@@ -409,6 +411,25 @@ test("copilot-dev-loop agent is a thin executable entrypoint that defers to the 
   assert.match(content, /state-machine.*helper.*authority|deterministic.*state-machine/i);
   assert.match(content, /stop and ask for human direction rather than guessing/i);
   assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
+});
+
+test("public dev-loop agent is a thin executable entrypoint that defers to the public skill router", async () => {
+  const [agentContent, skillContent] = await Promise.all([
+    readRepo("agents/dev-loop.agent.md"),
+    readRepo("skills/dev-loop/SKILL.md"),
+  ]);
+
+  assert.match(agentContent, /name:\s*"dev-loop"/);
+  assert.match(agentContent, /user-invocable:\s*true/);
+  assert.match(agentContent, /skills\/dev-loop\/SKILL\.md/);
+  assert.match(agentContent, /must stay thin/i);
+  assert.match(agentContent, /do not restate the skill's phase sequencing or workflow policy here/i);
+  assert.match(agentContent, /deterministic public routing contract/i);
+  assert.match(agentContent, /copilot-dev-loop/i);
+  assert.match(agentContent, /copilot-autopilot/i);
+  assert.match(agentContent, /stop and ask for human direction rather than guessing/i);
+  assert.match(agentContent, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
+  assert.match(skillContent, /public `dev-loop` façade/i);
 });
 
 test("tracker-first MVP state graph is documented as adapter-agnostic, mutually exclusive, and bounded by #21", async () => {
