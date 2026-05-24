@@ -8,6 +8,11 @@ The single public entrypoint is:
 
 - `dev-loop`
 
+It should be callable from the user-facing workflow surfaces, including:
+
+- `subagent dev-loop`
+- `/skill:dev-loop`
+
 Day-one user-intent forms:
 
 - start dev loop on issue `<n>`
