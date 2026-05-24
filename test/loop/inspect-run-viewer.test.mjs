@@ -498,7 +498,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /id="assigned-pr-updated-select"[^>]*aria-label="Updated window"/);
   assert.match(html, /grid-template-columns: auto minmax\(0, 1fr\)/);
   assert.match(html, /\.assigned-pr-inbox \{[^}]*width: 22rem;[^}]*box-sizing: border-box;/);
-  assert.match(html, /\.assigned-pr-row\.is-selected \{ box-shadow: inset 0 0 0 1px #1565c0; \}/);
+  assert.match(html, /\.assigned-pr-row\.is-selected \.assigned-pr-link \{ box-shadow: inset 0 0 0 1px #1565c0; border-radius: 0\.3rem; \}/);
   assert.doesNotMatch(html, /\.assigned-pr-row\.is-selected \{[^}]*border-color:/);
   assert.match(html, /data-inbox-search/);
   assert.match(html, /data-inbox-item/);

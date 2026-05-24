@@ -1625,8 +1625,8 @@ export function renderInspectRunViewerHtml({
       .assigned-pr-row.assigned-pr-row-closed { border-left-color: #7a8694; }
       .assigned-pr-row.assigned-pr-row-unknown { border-left-color: #8ca3b8; }
       .assigned-pr-row.assigned-pr-row-waiting { border-left-color: #1565c0; }
-      .assigned-pr-row.is-selected { box-shadow: inset 0 0 0 1px #1565c0; }
       .assigned-pr-link { display: block; padding: 0.38rem 0.45rem; color: inherit; text-decoration: none; }
+      .assigned-pr-row.is-selected .assigned-pr-link { box-shadow: inset 0 0 0 1px #1565c0; border-radius: 0.3rem; }
       .assigned-pr-title-line { display: flex; align-items: flex-start; gap: 0.35rem; }
       .assigned-pr-id { font-weight: 700; margin-right: 0.15rem; }
       .assigned-pr-title { font-weight: 600; min-width: 0; flex: 1 1 auto; }
