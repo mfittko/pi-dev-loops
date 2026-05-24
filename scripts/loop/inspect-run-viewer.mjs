@@ -2259,6 +2259,13 @@ export function createInspectRunViewerServer(options, deps = {}) {
   const supportsAssignedInbox = options.copilotInputPath === undefined && options.reviewerInputPath === undefined;
   const jsonErrorTarget = fallbackTarget ?? { repo: fixedRepo, pr: null };
   const cachedInboxSignals = new Map();
+  const CACHED_INBOX_SIGNALS_MAX = 200;
+  function setCachedInboxSignal(key, value) {
+    if (cachedInboxSignals.size >= CACHED_INBOX_SIGNALS_MAX) {
+      cachedInboxSignals.delete(cachedInboxSignals.keys().next().value);
+    }
+    cachedInboxSignals.set(key, value);
+  }
 
   return createServer(async (request, response) => {
     try {
@@ -2402,7 +2409,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         }
         try {
           const snapshot = requireSnapshotForJson(await adapter.loadSnapshot(requestTarget, adapterOptions));
-          cachedInboxSignals.set(renderTargetKey(requestTarget), deriveInboxSignalFromSnapshot(snapshot));
+          setCachedInboxSignal(renderTargetKey(requestTarget), deriveInboxSignalFromSnapshot(snapshot));
           writeJson(response, 200, snapshot);
         } catch (error) {
           writeJson(response, 500, jsonErrorPayload(requestTarget, error));
@@ -2418,7 +2425,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         try {
           snapshot = await adapter.loadSnapshot(requestTarget, adapterOptions);
           if (snapshot !== null && snapshot !== undefined) {
-            cachedInboxSignals.set(renderTargetKey(requestTarget), deriveInboxSignalFromSnapshot(snapshot));
+            setCachedInboxSignal(renderTargetKey(requestTarget), deriveInboxSignalFromSnapshot(snapshot));
           }
         } catch (caught) {
           error = caught instanceof Error ? caught : new Error(String(caught));

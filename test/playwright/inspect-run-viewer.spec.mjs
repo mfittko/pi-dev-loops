@@ -41,10 +41,6 @@ async function waitForMermaidGraph(page) {
 }
 
 test("webkit renders the Mermaid-first inspect-run viewer and captures a screenshot", async ({ page }, testInfo) => {
-  page.on("console", (msg) => {
-    if (msg.text().includes("[graph-focus]")) {
-    }
-  });
   const { server, url } = await startViewer(makeInspectionSnapshot(), [
     { target: { repo: "other/repo", pr: 77 }, title: "Waiting PR", signal: "attention" },
     ...Array.from({ length: 26 }, (_, index) => ({
@@ -118,7 +114,6 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(graphBox.getByRole("button", { name: "Reset zoom" })).toBeVisible();
     await expect(graphBox.getByRole("button", { name: "Open graph fullscreen" })).toBeVisible();
     const graph = await waitForMermaidGraph(page);
-    const initialZoomValue = await graphBox.locator('[data-graph-zoom-value]').textContent();
     await expect(graphBox.locator('[data-graph-zoom-value]')).toHaveText('300%');
     await expect(graph).toHaveCSS("cursor", "grab");
     await expect(graph).toContainText(/Start/);
