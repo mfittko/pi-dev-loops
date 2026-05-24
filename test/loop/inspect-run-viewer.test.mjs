@@ -455,6 +455,27 @@ test("renderInspectRunViewerHtml keeps scope selection and retained target when 
   assert.match(html, /<option value="\/\?scope=other%2Frepo&amp;state=open&amp;mode=assignee" >other\/repo<\/option>/);
 });
 
+
+test("renderInspectRunViewerHtml de-dupes scope options case-insensitively", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "Owner/Repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    scopeOptions: [" Owner/Repo ", "owner/repo", "other/repo"],
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+  });
+
+  assert.equal(html.match(/<option[^>]*>Owner\/Repo<\/option>/g)?.length ?? 0, 1);
+  assert.equal(html.match(/<option[^>]*>owner\/repo<\/option>/g)?.length ?? 0, 0);
+  assert.match(html, /<option value="\/\?scope=other%2Frepo&amp;state=open&amp;mode=assignee" >other\/repo<\/option>/);
+});
+
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",

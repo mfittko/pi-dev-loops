@@ -1363,11 +1363,39 @@ function renderInboxFilterHref(selectedTarget, { scopeFilter = null, updatedWith
   return query.length === 0 ? "/" : `/?${query}`;
 }
 
+function normalizeRepoSlug(slug) {
+  if (typeof slug !== "string") {
+    return null;
+  }
+  const trimmed = slug.trim();
+  return trimmed.length > 0 ? trimmed.toLowerCase() : null;
+}
+
 function repoSlugEquals(left, right) {
-  if (typeof left !== "string" || typeof right !== "string") {
+  const normalizedLeft = normalizeRepoSlug(left);
+  const normalizedRight = normalizeRepoSlug(right);
+  if (normalizedLeft === null || normalizedRight === null) {
     return left === right;
   }
-  return left.trim().toLowerCase() === right.trim().toLowerCase();
+  return normalizedLeft === normalizedRight;
+}
+
+function dedupeRepoSlugOptions(options) {
+  const uniqueOptions = [];
+  const seen = new Set();
+  for (const option of options) {
+    if (typeof option !== "string") {
+      continue;
+    }
+    const trimmed = option.trim();
+    const normalized = normalizeRepoSlug(trimmed);
+    if (normalized === null || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    uniqueOptions.push(trimmed);
+  }
+  return uniqueOptions;
 }
 
 function renderScopeSelectHref(selectedTarget, scopeFilter, { updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE } = {}) {
@@ -1398,9 +1426,7 @@ function renderInboxPagination({ selectedTarget = null, scopeFilter = null, upda
 
 function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOptions = [], updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE, page = DEFAULT_INBOX_PAGE, totalPages = 1 } = {}) {
   const selectedKey = renderTargetKey(selectedTarget);
-  const uniqueScopeOptions = ["All repos", ...new Set(
-    scopeOptions.filter((repo) => typeof repo === "string" && repo.length > 0),
-  )].sort((left, right) => {
+  const uniqueScopeOptions = ["All repos", ...dedupeRepoSlugOptions(scopeOptions)].sort((left, right) => {
     if (left === "All repos") {
       return -1;
     }
@@ -1938,19 +1964,19 @@ function dedupeInboxEntries(entries) {
 }
 
 function collectScopeOptions(entries, { selectedTarget = null, scopeFilter = null } = {}) {
-  const repos = new Set();
-  if (typeof scopeFilter === "string" && scopeFilter.length > 0) {
-    repos.add(scopeFilter);
+  const repos = [];
+  if (typeof scopeFilter === "string") {
+    repos.push(scopeFilter);
   }
   if (selectedTarget?.repo) {
-    repos.add(selectedTarget.repo);
+    repos.push(selectedTarget.repo);
   }
   for (const entry of entries) {
     if (entry?.target?.repo) {
-      repos.add(entry.target.repo);
+      repos.push(entry.target.repo);
     }
   }
-  return [...repos].sort((left, right) => left.localeCompare(right));
+  return dedupeRepoSlugOptions(repos).sort((left, right) => left.localeCompare(right));
 }
 
 export function formatInspectRunViewerUrl(host, port) {
