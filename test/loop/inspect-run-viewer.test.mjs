@@ -1520,6 +1520,43 @@ test("createInspectRunViewerServer serves authoritative snapshot JSON on /snapsh
   }
 });
 
+test("createInspectRunViewerServer honors an explicit inbox page even when a selected PR exists", async () => {
+  const seenTargets = [];
+  const adapter = {
+    async loadSnapshot(target) {
+      seenTargets.push(target);
+      return makeSnapshot({ target, runId: `pr-${target.pr}` });
+    },
+    async listAssignedPullRequests() {
+      return Array.from({ length: 30 }, (_, index) => ({
+        target: { repo: "owner/repo", pr: index + 1 },
+        title: `PR ${index + 1}`,
+        updatedAt: `2026-05-${String((index % 9) + 10).padStart(2, "0")}T00:00:00Z`,
+      }));
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=1&page=2`);
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /PR #1 State/);
+    assert.match(response.body, /class="assigned-pr-page-status">2\/2</);
+    assert.match(response.body, /PR 30/);
+    assert.doesNotMatch(response.body, /aria-current="page"/);
+    assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 1));
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("createInspectRunViewerServer keeps explicit query targets even when they are not in the current inbox page", async () => {
   const seenTargets = [];
   const adapter = {

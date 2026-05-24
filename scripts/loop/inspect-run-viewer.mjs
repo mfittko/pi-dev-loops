@@ -1895,6 +1895,7 @@ function normalizeRequestedViewFromUrl(rawUrl, fixedRepo = null, fallbackTarget 
       state: DEFAULT_INBOX_PR_STATE,
       mode: DEFAULT_INBOX_MODE,
       page: DEFAULT_INBOX_PAGE,
+      pageExplicit: false,
     };
   }
 
@@ -1935,6 +1936,7 @@ function normalizeRequestedViewFromUrl(rawUrl, fixedRepo = null, fallbackTarget 
     state: parseInboxStateFromUrl(url.searchParams.get("state")),
     mode: parseInboxModeFromUrl(url.searchParams.get("mode")),
     page: parseInboxPageFromUrl(url.searchParams.get("page")),
+    pageExplicit: url.searchParams.has("page"),
   };
 }
 
@@ -2189,7 +2191,8 @@ export function createInspectRunViewerServer(options, deps = {}) {
         ? -1
         : assignedEntries.findIndex((entry) => renderTargetKey(entry.target) === renderTargetKey(effectiveSelectedTarget));
       const totalPages = Math.max(1, Math.ceil(assignedEntries.length / DEFAULT_INBOX_PAGE_SIZE));
-      const effectivePage = selectedIndex >= 0
+      const explicitRequestedPage = requestedView.pageExplicit === true;
+      const effectivePage = !explicitRequestedPage && selectedIndex >= 0
         ? (Math.floor(selectedIndex / DEFAULT_INBOX_PAGE_SIZE) + 1)
         : Math.min(Math.max(requestedPage, DEFAULT_INBOX_PAGE), totalPages);
       const pageStart = (effectivePage - 1) * DEFAULT_INBOX_PAGE_SIZE;

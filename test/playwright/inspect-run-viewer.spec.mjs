@@ -84,6 +84,13 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     });
     expect(paginationAfterList).toBeTruthy();
 
+    await page.getByRole('link', { name: 'Next page' }).click();
+    await expect(page.locator('.assigned-pr-page-status')).toHaveText('2/2');
+    await expect(page.getByRole('heading', { name: 'PR #55 State' })).toBeVisible();
+    await expect(page.locator('[aria-current="page"]')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Previous page' }).click();
+    await expect(page.locator('.assigned-pr-page-status')).toHaveText('1/2');
+
     const inboxSearch = page.locator("[data-inbox-search]");
     await inboxSearch.fill("other/repo");
     await expect(page.getByRole("link", { name: /Waiting PR/ })).toBeVisible();
