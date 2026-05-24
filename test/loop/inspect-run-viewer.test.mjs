@@ -593,6 +593,37 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; done; full authoritative state machine shown; no allowed transitions/);
 });
 
+test("renderInspectRunViewerHtml shows clean convergence instead of re-request language for same-head clean Copilot reviews", () => {
+  const html = renderInspectRunViewerHtml({
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      outerState: "continue_current_wait",
+      outerAction: "continue_wait",
+      statusClass: "waiting",
+      layers: {
+        copilot: {
+          currentState: "ready_to_rerequest_review",
+          allowedTransitions: ["waiting_for_copilot_review", "review_request_unavailable", "done"],
+          sameHeadCleanConverged: true,
+          loopDisposition: "clean_converged",
+          terminal: true,
+        },
+        reviewer: {
+          currentState: "waiting_for_author_followup",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["waiting_for_re_request", "waiting_for_review_request"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /Copilot pass complete/);
+  assert.match(html, /current head already has a clean submitted Copilot review with no unresolved feedback/i);
+  assert.match(html, /Proceed to final human review or approval, or wait for a meaningful remediation event before requesting another Copilot pass/i);
+  assert.doesNotMatch(html, /Ready to re-request Copilot review/);
+});
+
 test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and needs_reconcile in the banner", () => {
   const liveOwnerHtml = renderInspectRunViewerHtml({
     target: { repo: "owner/repo", pr: 55 },

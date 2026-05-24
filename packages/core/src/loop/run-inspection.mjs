@@ -23,6 +23,7 @@
  *   3. Unknown/unavailable markers when neither is sufficient
  */
 
+import { summarizeLoopInterpretation } from "./copilot-loop-state.mjs";
 import { isKnownOuterState } from "./outer-loop-state.mjs";
 
 // ---------------------------------------------------------------------------
@@ -406,9 +407,13 @@ export function composeRunInspectionSnapshot({
   const layers = {};
 
   if (copilotLiveOk && copilotEvidence !== null) {
+    const copilotSummary = summarizeLoopInterpretation(copilotEvidence.interpretation);
     layers.copilot = {
       currentState: copilotEvidence.interpretation.state,
       allowedTransitions: copilotEvidence.interpretation.allowedTransitions,
+      sameHeadCleanConverged: copilotEvidence.interpretation.sameHeadCleanConverged === true,
+      loopDisposition: copilotSummary.loopDisposition,
+      terminal: copilotSummary.terminal,
     };
   } else if (typeof existingCheckpoint?.copilotState === "string") {
     layers.copilot = {

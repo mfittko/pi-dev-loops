@@ -154,7 +154,7 @@ async function withTempDir(fn) {
 }
 
 // Canonical live copilot evidence fixture
-function makeCopilotEvidence(state = "waiting_for_copilot_review") {
+function makeCopilotEvidence(state = "waiting_for_copilot_review", { sameHeadCleanConverged = false } = {}) {
   return {
     snapshot: {
       prExists: true,
@@ -174,6 +174,7 @@ function makeCopilotEvidence(state = "waiting_for_copilot_review") {
       state,
       allowedTransitions: ["unresolved_feedback_present", "ready_to_rerequest_review", "waiting_for_ci"],
       nextAction: "Wait for Copilot review",
+      sameHeadCleanConverged,
     },
   };
 }
@@ -296,6 +297,9 @@ test("composeRunInspectionSnapshot: complete live evidence returns all required 
     reason: "unavailable",
   });
   assert.equal(snapshot.layers.copilot.currentState, "waiting_for_copilot_review");
+  assert.equal(snapshot.layers.copilot.sameHeadCleanConverged, false);
+  assert.equal(snapshot.layers.copilot.loopDisposition, "pending");
+  assert.equal(snapshot.layers.copilot.terminal, false);
   assert.equal(snapshot.layers.reviewer.currentState, "waiting_for_author_followup");
   assert.equal(snapshot.layers.steering.status, "unavailable");
   assert.equal(snapshot.layers.steering.reason, "no_steering_locator");
@@ -325,6 +329,33 @@ test("composeRunInspectionSnapshot: live evidence + done → statusClass done, n
   assert.equal(snapshot.needsAttention, false);
   assert.equal(snapshot.sourceMode, SOURCE_MODE.LIVE_DETECTOR_BACKED);
   assert.equal(snapshot.trust, TRUST.AUTHORITATIVE);
+});
+
+test("composeRunInspectionSnapshot: clean-converged Copilot state carries same-head convergence flags", () => {
+  const copilotEvidence = makeCopilotEvidence("ready_to_rerequest_review", { sameHeadCleanConverged: true });
+  copilotEvidence.snapshot.copilotReviewPresent = true;
+  copilotEvidence.snapshot.copilotReviewOnCurrentHead = true;
+  const reviewerEvidence = makeReviewerEvidence("waiting_for_author_followup");
+
+  const snapshot = composeRunInspectionSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "continue_current_wait",
+    outerAllowedTransitions: ["continue_current_wait", "handoff_to_copilot_loop"],
+    outerAction: "continue_wait",
+    copilotEvidence,
+    reviewerEvidence,
+    existingCheckpoint: null,
+    liveAvailability: { copilot: "ok", reviewer: "ok" },
+    steeringLocatorPath: null,
+    steeringEvidence: null,
+    steeringLoadFailed: false,
+  });
+
+  assert.equal(snapshot.layers.copilot.currentState, "ready_to_rerequest_review");
+  assert.equal(snapshot.layers.copilot.sameHeadCleanConverged, true);
+  assert.equal(snapshot.layers.copilot.loopDisposition, "clean_converged");
+  assert.equal(snapshot.layers.copilot.terminal, true);
 });
 
 test("composeRunInspectionSnapshot: live evidence + stop → statusClass blocked, needsAttention true", () => {
