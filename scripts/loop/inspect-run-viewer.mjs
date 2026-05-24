@@ -1604,7 +1604,6 @@ export function createInspectRunViewerServer(options, deps = {}) {
     try {
       const requestPath = request.url ? new URL(request.url, "http://localhost").pathname : "/";
       const method = request.method ?? "GET";
-      const requestTarget = normalizeRequestedTargetFromUrl(request.url, defaultTarget);
 
       if (requestPath === "/favicon.ico") {
         response.statusCode = 204;
@@ -1640,6 +1639,17 @@ export function createInspectRunViewerServer(options, deps = {}) {
           });
         }
         return;
+      }
+
+      let requestTarget;
+      try {
+        requestTarget = normalizeRequestedTargetFromUrl(request.url, defaultTarget);
+      } catch (error) {
+        if (requestPath === "/snapshot.json" && error?.code === "MALFORMED_TARGET") {
+          writeJson(response, 400, jsonErrorPayload(defaultTarget, error));
+          return;
+        }
+        throw error;
       }
 
       if (requestPath === "/snapshot.json") {

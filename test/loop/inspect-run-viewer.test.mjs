@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { once } from "node:events";
 import { get, request } from "node:http";
 import test from "node:test";
@@ -920,19 +920,25 @@ test("parseGhJsonOutput wraps invalid gh JSON deterministically", () => {
 
 test("createInspectionViewerAdapter listAssignedPullRequests reports invalid gh JSON deterministically", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "inspect-viewer-gh-"));
-  const fakeGh = path.join(dir, "fake-gh.sh");
-  await writeFile(fakeGh, "#!/bin/sh\nprintf 'not json\\n'\n", "utf8");
-  await chmod(fakeGh, 0o755);
 
-  const adapter = createInspectionViewerAdapter({
-    inspectRunImpl: async () => ({ ok: true }),
-  });
+  try {
+    const fakeGh = path.join(dir, "fake-gh.sh");
+    await writeFile(fakeGh, "#!/bin/sh\nprintf 'not json\n'\n", "utf8");
+    await chmod(fakeGh, 0o755);
 
-  await assert.rejects(
-    () => adapter.listAssignedPullRequests({ ghCommand: fakeGh }),
-    /Invalid JSON from gh: not json/,
-  );
+    const adapter = createInspectionViewerAdapter({
+      inspectRunImpl: async () => ({ ok: true }),
+    });
+
+    await assert.rejects(
+      () => adapter.listAssignedPullRequests({ ghCommand: fakeGh }),
+      /Invalid JSON from gh: not json/,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
+
 
 test("createInspectionViewerAdapter listAssignedPullRequests skips malformed search rows", async () => {
   const adapter = createInspectionViewerAdapter({
@@ -1394,6 +1400,36 @@ test("createInspectRunViewerServer keeps favicon, unsupported paths, and unsuppo
   }
 });
 
+
+test("createInspectRunViewerServer returns JSON for malformed /snapshot.json repo/pr query params", async () => {
+  const adapter = {
+    async loadSnapshot() {
+      throw new Error("should not load snapshot for malformed targets");
+    },
+  };
+
+  const server = createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    { adapter },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address();
+    const response = await requestOnce(`http://127.0.0.1:${address.port}/snapshot.json?repo=../../bad&pr=nope`);
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.headers["content-type"], "application/json; charset=utf-8");
+    assert.deepEqual(JSON.parse(response.body), {
+      ok: false,
+      target: { repo: "owner/repo", pr: 55 },
+      error: { message: "target.repo must match <owner/name>" },
+    });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 
 test("createInspectRunViewerServer treats malformed repo/pr query params as bad requests", async () => {
   const adapter = {
