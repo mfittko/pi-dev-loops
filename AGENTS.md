@@ -6,7 +6,8 @@ This repository now uses `dev-loop` as the single public workflow entrypoint.
 
 - Route `dev-loop` deterministically to the GitHub-first internal strategies when work should move through GitHub branches, pull requests, CI, and review.
 - Route `dev-loop` to the local implementation strategy only when the user explicitly wants a local phase-based path.
-- Keep `copilot-dev-loop` and `copilot-autopilot` available as compatibility/internal strategy entrypoints during the migration.
+- Treat `copilot-dev-loop` and `copilot-autopilot` as internal strategy seams behind `dev-loop`, not as equal public entrypoints and not as default compatibility commitments.
+- This is a greenfield, declutter-first repo: when workflow or agent guidance can be simplified safely, prefer removing or demoting extra surface area over preserving it just in case.
 
 These skills may be provided repo-locally or globally; this contract does not assume a local skill path.
 
@@ -29,6 +30,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - KISS
 - SRP
 - YAGNI
+- for workflow surface and agent guidance decisions, YAGNI-driven simplification takes priority over preserving speculative compatibility or extra entrypoint names
 - strict TypeScript
 - thin runtime glue
 - no production reliance on Pi private internals
