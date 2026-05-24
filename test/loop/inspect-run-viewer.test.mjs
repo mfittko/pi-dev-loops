@@ -436,6 +436,25 @@ test("renderInspectRunViewerHtml keeps the empty inbox copy generic across state
   assert.doesNotMatch(html, /limit filters/i);
 });
 
+test("renderInspectRunViewerHtml keeps scope selection and retained target when repo casing differs", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "Owner/Repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    scopeOptions: ["owner/repo", "other/repo"],
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+  });
+
+  assert.match(html, /<option value="\/\?scope=owner%2Frepo&amp;repo=owner%2Frepo&amp;pr=55&amp;state=open&amp;mode=assignee" selected>owner\/repo<\/option>/);
+  assert.match(html, /<option value="\/\?scope=other%2Frepo&amp;state=open&amp;mode=assignee" >other\/repo<\/option>/);
+});
+
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",

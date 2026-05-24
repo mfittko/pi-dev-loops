@@ -1363,8 +1363,15 @@ function renderInboxFilterHref(selectedTarget, { scopeFilter = null, updatedWith
   return query.length === 0 ? "/" : `/?${query}`;
 }
 
+function repoSlugEquals(left, right) {
+  if (typeof left !== "string" || typeof right !== "string") {
+    return left === right;
+  }
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
 function renderScopeSelectHref(selectedTarget, scopeFilter, { updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE } = {}) {
-  const retainedTarget = selectedTarget && (scopeFilter === null || selectedTarget.repo === scopeFilter)
+  const retainedTarget = selectedTarget && (scopeFilter === null || repoSlugEquals(selectedTarget.repo, scopeFilter))
     ? selectedTarget
     : null;
   return renderInboxFilterHref(retainedTarget, { scopeFilter, updatedWithinDays, state, mode, page: DEFAULT_INBOX_PAGE });
@@ -1413,7 +1420,7 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
         <select id="assigned-pr-scope-select" class="assigned-pr-select" data-nav-select>
           ${uniqueScopeOptions.map((option) => {
     const optionScope = option === "All repos" ? null : option;
-    const selected = optionScope === scopeFilter || (optionScope === null && scopeFilter === null);
+    const selected = optionScope === null ? scopeFilter === null : repoSlugEquals(optionScope, scopeFilter);
     return `<option value="${escapeHtml(renderScopeSelectHref(selectedTarget, optionScope, { updatedWithinDays, state, mode }))}" ${selected ? "selected" : ""}>${escapeHtml(option)}</option>`;
   }).join("")}
         </select>
