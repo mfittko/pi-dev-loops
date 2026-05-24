@@ -678,6 +678,77 @@ test("renderInspectRunViewerHtml keeps selected handoff-to-copilot rows on the a
   assert.match(html, /🔁/);
 });
 
+test("renderInspectRunViewerHtml shows waiting inbox signal when outer routing hands off a waiting Copilot state", () => {
+  const waitingSnapshot = makeSnapshot({
+    target: { repo: "owner/repo", pr: 3 },
+    outerState: "handoff_to_reviewer_loop",
+    outerAction: "reenter_reviewer_loop",
+    activeFamilyState: "reenter_reviewer_loop",
+    statusClass: "active",
+    needsAttention: false,
+    layers: {
+      copilot: {
+        currentState: "waiting_for_copilot_review",
+        allowedTransitions: ["unresolved_feedback_present", "ready_to_rerequest_review", "waiting_for_ci"],
+      },
+      reviewer: {
+        currentState: "review_requested",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_author_followup"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 3 },
+    snapshot: waitingSnapshot,
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 3 }, title: "fix: wait signal", updatedAt: "2026-05-22T00:00:00Z", snapshot: waitingSnapshot },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row assigned-pr-row-waiting is-selected/);
+  assert.match(html, /data-inbox-signal="waiting"/);
+  assert.match(html, /<span class="assigned-pr-signal-emoji" aria-label="Waiting">⏳<\/span>/);
+  assert.match(html, /title="Waiting state"/);
+});
+
+test("renderInspectRunViewerHtml keeps hard attention ahead of waiting layer inbox signals", () => {
+  const attentionSnapshot = makeSnapshot({
+    target: { repo: "owner/repo", pr: 3 },
+    outerState: "needs_reconcile",
+    outerAction: "stop",
+    activeFamilyState: "stop",
+    statusClass: "blocked",
+    needsAttention: true,
+    layers: {
+      copilot: {
+        currentState: "waiting_for_copilot_review",
+        allowedTransitions: ["unresolved_feedback_present", "ready_to_rerequest_review", "waiting_for_ci"],
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 3 },
+    snapshot: attentionSnapshot,
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 3 }, title: "fix: attention signal", updatedAt: "2026-05-22T00:00:00Z", snapshot: attentionSnapshot },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row assigned-pr-row-attention is-selected/);
+  assert.match(html, /data-inbox-signal="attention"/);
+  assert.match(html, /<span class="assigned-pr-signal-emoji" aria-label="Needs attention">🔴<\/span>/);
+});
+
 test("renderInspectRunViewerHtml keeps selected closed inbox rows on the closed border", () => {
   const html = renderInspectRunViewerHtml({
     repo: null,

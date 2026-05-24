@@ -1410,17 +1410,30 @@ function deriveInboxSignalFromSnapshot(snapshot) {
   const copilotLoopDisposition = formatStateToken(snapshot.layers?.copilot?.loopDisposition);
   const copilotTerminal = snapshot.layers?.copilot?.terminal === true;
 
+  const reviewerState = formatStateToken(snapshot.layers?.reviewer?.currentState);
+
   if (snapshot.needsAttention === true
     || outerState === OUTER_STATE.NEEDS_RECONCILE
     || outerState === OUTER_STATE.STOP_NEEDS_HUMAN
-    || outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP
-    || outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP
     || outerAction === "stop"
-    || outerAction === "reenter_copilot_loop"
-    || outerAction === "reenter_reviewer_loop"
     || statusClass === "blocked"
     || copilotState === "unresolved_feedback_present"
     || copilotState === "already_fixed_needs_reply_resolve") {
+    return "attention";
+  }
+
+  // Layer states that represent genuine waiting take priority over outer routing signals
+  // (e.g. waiting_for_copilot_review beats handoff_to_reviewer_loop so sidebar and banner agree).
+  if (copilotState === "waiting_for_copilot_review"
+    || reviewerState === "waiting_for_author_followup"
+    || reviewerState === "waiting_for_re_request") {
+    return "waiting";
+  }
+
+  if (outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP
+    || outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP
+    || outerAction === "reenter_copilot_loop"
+    || outerAction === "reenter_reviewer_loop") {
     return "attention";
   }
 
