@@ -855,19 +855,18 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   const watchProvided = input.watch !== undefined;
   const watchRequested = input.watch === true;
   const targetPreference = input.targetPreference !== undefined ? normalizeTargetPreference(input.targetPreference) : null;
+  const requestedExecutionMode = variationMode ?? DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF;
 
   // Fail closed on unrecognized variation parameter values
   if (input.mode !== undefined && variationMode === null) {
     return buildReconcile(`Unrecognized \`mode\` parameter; allowed values: ${ALLOWED_MODE_VALUES_TEXT}.`);
   }
   if (input.targetPreference !== undefined && targetPreference === null) {
-    return buildReconcile(`Unrecognized \`targetPreference\` parameter; allowed values: ${ALLOWED_TARGET_PREFERENCE_VALUES_TEXT}.`);
+    return buildReconcile(`Unrecognized \`targetPreference\` parameter; allowed values: ${ALLOWED_TARGET_PREFERENCE_VALUES_TEXT}.`, null, requestedExecutionMode);
   }
   if (watchProvided && typeof input.watch !== "boolean") {
-    return buildReconcile("Unrecognized `watch` parameter; allowed values: true or false.");
+    return buildReconcile("Unrecognized `watch` parameter; allowed values: true or false.", null, requestedExecutionMode);
   }
-
-  const requestedExecutionMode = variationMode ?? DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF;
 
   if (!intent) {
     return buildReconcile("The public dev-loop intent is missing or unrecognized.", null, requestedExecutionMode);

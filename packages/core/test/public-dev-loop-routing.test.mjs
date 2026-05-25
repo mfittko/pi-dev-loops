@@ -1300,6 +1300,25 @@ test("unrecognized mode value fails closed", () => {
   assert.match(result.reason, /unrecognized `mode` parameter/i);
 });
 
+test("non-boolean watch value preserves requested durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    watch: "true",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /unrecognized `watch` parameter/i);
+});
+
 test("non-boolean watch value fails closed", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
