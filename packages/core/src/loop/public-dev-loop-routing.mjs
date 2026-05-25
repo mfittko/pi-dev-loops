@@ -879,6 +879,14 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   } else {
     effectiveMode = variationMode ?? DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF;
   }
+
+  if (effectiveMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO && !explicitState) {
+    return buildReconcile(
+      "`mode=durable_auto` requires a valid authoritative current state.",
+      null,
+      DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    );
+  }
   // ─────────────────────────────────────────────────────────────────────────
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE) {
@@ -886,12 +894,12 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       return buildReconcile("`inspect_state` requires a valid canonical current state.");
     }
 
-    const routed = routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
-    return {
+    const routed = routeForState(explicitState, { executionMode: effectiveMode });
+    return applyWatchValidation({
       ...routed,
       routeKind: DEV_LOOP_ROUTE_KIND.INSPECT,
       nextAction: "Describe the canonical state and the routed internal strategy without changing public entrypoints.",
-    };
+    }, watchRequested);
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE) {

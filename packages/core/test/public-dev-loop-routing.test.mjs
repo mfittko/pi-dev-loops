@@ -1151,6 +1151,38 @@ test("mode=durable_auto steers execution mode for continue_current without chang
   assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
 });
 
+test("mode=durable_auto without authoritative current state fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42 },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /mode=durable_auto.*requires a valid authoritative current state/i);
+});
+
+test("mode=durable_auto on inspect_state preserves inspect routing with authoritative state", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+});
+
 test("mode=durable_auto explicit parameter beats the default bounded_handoff mode", () => {
   const withDefault = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
@@ -1254,6 +1286,24 @@ test("watch=true succeeds on a wait-capable route", () => {
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+});
+
+test("watch=true on inspect_state fails closed even when the underlying state is waiting", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /watch requested but the routed canonical state is not a wait\/watch-capable state/i);
 });
 
 test("watch=true on a non-wait route fails closed", () => {

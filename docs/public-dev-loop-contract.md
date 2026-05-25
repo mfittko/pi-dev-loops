@@ -298,7 +298,7 @@ The following parameter/state combinations fail closed to `needs_reconcile` inst
 | Unrecognized `targetPreference` value | Value not on the bounded allow-list |
 | `watch=true` on a non-wait-capable routed state | Watch semantics require a `wait_watch` gate |
 | `targetPreference=prefer_local` when authoritative state has a linked PR or active PR artifact | Preference must not override authoritative linked-PR truth |
-| `mode=durable_auto` (`auto_continue_current` intent) without canonical state | Durable auto requires authoritative current state to route from |
+| `mode=durable_auto` without authoritative current state | Durable auto requires authoritative current state to route from |
 
 ### Representative translations: name-shaped intent → parameterized `dev-loop` form
 
