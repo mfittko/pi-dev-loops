@@ -587,6 +587,35 @@ test("inspect_state reports the canonical state without switching public entrypo
   assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
 });
 
+test("missing intent preserves requested durable_auto execution-mode metadata", () => {
+  const result = evaluatePublicDevLoopRouting({
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /intent is missing or unrecognized/i);
+});
+
+test("watch validation preserves existing reconcile reasons", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /does not map cleanly to any first-slice internal strategy/i);
+});
+
 test("invalid or incomplete inputs fail closed to needs_reconcile", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,
