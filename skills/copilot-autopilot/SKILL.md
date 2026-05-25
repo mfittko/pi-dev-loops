@@ -367,12 +367,9 @@ When the Copilot draft PR appears:
 
 ## Phase 6 — Local review/fix loop
 
-Before marking the PR ready for review, run a local Pi review/fix pass using the `copilot-dev-loop` Step 7 follow-up loop plus the draft-gate checks below. Delegation to `copilot-dev-loop` covers fix-loop mechanics only (`inspect -> classify -> fix -> validate -> push -> reply -> resolve`), not review-angle inheritance. Do **not** import the Step 7 pre-approval gate into this draft-stage pass.
+Before marking the PR ready for review, run a local Pi review/fix pass using the `copilot-dev-loop` Step 7 follow-up loop plus the draft gate contract below. Delegation to `copilot-dev-loop` covers fix-loop mechanics only (`inspect -> classify -> fix -> validate -> push -> reply -> resolve`), not review-angle inheritance. Do **not** import the Step 7 pre-approval gate into this draft-stage pass.
 
-Do not mark the PR ready until:
-- all must-fix findings are addressed or explicitly deferred with rationale
-- validation passes
-- no unrelated files are included
+Use the draft gate contract below as the authority for whether the PR is ready to mark ready.
 
 ### Draft gate contract
 
