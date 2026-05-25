@@ -367,29 +367,29 @@ When the Copilot draft PR appears:
 
 ## Phase 6 — Local review/fix loop
 
-Before marking the PR ready for review, run a local Pi review/fix pass using the `copilot-dev-loop` Step 7 follow-up loop plus the draft-gate checks below. Do **not** import the Step 7 pre-approval gate into this draft-stage pass.
+Before marking the PR ready for review, run a local Pi review/fix pass using the `copilot-dev-loop` Step 7 follow-up loop plus the draft gate contract below. Delegation to `copilot-dev-loop` covers fix-loop mechanics only, not review-angle inheritance. Do **not** import the Step 7 pre-approval gate into this draft-stage pass.
 
-Do not mark the PR ready until:
-- all must-fix findings are addressed or explicitly deferred with rationale
-- validation passes
-- no unrelated files are included
+Use the draft gate contract below as the authority for whether the PR is ready to leave draft via `gh pr ready`.
 
-### Draft-gate review angles (before marking PR ready for review)
+### Draft gate contract
 
-Before running `gh pr ready`, inspect the implementation through these angles:
+This is the draft-stage gate for the draft → ready-for-review boundary.
 
-- **Correctness vs acceptance criteria**: does the implementation satisfy the issue's acceptance criteria exactly?
-- **Scope compliance**: are there any unrelated or out-of-scope changes included?
-- **Test coverage adequacy**: are the changed or added behaviors covered by tests as the acceptance criteria require?
-- **CI and check status**: are all required checks passing or credibly passing on the current head?
-- **No unrelated files**: no files outside the accepted fix scope are part of the diff
+- **Gate name:** Draft gate
+- **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
+- **Review angles (owned by this gate):**
+  - Correctness vs acceptance criteria
+  - Scope compliance
+  - Test coverage adequacy
+  - CI and check status
+  - No unrelated files
+- **Pass criteria:** all five draft-gate angles pass; all must-fix findings are addressed or explicitly deferred with rationale; validation passes; no unrelated files are included.
+- **Next step after passing:** mark the PR ready for review:
+  ```sh
+  gh pr ready <pr-number> --repo <resolved-repo>
+  ```
 
 Do **not** run DRY, KISS, or YAGNI at this gate. Those lenses belong exclusively to the pre-approval gate (Phase 7 below).
-
-Mark ready:
-```sh
-gh pr ready <pr-number> --repo <resolved-repo>
-```
 
 ## Phase 7 — Copilot review loop
 
@@ -418,14 +418,18 @@ Exit the Copilot review loop only when **one** of:
 
 Do **not** merge while Copilot review threads remain unresolved unless the user has explicitly deferred them with rationale.
 
-### Pre-approval gate (before calling PR merge-ready)
+### Pre-approval gate contract
 
-Before calling the PR review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate using three focused review lenses:
-- DRY
-- KISS
-- YAGNI
+This is the default pre-approval gate for this workflow boundary and owns the DRY, KISS, and YAGNI review angles.
 
-Run these three lens-focused passes in fresh context and in parallel when practical. If parallel execution is impractical, still run all three lenses and explicitly record the limitation.
+- **Gate name:** Pre-approval gate
+- **Trigger / boundary:** right before calling the PR review-complete, approval-ready, merge-ready, or ready for final handoff
+- **Review angles (owned by this gate):**
+  - DRY
+  - KISS
+  - YAGNI
+- **Pass criteria:** DRY, KISS, and YAGNI lens passes are completed in fresh context and in parallel when practical; if parallel execution is impractical (for example due to tooling or resource constraints), still run all three lenses and explicitly record the limitation in the review verdict summary or a `tmp/copilot-loop/` handoff artifact.
+- **Next step after passing:** continue to Phase 8 — Final independent review.
 
 Do not make unrelated cleanup changes just because the branch is already open.
 
