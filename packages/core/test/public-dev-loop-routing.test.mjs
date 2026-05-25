@@ -11,6 +11,7 @@ import {
   DEV_LOOP_PUBLIC_INTENT,
   DEV_LOOP_EXECUTION_MODE,
   DEV_LOOP_ROUTE_KIND,
+  DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND,
   DEV_LOOP_WAIT_SEMANTICS,
   DEV_LOOP_ISSUE_LINKAGE_RESOLUTION,
   DEV_LOOP_STATUS_REPORT_KIND,
@@ -20,6 +21,7 @@ import {
   PUBLIC_DEV_LOOP_GATE_CONTRACT,
   PUBLIC_DEV_LOOP_ENTRYPOINT,
   evaluatePublicDevLoopRouting,
+  resolveAuthoritativeStartupResumeBundle,
   resolveAuthoritativeDevLoopStatus,
 } from "../src/loop/public-dev-loop-routing.mjs";
 
@@ -581,6 +583,70 @@ test("authoritative status resolution uses the canonically linked PR identity", 
   assert.equal(report.activeArtifact.pr, 92);
 });
 
+test("authoritative startup/resume bundle resolves routed state with authoritative minimum fields", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 89, linkedPr: 92 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "unresolved_feedback_present",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(bundle.activeArtifact.issue, 89);
+  assert.equal(bundle.activeArtifact.pr, 92);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+  assert.equal(bundle.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
+});
+
+test("authoritative startup/resume bundle fails closed when issue linkage is missing", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.USER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "active",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
+  assert.equal(bundle.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
+  assert.equal(bundle.loopState, "unknown");
+  assert.match(bundle.nextAction, /reconcile/i);
+});
+
+test("authoritative startup/resume bundle fails closed on target identity conflicts", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93, pr: 99 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.USER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    loopState: "active",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
+  assert.equal(bundle.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
+});
+
 
 test("authoritative status resolution does not classify unresolved feedback as final review", () => {
   const report = resolveAuthoritativeDevLoopStatus({
@@ -600,6 +666,35 @@ test("authoritative status resolution does not classify unresolved feedback as f
   assert.equal(report.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
   assert.equal(report.loopState, "unresolved_feedback_present");
   assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+});
+
+test("authoritative status resolution consumes the startup/resume bundle output", () => {
+  const input = {
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, issue: 89, pr: 92 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "unresolved_feedback_present",
+  };
+
+  const bundle = resolveAuthoritativeStartupResumeBundle(input);
+  const report = resolveAuthoritativeDevLoopStatus(input);
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.deepEqual(report.activeArtifact, bundle.activeArtifact);
+  assert.equal(report.artifactState, bundle.artifactState);
+  assert.equal(report.loopState, bundle.loopState);
+  assert.equal(report.routeKind, bundle.routeKind);
+  assert.equal(report.selectedStrategy, bundle.selectedStrategy);
+  assert.equal(report.compatibilityEntrypoint, bundle.compatibilityEntrypoint);
+  assert.equal(report.nextAction, bundle.nextAction);
+  assert.equal(report.reason, bundle.reason);
 });
 
 test("authoritative status resolution fails closed when routing itself cannot resolve a strategy", () => {
