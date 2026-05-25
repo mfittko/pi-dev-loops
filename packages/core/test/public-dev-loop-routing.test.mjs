@@ -1337,6 +1337,17 @@ test("non-boolean watch value fails closed", () => {
   assert.match(result.reason, /unrecognized `watch` parameter/i);
 });
 
+test("auto_continue_current non-boolean watch preserves derived durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    watch: "true",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /unrecognized `watch` parameter/i);
+});
+
 test("watch=true succeeds on a wait-capable route", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
@@ -1553,6 +1564,17 @@ test("unrecognized targetPreference value fails closed", () => {
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /unrecognized `targetPreference` parameter/i);
+});
+
+test("auto_continue_current invalid targetPreference preserves derived durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    targetPreference: "force_local_anyway",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.match(result.reason, /unrecognized `targetPreference` parameter/i);
 });
 

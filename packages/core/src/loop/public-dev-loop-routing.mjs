@@ -855,7 +855,11 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   const watchProvided = input.watch !== undefined;
   const watchRequested = input.watch === true;
   const targetPreference = input.targetPreference !== undefined ? normalizeTargetPreference(input.targetPreference) : null;
-  const requestedExecutionMode = variationMode ?? DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF;
+  const requestedExecutionMode =
+    variationMode
+    ?? (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT
+      ? DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO
+      : DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
 
   // Fail closed on unrecognized variation parameter values
   if (input.mode !== undefined && variationMode === null) {
