@@ -128,6 +128,59 @@ export const DEV_LOOP_ISSUE_LINKAGE_RESOLUTION = Object.freeze({
   NOT_APPLICABLE: "not_applicable",
 });
 
+/**
+ * Bounded first-slice target preference values for the `targetPreference` variation parameter.
+ *
+ * `prefer_local` steers routing toward local implementation when no authoritative
+ * linked-PR or active-artifact truth has already decided the route.
+ * It must not override authoritative state — if the canonical state already resolves
+ * to a linked-PR path, `prefer_local` fails closed instead of silently coercing.
+ */
+export const DEV_LOOP_TARGET_PREFERENCE = Object.freeze({
+  PREFER_GITHUB_FIRST: "prefer_github_first",
+  PREFER_LOCAL: "prefer_local",
+});
+
+/**
+ * First-slice bounded variation parameter contract for the public `dev-loop` entrypoint.
+ *
+ * Variation parameters may **steer** `dev-loop` behavior, but must not replace
+ * authoritative routing. Precedence order (highest to lowest):
+ *   1. authoritative current state — primary routing source of truth
+ *   2. explicit user intent and API parameters — choose variation mode within the entrypoint
+ *   3. settings/preferences — provide defaults only when (1) and (2) have not decided
+ *
+ * Ambiguous or conflicting parameter combinations fail closed instead of silently
+ * overriding authoritative state.
+ */
+export const DEV_LOOP_VARIATION_PARAMETER_CONTRACT = Object.freeze({
+  /** Allowed first-slice variation parameter names. */
+  allowedParameters: Object.freeze(["mode", "watch", "intent", "targetPreference"]),
+  /** Allowed values for the `mode` parameter. */
+  allowedModeValues: Object.freeze(Object.values(DEV_LOOP_EXECUTION_MODE)),
+  /** Allowed values for the `targetPreference` parameter. */
+  allowedTargetPreferenceValues: Object.freeze(Object.values(DEV_LOOP_TARGET_PREFERENCE)),
+  /**
+   * Disallowed variation categories for this slice.
+   * These must not become public variation knobs.
+   */
+  disallowedCategories: Object.freeze([
+    "arbitrary_ownership_override",
+    "arbitrary_strategy_override",
+    "arbitrary_gate_override",
+    "issue_pr_linkage_bypass",
+    "expert_mode_flags",
+  ]),
+  /**
+   * Precedence order for variation inputs (index 0 = highest authority).
+   */
+  precedenceOrder: Object.freeze([
+    "authoritative_current_state",
+    "explicit_intent_and_parameters",
+    "settings_and_preferences",
+  ]),
+});
+
 export const PUBLIC_DEV_LOOP_GATE_CONTRACT = Object.freeze([
   Object.freeze({
     gate: DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED,
@@ -198,6 +251,8 @@ const AUTHORIZATION_SET = new Set(Object.values(DEV_LOOP_AUTHORIZATION));
 const INTENT_SET = new Set(Object.values(DEV_LOOP_PUBLIC_INTENT));
 const ARTIFACT_STATE_SET = new Set(Object.values(DEV_LOOP_ARTIFACT_STATE));
 const ISSUE_LINKAGE_RESOLUTION_SET = new Set(Object.values(DEV_LOOP_ISSUE_LINKAGE_RESOLUTION));
+const VARIATION_MODE_SET = new Set(Object.values(DEV_LOOP_EXECUTION_MODE));
+const TARGET_PREFERENCE_SET = new Set(Object.values(DEV_LOOP_TARGET_PREFERENCE));
 
 function normalizeIntent(intent) {
   const normalized = typeof intent === "string" ? intent.trim().toLowerCase() : "";
@@ -292,6 +347,16 @@ function normalizeIssueLinkageResolution(value) {
   return ISSUE_LINKAGE_RESOLUTION_SET.has(normalized) ? normalized : null;
 }
 
+function normalizeVariationMode(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return VARIATION_MODE_SET.has(normalized) ? normalized : null;
+}
+
+function normalizeTargetPreference(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return TARGET_PREFERENCE_SET.has(normalized) ? normalized : null;
+}
+
 function buildResult({
   selectedGate,
   routeKind,
@@ -328,6 +393,21 @@ function buildReconcile(reason, canonicalState = null, executionMode = DEV_LOOP_
     nextAction: "Stop and reconcile the canonical current state before choosing an internal strategy.",
     reason,
   });
+}
+
+/**
+ * Post-routing validation for the `watch` variation parameter.
+ * If watch was explicitly requested, the routed result must be a wait/watch-capable
+ * state; otherwise the request fails closed.
+ */
+function applyWatchValidation(result, watchRequested) {
+  if (!watchRequested) return result;
+  if (result.routeKind === DEV_LOOP_ROUTE_KIND.WAIT) return result;
+  return buildReconcile(
+    "watch requested but the routed canonical state is not a wait/watch-capable state.",
+    result.canonicalState,
+    result.executionMode,
+  );
 }
 
 function toRoutableCanonicalState(canonicalState) {
@@ -767,9 +847,39 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   const explicitTarget = normalizeTarget(input.target);
   const explicitState = normalizeState(input.currentState);
 
+  // ── Variation parameters (first-slice bounded contract) ──────────────────
+  const variationMode = input.mode !== undefined ? normalizeVariationMode(input.mode) : null;
+  const watchRequested = input.watch === true;
+  const targetPreference = input.targetPreference !== undefined ? normalizeTargetPreference(input.targetPreference) : null;
+
+  // Fail closed on unrecognized variation parameter values
+  if (input.mode !== undefined && variationMode === null) {
+    return buildReconcile("Unrecognized `mode` parameter; allowed values: bounded_handoff, durable_auto.");
+  }
+  if (input.targetPreference !== undefined && targetPreference === null) {
+    return buildReconcile("Unrecognized `targetPreference` parameter; allowed values: prefer_github_first, prefer_local.");
+  }
+
   if (!intent) {
     return buildReconcile("The public dev-loop intent is missing or unrecognized.");
   }
+
+  // ── Resolve effective execution mode ─────────────────────────────────────
+  // Precedence: authoritative intent (auto_continue_current) > explicit mode > default
+  let effectiveMode;
+  if (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT) {
+    if (variationMode === DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF) {
+      return buildReconcile(
+        "`mode=bounded_handoff` conflicts with the `auto_continue_current` intent; `auto_continue_current` always uses durable auto execution mode.",
+        null,
+        DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+      );
+    }
+    effectiveMode = DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO;
+  } else {
+    effectiveMode = variationMode ?? DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE) {
     if (!explicitState) {
@@ -797,16 +907,53 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       if (explicitState.target.issue !== explicitTarget.issue) {
         return buildReconcile("`start_on_issue` target conflicts with the canonical current state.", explicitState);
       }
-      return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
+
+      // targetPreference=prefer_local must not override authoritative linked-PR or PR state
+      if (targetPreference === DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL) {
+        const isLinkedPrState =
+          explicitState.target.kind === DEV_LOOP_TARGET_KIND.PR ||
+          (explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && explicitState.target.linkedPr !== null);
+        if (isLinkedPrState) {
+          return buildReconcile(
+            "`targetPreference=prefer_local` conflicts with authoritative linked-PR active artifact state; reconcile before overriding the routed path.",
+            explicitState,
+          );
+        }
+      }
+
+      return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
     }
 
-    return routeForState({
-      target: explicitTarget,
-      ownership: DEV_LOOP_ACTOR.COPILOT,
-      nextActor: DEV_LOOP_ACTOR.USER,
-      status: DEV_LOOP_STATUS.ACTIVE,
-      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
-    }, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
+    // No canonical state: steer toward local when prefer_local is requested
+    if (targetPreference === DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL) {
+      return applyWatchValidation(
+        routeForState({
+          target: {
+            kind: DEV_LOOP_TARGET_KIND.LOCAL_PHASE,
+            issue: explicitTarget.issue,
+            pr: null,
+            branch: null,
+            phase: `issue-${explicitTarget.issue}`,
+          },
+          ownership: DEV_LOOP_ACTOR.LOCAL,
+          nextActor: DEV_LOOP_ACTOR.LOCAL,
+          status: DEV_LOOP_STATUS.ACTIVE,
+          authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+        }, { executionMode: effectiveMode }),
+        watchRequested,
+      );
+    }
+
+    return applyWatchValidation(
+      routeForState({
+        target: explicitTarget,
+        ownership: DEV_LOOP_ACTOR.COPILOT,
+        nextActor: DEV_LOOP_ACTOR.USER,
+        status: DEV_LOOP_STATUS.ACTIVE,
+        authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+      }, { executionMode: effectiveMode }),
+      watchRequested,
+    );
   }
 
   if (
@@ -828,7 +975,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       ) {
         return buildReconcile("Local issue-start target conflicts with the canonical current state.", explicitState);
       }
-      return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
+      return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
     }
 
     const routed = routeForState({
@@ -843,15 +990,17 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       nextActor: DEV_LOOP_ACTOR.LOCAL,
       status: DEV_LOOP_STATUS.ACTIVE,
       authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
-    }, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
+    }, { executionMode: effectiveMode });
 
-    return intent === DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY_THEN_CONTINUE
+    const routedWithContinueAction = intent === DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY_THEN_CONTINUE
       ? {
           ...routed,
           nextAction:
             "Start with the local implementation strategy now, then re-enter the same public `dev-loop` entrypoint against the updated canonical state.",
         }
       : routed;
+
+    return applyWatchValidation(routedWithContinueAction, watchRequested);
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR) {
@@ -864,14 +1013,37 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     if (explicitState.target.pr !== explicitTarget.pr) {
       return buildReconcile("`continue_on_pr` target conflicts with the canonical current PR state.", explicitState);
     }
-    return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
+
+    // targetPreference=prefer_local must not override an active PR artifact
+    if (targetPreference === DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL) {
+      return buildReconcile(
+        "`targetPreference=prefer_local` conflicts with authoritative linked-PR active artifact state; reconcile before overriding the routed path.",
+        explicitState,
+      );
+    }
+
+    return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT) {
     if (!explicitState) {
       return buildReconcile("`continue_current` requires a valid canonical current state.");
     }
-    return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
+
+    // targetPreference=prefer_local must not override an active PR artifact or linked-PR state
+    if (targetPreference === DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL) {
+      const isLinkedPrState =
+        explicitState.target.kind === DEV_LOOP_TARGET_KIND.PR ||
+        (explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && explicitState.target.linkedPr !== null);
+      if (isLinkedPrState) {
+        return buildReconcile(
+          "`targetPreference=prefer_local` conflicts with authoritative linked-PR active artifact state; reconcile before overriding the routed path.",
+          explicitState,
+        );
+      }
+    }
+
+    return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT) {
@@ -882,7 +1054,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
       );
     }
-    return routeForState(explicitState, { executionMode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO });
+    return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
   }
 
   return buildReconcile("The public dev-loop intent is recognized but not implemented in this first slice.");
