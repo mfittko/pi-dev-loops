@@ -1300,6 +1300,17 @@ test("unrecognized mode value fails closed", () => {
   assert.match(result.reason, /unrecognized `mode` parameter/i);
 });
 
+test("auto_continue_current invalid mode preserves derived durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    mode: "some_unknown_mode",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /unrecognized `mode` parameter/i);
+});
+
 test("non-boolean watch value preserves requested durable_auto execution mode", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,

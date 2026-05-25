@@ -863,7 +863,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   // Fail closed on unrecognized variation parameter values
   if (input.mode !== undefined && variationMode === null) {
-    return buildReconcile(`Unrecognized \`mode\` parameter; allowed values: ${ALLOWED_MODE_VALUES_TEXT}.`);
+    return buildReconcile(`Unrecognized \`mode\` parameter; allowed values: ${ALLOWED_MODE_VALUES_TEXT}.`, null, requestedExecutionMode);
   }
   if (input.targetPreference !== undefined && targetPreference === null) {
     return buildReconcile(`Unrecognized \`targetPreference\` parameter; allowed values: ${ALLOWED_TARGET_PREFERENCE_VALUES_TEXT}.`, null, requestedExecutionMode);

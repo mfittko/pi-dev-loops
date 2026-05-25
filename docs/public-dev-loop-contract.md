@@ -271,7 +271,7 @@ Any conflict that would materially change artifact identity, ownership truth, or
 
 | Parameter | Allowed values | Behavior |
 |---|---|---|
-| `mode` | `bounded_handoff` (default) \| `durable_auto` | Steers execution mode; `durable_auto` equivalent to `auto_continue_current` semantics |
+| `mode` | `bounded_handoff` (default) \| `durable_auto` | Steers execution mode; `durable_auto` uses the same durable-auto execution-mode semantics as `auto_continue_current`, without replacing the selected intent |
 | `watch` | boolean | Explicitly request wait/watch semantics; fails closed if routed state is not wait-capable |
 | `intent` | any existing public `dev-loop` intent | Disambiguates the supported public intent; maps to existing contract values |
 | `targetPreference` | `prefer_github_first` (default) \| `prefer_local` | Steers routing preference; must not override authoritative linked-PR or active-artifact truth |
