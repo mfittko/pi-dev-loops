@@ -849,6 +849,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   // ── Variation parameters (first-slice bounded contract) ──────────────────
   const variationMode = input.mode !== undefined ? normalizeVariationMode(input.mode) : null;
+  const watchProvided = input.watch !== undefined;
   const watchRequested = input.watch === true;
   const targetPreference = input.targetPreference !== undefined ? normalizeTargetPreference(input.targetPreference) : null;
 
@@ -858,6 +859,9 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   }
   if (input.targetPreference !== undefined && targetPreference === null) {
     return buildReconcile("Unrecognized `targetPreference` parameter; allowed values: prefer_github_first, prefer_local.");
+  }
+  if (watchProvided && typeof input.watch !== "boolean") {
+    return buildReconcile("Unrecognized `watch` parameter; allowed values: true or false.");
   }
 
   if (!intent) {
@@ -925,6 +929,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
           return buildReconcile(
             "`targetPreference=prefer_local` conflicts with authoritative linked-PR active artifact state; reconcile before overriding the routed path.",
             explicitState,
+            effectiveMode,
           );
         }
       }
@@ -1027,6 +1032,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       return buildReconcile(
         "`targetPreference=prefer_local` conflicts with authoritative linked-PR active artifact state; reconcile before overriding the routed path.",
         explicitState,
+        effectiveMode,
       );
     }
 
@@ -1047,6 +1053,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         return buildReconcile(
           "`targetPreference=prefer_local` conflicts with authoritative linked-PR active artifact state; reconcile before overriding the routed path.",
           explicitState,
+          effectiveMode,
         );
       }
     }
