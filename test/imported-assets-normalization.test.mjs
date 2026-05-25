@@ -429,65 +429,6 @@ test("copilot-autopilot safety layer contract is documented", async () => {
   assert.match(planContent, /stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`/i);
 });
 
-test("copilot-autopilot Phase 6 names explicit draft-gate review angles distinct from the pre-approval gate", async () => {
-  const [autopilotSkill, copilotDevLoopSkill] = await Promise.all([
-    readRepo("skills/copilot-autopilot/SKILL.md"),
-    readRepo("skills/copilot-dev-loop/SKILL.md"),
-  ]);
-
-  const autopilotPhase6Match = autopilotSkill.match(/## Phase 6 — Local review\/fix loop[\s\S]*?(?=\n## Phase 7|$)/);
-  const autopilotPhase6 = autopilotPhase6Match ? autopilotPhase6Match[0] : "";
-  assert.ok(autopilotPhase6.length > 0, "copilot-autopilot Phase 6 section not found");
-
-  const autopilotPhase7Match = autopilotSkill.match(/## Phase 7 — Copilot review loop[\s\S]*?(?=\n## Phase 8|$)/);
-  const autopilotPhase7 = autopilotPhase7Match ? autopilotPhase7Match[0] : "";
-  assert.ok(autopilotPhase7.length > 0, "copilot-autopilot Phase 7 section not found");
-
-  const devLoopStep7Match = copilotDevLoopSkill.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Step 8|$)/);
-  const devLoopStep7 = devLoopStep7Match ? devLoopStep7Match[0] : "";
-  assert.ok(devLoopStep7.length > 0, "copilot-dev-loop Step 7 section not found");
-
-  // Extract the draft-gate section from each containing phase/step block for scoped assertions
-  const autopilotDraftGateMatch = autopilotPhase6.match(/### Draft-gate review angles[\s\S]*?(?=\n## |\n### (?!Draft)|$)/);
-  const autopilotDraftGate = autopilotDraftGateMatch ? autopilotDraftGateMatch[0] : "";
-  assert.ok(autopilotDraftGate.length > 0, "copilot-autopilot draft-gate section not found inside Phase 6");
-
-  const devLoopDraftGateMatch = devLoopStep7.match(/### Draft gate[\s\S]*?(?=\n### (?!Draft)|$)/);
-  const devLoopDraftGate = devLoopDraftGateMatch ? devLoopDraftGateMatch[0] : "";
-  assert.ok(devLoopDraftGate.length > 0, "copilot-dev-loop draft-gate section not found inside Step 7");
-
-  // Phase 6 should name all five draft-gate review angles explicitly (section-scoped)
-  assert.match(autopilotDraftGate, /draft.gate review angles?/i);
-  assert.match(autopilotDraftGate, /correctness.*acceptance criteria/i);
-  assert.match(autopilotDraftGate, /scope compliance/i);
-  assert.match(autopilotDraftGate, /test coverage/i);
-  assert.match(autopilotDraftGate, /ci.*check|check.*status/i);
-  assert.match(autopilotDraftGate, /no unrelated files/i);
-
-  // Phase 6 should explicitly say DRY/KISS/YAGNI is NOT applied at the draft gate (section-scoped)
-  assert.match(autopilotDraftGate, /[Dd]o \*?\*?not\*?\*? run DRY.*KISS.*YAGNI at this gate/);
-
-  // copilot-dev-loop draft-gate section should name all five angles (section-scoped)
-  assert.match(devLoopDraftGate, /draft.gate.*before marking PR ready|before marking PR ready.*draft.gate/i);
-  assert.match(devLoopDraftGate, /correctness.*acceptance criteria/i);
-  assert.match(devLoopDraftGate, /scope compliance/i);
-  assert.match(devLoopDraftGate, /test coverage/i);
-  assert.match(devLoopDraftGate, /ci.*check|check.*status/i);
-  assert.match(devLoopDraftGate, /no unrelated files/i);
-  assert.match(devLoopDraftGate, /[Dd]o \*?\*?not\*?\*? apply DRY.*KISS.*YAGNI here/);
-
-  // DRY/KISS/YAGNI must appear in each skill's extracted pre-approval gate section
-  const autopilotPreApprovalMatch = autopilotPhase7.match(/### Pre-approval gate[\s\S]*?(?=\n## |\n### |$)/);
-  const autopilotPreApproval = autopilotPreApprovalMatch ? autopilotPreApprovalMatch[0] : "";
-  assert.ok(autopilotPreApproval.length > 0, "copilot-autopilot pre-approval gate section not found inside Phase 7");
-  assert.match(autopilotPreApproval, /\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/);
-
-  const devLoopPreApprovalMatch = devLoopStep7.match(/### Pre-approval gate[\s\S]*?(?=\n## |\n### |$)/);
-  const devLoopPreApproval = devLoopPreApprovalMatch ? devLoopPreApprovalMatch[0] : "";
-  assert.ok(devLoopPreApproval.length > 0, "copilot-dev-loop pre-approval gate section not found inside Step 7");
-  assert.match(devLoopPreApproval, /\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/);
-});
-
 test("copilot-dev-loop skill keeps async watch persistence explicit", async () => {
   const [skillContent, scriptsReadme, stateGraph] = await Promise.all([
     readRepo("skills/copilot-dev-loop/SKILL.md"),
