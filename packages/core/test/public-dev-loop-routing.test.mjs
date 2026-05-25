@@ -539,6 +539,7 @@ test("auto_continue_current without canonical state fails closed with durable_au
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /auto_continue_current.*requires a valid canonical current state/i);
 });
 
 test("auto_continue_current with blocked or not-authorized state still stops (escalates)", () => {
@@ -1248,6 +1249,7 @@ test("mode=bounded_handoff conflicts with auto_continue_current intent and fails
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.deepEqual(result.canonicalState?.target, { kind: DEV_LOOP_TARGET_KIND.PR, issue: null, pr: 88, linkedPr: null, branch: null, phase: null });
   assert.match(result.reason, /conflicts with the `auto_continue_current` intent/i);
 });
 
@@ -1321,7 +1323,7 @@ test("watch=true on inspect_state fails closed even when the underlying state is
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
-  assert.match(result.reason, /watch requested but the routed canonical state is not a wait\/watch-capable state/i);
+  assert.match(result.reason, /watch requested but the routed result is not eligible for wait\/watch semantics/i);
 });
 
 test("watch=true on a non-wait route fails closed", () => {
@@ -1339,7 +1341,7 @@ test("watch=true on a non-wait route fails closed", () => {
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
-  assert.match(result.reason, /watch requested but the routed canonical state is not a wait\/watch-capable state/i);
+  assert.match(result.reason, /watch requested but the routed result is not eligible for wait\/watch semantics/i);
 });
 
 test("watch=true on a non-wait PR continue_on_pr route fails closed", () => {
@@ -1358,7 +1360,7 @@ test("watch=true on a non-wait PR continue_on_pr route fails closed", () => {
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
-  assert.match(result.reason, /watch requested but the routed canonical state is not a wait\/watch-capable state/i);
+  assert.match(result.reason, /watch requested but the routed result is not eligible for wait\/watch semantics/i);
 });
 
 test("watch=true on a waiting PR succeeds through continue_on_pr", () => {

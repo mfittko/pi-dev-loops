@@ -296,7 +296,7 @@ The following parameter/state combinations fail closed to `needs_reconcile` inst
 | `mode=bounded_handoff` + `intent=auto_continue_current` | `auto_continue_current` always requires durable auto execution mode |
 | Unrecognized `mode` value | Value not on the bounded allow-list |
 | Unrecognized `targetPreference` value | Value not on the bounded allow-list |
-| `watch=true` on a non-wait-capable routed state | Watch semantics require a `wait_watch` gate |
+| `watch=true` when the routed result is not wait/watch-eligible | Watch semantics require a `wait_watch` gate |
 | Non-boolean `watch` value | Value is outside the bounded boolean allow-list and must fail closed |
 | `targetPreference=prefer_local` when authoritative state has a linked PR or active PR artifact | Preference must not override authoritative linked-PR truth |
 | `mode=durable_auto` without authoritative current state | Durable auto requires authoritative current state to route from |

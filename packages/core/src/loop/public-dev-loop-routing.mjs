@@ -157,7 +157,7 @@ export const DEV_LOOP_VARIATION_PARAMETER_CONTRACT = Object.freeze({
   /** Allowed first-slice variation parameter names. */
   allowedParameters: Object.freeze(["mode", "watch", "intent", "targetPreference"]),
   /** Allowed values for the `mode` parameter. */
-  allowedModeValues: Object.freeze(Object.values(DEV_LOOP_EXECUTION_MODE)),
+  allowedModeValues: Object.freeze([DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO]),
   /** Allowed values for the `targetPreference` parameter. */
   allowedTargetPreferenceValues: Object.freeze(Object.values(DEV_LOOP_TARGET_PREFERENCE)),
   /**
@@ -404,7 +404,7 @@ function applyWatchValidation(result, watchRequested) {
   if (!watchRequested) return result;
   if (result.routeKind === DEV_LOOP_ROUTE_KIND.WAIT) return result;
   return buildReconcile(
-    "watch requested but the routed canonical state is not a wait/watch-capable state.",
+    "watch requested but the routed result is not eligible for wait/watch semantics.",
     result.canonicalState,
     result.executionMode,
   );
@@ -875,7 +875,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     if (variationMode === DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF) {
       return buildReconcile(
         "`mode=bounded_handoff` conflicts with the `auto_continue_current` intent; `auto_continue_current` always uses durable auto execution mode.",
-        null,
+        explicitState,
         DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
       );
     }
@@ -884,7 +884,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     effectiveMode = variationMode ?? DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF;
   }
 
-  if (effectiveMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO && !explicitState) {
+  if (variationMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO && !explicitState) {
     return buildReconcile(
       "`mode=durable_auto` requires a valid authoritative current state.",
       null,
