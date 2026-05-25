@@ -278,6 +278,30 @@ function stayWithLiveOwner({
   };
 }
 
+function continueCurrentWait({
+  normalizedTarget,
+  copilotState,
+  reviewerState,
+  baseArgs,
+  requiresLocalIsolation,
+  confidence,
+}) {
+  return {
+    routingOutcome: ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT,
+    outerAction: "continue_wait",
+    stopReason: null,
+    handoffEnvelope: buildEnvelope({
+      targetIdentity: normalizedTarget,
+      loopFamily: LOOP_FAMILY.OUTER_LOOP,
+      entrypoint: ENTRYPOINT.OUTER_LOOP_WAIT,
+      reason: `Outer-loop wait state: copilot_state=${copilotState}, reviewer_state=${reviewerState}`,
+      requiredArgs: baseArgs,
+      requiresLocalIsolation,
+      confidence,
+    }),
+  };
+}
+
 /**
  * Core routing policy: derive a routing outcome from normalized states.
  *
@@ -292,11 +316,12 @@ function stayWithLiveOwner({
  *   4. Hard copilot stop (review_request_unavailable, blocked) → stop_needs_human
  *   5. Hard reviewer stop (blocked) → stop_needs_human
  *   6. pr_draft — isolation check, then live-owner check, then handoff
- *   7. Reviewer active states — isolation check, live-owner check, handoff
- *   8. Copilot strong active states — isolation check, live-owner check, handoff
- *   9. Outer-loop wait states (copilot or reviewer)
- *   10. Copilot weak active states (yield to reviewer wait above)
- *   11. Fallback → needs_reconcile / unknown_state
+ *   7. Copilot explicit review-settle wait (waiting_for_copilot_review) → continue_current_wait
+ *   8. Reviewer active states — isolation check, live-owner check, handoff
+ *   9. Copilot strong active states — isolation check, live-owner check, handoff
+ *   10. Outer-loop wait states (copilot or reviewer)
+ *   11. Copilot weak active states (yield to reviewer wait above)
+ *   12. Fallback → needs_reconcile / unknown_state
  *
  * @param {object} params
  * @param {{ repo: string, pr: number }} params.normalizedTarget
@@ -461,7 +486,19 @@ function routeFromStates({
     };
   }
 
-  // 7. Reviewer active states — priority over copilot wait states
+  // 7. Copilot explicit review-settle wait — keep watch semantics until settled
+  if (copilotState === "waiting_for_copilot_review") {
+    return continueCurrentWait({
+      normalizedTarget,
+      copilotState,
+      reviewerState,
+      baseArgs,
+      requiresLocalIsolation,
+      confidence,
+    });
+  }
+
+  // 8. Reviewer active states
   if (REVIEWER_ACTIVE.has(reviewerState)) {
     if (REVIEWER_NEEDS_LOCAL_EXECUTION.has(reviewerState) && requiresLocalIsolation) {
       return {
@@ -498,7 +535,7 @@ function routeFromStates({
     };
   }
 
-  // 8. Copilot strong active states — win over reviewer wait states
+  // 9. Copilot strong active states — win over reviewer wait states
   if (COPILOT_STRONG_ACTIVE.has(copilotState)) {
     if (COPILOT_NEEDS_LOCAL_EXECUTION.has(copilotState) && requiresLocalIsolation) {
       return {
@@ -535,25 +572,19 @@ function routeFromStates({
     };
   }
 
-  // 9. Outer-loop wait states (checked before copilot weak active, since weak yields to reviewer wait)
+  // 10. Outer-loop wait states (checked before copilot weak active, since weak yields to reviewer wait)
   if (COPILOT_WAIT.has(copilotState) || REVIEWER_WAIT.has(reviewerState)) {
-    return {
-      routingOutcome: ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT,
-      outerAction: "continue_wait",
-      stopReason: null,
-      handoffEnvelope: buildEnvelope({
-        targetIdentity: normalizedTarget,
-        loopFamily: LOOP_FAMILY.OUTER_LOOP,
-        entrypoint: ENTRYPOINT.OUTER_LOOP_WAIT,
-        reason: `Outer-loop wait state: copilot_state=${copilotState}, reviewer_state=${reviewerState}`,
-        requiredArgs: baseArgs,
-        requiresLocalIsolation,
-        confidence,
-      }),
-    };
+    return continueCurrentWait({
+      normalizedTarget,
+      copilotState,
+      reviewerState,
+      baseArgs,
+      requiresLocalIsolation,
+      confidence,
+    });
   }
 
-  // 10. Copilot weak active states (yield to reviewer wait states above)
+  // 11. Copilot weak active states (yield to reviewer wait states above)
   if (COPILOT_WEAK_ACTIVE.has(copilotState)) {
     if (ownershipState === OWNERSHIP_LIVE_OWNER) {
       return stayWithLiveOwner({ normalizedTarget, copilotState, reviewerState, baseArgs, requiresLocalIsolation, confidence });

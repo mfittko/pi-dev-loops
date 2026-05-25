@@ -327,10 +327,18 @@ test("decideOuterAction: dirty checkout + copilot already_fixed_needs_reply_reso
   assert.equal(result.reason, undefined);
 });
 
-test("decideOuterAction: reviewer active wins over copilot wait state", () => {
-  // Even if copilot is waiting, reviewer needs action → reenter_reviewer_loop
+test("decideOuterAction: waiting_for_copilot_review keeps outer loop waiting even when reviewer is active", () => {
   const result = decideOuterAction({
     copilotState: "waiting_for_copilot_review",
+    reviewerState: "review_requested",
+    gitStatus: { isDirty: false, isDetached: false },
+  });
+  assert.equal(result.outerAction, "continue_wait");
+});
+
+test("decideOuterAction: reviewer active still wins when copilot is waiting_for_ci", () => {
+  const result = decideOuterAction({
+    copilotState: "waiting_for_ci",
     reviewerState: "review_requested",
     gitStatus: { isDirty: false, isDetached: false },
   });

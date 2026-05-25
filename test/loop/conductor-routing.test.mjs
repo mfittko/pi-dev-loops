@@ -174,6 +174,54 @@ test("outer-loop continue_wait → conductorRouting.routingOutcome=continue_curr
   }
 });
 
+test("outer-loop keeps waiting when copilot re-review is unsettled even if reviewer is active", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "conductor-routing-test-"));
+  try {
+    const env = await writeGitStub(tempDir);
+    const checkpointDir = path.join(tempDir, "checkpoint");
+
+    const copilotInput = path.join(tempDir, "copilot.json");
+    const reviewerInput = path.join(tempDir, "reviewer.json");
+
+    await writeJson(copilotInput, {
+      prExists: true,
+      prNumber: 11,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "requested",
+      copilotReviewOnCurrentHead: false,
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "success",
+      agentFixStatus: null,
+    });
+
+    await writeJson(reviewerInput, {
+      prExists: true,
+      prNumber: 11,
+      reviewRequested: true,
+    });
+
+    const { code, stdout } = await runNode([
+      "--repo", "test/repo",
+      "--pr", "11",
+      "--checkpoint-dir", checkpointDir,
+      "--copilot-input", copilotInput,
+      "--reviewer-input", reviewerInput,
+    ], { env });
+
+    assert.equal(code, 0);
+    const result = JSON.parse(stdout);
+    assert.equal(result.outerAction, "continue_wait");
+    assert.equal(result.conductorRouting.routingOutcome, "continue_current_wait");
+    assert.equal(result.conductorRouting.handoffEnvelope.loopFamily, "outer_loop");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("outer-loop reenter_copilot_loop → conductorRouting.routingOutcome=handoff_to_copilot_loop", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "conductor-routing-test-"));
   try {

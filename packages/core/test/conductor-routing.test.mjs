@@ -167,10 +167,17 @@ test("reviewer active: review_invalidated → handoff_to_reviewer_loop", () => {
   assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.REVIEWER_LOOP);
 });
 
-test("reviewer active: reviewer wins over copilot wait state", () => {
-  // Reviewer active takes priority even when copilot is in a wait state
+test("copilot review-settle wait: waiting_for_copilot_review wins over reviewer active state", () => {
   const result = evaluateConductorRouting(makeInput({
     copilotState: "waiting_for_copilot_review",
+    reviewerState: "review_requested",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
+});
+
+test("reviewer active still wins when copilot is waiting_for_ci", () => {
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "waiting_for_ci",
     reviewerState: "review_requested",
   }));
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_REVIEWER_LOOP);
