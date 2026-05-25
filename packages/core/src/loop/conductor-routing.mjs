@@ -278,6 +278,30 @@ function stayWithLiveOwner({
   };
 }
 
+function continueCurrentWait({
+  normalizedTarget,
+  copilotState,
+  reviewerState,
+  baseArgs,
+  requiresLocalIsolation,
+  confidence,
+}) {
+  return {
+    routingOutcome: ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT,
+    outerAction: "continue_wait",
+    stopReason: null,
+    handoffEnvelope: buildEnvelope({
+      targetIdentity: normalizedTarget,
+      loopFamily: LOOP_FAMILY.OUTER_LOOP,
+      entrypoint: ENTRYPOINT.OUTER_LOOP_WAIT,
+      reason: `Outer-loop wait state: copilot_state=${copilotState}, reviewer_state=${reviewerState}`,
+      requiredArgs: baseArgs,
+      requiresLocalIsolation,
+      confidence,
+    }),
+  };
+}
+
 /**
  * Core routing policy: derive a routing outcome from normalized states.
  *
@@ -464,20 +488,14 @@ function routeFromStates({
 
   // 7. Copilot explicit review-settle wait — keep watch semantics until settled
   if (copilotState === "waiting_for_copilot_review") {
-    return {
-      routingOutcome: ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT,
-      outerAction: "continue_wait",
-      stopReason: null,
-      handoffEnvelope: buildEnvelope({
-        targetIdentity: normalizedTarget,
-        loopFamily: LOOP_FAMILY.OUTER_LOOP,
-        entrypoint: ENTRYPOINT.OUTER_LOOP_WAIT,
-        reason: `Outer-loop wait state: copilot_state=${copilotState}, reviewer_state=${reviewerState}`,
-        requiredArgs: baseArgs,
-        requiresLocalIsolation,
-        confidence,
-      }),
-    };
+    return continueCurrentWait({
+      normalizedTarget,
+      copilotState,
+      reviewerState,
+      baseArgs,
+      requiresLocalIsolation,
+      confidence,
+    });
   }
 
   // 8. Reviewer active states
@@ -556,20 +574,14 @@ function routeFromStates({
 
   // 10. Outer-loop wait states (checked before copilot weak active, since weak yields to reviewer wait)
   if (COPILOT_WAIT.has(copilotState) || REVIEWER_WAIT.has(reviewerState)) {
-    return {
-      routingOutcome: ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT,
-      outerAction: "continue_wait",
-      stopReason: null,
-      handoffEnvelope: buildEnvelope({
-        targetIdentity: normalizedTarget,
-        loopFamily: LOOP_FAMILY.OUTER_LOOP,
-        entrypoint: ENTRYPOINT.OUTER_LOOP_WAIT,
-        reason: `Outer-loop wait state: copilot_state=${copilotState}, reviewer_state=${reviewerState}`,
-        requiredArgs: baseArgs,
-        requiresLocalIsolation,
-        confidence,
-      }),
-    };
+    return continueCurrentWait({
+      normalizedTarget,
+      copilotState,
+      reviewerState,
+      baseArgs,
+      requiresLocalIsolation,
+      confidence,
+    });
   }
 
   // 11. Copilot weak active states (yield to reviewer wait states above)
