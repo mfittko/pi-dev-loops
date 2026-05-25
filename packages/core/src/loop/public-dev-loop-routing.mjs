@@ -652,7 +652,17 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   }
 
   const issueLinkageResolution = normalizeIssueLinkageResolution(input.issueLinkageResolution);
+  const issueLinkageResolutionProvided = input.issueLinkageResolution !== undefined && input.issueLinkageResolution !== null;
   const normalizedIssueLinkageResolution = normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageResolution);
+
+  if (issueLinkageResolutionProvided && issueLinkageResolution === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing received an invalid issue↔PR linkage resolution value.",
+      canonicalState,
+      issueLinkageResolution: null,
+    });
+  }
+
   if (
     canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
     && issueLinkageResolution === null
@@ -731,7 +741,8 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
 }
 
 export function resolveAuthoritativeDevLoopStatus(input = {}) {
-  const bundle = resolveAuthoritativeStartupResumeBundle(input);
+  const { intent: _ignoredIntent, ...statusInput } = input;
+  const bundle = resolveAuthoritativeStartupResumeBundle(statusInput);
   if (bundle.bundleKind === DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE) {
     return buildStatusReconcile(bundle.reason, bundle.canonicalState);
   }
