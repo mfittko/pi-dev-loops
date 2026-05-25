@@ -22,6 +22,8 @@ This entrypoint must stay thin: do not restate the skill's phase sequencing or w
 
 Treat the deterministic public routing contract and helper/state-machine surface as the authority for choosing the current execution path. Do not force users to choose internal strategy names up front.
 
+Interpret issue-based shorthand triggers like `auto dev loop on issue <n>`, `enter copilot auto dev loop on issue <n>`, and `run auto dev loop on <n> until approval gate` as the same public `dev-loop` intent (compatibility phrasing only, not a second public workflow entrypoint).
+
 Respect repository contract routing posture:
 - route `dev-loop` deterministically to GitHub-first internal strategies when work should move through GitHub branches, pull requests, CI, and review
 - route to the local implementation strategy only when the user explicitly requests a local phase-based path
