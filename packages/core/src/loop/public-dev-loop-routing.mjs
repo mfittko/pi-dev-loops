@@ -687,7 +687,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     return buildStartupResumeBundleReconcile({
       reason: routed.reason,
       canonicalState: routed.canonicalState,
-      issueLinkageResolution: normalizeIssueLinkageResolutionForBundle(routed.canonicalState, issueLinkageResolution),
+      issueLinkageResolution: normalizedIssueLinkageResolution,
     });
   }
 
@@ -696,7 +696,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     return buildStartupResumeBundleReconcile({
       reason: "Authoritative startup/resume routing requires an explicit artifact state (open|closed|merged|not_applicable).",
       canonicalState: routed.canonicalState,
-      issueLinkageResolution: normalizeIssueLinkageResolutionForBundle(routed.canonicalState, issueLinkageResolution),
+      issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState: null,
     });
   }
@@ -705,7 +705,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     return buildStartupResumeBundleReconcile({
       reason: "Canonical current state conflicts with the provided artifact state; reconcile before routing startup/resume state.",
       canonicalState: routed.canonicalState,
-      issueLinkageResolution: normalizeIssueLinkageResolutionForBundle(routed.canonicalState, issueLinkageResolution),
+      issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState,
     });
   }
@@ -715,7 +715,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     return buildStartupResumeBundleReconcile({
       reason: "Authoritative startup/resume routing requires an explicit resolved loop state before routing or answering status.",
       canonicalState: routed.canonicalState,
-      issueLinkageResolution: normalizeIssueLinkageResolutionForBundle(routed.canonicalState, issueLinkageResolution),
+      issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState,
     });
   }
@@ -726,7 +726,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED,
     activeArtifact: buildStatusArtifactIdentity(routed.canonicalState),
     artifactState,
-    issueLinkageResolution: normalizeIssueLinkageResolutionForBundle(routed.canonicalState, issueLinkageResolution),
+    issueLinkageResolution: normalizedIssueLinkageResolution,
     canonicalState: routed.canonicalState,
     loopState,
     routeKind: inspectStateIntent ? DEV_LOOP_ROUTE_KIND.INSPECT : routed.routeKind,
