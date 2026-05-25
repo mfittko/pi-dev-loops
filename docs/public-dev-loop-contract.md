@@ -103,7 +103,34 @@ The public router currently maps to these deterministic internal strategies:
 
 The compatibility entrypoints remain available during migration, but they are no longer the primary public UX.
 
-## Deterministic routing summary
+## Authoritative gate contract
+
+Authoritative route selection is a two-step boundary for this slice:
+
+1. resolve one authoritative canonical current state
+2. map that state to one explicit gate, then to the corresponding route/strategy outcome
+
+The shared machine-checkable gate contract is exported from `packages/core/src/loop/public-dev-loop-routing.mjs` as `DEV_LOOP_GATE` and `PUBLIC_DEV_LOOP_GATE_CONTRACT`.
+
+| Gate | Route kind | Strategy | Meaning |
+|---|---|---|---|
+| `stop_blocked_or_not_authorized` | `stop` | none | blocked or not-authorized canonical state stops for a human decision |
+| `stop_done_terminal` | `stop` | none | done canonical state stops as terminal work |
+| `final_approval` | `route` | `final_approval` | approval-ready or merge-ready canonical state routes to the final approval gate |
+| `wait_watch` | `wait` | `wait_watch` | waiting canonical state routes to the shared wait/watch strategy |
+| `local_implementation` | `route` | `local_implementation` | local branch or local phase canonical state stays on local implementation |
+| `issue_intake` | `route` | `issue_intake` | issue canonical state without a linked PR routes to issue intake |
+| `external_pr_followup` | `route` | `external_pr_followup` | external-human PR ownership routes to external PR follow-up |
+| `reviewer_fixer` | `route` | `reviewer_fixer` | reviewer-owned or reviewer-next PR state routes to reviewer/fixer |
+| `copilot_pr_followup` | `route` | `copilot_pr_followup` | Copilot-owned PR state routes to Copilot PR follow-up |
+| `fail_closed_reconcile` | `needs_reconcile` | none | ambiguous, conflicting, or unsupported canonical state fails closed to reconcile |
+
+For issue targets, authoritative issue↔PR linkage resolution remains part of state resolution before claiming there is no open linked PR:
+
+- when canonical issue state includes `linkedPr`, route selection first uses that linked PR as the authoritative routable artifact
+- when canonical issue state does **not** include `linkedPr`, status/reporting consumers must still require explicit authoritative linkage resolution before asserting there is no open linked PR
+
+## Deterministic routing order
 
 First-match-wins routing posture:
 

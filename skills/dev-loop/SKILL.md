@@ -28,7 +28,7 @@ For UI validation under `dev-loop`, see `docs/ui-validation-contract.md`.
 For installed packaged copies of this skill, do not assume source-repository paths such as `packages/core/...` or `docs/...` exist beside the skill. Treat this section as a summary and use the package export when the runtime is available.
 
 Operational summary:
-- route from the canonical current state before deciding whether work is local, issue-intake, PR follow-up, review/fix, wait/watch, or final approval
+- route from the canonical current state through the shared gate contract before choosing any internal strategy; prefer the exported `DEV_LOOP_GATE` / `PUBLIC_DEV_LOOP_GATE_CONTRACT` semantics over restating route families ad hoc
 - keep `copilot-dev-loop` and `copilot-autopilot` as compatibility/internal entrypoints for routed GitHub/Copilot paths
 - when the routed strategy is not local implementation, stop the local-phase procedure below and hand off instead of forcing the request into a local-only path
 - for status/progress/readiness/merge-state/next-step questions, resolve authoritative active artifact identity + artifact state + loop state first (for example via `resolveAuthoritativeDevLoopStatus`); for issue targets, authoritative identity resolution must include explicit issue↔PR linkage resolution (for example via `detect-linked-issue-pr.mjs`) before saying there is no open linked PR; then answer with explicit artifact identity fields; if unresolved, fail closed to reconcile/unknown
