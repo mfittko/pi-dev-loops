@@ -474,6 +474,7 @@ test("copilot review gates use self-contained parallel contracts with explicit a
     for (const shapePart of expectedContractShape) {
       assert.match(section, shapePart, `${label} should include contract field ${shapePart}`);
     }
+    assert.doesNotMatch(section, /Gate role:/i, `${label} should not introduce extra template-only fields that drift across gates`);
   }
 
   const draftAnglePatterns = [/correctness.*acceptance criteria/i, /scope compliance/i, /test coverage/i, /ci.*check|check.*status/i, /no unrelated files/i];

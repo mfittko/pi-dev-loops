@@ -508,6 +508,8 @@ Do not treat "fix applied locally" as the end of the loop when the workflow also
 
 ### Draft gate contract (before marking PR ready for review)
 
+This is the draft-stage gate for the draft → ready-for-review boundary.
+
 - **Gate name:** Draft gate
 - **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
 - **Review angles (owned by this gate):**
@@ -523,9 +525,10 @@ Do **not** apply DRY, KISS, or YAGNI here; those belong exclusively to the pre-a
 
 ### Pre-approval gate contract
 
+This is the default pre-approval gate for this workflow boundary and owns the DRY, KISS, and YAGNI review angles.
+
 - **Gate name:** Pre-approval gate
 - **Trigger / boundary:** right before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff
-- **Gate role:** this is the default pre-approval gate for this workflow boundary
 - **Review angles (owned by this gate):**
   - DRY
   - KISS
