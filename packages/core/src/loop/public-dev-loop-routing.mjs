@@ -251,8 +251,10 @@ const AUTHORIZATION_SET = new Set(Object.values(DEV_LOOP_AUTHORIZATION));
 const INTENT_SET = new Set(Object.values(DEV_LOOP_PUBLIC_INTENT));
 const ARTIFACT_STATE_SET = new Set(Object.values(DEV_LOOP_ARTIFACT_STATE));
 const ISSUE_LINKAGE_RESOLUTION_SET = new Set(Object.values(DEV_LOOP_ISSUE_LINKAGE_RESOLUTION));
-const VARIATION_MODE_SET = new Set(Object.values(DEV_LOOP_EXECUTION_MODE));
-const TARGET_PREFERENCE_SET = new Set(Object.values(DEV_LOOP_TARGET_PREFERENCE));
+const VARIATION_MODE_SET = new Set(DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues);
+const TARGET_PREFERENCE_SET = new Set(DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedTargetPreferenceValues);
+const ALLOWED_MODE_VALUES_TEXT = DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues.join(", ");
+const ALLOWED_TARGET_PREFERENCE_VALUES_TEXT = DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedTargetPreferenceValues.join(", ");
 
 function normalizeIntent(intent) {
   const normalized = typeof intent === "string" ? intent.trim().toLowerCase() : "";
@@ -855,10 +857,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   // Fail closed on unrecognized variation parameter values
   if (input.mode !== undefined && variationMode === null) {
-    return buildReconcile("Unrecognized `mode` parameter; allowed values: bounded_handoff, durable_auto.");
+    return buildReconcile(`Unrecognized \`mode\` parameter; allowed values: ${ALLOWED_MODE_VALUES_TEXT}.`);
   }
   if (input.targetPreference !== undefined && targetPreference === null) {
-    return buildReconcile("Unrecognized `targetPreference` parameter; allowed values: prefer_github_first, prefer_local.");
+    return buildReconcile(`Unrecognized \`targetPreference\` parameter; allowed values: ${ALLOWED_TARGET_PREFERENCE_VALUES_TEXT}.`);
   }
   if (watchProvided && typeof input.watch !== "boolean") {
     return buildReconcile("Unrecognized `watch` parameter; allowed values: true or false.");
