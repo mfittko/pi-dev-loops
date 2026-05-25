@@ -616,6 +616,41 @@ test("watch validation preserves existing reconcile reasons", () => {
   assert.match(result.reason, /does not map cleanly to any first-slice internal strategy/i);
 });
 
+
+test("watch validation preserves existing stop results", () => {
+  const blockedResult = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.BLOCKED,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  const doneResult = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.DONE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(blockedResult.selectedGate, DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED);
+  assert.equal(blockedResult.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+  assert.match(blockedResult.reason, /blocked or not authorized/i);
+
+  assert.equal(doneResult.selectedGate, DEV_LOOP_GATE.STOP_DONE_TERMINAL);
+  assert.equal(doneResult.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+  assert.match(doneResult.reason, /already done/i);
+});
+
 test("invalid or incomplete inputs fail closed to needs_reconcile", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,

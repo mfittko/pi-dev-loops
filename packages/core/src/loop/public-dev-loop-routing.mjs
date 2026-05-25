@@ -406,6 +406,7 @@ function applyWatchValidation(result, watchRequested) {
   if (!watchRequested) return result;
   if (result.routeKind === DEV_LOOP_ROUTE_KIND.WAIT) return result;
   if (result.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) return result;
+  if (result.routeKind === DEV_LOOP_ROUTE_KIND.STOP) return result;
   return buildReconcile(
     "watch requested but the routed result is not eligible for wait/watch semantics.",
     result.canonicalState,
