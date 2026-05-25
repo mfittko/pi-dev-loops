@@ -142,6 +142,7 @@ test("CLI help leads with dev-loop as the primary workflow entry", async () => {
   assert.equal(helpExitCode, 0);
   assert.match(helpStdout.read(), /\/skill:dev-loop/, "CLI help should mention /skill:dev-loop as workflow entry");
   assert.match(helpStdout.read(), /single public entry/, "CLI help should describe dev-loop as single public entry");
+  assert.doesNotMatch(helpStdout.read(), /copilot-dev-loop|copilot-autopilot/i, "CLI help should not surface internal seam names");
   assert.equal(helpStderr.read(), "");
 });
 
@@ -167,6 +168,7 @@ test("CLI status next steps lead with dev-loop when all checks pass", async () =
   assert.equal(statusExitCode, 0);
   assert.match(statusStdout.read(), /\/skill:dev-loop/, "CLI status should suggest /skill:dev-loop when all checks pass");
   assert.match(statusStdout.read(), /single public entry/, "CLI status should describe dev-loop as single public entry when ready");
+  assert.doesNotMatch(statusStdout.read(), /copilot-dev-loop|copilot-autopilot/i, "CLI status should not surface internal seam names");
   assert.equal(statusStderr.read(), "");
 });
 

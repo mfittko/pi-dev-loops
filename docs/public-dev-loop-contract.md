@@ -23,7 +23,22 @@ Day-one user-intent forms:
 - auto dev loop (durable auto ownership over the detected routed loop)
 - what state is the dev loop in?
 
-Users should not have to choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front.
+Users should not have to choose `dev-loop` vs internal seam names up front.
+
+## Surfaced-UX deprecation readiness bar
+
+Do not remove surfaced internal loop names until all of the following are true:
+
+1. authoritative routing is explicit and test-backed
+2. fresh-session startup/resume/status can route from the bounded authoritative startup bundle
+3. former name-shaped variation pressure has a bounded `dev-loop` parameter/settings home
+4. surfaced help/discovery/readiness paths already point users to `dev-loop` and supported routed/parameterized forms
+
+Once that bar is met:
+
+- `dev-loop` remains the only intended visible workflow entrypoint in surfaced UX
+- internal seam names are removed from surfaced workflow-choice phrasing
+- any remaining seam use stays explicitly internal/runtime-only
 
 ## Workflow-surface taxonomy and guardrails
 

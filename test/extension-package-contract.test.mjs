@@ -43,8 +43,9 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.match(readme, /source-loaded/i);
   assert.match(readme, /does not automatically install skills/i);
   assert.match(readme, /single public workflow entrypoint/i);
-  assert.match(readme, /compatibility\/internal follow-up path/i);
-  assert.match(readme, /compatibility\/internal intake path/i);
+  assert.match(readme, /internal routed compatibility seam availability/i);
+  assert.match(readme, /internal-only; not a user workflow choice/i);
+  assert.doesNotMatch(readme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i);
   assert.match(readme, /node --import tsx --test/i);
   assert.match(readme, /does not yet claim a specific supported `gh` version/i);
   assert.match(readme, /npm run test:extension/i);

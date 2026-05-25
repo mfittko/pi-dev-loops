@@ -108,6 +108,7 @@ test("help is the default action and malformed commands stay non-mutating", asyn
   assert(widget.lines.some((line) => /skills are installed explicitly/i.test(line)));
   assert(widget.lines.some((line) => /\/skill:dev-loop/i.test(line)), "help should mention /skill:dev-loop as workflow entry");
   assert(widget.lines.some((line) => /single public entry/i.test(line)), "help should describe dev-loop as single public entry");
+  assert.equal(widget.lines.some((line) => /copilot-dev-loop|copilot-autopilot/i.test(line)), false, "help should not surface internal seam names");
   assert.equal(calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const invalidArgsContext = createCommandContext();
@@ -159,6 +160,7 @@ test("status next steps lead with dev-loop when all checks pass", async () => {
   const lines = calls.widgets.at(-1).lines;
   assert(lines.some((line) => /\/skill:dev-loop/i.test(line)), "status should suggest /skill:dev-loop as primary workflow entry when ready");
   assert(lines.some((line) => /single public entry/i.test(line)), "status should describe dev-loop as single public entry when ready");
+  assert.equal(lines.some((line) => /copilot-dev-loop|copilot-autopilot/i.test(line)), false, "status should not surface internal seam names");
 });
 
 test("status keeps remote readiness blocked outside a git repo", async () => {
@@ -202,6 +204,7 @@ test("doctor shows the full check report and install/update without a target sho
   const doctorLines = doctorContext.calls.widgets.at(-1).lines;
   assert(doctorLines.some((line) => /^⚠️ GitHub CLI installed/.test(line)));
   assert(doctorLines.some((line) => /^⚠️ GitHub CLI authenticated/.test(line)));
+  assert.equal(doctorLines.some((line) => /copilot-dev-loop|copilot-autopilot/i.test(line)), false, "doctor should keep compatibility seams internal-only");
   assert.equal(doctorLines.some((line) => /Ordered setup steps:/i.test(line)), false);
 
   const installContext = createCommandContext();

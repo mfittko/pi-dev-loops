@@ -57,8 +57,7 @@ The extension currently reports on:
 - `pi-subagents` available
 - inside a git repository
 - `/skill:dev-loop` discoverable as the single public workflow entrypoint
-- `/skill:copilot-dev-loop` discoverable as a compatibility/internal follow-up path
-- `/skill:copilot-autopilot` discoverable as a compatibility/internal intake path
+- internal routed compatibility seam availability (internal-only; not a user workflow choice)
 
 Readiness and help messaging should lead with `dev-loop`; the compatibility/internal skills remain installable and inspectable, but they are not presented as equal public workflow choices.
 

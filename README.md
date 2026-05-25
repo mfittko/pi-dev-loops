@@ -23,8 +23,7 @@ This repo currently contains four main layers. The design goal is generic role a
    - reusable prompts such as coordinator, developer, docs, quality, review, fixer, and refiner
 2. **Workflow skills** in `skills/`
    - `dev-loop` as the single public façade that routes to the correct internal loop strategy
-   - `copilot-dev-loop` as the Copilot-owned PR follow-up compatibility/internal strategy
-   - `copilot-autopilot` as the issue-first GitHub intake compatibility/internal strategy
+   - internal compatibility seams remain runtime-only and are not public workflow choices
 3. **Extension UX** in `extension/`
    - `/dev-loops` readiness checks plus explicit skill install/update flows
 4. **Deterministic support code** in `packages/core/` and `scripts/`
