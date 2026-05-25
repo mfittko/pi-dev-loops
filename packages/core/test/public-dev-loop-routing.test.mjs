@@ -651,6 +651,41 @@ test("watch validation preserves existing stop results", () => {
   assert.match(doneResult.reason, /already done/i);
 });
 
+
+test("watch validation preserves inspect-wrapped stop and reconcile outcomes", () => {
+  const inspectBlockedResult = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.BLOCKED,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  const inspectReconcileResult = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    watch: true,
+  });
+
+  assert.equal(inspectBlockedResult.selectedGate, DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED);
+  assert.equal(inspectBlockedResult.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
+  assert.match(inspectBlockedResult.reason, /blocked or not authorized/i);
+
+  assert.equal(inspectReconcileResult.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(inspectReconcileResult.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
+  assert.match(inspectReconcileResult.reason, /does not map cleanly to any first-slice internal strategy/i);
+});
+
 test("invalid or incomplete inputs fail closed to needs_reconcile", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,
