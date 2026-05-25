@@ -254,6 +254,64 @@ flowchart TD
 - Almost all workflow branching should converge into deterministic state-machine/tooling surfaces behind `dev-loop`.
 - User-visible variation should be expressed through the external `dev-loop` API / bounded parameters or settings, not by preserving multiple public workflow names.
 
+## Bounded variation parameter contract
+
+Supported workflow variations are expressed as `dev-loop` API parameters or settings rather than as new public workflow names.
+Parameters may **steer** `dev-loop`, but must not replace authoritative routing.
+
+### Precedence order (highest → lowest)
+
+1. **Authoritative current state** — primary source of truth for what artifact/state the loop is actually in
+2. **Explicit user intent / API parameters** — may choose among supported variation modes for the same public entrypoint
+3. **Settings / preferences** — provide defaults only when explicit intent/parameters have not decided
+
+Any conflict that would materially change artifact identity, ownership truth, or gate classification **fails closed** rather than being silently resolved by a parameter or preference.
+
+### First-slice allowed parameters
+
+| Parameter | Allowed values | Behavior |
+|---|---|---|
+| `mode` | `bounded_handoff` (default) \| `durable_auto` | Steers execution mode; `durable_auto` uses the same durable-auto execution-mode semantics as `auto_continue_current`, without replacing the selected intent |
+| `watch` | boolean | Explicitly request wait/watch semantics; fails closed for otherwise-successful non-wait routed results, while preserving authoritative `stop` and `needs_reconcile` outcomes |
+| `intent` | any existing public `dev-loop` intent | Disambiguates the supported public intent; maps to existing contract values |
+| `targetPreference` | `prefer_github_first` (default) \| `prefer_local` | Steers routing preference; must not override authoritative linked-PR or active-artifact truth |
+
+The bounded allow-list is exported from `packages/core/src/loop/public-dev-loop-routing.mjs` as `DEV_LOOP_VARIATION_PARAMETER_CONTRACT`.
+
+### Explicit non-parameters for this slice
+
+These must **not** become public variation knobs:
+- arbitrary ownership override for an already-resolved canonical state
+- arbitrary strategy override (e.g. "force copilot-dev-loop")
+- arbitrary gate override (e.g. "skip approval gate")
+- issue↔PR linkage bypass
+- free-form "expert mode" flags that bypass deterministic routing
+
+### Fail-closed rules
+
+The following parameter/state combinations fail closed to `needs_reconcile` instead of silently coercing:
+
+| Conflict | Reason |
+|---|---|
+| `mode=bounded_handoff` + `intent=auto_continue_current` | `auto_continue_current` always requires durable auto execution mode |
+| Unrecognized `mode` value | Value not on the bounded allow-list |
+| Unrecognized `targetPreference` value | Value not on the bounded allow-list |
+| `watch=true` when an otherwise-successful routed result is not wait/watch-eligible | Watch semantics require a routed wait result (`routeKind=wait`), not just `selectedGate=wait_watch`; existing `stop` and `needs_reconcile` outcomes stay authoritative |
+| Non-boolean `watch` value | Value is outside the bounded boolean allow-list and must fail closed |
+| `targetPreference=prefer_local` when authoritative state has a linked PR or active PR artifact | Preference must not override authoritative PR/linked-PR active artifact truth |
+| `mode=durable_auto` without authoritative current state | Durable auto requires authoritative current state to route from |
+
+### Representative translations: name-shaped intent → parameterized `dev-loop` form
+
+| Formerly name-shaped or prose-shaped | Parameterized single-entrypoint form |
+|---|---|
+| "auto dev loop" | `dev-loop --intent continue_current --mode durable_auto` |
+| "run dev loop on PR 88 and stay on it" | `dev-loop --intent continue_on_pr --target pr:88 --watch` |
+| "prefer the local path for issue 42" | `dev-loop --intent start_on_issue --target issue:42 --target-preference prefer_local` |
+| "just inspect current state" | `dev-loop --intent inspect_state` |
+
+These are parameterized uses of `dev-loop`, not new workflow-facing entrypoints.
+
 ## Non-goals for this slice
 
 - deleting `copilot-dev-loop` or `copilot-autopilot` in this one PR

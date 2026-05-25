@@ -17,6 +17,8 @@ import {
   DEV_LOOP_STATUS_REPORT_KIND,
   DEV_LOOP_STATUS,
   DEV_LOOP_TARGET_KIND,
+  DEV_LOOP_TARGET_PREFERENCE,
+  DEV_LOOP_VARIATION_PARAMETER_CONTRACT,
   INTERNAL_DEV_LOOP_STRATEGY,
   PUBLIC_DEV_LOOP_GATE_CONTRACT,
   PUBLIC_DEV_LOOP_ENTRYPOINT,
@@ -537,6 +539,7 @@ test("auto_continue_current without canonical state fails closed with durable_au
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /auto_continue_current.*requires a valid canonical current state/i);
 });
 
 test("auto_continue_current with blocked or not-authorized state still stops (escalates)", () => {
@@ -582,6 +585,105 @@ test("inspect_state reports the canonical state without switching public entrypo
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION);
   assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+});
+
+test("missing intent preserves requested durable_auto execution-mode metadata", () => {
+  const result = evaluatePublicDevLoopRouting({
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /intent is missing or unrecognized/i);
+});
+
+test("watch validation preserves existing reconcile reasons", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /does not map cleanly to any first-slice internal strategy/i);
+});
+
+
+test("watch validation preserves existing stop results", () => {
+  const blockedResult = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.BLOCKED,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  const doneResult = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.DONE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(blockedResult.selectedGate, DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED);
+  assert.equal(blockedResult.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+  assert.match(blockedResult.reason, /blocked or not authorized/i);
+
+  assert.equal(doneResult.selectedGate, DEV_LOOP_GATE.STOP_DONE_TERMINAL);
+  assert.equal(doneResult.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+  assert.match(doneResult.reason, /already done/i);
+});
+
+
+test("watch validation preserves inspect-wrapped stop and reconcile outcomes", () => {
+  const inspectBlockedResult = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.BLOCKED,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  const inspectReconcileResult = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    watch: true,
+  });
+
+  assert.equal(inspectBlockedResult.selectedGate, DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED);
+  assert.equal(inspectBlockedResult.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
+  assert.match(inspectBlockedResult.reason, /blocked or not authorized/i);
+
+  assert.equal(inspectReconcileResult.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(inspectReconcileResult.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
+  assert.match(inspectReconcileResult.reason, /does not map cleanly to any first-slice internal strategy/i);
 });
 
 test("invalid or incomplete inputs fail closed to needs_reconcile", () => {
@@ -1105,4 +1207,508 @@ test("authoritative status resolution fails closed when loop state was not expli
   assert.equal(report.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(report.loopState, "unknown");
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+});
+
+// ── Bounded variation parameter contract regression tests (issue #112) ─────
+
+test("variation parameter contract exports the bounded allow-list, precedence, and disallowed categories", () => {
+  assert.deepEqual(
+    [...DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedParameters],
+    ["mode", "watch", "intent", "targetPreference"],
+  );
+  assert.deepEqual(
+    [...DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues],
+    [DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO],
+  );
+  assert.deepEqual(
+    [...DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedTargetPreferenceValues],
+    [DEV_LOOP_TARGET_PREFERENCE.PREFER_GITHUB_FIRST, DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL],
+  );
+  assert.equal(
+    DEV_LOOP_VARIATION_PARAMETER_CONTRACT.precedenceOrder[0],
+    "authoritative_current_state",
+  );
+  assert.ok(DEV_LOOP_VARIATION_PARAMETER_CONTRACT.disallowedCategories.includes("arbitrary_ownership_override"));
+});
+
+test("mode=durable_auto steers execution mode for continue_current without changing routing", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+});
+
+test("mode=durable_auto without authoritative current state fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42 },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /mode=durable_auto.*requires a valid authoritative current state/i);
+});
+
+test("mode=durable_auto on inspect_state preserves inspect routing with authoritative state", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+});
+
+test("mode=durable_auto explicit parameter beats the default bounded_handoff mode", () => {
+  const withDefault = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  const withExplicitMode = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(withDefault.executionMode, DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
+  assert.equal(withExplicitMode.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(withDefault.selectedGate, withExplicitMode.selectedGate);
+  assert.equal(withDefault.selectedStrategy, withExplicitMode.selectedStrategy);
+});
+
+test("mode=durable_auto for waiting states sets auto_healthy_wait semantics", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+});
+
+test("mode=bounded_handoff conflicts with auto_continue_current intent and fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.deepEqual(result.canonicalState?.target, { kind: DEV_LOOP_TARGET_KIND.PR, issue: null, pr: 88, linkedPr: null, branch: null, phase: null });
+  assert.match(result.reason, /conflicts with the `auto_continue_current` intent/i);
+});
+
+test("unrecognized mode value fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: "some_unknown_mode",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /unrecognized `mode` parameter/i);
+});
+
+test("auto_continue_current invalid mode preserves derived durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    mode: "some_unknown_mode",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /unrecognized `mode` parameter/i);
+});
+
+test("non-boolean watch value preserves requested durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    watch: "true",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /unrecognized `watch` parameter/i);
+});
+
+test("non-boolean watch value fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: "true",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /unrecognized `watch` parameter/i);
+});
+
+test("auto_continue_current non-boolean watch preserves derived durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    watch: "true",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /unrecognized `watch` parameter/i);
+});
+
+test("watch=true succeeds on a wait-capable route", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+  assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+});
+
+test("watch=true on inspect_state fails closed even when the underlying state is waiting", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /watch requested but the routed result is not eligible for wait\/watch semantics/i);
+});
+
+test("watch=true on a non-wait route fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /watch requested but the routed result is not eligible for wait\/watch semantics/i);
+});
+
+test("watch=true on a non-wait PR continue_on_pr route fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,
+    target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /watch requested but the routed result is not eligible for wait\/watch semantics/i);
+});
+
+test("watch=true on a waiting PR succeeds through continue_on_pr", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,
+    target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+});
+
+test("targetPreference=prefer_local steers start_on_issue toward local implementation when no canonical state exists", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42 },
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
+  });
+
+  assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.LOCAL_IMPLEMENTATION);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION);
+  assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.LOCAL_PHASE);
+  assert.equal(result.canonicalState.target.issue, 42);
+});
+
+test("targetPreference=prefer_local conflicts with authoritative linked-PR issue state and fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42, linkedPr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /prefer_local.*conflicts with authoritative PR\/linked-PR/i);
+});
+
+test("prefer_local reconcile preserves durable_auto execution mode metadata", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /prefer_local.*conflicts with authoritative PR\/linked-PR/i);
+});
+
+test("targetPreference=prefer_local conflicts with authoritative active PR state in continue_current and fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /prefer_local.*conflicts with authoritative PR\/linked-PR/i);
+});
+
+test("targetPreference=prefer_local conflicts with active PR in continue_on_pr and fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,
+    target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /prefer_local.*conflicts with authoritative PR\/linked-PR/i);
+});
+
+test("targetPreference=prefer_github_first is the default and does not change routing", () => {
+  const withDefault = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42 },
+  });
+
+  const withExplicitGithubFirst = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42 },
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_GITHUB_FIRST,
+  });
+
+  assert.equal(withDefault.selectedGate, withExplicitGithubFirst.selectedGate);
+  assert.equal(withDefault.selectedStrategy, withExplicitGithubFirst.selectedStrategy);
+  assert.equal(withDefault.routeKind, withExplicitGithubFirst.routeKind);
+});
+
+test("unrecognized targetPreference value fails closed", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    targetPreference: "force_local_anyway",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(result.reason, /unrecognized `targetPreference` parameter/i);
+});
+
+test("auto_continue_current invalid targetPreference preserves derived durable_auto execution mode", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    targetPreference: "force_local_anyway",
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.match(result.reason, /unrecognized `targetPreference` parameter/i);
+});
+
+// Representative translation: formerly name-shaped intent → parameterized dev-loop form
+test("representative translation: 'auto dev loop' → mode=durable_auto with continue_current", () => {
+  // "auto dev loop" → dev-loop --mode durable_auto
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+  });
+
+  assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
+});
+
+test("representative translation: 'run dev loop on PR 88 and stay on it' → continue_on_pr + watch", () => {
+  // "run dev loop on PR 88 and stay on it" → dev-loop on PR 88 --watch
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,
+    target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+});
+
+test("representative translation: 'prefer the local path for issue 42' → start_on_issue + targetPreference=prefer_local", () => {
+  // "prefer the local path for issue 42" → dev-loop on issue 42 --target-preference prefer_local
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42 },
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
+  });
+
+  assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.LOCAL_IMPLEMENTATION);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION);
+  assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.LOCAL_PHASE);
 });
