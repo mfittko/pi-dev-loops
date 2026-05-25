@@ -29,6 +29,11 @@ Typical triggers:
 - `copilot-autopilot @docs/PLAN.md ADR validation`
 - start autopilot from issue 42
 - run the full Copilot loop for this plan section
+- auto dev loop on issue 112
+- enter copilot auto dev loop on issue 112
+- run auto dev loop on 112 until approval gate
+
+When these shorthand phrases are used, interpret them as compatibility wording for the same public `dev-loop` intent (not as a second public workflow name), then execute this internal strategy only when routed here by canonical state.
 
 ## Skill asset path resolution
 
@@ -149,6 +154,7 @@ Under that unattended authorization:
 - use the deterministic state graph as the authority for current-state routing and next-step selection, not ad hoc phase guessing
 - continue unattended until the final approval gate unless you hit a genuine stop condition: `pause_for_clarification`, `review_request_unavailable`, `blocked_needs_user_decision`, unrelated CI failure needing maintainer judgment, or another ambiguity the contract explicitly forbids guessing through
 - stop for human approval/merge by default once the final review verdict is ready; only merge unattended when the user has explicitly authorized unattended merge for the current issue/PR scope
+- for issue-based shorthand such as `auto dev loop on issue <n>`, `enter copilot auto dev loop on issue <n>`, and `run auto dev loop on <n> until approval gate`, preserve this same stop boundary and final human approval gate default
 
 If unattended authorization has **not** been given, keep the normal confirmation checkpoints below.
 

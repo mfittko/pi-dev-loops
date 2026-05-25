@@ -310,6 +310,42 @@ test("copilot-autopilot agent treats autopilot as automatic resume from detected
   assert.match(content, /not as a reason to halt at every intermediate state-changing step/i);
 });
 
+test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the final approval gate", async () => {
+  const [readme, publicContract, devLoopSkill, autopilotSkill, devLoopAgent, autopilotAgent] = await Promise.all([
+    readRepo("README.md"),
+    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/dev-loop/SKILL.md"),
+    readRepo("skills/copilot-autopilot/SKILL.md"),
+    readRepo("agents/dev-loop.agent.md"),
+    readRepo("agents/copilot-autopilot.agent.md"),
+  ]);
+
+  for (const content of [readme, publicContract, devLoopSkill, autopilotSkill, devLoopAgent, autopilotAgent]) {
+    assert.match(content, /auto dev loop on issue/i);
+  }
+
+  assert.match(readme, /enter copilot auto dev loop on issue/i);
+  assert.match(readme, /run auto dev loop on 112 until approval gate/i);
+  assert.match(readme, /same public `dev-loop` intent/i);
+
+  assert.match(publicContract, /Issue-based shorthand auto trigger contract/i);
+  assert.match(publicContract, /same bounded public `dev-loop` intent/i);
+  assert.match(publicContract, /`dev-loop --intent auto_continue_current`/i);
+  assert.match(publicContract, /stop at the final human approval gate by default/i);
+
+  assert.match(devLoopSkill, /Shorthand issue-based auto trigger contract/i);
+  assert.match(devLoopSkill, /same public `dev-loop` intent \(`auto_continue_current`\)/i);
+  assert.match(devLoopSkill, /do not treat compatibility wording .* as a second public entrypoint/i);
+  assert.match(devLoopSkill, /stop at the final human approval gate by default/i);
+
+  assert.match(autopilotSkill, /interpret them as compatibility wording for the same public `dev-loop` intent/i);
+  assert.match(autopilotSkill, /preserve this same stop boundary and final human approval gate default/i);
+
+  assert.match(devLoopAgent, /Interpret issue-based shorthand triggers/i);
+  assert.match(devLoopAgent, /not a second public workflow entrypoint/i);
+  assert.match(autopilotAgent, /treat it as compatibility wording for the same public `dev-loop` intent/i);
+});
+
 test("copilot-autopilot docs keep issue refinement separate from the phase-scoped refiner and explain thin entrypoint agents", async () => {
   const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
   const agentContent = await readRepo("agents/copilot-autopilot.agent.md");

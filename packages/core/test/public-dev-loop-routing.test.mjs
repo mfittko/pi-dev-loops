@@ -1679,6 +1679,43 @@ test("representative translation: 'auto dev loop' → mode=durable_auto with con
   assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
 });
 
+test("representative translation: 'auto dev loop on issue 112' → auto_continue_current on issue with durable_auto", () => {
+  // "auto dev loop on issue 112" → dev-loop --intent auto_continue_current (issue-scoped authoritative state)
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 112 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.ISSUE_INTAKE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE);
+});
+
+test("auto_continue_current still routes approval-ready states to final approval by default", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 112 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.APPROVAL_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FINAL_APPROVAL);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+});
+
 test("representative translation: 'run dev loop on PR 88 and stay on it' → continue_on_pr + watch", () => {
   // "run dev loop on PR 88 and stay on it" → dev-loop on PR 88 --watch
   const result = evaluatePublicDevLoopRouting({

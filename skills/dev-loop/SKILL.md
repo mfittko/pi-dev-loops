@@ -42,6 +42,9 @@ Use it when the user says things like:
 - start dev loop on issue 86
 - continue dev loop on PR 88
 - continue the current dev loop
+- auto dev loop on issue 112
+- enter copilot auto dev loop on issue 112
+- run auto dev loop on 112 until approval gate
 - what state is the dev loop in?
 - start implementation
 - continue implementation
@@ -49,6 +52,12 @@ Use it when the user says things like:
 - resume the local implementation loop
 - start implementation in dev mode
 - continue implementation in dev mode
+
+Shorthand issue-based auto trigger contract:
+- treat issue-based shorthand like `auto dev loop on issue 112`, `enter copilot auto dev loop on issue 112`, and `run auto dev loop on 112 until approval gate` as the same public `dev-loop` intent (`auto_continue_current`) after authoritative current-state resolution
+- do not treat compatibility wording (`copilot auto dev loop`) as a second public entrypoint
+- continue through the normal GitHub/Copilot loop until the next genuine stop condition or the final human approval gate
+- stop at the final human approval gate by default unless merge was explicitly authorized
 
 ## Minimal required project inputs
 

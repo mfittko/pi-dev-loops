@@ -21,9 +21,34 @@ Day-one user-intent forms:
 - start issue `<n>` locally, then continue the loop
 - continue the current dev loop
 - auto dev loop (durable auto ownership over the detected routed loop)
+- auto dev loop on issue `<n>` (issue-scoped durable-auto shorthand)
 - what state is the dev loop in?
 
 Users should not have to choose `dev-loop` vs internal seam names up front.
+
+## Issue-based shorthand auto trigger contract
+
+These shorthand forms are explicitly accepted and must resolve to the same bounded public `dev-loop` intent:
+
+- `auto dev loop on issue 112`
+- `enter copilot auto dev loop on issue 112`
+- `run auto dev loop on 112 until approval gate`
+
+They are compatibility wording for the single public entrypoint, not a second public workflow name.
+
+Canonical mapping:
+
+| Shorthand phrase | Canonical public intent |
+|---|---|
+| `auto dev loop on issue 112` | `dev-loop --intent auto_continue_current` with authoritative current state targeting issue 112 |
+| `enter copilot auto dev loop on issue 112` | same as above; `copilot` wording is compatibility phrasing only |
+| `run auto dev loop on 112 until approval gate` | same as above, with the default stop boundary at the final human approval gate |
+
+Stop-boundary contract for this shorthand:
+
+1. continue through the normal GitHub/Copilot loop (assignment, PR watch, draft review/fix, Copilot review/fix, and final pre-approval work) unless a genuine stop condition is reached
+2. stop at the final human approval gate by default
+3. merge only when merge authorization was explicitly granted for the active issue/PR scope
 
 ## Surfaced-UX deprecation readiness bar
 

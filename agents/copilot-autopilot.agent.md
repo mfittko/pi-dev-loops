@@ -22,6 +22,8 @@ This entrypoint must stay thin: do not restate the skill's phase sequencing or w
 
 Interpret `autopilot` literally: when unattended execution is explicitly authorized for a specific issue/PR scope, resume from the current GitHub/PR state automatically and keep moving until the final approval gate or a genuine stop condition is reached.
 
+If phrasing like `auto dev loop on issue <n>`, `enter copilot auto dev loop on issue <n>`, or `run auto dev loop on <n> until approval gate` appears, treat it as compatibility wording for the same public `dev-loop` intent and keep this entrypoint compatibility-only.
+
 The deterministic state-machine/helper surface is the authority for choosing the current execution entrypoint. Do not restart from phase 1 when an issue or PR already exists and the current state can be detected.
 
 The skill's final approval gate remains a required human-decision stop by default. Unattended end-to-end execution does not imply unattended merge unless the user explicitly authorized merge for the current issue/PR scope.
