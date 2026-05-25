@@ -298,7 +298,7 @@ The following parameter/state combinations fail closed to `needs_reconcile` inst
 | Unrecognized `targetPreference` value | Value not on the bounded allow-list |
 | `watch=true` when the routed result is not wait/watch-eligible | Watch semantics require a `wait_watch` gate |
 | Non-boolean `watch` value | Value is outside the bounded boolean allow-list and must fail closed |
-| `targetPreference=prefer_local` when authoritative state has a linked PR or active PR artifact | Preference must not override authoritative linked-PR truth |
+| `targetPreference=prefer_local` when authoritative state has a linked PR or active PR artifact | Preference must not override authoritative PR/linked-PR active artifact truth |
 | `mode=durable_auto` without authoritative current state | Durable auto requires authoritative current state to route from |
 
 ### Representative translations: name-shaped intent → parameterized `dev-loop` form

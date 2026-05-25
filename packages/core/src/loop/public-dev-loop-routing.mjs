@@ -929,7 +929,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
           (explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && explicitState.target.linkedPr !== null);
         if (isLinkedPrState) {
           return buildReconcile(
-            "`targetPreference=prefer_local` conflicts with authoritative linked-PR active artifact state; reconcile before overriding the routed path.",
+            "`targetPreference=prefer_local` conflicts with authoritative PR/linked-PR active artifact state; reconcile before overriding the routed path.",
             explicitState,
             effectiveMode,
           );
@@ -1032,7 +1032,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     // targetPreference=prefer_local must not override an active PR artifact
     if (targetPreference === DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL) {
       return buildReconcile(
-        "`targetPreference=prefer_local` conflicts with authoritative linked-PR active artifact state; reconcile before overriding the routed path.",
+        "`targetPreference=prefer_local` conflicts with authoritative PR/linked-PR active artifact state; reconcile before overriding the routed path.",
         explicitState,
         effectiveMode,
       );
@@ -1053,7 +1053,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         (explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && explicitState.target.linkedPr !== null);
       if (isLinkedPrState) {
         return buildReconcile(
-          "`targetPreference=prefer_local` conflicts with authoritative linked-PR active artifact state; reconcile before overriding the routed path.",
+          "`targetPreference=prefer_local` conflicts with authoritative PR/linked-PR active artifact state; reconcile before overriding the routed path.",
           explicitState,
           effectiveMode,
         );

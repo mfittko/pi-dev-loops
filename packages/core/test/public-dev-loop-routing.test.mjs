@@ -1413,7 +1413,7 @@ test("targetPreference=prefer_local conflicts with authoritative linked-PR issue
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
-  assert.match(result.reason, /prefer_local.*conflicts with authoritative linked-PR/i);
+  assert.match(result.reason, /prefer_local.*conflicts with authoritative PR\/linked-PR/i);
 });
 
 test("prefer_local reconcile preserves durable_auto execution mode metadata", () => {
@@ -1433,7 +1433,7 @@ test("prefer_local reconcile preserves durable_auto execution mode metadata", ()
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
-  assert.match(result.reason, /prefer_local.*conflicts with authoritative linked-PR/i);
+  assert.match(result.reason, /prefer_local.*conflicts with authoritative PR\/linked-PR/i);
 });
 
 test("targetPreference=prefer_local conflicts with authoritative active PR state in continue_current and fails closed", () => {
@@ -1451,7 +1451,7 @@ test("targetPreference=prefer_local conflicts with authoritative active PR state
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
-  assert.match(result.reason, /prefer_local.*conflicts with authoritative linked-PR/i);
+  assert.match(result.reason, /prefer_local.*conflicts with authoritative PR\/linked-PR/i);
 });
 
 test("targetPreference=prefer_local conflicts with active PR in continue_on_pr and fails closed", () => {
@@ -1470,7 +1470,7 @@ test("targetPreference=prefer_local conflicts with active PR in continue_on_pr a
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
-  assert.match(result.reason, /prefer_local.*conflicts with authoritative linked-PR/i);
+  assert.match(result.reason, /prefer_local.*conflicts with authoritative PR\/linked-PR/i);
 });
 
 test("targetPreference=prefer_github_first is the default and does not change routing", () => {
