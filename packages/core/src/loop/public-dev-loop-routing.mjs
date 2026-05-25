@@ -399,8 +399,10 @@ function buildReconcile(reason, canonicalState = null, executionMode = DEV_LOOP_
 
 /**
  * Post-routing validation for the `watch` variation parameter.
- * If watch was explicitly requested, the routed result must be a wait/watch-capable
- * state; otherwise the request fails closed.
+ * If watch was explicitly requested, the routed result must be wait/watch-capable
+ * before watch semantics can be added.
+ * Existing stop and needs_reconcile results are preserved; only otherwise-successful
+ * non-wait routed results fail closed.
  */
 function applyWatchValidation(result, watchRequested) {
   if (!watchRequested) return result;
