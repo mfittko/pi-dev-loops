@@ -3,19 +3,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { formatCliError } from "../_core-helpers.mjs";
-import { parseInspectRunViewerCliArgs, parseInspectRunViewerCliError, USAGE } from "./inspect-run-viewer-cli.mjs";
+import { parseInspectRunViewerCliArgs, parseInspectRunViewerCliError, USAGE } from "./inspect-run-viewer/cli.mjs";
 import {
   createInspectRunViewerServer,
   formatInspectRunViewerUrl,
   listListeningPidsForPort,
   restartExistingPortListener,
-} from "./inspect-run-viewer-server.mjs";
+} from "./inspect-run-viewer/server.mjs";
 import {
   buildInspectionMermaidGraph,
   loadMermaidBrowserScript,
   renderInspectRunViewerHtml,
   resetMermaidBrowserScriptCache,
-} from "./inspect-run-viewer-rendering.mjs";
+} from "./inspect-run-viewer/rendering.mjs";
 
 function normalizeRestartCapabilityError(error) {
   const missingLsof = error?.code === "ENOENT"

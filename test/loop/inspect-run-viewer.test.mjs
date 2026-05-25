@@ -615,6 +615,9 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /data-graph-zoom-out/);
   assert.match(html, /data-graph-zoom-reset/);
   assert.match(html, /data-graph-fullscreen/);
+  assert.match(html, /if \(!svg\) \{\s*resolve\(false\);\s*return;\s*\}/);
+  assert.match(html, /if \(targetRects\.length === 0\) \{\s*resolve\(false\);\s*return;\s*\}/);
+  assert.match(html, /const \[firstRect, \.\.\.remainingRects\] = targetRects;/);
   assert.match(html, /cursor: grab/);
   assert.match(html, /data-dragging="true"/);
   assert.match(html, /assets\/mermaid\.min\.js/);
