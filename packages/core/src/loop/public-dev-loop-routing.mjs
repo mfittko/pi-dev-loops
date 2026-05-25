@@ -132,9 +132,9 @@ export const DEV_LOOP_ISSUE_LINKAGE_RESOLUTION = Object.freeze({
  * Bounded first-slice target preference values for the `targetPreference` variation parameter.
  *
  * `prefer_local` steers routing toward local implementation when no authoritative
- * linked-PR or active-artifact truth has already decided the route.
+ * PR/linked-PR active-artifact truth has already decided the route.
  * It must not override authoritative state — if the canonical state already resolves
- * to a linked-PR path, `prefer_local` fails closed instead of silently coercing.
+ * to an active PR or linked-PR path, `prefer_local` fails closed instead of silently coercing.
  */
 export const DEV_LOOP_TARGET_PREFERENCE = Object.freeze({
   PREFER_GITHUB_FIRST: "prefer_github_first",
