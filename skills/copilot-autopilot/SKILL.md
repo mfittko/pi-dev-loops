@@ -369,7 +369,7 @@ When the Copilot draft PR appears:
 
 Before marking the PR ready for review, run a local Pi review/fix pass using the `copilot-dev-loop` Step 7 follow-up loop plus the draft gate contract below. Delegation to `copilot-dev-loop` covers fix-loop mechanics only (`inspect -> classify -> fix -> validate -> push -> reply -> resolve`), not review-angle inheritance. Do **not** import the Step 7 pre-approval gate into this draft-stage pass.
 
-Use the draft gate contract below as the authority for whether the PR is ready to mark ready.
+Use the draft gate contract below as the authority for whether the PR is ready to leave draft via `gh pr ready`.
 
 ### Draft gate contract
 
@@ -383,9 +383,9 @@ Use the draft gate contract below as the authority for whether the PR is ready t
   - No unrelated files
 - **Pass criteria:** all five draft-gate angles pass; all must-fix findings are addressed or explicitly deferred with rationale; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review:
-```sh
-gh pr ready <pr-number> --repo <resolved-repo>
-```
+  ```sh
+  gh pr ready <pr-number> --repo <resolved-repo>
+  ```
 
 Do **not** run DRY, KISS, or YAGNI at this gate. Those lenses belong exclusively to the pre-approval gate (Phase 7 below).
 
