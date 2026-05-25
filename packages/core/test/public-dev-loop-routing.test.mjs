@@ -416,6 +416,27 @@ test("waiting states remain deterministic wait/watch states", () => {
   assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.DEFAULT);
 });
 
+test("waiting linked issue states route as the authoritative linked PR artifact", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 89, linkedPr: 92 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+  assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(result.canonicalState.target.issue, 89);
+  assert.equal(result.canonicalState.target.pr, 92);
+  assert.equal(result.canonicalState.target.linkedPr, null);
+});
+
 test("waiting states with local ownership keep the dev-loop compatibility entrypoint", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
@@ -683,6 +704,34 @@ test("authoritative status resolution keeps waiting nextAction for waiting issue
   assert.equal(report.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+  assert.equal(
+    report.nextAction,
+    "Keep waiting or watching against the same canonical state instead of switching public loop names.",
+  );
+});
+
+test("authoritative status resolution keeps waiting linked issue states on the authoritative linked PR artifact", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 89, linkedPr: 92 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_copilot_review",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+  assert.equal(report.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(report.activeArtifact.issue, 89);
+  assert.equal(report.activeArtifact.pr, 92);
+  assert.equal(report.artifactState, DEV_LOOP_ARTIFACT_STATE.OPEN);
   assert.equal(
     report.nextAction,
     "Keep waiting or watching against the same canonical state instead of switching public loop names.",

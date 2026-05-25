@@ -446,7 +446,7 @@ function routeForState(canonicalState, { executionMode = DEV_LOOP_EXECUTION_MODE
       waitSemantics: isDurableAuto
         ? DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT
         : DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
-      canonicalState,
+      canonicalState: routableCanonicalState,
       nextAction: isDurableAuto
         ? "Remain in durable auto ownership while waiting on the same canonical state; do not escalate timeout/no-activity alone as attention."
         : "Keep waiting or watching against the same canonical state instead of switching public loop names.",
