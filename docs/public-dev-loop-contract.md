@@ -59,6 +59,10 @@ Authoritative status-report helper:
 
 - `resolveAuthoritativeDevLoopStatus()` in `packages/core/src/loop/public-dev-loop-routing.mjs`
 
+Authoritative startup/resume bundle helper:
+
+- `resolveAuthoritativeStartupResumeBundle()` in `packages/core/src/loop/public-dev-loop-routing.mjs`
+
 Its tests are:
 
 - `packages/core/test/public-dev-loop-routing.test.mjs`
@@ -76,6 +80,66 @@ Before answering status/progress/readiness/merge-state/next-step questions, cons
 Prior chat context is only a hint, never state authority.
 
 If authoritative identity/state (including issue↔PR linkage when relevant) cannot be resolved confidently, fail closed to reconcile/unknown instead of guessing.
+
+## Authoritative startup/resume bundle contract
+
+Fresh-session `continue`, `inspect`, and status-style paths should compose one bounded authoritative startup/resume bundle from the existing routing/status contract fields.
+
+An optional public `intent` may be supplied when the caller needs the bundle to preserve `inspect_state` semantics without re-deriving them in a separate layer.
+
+Required authoritative inputs:
+
+- `currentState` (`target`, `ownership`, `nextActor`, `status`, `authorization`)
+- optional `intent`
+  - when present, it must be a valid public `dev-loop` intent
+  - `inspect_state` preserves the bundle's `inspect` route kind and inspect-style next action
+- `issueLinkageResolution` (`resolved_linked_pr` \| `resolved_no_open_pr` \| `not_applicable`)
+  - required when `currentState.target.kind === issue`
+- `artifactState` (`open` \| `closed` \| `merged` \| `not_applicable`)
+- explicit resolved `loopState` (`unknown` is not authoritative input)
+
+Resolved bundle output shape:
+
+```json
+{
+  "bundleKind": "resolved | needs_reconcile",
+  "activeArtifact": {
+    "kind": "issue | pr | local_branch | local_phase",
+    "issue": 111,
+    "pr": null,
+    "branch": null,
+    "phase": null
+  },
+  "artifactState": "open | closed | merged | not_applicable",
+  "issueLinkageResolution": "resolved_linked_pr | resolved_no_open_pr | not_applicable",
+  "canonicalState": {
+    "target": { "kind": "..." },
+    "ownership": "...",
+    "nextActor": "...",
+    "status": "...",
+    "authorization": "..."
+  },
+  "loopState": "...",
+  "routeKind": "route | wait | stop | inspect | needs_reconcile",
+  "selectedGate": "...",
+  "selectedStrategy": "...",
+  "compatibilityEntrypoint": "...",
+  "nextAction": "...",
+  "reason": "..."
+}
+```
+
+Fail-closed semantics:
+
+- incomplete/invalid/conflicting startup inputs return:
+  - `bundleKind = needs_reconcile`
+  - `routeKind = needs_reconcile`
+  - `selectedStrategy = none`
+  - `compatibilityEntrypoint = none`
+  - `loopState = unknown`
+  - `nextAction` must instruct reconciliation before routing/status answers
+- invalid explicit `intent` also fails closed
+- do not introduce additional public degraded states for this slice
 
 Expected answer shape (field names may vary by surface, but semantics must match):
 

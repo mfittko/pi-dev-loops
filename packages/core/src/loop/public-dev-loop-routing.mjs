@@ -107,6 +107,11 @@ export const DEV_LOOP_STATUS_REPORT_KIND = Object.freeze({
   NEEDS_RECONCILE: "needs_reconcile",
 });
 
+export const DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND = Object.freeze({
+  RESOLVED: "resolved",
+  NEEDS_RECONCILE: "needs_reconcile",
+});
+
 export const DEV_LOOP_EXECUTION_MODE = Object.freeze({
   BOUNDED_HANDOFF: "bounded_handoff",
   DURABLE_AUTO: "durable_auto",
@@ -210,6 +215,7 @@ function normalizeTarget(target) {
   }
 
   const issue = Number.isInteger(target.issue) && target.issue > 0 ? target.issue : null;
+  const hasPr = Object.hasOwn(target, "pr") && target.pr !== null && target.pr !== undefined;
   const pr = Number.isInteger(target.pr) && target.pr > 0 ? target.pr : null;
   const hasLinkedPr = Object.hasOwn(target, "linkedPr") && target.linkedPr !== null && target.linkedPr !== undefined;
   const linkedPr = Number.isInteger(target.linkedPr) && target.linkedPr > 0 ? target.linkedPr : null;
@@ -222,7 +228,13 @@ function normalizeTarget(target) {
   if (kind === DEV_LOOP_TARGET_KIND.ISSUE && hasLinkedPr && linkedPr === null) {
     return null;
   }
+  if (kind === DEV_LOOP_TARGET_KIND.ISSUE && hasPr) {
+    return null;
+  }
   if (kind === DEV_LOOP_TARGET_KIND.PR && pr === null) {
+    return null;
+  }
+  if (kind === DEV_LOOP_TARGET_KIND.PR && hasLinkedPr) {
     return null;
   }
   if (kind === DEV_LOOP_TARGET_KIND.LOCAL_BRANCH && branch === null) {
@@ -564,6 +576,40 @@ function buildStatusReconcile(reason, canonicalState = null) {
   };
 }
 
+function buildStartupResumeBundleReconcile({
+  reason,
+  canonicalState = null,
+  issueLinkageResolution = null,
+  artifactState = null,
+}) {
+  return {
+    bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE,
+    reason,
+    activeArtifact: canonicalState ? buildStatusArtifactIdentity(canonicalState) : null,
+    artifactState,
+    issueLinkageResolution,
+    loopState: "unknown",
+    nextAction: "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
+    selectedGate: DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE,
+    routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
+    selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
+    compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+    canonicalState,
+  };
+}
+
+function normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageResolution) {
+  if (issueLinkageResolution) {
+    return issueLinkageResolution;
+  }
+
+  if (canonicalState?.target?.kind !== DEV_LOOP_TARGET_KIND.ISSUE) {
+    return DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE;
+  }
+
+  return null;
+}
+
 function isArtifactStateCompatible(canonicalState, artifactState) {
   if (canonicalState.target.kind !== DEV_LOOP_TARGET_KIND.PR) {
     return artifactState === DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE;
@@ -589,70 +635,130 @@ function validateIssueLinkageResolution(canonicalState, issueLinkageResolution) 
   return issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR;
 }
 
-export function resolveAuthoritativeDevLoopStatus(input = {}) {
+export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const canonicalState = normalizeState(input.currentState);
+  const intent = normalizeIntent(input.intent);
   if (!canonicalState) {
-    return buildStatusReconcile("Authoritative status reporting requires a valid canonical current state.");
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing requires a valid canonical current state.",
+    });
+  }
+
+  if (input.intent !== undefined && intent === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing received an invalid public dev-loop intent.",
+      canonicalState,
+    });
   }
 
   const issueLinkageResolution = normalizeIssueLinkageResolution(input.issueLinkageResolution);
+  const issueLinkageResolutionProvided = input.issueLinkageResolution !== undefined && input.issueLinkageResolution !== null;
+  const normalizedIssueLinkageResolution = normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageResolution);
+
+  if (issueLinkageResolutionProvided && issueLinkageResolution === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing received an invalid issue↔PR linkage resolution value.",
+      canonicalState,
+      issueLinkageResolution: null,
+    });
+  }
+
   if (
     canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
     && issueLinkageResolution === null
   ) {
-    return buildStatusReconcile(
-      "Issue targets require explicit authoritative issue↔PR linkage resolution before answering status.",
+    return buildStartupResumeBundleReconcile({
+      reason: "Issue targets require explicit authoritative issue↔PR linkage resolution before routing startup/resume state.",
       canonicalState,
-    );
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+    });
   }
 
   if (!validateIssueLinkageResolution(canonicalState, issueLinkageResolution)) {
-    return buildStatusReconcile(
-      "Issue↔PR linkage resolution is incomplete or conflicts with canonical current state; reconcile before answering status.",
+    return buildStartupResumeBundleReconcile({
+      reason: "Issue↔PR linkage resolution is incomplete or conflicts with canonical current state; reconcile before routing startup/resume state.",
       canonicalState,
-    );
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+    });
   }
 
   const routed = routeForState(canonicalState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
   if (routed.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) {
-    return buildStatusReconcile(routed.reason, routed.canonicalState);
+    return buildStartupResumeBundleReconcile({
+      reason: routed.reason,
+      canonicalState: routed.canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+    });
   }
 
   const artifactState = normalizeArtifactState(input.artifactState);
   if (!artifactState) {
-    return buildStatusReconcile(
-      "Authoritative status reporting requires an explicit artifact state (open|closed|merged|not_applicable).",
-      routed.canonicalState,
-    );
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing requires an explicit artifact state (open|closed|merged|not_applicable).",
+      canonicalState: routed.canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+      artifactState: null,
+    });
   }
 
   if (!isArtifactStateCompatible(routed.canonicalState, artifactState)) {
-    return buildStatusReconcile(
-      "Canonical current state conflicts with the provided artifact state; reconcile before answering status.",
-      routed.canonicalState,
-    );
+    return buildStartupResumeBundleReconcile({
+      reason: "Canonical current state conflicts with the provided artifact state; reconcile before routing startup/resume state.",
+      canonicalState: routed.canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+      artifactState,
+    });
   }
 
   const loopState = normalizeOptionalLoopState(input.loopState);
   if (loopState === null) {
-    return buildStatusReconcile(
-      "Authoritative status reporting requires an explicit resolved loop state before answering status.",
-      routed.canonicalState,
-    );
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing requires an explicit resolved loop state before routing or answering status.",
+      canonicalState: routed.canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+      artifactState,
+    });
+  }
+
+  const inspectStateIntent = intent === DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE;
+
+  return {
+    bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED,
+    activeArtifact: buildStatusArtifactIdentity(routed.canonicalState),
+    artifactState,
+    issueLinkageResolution: normalizedIssueLinkageResolution,
+    canonicalState: routed.canonicalState,
+    loopState,
+    routeKind: inspectStateIntent ? DEV_LOOP_ROUTE_KIND.INSPECT : routed.routeKind,
+    selectedGate: routed.selectedGate,
+    selectedStrategy: routed.selectedStrategy,
+    compatibilityEntrypoint: routed.compatibilityEntrypoint,
+    nextAction: inspectStateIntent
+      ? "Describe the canonical state and the routed internal strategy without changing public entrypoints."
+      : buildAuthoritativeStatusNextAction(routed, issueLinkageResolution),
+    reason: routed.reason,
+  };
+}
+
+export function resolveAuthoritativeDevLoopStatus(input = {}) {
+  const { intent: _ignoredIntent, ...statusInput } = input;
+  const bundle = resolveAuthoritativeStartupResumeBundle(statusInput);
+  if (bundle.bundleKind === DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE) {
+    return buildStatusReconcile(bundle.reason, bundle.canonicalState);
   }
 
   return {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.RESOLVED,
-    activeArtifact: buildStatusArtifactIdentity(routed.canonicalState),
-    artifactState,
-    loopState,
-    nextAction: buildAuthoritativeStatusNextAction(routed, issueLinkageResolution),
-    selectedGate: routed.selectedGate,
-    routeKind: routed.routeKind,
-    selectedStrategy: routed.selectedStrategy,
-    compatibilityEntrypoint: routed.compatibilityEntrypoint,
-    canonicalState: routed.canonicalState,
-    reason: routed.reason,
+    activeArtifact: bundle.activeArtifact,
+    artifactState: bundle.artifactState,
+    loopState: bundle.loopState,
+    nextAction: bundle.nextAction,
+    selectedGate: bundle.selectedGate,
+    routeKind: bundle.routeKind,
+    selectedStrategy: bundle.selectedStrategy,
+    compatibilityEntrypoint: bundle.compatibilityEntrypoint,
+    canonicalState: bundle.canonicalState,
+    reason: bundle.reason,
   };
 }
 
