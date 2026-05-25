@@ -121,6 +121,7 @@ Resolved bundle output shape:
   },
   "loopState": "...",
   "routeKind": "route | wait | stop | inspect | needs_reconcile",
+  "selectedGate": "...",
   "selectedStrategy": "...",
   "compatibilityEntrypoint": "...",
   "nextAction": "...",
