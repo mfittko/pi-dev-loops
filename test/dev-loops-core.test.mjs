@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { executeDevLoopsCommand, parseDevLoopsCommand } from "../lib/dev-loops-core.mjs";
+import { collectDevLoopChecks, executeDevLoopsCommand, parseDevLoopsCommand } from "../lib/dev-loops-core.mjs";
 
 function createRuntime(overrides = {}) {
   return {
@@ -138,4 +138,39 @@ test("shared executor returns deterministic status and blocked install results",
     scope: "repo",
     message: "pi-dev-loops install repo: not inside a git repository",
   });
+});
+
+
+test("collectDevLoopChecks uses surface-aware install guidance and keeps autopilot non-required", async () => {
+  const cliChecks = await collectDevLoopChecks(createRuntime({
+    surface: "cli",
+    async getSkillAvailability(skillName) {
+      return {
+        ok: skillName === "dev-loop",
+        availableDetail: `skill available: ${skillName}`,
+        unavailableDetail: `skill missing: ${skillName}`,
+      };
+    },
+  }));
+
+  const extensionChecks = await collectDevLoopChecks(createRuntime({
+    surface: "extension",
+    async getSkillAvailability(skillName) {
+      return {
+        ok: skillName === "dev-loop",
+        availableDetail: `skill available: ${skillName}`,
+        unavailableDetail: `skill missing: ${skillName}`,
+      };
+    },
+  }));
+
+  const cliCopilot = cliChecks.find((check) => check.id === "copilot-dev-loop-skill");
+  const extensionCopilot = extensionChecks.find((check) => check.id === "copilot-dev-loop-skill");
+  const cliAutopilot = cliChecks.find((check) => check.id === "copilot-autopilot-skill");
+
+  assert.match(cliCopilot.detail, /pi-dev-loops install repo/i);
+  assert.doesNotMatch(cliCopilot.detail, /\/dev-loops install repo/i);
+  assert.match(extensionCopilot.detail, /\/dev-loops install repo/i);
+  assert.match(cliAutopilot.detail, /internal routed compatibility seams used by GitHub-first intake paths/i);
+  assert.doesNotMatch(cliAutopilot.detail, /Required internal/i);
 });

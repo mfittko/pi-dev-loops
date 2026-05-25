@@ -225,6 +225,7 @@ export function createCliRuntime({
   }
 
   return {
+    surface: "cli",
     cwd,
     homeDirectory,
     async commandExists(command) {
