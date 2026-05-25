@@ -85,9 +85,14 @@ If authoritative identity/state (including issue↔PR linkage when relevant) can
 
 Fresh-session `continue`, `inspect`, and status-style paths should compose one bounded authoritative startup/resume bundle from the existing routing/status contract fields.
 
+An optional public `intent` may be supplied when the caller needs the bundle to preserve `inspect_state` semantics without re-deriving them in a separate layer.
+
 Required authoritative inputs:
 
 - `currentState` (`target`, `ownership`, `nextActor`, `status`, `authorization`)
+- optional `intent`
+  - when present, it must be a valid public `dev-loop` intent
+  - `inspect_state` preserves the bundle's `inspect` route kind and inspect-style next action
 - `issueLinkageResolution` (`resolved_linked_pr` \| `resolved_no_open_pr` \| `not_applicable`)
   - required when `currentState.target.kind === issue`
 - `artifactState` (`open` \| `closed` \| `merged` \| `not_applicable`)
@@ -132,6 +137,7 @@ Fail-closed semantics:
   - `compatibilityEntrypoint = none`
   - `loopState = unknown`
   - `nextAction` must instruct reconciliation before routing/status answers
+- invalid explicit `intent` also fails closed
 - do not introduce additional public degraded states for this slice
 
 Expected answer shape (field names may vary by surface, but semantics must match):

@@ -215,6 +215,7 @@ function normalizeTarget(target) {
   }
 
   const issue = Number.isInteger(target.issue) && target.issue > 0 ? target.issue : null;
+  const hasPr = Object.hasOwn(target, "pr") && target.pr !== null && target.pr !== undefined;
   const pr = Number.isInteger(target.pr) && target.pr > 0 ? target.pr : null;
   const hasLinkedPr = Object.hasOwn(target, "linkedPr") && target.linkedPr !== null && target.linkedPr !== undefined;
   const linkedPr = Number.isInteger(target.linkedPr) && target.linkedPr > 0 ? target.linkedPr : null;
@@ -227,13 +228,13 @@ function normalizeTarget(target) {
   if (kind === DEV_LOOP_TARGET_KIND.ISSUE && hasLinkedPr && linkedPr === null) {
     return null;
   }
-  if (kind === DEV_LOOP_TARGET_KIND.ISSUE && pr !== null) {
+  if (kind === DEV_LOOP_TARGET_KIND.ISSUE && hasPr) {
     return null;
   }
   if (kind === DEV_LOOP_TARGET_KIND.PR && pr === null) {
     return null;
   }
-  if (kind === DEV_LOOP_TARGET_KIND.PR && linkedPr !== null) {
+  if (kind === DEV_LOOP_TARGET_KIND.PR && hasLinkedPr) {
     return null;
   }
   if (kind === DEV_LOOP_TARGET_KIND.LOCAL_BRANCH && branch === null) {
@@ -636,9 +637,17 @@ function validateIssueLinkageResolution(canonicalState, issueLinkageResolution) 
 
 export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const canonicalState = normalizeState(input.currentState);
+  const intent = normalizeIntent(input.intent);
   if (!canonicalState) {
     return buildStartupResumeBundleReconcile({
       reason: "Authoritative startup/resume routing requires a valid canonical current state.",
+    });
+  }
+
+  if (input.intent !== undefined && intent === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing received an invalid public dev-loop intent.",
+      canonicalState,
     });
   }
 
@@ -701,6 +710,8 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     });
   }
 
+  const inspectStateIntent = intent === DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE;
+
   return {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED,
     activeArtifact: buildStatusArtifactIdentity(routed.canonicalState),
@@ -708,11 +719,13 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     issueLinkageResolution: normalizeIssueLinkageResolutionForBundle(routed.canonicalState, issueLinkageResolution),
     canonicalState: routed.canonicalState,
     loopState,
-    routeKind: routed.routeKind,
+    routeKind: inspectStateIntent ? DEV_LOOP_ROUTE_KIND.INSPECT : routed.routeKind,
     selectedGate: routed.selectedGate,
     selectedStrategy: routed.selectedStrategy,
     compatibilityEntrypoint: routed.compatibilityEntrypoint,
-    nextAction: buildAuthoritativeStatusNextAction(routed, issueLinkageResolution),
+    nextAction: inspectStateIntent
+      ? "Describe the canonical state and the routed internal strategy without changing public entrypoints."
+      : buildAuthoritativeStatusNextAction(routed, issueLinkageResolution),
     reason: routed.reason,
   };
 }
