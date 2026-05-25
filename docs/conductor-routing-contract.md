@@ -184,16 +184,17 @@ The evaluator applies the following first-match-wins priority order:
 | 7 | `copilotState === "pr_draft"` + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
 | 8 | `copilotState === "pr_draft"` + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
 | 9 | `copilotState === "pr_draft"` | `handoff_to_copilot_loop` |
-| 10 | reviewer active state + needs local exec + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
-| 11 | reviewer active state + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
-| 12 | reviewer active state | `handoff_to_reviewer_loop` |
-| 13 | copilot strong-active + needs local exec + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
-| 14 | copilot strong-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
-| 15 | copilot strong-active | `handoff_to_copilot_loop` |
-| 16 | copilot wait state OR reviewer wait state | `continue_current_wait` |
-| 17 | copilot weak-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
-| 18 | copilot weak-active | `handoff_to_copilot_loop` |
-| 19 | anything else | `needs_reconcile` |
+| 10 | `copilotState === "waiting_for_copilot_review"` | `continue_current_wait` |
+| 11 | reviewer active state + needs local exec + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
+| 12 | reviewer active state + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 13 | reviewer active state | `handoff_to_reviewer_loop` |
+| 14 | copilot strong-active + needs local exec + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
+| 15 | copilot strong-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 16 | copilot strong-active | `handoff_to_copilot_loop` |
+| 17 | copilot wait state OR reviewer wait state | `continue_current_wait` |
+| 18 | copilot weak-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 19 | copilot weak-active | `handoff_to_copilot_loop` |
+| 20 | anything else | `needs_reconcile` |
 
 **Copilot strong-active states** (win over reviewer wait states): `unresolved_feedback_present`, `already_fixed_needs_reply_resolve`
 
@@ -204,6 +205,8 @@ The evaluator applies the following first-match-wins priority order:
 **Reviewer active states needing local execution**: `review_requested`, `determine_review_plan`, `reviews_running`, `merge_results`, `draft_review_ready`
 
 **Copilot/reviewer wait states** (owned by outer loop): `waiting_for_copilot_review`, `waiting_for_ci` (copilot); `waiting_for_author_followup`, `waiting_for_re_request` (reviewer)
+
+`waiting_for_copilot_review` is an explicit post-request settle gate for the current head: this routing contract keeps `continue_current_wait` semantics until that fresh Copilot pass has settled, even if reviewer-side state is otherwise active.
 
 ---
 
