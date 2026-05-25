@@ -8,6 +8,8 @@ import {
   DEFAULT_INBOX_PAGE_SIZE,
   DEFAULT_INBOX_PR_STATE,
   DEFAULT_INBOX_UPDATED_WITHIN_DAYS,
+  INBOX_MODE_FILTER_VALUES,
+  INBOX_STATE_FILTER_VALUES,
   MAX_INBOX_RESULT_LIMIT,
   MERMAID_BROWSER_ASSET_ROUTE,
 } from "./constants.mjs";
@@ -23,6 +25,7 @@ import {
   createInspectionViewerAdapter,
   normalizeInspectionTarget,
 } from "../_inspect-run-viewer-adapter.mjs";
+import { dedupeRepoSlugOptions, repoSlugEquals } from "./scope.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -123,10 +126,10 @@ function parseInboxStateFromUrl(rawValue) {
     return DEFAULT_INBOX_PR_STATE;
   }
   const trimmed = rawValue.trim().toLowerCase();
-  if (trimmed === "open" || trimmed === "closed" || trimmed === "all") {
+  if (INBOX_STATE_FILTER_VALUES.has(trimmed)) {
     return trimmed;
   }
-  const error = new Error("state must be one of: open, closed, all");
+  const error = new Error(`state must be one of: ${Array.from(INBOX_STATE_FILTER_VALUES).join(", ")}`);
   error.code = "MALFORMED_TARGET";
   throw error;
 }
@@ -136,10 +139,10 @@ function parseInboxModeFromUrl(rawValue) {
     return DEFAULT_INBOX_MODE;
   }
   const trimmed = rawValue.trim().toLowerCase();
-  if (trimmed === "assignee" || trimmed === "reviewer" || trimmed === "involved") {
+  if (INBOX_MODE_FILTER_VALUES.has(trimmed)) {
     return trimmed;
   }
-  const error = new Error("mode must be one of: assignee, reviewer, involved");
+  const error = new Error(`mode must be one of: ${Array.from(INBOX_MODE_FILTER_VALUES).join(", ")}`);
   error.code = "MALFORMED_TARGET";
   throw error;
 }
@@ -178,12 +181,12 @@ function normalizeRequestedViewFromUrl(rawUrl, fixedRepo = null, fallbackTarget 
     ? null
     : normalizeRepoQueryParam(selectedRepo);
 
-  if (fixedRepo !== null && normalizedScope !== null && normalizedScope.toLowerCase() !== fixedRepo.toLowerCase()) {
+  if (fixedRepo !== null && normalizedScope !== null && !repoSlugEquals(normalizedScope, fixedRepo)) {
     const error = new Error("scope query param must match the repo-scoped viewer");
     error.code = "MALFORMED_TARGET";
     throw error;
   }
-  if (fixedRepo !== null && normalizedSelectedRepo !== null && normalizedSelectedRepo.toLowerCase() !== fixedRepo.toLowerCase()) {
+  if (fixedRepo !== null && normalizedSelectedRepo !== null && !repoSlugEquals(normalizedSelectedRepo, fixedRepo)) {
     const error = new Error("repo query param must match the repo-scoped viewer");
     error.code = "MALFORMED_TARGET";
     throw error;
@@ -237,32 +240,6 @@ function dedupeInboxEntries(entries) {
     deduped.push(normalizedEntry);
   }
   return deduped;
-}
-
-function normalizeRepoSlug(slug) {
-  if (typeof slug !== "string") {
-    return null;
-  }
-  const trimmed = slug.trim();
-  return trimmed.length > 0 ? trimmed.toLowerCase() : null;
-}
-
-function dedupeRepoSlugOptions(options) {
-  const uniqueOptions = [];
-  const seen = new Set();
-  for (const option of options) {
-    if (typeof option !== "string") {
-      continue;
-    }
-    const trimmed = option.trim();
-    const normalized = normalizeRepoSlug(trimmed);
-    if (normalized === null || seen.has(normalized)) {
-      continue;
-    }
-    seen.add(normalized);
-    uniqueOptions.push(trimmed);
-  }
-  return uniqueOptions;
 }
 
 function collectScopeOptions(entries, { selectedTarget = null, scopeFilter = null } = {}) {

@@ -11,6 +11,7 @@ import {
   MERMAID_BROWSER_ASSET_PATH,
   MERMAID_BROWSER_ASSET_ROUTE,
 } from "./constants.mjs";
+import { dedupeRepoSlugOptions, normalizeRepoSlug, repoSlugEquals } from "./scope.mjs";
 import {
   STATE as COPILOT_STATE,
   TRANSITIONS as COPILOT_TRANSITIONS,
@@ -1396,41 +1397,6 @@ function renderInboxFilterHref(selectedTarget, { scopeFilter = null, updatedWith
   appendInboxViewParams(params, { selectedTarget, scopeFilter, updatedWithinDays, state, mode, page });
   const query = params.toString();
   return query.length === 0 ? "/" : `/?${query}`;
-}
-
-function normalizeRepoSlug(slug) {
-  if (typeof slug !== "string") {
-    return null;
-  }
-  const trimmed = slug.trim();
-  return trimmed.length > 0 ? trimmed.toLowerCase() : null;
-}
-
-function repoSlugEquals(left, right) {
-  const normalizedLeft = normalizeRepoSlug(left);
-  const normalizedRight = normalizeRepoSlug(right);
-  if (normalizedLeft === null || normalizedRight === null) {
-    return left === right;
-  }
-  return normalizedLeft === normalizedRight;
-}
-
-function dedupeRepoSlugOptions(options) {
-  const uniqueOptions = [];
-  const seen = new Set();
-  for (const option of options) {
-    if (typeof option !== "string") {
-      continue;
-    }
-    const trimmed = option.trim();
-    const normalized = normalizeRepoSlug(trimmed);
-    if (normalized === null || seen.has(normalized)) {
-      continue;
-    }
-    seen.add(normalized);
-    uniqueOptions.push(trimmed);
-  }
-  return uniqueOptions;
 }
 
 function renderScopeSelectHref(selectedTarget, scopeFilter, { updatedWithinDays = DEFAULT_INBOX_UPDATED_WITHIN_DAYS, state = DEFAULT_INBOX_PR_STATE, mode = DEFAULT_INBOX_MODE } = {}) {

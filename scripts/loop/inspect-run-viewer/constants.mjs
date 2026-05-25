@@ -48,8 +48,14 @@ export const INBOX_STATE_FILTER_PRESETS = [
   { label: "Closed", value: "closed" },
   { label: "All", value: "all" },
 ];
+export const INBOX_STATE_FILTER_VALUES = new Set(
+  INBOX_STATE_FILTER_PRESETS.map((preset) => preset.value),
+);
 export const INBOX_MODE_FILTER_PRESETS = [
   { label: "Assigned", value: "assignee" },
   { label: "Reviewer", value: "reviewer" },
   { label: "Involved", value: "involved" },
 ];
+export const INBOX_MODE_FILTER_VALUES = new Set(
+  INBOX_MODE_FILTER_PRESETS.map((preset) => preset.value),
+);
