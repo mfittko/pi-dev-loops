@@ -174,3 +174,21 @@ test("collectDevLoopChecks uses surface-aware install guidance and keeps autopil
   assert.match(cliAutopilot.detail, /internal routed compatibility seams used by GitHub-first intake paths/i);
   assert.doesNotMatch(cliAutopilot.detail, /Required internal/i);
 });
+
+
+test("collectDevLoopChecks applies surface-aware dev-loop guidance for object probes too", async () => {
+  const cliChecks = await collectDevLoopChecks(createRuntime({
+    surface: "cli",
+    async getSkillAvailability(skillName) {
+      return {
+        ok: false,
+        availableDetail: `installed elsewhere: ${skillName}`,
+        unavailableDetail: `generic missing: ${skillName}`,
+      };
+    },
+  }));
+
+  const localSkill = cliChecks.find((check) => check.id === "local-dev-loop-skill");
+  assert.match(localSkill.detail, /pi-dev-loops install repo/i);
+  assert.doesNotMatch(localSkill.detail, /generic missing: dev-loop/i);
+});
