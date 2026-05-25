@@ -95,31 +95,15 @@ test("shared executor returns deterministic status and blocked install results",
   const status = await executeDevLoopsCommand({
     input: ["status"],
     surface: "cli",
-    runtime: createRuntime({
-      async getSkillAvailability(skillName) {
-        if (skillName === "copilot-autopilot") {
-          return {
-            ok: false,
-            availableDetail: "",
-            unavailableDetail: "skill missing",
-          };
-        }
-
-        return {
-          ok: true,
-          availableDetail: `skill available: ${skillName}`,
-          unavailableDetail: `skill missing: ${skillName}`,
-        };
-      },
-    }),
+    runtime: createRuntime(),
     homeDirectory: "/tmp/home",
   });
 
   assert.equal(status.kind, "checks");
   assert.equal(status.action, "status");
   assert.equal(status.checks[0].id, "gh-installed");
-  assert.equal(status.checks[6].id, "copilot-autopilot-skill");
-  assert.equal(status.checks[6].ok, false);
+  assert.equal(status.checks[4].id, "local-dev-loop-skill");
+  assert.equal(status.checks[4].ok, true);
 
   const blocked = await executeDevLoopsCommand({
     input: ["install", "repo"],
@@ -141,38 +125,27 @@ test("shared executor returns deterministic status and blocked install results",
 });
 
 
-test("collectDevLoopChecks uses surface-aware install guidance and keeps autopilot non-required", async () => {
-  const cliChecks = await collectDevLoopChecks(createRuntime({
-    surface: "cli",
-    async getSkillAvailability(skillName) {
-      return {
-        ok: skillName === "dev-loop",
-        availableDetail: `skill available: ${skillName}`,
-        unavailableDetail: `skill missing: ${skillName}`,
-      };
-    },
-  }));
-
-  const extensionChecks = await collectDevLoopChecks(createRuntime({
+test("collectDevLoopChecks uses the caller-provided surface as the single install-guidance authority", async () => {
+  const runtime = createRuntime({
     surface: "extension",
-    async getSkillAvailability(skillName) {
+    async getSkillAvailability() {
       return {
-        ok: skillName === "dev-loop",
-        availableDetail: `skill available: ${skillName}`,
-        unavailableDetail: `skill missing: ${skillName}`,
+        ok: false,
+        availableDetail: "installed elsewhere",
+        unavailableDetail: "generic missing",
       };
     },
-  }));
+  });
 
-  const cliCopilot = cliChecks.find((check) => check.id === "copilot-dev-loop-skill");
-  const extensionCopilot = extensionChecks.find((check) => check.id === "copilot-dev-loop-skill");
-  const cliAutopilot = cliChecks.find((check) => check.id === "copilot-autopilot-skill");
+  const cliChecks = await collectDevLoopChecks(runtime, { surface: "cli" });
+  const extensionChecks = await collectDevLoopChecks(runtime, { surface: "extension" });
 
-  assert.match(cliCopilot.detail, /pi-dev-loops install repo/i);
-  assert.doesNotMatch(cliCopilot.detail, /\/dev-loops install repo/i);
-  assert.match(extensionCopilot.detail, /\/dev-loops install repo/i);
-  assert.match(cliAutopilot.detail, /internal routed compatibility seams used by GitHub-first intake paths/i);
-  assert.doesNotMatch(cliAutopilot.detail, /Required internal/i);
+  const cliDevLoop = cliChecks.find((check) => check.id === "local-dev-loop-skill");
+  const extensionDevLoop = extensionChecks.find((check) => check.id === "local-dev-loop-skill");
+
+  assert.match(cliDevLoop.detail, /pi-dev-loops install repo/i);
+  assert.doesNotMatch(cliDevLoop.detail, /\/dev-loops install repo/i);
+  assert.match(extensionDevLoop.detail, /\/dev-loops install repo/i);
 });
 
 

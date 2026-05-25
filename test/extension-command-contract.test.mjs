@@ -72,11 +72,7 @@ function readyPi() {
       ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 0],
     ]),
     tools: [{ name: "subagent" }],
-    commands: [
-      { name: "skill:dev-loop" },
-      { name: "skill:copilot-dev-loop" },
-      { name: "skill:copilot-autopilot" },
-    ],
+    commands: [{ name: "skill:dev-loop" }],
   });
 }
 
@@ -119,7 +115,7 @@ test("help is the default action and malformed commands stay non-mutating", asyn
   const statusWithExtraArgsContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("status extra", statusWithExtraArgsContext.ctx);
   assert.match(statusWithExtraArgsContext.calls.widgets.at(-1).lines[0], /pi-dev-loops status:/);
-  assert.equal(statusWithExtraArgsContext.calls.notifications.at(-1).message, "pi-dev-loops status: 7/7 checks passed");
+  assert.equal(statusWithExtraArgsContext.calls.notifications.at(-1).message, "pi-dev-loops status: 5/5 checks passed");
 
   const helpArgsContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("help extra", helpArgsContext.ctx);
@@ -127,7 +123,7 @@ test("help is the default action and malformed commands stay non-mutating", asyn
   assert.equal(helpArgsContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 });
 
-test("status keeps existing remote readiness ready when copilot-dev-loop is installed but copilot-autopilot is not", async () => {
+test("status keeps remote readiness ready when the public dev-loop skill is installed", async () => {
   const pi = createPiDouble({
     commandResults: new Map([
       ["command -v gh >/dev/null 2>&1", 0],
@@ -135,10 +131,7 @@ test("status keeps existing remote readiness ready when copilot-dev-loop is inst
       ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 0],
     ]),
     tools: [{ name: "subagent" }],
-    commands: [
-      { name: "skill:dev-loop" },
-      { name: "skill:copilot-dev-loop" },
-    ],
+    commands: [{ name: "skill:dev-loop" }],
   });
   registerExtension(pi);
 
@@ -171,11 +164,7 @@ test("status keeps remote readiness blocked outside a git repo", async () => {
       ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 1],
     ]),
     tools: [{ name: "subagent" }],
-    commands: [
-      { name: "skill:dev-loop" },
-      { name: "skill:copilot-dev-loop" },
-      { name: "skill:copilot-autopilot" },
-    ],
+    commands: [{ name: "skill:dev-loop" }],
   });
   registerExtension(pi);
 

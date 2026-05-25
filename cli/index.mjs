@@ -18,8 +18,6 @@ const CLI_SETUP_GUIDANCE = {
   "subagent-tool": "Install or enable `pi-subagents`; the shared loop workflows assume subagent support.",
   "git-repo": "Run the command from a git repository checkout before using repo-scoped workflows.",
   "local-dev-loop-skill": "Run `pi-dev-loops install repo` for this repository or `pi-dev-loops install system` for `~/.pi/agent/skills`.",
-  "copilot-dev-loop-skill": "Run `pi-dev-loops install repo` for this repository or `pi-dev-loops install system` for `~/.pi/agent/skills`.",
-  "copilot-autopilot-skill": "Run `pi-dev-loops install repo` for this repository or `pi-dev-loops install system` for `~/.pi/agent/skills`.",
 };
 
 function spawnResult(command, args, options = {}) {
