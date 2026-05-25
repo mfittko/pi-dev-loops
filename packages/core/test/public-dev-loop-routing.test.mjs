@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -6,6 +7,7 @@ import {
   DEV_LOOP_ACTOR,
   DEV_LOOP_AUTHORIZATION,
   DEV_LOOP_ARTIFACT_STATE,
+  DEV_LOOP_GATE,
   DEV_LOOP_PUBLIC_INTENT,
   DEV_LOOP_EXECUTION_MODE,
   DEV_LOOP_ROUTE_KIND,
@@ -15,13 +17,92 @@ import {
   DEV_LOOP_STATUS,
   DEV_LOOP_TARGET_KIND,
   INTERNAL_DEV_LOOP_STRATEGY,
+  PUBLIC_DEV_LOOP_GATE_CONTRACT,
   PUBLIC_DEV_LOOP_ENTRYPOINT,
   evaluatePublicDevLoopRouting,
   resolveAuthoritativeDevLoopStatus,
 } from "../src/loop/public-dev-loop-routing.mjs";
 
+const publicContractUrl = new URL("../../../docs/public-dev-loop-contract.md", import.meta.url);
+
 test("public dev-loop routing exports the single public façade name", () => {
   assert.equal(PUBLIC_DEV_LOOP_ENTRYPOINT, "dev-loop");
+});
+
+test("public dev-loop routing exposes an explicit gate contract for the current route families", () => {
+  assert.deepEqual(
+    PUBLIC_DEV_LOOP_GATE_CONTRACT.map(({ gate, routeKind, selectedStrategy }) => ({ gate, routeKind, selectedStrategy })),
+    [
+      {
+        gate: DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED,
+        routeKind: DEV_LOOP_ROUTE_KIND.STOP,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
+      },
+      {
+        gate: DEV_LOOP_GATE.STOP_DONE_TERMINAL,
+        routeKind: DEV_LOOP_ROUTE_KIND.STOP,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
+      },
+      {
+        gate: DEV_LOOP_GATE.FINAL_APPROVAL,
+        routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL,
+      },
+      {
+        gate: DEV_LOOP_GATE.WAIT_WATCH,
+        routeKind: DEV_LOOP_ROUTE_KIND.WAIT,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH,
+      },
+      {
+        gate: DEV_LOOP_GATE.LOCAL_IMPLEMENTATION,
+        routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION,
+      },
+      {
+        gate: DEV_LOOP_GATE.ISSUE_INTAKE,
+        routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE,
+      },
+      {
+        gate: DEV_LOOP_GATE.EXTERNAL_PR_FOLLOWUP,
+        routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.EXTERNAL_PR_FOLLOWUP,
+      },
+      {
+        gate: DEV_LOOP_GATE.REVIEWER_FIXER,
+        routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.REVIEWER_FIXER,
+      },
+      {
+        gate: DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP,
+        routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP,
+      },
+      {
+        gate: DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE,
+        routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
+      },
+    ],
+  );
+});
+
+test("public contract doc stays aligned with the machine-checkable gate contract", async () => {
+  const publicContract = await readFile(publicContractUrl, "utf8");
+  const documentedGates = publicContract
+    .split("\n")
+    .map((line) => line.match(/^\|\s*`([^`]+)`\s*\|/))
+    .filter(Boolean)
+    .map((match) => match[1]);
+  const routingGateSection = documentedGates.slice(
+    documentedGates.indexOf(DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED),
+    documentedGates.indexOf(DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE) + 1,
+  );
+
+  assert.deepEqual(
+    routingGateSection,
+    PUBLIC_DEV_LOOP_GATE_CONTRACT.map(({ gate }) => gate),
+  );
 });
 
 test("start_on_issue routes to issue_intake through the public dev-loop façade", () => {
@@ -31,6 +112,7 @@ test("start_on_issue routes to issue_intake through the public dev-loop façade"
   });
 
   assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.ISSUE_INTAKE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_AUTOPILOT);
@@ -53,6 +135,7 @@ test("start_on_issue with a linked PR routes directly to PR follow-up", () => {
   });
 
   assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
@@ -240,6 +323,7 @@ test("continue_current routes external-human PR ownership to the external PR fol
     },
   });
 
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.EXTERNAL_PR_FOLLOWUP);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.EXTERNAL_PR_FOLLOWUP);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
@@ -267,6 +351,7 @@ test("blocked and not-authorized states stop instead of routing", () => {
       currentState,
     });
 
+    assert.equal(result.selectedGate, DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED);
     assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
     assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
     assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
@@ -285,6 +370,7 @@ test("done states stop as terminal states", () => {
     },
   });
 
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.STOP_DONE_TERMINAL);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
@@ -303,6 +389,7 @@ test("approval-ready and merge-ready states route to final approval", () => {
       },
     });
 
+    assert.equal(result.selectedGate, DEV_LOOP_GATE.FINAL_APPROVAL);
     assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
     assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL);
     assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
@@ -321,6 +408,7 @@ test("waiting states remain deterministic wait/watch states", () => {
     },
   });
 
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
@@ -340,6 +428,7 @@ test("waiting states with local ownership keep the dev-loop compatibility entryp
     },
   });
 
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.DEV_LOOP);
@@ -357,6 +446,7 @@ test("auto_continue_current routes detected state with durable auto execution mo
     },
   });
 
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
@@ -375,6 +465,7 @@ test("auto_continue_current keeps healthy watch states non-escalating", () => {
     },
   });
 
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
@@ -386,6 +477,7 @@ test("auto_continue_current without canonical state fails closed with durable_au
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
   });
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
 });
@@ -411,6 +503,7 @@ test("auto_continue_current with blocked or not-authorized state still stops (es
       intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
       currentState,
     });
+    assert.equal(result.selectedGate, DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED);
     assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
     assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   }
@@ -428,6 +521,7 @@ test("inspect_state reports the canonical state without switching public entrypo
     },
   });
 
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.LOCAL_IMPLEMENTATION);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION);
   assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
@@ -439,6 +533,7 @@ test("invalid or incomplete inputs fail closed to needs_reconcile", () => {
     target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
   });
 
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
@@ -459,6 +554,7 @@ test("authoritative status resolution uses the canonically linked PR identity", 
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
   assert.equal(report.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
   assert.equal(report.activeArtifact.issue, 89);
   assert.equal(report.activeArtifact.pr, 92);
@@ -480,6 +576,7 @@ test("authoritative status resolution does not classify unresolved feedback as f
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
   assert.equal(report.loopState, "unresolved_feedback_present");
   assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
 });
@@ -499,6 +596,7 @@ test("authoritative status resolution fails closed when routing itself cannot re
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(report.loopState, "unknown");
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
@@ -519,6 +617,7 @@ test("authoritative status resolution fails closed when merged/closed state conf
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(report.loopState, "unknown");
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
 });
@@ -537,6 +636,7 @@ test("authoritative status resolution fails closed for issue targets when linkag
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(report.loopState, "unknown");
 });
 
@@ -555,6 +655,7 @@ test("authoritative status resolution accepts issue state only after explicit no
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.ISSUE_INTAKE);
   assert.equal(report.activeArtifact.kind, DEV_LOOP_TARGET_KIND.ISSUE);
   assert.equal(report.activeArtifact.issue, 93);
   assert.equal(report.activeArtifact.pr, null);
@@ -579,6 +680,7 @@ test("authoritative status resolution keeps waiting nextAction for waiting issue
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(
@@ -602,6 +704,7 @@ test("authoritative status resolution fails closed when loop state is the unknow
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(report.loopState, "unknown");
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
 });
@@ -620,6 +723,7 @@ test("authoritative status resolution fails closed when loop state was not expli
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(report.loopState, "unknown");
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
 });
