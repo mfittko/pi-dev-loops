@@ -506,29 +506,32 @@ When actionable review feedback exists, use a narrow follow-up loop:
 
 Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 
-### Draft gate (before marking PR ready for review)
+### Draft gate contract (before marking PR ready for review)
 
-Before running `gh pr ready`, confirm the implementation passes these angles:
+- **Gate name:** Draft gate
+- **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
+- **Review angles (owned by this gate):**
+  - Correctness vs acceptance criteria
+  - Scope compliance
+  - Test coverage adequacy
+  - CI and check status
+  - No unrelated files
+- **Pass criteria:** all five draft-gate angles pass; all must-fix findings are addressed or explicitly deferred with rationale; validation passes; no unrelated files are included.
+- **Next step after passing:** mark the PR ready for review.
 
-- **Correctness vs acceptance criteria**: does the implementation satisfy the issue's acceptance criteria?
-- **Scope compliance**: are there any unrelated or out-of-scope changes in the diff?
-- **Test coverage adequacy**: are the changed or added behaviors covered by tests as the acceptance criteria require?
-- **CI and check status**: are all required checks passing or credibly passing on the current head?
-- **No unrelated files**: no files outside the accepted fix scope are included
+Do **not** apply DRY, KISS, or YAGNI here; those belong exclusively to the pre-approval gate below.
 
-These are the draft-gate angles. Do **not** apply DRY, KISS, or YAGNI here; those belong exclusively to the pre-approval gate below.
+### Pre-approval gate contract
 
-### Pre-approval gate (before calling PR merge-ready)
-
-Before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate using three focused review lenses:
-- DRY
-- KISS
-- YAGNI
-
-Run these three lens-focused passes in fresh context and in parallel when practical.
-If parallel execution is impractical (for example due to tooling or resource constraints),
-still run all three lenses and explicitly record the limitation in the review verdict summary
-or a `tmp/copilot-loop/` handoff artifact.
+- **Gate name:** Pre-approval gate
+- **Trigger / boundary:** right before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff
+- **Gate role:** this is the default pre-approval gate for this workflow boundary
+- **Review angles (owned by this gate):**
+  - DRY
+  - KISS
+  - YAGNI
+- **Pass criteria:** DRY, KISS, and YAGNI lens passes are completed in fresh context and in parallel when practical; if parallel execution is impractical (for example due to tooling or resource constraints), still run all three lenses and explicitly record the limitation in the review verdict summary or a `tmp/copilot-loop/` handoff artifact.
+- **Next step after passing:** continue the Step 7 flow and then proceed to Step 8.
 
 For any parallel review pass:
 - start each reviewer in fresh context
