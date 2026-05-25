@@ -57,10 +57,8 @@ The extension currently reports on:
 - `pi-subagents` available
 - inside a git repository
 - `/skill:dev-loop` discoverable as the single public workflow entrypoint
-- `/skill:copilot-dev-loop` discoverable as a compatibility/internal follow-up path
-- `/skill:copilot-autopilot` discoverable as a compatibility/internal intake path
 
-Readiness and help messaging should lead with `dev-loop`; the compatibility/internal skills remain installable and inspectable, but they are not presented as equal public workflow choices.
+Readiness and help messaging should lead with `dev-loop`. Internal compatibility seams may still exist for runtime/routing purposes, but the readiness surface should not present them as separate user-facing checks or workflow choices.
 
 The messaging distinguishes between local loop readiness and remote GitHub/Copilot readiness. Missing `gh` or `gh auth` blocks remote-loop readiness, but does not imply that local phase-based work is completely unavailable.
 

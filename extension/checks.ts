@@ -55,6 +55,7 @@ async function insideGitRepo(pi: ExtensionAPI): Promise<boolean> {
 
 export function createExtensionCoreRuntime(pi: ExtensionAPI) {
   return {
+    surface: "extension" as const,
     commandExists: (command: string) => commandExists(pi, command),
     ghAuthOk: () => ghAuthOk(pi),
     insideGitRepo: () => insideGitRepo(pi),

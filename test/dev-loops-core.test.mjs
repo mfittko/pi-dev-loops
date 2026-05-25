@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { executeDevLoopsCommand, parseDevLoopsCommand } from "../lib/dev-loops-core.mjs";
+import { collectDevLoopChecks, executeDevLoopsCommand, parseDevLoopsCommand } from "../lib/dev-loops-core.mjs";
 
 function createRuntime(overrides = {}) {
   return {
@@ -95,31 +95,15 @@ test("shared executor returns deterministic status and blocked install results",
   const status = await executeDevLoopsCommand({
     input: ["status"],
     surface: "cli",
-    runtime: createRuntime({
-      async getSkillAvailability(skillName) {
-        if (skillName === "copilot-autopilot") {
-          return {
-            ok: false,
-            availableDetail: "",
-            unavailableDetail: "skill missing",
-          };
-        }
-
-        return {
-          ok: true,
-          availableDetail: `skill available: ${skillName}`,
-          unavailableDetail: `skill missing: ${skillName}`,
-        };
-      },
-    }),
+    runtime: createRuntime(),
     homeDirectory: "/tmp/home",
   });
 
   assert.equal(status.kind, "checks");
   assert.equal(status.action, "status");
   assert.equal(status.checks[0].id, "gh-installed");
-  assert.equal(status.checks[6].id, "copilot-autopilot-skill");
-  assert.equal(status.checks[6].ok, false);
+  assert.equal(status.checks[4].id, "local-dev-loop-skill");
+  assert.equal(status.checks[4].ok, true);
 
   const blocked = await executeDevLoopsCommand({
     input: ["install", "repo"],
@@ -138,4 +122,46 @@ test("shared executor returns deterministic status and blocked install results",
     scope: "repo",
     message: "pi-dev-loops install repo: not inside a git repository",
   });
+});
+
+
+test("collectDevLoopChecks uses the caller-provided surface as the single install-guidance authority", async () => {
+  const runtime = createRuntime({
+    surface: "extension",
+    async getSkillAvailability() {
+      return {
+        ok: false,
+        availableDetail: "installed elsewhere",
+        unavailableDetail: "generic missing",
+      };
+    },
+  });
+
+  const cliChecks = await collectDevLoopChecks(runtime, { surface: "cli" });
+  const extensionChecks = await collectDevLoopChecks(runtime, { surface: "extension" });
+
+  const cliDevLoop = cliChecks.find((check) => check.id === "local-dev-loop-skill");
+  const extensionDevLoop = extensionChecks.find((check) => check.id === "local-dev-loop-skill");
+
+  assert.match(cliDevLoop.detail, /pi-dev-loops install repo/i);
+  assert.doesNotMatch(cliDevLoop.detail, /\/dev-loops install repo/i);
+  assert.match(extensionDevLoop.detail, /\/dev-loops install repo/i);
+});
+
+
+test("collectDevLoopChecks applies surface-aware dev-loop guidance for object probes too", async () => {
+  const cliChecks = await collectDevLoopChecks(createRuntime({
+    surface: "cli",
+    async getSkillAvailability(skillName) {
+      return {
+        ok: false,
+        availableDetail: `installed elsewhere: ${skillName}`,
+        unavailableDetail: `generic missing: ${skillName}`,
+      };
+    },
+  }));
+
+  const localSkill = cliChecks.find((check) => check.id === "local-dev-loop-skill");
+  assert.match(localSkill.detail, /pi-dev-loops install repo/i);
+  assert.doesNotMatch(localSkill.detail, /generic missing: dev-loop/i);
 });

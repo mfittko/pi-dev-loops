@@ -13,8 +13,6 @@ const SETUP_GUIDANCE: Record<(typeof DEV_LOOP_CHECK_IDS)[number], string> = {
   "subagent-tool": "Install or enable `pi-subagents`; the shared loop workflows assume subagent support.",
   "git-repo": "Open Pi inside a git repository checkout before using the shared loops.",
   "local-dev-loop-skill": INSTALL_GUIDANCE,
-  "copilot-dev-loop-skill": INSTALL_GUIDANCE,
-  "copilot-autopilot-skill": INSTALL_GUIDANCE,
 };
 
 function readinessLabel(ready: boolean): string {

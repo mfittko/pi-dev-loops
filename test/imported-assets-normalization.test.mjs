@@ -105,12 +105,13 @@ test("workflow docs keep helper/runtime authority code-owned and dev-loop scope 
 });
 
 test("repo docs define dev-loop as the public façade and keep specialized loops as compatibility paths", async () => {
-  const [readme, plan, agents, workflowDoc, publicContract, devLoopSkill, copilotSkill, autopilotSkill] = await Promise.all([
+  const [readme, plan, agents, workflowDoc, publicContract, extensionReadme, devLoopSkill, copilotSkill, autopilotSkill] = await Promise.all([
     readRepo("README.md"),
     readRepo("PLAN.md"),
     readRepo("AGENTS.md"),
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),
     readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("extension/README.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
     readRepo("skills/copilot-autopilot/SKILL.md"),
@@ -124,6 +125,7 @@ test("repo docs define dev-loop as the public façade and keep specialized loops
   assert.match(publicContract, /copilot_pr_followup/i);
   assert.match(publicContract, /external_pr_followup/i);
   assert.match(publicContract, /Single-entrypoint convergence posture/i);
+  assert.match(publicContract, /Surfaced-UX deprecation readiness bar/i);
 
   for (const [label, content] of [
     ["README.md", readme],
@@ -135,6 +137,12 @@ test("repo docs define dev-loop as the public façade and keep specialized loops
     assert.match(content, /public/i, `${label} should preserve public-entrypoint framing`);
     assert.match(content, /compatibility|internal/i, `${label} should preserve compatibility/internal framing`);
   }
+
+  assert.match(readme, /single public façade/i, "README should lead with dev-loop as the public façade");
+  assert.doesNotMatch(readme, /`copilot-dev-loop` as the/i, "README should not present internal seams as workflow-surface choices");
+  assert.doesNotMatch(readme, /`copilot-autopilot` as the/i, "README should not present internal seams as workflow-surface choices");
+  assert.match(extensionReadme, /single public workflow entrypoint/i, "extension README should lead with the public entrypoint");
+  assert.doesNotMatch(extensionReadme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i, "extension README should not surface internal seam names as readiness choices");
 
   assert.match(devLoopSkill, /authoritative contract is `docs\/public-dev-loop-contract\.md`/i);
   assert.match(devLoopSkill, /@pi-dev-loops\/core\/loop\/public-dev-loop-routing/i);
