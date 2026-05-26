@@ -34,10 +34,25 @@ This contract starts **after**:
 
 | Component | Location |
 |---|---|
-| Core projection module | `packages/core/src/loop/conductor-pr-projection.mjs` |
+| Published package export | `@pi-dev-loops/core/loop/conductor-pr-projection` |
+| Core projection module (source repo) | `packages/core/src/loop/conductor-pr-projection.mjs` |
 | Core unit tests | `packages/core/test/conductor-pr-projection.test.mjs` |
 
 ---
+
+## Packaged / installed agent use
+
+When this contract is consumed from an installed skill or packaged agent runtime, do **not** assume
+source-repository-relative paths such as `packages/core/...` or `docs/...` exist beside the active
+checkout.
+
+Use this rule:
+- prefer the published runtime surface `@pi-dev-loops/core/loop/conductor-pr-projection` when code
+  needs to import or evaluate the projection helpers
+- use this contract doc as the human-readable behavior summary when the source repository is
+  available
+- keep skill guidance thin and refer back to this contract instead of restating the full projection
+  state model in prompt text
 
 ## Authority boundary
 
