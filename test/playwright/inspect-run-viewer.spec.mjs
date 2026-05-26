@@ -55,7 +55,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
 
     await expect(page.getByRole("link", { name: "PR #55" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Current PR" })).toBeVisible();
-    const currentStateBanner = page.locator('section[aria-label="PR #55"]');
+    const currentStateBanner = page.locator('[aria-label="PR #55"]');
     await expect(currentStateBanner).toBeVisible();
     await expect(currentStateBanner.getByTitle("Waiting state")).toBeVisible();
     await expect(currentStateBanner.getByText("Waiting for Copilot review")).toBeVisible();
@@ -265,7 +265,7 @@ test("webkit shows terminal merged states clearly in the Mermaid graph", async (
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    const currentStateBanner = page.locator('section[aria-label="PR #55"]');
+    const currentStateBanner = page.locator('[aria-label="PR #55"]');
     await expect(currentStateBanner.getByRole("heading", { name: "Current PR" })).toBeVisible();
     await expect(currentStateBanner.getByText("PR complete")).toBeVisible();
     await expect(page.locator(".current-pr-state-grid")).toContainText(/status class/);

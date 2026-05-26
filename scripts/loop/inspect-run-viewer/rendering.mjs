@@ -439,9 +439,36 @@ function renderStateGraphDetails(graph) {
 function renderMermaidBootScript() {
   return `<script src="${MERMAID_BROWSER_ASSET_ROUTE}"></script>
     <script>
-      (() => {
+      (async () => {
         const frames = Array.from(document.querySelectorAll(".state-graph-frame"));
         const graphs = Array.from(document.querySelectorAll(".mermaid-state-graph"));
+        const resolveMermaidApi = () => {
+          const direct = window.mermaid;
+          if (direct && typeof direct.initialize === "function" && typeof direct.run === "function") {
+            return direct;
+          }
+          const nested = direct && typeof direct === "object" ? direct.default : null;
+          if (nested && typeof nested.initialize === "function" && typeof nested.run === "function") {
+            return nested;
+          }
+          return null;
+        };
+        const waitForMermaidApi = (timeoutMs = 3000, pollMs = 50) => new Promise((resolve) => {
+          const deadline = Date.now() + timeoutMs;
+          const check = () => {
+            const api = resolveMermaidApi();
+            if (api) {
+              resolve(api);
+              return;
+            }
+            if (Date.now() >= deadline) {
+              resolve(null);
+              return;
+            }
+            window.setTimeout(check, pollMs);
+          };
+          check();
+        });
         const clampScale = (value) => Math.max(0.5, Math.min(5, value));
         const updateFrameScale = (frame, requestedScale) => {
           const scale = clampScale(requestedScale);
@@ -655,12 +682,13 @@ function renderMermaidBootScript() {
         if (graphs.length === 0) {
           return;
         }
-        if (typeof window.mermaid === "undefined") {
+        const mermaidApi = await waitForMermaidApi();
+        if (!mermaidApi) {
           renderFallback("Mermaid browser asset unavailable. Use the details below or open /snapshot.json.");
           return;
         }
 
-        window.mermaid.initialize({
+        mermaidApi.initialize({
           startOnLoad: false,
           securityLevel: "strict",
           theme: "base",
@@ -671,7 +699,7 @@ function renderMermaidBootScript() {
           },
         });
 
-        window.mermaid.run({ nodes: graphs }).then(async () => {
+        mermaidApi.run({ nodes: graphs }).then(async () => {
           await Promise.all(graphs.map(async (graph) => {
             graph.dataset.rendered = "settling";
             const frame = graph.closest(".state-graph-frame");
