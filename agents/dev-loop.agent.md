@@ -27,7 +27,7 @@ Interpret issue-based shorthand triggers like `auto dev loop on issue <n>`, `ent
 Respect repository contract routing posture:
 - route `dev-loop` deterministically to GitHub-first internal strategies when work should move through GitHub branches, pull requests, CI, and review
 - route to the local implementation strategy only when the user explicitly requests a local phase-based path
-- keep `copilot-dev-loop` and `copilot-autopilot` as compatibility/internal entrypoints during migration
+- keep any specialized Copilot behavior behind `dev-loop` as internal routed logic, helper modules, or non-user-facing implementation details
 
 If the current issue/PR/local state is materially unclear, contradictory, off-trail, or not cleanly covered by deterministic guidance, stop and ask for human direction rather than guessing.
 

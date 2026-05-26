@@ -72,10 +72,10 @@ Use this taxonomy consistently across docs, discovery surfaces, and tests:
 | Surface class | Entrypoints | Guardrail |
 |---|---|---|
 | Public workflow entrypoint | `dev-loop` | treat as the default and converging public workflow surface |
-| Temporary internal strategy seams | `copilot-dev-loop`, `copilot-autopilot` | keep only as routed transitional seams for now; deprecate them from the intended public surface and do not present them as equal first-choice workflows |
+| Internal routed strategy modules | `copilot-dev-loop`, `copilot-autopilot` logic | keep internal-only behind `dev-loop`; do not expose as executable peer workflow entrypoints |
 | Reusable role agents | `coordinator`, `developer`, `docs`, `review`, `fixer`, `quality`, `refiner` | keep framed as reusable building blocks, not peer public workflow entrypoints |
 
-These internal seams are temporary. Keep them only until their routed behavior is absorbed by the single public `dev-loop` entrypoint and its bounded API/parameter surface.
+Any remaining specialized Copilot behavior stays internal-only behind `dev-loop`.
 
 Regression tests must fail if this taxonomy drifts in wording or surfaced entrypoint assets.
 
@@ -195,17 +195,17 @@ Next action: <resolved next action>
 
 The public router currently maps to these deterministic internal strategies:
 
-| Strategy | Used for | Compatibility entrypoint |
+| Strategy | Used for | Public workflow entrypoint exposure |
 |---|---|---|
 | `local_implementation` | local branch/phase work and explicit local starts | `dev-loop` |
-| `issue_intake` | issue-first normalization/intake before PR follow-up | `copilot-autopilot` |
-| `copilot_pr_followup` | Copilot-owned PR follow-up | `copilot-dev-loop` |
+| `issue_intake` | issue-first normalization/intake before PR follow-up | none (internal-only via `dev-loop` routing) |
+| `copilot_pr_followup` | Copilot-owned PR follow-up | none (internal-only via `dev-loop` routing) |
 | `external_pr_followup` | external-human contributor PR follow-up | none |
 | `reviewer_fixer` | reviewer/fixer passes on the current PR | none |
-| `wait_watch` | waiting/watch states | `dev-loop` or `copilot-dev-loop`, depending on ownership |
+| `wait_watch` | waiting/watch states | `dev-loop` |
 | `final_approval` | approval-ready or merge-ready gate | none |
 
-The compatibility entrypoints remain available during migration, but they are no longer the primary public UX.
+Internal strategy naming is implementation detail; normal orchestration always starts from `dev-loop`.
 
 ## Authoritative gate contract
 
@@ -289,7 +289,7 @@ flowchart TD
 ## Single-entrypoint convergence posture
 
 - `dev-loop` is the only intended public workflow entrypoint.
-- `copilot-dev-loop` and `copilot-autopilot` are temporary internal seams kept only until the cleanup/convergence work lands; this slice does not remove them yet.
+- any remaining `copilot-dev-loop` and `copilot-autopilot` behavior is internal-only and non-user-invocable.
 - Documentation and examples should lead with `dev-loop` and explain routed behavior.
 - Almost all workflow branching should converge into deterministic state-machine/tooling surfaces behind `dev-loop`.
 - User-visible variation should be expressed through the external `dev-loop` API / bounded parameters or settings, not by preserving multiple public workflow names.
@@ -354,7 +354,7 @@ These are parameterized uses of `dev-loop`, not new workflow-facing entrypoints.
 
 ## Non-goals for this slice
 
-- deleting `copilot-dev-loop` or `copilot-autopilot` in this one PR
+- broad deletion of lower-level helper logic that `dev-loop` still routes to internally
 - flattening actor/ownership differences between local, Copilot, reviewer, maintainer, and external-human paths
 - replacing existing lower-level state machines with prompt-only branching
 - wiring every runtime helper through this façade in one change
@@ -364,9 +364,9 @@ These are parameterized uses of `dev-loop`, not new workflow-facing entrypoints.
 
 | User intent | Canonical state / route |
 |---|---|
-| start dev loop on issue `86` with no linked PR | synthesize issue target -> `issue_intake` -> current internal seam `copilot-autopilot` |
-| start dev loop on issue `86` with linked PR `88` and Copilot ownership | issue target + `linkedPr=88` -> route as PR `88` -> `copilot_pr_followup` -> current internal seam `copilot-dev-loop` |
-| continue dev loop on PR `88` with Copilot ownership | PR target + `ownership=copilot` -> `copilot_pr_followup` -> current internal seam `copilot-dev-loop` |
+| start dev loop on issue `86` with no linked PR | synthesize issue target -> `issue_intake` internal strategy (routed behind `dev-loop`) |
+| start dev loop on issue `86` with linked PR `88` and Copilot ownership | issue target + `linkedPr=88` -> route as PR `88` -> `copilot_pr_followup` internal strategy (routed behind `dev-loop`) |
+| continue dev loop on PR `88` with Copilot ownership | PR target + `ownership=copilot` -> `copilot_pr_followup` internal strategy (routed behind `dev-loop`) |
 | start issue `86` locally, then continue the loop | local phase slice for issue `86` -> `local_implementation`, then resume via public `dev-loop` against the updated state |
 | continue the current dev loop while waiting | same target + `status=waiting` -> `wait_watch` |
 | what state is the dev loop in? | inspect the canonical state and report the routed internal strategy without switching public entrypoints |

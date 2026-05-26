@@ -9,14 +9,14 @@ description: >-
   any GitHub or branch state changes.
 compatibility: Pi skill for git+GitHub repositories. Requires gh auth; async follow-up works best in Pi/TelePi sessions.
 allowed-tools: read bash edit write subagent review_loop
-user-invocable: true
+user-invocable: false
 ---
 
 # Copilot Dev Loop
 
 This skill is the Copilot-owned PR follow-up compatibility/internal strategy behind the public `dev-loop` façade.
 
-Use it when the public `dev-loop` router lands on a Copilot-owned issue/PR path, or when a user explicitly asks for `copilot-dev-loop` for backwards-compatible behavior. Keep repository specifics grounded in the active repo's actual files, scripts, CI, and GitHub state rather than assuming a hard-coded project layout.
+Use it only when the public `dev-loop` router lands on a Copilot-owned issue/PR path. Keep repository specifics grounded in the active repo's actual files, scripts, CI, and GitHub state rather than assuming a hard-coded project layout.
 
 Typical triggers:
 - start the copilot dev loop
