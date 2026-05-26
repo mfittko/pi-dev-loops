@@ -586,6 +586,33 @@ test("evaluateProjection: MERGE_DETECTED summary mentions complete when postMerg
   assert.match(result.summary, /complete/i);
 });
 
+test("evaluateProjection: settle summaries normalize headSha for display", () => {
+  const waitResult = evaluateProjection({
+    transition: PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED,
+    target: BASE_TARGET,
+    context: { headSha: "  ABCDEF1234  " },
+  });
+  assert.match(waitResult.summary, /abcdef1234/);
+  assert.doesNotMatch(waitResult.summary, /ABCDEF1234/);
+
+  const achievedResult = evaluateProjection({
+    transition: PROJECTION_TRANSITION.COPILOT_SETTLE_ACHIEVED,
+    target: BASE_TARGET,
+    context: { headSha: "  ABCDEF1234  " },
+  });
+  assert.match(achievedResult.summary, /abcdef1234/);
+  assert.doesNotMatch(achievedResult.summary, /ABCDEF1234/);
+});
+
+test("evaluateProjection: settle summaries omit invalid headSha display values", () => {
+  const result = evaluateProjection({
+    transition: PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED,
+    target: BASE_TARGET,
+    context: { headSha: "bad sha" },
+  });
+  assert.equal(result.summary, "Waiting for fresh Copilot pass to settle.");
+});
+
 // ---------------------------------------------------------------------------
 // evaluateProjection — projectionRequirement field
 // ---------------------------------------------------------------------------

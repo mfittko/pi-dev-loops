@@ -119,11 +119,13 @@ must **not** emit duplicate visible PR comments or write duplicate artifacts.
 
 ### Projection key
 
-Every projection event produces a stable idempotency key via `computeProjectionKey`:
+When the input is valid and authoritative enough to project safely, `computeProjectionKey` returns a stable idempotency key:
 
 ```
 <normalized-repo>#<pr>/<transition>[/<extra>]
 ```
+
+When the target, transition, or keyed context is invalid or non-authoritative, `computeProjectionKey` fails closed to `null`, and callers must suppress visible projection/artifact emission instead of inventing an unstable identity.
 
 The `extra` component is included only when the transition's idempotency depends on additional
 context:

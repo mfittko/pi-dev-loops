@@ -579,6 +579,7 @@ function deriveMentionTrigger(transition, context = {}) {
 
 function buildSummary(transition, context = {}) {
   const normalizedContext = context && typeof context === "object" ? context : {};
+  const normalizedHeadSha = normalizeHeadSha(normalizedContext.headSha);
 
   switch (transition) {
     case PROJECTION_TRANSITION.DRAFT_GATE_ENTERED:
@@ -588,12 +589,12 @@ function buildSummary(transition, context = {}) {
     case PROJECTION_TRANSITION.COPILOT_REVIEW_REQUESTED:
       return "Copilot review requested for the current head.";
     case PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED:
-      return normalizedContext.headSha
-        ? `Waiting for fresh Copilot pass to settle on head ${normalizedContext.headSha}.`
+      return normalizedHeadSha
+        ? `Waiting for fresh Copilot pass to settle on head ${normalizedHeadSha}.`
         : "Waiting for fresh Copilot pass to settle.";
     case PROJECTION_TRANSITION.COPILOT_SETTLE_ACHIEVED:
-      return normalizedContext.headSha
-        ? `Clean Copilot settle achieved on head ${normalizedContext.headSha}.`
+      return normalizedHeadSha
+        ? `Clean Copilot settle achieved on head ${normalizedHeadSha}.`
         : "Clean Copilot settle achieved on current head.";
     case PROJECTION_TRANSITION.COPILOT_LOOP_CONVERGED:
       return "Copilot loop converged; no unresolved feedback remains.";
