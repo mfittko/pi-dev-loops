@@ -27,7 +27,15 @@
     "test:core": "node --test packages/core/test/*.test.mjs",
     "test:dev-loop": "npm --prefix skills/dev-loop test",
     "playwright:install:safari": "playwright install webkit",
-    "test:playwright:viewer": "playwright test -c playwright.inspect-run-viewer.config.mjs"
+    "test:playwright:viewer": "playwright test -c playwright.inspect-run-viewer.config.mjs",
+    "repo-wiki:prepare": "node scripts/repo-wiki-local.mjs prepare",
+    "repo-wiki:init": "node scripts/repo-wiki-local.mjs init --repo .",
+    "repo-wiki:scan": "node scripts/repo-wiki-local.mjs scan --repo . --out .llmwiki/run",
+    "repo-wiki:plan": "node scripts/repo-wiki-local.mjs plan --scan .llmwiki/run --out .llmwiki/bootstrap-plan.json",
+    "repo-wiki:compile": "node scripts/repo-wiki-local.mjs compile --scan .llmwiki/run --plan .llmwiki/bootstrap-plan.json --wiki .llmwiki/wiki",
+    "repo-wiki:lint-docs": "node scripts/repo-wiki-local.mjs lint-docs --repo . --scan .llmwiki/run",
+    "repo-wiki:bootstrap": "npm run repo-wiki:scan && npm run repo-wiki:plan && npm run repo-wiki:compile",
+    "repo-wiki:search": "node scripts/repo-wiki-local.mjs search --wiki .llmwiki/wiki"
   },
   "bin": {
     "pi-dev-loops": "./bin/pi-dev-loops.mjs"

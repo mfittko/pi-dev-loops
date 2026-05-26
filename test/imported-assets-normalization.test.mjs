@@ -85,25 +85,25 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
   assert.match(devLoopSkill, /wire it into CI once it becomes required validation for that slice/i);
 });
 
-test("repo-wiki readiness note fail-closes the manual-first slice when external consumption is not yet viable", async () => {
+test("repo-wiki manual-first doc describes a real local runnable export path", async () => {
   const content = await readRepo("docs/repo-wiki-manual-first.md");
 
-  assert.match(content, /\*\*not\*\* shipping a checked-in `repo-wiki` integration yet/i);
-  assert.match(content, /npx repo-wiki@0\.2\.0 --help/);
-  assert.match(content, /404 Not Found/);
-  assert.match(content, /git ls-remote https:\/\/github\.com\/mfittko\/pi-dev-loops\.wiki\.git/);
-  assert.match(content, /Repository not found/);
+  assert.match(content, /local runnable `repo-wiki` export path/i);
+  assert.match(content, /does \*\*not\*\* claim that `repo-wiki` is ready for npm-based external consumption/i);
+  assert.match(content, /plain GitHub-sourced npm install is not sufficient right now/i);
+  assert.match(content, /npm install github:mfittko\/repo-wiki#d7e772e3d702a75896a6f4eec574a4e4e5bfa6dd/i);
+  assert.match(content, /does \*\*not\*\* include a built `dist\/` CLI payload/i);
+  assert.match(content, /scripts\/repo-wiki-local\.mjs/i);
   assert.match(content, /`\.llmwiki\/config\.json`/);
   assert.match(content, /`\.llmwiki\/schema\.md`/);
-  assert.match(content, /compile helper scripts/);
-  assert.match(content, /CI automation/);
-  assert.match(content, /fallback publish machinery/);
-  assert.match(content, /Do \*\*not\*\* check in, commit, or publish these integration surfaces in this blocked slice:/);
-  assert.match(content, /`README\.md`/);
-  assert.match(content, /`skills\/dev-loop\/SKILL\.md`/);
-  assert.match(content, /`tmp\/\*\*`/);
-  assert.match(content, /npx repo-wiki run/);
-  assert.match(content, /npx repo-wiki publish/);
+  assert.match(content, /\.llmwiki\/wiki\//i);
+  assert.match(content, /\.tmp\/repo-wiki\//i);
+  assert.match(content, /npm run repo-wiki:prepare/i);
+  assert.match(content, /npm run repo-wiki:bootstrap/i);
+  assert.match(content, /npm run repo-wiki:search -- "dev-loop"/i);
+  assert.match(content, /find \.llmwiki\/wiki -maxdepth 1 -type f \| sort/i);
+  assert.match(content, /GitHub Wiki publish from this repository/i);
+  assert.match(content, /CI automation for wiki export\/publish/i);
 });
 
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {

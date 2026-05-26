@@ -3,6 +3,12 @@ coverage/
 dist/
 .tmp/
 tmp/
+.llmwiki/run/
+.llmwiki/wiki/
+.llmwiki/search/
+.llmwiki/bootstrap-plan.json
+.llmwiki/incremental-plan.json
+.llmwiki/graph.json
 playwright-report/
 test-results/
 .DS_Store

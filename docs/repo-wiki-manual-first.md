@@ -1,123 +1,165 @@
-# repo-wiki manual-first readiness note
+# repo-wiki manual-first local export
 
 ## Status
 
-This repository is **not** shipping a checked-in `repo-wiki` integration yet.
+This repository now has a **local runnable `repo-wiki` export path**.
 
-The issue's stop rule applies here: fail closed if `repo-wiki` is not usable enough for repeatable external consumption. During this bounded attempt, that viability check failed before a repo-local config, compile run, or GitHub Wiki publish could be justified.
+This slice is intentionally limited to local export. It does **not** claim that `repo-wiki` is ready for npm-based external consumption, GitHub Wiki publication, or CI automation from this repository yet.
 
-Source files in this repository remain authoritative. A generated wiki is still intended only as a navigation aid.
+Source files in this repository remain authoritative. Generated wiki output is a navigation aid, not the source of truth.
 
-## Viability probes run for this slice
+## Why the install path is script-backed instead of a normal devDependency
 
-### 1. External install/run probe
+A plain GitHub-sourced npm install is not sufficient right now.
 
-Command:
+Observed probe:
 
 ```bash
-npx repo-wiki@0.2.0 --help
+npm install github:mfittko/repo-wiki#d7e772e3d702a75896a6f4eec574a4e4e5bfa6dd
 ```
 
 Observed result:
+- npm can fetch the package metadata from GitHub
+- but the installed package does **not** include a built `dist/` CLI payload
+- there is no checked-in build artifact in the GitHub source snapshot to execute directly after install
 
-- npm returned `404 Not Found` for `repo-wiki@0.2.0`
-- there is no repeatable public npm install path yet for this repository to consume
+Because of that, this repository uses a pinned local helper that:
+- clones `mfittko/repo-wiki` at a fixed commit
+- runs `npm install` in that checkout
+- builds the CLI locally
+- then proxies the requested `repo-wiki` command against this repository
 
-### 2. GitHub Wiki remote probe
+Pinned source ref used by the helper:
+- `d7e772e3d702a75896a6f4eec574a4e4e5bfa6dd`
 
-Command:
+Helper entrypoint:
+- `scripts/repo-wiki-local.mjs`
 
-```bash
-git ls-remote https://github.com/mfittko/pi-dev-loops.wiki.git
-```
+## Local prerequisites
 
-Observed result:
+- Node.js 24+ (matches the current `repo-wiki` engine requirement)
+- git access to `https://github.com/mfittko/repo-wiki.git`
+- npm available locally
 
-- GitHub returned `Repository not found`
-- the GitHub Wiki publish target was not reachable as a git remote during this attempt
+## Checked-in local config
 
-## Decision for this issue slice
-
-Stop here.
-
-Do **not** check in, commit, or publish these integration surfaces in this blocked slice:
-
+This repository now checks in the minimal local repo-wiki config needed for a bounded export:
 - `.llmwiki/config.json`
 - `.llmwiki/schema.md`
-- compile helper scripts
-- CI automation
-- fallback publish machinery
 
-Those would create repo-local integration surface without a verified external tool install path or a reachable GitHub Wiki target.
+Generated outputs remain untracked via `.gitignore`, including:
+- `.llmwiki/run/`
+- `.llmwiki/wiki/`
+- `.llmwiki/search/`
+- `.llmwiki/bootstrap-plan.json`
+- `.llmwiki/incremental-plan.json`
+- `.tmp/repo-wiki/`
 
-## Intended first compilation boundary once the blockers are cleared
+## Bounded first export boundary
 
-Keep the first publish intentionally narrow:
+The initial local export remains intentionally narrow.
 
-Included:
-
+Included documentation inputs:
 - `README.md`
 - `AGENTS.md`
 - `docs/IMPLEMENTATION_WORKFLOW.md`
 - `docs/public-dev-loop-contract.md`
 - `docs/conductor-routing-contract.md`
+- `docs/repo-wiki-manual-first.md`
 - `scripts/README.md`
 - `skills/dev-loop/SKILL.md`
-- a bounded helper subset under `scripts/` and `packages/core/` only where source grounding is needed for the public `dev-loop` workflow contract
 
-Intentionally excluded from the first publish:
-
+Still intentionally excluded from this first local path:
 - `tmp/**`
-- phase-local planning artifacts under `docs/phases/`
-- broad repo-wide ingestion of every skill, agent, script, test, or implementation detail
-- CI/scheduled sync automation
-- any attempt to make the wiki authoritative over source docs, code, tests, or contracts
+- `docs/phases/**`
+- broad ingestion of every skill, agent, script, test, or implementation detail
+- GitHub Wiki publish automation
+- scheduled sync
+- any attempt to make generated wiki output authoritative over source docs, code, tests, or contracts
 
-## Manual rerun path after the blockers are resolved
+## Local commands that work
 
-Prerequisites:
-
-- Node.js 20+ (matches the repository engine requirement until `repo-wiki` documents a stricter runtime floor)
-- a released or otherwise documented repeatable `repo-wiki` install path
-- GitHub Wiki enabled and reachable at `https://github.com/mfittko/pi-dev-loops.wiki.git`
-- authenticated git/GitHub credentials that are allowed to publish the wiki
-
-Suggested rerun sequence:
+Prepare the pinned local helper checkout:
 
 ```bash
-npx repo-wiki init --repo .
+npm run repo-wiki:prepare
 ```
 
-Then tighten the generated `.llmwiki/config.json` to the bounded scope above and run:
+Run the local bootstrap export:
 
 ```bash
-npx repo-wiki run \
-  --mode bootstrap \
-  --repo . \
-  --scan .llmwiki/run \
-  --plan .llmwiki/bootstrap-plan.json \
-  --wiki .llmwiki/wiki
+npm run repo-wiki:bootstrap
 ```
 
-Inspect generated output before publish:
+That script expands to a bounded local sequence that avoids the current `repo-wiki run` lint-docs gate while the repository still has known contradicted-doc warnings outside this slice:
 
 ```bash
+npm run repo-wiki:scan
+npm run repo-wiki:plan
+npm run repo-wiki:compile
+```
+
+If you want to inspect the documentation lint output separately, run:
+
+```bash
+npm run repo-wiki:lint-docs
+```
+
+Search the generated local wiki output:
+
+```bash
+npm run repo-wiki:search -- "dev-loop"
+```
+
+If you need to regenerate `.llmwiki/config.json` and `.llmwiki/schema.md` from the helper instead of using the checked-in versions:
+
+```bash
+npm run repo-wiki:init
+```
+
+## What the helper does
+
+`npm run repo-wiki:prepare` creates a pinned local source checkout under:
+
+```text
+.tmp/repo-wiki/d7e772e3d702a75896a6f4eec574a4e4e5bfa6dd/source/
+```
+
+Then it:
+1. clones `mfittko/repo-wiki`
+2. checks out the pinned commit
+3. runs `npm install`
+4. runs `npm run build`
+5. uses `dist/bin/repo-wiki.js` from that prepared checkout for later commands
+
+This keeps the local path reproducible without pretending a normal npm consumption path already exists.
+
+## Local verification performed for this slice
+
+The following commands were run successfully for this repository:
+
+```bash
+npm run repo-wiki:prepare
+npm run repo-wiki:scan
+npm run repo-wiki:plan
+npm run repo-wiki:compile
 find .llmwiki/wiki -maxdepth 1 -type f | sort
 ```
 
-Publish only after the local compile output looks correct:
+Standard changed-scope repo validation was also run:
 
 ```bash
-npx repo-wiki publish \
-  --target github-wiki \
-  --wiki .llmwiki/wiki \
-  --remote https://github.com/mfittko/pi-dev-loops.wiki.git
+git diff --check
+node --test test/imported-assets-normalization.test.mjs test/loop/repo-wiki-local.test.mjs
+npm test
 ```
 
-## Explicit non-goals for the blocked state
+## Deferred work
 
-- no checked-in partial integration surface
-- no scheduled refresh
-- no GitHub Actions publish wiring
-- no repo-specific workaround for an unpublished external tool
-- no ad hoc wiki patching outside the documented rerun path
+Still deferred from this slice:
+- npm publication/readiness for `repo-wiki`
+- GitHub Wiki publish from this repository
+- CI automation for wiki export/publish
+- scheduled sync
+
+Those should come back as separate follow-up work once the local manual-first path is stable enough and the publish target/packaging story is intentionally chosen.
