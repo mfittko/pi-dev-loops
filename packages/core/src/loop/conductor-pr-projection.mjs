@@ -235,7 +235,7 @@ export function defaultProjectionConfig() {
  * @param {string} [context.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
  * @param {string} [context.blockerKey] Optional stable blocker identifier for BLOCKED transitions.
  * @param {string} [context.headSha] Optional head commit SHA for settle transitions.
- * @returns {string|null} Stable idempotency key, or null when target is invalid.
+ * @returns {string|null} Stable idempotency key, or null when the inputs fail closed (for example invalid target, unknown transition, or invalid keyed context).
  */
 export function computeProjectionKey(transition, target, context = {}) {
   const normalizedContext = context && typeof context === "object" ? context : {};
