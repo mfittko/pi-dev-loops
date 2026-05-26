@@ -247,7 +247,7 @@ export function computeProjectionKey(transition, target, context = {}) {
   const base = `${normalizedTarget.repo}#${normalizedTarget.pr}/${normalizedTransition}`;
 
   if (normalizedTransition === PROJECTION_TRANSITION.MERGE_DETECTED) {
-    if (Object.hasOwn(context, "postMergeKind")) {
+    if (context.postMergeKind !== undefined && context.postMergeKind !== null) {
       const mergeKind = normalizePostMergeKind(context.postMergeKind);
       return mergeKind === null ? null : `${base}/${mergeKind}`;
     }
@@ -258,7 +258,7 @@ export function computeProjectionKey(transition, target, context = {}) {
     normalizedTransition === PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION ||
     normalizedTransition === PROJECTION_TRANSITION.RECONCILE_REQUIRED
   ) {
-    if (!Object.hasOwn(context, "blockerKey")) {
+    if (context.blockerKey === undefined || context.blockerKey === null) {
       return base;
     }
     const blockerKey = normalizeBlockerKey(context.blockerKey);
@@ -269,7 +269,7 @@ export function computeProjectionKey(transition, target, context = {}) {
     normalizedTransition === PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED ||
     normalizedTransition === PROJECTION_TRANSITION.COPILOT_SETTLE_ACHIEVED
   ) {
-    if (!Object.hasOwn(context, "headSha")) {
+    if (context.headSha === undefined || context.headSha === null) {
       return base;
     }
     const headSha = normalizeHeadSha(context.headSha);

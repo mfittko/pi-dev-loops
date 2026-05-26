@@ -181,6 +181,26 @@ test("computeProjectionKey trims and validates MERGE_DETECTED postMergeKind", ()
   );
 });
 
+
+test("computeProjectionKey treats undefined/null MERGE_DETECTED postMergeKind as omitted", () => {
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.MERGE_DETECTED,
+      BASE_TARGET,
+      { postMergeKind: undefined },
+    ),
+    "acme/my-repo#42/merge_detected/terminal_closeout",
+  );
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.MERGE_DETECTED,
+      BASE_TARGET,
+      { postMergeKind: null },
+    ),
+    "acme/my-repo#42/merge_detected/terminal_closeout",
+  );
+});
+
 test("computeProjectionKey does NOT append postMergeKind for non-MERGE_DETECTED transitions", () => {
   const key = computeProjectionKey(
     PROJECTION_TRANSITION.COPILOT_LOOP_CONVERGED,
@@ -219,6 +239,26 @@ test("computeProjectionKey returns null for unsafe blockerKey segments", () => {
   );
 });
 
+
+test("computeProjectionKey treats undefined/null blockerKey as omitted", () => {
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION,
+      BASE_TARGET,
+      { blockerKey: undefined },
+    ),
+    "acme/my-repo#42/blocked_needs_human_decision",
+  );
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.RECONCILE_REQUIRED,
+      BASE_TARGET,
+      { blockerKey: null },
+    ),
+    "acme/my-repo#42/reconcile_required",
+  );
+});
+
 test("computeProjectionKey appends headSha for COPILOT_SETTLE_WAIT_ENTERED when provided", () => {
   const key = computeProjectionKey(
     PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED,
@@ -251,6 +291,26 @@ test("computeProjectionKey normalizes and validates settle headSha", () => {
       { headSha: "abc/1234" },
     ),
     null,
+  );
+});
+
+
+test("computeProjectionKey treats undefined/null settle headSha as omitted", () => {
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED,
+      BASE_TARGET,
+      { headSha: undefined },
+    ),
+    "acme/my-repo#42/copilot_settle_wait_entered",
+  );
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.COPILOT_SETTLE_ACHIEVED,
+      BASE_TARGET,
+      { headSha: null },
+    ),
+    "acme/my-repo#42/copilot_settle_achieved",
   );
 });
 
