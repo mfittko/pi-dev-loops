@@ -138,6 +138,14 @@ test("computeProjectionKey appends postMergeKind for MERGE_DETECTED when provide
   assert.equal(key, "acme/my-repo#42/merge_detected/terminal_closeout");
 });
 
+test("computeProjectionKey defaults MERGE_DETECTED postMergeKind to terminal_closeout when omitted", () => {
+  const key = computeProjectionKey(
+    PROJECTION_TRANSITION.MERGE_DETECTED,
+    BASE_TARGET,
+  );
+  assert.equal(key, "acme/my-repo#42/merge_detected/terminal_closeout");
+});
+
 test("computeProjectionKey does NOT append postMergeKind for non-MERGE_DETECTED transitions", () => {
   const key = computeProjectionKey(
     PROJECTION_TRANSITION.COPILOT_LOOP_CONVERGED,
@@ -287,9 +295,15 @@ test("evaluateProjection: projectionKey is present and stable for valid inputs",
   assert.equal(r1.projectionKey, r2.projectionKey);
 });
 
-test("evaluateProjection: projectionKey is null for invalid target", () => {
-  const result = evaluateProjection({ transition: PROJECTION_TRANSITION.MERGE_DETECTED, target: null });
+test("evaluateProjection: invalid target suppresses projection output", () => {
+  const result = evaluateProjection({
+    transition: PROJECTION_TRANSITION.MERGE_DETECTED,
+    target: null,
+    config: { ...defaultProjectionConfig(), githubStatusComments: { enabled: true } },
+  });
   assert.equal(result.projectionKey, null);
+  assert.equal(result.emitComment, false);
+  assert.equal(result.emitArtifact, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -304,6 +318,21 @@ test("evaluateProjection: checkMention=true for BLOCKED_NEEDS_HUMAN_DECISION", (
 test("evaluateProjection: checkMention=true for RECONCILE_REQUIRED", () => {
   const result = evaluateProjection({ transition: PROJECTION_TRANSITION.RECONCILE_REQUIRED, target: BASE_TARGET });
   assert.equal(result.checkMention, true);
+  assert.equal(result.mentionTrigger, MENTION_TRIGGER.RECONCILE_REQUIRED);
+});
+
+test("evaluateProjection: CONDUCTOR_STOP only requests mention checks when pending action exists", () => {
+  const withoutPending = evaluateProjection({ transition: PROJECTION_TRANSITION.CONDUCTOR_STOP, target: BASE_TARGET });
+  assert.equal(withoutPending.checkMention, false);
+  assert.equal(withoutPending.mentionTrigger, null);
+
+  const withPending = evaluateProjection({
+    transition: PROJECTION_TRANSITION.CONDUCTOR_STOP,
+    target: BASE_TARGET,
+    context: { hasPendingAction: true },
+  });
+  assert.equal(withPending.checkMention, true);
+  assert.equal(withPending.mentionTrigger, MENTION_TRIGGER.CONDUCTOR_STOP_WITH_PENDING_ACTION);
 });
 
 test("evaluateProjection: checkMention=false for routine wait transitions", () => {
@@ -335,6 +364,7 @@ test("evaluateProjection: returns safe no-op for unknown transition", () => {
   assert.equal(result.emitArtifact, false);
   assert.equal(result.projectionKey, null);
   assert.equal(result.checkMention, false);
+  assert.match(result.summary, /unknown conductor projection transition/i);
 });
 
 test("evaluateProjection: returns safe no-op when transition is missing", () => {
@@ -407,9 +437,7 @@ function makeMentionConfig(overrides = {}) {
     ...defaultProjectionConfig(),
     mentions: {
       enabled: true,
-      onBlocked: true,
       allowedUsers: ["mfittko"],
-      blockedAfterMinutes: 30,
       cooldownMinutes: 120,
       ...overrides,
     },

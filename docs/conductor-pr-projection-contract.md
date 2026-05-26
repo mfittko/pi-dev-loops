@@ -114,7 +114,7 @@ Every projection event produces a stable idempotency key via `computeProjectionK
 
 The `extra` component is included only when the transition's idempotency depends on additional
 context:
-- `MERGE_DETECTED` appends `postMergeKind` (`terminal_closeout` or `resumable_continuation`)
+- `MERGE_DETECTED` always appends a deterministic post-merge kind (`terminal_closeout` by default, or `resumable_continuation` when provided)
 - `BLOCKED_NEEDS_HUMAN_DECISION` / `RECONCILE_REQUIRED` append an optional stable `blockerKey`
 - `COPILOT_SETTLE_WAIT_ENTERED` / `COPILOT_SETTLE_ACHIEVED` append an optional `headSha`
 
@@ -174,9 +174,7 @@ the default shape.
 {
   "mentions": {
     "enabled": false,
-    "onBlocked": true,
     "allowedUsers": [],
-    "blockedAfterMinutes": 30,
     "cooldownMinutes": 120
   }
 }
@@ -185,16 +183,14 @@ the default shape.
 | Field | Default | Description |
 |---|---|---|
 | `enabled` | `false` | Must be explicitly `true` to emit any mention |
-| `onBlocked` | `true` | Only emit mentions in genuine blocked states |
 | `allowedUsers` | `[]` | Explicit allow-list; mentions are never sent to users not in this list |
-| `blockedAfterMinutes` | `30` | Minimum blocked duration before a mention is eligible |
 | `cooldownMinutes` | `120` | Cooldown window between mentions for the same effective blocker |
 
 ---
 
 ## Guarded mention rule
 
-Mentions (`@user`) are only emitted when **all four** eligibility criteria are simultaneously
+Mentions (`@user`) are only emitted when **all five** eligibility criteria are simultaneously
 satisfied (via `evaluateMentionEligibility`):
 
 1. `mentions.enabled === true` in config

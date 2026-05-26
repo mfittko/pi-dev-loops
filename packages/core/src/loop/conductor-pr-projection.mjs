@@ -19,7 +19,7 @@
  * - Idempotency keys are stable across restarts/resumes so the same conductor-owned transition
  *   is never re-announced just because a new process observed it.
  * - Status comments are opt-in (default off); mentions are separately opt-in (default off).
- * - Mentions are only emitted when all four eligibility criteria are satisfied simultaneously.
+ * - Mentions are only emitted when all five eligibility criteria are satisfied simultaneously.
  * - Lossy outerAction compatibility projections are NOT accepted as authoritative; callers must
  *   supply the authoritative routingOutcome when available.
  *
@@ -138,7 +138,7 @@ export const POST_MERGE_KIND = Object.freeze({
 
 /**
  * Conditions under which a guarded human mention may be emitted.
- * All four eligibility criteria must be simultaneously satisfied.
+ * All five eligibility criteria must be simultaneously satisfied.
  */
 export const MENTION_TRIGGER = Object.freeze({
   /** Loop blocked; explicit human decision required before automation can continue. */
@@ -200,9 +200,7 @@ export function defaultProjectionConfig() {
     },
     mentions: {
       enabled: false,
-      onBlocked: true,
       allowedUsers: [],
-      blockedAfterMinutes: 30,
       cooldownMinutes: 120,
     },
   };
@@ -249,8 +247,11 @@ export function computeProjectionKey(transition, target, context = {}) {
   const normalizedRepo = target.repo.trim().toLowerCase();
   const base = `${normalizedRepo}#${target.pr}/${transition}`;
 
-  if (transition === PROJECTION_TRANSITION.MERGE_DETECTED && typeof context.postMergeKind === "string") {
-    return `${base}/${context.postMergeKind}`;
+  if (transition === PROJECTION_TRANSITION.MERGE_DETECTED) {
+    const mergeKind = typeof context.postMergeKind === "string" && context.postMergeKind.trim()
+      ? context.postMergeKind.trim()
+      : POST_MERGE_KIND.TERMINAL_CLOSEOUT;
+    return `${base}/${mergeKind}`;
   }
 
   if (
@@ -318,6 +319,7 @@ export function classifyPostMergeKind({ hasKnownNextStep = false, followUpIssue 
  * - a stable idempotency key for de-duplication (`projectionKey`)
  * - a concise human-readable summary for the comment/artifact body (`summary`)
  * - whether mention eligibility should be separately evaluated (`checkMention`)
+ * - the concrete mention trigger to evaluate when mention checks are relevant (`mentionTrigger`)
  *
  * When githubStatusComments.enabled is false (the default), emitComment is
  * always false regardless of the transition's default requirement class.
@@ -350,8 +352,9 @@ export function evaluateProjection({
       emitComment: false,
       emitArtifact: false,
       projectionKey: null,
-      summary: null,
+      summary: "Unknown conductor projection transition; no projection emitted.",
       checkMention: false,
+      mentionTrigger: null,
       projectionRequirement: PROJECTION_REQUIREMENT.NONE,
     };
   }
@@ -363,13 +366,13 @@ export function evaluateProjection({
     requirement === PROJECTION_REQUIREMENT.BOTH;
   const needsArtifact = requirement === PROJECTION_REQUIREMENT.DURABLE_ARTIFACT ||
     requirement === PROJECTION_REQUIREMENT.BOTH;
+  const hasStableProjectionIdentity = projectionKey !== null;
 
-  const emitComment = commentsEnabled && needsComment;
-  const emitArtifact = needsArtifact;
+  const emitComment = commentsEnabled && needsComment && hasStableProjectionIdentity;
+  const emitArtifact = needsArtifact && hasStableProjectionIdentity;
 
-  const checkMention = transition === PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION ||
-    transition === PROJECTION_TRANSITION.RECONCILE_REQUIRED ||
-    transition === PROJECTION_TRANSITION.CONDUCTOR_STOP;
+  const mentionTrigger = deriveMentionTrigger(transition, context);
+  const checkMention = mentionTrigger !== null;
 
   const summary = buildSummary(transition, context);
 
@@ -379,6 +382,7 @@ export function evaluateProjection({
     projectionKey,
     summary,
     checkMention,
+    mentionTrigger,
     projectionRequirement: requirement,
   };
 }
@@ -390,11 +394,12 @@ export function evaluateProjection({
 /**
  * Evaluate whether a guarded human mention should be emitted.
  *
- * All four eligibility criteria must be simultaneously satisfied:
+ * All five eligibility criteria must be simultaneously satisfied:
  * 1. mentions.enabled is true in config
  * 2. The trigger matches a known MENTION_TRIGGER
  * 3. The mention target is in config.mentions.allowedUsers
  * 4. The cooldown window has elapsed since the last mention for the same effective blocker
+ * 5. The mention includes a specific, non-empty actionableAsk
  *
  * Mentions must NOT be emitted for routine wait states (CI wait, Copilot review wait,
  * scheduled polling, converged states). Only genuine blocked/needs-human states qualify.
@@ -467,6 +472,21 @@ export function evaluateMentionEligibility({
  * @param {object} context
  * @returns {string}
  */
+function deriveMentionTrigger(transition, context = {}) {
+  switch (transition) {
+    case PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION:
+      return MENTION_TRIGGER.BLOCKED_NEEDS_HUMAN_DECISION;
+    case PROJECTION_TRANSITION.RECONCILE_REQUIRED:
+      return MENTION_TRIGGER.RECONCILE_REQUIRED;
+    case PROJECTION_TRANSITION.CONDUCTOR_STOP:
+      return context.hasPendingAction === true
+        ? MENTION_TRIGGER.CONDUCTOR_STOP_WITH_PENDING_ACTION
+        : null;
+    default:
+      return null;
+  }
+}
+
 function buildSummary(transition, context = {}) {
   switch (transition) {
     case PROJECTION_TRANSITION.DRAFT_GATE_ENTERED:
