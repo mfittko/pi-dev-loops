@@ -232,12 +232,13 @@ export function defaultProjectionConfig() {
  * @param {string} transition One of PROJECTION_TRANSITION values.
  * @param {{ repo: string, pr: number }} target Normalized target identity.
  * @param {object} [context] Optional extra idempotency context.
- * @param {string} [context.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
- * @param {string} [context.blockerKey] Optional stable blocker identifier for BLOCKED transitions.
- * @param {string} [context.headSha] Optional head commit SHA for settle transitions.
+ * @param {string} [normalizedContext.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
+ * @param {string} [normalizedContext.blockerKey] Optional stable blocker identifier for BLOCKED transitions.
+ * @param {string} [normalizedContext.headSha] Optional head commit SHA for settle transitions.
  * @returns {string|null} Stable idempotency key, or null when target is invalid.
  */
 export function computeProjectionKey(transition, target, context = {}) {
+  const normalizedContext = context && typeof context === "object" ? context : {};
   const normalizedTransition = normalizeProjectionTransition(transition);
   const normalizedTarget = normalizeProjectionTarget(target);
   if (!normalizedTransition || !normalizedTarget) {
@@ -247,8 +248,8 @@ export function computeProjectionKey(transition, target, context = {}) {
   const base = `${normalizedTarget.repo}#${normalizedTarget.pr}/${normalizedTransition}`;
 
   if (normalizedTransition === PROJECTION_TRANSITION.MERGE_DETECTED) {
-    if (context.postMergeKind !== undefined && context.postMergeKind !== null) {
-      const mergeKind = normalizePostMergeKind(context.postMergeKind);
+    if (normalizedContext.postMergeKind !== undefined && normalizedContext.postMergeKind !== null) {
+      const mergeKind = normalizePostMergeKind(normalizedContext.postMergeKind);
       return mergeKind === null ? null : `${base}/${mergeKind}`;
     }
     return `${base}/${POST_MERGE_KIND.TERMINAL_CLOSEOUT}`;
@@ -258,10 +259,10 @@ export function computeProjectionKey(transition, target, context = {}) {
     normalizedTransition === PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION ||
     normalizedTransition === PROJECTION_TRANSITION.RECONCILE_REQUIRED
   ) {
-    if (context.blockerKey === undefined || context.blockerKey === null) {
+    if (normalizedContext.blockerKey === undefined || normalizedContext.blockerKey === null) {
       return base;
     }
-    const blockerKey = normalizeBlockerKey(context.blockerKey);
+    const blockerKey = normalizeBlockerKey(normalizedContext.blockerKey);
     return blockerKey === null ? null : `${base}/${blockerKey}`;
   }
 
@@ -269,10 +270,10 @@ export function computeProjectionKey(transition, target, context = {}) {
     normalizedTransition === PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED ||
     normalizedTransition === PROJECTION_TRANSITION.COPILOT_SETTLE_ACHIEVED
   ) {
-    if (context.headSha === undefined || context.headSha === null) {
+    if (normalizedContext.headSha === undefined || normalizedContext.headSha === null) {
       return base;
     }
-    const headSha = normalizeHeadSha(context.headSha);
+    const headSha = normalizeHeadSha(normalizedContext.headSha);
     return headSha === null ? null : `${base}/${headSha}`;
   }
 
@@ -333,9 +334,9 @@ export function classifyPostMergeKind({ hasKnownNextStep = false, followUpIssue 
  * @param {{ repo: string, pr: number }} params.target Normalized target identity.
  * @param {object} [params.config] Projection config (use defaultProjectionConfig() if omitted).
  * @param {object} [params.context] Optional extra context for idempotency key and summary.
- * @param {string} [params.context.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
- * @param {string} [params.context.blockerKey] Optional stable blocker identifier.
- * @param {string} [params.context.headSha] Optional head commit SHA for settle transitions.
+ * @param {string} [params.normalizedContext.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
+ * @param {string} [params.normalizedContext.blockerKey] Optional stable blocker identifier.
+ * @param {string} [params.normalizedContext.headSha] Optional head commit SHA for settle transitions.
  * @param {string} [params.context.reason] Optional human-readable reason for the transition.
  * @returns {object} Projection decision.
  */
@@ -346,6 +347,7 @@ export function evaluateProjection({
   context = {},
 } = {}) {
   const effectiveConfig = config && typeof config === "object" ? config : defaultProjectionConfig();
+  const normalizedContext = context && typeof context === "object" ? context : {};
   const commentsEnabled = effectiveConfig?.githubStatusComments?.enabled === true;
 
   const isKnownTransition = typeof transition === "string" &&
@@ -364,7 +366,7 @@ export function evaluateProjection({
   }
 
   const requirement = DEFAULT_PROJECTION_REQUIREMENTS[transition] ?? PROJECTION_REQUIREMENT.NONE;
-  const projectionKey = computeProjectionKey(transition, target, context);
+  const projectionKey = computeProjectionKey(transition, target, normalizedContext);
 
   const needsComment = requirement === PROJECTION_REQUIREMENT.VISIBLE_COMMENT ||
     requirement === PROJECTION_REQUIREMENT.BOTH;
@@ -376,11 +378,11 @@ export function evaluateProjection({
   const emitArtifact = needsArtifact && hasStableProjectionIdentity;
 
   const mentionTrigger = hasStableProjectionIdentity
-    ? deriveMentionTrigger(transition, context)
+    ? deriveMentionTrigger(transition, normalizedContext)
     : null;
   const checkMention = mentionTrigger !== null;
 
-  const summary = buildSummary(transition, context);
+  const summary = buildSummary(transition, normalizedContext);
 
   return {
     emitComment,
@@ -577,6 +579,8 @@ function deriveMentionTrigger(transition, context = {}) {
 }
 
 function buildSummary(transition, context = {}) {
+  const normalizedContext = context && typeof context === "object" ? context : {};
+
   switch (transition) {
     case PROJECTION_TRANSITION.DRAFT_GATE_ENTERED:
       return "PR entered draft stage; conductor local review gate opened.";
@@ -585,12 +589,12 @@ function buildSummary(transition, context = {}) {
     case PROJECTION_TRANSITION.COPILOT_REVIEW_REQUESTED:
       return "Copilot review requested for the current head.";
     case PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED:
-      return context.headSha
-        ? `Waiting for fresh Copilot pass to settle on head ${context.headSha}.`
+      return normalizedContext.headSha
+        ? `Waiting for fresh Copilot pass to settle on head ${normalizedContext.headSha}.`
         : "Waiting for fresh Copilot pass to settle.";
     case PROJECTION_TRANSITION.COPILOT_SETTLE_ACHIEVED:
-      return context.headSha
-        ? `Clean Copilot settle achieved on head ${context.headSha}.`
+      return normalizedContext.headSha
+        ? `Clean Copilot settle achieved on head ${normalizedContext.headSha}.`
         : "Clean Copilot settle achieved on current head.";
     case PROJECTION_TRANSITION.COPILOT_LOOP_CONVERGED:
       return "Copilot loop converged; no unresolved feedback remains.";
@@ -601,7 +605,7 @@ function buildSummary(transition, context = {}) {
     case PROJECTION_TRANSITION.WAITING_FOR_MERGE:
       return "Waiting for merge after approval.";
     case PROJECTION_TRANSITION.MERGE_DETECTED: {
-      const kind = normalizePostMergeKind(context.postMergeKind) ?? POST_MERGE_KIND.TERMINAL_CLOSEOUT;
+      const kind = normalizePostMergeKind(normalizedContext.postMergeKind) ?? POST_MERGE_KIND.TERMINAL_CLOSEOUT;
       if (kind === POST_MERGE_KIND.RESUMABLE_CONTINUATION) {
         return context.reason ?? "Merge detected; post-merge continuation expected.";
       }

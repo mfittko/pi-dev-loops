@@ -136,6 +136,18 @@ test("computeProjectionKey returns null for missing target", () => {
   assert.equal(computeProjectionKey(PROJECTION_TRANSITION.MERGE_DETECTED, null), null);
 });
 
+
+test("computeProjectionKey treats null or non-object context as omitted", () => {
+  assert.equal(
+    computeProjectionKey(PROJECTION_TRANSITION.MERGE_DETECTED, BASE_TARGET, null),
+    "acme/my-repo#42/merge_detected/terminal_closeout",
+  );
+  assert.equal(
+    computeProjectionKey(PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION, BASE_TARGET, "bad-context"),
+    "acme/my-repo#42/blocked_needs_human_decision",
+  );
+});
+
 test("computeProjectionKey returns null for target with invalid pr", () => {
   assert.equal(computeProjectionKey(PROJECTION_TRANSITION.MERGE_DETECTED, { repo: "a/b", pr: 0 }), null);
   assert.equal(computeProjectionKey(PROJECTION_TRANSITION.MERGE_DETECTED, { repo: "a/b", pr: -1 }), null);
@@ -445,6 +457,24 @@ test("evaluateProjection: invalid target suppresses projection output", () => {
   assert.equal(result.projectionKey, null);
   assert.equal(result.emitComment, false);
   assert.equal(result.emitArtifact, false);
+});
+
+
+test("evaluateProjection: null or non-object context is treated as empty context", () => {
+  const nullContext = evaluateProjection({
+    transition: PROJECTION_TRANSITION.MERGE_DETECTED,
+    target: BASE_TARGET,
+    context: null,
+  });
+  assert.equal(nullContext.projectionKey, "acme/my-repo#42/merge_detected/terminal_closeout");
+
+  const stringContext = evaluateProjection({
+    transition: PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION,
+    target: BASE_TARGET,
+    context: "bad-context",
+  });
+  assert.equal(stringContext.projectionKey, "acme/my-repo#42/blocked_needs_human_decision");
+  assert.equal(stringContext.checkMention, true);
 });
 
 
