@@ -158,37 +158,29 @@ test("repo docs define dev-loop as the public façade and keep specialized loops
 });
 
 test("workflow-surface taxonomy stays explicit and guards the entrypoint asset surface", async () => {
-  const [publicContract, devLoopAgent, copilotAgent, autopilotAgent] = await Promise.all([
+  const [publicContract, devLoopAgent] = await Promise.all([
     readRepo("docs/public-dev-loop-contract.md"),
     readRepo("agents/dev-loop.agent.md"),
-    readRepo("agents/copilot-dev-loop.agent.md"),
-    readRepo("agents/copilot-autopilot.agent.md"),
   ]);
 
   assert.match(publicContract, /Workflow-surface taxonomy and guardrails/i);
   assert.match(publicContract, /Public workflow entrypoint/i);
-  assert.match(publicContract, /Temporary internal strategy seams/i);
+  assert.match(publicContract, /Internal routed strategy modules/i);
   assert.match(publicContract, /Reusable role agents/i);
-  assert.match(publicContract, /single public `dev-loop` entrypoint and its bounded API\/parameter surface/i);
+  assert.match(publicContract, /specialized Copilot behavior stays internal-only behind `dev-loop`/i);
   assert.match(publicContract, /Regression tests must fail if this taxonomy drifts/i);
 
   assert.match(devLoopAgent, /single public workflow entrypoint/i);
-  assert.match(copilotAgent, /compatibility path/i);
-  assert.match(autopilotAgent, /compatibility path/i);
 
   const agentFiles = (await readdir(fromRepoRoot("agents")))
     .filter((name) => name.endsWith(".agent.md"))
     .sort();
-  const workflowEntrypointAgents = agentFiles.filter((name) =>
-    ["dev-loop.agent.md", "copilot-dev-loop.agent.md", "copilot-autopilot.agent.md"].includes(name),
-  );
+  const workflowEntrypointAgents = agentFiles.filter((name) => ["dev-loop.agent.md"].includes(name));
   const roleAgentFiles = agentFiles.filter((name) => !workflowEntrypointAgents.includes(name));
 
-  assert.deepEqual(workflowEntrypointAgents, [
-    "copilot-autopilot.agent.md",
-    "copilot-dev-loop.agent.md",
-    "dev-loop.agent.md",
-  ]);
+  assert.deepEqual(workflowEntrypointAgents, ["dev-loop.agent.md"]);
+  assert.equal(agentFiles.includes("copilot-dev-loop.agent.md"), false);
+  assert.equal(agentFiles.includes("copilot-autopilot.agent.md"), false);
 
   for (const roleAgentFile of roleAgentFiles) {
     const content = await readRepo(`agents/${roleAgentFile}`);
@@ -202,7 +194,9 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
       userInvocableSkillEntrypoints.push(skillDir);
     }
   }
-  assert.deepEqual(userInvocableSkillEntrypoints, ["copilot-autopilot", "copilot-dev-loop", "dev-loop"]);
+  assert.deepEqual(userInvocableSkillEntrypoints, ["dev-loop"]);
+  assert.match(await readRepo("skills/copilot-dev-loop/SKILL.md"), /^user-invocable:\s*false\s*$/m);
+  assert.match(await readRepo("skills/copilot-autopilot/SKILL.md"), /^user-invocable:\s*false\s*$/m);
 });
 
 test("status reporting contract requires authoritative state-first resolution and fail-closed reconcile behavior", async () => {
@@ -295,32 +289,32 @@ test("copilot-autopilot skill requires unattended resume-from-state behavior whe
   assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
 });
 
-test("copilot-autopilot agent treats autopilot as automatic resume from detected state", async () => {
-  const content = await readRepo("agents/copilot-autopilot.agent.md");
+test("copilot-autopilot behavior remains internal and resumable behind dev-loop", async () => {
+  const content = await readRepo("skills/copilot-autopilot/SKILL.md");
+  const agentFiles = (await readdir(fromRepoRoot("agents")))
+    .filter((name) => name.endsWith(".agent.md"))
+    .sort();
 
-  assert.match(content, /Interpret `autopilot` literally/i);
-  assert.match(content, /resume from the current GitHub\/PR state automatically/i);
-  assert.match(content, /state-machine\/helper surface is the authority/i);
-  assert.match(content, /must stay thin/i);
-  assert.match(content, /do not restate the skill's phase sequencing or workflow policy here/i);
-  assert.match(content, /final approval gate remains a required human-decision stop by default/i);
+  assert.equal(agentFiles.includes("copilot-autopilot.agent.md"), false);
+  assert.match(content, /unattended execution/i);
+  assert.match(content, /automatically detect the current lifecycle entrypoint/i);
+  assert.match(content, /deterministic helper\/state-machine surface/i);
+  assert.match(content, /stop for human approval\/merge by default/i);
   assert.match(content, /materially unclear, contradictory, off-trail/i);
   assert.match(content, /stop and ask for human direction rather than guessing/i);
   assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
-  assert.match(content, /not as a reason to halt at every intermediate state-changing step/i);
 });
 
 test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the final approval gate", async () => {
-  const [readme, publicContract, devLoopSkill, autopilotSkill, devLoopAgent, autopilotAgent] = await Promise.all([
+  const [readme, publicContract, devLoopSkill, autopilotSkill, devLoopAgent] = await Promise.all([
     readRepo("README.md"),
     readRepo("docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-autopilot/SKILL.md"),
     readRepo("agents/dev-loop.agent.md"),
-    readRepo("agents/copilot-autopilot.agent.md"),
   ]);
 
-  for (const content of [readme, publicContract, devLoopSkill, autopilotSkill, devLoopAgent, autopilotAgent]) {
+  for (const content of [readme, publicContract, devLoopSkill, autopilotSkill, devLoopAgent]) {
     assert.match(content, /auto dev loop on issue/i);
   }
 
@@ -343,16 +337,17 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
 
   assert.match(devLoopAgent, /Interpret issue-based shorthand triggers/i);
   assert.match(devLoopAgent, /not a second public workflow entrypoint/i);
-  assert.match(autopilotAgent, /treat it as compatibility wording for the same public `dev-loop` intent/i);
 });
 
 test("copilot-autopilot docs keep issue refinement separate from the phase-scoped refiner and explain thin entrypoint agents", async () => {
   const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
-  const agentContent = await readRepo("agents/copilot-autopilot.agent.md");
   const planContent = await readRepo("PLAN.md");
+  const agentFiles = (await readdir(fromRepoRoot("agents")))
+    .filter((name) => name.endsWith(".agent.md"))
+    .sort();
 
   assert.doesNotMatch(skillContent, /ask the refiner to emit/i);
-  assert.doesNotMatch(agentContent, /Use the `refiner` agent for issue-refinement fan-out/i);
+  assert.equal(agentFiles.includes("copilot-autopilot.agent.md"), false);
   assert.match(skillContent, /issue-refinement specialist/i);
   assert.match(planContent, /Thin workflow entrypoint agents are still allowed/i);
   assert.match(planContent, /must stay thin, defer sequencing and workflow policy to the skill/i);
@@ -574,17 +569,13 @@ test("copilot-dev-loop skill keeps async watch persistence explicit", async () =
   assert.match(stateGraph, /If the next deterministic state returns to `waiting_for_copilot_review`, resume watch mode again instead of treating the re-request handoff as the end of the async run/i);
 });
 
-test("copilot-dev-loop agent is a thin executable entrypoint that defers to the skill", async () => {
-  const content = await readRepo("agents/copilot-dev-loop.agent.md");
+test("legacy copilot workflow entrypoint agents are removed from normal executable surfaces", async () => {
+  const agentFiles = (await readdir(fromRepoRoot("agents")))
+    .filter((name) => name.endsWith(".agent.md"))
+    .sort();
 
-  assert.match(content, /name:\s*"copilot-dev-loop"/);
-  assert.match(content, /user-invocable:\s*true/);
-  assert.match(content, /skills\/copilot-dev-loop\/SKILL\.md/);
-  assert.match(content, /must stay thin/i);
-  assert.match(content, /do not restate the skill's phase sequencing or workflow policy here/i);
-  assert.match(content, /state-machine.*helper.*authority|deterministic.*state-machine/i);
-  assert.match(content, /stop and ask for human direction rather than guessing/i);
-  assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
+  assert.equal(agentFiles.includes("copilot-dev-loop.agent.md"), false);
+  assert.equal(agentFiles.includes("copilot-autopilot.agent.md"), false);
 });
 
 test("public dev-loop agent is a thin executable entrypoint that defers to the public skill router", async () => {
@@ -599,8 +590,7 @@ test("public dev-loop agent is a thin executable entrypoint that defers to the p
   assert.match(agentContent, /must stay thin/i);
   assert.match(agentContent, /do not restate the skill's phase sequencing or workflow policy here/i);
   assert.match(agentContent, /deterministic public routing contract/i);
-  assert.match(agentContent, /copilot-dev-loop/i);
-  assert.match(agentContent, /copilot-autopilot/i);
+  assert.doesNotMatch(agentContent, /compatibility\/internal entrypoints during migration/i);
   assert.match(agentContent, /stop and ask for human direction rather than guessing/i);
   assert.match(agentContent, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
   assert.match(skillContent, /public `dev-loop` façade/i);

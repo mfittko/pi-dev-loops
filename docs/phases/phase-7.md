@@ -27,14 +27,14 @@ This phase exists to answer, in one real non-bootstrap repo:
   - GitHub-hosted
   - non-bootstrap relative to this repo
   - safe for a bounded non-mutating pilot
-  - able to exercise the preferred `copilot-dev-loop` analysis path or clearly justify a `dev-loop` fallback
+  - able to exercise the preferred `dev-loop` routed Copilot PR-follow-up analysis path
 - use source-loaded / GitHub-checkout consumption only for the pilot
 - validate in the target repo:
   - package and skill discovery outside this bootstrap repo
   - readiness output such as `/dev-loops doctor` or equivalent install/discovery reporting
   - one exact bounded, non-mutating loop skill path:
-    - preferred path: run `copilot-dev-loop` in inspection / analysis mode only, producing a next-step recommendation for an existing issue or PR without mutating GitHub state or repository files
-    - fallback path: run `dev-loop` refinement / planning only, without implementation, only if the preferred path is not valid for the chosen repo and the fallback is explicitly justified
+    - preferred path: run `dev-loop` in inspection / analysis mode only, producing a next-step recommendation for an existing issue or PR without mutating GitHub state or repository files
+    - fallback path: run `dev-loop` refinement / planning only, without implementation, only if the preferred routed Copilot PR-follow-up analysis path is not valid for the chosen repo and the fallback is explicitly justified
 - exercise one thin repo-local override and document:
   - the override form for this phase is one repo-local skill overlay or wrapper that changes one bounded repo-specific behavior such as required reads, validation guidance, or issue/PR context framing
   - what is overridden
@@ -68,7 +68,7 @@ This phase exists to answer, in one real non-bootstrap repo:
 - in the target repo, packaged skill discovery works well enough to confirm the install is visible outside this bootstrap repo
 - in the target repo, `/dev-loops doctor` or equivalent readiness output clearly shows whether install/discovery succeeded
 - in the target repo, at least one packaged loop skill succeeds in a bounded, non-mutating path
-- the preferred success path is `copilot-dev-loop`; any `dev-loop` fallback is explicitly justified in the issue and phase doc
+- the preferred success path is `dev-loop` routed to Copilot PR-follow-up analysis; any fallback is explicitly justified in the issue and phase doc
 - one thin local override is exercised successfully in the target repo without copying the full upstream skill/package surface; for this phase, the override must be one repo-local skill overlay or wrapper that changes only one bounded repo-specific behavior
 - every breakage found during the pilot is recorded with a disposition:
   - fixed in Phase 7
@@ -123,7 +123,7 @@ This phase exists to answer, in one real non-bootstrap repo:
 ## Open questions
 
 - which repository is the best single Phase 7 pilot target?
-- can that repo safely exercise the preferred `copilot-dev-loop` inspection path?
+- can that repo safely exercise the preferred `dev-loop`-routed Copilot PR-follow-up inspection path?
 - what exact repo-specific behavior should the thin skill overlay or wrapper adjust in the chosen target repo?
 - if the target repo needs changes, what is the smallest acceptable footprint there?
 

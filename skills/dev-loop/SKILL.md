@@ -18,7 +18,7 @@ user-invocable: true
 
 # Unified Dev Loop
 
-This skill is the public `dev-loop` façade for this repository. It should route user intent from canonical state without making the user choose `dev-loop` vs `copilot-dev-loop` vs `copilot-autopilot` up front.
+This skill is the public `dev-loop` façade for this repository. It should route user intent from canonical state without making the user choose internal strategy names up front.
 
 ## First-slice public routing contract
 
@@ -29,7 +29,7 @@ For installed packaged copies of this skill, do not assume source-repository pat
 
 Operational summary:
 - route from the canonical current state through the shared gate contract before choosing any internal strategy; prefer the exported `DEV_LOOP_GATE` / `PUBLIC_DEV_LOOP_GATE_CONTRACT` semantics over restating route families ad hoc
-- keep `copilot-dev-loop` and `copilot-autopilot` as compatibility/internal entrypoints for routed GitHub/Copilot paths
+- keep any specialized Copilot behavior behind `dev-loop` as internal routed logic rather than parallel user-invocable workflow entrypoints
 - when the routed strategy is not local implementation, stop the local-phase procedure below and hand off instead of forcing the request into a local-only path
 - for status/progress/readiness/merge-state/next-step questions, resolve authoritative active artifact identity + artifact state + loop state first (for example via `resolveAuthoritativeDevLoopStatus`); for issue targets, authoritative identity resolution must include explicit issue↔PR linkage resolution (for example via `detect-linked-issue-pr.mjs`) before saying there is no open linked PR; then answer with explicit artifact identity fields; if unresolved, fail closed to reconcile/unknown
 
