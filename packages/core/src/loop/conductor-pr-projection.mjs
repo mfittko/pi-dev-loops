@@ -489,13 +489,9 @@ export function evaluateMentionEligibility({
 // ---------------------------------------------------------------------------
 
 /**
- * Derive the concrete mention trigger for a projection transition when one exists.
- *
- * Most transitions do not support mentions. `CONDUCTOR_STOP` only derives a
- * trigger when context says a pending human action still exists.
+ * Normalize and validate a projection transition name.
  *
  * @param {string} transition
- * @param {object} context
  * @returns {string|null}
  */
 function normalizeProjectionTransition(transition) {
@@ -555,6 +551,16 @@ function normalizeHeadSha(value) {
     : null;
 }
 
+/**
+ * Derive the concrete mention trigger for a projection transition when one exists.
+ *
+ * Most transitions do not support mentions. `CONDUCTOR_STOP` only derives a
+ * trigger when context says a pending human action still exists.
+ *
+ * @param {string} transition
+ * @param {object} context
+ * @returns {string|null}
+ */
 function deriveMentionTrigger(transition, context = {}) {
   switch (transition) {
     case PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION:
