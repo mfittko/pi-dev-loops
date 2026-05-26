@@ -350,8 +350,7 @@ export function evaluateProjection({
   const normalizedContext = context && typeof context === "object" ? context : {};
   const commentsEnabled = effectiveConfig?.githubStatusComments?.enabled === true;
 
-  const isKnownTransition = typeof transition === "string" &&
-    Object.values(PROJECTION_TRANSITION).includes(transition);
+  const isKnownTransition = typeof transition === "string" && KNOWN_PROJECTION_TRANSITIONS.has(transition);
 
   if (!isKnownTransition) {
     return {

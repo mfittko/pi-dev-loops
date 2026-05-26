@@ -44,6 +44,7 @@ async function seedPackagedSupport(tempDir) {
     "github/review-threads.mjs": "export const reviewThreads = true;\n",
     "loop/copilot-loop-state.mjs": "export const copilotState = true;\n",
     "loop/conductor-routing.mjs": "export const ROUTING_OUTCOME = { CONTINUE_CURRENT_WAIT: 'continue_current_wait' };\n",
+    "loop/conductor-pr-projection.mjs": "export const projectionHelper = true;\n",
     "loop/outer-loop-state.mjs": "import { ROUTING_OUTCOME } from './conductor-routing.mjs';\nexport const outerLoopState = ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT;\n",
     "loop/phase-files.mjs": "export const phaseFiles = true;\n",
     "loop/reviewer-loop-state.mjs": "export const reviewerState = true;\n",
@@ -56,6 +57,7 @@ async function seedPackagedSupport(tempDir) {
     "reviewer-loop-state-graph.md": "reviewer graph\n",
     "outer-loop-state-graph.md": "outer graph\n",
     "tracker-first-mvp-state-graph.md": "tracker graph\n",
+    "conductor-pr-projection-contract.md": "projection contract\n",
     "IMPLEMENTATION_STATE.md": "not bundled\n",
   });
 
@@ -194,6 +196,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
     "import { ROUTING_OUTCOME } from './conductor-routing.mjs';\nexport const outerLoopState = ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT;\n",
   );
   assert.equal(
+    await readFile(path.join(targetRoot, "copilot-dev-loop", "packages", "core", "src", "loop", "conductor-pr-projection.mjs"), "utf8"),
+    "export const projectionHelper = true;\n",
+  );
+  assert.equal(
     await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "copilot-loop-state-graph.md"), "utf8"),
     "copilot graph\n",
   );
@@ -204,6 +210,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "tracker-first-mvp-state-graph.md"), "utf8"),
     "tracker graph\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-dev-loop", "docs", "conductor-pr-projection-contract.md"), "utf8"),
+    "projection contract\n",
   );
 
   await assert.rejects(access(path.join(targetRoot, "copilot-dev-loop", "scripts", "README.md")));
@@ -247,6 +257,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
     "export const steeringState = true;\n",
   );
   assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "loop", "conductor-pr-projection.mjs"), "utf8"),
+    "export const projectionHelper = true;\n",
+  );
+  assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "packages", "core", "src", "github", "repo-slug.mjs"), "utf8"),
     "export const normalizeRepoSlug = (repo) => repo;\nexport const parseRepoSlugParts = (repo) => ({ owner: repo, name: repo });\n",
   );
@@ -261,6 +275,10 @@ test("install copies packaged skills and only the allow-listed copilot runtime s
   assert.equal(
     await readFile(path.join(targetRoot, "copilot-autopilot", "docs", "tracker-first-mvp-state-graph.md"), "utf8"),
     "tracker graph\n",
+  );
+  assert.equal(
+    await readFile(path.join(targetRoot, "copilot-autopilot", "docs", "conductor-pr-projection-contract.md"), "utf8"),
+    "projection contract\n",
   );
 
   await writeFile(path.join(targetRoot, "dev-loop", "SKILL.md"), "repo override\n");

@@ -66,7 +66,7 @@ The shell CLI currently treats packaged-skill discoverability as a filesystem ch
 
 ## Install/update contract for this phase
 
-`/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories. For `copilot-dev-loop` and `copilot-autopilot`, they also bundle an explicit allow-listed runtime support set under the installed skill directory: the required deterministic script files, the required `packages/core/src/` files, and both loop state-graph docs.
+`/dev-loops install ...` and `/dev-loops update ...` copy the packaged skill directories. For `copilot-dev-loop` and `copilot-autopilot`, they also bundle an explicit allow-listed runtime support set under the installed skill directory: the required deterministic script files, the required `packages/core/src/` files, and the relevant loop/contract docs needed by those installed skills.
 
 `install` is for first-time setup. `update` refreshes installed skills only, reports missing targets, and guides users back to `install` when first-time setup is still needed.
 

@@ -38,7 +38,7 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.match(readme, /refresh installed skills/i);
   assert.match(readme, /explicit allow-listed runtime support set/i);
   assert.match(readme, /packages\/core\/src/i);
-  assert.match(readme, /both loop state-graph docs/i);
+  assert.match(readme, /relevant loop\/contract docs/i);
   assert.match(readme, /Node[^\n]*>=20/i);
   assert.match(readme, /source-loaded/i);
   assert.match(readme, /does not automatically install skills/i);

@@ -47,12 +47,10 @@ source-repository-relative paths such as `packages/core/...` or `docs/...` exist
 checkout.
 
 Use this rule:
-- prefer the published runtime surface `@pi-dev-loops/core/loop/conductor-pr-projection` when code
-  needs to import or evaluate the projection helpers
-- use this contract doc as the human-readable behavior summary when the source repository is
-  available
-- keep skill guidance thin and refer back to this contract instead of restating the full projection
-  state model in prompt text
+- when the runtime already exposes the published package surface, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`
+- when operating from an installed skill copy that bundles `packages/core/src/...` support files instead of package resolution, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` copy under that installed skill layout
+- use this contract doc as the human-readable behavior summary when it is available in the source repository or bundled installed docs
+- keep skill guidance thin and refer back to this contract instead of restating the full projection state model in prompt text
 
 ## Authority boundary
 
