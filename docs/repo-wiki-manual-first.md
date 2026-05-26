@@ -40,7 +40,7 @@ Observed result:
 
 Stop here.
 
-Do **not** partially ship:
+Do **not** check in, commit, or publish these integration surfaces in this blocked slice:
 
 - `.llmwiki/config.json`
 - `.llmwiki/schema.md`

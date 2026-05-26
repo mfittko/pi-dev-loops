@@ -93,7 +93,12 @@ test("repo-wiki readiness note fail-closes the manual-first slice when external 
   assert.match(content, /404 Not Found/);
   assert.match(content, /git ls-remote https:\/\/github\.com\/mfittko\/pi-dev-loops\.wiki\.git/);
   assert.match(content, /Repository not found/);
-  assert.match(content, /Do \*\*not\*\* partially ship:/);
+  assert.match(content, /`\.llmwiki\/config\.json`/);
+  assert.match(content, /`\.llmwiki\/schema\.md`/);
+  assert.match(content, /compile helper scripts/);
+  assert.match(content, /CI automation/);
+  assert.match(content, /fallback publish machinery/);
+  assert.match(content, /Do \*\*not\*\* check in, commit, or publish these integration surfaces in this blocked slice:/);
   assert.match(content, /`README\.md`/);
   assert.match(content, /`skills\/dev-loop\/SKILL\.md`/);
   assert.match(content, /`tmp\/\*\*`/);
