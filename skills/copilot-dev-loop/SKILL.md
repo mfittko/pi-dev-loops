@@ -136,6 +136,8 @@ Use this rule:
 
 Do not assume `scripts/...` is repo-local to the target codebase you are operating on.
 
+When a PR changes conductor-owned projection / closeout behavior, or when review comments ask how visible projection or durable closeout should work, read the resolved `docs/conductor-pr-projection-contract.md` alongside the relevant issue/PR. When runtime package resolution is available, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; in installed skill copies that bundle `packages/core/src/...` support files, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` path from the resolved skill layout instead of assuming the source repository checkout is present.
+
 ## Authority and safety rules
 
 - Source code, tests, CI, and config are authoritative.

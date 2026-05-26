@@ -26,6 +26,7 @@ The authoritative contract is `docs/public-dev-loop-contract.md`; the executable
 For UI validation under `dev-loop`, see `docs/ui-validation-contract.md`.
 
 For installed packaged copies of this skill, do not assume source-repository paths such as `packages/core/...` or `docs/...` exist beside the skill. Treat this section as a summary and use the package export when the runtime is available.
+For conductor PR projection / closeout work, use `docs/conductor-pr-projection-contract.md` as the source-repo contract summary. When runtime package resolution is available, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; when operating from an installed skill copy that bundles `packages/core/src/...` support files, use that bundled `packages/core/src/loop/conductor-pr-projection.mjs` copy instead of assuming source-repo-relative paths.
 
 Operational summary:
 - route from the canonical current state through the shared gate contract before choosing any internal strategy; prefer the exported `DEV_LOOP_GATE` / `PUBLIC_DEV_LOOP_GATE_CONTRACT` semantics over restating route families ad hoc
