@@ -117,6 +117,12 @@ async function assertInstalledCopilotHelpersExecute(targetRoot, skillName = "cop
   assert.match(detectResult.stdout, /Usage:/);
   assert.doesNotMatch(detectResult.stderr, /ERR_MODULE_NOT_FOUND/);
 
+  const linkedIssuePrScriptPath = path.join(targetRoot, skillName, "scripts", "github", "detect-linked-issue-pr.mjs");
+  const linkedIssuePrResult = await runNodeScript(linkedIssuePrScriptPath, ["--help"]);
+  assert.equal(linkedIssuePrResult.code, 0);
+  assert.match(linkedIssuePrResult.stdout, /Usage: detect-linked-issue-pr\.mjs/);
+  assert.doesNotMatch(linkedIssuePrResult.stderr, /ERR_MODULE_NOT_FOUND/);
+
   const handoffScriptPath = path.join(targetRoot, skillName, "scripts", "loop", "copilot-pr-handoff.mjs");
   const handoffResult = await runNodeScript(handoffScriptPath, ["--help"]);
   assert.equal(handoffResult.code, 0);
