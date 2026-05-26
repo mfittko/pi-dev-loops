@@ -115,6 +115,12 @@ test("computeProjectionKey normalizes repo to lowercase", () => {
   assert.equal(key, "acme/my-repo#7/copilot_review_requested");
 });
 
+test("computeProjectionKey returns null for repo values that are not owner/name slugs", () => {
+  assert.equal(computeProjectionKey(PROJECTION_TRANSITION.COPILOT_REVIEW_REQUESTED, { repo: "not-a-slug", pr: 7 }), null);
+  assert.equal(computeProjectionKey(PROJECTION_TRANSITION.COPILOT_REVIEW_REQUESTED, { repo: "owner/repo/extra", pr: 7 }), null);
+  assert.equal(computeProjectionKey(PROJECTION_TRANSITION.COPILOT_REVIEW_REQUESTED, { repo: "owner /repo", pr: 7 }), null);
+});
+
 test("computeProjectionKey returns null for missing target", () => {
   assert.equal(computeProjectionKey(PROJECTION_TRANSITION.MERGE_DETECTED, null), null);
 });
@@ -491,6 +497,17 @@ test("evaluateMentionEligibility: not eligible when mentionUser not in allowedUs
   assert.match(result.reason, /allowedUsers/i);
 });
 
+test("evaluateMentionEligibility: normalizes mentionUser and allowedUsers case/whitespace", () => {
+  const result = evaluateMentionEligibility({
+    config: makeMentionConfig({ allowedUsers: ["  MFITTKO  "] }),
+    trigger: MENTION_TRIGGER.BLOCKED_NEEDS_HUMAN_DECISION,
+    mentionUser: "mfittko",
+    lastMentionAt: null,
+    actionableAsk: "Please decide.",
+  });
+  assert.equal(result.eligible, true);
+});
+
 test("evaluateMentionEligibility: not eligible when cooldown has not elapsed", () => {
   const nowMs = Date.now();
   const lastMentionAt = nowMs - 30 * 60 * 1000; // 30 min ago, cooldown is 120 min
@@ -518,6 +535,30 @@ test("evaluateMentionEligibility: eligible when cooldown has elapsed", () => {
     actionableAsk: "Please decide.",
   });
   assert.equal(result.eligible, true);
+});
+
+test("evaluateMentionEligibility: rejects non-numeric cooldownMinutes", () => {
+  const result = evaluateMentionEligibility({
+    config: makeMentionConfig({ cooldownMinutes: "later" }),
+    trigger: MENTION_TRIGGER.BLOCKED_NEEDS_HUMAN_DECISION,
+    mentionUser: "mfittko",
+    lastMentionAt: null,
+    actionableAsk: "Please decide.",
+  });
+  assert.equal(result.eligible, false);
+  assert.match(result.reason, /cooldownMinutes/i);
+});
+
+test("evaluateMentionEligibility: rejects non-numeric lastMentionAt", () => {
+  const result = evaluateMentionEligibility({
+    config: makeMentionConfig(),
+    trigger: MENTION_TRIGGER.BLOCKED_NEEDS_HUMAN_DECISION,
+    mentionUser: "mfittko",
+    lastMentionAt: "yesterday",
+    actionableAsk: "Please decide.",
+  });
+  assert.equal(result.eligible, false);
+  assert.match(result.reason, /lastMentionAt/i);
 });
 
 test("evaluateMentionEligibility: not eligible when actionableAsk is missing", () => {

@@ -226,7 +226,7 @@ export function defaultProjectionConfig() {
  * @param {string} transition One of PROJECTION_TRANSITION values.
  * @param {{ repo: string, pr: number }} target Normalized target identity.
  * @param {object} [context] Optional extra idempotency context.
- * @param {string} [context.postMergeKind] Required for MERGE_DETECTED transitions.
+ * @param {string} [context.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
  * @param {string} [context.blockerKey] Optional stable blocker identifier for BLOCKED transitions.
  * @param {string} [context.headSha] Optional head commit SHA for settle transitions.
  * @returns {string|null} Stable idempotency key, or null when target is invalid.
@@ -245,6 +245,10 @@ export function computeProjectionKey(transition, target, context = {}) {
   }
 
   const normalizedRepo = target.repo.trim().toLowerCase();
+  if (!/^[^/\s]+\/[^/\s]+$/.test(normalizedRepo)) {
+    return null;
+  }
+
   const base = `${normalizedRepo}#${target.pr}/${transition}`;
 
   if (transition === PROJECTION_TRANSITION.MERGE_DETECTED) {
@@ -329,7 +333,7 @@ export function classifyPostMergeKind({ hasKnownNextStep = false, followUpIssue 
  * @param {{ repo: string, pr: number }} params.target Normalized target identity.
  * @param {object} [params.config] Projection config (use defaultProjectionConfig() if omitted).
  * @param {object} [params.context] Optional extra context for idempotency key and summary.
- * @param {string} [params.context.postMergeKind] Required for MERGE_DETECTED transitions.
+ * @param {string} [params.context.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
  * @param {string} [params.context.blockerKey] Optional stable blocker identifier.
  * @param {string} [params.context.headSha] Optional head commit SHA for settle transitions.
  * @param {string} [params.context.reason] Optional human-readable reason for the transition.
@@ -434,8 +438,14 @@ export function evaluateMentionEligibility({
     return { eligible: false, reason: "mentionUser is empty or missing" };
   }
 
-  const allowedUsers = Array.isArray(config.mentions.allowedUsers) ? config.mentions.allowedUsers : [];
-  if (!allowedUsers.includes(mentionUser.trim())) {
+  const normalizedMentionUser = mentionUser.trim().toLowerCase();
+  const allowedUsers = Array.isArray(config.mentions.allowedUsers)
+    ? config.mentions.allowedUsers
+      .filter((entry) => typeof entry === "string")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean)
+    : [];
+  if (!allowedUsers.includes(normalizedMentionUser)) {
     return { eligible: false, reason: `mentionUser '${mentionUser}' is not in mentions.allowedUsers` };
   }
 
@@ -443,9 +453,23 @@ export function evaluateMentionEligibility({
     return { eligible: false, reason: "actionableAsk is missing; mentions must include a specific actionable ask" };
   }
 
-  if (lastMentionAt !== null) {
-    const cooldownMs = (config.mentions.cooldownMinutes ?? 120) * 60 * 1000;
-    const elapsed = nowMs - lastMentionAt;
+  const cooldownMinutes = Number(config.mentions.cooldownMinutes ?? 120);
+  const normalizedNowMs = Number(nowMs);
+  const normalizedLastMentionAt = lastMentionAt === null ? null : Number(lastMentionAt);
+
+  if (!Number.isFinite(cooldownMinutes) || cooldownMinutes < 0) {
+    return { eligible: false, reason: "mentions.cooldownMinutes must be a finite non-negative number" };
+  }
+  if (!Number.isFinite(normalizedNowMs)) {
+    return { eligible: false, reason: "nowMs must be a finite number" };
+  }
+  if (normalizedLastMentionAt !== null && !Number.isFinite(normalizedLastMentionAt)) {
+    return { eligible: false, reason: "lastMentionAt must be null or a finite number" };
+  }
+
+  if (normalizedLastMentionAt !== null) {
+    const cooldownMs = cooldownMinutes * 60 * 1000;
+    const elapsed = normalizedNowMs - normalizedLastMentionAt;
     if (elapsed < cooldownMs) {
       const remainingMinutes = Math.ceil((cooldownMs - elapsed) / 60000);
       return {
@@ -463,14 +487,14 @@ export function evaluateMentionEligibility({
 // ---------------------------------------------------------------------------
 
 /**
- * Build a concise human-readable summary for a projection transition.
+ * Derive the concrete mention trigger for a projection transition when one exists.
  *
- * Summaries are intentionally brief and factual. They are intended as
- * operator-readable status lines, not conversational prose.
+ * Most transitions do not support mentions. `CONDUCTOR_STOP` only derives a
+ * trigger when context says a pending human action still exists.
  *
  * @param {string} transition
  * @param {object} context
- * @returns {string}
+ * @returns {string|null}
  */
 function deriveMentionTrigger(transition, context = {}) {
   switch (transition) {
