@@ -85,6 +85,22 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
   assert.match(devLoopSkill, /wire it into CI once it becomes required validation for that slice/i);
 });
 
+test("repo-wiki readiness note fail-closes the manual-first slice when external consumption is not yet viable", async () => {
+  const content = await readRepo("docs/repo-wiki-manual-first.md");
+
+  assert.match(content, /not\*\* shipping a checked-in `repo-wiki` integration yet/i);
+  assert.match(content, /npx repo-wiki@0\.2\.0 --help/);
+  assert.match(content, /404 Not Found/);
+  assert.match(content, /git ls-remote https:\/\/github\.com\/mfittko\/pi-dev-loops\.wiki\.git/);
+  assert.match(content, /Repository not found/);
+  assert.match(content, /Do \*\*not\*\* partially ship:/);
+  assert.match(content, /`README\.md`/);
+  assert.match(content, /`skills\/dev-loop\/SKILL\.md`/);
+  assert.match(content, /`tmp\/\*\*`/);
+  assert.match(content, /npx repo-wiki run/);
+  assert.match(content, /npx repo-wiki publish/);
+});
+
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {
   const [workflowDoc, scriptsReadme, devLoopSkill] = await Promise.all([
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),

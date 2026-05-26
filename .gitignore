@@ -1,6 +1,9 @@
 node_modules/
 coverage/
 dist/
+.llmwiki/run/
+.llmwiki/wiki/
+.llmwiki/search/
 .tmp/
 tmp/
 playwright-report/
