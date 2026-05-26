@@ -88,7 +88,7 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
 test("repo-wiki readiness note fail-closes the manual-first slice when external consumption is not yet viable", async () => {
   const content = await readRepo("docs/repo-wiki-manual-first.md");
 
-  assert.match(content, /not\*\* shipping a checked-in `repo-wiki` integration yet/i);
+  assert.match(content, /\*\*not\*\* shipping a checked-in `repo-wiki` integration yet/i);
   assert.match(content, /npx repo-wiki@0\.2\.0 --help/);
   assert.match(content, /404 Not Found/);
   assert.match(content, /git ls-remote https:\/\/github\.com\/mfittko\/pi-dev-loops\.wiki\.git/);

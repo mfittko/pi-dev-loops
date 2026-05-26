@@ -77,7 +77,7 @@ Intentionally excluded from the first publish:
 
 Prerequisites:
 
-- Node.js 24+
+- Node.js 20+ (matches the repository engine requirement until `repo-wiki` documents a stricter runtime floor)
 - a released or otherwise documented repeatable `repo-wiki` install path
 - GitHub Wiki enabled and reachable at `https://github.com/mfittko/pi-dev-loops.wiki.git`
 - authenticated git/GitHub credentials that are allowed to publish the wiki
