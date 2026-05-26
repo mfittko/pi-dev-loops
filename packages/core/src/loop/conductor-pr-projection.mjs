@@ -1,3 +1,5 @@
+import { isSafeRepoSegment, normalizeRepoSlug } from "../github/repo-slug.mjs";
+
 /**
  * Conductor PR projection contract: deterministic visible PR updates and
  * durable closeout artifacts for conductor-led hybrid PR loops.
@@ -132,6 +134,10 @@ export const POST_MERGE_KIND = Object.freeze({
   RESUMABLE_CONTINUATION: "resumable_continuation",
 });
 
+const KNOWN_PROJECTION_TRANSITIONS = new Set(Object.values(PROJECTION_TRANSITION));
+const KNOWN_POST_MERGE_KINDS = new Set(Object.values(POST_MERGE_KIND));
+const GIT_SHA_PATTERN = /^[0-9a-f]{7,64}$/i;
+
 // ---------------------------------------------------------------------------
 // Mention triggers
 // ---------------------------------------------------------------------------
@@ -232,48 +238,42 @@ export function defaultProjectionConfig() {
  * @returns {string|null} Stable idempotency key, or null when target is invalid.
  */
 export function computeProjectionKey(transition, target, context = {}) {
-  if (
-    !target ||
-    typeof target !== "object" ||
-    typeof target.repo !== "string" ||
-    !target.repo.trim() ||
-    typeof target.pr !== "number" ||
-    !Number.isInteger(target.pr) ||
-    target.pr < 1
-  ) {
+  const normalizedTransition = normalizeProjectionTransition(transition);
+  const normalizedTarget = normalizeProjectionTarget(target);
+  if (!normalizedTransition || !normalizedTarget) {
     return null;
   }
 
-  const normalizedRepo = target.repo.trim().toLowerCase();
-  if (!/^[^/\s]+\/[^/\s]+$/.test(normalizedRepo)) {
-    return null;
-  }
+  const base = `${normalizedTarget.repo}#${normalizedTarget.pr}/${normalizedTransition}`;
 
-  const base = `${normalizedRepo}#${target.pr}/${transition}`;
-
-  if (transition === PROJECTION_TRANSITION.MERGE_DETECTED) {
-    const mergeKind = typeof context.postMergeKind === "string" && context.postMergeKind.trim()
-      ? context.postMergeKind.trim()
-      : POST_MERGE_KIND.TERMINAL_CLOSEOUT;
-    return `${base}/${mergeKind}`;
+  if (normalizedTransition === PROJECTION_TRANSITION.MERGE_DETECTED) {
+    if (Object.hasOwn(context, "postMergeKind")) {
+      const mergeKind = normalizePostMergeKind(context.postMergeKind);
+      return mergeKind === null ? null : `${base}/${mergeKind}`;
+    }
+    return `${base}/${POST_MERGE_KIND.TERMINAL_CLOSEOUT}`;
   }
 
   if (
-    (transition === PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION ||
-      transition === PROJECTION_TRANSITION.RECONCILE_REQUIRED) &&
-    typeof context.blockerKey === "string" &&
-    context.blockerKey.trim()
+    normalizedTransition === PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION ||
+    normalizedTransition === PROJECTION_TRANSITION.RECONCILE_REQUIRED
   ) {
-    return `${base}/${context.blockerKey.trim()}`;
+    if (!Object.hasOwn(context, "blockerKey")) {
+      return base;
+    }
+    const blockerKey = normalizeBlockerKey(context.blockerKey);
+    return blockerKey === null ? null : `${base}/${blockerKey}`;
   }
 
   if (
-    (transition === PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED ||
-      transition === PROJECTION_TRANSITION.COPILOT_SETTLE_ACHIEVED) &&
-    typeof context.headSha === "string" &&
-    context.headSha.trim()
+    normalizedTransition === PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED ||
+    normalizedTransition === PROJECTION_TRANSITION.COPILOT_SETTLE_ACHIEVED
   ) {
-    return `${base}/${context.headSha.trim()}`;
+    if (!Object.hasOwn(context, "headSha")) {
+      return base;
+    }
+    const headSha = normalizeHeadSha(context.headSha);
+    return headSha === null ? null : `${base}/${headSha}`;
   }
 
   return base;
@@ -375,7 +375,9 @@ export function evaluateProjection({
   const emitComment = commentsEnabled && needsComment && hasStableProjectionIdentity;
   const emitArtifact = needsArtifact && hasStableProjectionIdentity;
 
-  const mentionTrigger = deriveMentionTrigger(transition, context);
+  const mentionTrigger = hasStableProjectionIdentity
+    ? deriveMentionTrigger(transition, context)
+    : null;
   const checkMention = mentionTrigger !== null;
 
   const summary = buildSummary(transition, context);
@@ -425,7 +427,7 @@ export function evaluateMentionEligibility({
   nowMs = Date.now(),
   actionableAsk,
 } = {}) {
-  if (!config?.mentions?.enabled) {
+  if (config?.mentions?.enabled !== true) {
     return { eligible: false, reason: "mentions.enabled is false" };
   }
 
@@ -496,6 +498,63 @@ export function evaluateMentionEligibility({
  * @param {object} context
  * @returns {string|null}
  */
+function normalizeProjectionTransition(transition) {
+  return typeof transition === "string" && KNOWN_PROJECTION_TRANSITIONS.has(transition)
+    ? transition
+    : null;
+}
+
+function normalizeProjectionTarget(target) {
+  if (
+    !target ||
+    typeof target !== "object" ||
+    typeof target.pr !== "number" ||
+    !Number.isInteger(target.pr) ||
+    target.pr < 1
+  ) {
+    return null;
+  }
+
+  try {
+    return {
+      repo: normalizeRepoSlug(target.repo, { errorMessage: "repo must match <owner/name>" }),
+      pr: target.pr,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function normalizePostMergeKind(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return KNOWN_POST_MERGE_KINDS.has(trimmed)
+    ? trimmed
+    : null;
+}
+
+function normalizeBlockerKey(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return isSafeRepoSegment(trimmed)
+    ? trimmed
+    : null;
+}
+
+function normalizeHeadSha(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim().toLowerCase();
+  return GIT_SHA_PATTERN.test(trimmed)
+    ? trimmed
+    : null;
+}
+
 function deriveMentionTrigger(transition, context = {}) {
   switch (transition) {
     case PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION:
@@ -536,7 +595,7 @@ function buildSummary(transition, context = {}) {
     case PROJECTION_TRANSITION.WAITING_FOR_MERGE:
       return "Waiting for merge after approval.";
     case PROJECTION_TRANSITION.MERGE_DETECTED: {
-      const kind = context.postMergeKind ?? POST_MERGE_KIND.TERMINAL_CLOSEOUT;
+      const kind = normalizePostMergeKind(context.postMergeKind) ?? POST_MERGE_KIND.TERMINAL_CLOSEOUT;
       if (kind === POST_MERGE_KIND.RESUMABLE_CONTINUATION) {
         return context.reason ?? "Merge detected; post-merge continuation expected.";
       }

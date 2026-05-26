@@ -121,6 +121,17 @@ test("computeProjectionKey returns null for repo values that are not owner/name 
   assert.equal(computeProjectionKey(PROJECTION_TRANSITION.COPILOT_REVIEW_REQUESTED, { repo: "owner /repo", pr: 7 }), null);
 });
 
+
+test("computeProjectionKey returns null for repo values with unsafe path segments", () => {
+  assert.equal(computeProjectionKey(PROJECTION_TRANSITION.COPILOT_REVIEW_REQUESTED, { repo: "owner/..", pr: 7 }), null);
+  assert.equal(computeProjectionKey(PROJECTION_TRANSITION.COPILOT_REVIEW_REQUESTED, { repo: "owner/re\\po", pr: 7 }), null);
+});
+
+test("computeProjectionKey returns null for unknown transitions", () => {
+  assert.equal(computeProjectionKey("continue_wait", BASE_TARGET), null);
+  assert.equal(computeProjectionKey(undefined, BASE_TARGET), null);
+});
+
 test("computeProjectionKey returns null for missing target", () => {
   assert.equal(computeProjectionKey(PROJECTION_TRANSITION.MERGE_DETECTED, null), null);
 });
@@ -152,6 +163,24 @@ test("computeProjectionKey defaults MERGE_DETECTED postMergeKind to terminal_clo
   assert.equal(key, "acme/my-repo#42/merge_detected/terminal_closeout");
 });
 
+
+test("computeProjectionKey trims and validates MERGE_DETECTED postMergeKind", () => {
+  const key = computeProjectionKey(
+    PROJECTION_TRANSITION.MERGE_DETECTED,
+    BASE_TARGET,
+    { postMergeKind: `  ${POST_MERGE_KIND.RESUMABLE_CONTINUATION}  ` },
+  );
+  assert.equal(key, "acme/my-repo#42/merge_detected/resumable_continuation");
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.MERGE_DETECTED,
+      BASE_TARGET,
+      { postMergeKind: "  unexpected  " },
+    ),
+    null,
+  );
+});
+
 test("computeProjectionKey does NOT append postMergeKind for non-MERGE_DETECTED transitions", () => {
   const key = computeProjectionKey(
     PROJECTION_TRANSITION.COPILOT_LOOP_CONVERGED,
@@ -170,6 +199,26 @@ test("computeProjectionKey appends blockerKey for BLOCKED transition when provid
   assert.equal(key, "acme/my-repo#42/blocked_needs_human_decision/compat-shim-decision");
 });
 
+
+test("computeProjectionKey returns null for unsafe blockerKey segments", () => {
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION,
+      BASE_TARGET,
+      { blockerKey: "needs / decision" },
+    ),
+    null,
+  );
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.RECONCILE_REQUIRED,
+      BASE_TARGET,
+      { blockerKey: ".." },
+    ),
+    null,
+  );
+});
+
 test("computeProjectionKey appends headSha for COPILOT_SETTLE_WAIT_ENTERED when provided", () => {
   const key = computeProjectionKey(
     PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED,
@@ -177,6 +226,32 @@ test("computeProjectionKey appends headSha for COPILOT_SETTLE_WAIT_ENTERED when 
     { headSha: "abc1234" },
   );
   assert.equal(key, "acme/my-repo#42/copilot_settle_wait_entered/abc1234");
+});
+
+
+test("computeProjectionKey normalizes and validates settle headSha", () => {
+  const key = computeProjectionKey(
+    PROJECTION_TRANSITION.COPILOT_SETTLE_ACHIEVED,
+    BASE_TARGET,
+    { headSha: "  ABCDEF1234  " },
+  );
+  assert.equal(key, "acme/my-repo#42/copilot_settle_achieved/abcdef1234");
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED,
+      BASE_TARGET,
+      { headSha: "abc 1234" },
+    ),
+    null,
+  );
+  assert.equal(
+    computeProjectionKey(
+      PROJECTION_TRANSITION.COPILOT_SETTLE_WAIT_ENTERED,
+      BASE_TARGET,
+      { headSha: "abc/1234" },
+    ),
+    null,
+  );
 });
 
 test("computeProjectionKey is stable across repeated calls with same inputs", () => {
@@ -310,6 +385,17 @@ test("evaluateProjection: invalid target suppresses projection output", () => {
   assert.equal(result.projectionKey, null);
   assert.equal(result.emitComment, false);
   assert.equal(result.emitArtifact, false);
+});
+
+
+test("evaluateProjection: invalid projection identity suppresses mention checks", () => {
+  const result = evaluateProjection({
+    transition: PROJECTION_TRANSITION.BLOCKED_NEEDS_HUMAN_DECISION,
+    target: { repo: "owner/..", pr: 7 },
+  });
+  assert.equal(result.projectionKey, null);
+  assert.equal(result.checkMention, false);
+  assert.equal(result.mentionTrigger, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -464,6 +550,19 @@ test("evaluateMentionEligibility: eligible when all criteria satisfied with no p
 test("evaluateMentionEligibility: not eligible when mentions.enabled=false", () => {
   const result = evaluateMentionEligibility({
     config: defaultProjectionConfig(),
+    trigger: MENTION_TRIGGER.BLOCKED_NEEDS_HUMAN_DECISION,
+    mentionUser: "mfittko",
+    lastMentionAt: null,
+    actionableAsk: "Please decide.",
+  });
+  assert.equal(result.eligible, false);
+  assert.match(result.reason, /enabled/i);
+});
+
+
+test("evaluateMentionEligibility: fails closed unless mentions.enabled is exactly true", () => {
+  const result = evaluateMentionEligibility({
+    config: makeMentionConfig({ enabled: "false" }),
     trigger: MENTION_TRIGGER.BLOCKED_NEEDS_HUMAN_DECISION,
     mentionUser: "mfittko",
     lastMentionAt: null,
