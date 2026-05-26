@@ -232,9 +232,9 @@ export function defaultProjectionConfig() {
  * @param {string} transition One of PROJECTION_TRANSITION values.
  * @param {{ repo: string, pr: number }} target Normalized target identity.
  * @param {object} [context] Optional extra idempotency context.
- * @param {string} [normalizedContext.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
- * @param {string} [normalizedContext.blockerKey] Optional stable blocker identifier for BLOCKED transitions.
- * @param {string} [normalizedContext.headSha] Optional head commit SHA for settle transitions.
+ * @param {string} [context.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
+ * @param {string} [context.blockerKey] Optional stable blocker identifier for BLOCKED transitions.
+ * @param {string} [context.headSha] Optional head commit SHA for settle transitions.
  * @returns {string|null} Stable idempotency key, or null when target is invalid.
  */
 export function computeProjectionKey(transition, target, context = {}) {
@@ -334,9 +334,9 @@ export function classifyPostMergeKind({ hasKnownNextStep = false, followUpIssue 
  * @param {{ repo: string, pr: number }} params.target Normalized target identity.
  * @param {object} [params.config] Projection config (use defaultProjectionConfig() if omitted).
  * @param {object} [params.context] Optional extra context for idempotency key and summary.
- * @param {string} [params.normalizedContext.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
- * @param {string} [params.normalizedContext.blockerKey] Optional stable blocker identifier.
- * @param {string} [params.normalizedContext.headSha] Optional head commit SHA for settle transitions.
+ * @param {string} [params.context.postMergeKind] Optional for MERGE_DETECTED transitions; defaults to terminal_closeout when omitted.
+ * @param {string} [params.context.blockerKey] Optional stable blocker identifier.
+ * @param {string} [params.context.headSha] Optional head commit SHA for settle transitions.
  * @param {string} [params.context.reason] Optional human-readable reason for the transition.
  * @returns {object} Projection decision.
  */
