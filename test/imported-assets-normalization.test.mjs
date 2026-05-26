@@ -5,6 +5,36 @@ import { readdir, readFile } from "node:fs/promises";
 const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), "utf8");
 
+const USER_FACING_AGENT_SURFACE = Object.freeze({
+  coordinator: { kind: "role-agent" },
+  "dev-loop": { kind: "workflow-entrypoint" },
+});
+
+function parseFrontmatter(content) {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  assert.ok(match, "expected frontmatter block");
+
+  const frontmatter = {};
+  for (const line of match[1].split("\n")) {
+    const entry = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (!entry) continue;
+
+    const [, key, rawValue] = entry;
+    const value = rawValue.trim();
+    if (value === "true") {
+      frontmatter[key] = true;
+      continue;
+    }
+    if (value === "false") {
+      frontmatter[key] = false;
+      continue;
+    }
+    frontmatter[key] = value.replace(/^"([\s\S]*)"$/, "$1");
+  }
+
+  return frontmatter;
+}
+
 test("copilot skill does not contain known imported blocker phrases", async () => {
   const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
 
@@ -175,10 +205,37 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
   const agentFiles = (await readdir(fromRepoRoot("agents")))
     .filter((name) => name.endsWith(".agent.md"))
     .sort();
-  const workflowEntrypointAgents = agentFiles.filter((name) => ["dev-loop.agent.md"].includes(name));
-  const roleAgentFiles = agentFiles.filter((name) => !workflowEntrypointAgents.includes(name));
+  const agentEntries = await Promise.all(agentFiles.map(async (file) => {
+    const content = await readRepo(`agents/${file}`);
+    const frontmatter = parseFrontmatter(content);
+    return {
+      file,
+      content,
+      name: frontmatter.name,
+      userInvocable: frontmatter["user-invocable"] === true,
+    };
+  }));
+  const userFacingAgents = agentEntries
+    .filter(({ userInvocable }) => userInvocable)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const allowedUserFacingAgentNames = Object.keys(USER_FACING_AGENT_SURFACE).sort();
 
-  assert.deepEqual(workflowEntrypointAgents, ["dev-loop.agent.md"]);
+  assert.deepEqual(
+    userFacingAgents.map(({ name }) => name).sort(),
+    allowedUserFacingAgentNames,
+    "user-facing agent surface should stay explicitly allow-listed by frontmatter name",
+  );
+
+  const workflowEntrypointAgents = userFacingAgents
+    .filter(({ name }) => USER_FACING_AGENT_SURFACE[name]?.kind === "workflow-entrypoint")
+    .map(({ name }) => name)
+    .sort();
+  const roleAgentFiles = agentEntries
+    .filter(({ name }) => USER_FACING_AGENT_SURFACE[name]?.kind !== "workflow-entrypoint")
+    .map(({ file }) => file)
+    .sort();
+
+  assert.deepEqual(workflowEntrypointAgents, ["dev-loop"]);
   assert.equal(agentFiles.includes("copilot-dev-loop.agent.md"), false);
   assert.equal(agentFiles.includes("copilot-autopilot.agent.md"), false);
 
