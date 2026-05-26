@@ -111,6 +111,12 @@ async function runNodeInline(code) {
 }
 
 async function assertInstalledCopilotHelpersExecute(targetRoot, skillName = "copilot-autopilot") {
+  const detectLinkedIssueScriptPath = path.join(targetRoot, skillName, "scripts", "github", "detect-linked-issue-pr.mjs");
+  const detectLinkedIssueResult = await runNodeScript(detectLinkedIssueScriptPath, ["--help"]);
+  assert.equal(detectLinkedIssueResult.code, 0);
+  assert.match(detectLinkedIssueResult.stdout, /Usage:/);
+  assert.doesNotMatch(detectLinkedIssueResult.stderr, /ERR_MODULE_NOT_FOUND/);
+
   const detectScriptPath = path.join(targetRoot, skillName, "scripts", "loop", "detect-copilot-loop-state.mjs");
   const detectResult = await runNodeScript(detectScriptPath, ["--help"]);
   assert.equal(detectResult.code, 0);
