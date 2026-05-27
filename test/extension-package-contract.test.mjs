@@ -20,7 +20,7 @@ test("package metadata exposes the extension entrypoint and root extension test 
   assert.match(packageJson.scripts["test:extension"], /extension-command-contract/);
   assert.match(packageJson.scripts["test:extension"], /extension-package-contract/);
   assert.equal(packageJson.dependencies.mermaid, "11.15.0");
-  assert.equal(packageJson.pi.skills, undefined);
+  assert.deepEqual(packageJson.pi.skills, [".pi/skills"]);
 });
 
 test("extension README documents the command surface and runtime/build/test contract", async () => {
@@ -32,18 +32,17 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.match(readme, /concise readiness summary/i);
   assert.match(readme, /\/dev-loops doctor/i);
   assert.match(readme, /full diagnostic report/i);
-  assert.match(readme, /\/dev-loops install repo/i);
-  assert.match(readme, /\/dev-loops install system/i);
-  assert.match(readme, /\/dev-loops update repo/i);
-  assert.match(readme, /refresh installed skills/i);
-  assert.match(readme, /explicit allow-listed runtime support set/i);
-  assert.match(readme, /packages\/core\/src/i);
-  assert.match(readme, /relevant loop\/contract docs/i);
+  assert.match(readme, /pi install git:github.com\/mfittko\/pi-dev-loops/i);
+  assert.match(readme, /pi install -l git:github.com\/mfittko\/pi-dev-loops/i);
+  assert.match(readme, /pi update git:github.com\/mfittko\/pi-dev-loops/i);
   assert.match(readme, /Node[^\n]*>=20/i);
   assert.match(readme, /source-loaded/i);
-  assert.match(readme, /does not automatically install skills/i);
-  assert.match(readme, /single public workflow entrypoint/i);
+  assert.match(readme, /package\.json` `pi\.skills`/i);
+  assert.match(readme, /\.pi\/agents\/\*\.agent\.md/i);
+  assert.match(readme, /~\/\.agents/i);
+  assert.match(readme, /single public workflow entry/i);
   assert.match(readme, /readiness surface should not present them as separate user-facing checks/i);
+  assert.match(readme, /are removed; use `pi install` \/ `pi update` directly instead/i);
   assert.doesNotMatch(readme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i);
   assert.match(readme, /node --import tsx --test/i);
   assert.match(readme, /does not yet claim a specific supported `gh` version/i);

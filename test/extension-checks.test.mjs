@@ -33,7 +33,6 @@ test("collectDevLoopChecks returns stable ordering and pass/fail detail", async 
         ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 0],
       ]),
       tools: [{ name: "subagent" }],
-      commands: [{ name: "skill:dev-loop" }],
     }),
   );
 
@@ -44,7 +43,6 @@ test("collectDevLoopChecks returns stable ordering and pass/fail detail", async 
       "gh-auth",
       "subagent-tool",
       "git-repo",
-      "local-dev-loop-skill",
     ],
   );
   assert.equal(checks.every((check) => check.ok), true);
@@ -71,18 +69,16 @@ test("collectDevLoopChecks distinguishes missing gh from missing gh auth", async
   assert.match(missingAuthChecks[1].detail, /gh auth login/);
 });
 
-test("collectDevLoopChecks uses Pi-discovered tools and commands for discoverability checks", async () => {
+test("collectDevLoopChecks uses Pi-discovered tools for discoverability checks", async () => {
   const checks = await collectDevLoopChecks(
     createFakePi({
       tools: [{ name: "subagent" }],
-      commands: [{ name: "skill:dev-loop" }],
     }),
   );
 
   const byId = Object.fromEntries(checks.map((check) => [check.id, check]));
   assert.equal(byId["subagent-tool"].ok, true);
-  assert.equal(byId["local-dev-loop-skill"].ok, true);
-  assert.equal(checks.length, 5);
+  assert.equal(checks.length, 4);
 });
 
 test("summarizeChecks and renderCheckLines return stable human-readable output", () => {

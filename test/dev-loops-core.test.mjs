@@ -41,8 +41,6 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
     [["help"], "help"],
     [["status"], "status"],
     [["doctor"], "doctor"],
-    [["install", "repo"], "install"],
-    [["update", "system"], "update"],
   ];
 
   for (const [argv, action] of sharedInputs) {
@@ -61,10 +59,20 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
     message: "`pi-dev-loops hide` is not supported outside the Pi extension; use `/dev-loops hide` inside Pi instead.",
     tokens: ["hide"],
   });
+  assert.deepEqual(parseDevLoopsCommand(["install", "moon"], { surface: "extension" }), {
+    kind: "action",
+    action: "help",
+    tokens: ["install", "moon"],
+  });
+  assert.deepEqual(parseDevLoopsCommand(["update", "system"], { surface: "extension" }), {
+    kind: "action",
+    action: "help",
+    tokens: ["update", "system"],
+  });
   assert.deepEqual(parseDevLoopsCommand(["install", "moon"], { surface: "cli" }), {
     kind: "malformed",
-    message: "`install` accepts only the optional target `repo` or `system`.",
-    usageAction: "install",
+    message: "Unrecognized command: install.",
+    usageAction: undefined,
     tokens: ["install", "moon"],
   });
   assert.deepEqual(parseDevLoopsCommand(["status", "extra"], { surface: "extension" }), {
@@ -91,7 +99,7 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
   });
 });
 
-test("shared executor returns deterministic status and blocked install results", async () => {
+test("shared executor returns deterministic status and rejects removed install and update commands", async () => {
   const status = await executeDevLoopsCommand({
     input: ["status"],
     surface: "cli",
@@ -102,66 +110,56 @@ test("shared executor returns deterministic status and blocked install results",
   assert.equal(status.kind, "checks");
   assert.equal(status.action, "status");
   assert.equal(status.checks[0].id, "gh-installed");
-  assert.equal(status.checks[4].id, "local-dev-loop-skill");
-  assert.equal(status.checks[4].ok, true);
+  assert.equal(status.checks[3].id, "git-repo");
 
-  const blocked = await executeDevLoopsCommand({
+  const removedInstall = await executeDevLoopsCommand({
     input: ["install", "repo"],
     surface: "cli",
-    runtime: createRuntime({
-      async resolveRepoRoot() {
-        return undefined;
-      },
-    }),
+    runtime: createRuntime(),
     homeDirectory: "/tmp/home",
   });
 
-  assert.deepEqual(blocked, {
-    kind: "blocked",
-    action: "install",
-    scope: "repo",
-    message: "pi-dev-loops install repo: not inside a git repository",
-  });
-});
-
-
-test("collectDevLoopChecks uses the caller-provided surface as the single install-guidance authority", async () => {
-  const runtime = createRuntime({
-    surface: "extension",
-    async getSkillAvailability() {
-      return {
-        ok: false,
-        availableDetail: "installed elsewhere",
-        unavailableDetail: "generic missing",
-      };
-    },
+  assert.deepEqual(removedInstall, {
+    kind: "malformed",
+    message: "Unrecognized command: install.",
+    usageAction: undefined,
+    tokens: ["install", "repo"],
   });
 
-  const cliChecks = await collectDevLoopChecks(runtime, { surface: "cli" });
-  const extensionChecks = await collectDevLoopChecks(runtime, { surface: "extension" });
-
-  const cliDevLoop = cliChecks.find((check) => check.id === "local-dev-loop-skill");
-  const extensionDevLoop = extensionChecks.find((check) => check.id === "local-dev-loop-skill");
-
-  assert.match(cliDevLoop.detail, /pi-dev-loops install repo/i);
-  assert.doesNotMatch(cliDevLoop.detail, /\/dev-loops install repo/i);
-  assert.match(extensionDevLoop.detail, /\/dev-loops install repo/i);
-});
-
-
-test("collectDevLoopChecks applies surface-aware dev-loop guidance for object probes too", async () => {
-  const cliChecks = await collectDevLoopChecks(createRuntime({
+  const removedUpdate = await executeDevLoopsCommand({
+    input: ["update", "system"],
     surface: "cli",
-    async getSkillAvailability(skillName) {
-      return {
-        ok: false,
-        availableDetail: `installed elsewhere: ${skillName}`,
-        unavailableDetail: `generic missing: ${skillName}`,
-      };
-    },
-  }));
+    runtime: createRuntime(),
+    homeDirectory: "/tmp/home",
+  });
 
-  const localSkill = cliChecks.find((check) => check.id === "local-dev-loop-skill");
-  assert.match(localSkill.detail, /pi-dev-loops install repo/i);
-  assert.doesNotMatch(localSkill.detail, /generic missing: dev-loop/i);
+  assert.deepEqual(removedUpdate, {
+    kind: "malformed",
+    message: "Unrecognized command: update.",
+    usageAction: undefined,
+    tokens: ["update", "system"],
+  });
+
+  const removedExtensionInstall = await executeDevLoopsCommand({
+    input: ["install", "repo"],
+    surface: "extension",
+    runtime: createRuntime(),
+    homeDirectory: "/tmp/home",
+  });
+
+  assert.deepEqual(removedExtensionInstall, { kind: "help" });
+
+  const removedExtensionUpdate = await executeDevLoopsCommand({
+    input: ["update", "system"],
+    surface: "extension",
+    runtime: createRuntime(),
+    homeDirectory: "/tmp/home",
+  });
+
+  assert.deepEqual(removedExtensionUpdate, { kind: "help" });
+});
+
+test("collectDevLoopChecks no longer reports a dev-loop skill readiness check", async () => {
+  const checks = await collectDevLoopChecks(createRuntime());
+  assert.equal(checks.some((check) => check.id === "local-dev-loop-skill"), false);
 });
