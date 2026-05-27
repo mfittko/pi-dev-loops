@@ -148,10 +148,20 @@ test("help is the default action and removed install/update commands fall back t
   assert.match(installContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
   assert.equal(installContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 
+  const bareInstallContext = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("install", bareInstallContext.ctx);
+  assert.match(bareInstallContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.equal(bareInstallContext.calls.notifications.at(-1).message, "pi-dev-loops help");
+
   const updateContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("update", updateContext.ctx);
   assert.match(updateContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
   assert.equal(updateContext.calls.notifications.at(-1).message, "pi-dev-loops help");
+
+  const bareUpdateContext = createCommandContext();
+  await pi.registeredCommands.get("dev-loops").handler("update system", bareUpdateContext.ctx);
+  assert.match(bareUpdateContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.equal(bareUpdateContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const statusWithExtraArgsContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("status extra", statusWithExtraArgsContext.ctx);
