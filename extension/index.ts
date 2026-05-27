@@ -38,7 +38,11 @@ export function syncPackagedAgents({
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
-    syncPackagedAgents();
+    try {
+      syncPackagedAgents();
+    } catch {
+      // Best-effort agent sync — do not break session start
+    }
     ctx.ui.setStatus(STATUS_KEY, undefined);
   });
 
