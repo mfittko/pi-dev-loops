@@ -2,7 +2,7 @@ import type { DevLoopCheck, DevLoopCheckId } from "./checks.ts";
 import { DEV_LOOP_CHECK_IDS, summarizeChecks, renderCheckLines } from "./checks.ts";
 import { describeReadiness } from "../lib/dev-loops-core.mjs";
 
-export type DevLoopsAction = "doctor" | "help" | "install" | "status" | "update" | "hide";
+export type DevLoopsAction = "doctor" | "help" | "status" | "hide";
 
 const SETUP_GUIDANCE: Record<(typeof DEV_LOOP_CHECK_IDS)[number], string> = {
   "gh-installed": "Install GitHub CLI to enable remote GitHub/Copilot workflows.",
@@ -44,9 +44,6 @@ export function buildHelpLines(): string[] {
     "- /dev-loops status",
     "- /dev-loops doctor",
     "- /dev-loops hide",
-    "Deprecated compatibility commands:",
-    "- /dev-loops install",
-    "- /dev-loops update",
     "Use `pi install git:github.com/mfittko/pi-dev-loops` to install skills and agents; packaged agents sync into `~/.agents/` on session start.",
   ];
 }

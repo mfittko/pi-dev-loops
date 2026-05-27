@@ -1,6 +1,6 @@
 # Extension scaffold
 
-`pi-dev-loops` ships a lightweight package extension for readiness UX and install/update compatibility guidance.
+`pi-dev-loops` ships a lightweight package extension for readiness UX.
 
 Installing the package exposes two thin wrappers over one shared deterministic core:
 - the Pi extension command family rooted at `/dev-loops`
@@ -16,10 +16,6 @@ Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exp
   - concise readiness summary plus lightweight next steps
 - `/dev-loops doctor`
   - full diagnostic report with explicit pass/fail detail
-- `/dev-loops install`
-  - deprecated compatibility command; points users to `pi install git:github.com/mfittko/pi-dev-loops`
-- `/dev-loops update`
-  - deprecated compatibility command; points users to `pi update git:github.com/mfittko/pi-dev-loops`
 - `/dev-loops hide`
   - removes the readiness widget cleanly
 - `pi-dev-loops`
@@ -30,10 +26,6 @@ Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exp
   - prints the concise readiness summary in shell-friendly output
 - `pi-dev-loops doctor`
   - prints the full diagnostic report in shell-friendly output
-- `pi-dev-loops install`
-  - deprecated compatibility command; points users to `pi install git:github.com/mfittko/pi-dev-loops`
-- `pi-dev-loops update`
-  - deprecated compatibility command; points users to `pi update git:github.com/mfittko/pi-dev-loops`
 - `pi-dev-loops hide`
   - is intentionally unsupported and exits non-zero with a shell-friendly stderr message because `hide` is session-local Pi UI behavior
 
@@ -55,7 +47,7 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 - `pi install -l git:github.com/mfittko/pi-dev-loops` is the project-local replacement for the old `install repo` flow
 - `pi update git:github.com/mfittko/pi-dev-loops` refreshes an installed package
 - packaged agents are refreshed into `~/.agents/` on each `session_start`
-- `/dev-loops install ...` and `/dev-loops update ...` remain only as deprecated compatibility commands that emit guidance instead of copying files
+- `/dev-loops install ...` and `/dev-loops update ...` are removed; use `pi install` / `pi update` directly instead
 
 ## Runtime / build / test contract
 
@@ -66,7 +58,7 @@ Current Phase 3+ contract:
 - the package exposes `.pi/skills` through `package.json` `pi.skills` for install-based global skill loading
 - the shell CLI is exposed through `package.json` `bin.pi-dev-loops`
 - the extension syncs packaged `.pi/agents/*.agent.md` files into `~/.agents/` on `session_start` so user-level agents are available outside this repo
-- `/dev-loops install ...` and `/dev-loops update ...` are deprecated compatibility commands that point users back to package install/update flows
+- `/dev-loops install ...` and `/dev-loops update ...` are not part of the command surface; package install/update happens through `pi install` / `pi update`
 - this phase does not yet claim a specific supported `gh` version; it only checks `gh` presence and authentication state
 - this phase does not require a separate compiled build or `dist/` pipeline
 

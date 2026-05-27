@@ -125,7 +125,7 @@ test("syncPackagedAgents creates the target directory and only copies .agent.md 
   await assert.rejects(access(path.join(targetRoot, "ignore.txt")));
 });
 
-test("help is the default action and deprecated install/update commands point to package installs", async () => {
+test("help is the default action and removed install/update commands fall back to help", async () => {
   const pi = readyPi();
   registerExtension(pi);
   const { ctx, calls } = createCommandContext();
@@ -136,23 +136,22 @@ test("help is the default action and deprecated install/update commands point to
   assert.equal(widget.key, "pi-dev-loops.setup");
   assert.match(widget.lines[0], /pi-dev-loops help/);
   assert(widget.lines.some((line) => /\/dev-loops status/i.test(line)));
-  assert(widget.lines.some((line) => /Deprecated compatibility commands:/i.test(line)));
   assert(widget.lines.some((line) => /pi install git:github.com\/mfittko\/pi-dev-loops/i.test(line)));
   assert(widget.lines.some((line) => /\/skill:dev-loop/i.test(line)), "help should mention /skill:dev-loop as workflow entry");
   assert(widget.lines.some((line) => /single public entry/i.test(line)), "help should describe dev-loop as single public entry");
   assert.equal(widget.lines.some((line) => /copilot-dev-loop|copilot-autopilot/i.test(line)), false, "help should not surface internal seam names");
+  assert.equal(widget.lines.some((line) => /\/dev-loops install|\/dev-loops update/i.test(line)), false);
   assert.equal(calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const installContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("install repo", installContext.ctx);
-  assert.match(installContext.calls.widgets.at(-1).lines[0], /installed automatically via `pi install git:github.com\/mfittko\/pi-dev-loops`/);
-  assert(installContext.calls.widgets.at(-1).lines.some((line) => /pi install -l git:github.com\/mfittko\/pi-dev-loops/i.test(line)));
-  assert.equal(installContext.calls.notifications.at(-1).message, "pi-dev-loops install is deprecated");
+  assert.match(installContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.equal(installContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const updateContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("update", updateContext.ctx);
-  assert(updateContext.calls.widgets.at(-1).lines.some((line) => /pi update git:github.com\/mfittko\/pi-dev-loops/i.test(line)));
-  assert.equal(updateContext.calls.notifications.at(-1).message, "pi-dev-loops update is deprecated");
+  assert.match(updateContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.equal(updateContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const statusWithExtraArgsContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("status extra", statusWithExtraArgsContext.ctx);

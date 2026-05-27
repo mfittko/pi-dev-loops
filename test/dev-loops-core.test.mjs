@@ -41,8 +41,6 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
     [["help"], "help"],
     [["status"], "status"],
     [["doctor"], "doctor"],
-    [["install", "repo"], "install"],
-    [["update", "system"], "update"],
   ];
 
   for (const [argv, action] of sharedInputs) {
@@ -61,10 +59,15 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
     message: "`pi-dev-loops hide` is not supported outside the Pi extension; use `/dev-loops hide` inside Pi instead.",
     tokens: ["hide"],
   });
-  assert.deepEqual(parseDevLoopsCommand(["install", "moon"], { surface: "cli" }), {
+  assert.deepEqual(parseDevLoopsCommand(["install", "moon"], { surface: "extension" }), {
     kind: "action",
-    action: "install",
-    scope: undefined,
+    action: "help",
+    tokens: ["install", "moon"],
+  });
+  assert.deepEqual(parseDevLoopsCommand(["install", "moon"], { surface: "cli" }), {
+    kind: "malformed",
+    message: "Unrecognized command: install.",
+    usageAction: undefined,
     tokens: ["install", "moon"],
   });
   assert.deepEqual(parseDevLoopsCommand(["status", "extra"], { surface: "extension" }), {
@@ -91,7 +94,7 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
   });
 });
 
-test("shared executor returns deterministic status and deprecated install guidance", async () => {
+test("shared executor returns deterministic status and rejects removed install and update commands", async () => {
   const status = await executeDevLoopsCommand({
     input: ["status"],
     surface: "cli",
@@ -104,21 +107,32 @@ test("shared executor returns deterministic status and deprecated install guidan
   assert.equal(status.checks[0].id, "gh-installed");
   assert.equal(status.checks[3].id, "git-repo");
 
-  const deprecated = await executeDevLoopsCommand({
+  const removedInstall = await executeDevLoopsCommand({
     input: ["install", "repo"],
     surface: "cli",
     runtime: createRuntime(),
     homeDirectory: "/tmp/home",
   });
 
-  assert.deepEqual(deprecated, {
-    kind: "deprecated",
-    action: "install",
-    scope: "repo",
-    lines: [
-      "Skills and agents are now installed automatically via `pi install git:github.com/mfittko/pi-dev-loops`. No manual install step is needed.",
-      "For a project-local install, use `pi install -l git:github.com/mfittko/pi-dev-loops` instead.",
-    ],
+  assert.deepEqual(removedInstall, {
+    kind: "malformed",
+    message: "Unrecognized command: install.",
+    usageAction: undefined,
+    tokens: ["install", "repo"],
+  });
+
+  const removedUpdate = await executeDevLoopsCommand({
+    input: ["update", "system"],
+    surface: "cli",
+    runtime: createRuntime(),
+    homeDirectory: "/tmp/home",
+  });
+
+  assert.deepEqual(removedUpdate, {
+    kind: "malformed",
+    message: "Unrecognized command: update.",
+    usageAction: undefined,
+    tokens: ["update", "system"],
   });
 });
 

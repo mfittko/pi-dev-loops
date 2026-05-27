@@ -32,7 +32,6 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.match(readme, /concise readiness summary/i);
   assert.match(readme, /\/dev-loops doctor/i);
   assert.match(readme, /full diagnostic report/i);
-  assert.match(readme, /deprecated compatibility command/i);
   assert.match(readme, /pi install git:github.com\/mfittko\/pi-dev-loops/i);
   assert.match(readme, /pi install -l git:github.com\/mfittko\/pi-dev-loops/i);
   assert.match(readme, /pi update git:github.com\/mfittko\/pi-dev-loops/i);
@@ -43,6 +42,7 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.match(readme, /~\/\.agents/i);
   assert.match(readme, /single public workflow entry/i);
   assert.match(readme, /readiness surface should not present them as separate user-facing checks/i);
+  assert.match(readme, /are removed; use `pi install` \/ `pi update` directly instead/i);
   assert.doesNotMatch(readme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i);
   assert.match(readme, /node --import tsx --test/i);
   assert.match(readme, /does not yet claim a specific supported `gh` version/i);

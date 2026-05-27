@@ -100,9 +100,6 @@ function buildCliHelpLines() {
     "- pi-dev-loops status",
     "- pi-dev-loops doctor",
     "`/dev-loops hide` remains an extension-only Pi command.",
-    "Deprecated compatibility commands:",
-    "- pi-dev-loops install",
-    "- pi-dev-loops update",
     "Use `pi install git:github.com/mfittko/pi-dev-loops` to install skills and agents, or `pi update git:github.com/mfittko/pi-dev-loops` to refresh the package.",
   ];
 }
@@ -274,9 +271,6 @@ export async function runCli({
       writeLines(stdout, lines);
       return 0;
     }
-    case "deprecated":
-      writeLines(stdout, result.lines);
-      return 1;
     case "unsupported":
       writeLines(stderr, [result.message]);
       return 1;

@@ -47,7 +47,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("dev-loops", {
-    description: "Manage pi-dev-loops readiness and compatibility guidance: /dev-loops [help|status|doctor|install|update|hide]",
+    description: "Manage pi-dev-loops readiness and compatibility guidance: /dev-loops [help|status|doctor|hide]",
     handler: async (args, ctx) => {
       const result = await executeDevLoopsCommand({
         input: args,
@@ -70,10 +70,6 @@ export default function (pi: ExtensionAPI) {
             placement: "belowEditor",
           });
           ctx.ui.notify(buildNotificationMessage(result.action as Extract<DevLoopsAction, "doctor" | "status">, result.checks), "info");
-          return;
-        case "deprecated":
-          ctx.ui.setWidget(WIDGET_KEY, result.lines, { placement: "belowEditor" });
-          ctx.ui.notify(`pi-dev-loops ${result.action} is deprecated`, "info");
           return;
         case "malformed":
           ctx.ui.setWidget(WIDGET_KEY, [result.message, ...buildHelpLines()], { placement: "belowEditor" });
