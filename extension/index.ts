@@ -26,18 +26,22 @@ export function syncPackagedAgents({
   sourceRoot = fileURLToPath(PACKAGED_AGENTS_ROOT),
   targetRoot = path.join(os.homedir(), ".agents"),
 } = {}) {
-  if (!fs.existsSync(sourceRoot)) {
-    return;
-  }
+  try {
+    fs.mkdirSync(targetRoot, { recursive: true });
 
-  fs.mkdirSync(targetRoot, { recursive: true });
+    for (const entry of fs.readdirSync(sourceRoot, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".agent.md")) {
+        continue;
+      }
 
-  for (const entry of fs.readdirSync(sourceRoot, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith(".agent.md")) {
-      continue;
+      fs.copyFileSync(path.join(sourceRoot, entry.name), path.join(targetRoot, entry.name));
+    }
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return;
     }
 
-    fs.copyFileSync(path.join(sourceRoot, entry.name), path.join(targetRoot, entry.name));
+    throw error;
   }
 }
 

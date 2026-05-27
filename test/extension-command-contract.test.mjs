@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { access, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 
-import registerExtension from "../extension/index.ts";
+import registerExtension, { syncPackagedAgents } from "../extension/index.ts";
 import { buildInstallResultLines } from "../extension/presentation.ts";
 
 function createPiDouble({ commandResults = new Map(), tools = [], commands = [] } = {}) {
@@ -109,6 +109,21 @@ test("extension clears stale footer status and syncs packaged agents on session 
       process.env.HOME = previousHome;
     }
   }
+});
+
+test("syncPackagedAgents creates the target directory and only copies .agent.md files", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-agent-sync-"));
+  const sourceRoot = path.join(tempDir, "source");
+  const targetRoot = path.join(tempDir, "target");
+
+  await mkdir(sourceRoot, { recursive: true });
+  await writeFile(path.join(sourceRoot, "developer.agent.md"), "developer\n");
+  await writeFile(path.join(sourceRoot, "ignore.txt"), "ignore\n");
+
+  syncPackagedAgents({ sourceRoot, targetRoot });
+
+  assert.equal(await readFile(path.join(targetRoot, "developer.agent.md"), "utf8"), "developer\n");
+  await assert.rejects(access(path.join(targetRoot, "ignore.txt")));
 });
 
 test("help is the default action and malformed commands stay non-mutating", async () => {
