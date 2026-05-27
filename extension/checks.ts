@@ -68,15 +68,6 @@ export function createExtensionCoreRuntime(pi: ExtensionAPI) {
         unavailableDetail: "Install/enable `pi-subagents`; current loops assume subagent support.",
       };
     },
-    async getSkillAvailability(skillName: "dev-loop" | "copilot-dev-loop" | "copilot-autopilot") {
-      const commands = pi.getCommands();
-      const ok = commands.some((command) => command.name === `skill:${skillName}`);
-      return {
-        ok,
-        availableDetail: ok ? `\`/skill:${skillName}\` is available.` : "",
-        unavailableDetail: `Run \`/dev-loops install repo\` or \`/dev-loops install system\` to make \`/skill:${skillName}\` discoverable.`,
-      };
-    },
     async resolveRepoRoot() {
       try {
         const result = await pi.exec("bash", ["-lc", "git rev-parse --show-toplevel"], {

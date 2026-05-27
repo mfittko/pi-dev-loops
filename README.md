@@ -32,7 +32,7 @@ This repo currently contains four main layers. The design goal is generic role a
    - `dev-loop` as the single public façade that routes to the correct internal loop strategy
    - internal compatibility seams remain runtime-only and are not public workflow choices
 3. **Extension UX** in `extension/`
-   - `/dev-loops` readiness checks plus explicit skill install/update flows
+   - `/dev-loops` readiness checks plus install/update compatibility guidance
 4. **Deterministic support code** in `packages/core/` and `scripts/`
    - shared pure/stateful helpers, loop-state detectors, and CLI entrypoints
 
@@ -55,21 +55,16 @@ Current commands:
 - `/dev-loops` — help output
 - `/dev-loops status` — concise readiness summary
 - `/dev-loops doctor` — full diagnostics
-- `/dev-loops install` — prompt for `repo` or `system` when no target is provided
-- `/dev-loops install repo` — copy packaged skills into the current repository under `.pi/skills`
-- `/dev-loops install system` — copy packaged skills into `~/.pi/agent/skills`
-- `/dev-loops update` — prompt for `repo` or `system` when no target is provided
-- `/dev-loops update repo|system` — refresh previously installed packaged skills
+- `/dev-loops install` / `/dev-loops update` — deprecated compatibility commands that point users to package install/update flows
 - `/dev-loops hide` — clear the readiness widget
 
 Important install/update contract:
-- installing the package exposes both the `/dev-loops` extension command surface and the `pi-dev-loops` shell CLI
-- packaged skills are still installed explicitly with `/dev-loops install ...`
-- `update` refreshes existing installed copies but does not create first-time installs
-- installed copies of `copilot-dev-loop` and `copilot-autopilot` include the allow-listed runtime support they need from `scripts/`, `packages/core/src/`, and the selected docs under `docs/`
-- restart Pi or refresh skill discovery after install/update before expecting newly copied skills to appear in the current session
+- installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes the `/dev-loops` extension command surface, the `pi-dev-loops` shell CLI, and the packaged skills from `package.json` `pi.skills`
+- for a project-local install, use `pi install -l git:github.com/mfittko/pi-dev-loops`
+- packaged `.pi/agents/*.agent.md` files are synchronized into `~/.agents/` on `session_start`
+- `/dev-loops install ...` and `/dev-loops update ...` are deprecated compatibility commands and no longer copy skills into `.pi/skills` or `~/.pi/agent/skills`
 
-See `extension/README.md` for the full command and install/update contract.
+See `extension/README.md` for the full command and package-install contract.
 
 ## Deterministic support surfaces
 
@@ -172,5 +167,6 @@ CI currently runs `npm ci` and `npm test` on Node 24 in `.github/workflows/ci.ym
 - `docs/IMPLEMENTATION_WORKFLOW.md` — repo workflow contract and docs-sync rules
 - `docs/public-dev-loop-contract.md` — public façade, canonical state, and compatibility routing contract
 - `extension/README.md` — `/dev-loops` command and install/update contract
+- `extension/README.md` — `/dev-loops` command and package-install contract
 - `scripts/README.md` — deterministic script contracts
 - `skills/*/SKILL.md` — workflow-specific operating instructions

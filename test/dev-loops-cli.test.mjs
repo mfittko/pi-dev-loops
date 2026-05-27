@@ -108,9 +108,8 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
   });
 
   assert.equal(invalidExitCode, 1);
-  assert.equal(invalidStdout.read(), "");
-  assert.match(invalidStderr.read(), /`install` accepts only the optional target `repo` or `system`/);
-  assert.match(invalidStderr.read(), /pi-dev-loops install: choose a target/);
+  assert.match(invalidStdout.read(), /installed automatically via `pi install git:github.com\/mfittko\/pi-dev-loops`/);
+  assert.equal(invalidStderr.read(), "");
 
   const malformedStdout = createBufferStream();
   const malformedStderr = createBufferStream();
@@ -142,6 +141,7 @@ test("CLI help leads with dev-loop as the primary workflow entry", async () => {
   assert.equal(helpExitCode, 0);
   assert.match(helpStdout.read(), /\/skill:dev-loop/, "CLI help should mention /skill:dev-loop as workflow entry");
   assert.match(helpStdout.read(), /single public entry/, "CLI help should describe dev-loop as single public entry");
+  assert.match(helpStdout.read(), /Deprecated compatibility commands:/);
   assert.doesNotMatch(helpStdout.read(), /copilot-dev-loop|copilot-autopilot/i, "CLI help should not surface internal seam names");
   assert.equal(helpStderr.read(), "");
 });
@@ -265,13 +265,10 @@ test("createCliRuntime honors PATHEXT lookups when simulating Windows PATH resol
   }
 });
 
-test("CLI update output preserves missing-skill guidance parity", async () => {
+test("CLI update output redirects to package update guidance", async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-update-"));
-  const skillsRoot = path.join(tempRoot, ".pi", "agent", "skills");
   const stdout = createBufferStream();
   const stderr = createBufferStream();
-  await mkdir(path.join(skillsRoot, "dev-loop"), { recursive: true });
-  await writeFile(path.join(skillsRoot, "dev-loop", "SKILL.md"), "# dev-loop\n");
 
   try {
     const exitCode = await runCli({
@@ -282,10 +279,10 @@ test("CLI update output preserves missing-skill guidance parity", async () => {
       homeDirectory: tempRoot,
     });
 
-    assert.equal(exitCode, 0);
+    assert.equal(exitCode, 1);
     assert.equal(stderr.read(), "");
-    assert.match(stdout.read(), /Some packaged skills were not installed in this target yet/);
-    assert.match(stdout.read(), /A missing skill will not appear after refresh alone/);
+    assert.match(stdout.read(), /installed automatically via `pi install git:github.com\/mfittko\/pi-dev-loops`/);
+    assert.match(stdout.read(), /pi update git:github.com\/mfittko\/pi-dev-loops/);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

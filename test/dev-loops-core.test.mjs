@@ -62,9 +62,9 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
     tokens: ["hide"],
   });
   assert.deepEqual(parseDevLoopsCommand(["install", "moon"], { surface: "cli" }), {
-    kind: "malformed",
-    message: "`install` accepts only the optional target `repo` or `system`.",
-    usageAction: "install",
+    kind: "action",
+    action: "install",
+    scope: undefined,
     tokens: ["install", "moon"],
   });
   assert.deepEqual(parseDevLoopsCommand(["status", "extra"], { surface: "extension" }), {
@@ -91,7 +91,7 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
   });
 });
 
-test("shared executor returns deterministic status and blocked install results", async () => {
+test("shared executor returns deterministic status and deprecated install guidance", async () => {
   const status = await executeDevLoopsCommand({
     input: ["status"],
     surface: "cli",
@@ -102,66 +102,27 @@ test("shared executor returns deterministic status and blocked install results",
   assert.equal(status.kind, "checks");
   assert.equal(status.action, "status");
   assert.equal(status.checks[0].id, "gh-installed");
-  assert.equal(status.checks[4].id, "local-dev-loop-skill");
-  assert.equal(status.checks[4].ok, true);
+  assert.equal(status.checks[3].id, "git-repo");
 
-  const blocked = await executeDevLoopsCommand({
+  const deprecated = await executeDevLoopsCommand({
     input: ["install", "repo"],
     surface: "cli",
-    runtime: createRuntime({
-      async resolveRepoRoot() {
-        return undefined;
-      },
-    }),
+    runtime: createRuntime(),
     homeDirectory: "/tmp/home",
   });
 
-  assert.deepEqual(blocked, {
-    kind: "blocked",
+  assert.deepEqual(deprecated, {
+    kind: "deprecated",
     action: "install",
     scope: "repo",
-    message: "pi-dev-loops install repo: not inside a git repository",
+    lines: [
+      "Skills and agents are now installed automatically via `pi install git:github.com/mfittko/pi-dev-loops`. No manual install step is needed.",
+      "For a project-local install, use `pi install -l git:github.com/mfittko/pi-dev-loops` instead.",
+    ],
   });
 });
 
-
-test("collectDevLoopChecks uses the caller-provided surface as the single install-guidance authority", async () => {
-  const runtime = createRuntime({
-    surface: "extension",
-    async getSkillAvailability() {
-      return {
-        ok: false,
-        availableDetail: "installed elsewhere",
-        unavailableDetail: "generic missing",
-      };
-    },
-  });
-
-  const cliChecks = await collectDevLoopChecks(runtime, { surface: "cli" });
-  const extensionChecks = await collectDevLoopChecks(runtime, { surface: "extension" });
-
-  const cliDevLoop = cliChecks.find((check) => check.id === "local-dev-loop-skill");
-  const extensionDevLoop = extensionChecks.find((check) => check.id === "local-dev-loop-skill");
-
-  assert.match(cliDevLoop.detail, /pi-dev-loops install repo/i);
-  assert.doesNotMatch(cliDevLoop.detail, /\/dev-loops install repo/i);
-  assert.match(extensionDevLoop.detail, /\/dev-loops install repo/i);
-});
-
-
-test("collectDevLoopChecks applies surface-aware dev-loop guidance for object probes too", async () => {
-  const cliChecks = await collectDevLoopChecks(createRuntime({
-    surface: "cli",
-    async getSkillAvailability(skillName) {
-      return {
-        ok: false,
-        availableDetail: `installed elsewhere: ${skillName}`,
-        unavailableDetail: `generic missing: ${skillName}`,
-      };
-    },
-  }));
-
-  const localSkill = cliChecks.find((check) => check.id === "local-dev-loop-skill");
-  assert.match(localSkill.detail, /pi-dev-loops install repo/i);
-  assert.doesNotMatch(localSkill.detail, /generic missing: dev-loop/i);
+test("collectDevLoopChecks no longer reports a dev-loop skill readiness check", async () => {
+  const checks = await collectDevLoopChecks(createRuntime());
+  assert.equal(checks.some((check) => check.id === "local-dev-loop-skill"), false);
 });

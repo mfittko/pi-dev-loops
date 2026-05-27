@@ -17,7 +17,6 @@ const CLI_SETUP_GUIDANCE = {
   "gh-auth": "Run `gh auth login` so remote GitHub/Copilot workflows can use your GitHub session.",
   "subagent-tool": "Install or enable `pi-subagents`; the shared loop workflows assume subagent support.",
   "git-repo": "Run the command from a git repository checkout before using repo-scoped workflows.",
-  "local-dev-loop-skill": "Run `pi-dev-loops install repo` for this repository or `pi-dev-loops install system` for `~/.pi/agent/skills`.",
 };
 
 function spawnResult(command, args, options = {}) {
@@ -92,21 +91,6 @@ async function pathExists(targetPath) {
   }
 }
 
-function formatInstallStatus(status) {
-  switch (status) {
-    case "installed":
-      return "installed";
-    case "updated":
-      return "updated";
-    case "already-installed":
-      return "already installed";
-    case "missing":
-      return "not installed";
-    default:
-      throw new Error(`Unknown install status: ${status}`);
-  }
-}
-
 function buildCliHelpLines() {
   return [
     "pi-dev-loops help",
@@ -115,11 +99,11 @@ function buildCliHelpLines() {
     "Commands:",
     "- pi-dev-loops status",
     "- pi-dev-loops doctor",
-    "- pi-dev-loops install repo",
-    "- pi-dev-loops install system",
-    "- pi-dev-loops update repo",
-    "- pi-dev-loops update system",
     "`/dev-loops hide` remains an extension-only Pi command.",
+    "Deprecated compatibility commands:",
+    "- pi-dev-loops install",
+    "- pi-dev-loops update",
+    "Use `pi install git:github.com/mfittko/pi-dev-loops` to install skills and agents, or `pi update git:github.com/mfittko/pi-dev-loops` to refresh the package.",
   ];
 }
 
@@ -135,50 +119,9 @@ function buildCliUsageLines(action) {
         "- pi-dev-loops hide",
         "`hide` is only supported without extra arguments, and only inside the Pi extension.",
       ];
-    case "install":
-    case "update":
-      return [
-        `pi-dev-loops ${action}: choose a target`,
-        "Usage:",
-        `- pi-dev-loops ${action} repo`,
-        `- pi-dev-loops ${action} system`,
-      ];
     default:
       throw new Error(`Unknown CLI usage action: ${action}`);
   }
-}
-
-function buildCliBlockedLines(action, message) {
-  return [
-    message,
-    `Run the command from a git worktree, or use \`pi-dev-loops ${action} system\` for the system-wide target.`,
-  ];
-}
-
-function buildCliFailureLines(action, scope, detail) {
-  return [
-    `pi-dev-loops ${action} ${scope}: failed`,
-    detail,
-  ];
-}
-
-function buildCliInstallResultLines(result) {
-  const changedCount = result.results.filter((entry) => entry.status !== "already-installed" && entry.status !== "missing").length;
-  const lines = [
-    `pi-dev-loops ${result.mode} ${result.scope}: ${changedCount}/${result.results.length} skill directories changed`,
-    `Target: ${result.targetRoot}`,
-    ...result.results.map((entry) => `- ${entry.skillName}: ${formatInstallStatus(entry.status)} (${entry.targetPath})`),
-  ];
-
-  if (result.mode === "update" && result.results.some((entry) => entry.status === "missing")) {
-    lines.push("Some packaged skills were not installed in this target yet; use `pi-dev-loops install repo|system` for first-time setup.");
-  }
-
-  lines.push("Newly installed or updated skills will be available the next time Pi starts; if Pi is already running, refresh skill discovery in that session first.");
-  if (result.results.some((entry) => entry.status === "missing")) {
-    lines.push("A missing skill will not appear after refresh alone; run `pi-dev-loops install repo|system` first for any packaged skill reported as not installed.");
-  }
-  return lines;
 }
 
 function orderedCliSetupSteps(checks) {
@@ -194,7 +137,7 @@ function orderedCliSetupSteps(checks) {
   return [
     "1. Use `/skill:dev-loop` (in Pi) or `subagent dev-loop` to start or continue a dev loop — the single public entry.",
     "2. Run `pi-dev-loops status` whenever you want a concise readiness snapshot.",
-    "3. Use `pi-dev-loops update repo` or `pi-dev-loops update system` to refresh installed skills when the package changes.",
+    "3. Use `pi install git:github.com/mfittko/pi-dev-loops` to install the package, or `pi update git:github.com/mfittko/pi-dev-loops` to refresh it.",
   ];
 }
 
@@ -325,23 +268,14 @@ export async function runCli({
         lines.push("Suggested next steps:", ...orderedCliSetupSteps(result.checks));
       } else {
         lines.push(...renderCheckLines(result.checks));
-        lines.push("Use `pi-dev-loops install repo|system` to install packaged skills, or `pi-dev-loops update repo|system` to refresh them.");
+        lines.push("Skills load via `pi install git:github.com/mfittko/pi-dev-loops`; packaged agents sync into `~/.agents/` on session start.");
       }
 
       writeLines(stdout, lines);
       return 0;
     }
-    case "missing-target":
-      writeLines(stderr, buildCliUsageLines(result.action));
-      return 1;
-    case "blocked":
-      writeLines(stderr, buildCliBlockedLines(result.action, result.message));
-      return 1;
-    case "install-result":
-      writeLines(stdout, buildCliInstallResultLines(result.result));
-      return 0;
-    case "failed":
-      writeLines(stderr, buildCliFailureLines(result.action, result.scope, result.detail));
+    case "deprecated":
+      writeLines(stdout, result.lines);
       return 1;
     case "unsupported":
       writeLines(stderr, [result.message]);
