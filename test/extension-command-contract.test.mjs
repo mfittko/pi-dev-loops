@@ -120,7 +120,7 @@ test("syncPackagedAgents creates the target directory and only copies .agent.md 
   await writeFile(path.join(sourceRoot, "developer.agent.md"), "developer\n");
   await writeFile(path.join(sourceRoot, "ignore.txt"), "ignore\n");
 
-  syncPackagedAgents({ sourceRoot, targetRoot });
+  await syncPackagedAgents({ sourceRoot, targetRoot });
 
   assert.equal(await readFile(path.join(targetRoot, "developer.agent.md"), "utf8"), "developer\n");
   await assert.rejects(access(path.join(targetRoot, "ignore.txt")));
