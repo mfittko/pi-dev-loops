@@ -43,6 +43,9 @@
   "pi": {
     "extensions": [
       "./index.ts"
+    ],
+    "skills": [
+      ".pi/skills"
     ]
   },
   "dependencies": {

@@ -1,4 +1,7 @@
+import fs from "node:fs";
 import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 import { executeDevLoopsCommand } from "../lib/dev-loops-core.mjs";
@@ -17,9 +20,30 @@ import {
 
 const STATUS_KEY = "pi-dev-loops";
 const WIDGET_KEY = "pi-dev-loops.setup";
+const PACKAGED_AGENTS_ROOT = new URL("../.pi/agents/", import.meta.url);
+
+export function syncPackagedAgents({
+  sourceRoot = fileURLToPath(PACKAGED_AGENTS_ROOT),
+  targetRoot = path.join(os.homedir(), ".agents"),
+} = {}) {
+  if (!fs.existsSync(sourceRoot)) {
+    return;
+  }
+
+  fs.mkdirSync(targetRoot, { recursive: true });
+
+  for (const entry of fs.readdirSync(sourceRoot, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".agent.md")) {
+      continue;
+    }
+
+    fs.copyFileSync(path.join(sourceRoot, entry.name), path.join(targetRoot, entry.name));
+  }
+}
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
+    syncPackagedAgents();
     ctx.ui.setStatus(STATUS_KEY, undefined);
   });
 

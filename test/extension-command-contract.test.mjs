@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { access, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 
 import registerExtension from "../extension/index.ts";
 import { buildInstallResultLines } from "../extension/presentation.ts";
@@ -76,16 +76,39 @@ function readyPi() {
   });
 }
 
-test("extension clears any stale footer status on session start and registers the dev-loops command", async () => {
-  const pi = readyPi();
-  registerExtension(pi);
+test("extension clears stale footer status and syncs packaged agents on session start", async () => {
+  const previousHome = process.env.HOME;
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-session-home-"));
+  process.env.HOME = tempHome;
 
-  assert.equal(typeof pi.events.get("session_start"), "function");
-  assert.equal(typeof pi.registeredCommands.get("dev-loops")?.handler, "function");
+  try {
+    const pi = readyPi();
+    registerExtension(pi);
 
-  const { ctx, calls } = createCommandContext();
-  await pi.events.get("session_start")({}, ctx);
-  assert.deepEqual(calls.statuses, [{ key: "pi-dev-loops", text: undefined }]);
+    assert.equal(typeof pi.events.get("session_start"), "function");
+    assert.equal(typeof pi.registeredCommands.get("dev-loops")?.handler, "function");
+
+    await mkdir(path.join(tempHome, ".agents"), { recursive: true });
+    await writeFile(path.join(tempHome, ".agents", "dev-loop.agent.md"), "stale copy\n");
+    await writeFile(path.join(tempHome, ".agents", "keep.txt"), "keep me\n");
+
+    const { ctx, calls } = createCommandContext();
+    await pi.events.get("session_start")({}, ctx);
+
+    assert.deepEqual(calls.statuses, [{ key: "pi-dev-loops", text: undefined }]);
+    assert.equal(
+      await readFile(path.join(tempHome, ".agents", "dev-loop.agent.md"), "utf8"),
+      await readFile(new URL("../agents/dev-loop.agent.md", import.meta.url), "utf8"),
+    );
+    assert.equal(await readFile(path.join(tempHome, ".agents", "keep.txt"), "utf8"), "keep me\n");
+    await access(path.join(tempHome, ".agents", "coordinator.agent.md"));
+  } finally {
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
+  }
 });
 
 test("help is the default action and malformed commands stay non-mutating", async () => {

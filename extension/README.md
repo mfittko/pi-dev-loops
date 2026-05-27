@@ -87,8 +87,10 @@ Current Phase 3+ contract:
 - Node runtime floor: `>=20` (from `package.json`)
 - Pi host expectations are documented from current peer dependencies rather than a tested pinned Pi version range
 - the extension is source-loaded from `./extension/index.ts` through `package.json` `pi.extensions`
+- the package exposes `.pi/skills` through `package.json` `pi.skills` for install-based global skill loading
 - the shell CLI is exposed through `package.json` `bin.pi-dev-loops`
-- the package does not automatically install skills through `package.json`; skill installation is an explicit `/dev-loops install ...` step
+- the extension syncs packaged `.pi/agents/*.agent.md` files into `~/.agents/` on `session_start` so user-level agents are available outside this repo
+- `/dev-loops install ...` remains the explicit command surface for repo/system skill copies and bundled runtime support files
 - this phase does not yet claim a specific supported `gh` version; it only checks `gh` presence and authentication state
 - this phase does not require a separate compiled build or `dist/` pipeline
 
