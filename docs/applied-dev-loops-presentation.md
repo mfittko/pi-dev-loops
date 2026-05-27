@@ -1,0 +1,235 @@
+---
+theme: default
+colorSchema: dark
+title: "pi-dev-loops: Applied Process Observability"
+info: How pi-dev-loops eliminates coordination delay in AI-assisted dev workflows
+class: text-left
+transition: slide-left
+mdc: true
+css: ./style.css
+---
+
+<div class="hero-card">
+  <p class="kicker">pi-dev-loops</p>
+  <h1>Eliminating Coordination Delay in AI-Assisted Dev Workflows</h1>
+  <p class="hero-copy">A coordination runtime built on nested state machines. Every handoff is explicit, routed, and observable.</p>
+</div>
+
+---
+
+<p class="kicker">Design Approach</p>
+
+## State Graphs and Pure Functions, Not Prompt Engineering
+
+<div class="grid grid-cols-2 gap-5 items-start">
+<div class="glass-card">
+<ul class="tight-list">
+  <li>Workflow logic lives in <strong>skills</strong> backed by deterministic state machines</li>
+  <li>Routing, gating, and handoff are pure functions — testable, reproducible</li>
+  <li>LLM judgment is bounded: the graph decides <em>what happens next</em>, the agent decides <em>how</em></li>
+</ul>
+</div>
+<div class="glass-card">
+<ul class="tight-list">
+  <li><strong>Prompt-only approach</strong>: behavior drifts with model updates, context length, temperature</li>
+  <li><strong>Graph-backed skills</strong>: transitions are closed sets, outcomes are enumerable, regressions are catchable in CI</li>
+</ul>
+</div>
+</div>
+
+---
+
+<p class="kicker">Loop Model</p>
+
+## Three Nested Loops, Closed Transition Sets
+
+<div class="grid grid-cols-2 gap-5 items-start">
+<div class="glass-card">
+<ul class="tight-list">
+  <li><strong>Outer loop</strong> — selects one <code>ROUTING_OUTCOME</code> per cycle</li>
+  <li><strong>Copilot loop</strong> — 7 states from <code>no_pr</code> through review to <code>done</code></li>
+  <li><strong>Reviewer loop</strong> — feedback resolution and re-request</li>
+  <li>Ambiguity yields <code>needs_reconcile</code>, never a guessed handoff</li>
+</ul>
+</div>
+<div class="diagram-card">
+
+```mermaid {scale: 0.68}
+stateDiagram-v2
+  direction LR
+  [*] --> OuterLoop
+  OuterLoop --> CopilotLoop: HANDOFF_TO_COPILOT_LOOP
+  OuterLoop --> ReviewerLoop: HANDOFF_TO_REVIEWER_LOOP
+  OuterLoop --> NeedsReconcile: ambiguous
+  CopilotLoop --> OuterLoop: cycle complete
+  ReviewerLoop --> OuterLoop: cycle complete
+```
+
+</div>
+</div>
+
+---
+
+<p class="kicker">Quality Gates</p>
+
+## Every State Transition Is an Explicit Gate
+
+<div class="grid grid-cols-2 gap-5 items-start">
+<div class="glass-card">
+<ul class="tight-list">
+  <li><code>no_pr → pr_draft</code> — work exists but is not reviewable</li>
+  <li><code>pr_draft → pr_ready</code> — author signals readiness</li>
+  <li><code>pr_ready → waiting_for_copilot_review</code> — review requested</li>
+  <li>Steering can halt at any gate via <code>stop_at_next_safe_gate</code></li>
+</ul>
+</div>
+<div class="glass-card">
+<p><strong>SAFE_POINT_CATEGORY</strong></p>
+<div class="chip-row">
+  <span class="pill">immediate</span>
+  <span class="pill">next_point</span>
+  <span class="pill">terminal</span>
+</div>
+<p class="mini-list" style="margin-top:0.75rem">Each copilot-loop state maps to a safe-point category — the loop knows where it can safely pause for operator input.</p>
+</div>
+</div>
+
+---
+
+<p class="kicker">Conductor Routing</p>
+
+## evaluateConductorRouting: One Deterministic Outcome Per Cycle
+
+<div class="grid grid-cols-2 gap-5 items-start">
+<div class="glass-card">
+<ul class="tight-list">
+  <li>Pure function — no I/O, no side effects</li>
+  <li>Consumes family-local lifecycle states as inputs</li>
+  <li>Returns exactly one <code>ROUTING_OUTCOME</code></li>
+  <li>Conflicting signals → <code>needs_reconcile</code>, never a guess</li>
+</ul>
+</div>
+<div class="glass-card">
+<p><strong>ROUTING_OUTCOME</strong></p>
+<div class="chip-row">
+  <span class="pill">continue_current_wait</span>
+  <span class="pill">handoff_to_copilot_loop</span>
+  <span class="pill">handoff_to_reviewer_loop</span>
+  <span class="pill">stop_needs_human</span>
+  <span class="pill">done_terminal</span>
+  <span class="pill">needs_reconcile</span>
+</div>
+</div>
+</div>
+
+---
+
+<p class="kicker">Parallel Reviews</p>
+
+## Fan-Out Review Angles, Merge Into One Coherent Package
+
+<div class="grid grid-cols-2 gap-5 items-start">
+<div class="glass-card">
+<ul class="tight-list">
+  <li><code>determine_review_plan</code> — select bounded review angles</li>
+  <li><code>reviews_running</code> — parallel local runs per angle</li>
+  <li><code>merge_results</code> — combine findings into one review</li>
+  <li><code>draft_review_ready</code> → posted → user submits</li>
+</ul>
+</div>
+<div class="diagram-card">
+
+```mermaid {scale: 0.6}
+stateDiagram-v2
+  direction LR
+  plan --> running
+  running --> merge
+  merge --> draft
+  draft --> submitted
+```
+
+</div>
+</div>
+
+---
+
+<p class="kicker">Steering</p>
+
+## Operators Inject Constraints Mid-Flight Without Breaking the Loop
+
+<div class="grid grid-cols-2 gap-5 items-start">
+<div class="glass-card">
+<ul class="tight-list">
+  <li><code>stop_at_next_safe_gate</code> — halts at next approval boundary</li>
+  <li><code>hard_constraint</code> — must be respected by subsequent steps</li>
+  <li><code>preference</code> / <code>clarification</code> — softer guidance</li>
+  <li>Unsafe-to-apply-now events queued until the next safe point</li>
+</ul>
+</div>
+<div class="glass-card">
+<p><strong>STEERING_KIND</strong></p>
+<div class="chip-row">
+  <span class="pill">hard_constraint</span>
+  <span class="pill">preference</span>
+  <span class="pill">clarification</span>
+  <span class="pill">stop_at_next_safe_gate</span>
+</div>
+<p class="mini-list" style="margin-top:0.5rem">Result: <code>applied_now</code> · <code>queued_for_safe_point</code> · <code>rejected_unsafe_now</code></p>
+</div>
+</div>
+
+---
+
+<p class="kicker">PR Projection</p>
+
+## PRs Announce Their Own Lifecycle Phase
+
+<div class="grid grid-cols-2 gap-5 items-start">
+<div class="glass-card">
+<ul class="tight-list">
+  <li><code>conductor-pr-projection</code> mirrors meaningful transitions to PR</li>
+  <li>Phase derived from routing outcome + ownership signal</li>
+  <li>Idempotency keys prevent duplicates across restarts</li>
+  <li>Mentions opt-in with cooldown and allow-list</li>
+</ul>
+</div>
+<div class="glass-card">
+<p><strong>Projected transitions</strong></p>
+<div class="chip-row">
+  <span class="pill">draft_gate_entered</span>
+  <span class="pill">ready_for_review</span>
+  <span class="pill">copilot_review_requested</span>
+  <span class="pill">settle_wait_entered</span>
+</div>
+</div>
+</div>
+
+---
+
+<p class="kicker">Impact</p>
+
+## Quality Up, Wait Time Down, Throughput Up
+
+<div class="grid grid-cols-3 gap-5 items-start">
+<div class="glass-card">
+<p><strong>Quality ↑</strong></p>
+<ul class="mini-list">
+  <li>Routing refuses ambiguity</li>
+  <li>Steering preserves operator intent</li>
+</ul>
+</div>
+<div class="glass-card">
+<p><strong>Wait time ↓</strong></p>
+<ul class="mini-list">
+  <li>Ownership always explicit</li>
+  <li>PR phase projected live</li>
+</ul>
+</div>
+<div class="glass-card">
+<p><strong>Throughput ↑</strong></p>
+<ul class="mini-list">
+  <li>Deterministic routing per cycle</li>
+  <li>Blocked runs flagged before stall</li>
+</ul>
+</div>
+</div>
