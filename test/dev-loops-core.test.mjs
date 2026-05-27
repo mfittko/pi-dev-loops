@@ -143,6 +143,15 @@ test("shared executor returns deterministic status and rejects removed install a
   });
 
   assert.deepEqual(removedExtensionInstall, { kind: "help" });
+
+  const removedExtensionUpdate = await executeDevLoopsCommand({
+    input: ["update", "system"],
+    surface: "extension",
+    runtime: createRuntime(),
+    homeDirectory: "/tmp/home",
+  });
+
+  assert.deepEqual(removedExtensionUpdate, { kind: "help" });
 });
 
 test("collectDevLoopChecks no longer reports a dev-loop skill readiness check", async () => {
