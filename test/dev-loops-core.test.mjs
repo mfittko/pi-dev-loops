@@ -64,6 +64,11 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
     action: "help",
     tokens: ["install", "moon"],
   });
+  assert.deepEqual(parseDevLoopsCommand(["update", "system"], { surface: "extension" }), {
+    kind: "action",
+    action: "help",
+    tokens: ["update", "system"],
+  });
   assert.deepEqual(parseDevLoopsCommand(["install", "moon"], { surface: "cli" }), {
     kind: "malformed",
     message: "Unrecognized command: install.",
