@@ -166,7 +166,6 @@ CI currently runs `npm ci` and `npm test` on Node 24 in `.github/workflows/ci.ym
 - `docs/IMPLEMENTATION_STATE.md` — current implementation snapshot
 - `docs/IMPLEMENTATION_WORKFLOW.md` — repo workflow contract and docs-sync rules
 - `docs/public-dev-loop-contract.md` — public façade, canonical state, and compatibility routing contract
-- `extension/README.md` — `/dev-loops` command and install/update contract
 - `extension/README.md` — `/dev-loops` command and package-install contract
 - `scripts/README.md` — deterministic script contracts
 - `skills/*/SKILL.md` — workflow-specific operating instructions
