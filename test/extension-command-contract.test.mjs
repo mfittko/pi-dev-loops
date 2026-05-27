@@ -140,7 +140,7 @@ test("help is the default action and removed install/update commands fall back t
   assert(widget.lines.some((line) => /\/skill:dev-loop/i.test(line)), "help should mention /skill:dev-loop as workflow entry");
   assert(widget.lines.some((line) => /single public entry/i.test(line)), "help should describe dev-loop as single public entry");
   assert.equal(widget.lines.some((line) => /copilot-dev-loop|copilot-autopilot/i.test(line)), false, "help should not surface internal seam names");
-  assert.equal(widget.lines.some((line) => /\/dev-loops (?:install|update)/i.test(line)), false);
+  assert.doesNotMatch(widget.lines.join("\n"), /\/dev-loops (?:install|update)/i);
   assert.equal(calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const installContext = createCommandContext();
