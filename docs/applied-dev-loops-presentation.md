@@ -85,7 +85,7 @@ stateDiagram-v2
   <span class="pill">next_point</span>
   <span class="pill">terminal</span>
 </div>
-<p class="mini-list" style="margin-top:0.75rem">Each copilot-loop state maps to a safe-point category — the loop knows where it can safely pause for operator input.</p>
+<p class="soft-note note-top-md">Each copilot-loop state maps to a safe-point category — the loop knows where it can safely pause for operator input.</p>
 </div>
 </div>
 
@@ -165,7 +165,7 @@ stateDiagram-v2
   <span class="pill">clarification</span>
   <span class="pill">stop_at_next_safe_gate</span>
 </div>
-<p class="mini-list" style="margin-top:0.5rem">Result: <code>applied_now</code> · <code>queued_for_safe_point</code> · <code>rejected_unsafe_now</code></p>
+<p class="soft-note note-top-sm">Result: <code>applied_now</code> · <code>queued_for_safe_point</code> · <code>rejected_unsafe_now</code></p>
 </div>
 </div>
 

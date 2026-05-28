@@ -144,7 +144,7 @@ flowchart LR
 
 ---
 
-<h2 style="margin-bottom: 1.2rem;">State visibility improves three metrics at once</h2>
+<h2 class="section-heading-loose">State visibility improves three metrics at once</h2>
 
 <div class="grid grid-cols-3 gap-5 items-start">
   <div class="glass-card">
