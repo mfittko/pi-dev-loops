@@ -1004,14 +1004,6 @@ function summarizeCurrentPrStatus(snapshot) {
     };
   }
 
-  if (copilotState === "waiting_for_ci") {
-    return {
-      headline: "Waiting for CI",
-      detail: "The current head has progressed past review but is still waiting on CI readiness.",
-      nextAction: "Wait for CI to complete or become available.",
-    };
-  }
-
   if (reviewerState === "waiting_for_author_followup") {
     return {
       headline: "Waiting for author follow-up",
@@ -1033,6 +1025,14 @@ function summarizeCurrentPrStatus(snapshot) {
       headline: "Reviewer loop active",
       detail: `Reviewer lane is currently at ${humanizeStateToken(reviewerState)}.`,
       nextAction: "Follow the reviewer lane details below and refresh after the next review event.",
+    };
+  }
+
+  if (copilotState === "waiting_for_ci") {
+    return {
+      headline: "Waiting for CI",
+      detail: "The current head has progressed past review but is still waiting on CI readiness.",
+      nextAction: "Wait for CI to complete or become available.",
     };
   }
 
