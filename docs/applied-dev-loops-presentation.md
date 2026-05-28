@@ -110,6 +110,7 @@ stateDiagram-v2
   <span class="pill">continue_current_wait</span>
   <span class="pill">handoff_to_copilot_loop</span>
   <span class="pill">handoff_to_reviewer_loop</span>
+  <span class="pill">stay_with_current_live_owner</span>
   <span class="pill">stop_needs_human</span>
   <span class="pill">done_terminal</span>
   <span class="pill">needs_reconcile</span>
@@ -187,9 +188,9 @@ stateDiagram-v2
 <p><strong>Projected transitions</strong></p>
 <div class="chip-row">
   <span class="pill">draft_gate_entered</span>
-  <span class="pill">ready_for_review</span>
+  <span class="pill">ready_for_review_entered</span>
   <span class="pill">copilot_review_requested</span>
-  <span class="pill">settle_wait_entered</span>
+  <span class="pill">copilot_settle_wait_entered</span>
 </div>
 </div>
 </div>
