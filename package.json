@@ -27,8 +27,7 @@
     "test:core": "node --test packages/core/test/*.test.mjs",
     "test:dev-loop": "npm --prefix skills/dev-loop test",
     "playwright:install:safari": "playwright install webkit",
-    "test:playwright:viewer": "playwright test -c playwright.inspect-run-viewer.config.mjs",
-    "slides:build:process-observability": "slidev build docs/process-observability-presentation.md --out docs/process-observability-site"
+    "test:playwright:viewer": "playwright test -c playwright.inspect-run-viewer.config.mjs"
   },
   "bin": {
     "pi-dev-loops": "./bin/pi-dev-loops.mjs"
@@ -39,9 +38,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
-    "tsx": "^4.22.0",
-    "@slidev/cli": "^52.15.2",
-    "@slidev/theme-default": "^0.25.0"
+    "tsx": "^4.22.0"
   },
   "pi": {
     "extensions": [
