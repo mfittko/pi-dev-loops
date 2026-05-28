@@ -8,6 +8,4 @@ test-results/
 .DS_Store
 *.log
 
-docs/process-observability-presentation.html
-docs/process-observability-presentation.pdf
 docs/process-observability-site/
