@@ -48,7 +48,7 @@ flowchart LR
 
 <div class="glass-card">
   <div class="kicker">Delay pattern</div>
-  <h2>One interrupt costs six transitions</h2>
+  <h2>One interrupt costs five transitions</h2>
   <ul class="tight-list">
     <li>A five-minute question burns 30+ minutes of switching.</li>
     <li>Each step — notice, switch, rebuild, act, recover — has its own latency.</li>

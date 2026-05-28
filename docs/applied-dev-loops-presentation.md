@@ -47,7 +47,7 @@ css: ./style.css
 <div class="glass-card">
 <ul class="tight-list">
   <li><strong>Outer loop</strong> — selects one <code>ROUTING_OUTCOME</code> per cycle</li>
-  <li><strong>Copilot loop</strong> — 7 states from <code>no_pr</code> through review to <code>done</code></li>
+  <li><strong>Copilot loop</strong> — explicit lifecycle states from <code>no_pr</code> to <code>done</code>, including <code>pr_ready_no_feedback</code>, <code>waiting_for_copilot_review</code>, and <code>blocked_needs_user_decision</code></li>
   <li><strong>Reviewer loop</strong> — feedback resolution and re-request</li>
   <li>Ambiguity yields <code>needs_reconcile</code>, never a guessed handoff</li>
 </ul>
@@ -78,8 +78,8 @@ stateDiagram-v2
 <div class="glass-card">
 <ul class="tight-list">
   <li><code>no_pr → pr_draft</code> — work exists but is not reviewable</li>
-  <li><code>pr_draft → pr_ready</code> — author signals readiness</li>
-  <li><code>pr_ready → waiting_for_copilot_review</code> — review requested</li>
+  <li><code>pr_draft → pr_ready_no_feedback</code> — author signals readiness</li>
+  <li><code>pr_ready_no_feedback → waiting_for_copilot_review</code> — review requested</li>
   <li>Steering can halt at any gate via <code>stop_at_next_safe_gate</code></li>
 </ul>
 </div>
