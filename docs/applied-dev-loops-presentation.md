@@ -75,7 +75,7 @@ stateDiagram-v2
   <li><code>no_pr → pr_draft</code> — work exists but is not reviewable</li>
   <li><code>pr_draft → pr_ready_no_feedback</code> — author signals readiness</li>
   <li><code>pr_ready_no_feedback → waiting_for_copilot_review</code> — review requested</li>
-  <li>Steering can halt at any gate via <code>stop_at_next_safe_gate</code></li>
+  <li><code>stop_at_next_safe_gate</code> requests a stop that takes effect at the next safe gate</li>
 </ul>
 </div>
 <div class="glass-card">
@@ -129,7 +129,7 @@ stateDiagram-v2
   <li><code>determine_review_plan</code> — select bounded review angles</li>
   <li><code>reviews_running</code> — parallel local runs per angle</li>
   <li><code>merge_results</code> — combine findings into one review</li>
-  <li><code>draft_review_ready</code> → posted → user submits</li>
+  <li><code>draft_review_ready</code> → <code>draft_review_posted</code> → <code>waiting_for_user_submit</code> → <code>submitted_review</code></li>
 </ul>
 </div>
 
@@ -139,7 +139,9 @@ stateDiagram-v2
   determine_review_plan --> reviews_running
   reviews_running --> merge_results
   merge_results --> draft_review_ready
-  draft_review_ready --> submitted_review
+  draft_review_ready --> draft_review_posted
+  draft_review_posted --> waiting_for_user_submit
+  waiting_for_user_submit --> submitted_review
 ```
 
 ---
@@ -154,7 +156,7 @@ stateDiagram-v2
   <li><code>stop_at_next_safe_gate</code> — requests a stop at the next safe gate</li>
   <li><code>hard_constraint</code> — must be respected by subsequent steps</li>
   <li><code>preference</code> / <code>clarification</code> — softer guidance</li>
-  <li>Unsafe-to-apply-now events queued until the next safe point</li>
+  <li><code>next_point</code> states queue unsafe-now events; terminal states reject or require human action</li>
 </ul>
 </div>
 <div class="glass-card">
@@ -165,7 +167,7 @@ stateDiagram-v2
   <span class="pill">clarification</span>
   <span class="pill">stop_at_next_safe_gate</span>
 </div>
-<p class="soft-note note-top-sm">Result: <code>applied_now</code> · <code>queued_for_safe_point</code> · <code>rejected_unsafe_now</code></p>
+<p class="soft-note note-top-sm">Result: <code>applied_now</code> · <code>queued_for_safe_point</code> · <code>rejected_unsafe_now</code> · <code>rejected_invalid_or_conflicting</code> · <code>needs_human_decision</code></p>
 </div>
 </div>
 
