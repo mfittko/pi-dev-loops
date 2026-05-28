@@ -136,10 +136,10 @@ stateDiagram-v2
 ```mermaid {scale: 0.6}
 stateDiagram-v2
   direction LR
-  plan --> running
-  running --> merge
-  merge --> draft
-  draft --> submitted
+  determine_review_plan --> reviews_running
+  reviews_running --> merge_results
+  merge_results --> draft_review_ready
+  draft_review_ready --> submitted_review
 ```
 
 ---
@@ -151,7 +151,7 @@ stateDiagram-v2
 <div class="grid grid-cols-2 gap-5 items-start">
 <div class="glass-card">
 <ul class="tight-list">
-  <li><code>stop_at_next_safe_gate</code> — halts at next approval boundary</li>
+  <li><code>stop_at_next_safe_gate</code> — requests a stop at the next safe gate</li>
   <li><code>hard_constraint</code> — must be respected by subsequent steps</li>
   <li><code>preference</code> / <code>clarification</code> — softer guidance</li>
   <li>Unsafe-to-apply-now events queued until the next safe point</li>
@@ -178,20 +178,21 @@ stateDiagram-v2
 <div class="grid grid-cols-2 gap-5 items-start">
 <div class="glass-card">
 <ul class="tight-list">
-  <li><code>conductor-pr-projection</code> mirrors meaningful transitions to PR</li>
+  <li><code>conductor-pr-projection</code> can mirror meaningful transitions to PR when visible projection is enabled</li>
   <li>Phase derived from routing outcome + ownership signal</li>
   <li>Idempotency keys prevent duplicates across restarts</li>
   <li>Mentions opt-in with cooldown and allow-list</li>
 </ul>
 </div>
 <div class="glass-card">
-<p><strong>Projected transitions</strong></p>
+<p><strong>Projection transition taxonomy</strong></p>
 <div class="chip-row">
   <span class="pill">draft_gate_entered</span>
   <span class="pill">ready_for_review_entered</span>
   <span class="pill">copilot_review_requested</span>
   <span class="pill">copilot_settle_wait_entered</span>
 </div>
+<p class="soft-note note-top-sm">Visible PR comments are opt-in, and some transitions are bookkeeping-only rather than default-visible updates.</p>
 </div>
 </div>
 
