@@ -33,8 +33,6 @@ css: ./style.css
 
 ---
 
-<div class="diagram-card" style="margin-bottom: 1rem;">
-
 ```mermaid {scale: 0.68}
 flowchart LR
   A[Need response] --> B[Notice]
@@ -43,8 +41,6 @@ flowchart LR
   D --> E[Act]
   E --> F[Recover]
 ```
-
-</div>
 
 <div class="glass-card">
   <div class="kicker">Delay pattern</div>
@@ -128,8 +124,6 @@ flowchart LR
 
 ---
 
-<div class="diagram-card" style="margin-bottom: 1rem;">
-
 ```mermaid {scale: 0.72}
 flowchart LR
   A[State captured] --> B[Waits measured]
@@ -137,8 +131,6 @@ flowchart LR
   C --> D[Outcomes checked]
   D --> A
 ```
-
-</div>
 
 <div class="glass-card">
   <div class="kicker">Measurement loop</div>

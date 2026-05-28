@@ -43,7 +43,6 @@ css: ./style.css
 
 ## Three Nested Loops, Closed Transition Sets
 
-<div class="grid grid-cols-2 gap-5 items-start">
 <div class="glass-card">
 <ul class="tight-list">
   <li><strong>Outer loop</strong> — selects one <code>ROUTING_OUTCOME</code> per cycle</li>
@@ -52,7 +51,6 @@ css: ./style.css
   <li>Ambiguity yields <code>needs_reconcile</code>, never a guessed handoff</li>
 </ul>
 </div>
-<div class="diagram-card">
 
 ```mermaid {scale: 0.68}
 stateDiagram-v2
@@ -64,9 +62,6 @@ stateDiagram-v2
   CopilotLoop --> OuterLoop: cycle complete
   ReviewerLoop --> OuterLoop: cycle complete
 ```
-
-</div>
-</div>
 
 ---
 
@@ -128,7 +123,6 @@ stateDiagram-v2
 
 ## Fan-Out Review Angles, Merge Into One Coherent Package
 
-<div class="grid grid-cols-2 gap-5 items-start">
 <div class="glass-card">
 <ul class="tight-list">
   <li><code>determine_review_plan</code> — select bounded review angles</li>
@@ -137,7 +131,6 @@ stateDiagram-v2
   <li><code>draft_review_ready</code> → posted → user submits</li>
 </ul>
 </div>
-<div class="diagram-card">
 
 ```mermaid {scale: 0.6}
 stateDiagram-v2
@@ -147,9 +140,6 @@ stateDiagram-v2
   merge --> draft
   draft --> submitted
 ```
-
-</div>
-</div>
 
 ---
 
