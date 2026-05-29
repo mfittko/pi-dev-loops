@@ -1,0 +1,244 @@
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+
+import {
+  formatCliError,
+  isDirectCliRun,
+  parseJsonText,
+  summarizeGateReviewComments,
+} from "../_core-helpers.mjs";
+import { parseRepoSlug } from "./capture-review-threads.mjs";
+
+const USAGE = `Usage: detect-gate-review-evidence.mjs --repo <owner/name> --pr <number>
+
+Fetch the live PR head SHA and visible PR issue comments, then summarize the
+latest valid draft-gate and pre-approval gate-review comments.
+
+Required:
+  --repo <owner/name>   Repository slug (e.g. owner/repo)
+  --pr <number>         Pull request number
+
+Output (stdout, JSON):
+  {
+    "ok": true,
+    "repo": "owner/repo",
+    "pr": 17,
+    "currentHeadSha": "abc1234",
+    "draftGate": {
+      "visible": true,
+      "headSha": "abc1234",
+      "verdict": "clean",
+      "findingsSummary": "no issues found",
+      "nextAction": "mark ready for review",
+      "commentId": 101,
+      "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101",
+      "updatedAt": "2026-05-29T22:00:00Z"
+    },
+    "preApprovalGate": {
+      "visible": false,
+      "headSha": null,
+      "verdict": null,
+      "findingsSummary": null,
+      "nextAction": null,
+      "commentId": null,
+      "commentUrl": null,
+      "updatedAt": null
+    }
+  }
+
+Error output (stderr, JSON):
+  { "ok": false, "error": "...", "usage": "..." }
+  { "ok": false, "error": "..." }
+
+Exit codes:
+  0  Success
+  1  Argument error, gh failure, or malformed gh JSON`.trim();
+
+function parseError(message) {
+  return Object.assign(new Error(message), { usage: USAGE });
+}
+
+function requireOptionValue(args, flag) {
+  const value = args.shift();
+  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
+    throw parseError(`Missing value for ${flag}`);
+  }
+  return value;
+}
+
+function parsePrNumber(value) {
+  if (!/^\d+$/.test(value) || Number(value) === 0) {
+    throw parseError("--pr must be a positive integer");
+  }
+  return Number(value);
+}
+
+export function parseDetectGateReviewEvidenceCliArgs(argv) {
+  const args = [...argv];
+  const options = {
+    help: false,
+    repo: undefined,
+    pr: undefined,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
+
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo").trim();
+      continue;
+    }
+
+    if (token === "--pr") {
+      options.pr = parsePrNumber(requireOptionValue(args, "--pr"));
+      continue;
+    }
+
+    throw parseError(`Unknown argument: ${token}`);
+  }
+
+  if (options.repo === undefined || options.pr === undefined) {
+    throw parseError("detect-gate-review-evidence requires both --repo <owner/name> and --pr <number>");
+  }
+
+  try {
+    parseRepoSlug(options.repo);
+  } catch (error) {
+    throw parseError(error instanceof Error ? error.message : String(error));
+  }
+
+  return options;
+}
+
+function runChild(command, args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+async function runGhJson(args, { env, ghCommand }) {
+  const result = await runChild(ghCommand, args, env);
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+  return parseJsonText(result.stdout, { label: `gh ${args.slice(0, 2).join(" ")}` });
+}
+
+function normalizeIssueCommentsPayload(payload) {
+  if (!Array.isArray(payload)) {
+    throw new Error("Invalid gh issue comments payload: expected an array");
+  }
+
+  if (payload.every((entry) => Array.isArray(entry))) {
+    return payload.flat();
+  }
+
+  return payload;
+}
+
+function emptyGateSummary() {
+  return {
+    visible: false,
+    headSha: null,
+    verdict: null,
+    findingsSummary: null,
+    nextAction: null,
+    commentId: null,
+    commentUrl: null,
+    updatedAt: null,
+  };
+}
+
+function normalizeGateSummary(summary) {
+  if (!summary) {
+    return emptyGateSummary();
+  }
+
+  return {
+    visible: true,
+    headSha: summary.headSha,
+    verdict: summary.verdict,
+    findingsSummary: summary.findingsSummary,
+    nextAction: summary.nextAction,
+    commentId: summary.commentId,
+    commentUrl: summary.commentUrl,
+    updatedAt: summary.updatedAt,
+  };
+}
+
+export async function detectGateReviewEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
+  const prPayload = await runGhJson(["pr", "view", String(options.pr), "--repo", options.repo, "--json", "headRefOid"], { env, ghCommand });
+  const commentsPayload = normalizeIssueCommentsPayload(await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/issues/${options.pr}/comments?per_page=100`], { env, ghCommand }));
+
+  const currentHeadSha = typeof prPayload?.headRefOid === "string" && prPayload.headRefOid.trim().length > 0
+    ? prPayload.headRefOid.trim()
+    : null;
+
+  if (!currentHeadSha) {
+    throw new Error("Invalid gh pr view payload: missing headRefOid");
+  }
+
+  const commentSummary = summarizeGateReviewComments(commentsPayload);
+
+  return {
+    ok: true,
+    repo: options.repo,
+    pr: options.pr,
+    currentHeadSha,
+    draftGate: normalizeGateSummary(commentSummary.draft_gate),
+    preApprovalGate: normalizeGateSummary(commentSummary.pre_approval_gate),
+  };
+}
+
+async function main() {
+  let options;
+  try {
+    options = parseDetectGateReviewEvidenceCliArgs(process.argv.slice(2));
+  } catch (error) {
+    process.stderr.write(`${formatCliError(error, { usage: USAGE })}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (options.help) {
+    process.stdout.write(`${USAGE}\n`);
+    return;
+  }
+
+  try {
+    const result = await detectGateReviewEvidence(options);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    process.stderr.write(`${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`);
+    process.exitCode = 1;
+  }
+}
+
+if (isDirectCliRun(import.meta.url)) {
+  await main();
+}

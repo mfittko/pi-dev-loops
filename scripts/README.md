@@ -352,6 +352,26 @@ Key behavioral guarantees:
 - When the current head already has a clean submitted Copilot review, `sameHeadCleanConverged=true` and automatic same-head re-request is suppressed until a meaningful remediation event occurs
 - If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
 
+### `scripts/github/detect-gate-review-evidence.mjs`
+
+Fetches the live PR head SHA plus visible PR issue comments, then summarizes the
+latest valid `draft_gate` and `pre_approval_gate` gate-review comments.
+Use this when a fresh session needs authoritative visible gate evidence for the
+current head before running `gh pr ready` or declaring final-approval readiness.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/repo", "pr": 17, "currentHeadSha": "abc1234", "draftGate": { ... }, "preApprovalGate": { ... } }`
+- each gate summary includes `visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`, `commentId`, `commentUrl`, and `updatedAt`
+- when no valid visible comment exists for a gate, its summary is emitted with `visible=false` and the other fields set to `null`
+
+Failure behavior:
+- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- `gh` failures and malformed `gh` JSON emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/loop/detect-tracker-pr-state.mjs`
 
 Deterministic tracker-first story-to-PR state detector. Interprets a pre-built

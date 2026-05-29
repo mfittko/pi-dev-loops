@@ -288,6 +288,7 @@ const ISSUE_READINESS_SET = new Set(Object.values(DEV_LOOP_ISSUE_READINESS));
 const ISSUE_ASSIGNMENT_STATE_SET = new Set(Object.values(DEV_LOOP_ISSUE_ASSIGNMENT_STATE));
 const VARIATION_MODE_SET = new Set(DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues);
 const TARGET_PREFERENCE_SET = new Set(DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedTargetPreferenceValues);
+const GATE_REVIEW_VERDICT_SET = new Set(["clean", "findings_present", "blocked"]);
 const ALLOWED_MODE_VALUES_TEXT = DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues.join(", ");
 const ALLOWED_TARGET_PREFERENCE_VALUES_TEXT = DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedTargetPreferenceValues.join(", ");
 
@@ -342,6 +343,51 @@ function normalizeTarget(target) {
 function normalizeActor(value) {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
   return ACTOR_SET.has(normalized) ? normalized : null;
+}
+
+function normalizeSha(value) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function normalizeGateReviewVerdict(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return GATE_REVIEW_VERDICT_SET.has(normalized) ? normalized : null;
+}
+
+function normalizeGateReviewEvidence(evidence) {
+  if (evidence === undefined || evidence === null) {
+    return null;
+  }
+  if (typeof evidence !== "object") {
+    return null;
+  }
+
+  const preApprovalGate = evidence.preApprovalGate;
+  if (!preApprovalGate || typeof preApprovalGate !== "object") {
+    return null;
+  }
+
+  return {
+    currentHeadSha: normalizeSha(evidence.currentHeadSha),
+    preApprovalGate: {
+      visible: preApprovalGate.visible === true,
+      headSha: normalizeSha(preApprovalGate.headSha),
+      verdict: normalizeGateReviewVerdict(preApprovalGate.verdict),
+    },
+  };
+}
+
+function isFinalApprovalState(canonicalState) {
+  return canonicalState.status === DEV_LOOP_STATUS.APPROVAL_READY
+    || canonicalState.status === DEV_LOOP_STATUS.MERGE_READY;
+}
+
+function hasCleanVisibleCurrentHeadPreApprovalGate(gateReviewEvidence) {
+  return gateReviewEvidence !== null
+    && gateReviewEvidence.currentHeadSha !== null
+    && gateReviewEvidence.preApprovalGate.visible
+    && gateReviewEvidence.preApprovalGate.verdict === "clean"
+    && gateReviewEvidence.preApprovalGate.headSha === gateReviewEvidence.currentHeadSha;
 }
 
 function normalizeState(currentState) {
@@ -613,10 +659,23 @@ function routeForState(
     executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
     issueReadiness = null,
     issueAssignmentState = null,
+    gateReviewEvidence = null,
   } = {},
 ) {
   const routableCanonicalState = toRoutableCanonicalState(canonicalState);
   const selectedGate = selectGateForState(routableCanonicalState);
+  if (
+    selectedGate === DEV_LOOP_GATE.FINAL_APPROVAL
+    && routableCanonicalState.target.kind === DEV_LOOP_TARGET_KIND.PR
+    && isFinalApprovalState(routableCanonicalState)
+    && !hasCleanVisibleCurrentHeadPreApprovalGate(gateReviewEvidence)
+  ) {
+    return buildReconcile(
+      "Final-approval routing requires a visible clean `pre_approval_gate` gate-review comment for the current head SHA; reconcile authoritative gate evidence before continuing.",
+      routableCanonicalState,
+      executionMode,
+    );
+  }
 
   if (selectedGate === DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED) {
     return buildResult({
@@ -938,6 +997,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const issueLinkageResolution = normalizeIssueLinkageResolution(input.issueLinkageResolution);
   const issueReadiness = normalizeIssueReadiness(input.issueReadiness);
   const issueAssignmentState = normalizeIssueAssignmentState(input.issueAssignmentState);
+  const gateReviewEvidence = normalizeGateReviewEvidence(input.gateReviewEvidence);
   const retrospectiveCheckpointState = input.retrospectiveCheckpointState !== undefined
     ? normalizeRetrospectiveCheckpointState(input.retrospectiveCheckpointState)
     : null;
@@ -1025,6 +1085,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     executionMode: effectiveMode,
     issueReadiness,
     issueAssignmentState,
+    gateReviewEvidence,
   });
   if (routed.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) {
     return buildStartupResumeBundleReconcile({
@@ -1158,6 +1219,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   const issueAssignmentState = input.issueAssignmentState !== undefined
     ? normalizeIssueAssignmentState(input.issueAssignmentState)
     : null;
+  const gateReviewEvidence = normalizeGateReviewEvidence(input.gateReviewEvidence);
   const acceptsIssueAssignmentFacts = shouldAcceptIssueAssignmentFacts({ intent, explicitTarget, explicitState });
   const retrospectiveCheckpointState = input.retrospectiveCheckpointState !== undefined
     ? normalizeRetrospectiveCheckpointState(input.retrospectiveCheckpointState)
@@ -1207,6 +1269,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     executionMode: null,
     issueReadiness: acceptsIssueAssignmentFacts ? issueReadiness : null,
     issueAssignmentState: acceptsIssueAssignmentFacts ? issueAssignmentState : null,
+    gateReviewEvidence,
   };
 
   const finalizeRoutingResult = (result) => applyRetrospectiveCheckpointGate(

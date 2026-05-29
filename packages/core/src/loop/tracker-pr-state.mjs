@@ -114,6 +114,26 @@ export const REVERSE_SYNC_ACTION = Object.freeze({
   [TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION]: "none",
 });
 
+const GATE_REVIEW_VERDICT_SET = new Set(["clean", "findings_present", "blocked"]);
+
+function normalizeSha(value) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function normalizeGateReviewVerdict(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return GATE_REVIEW_VERDICT_SET.has(normalized) ? normalized : null;
+}
+
+function hasCleanVisibleCurrentHeadDraftGate(snapshot) {
+  return snapshot.prHeadSha !== null
+    && snapshot.draftGateCommentVisible
+    && snapshot.draftGateCommentVerdict === "clean"
+    && snapshot.draftGateCommentHeadSha === snapshot.prHeadSha;
+}
+
 
 function normalizeBooleanLike(value) {
   if (typeof value === "boolean") {
@@ -154,7 +174,7 @@ const NEXT_ACTIONS = Object.freeze({
   [TRACKER_PR_STATE.READY_NO_PR]:
     "If tracker workflow says the item is ready, create a draft PR with required tracker metadata (identifier link, title pattern, body sections, labels)",
   [TRACKER_PR_STATE.DRAFT_PR_OPEN]:
-    "Complete development work, then mark the draft PR as ready for review",
+    "Complete development work, run draft gate, post a visible clean current-head draft_gate comment, then mark the draft PR as ready for review",
   [TRACKER_PR_STATE.PR_REVIEWABLE]:
     "Wait for review and CI; merge when approved, or convert back to draft if rework is needed",
   [TRACKER_PR_STATE.PR_MERGED]:
@@ -179,6 +199,10 @@ const NEXT_ACTIONS = Object.freeze({
  * - prDraft {boolean}                — whether the PR is in draft state
  * - prMerged {boolean}               — whether the PR has been merged
  * - prClosed {boolean}               — whether the PR is closed on GitHub (merged PRs are also closed)
+ * - prHeadSha {string|null}          — current PR head SHA
+ * - draftGateCommentVisible {boolean} — whether the draft-gate PR comment is visible on the PR thread
+ * - draftGateCommentHeadSha {string|null} — head SHA encoded in the draft-gate PR comment
+ * - draftGateCommentVerdict {"clean"|"findings_present"|"blocked"|null} — draft-gate comment verdict
  *
  * @param {object} raw - raw snapshot input
  * @returns {object} normalized snapshot
@@ -206,6 +230,10 @@ export function normalizeTrackerPrSnapshot(raw) {
     prDraft: normalizeBooleanLike(raw.prDraft),
     prMerged: normalizeBooleanLike(raw.prMerged),
     prClosed: normalizeBooleanLike(raw.prClosed),
+    prHeadSha: prExists ? normalizeSha(raw.prHeadSha) : null,
+    draftGateCommentVisible: normalizeBooleanLike(raw.draftGateCommentVisible),
+    draftGateCommentHeadSha: prExists ? normalizeSha(raw.draftGateCommentHeadSha) : null,
+    draftGateCommentVerdict: normalizeGateReviewVerdict(raw.draftGateCommentVerdict),
   };
 }
 
@@ -251,7 +279,9 @@ export function interpretTrackerPrState(snapshot) {
   } else if (s.prExists && s.prDraft) {
     state = TRACKER_PR_STATE.DRAFT_PR_OPEN;
   } else if (s.prExists) {
-    state = TRACKER_PR_STATE.PR_REVIEWABLE;
+    state = hasCleanVisibleCurrentHeadDraftGate(s)
+      ? TRACKER_PR_STATE.PR_REVIEWABLE
+      : TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION;
   } else {
     state = TRACKER_PR_STATE.READY_NO_PR;
   }

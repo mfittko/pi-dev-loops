@@ -36,6 +36,17 @@ import {
 
 const publicContractUrl = new URL("../../../docs/public-dev-loop-contract.md", import.meta.url);
 
+function buildCleanPreApprovalGateEvidence(currentHeadSha = "abc1234") {
+  return {
+    currentHeadSha,
+    preApprovalGate: {
+      visible: true,
+      headSha: currentHeadSha,
+      verdict: "clean",
+    },
+  };
+}
+
 test("public dev-loop routing exports the single public façade name", () => {
   assert.equal(PUBLIC_DEV_LOOP_ENTRYPOINT, "dev-loop");
 });
@@ -433,6 +444,13 @@ test("blocked and not-authorized states stop instead of routing", () => {
       status: DEV_LOOP_STATUS.ACTIVE,
       authorization: DEV_LOOP_AUTHORIZATION.NOT_AUTHORIZED,
     },
+    {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.APPROVAL_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.NOT_AUTHORIZED,
+    },
   ]) {
     const result = evaluatePublicDevLoopRouting({
       intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
@@ -474,6 +492,7 @@ test("approval-ready states route to final approval and keep merge authorization
       status: DEV_LOOP_STATUS.APPROVAL_READY,
       authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
     },
+    gateReviewEvidence: buildCleanPreApprovalGateEvidence(),
   });
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FINAL_APPROVAL);
@@ -494,6 +513,7 @@ test("merge-ready states without merge authorization stop in waiting_for_merge_a
       status: DEV_LOOP_STATUS.MERGE_READY,
       authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
     },
+    gateReviewEvidence: buildCleanPreApprovalGateEvidence(),
   });
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION);
@@ -514,6 +534,7 @@ test("merge-ready states with explicit merge authorization may proceed to final 
       status: DEV_LOOP_STATUS.MERGE_READY,
       authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
     },
+    gateReviewEvidence: buildCleanPreApprovalGateEvidence(),
   });
 
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FINAL_APPROVAL);
@@ -1414,6 +1435,7 @@ test("authoritative status reports approved-but-not-merged PRs as waiting for ex
       status: DEV_LOOP_STATUS.MERGE_READY,
       authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
     },
+    gateReviewEvidence: buildCleanPreApprovalGateEvidence(),
     artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
     issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
     loopState: "waiting_for_merge_authorization",
@@ -1965,12 +1987,31 @@ test("auto_continue_current still routes approval-ready states to final approval
       status: DEV_LOOP_STATUS.APPROVAL_READY,
       authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
     },
+    gateReviewEvidence: buildCleanPreApprovalGateEvidence(),
   });
 
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FINAL_APPROVAL);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+});
+
+test("approval-ready states fail closed when clean current-head pre-approval gate evidence is missing", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.APPROVAL_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.match(result.reason, /pre_approval_gate/i);
+  assert.match(result.reason, /current head sha/i);
 });
 
 test("representative translation: 'run dev loop on PR 88 and stay on it' → continue_on_pr + watch", () => {
