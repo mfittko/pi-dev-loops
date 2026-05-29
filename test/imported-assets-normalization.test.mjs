@@ -705,6 +705,10 @@ test("gate-review comment contract documents required fields, verdict values, re
   assert.match(contractContent, /\bblocked\b/);
   assert.match(contractContent, /findings summary|no issues found/i);
   assert.match(contractContent, /next action/i);
+  assert.match(contractContent, /stay draft and fix/i);
+  assert.match(contractContent, /rerun gate/i);
+  assert.match(contractContent, /mark ready for review/i);
+  assert.match(contractContent, /await final human approval/i);
 
   // Both gate names must appear
   assert.match(contractContent, /draft_gate/);
@@ -716,7 +720,9 @@ test("gate-review comment contract documents required fields, verdict values, re
   assert.match(contractContent, /new.head/i);
   assert.match(contractContent, /new.*comment|comment.*new/i);
 
-  // Fail-closed behavior
+  // Findings-specific and fail-closed behavior
+  assert.match(contractContent, /stays draft and fixes are required before retrying/i);
+  assert.match(contractContent, /follow-up fixes are required before final approval/i);
   assert.match(contractContent, /fail.closed|cannot be posted/i);
   assert.match(contractContent, /do not run `gh pr ready`|do not mark the PR ready/i);
   assert.match(contractContent, /do not declare final.approval readiness/i);
@@ -761,6 +767,16 @@ test("gate-review comment requirement is enforced in draft gate and pre-approval
       /older head SHA does not satisfy/i,
       `${label} draft gate should state that an older-head comment does not satisfy the requirement`,
     );
+    assert.match(
+      draftGate,
+      /stays draft and needs fixes/i,
+      `${label} draft gate should say findings keep the PR in draft until fixed`,
+    );
+    assert.match(
+      draftGate,
+      /post a new gate-review comment for the new head/i,
+      `${label} draft gate should require a new visible comment when the head advances`,
+    );
 
     const preApprovalGateMatch = content.match(/### Pre-approval gate contract[\s\S]*?(?=\n### |\n## |$)/);
     const preApprovalGate = preApprovalGateMatch ? preApprovalGateMatch[0] : "";
@@ -793,8 +809,18 @@ test("gate-review comment requirement is enforced in draft gate and pre-approval
     );
     assert.match(
       preApprovalGate,
+      /follow-up fixes are required before final approval/i,
+      `${label} pre-approval gate should say findings require follow-up fixes before final approval`,
+    );
+    assert.match(
+      preApprovalGate,
       /must not rely only on local or hidden artifacts/i,
       `${label} pre-approval gate should require visible PR evidence instead of only hidden artifacts`,
+    );
+    assert.match(
+      preApprovalGate,
+      /post a new gate-review comment for the new head/i,
+      `${label} pre-approval gate should require a new visible comment when the head advances`,
     );
   }
 });
