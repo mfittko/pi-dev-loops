@@ -123,31 +123,6 @@ function parseIssueNumber(value) {
   return Number(value);
 }
 
-function runChild(command, args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
-
 export async function watchCopilotRunUntilComplete(
   { repo, runId, timeoutMs = null },
   { env = process.env, ghCommand = "gh" } = {},
@@ -156,7 +131,7 @@ export async function watchCopilotRunUntilComplete(
     const child = spawn(
       ghCommand,
       ["run", "watch", String(runId), "--repo", repo],
-      { env, stdio: ["ignore", "pipe", "pipe"] },
+      { env, stdio: ["ignore", "ignore", "pipe"] },
     );
 
     let stderr = "";

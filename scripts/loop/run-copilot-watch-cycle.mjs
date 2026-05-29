@@ -126,7 +126,7 @@ async function watchWorkflowRun({ repo, runId, timeoutMs = null }, { env, ghComm
     const child = spawn(
       ghCommand,
       ["run", "watch", String(runId), "--repo", repo],
-      { env, stdio: ["ignore", "pipe", "pipe"] },
+      { env, stdio: ["ignore", "ignore", "pipe"] },
     );
 
     let stderr = "";

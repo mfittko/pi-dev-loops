@@ -470,6 +470,38 @@ test("detect-initial-copilot-pr-state falls back to substantive PR heuristics wh
   }
 });
 
+test("detect-initial-copilot-pr-state fails closed when the session-activity probe fails", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-session-failure-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload(),
+      },
+      {
+        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
+        stdout: pullRequestFactsPayload({ changedFiles: 3, commitCount: 2 }),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stderr: "session probe failed\n",
+        exitCode: 1,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /gh command failed: session probe failed/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-initial-copilot-pr-state returns copilot_session_active while Copilot run is in progress", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-active-session-"));
 
