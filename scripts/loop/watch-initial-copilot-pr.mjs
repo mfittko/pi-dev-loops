@@ -1,0 +1,278 @@
+#!/usr/bin/env node
+/**
+ * Durable wait loop for the Copilot-first bootstrap-only draft PR seam.
+ *
+ * When a Copilot-assigned issue has a linked PR that is still in the
+ * bootstrap-only draft shape (single "Initial plan" commit, 0 changed files,
+ * draft, Copilot-authored), this script implements the healthy-wait boundary
+ * from the public dev-loop contract:
+ *
+ *   - polls detect-initial-copilot-pr-state at a configurable interval
+ *   - returns status="ready_for_followup" as soon as the PR leaves the
+ *     bootstrap-only shape, carrying the PR number for immediate follow-up
+ *   - returns status="timed_out" when the watch budget is exhausted;
+ *     this is an *explicit still-waiting* outcome, not an implementation failure
+ *
+ * Both `waiting_for_initial_copilot_implementation` and `no_linked_pr` are
+ * healthy non-terminal wait states for this seam.  Quiet poll cycles (PR still
+ * bootstrap-only) do not surface as errors.
+ *
+ * The default watch budget is 1 hour, matching the Copilot-first durable-wait
+ * seam defined in the public dev-loop contract.
+ *
+ * Success output shape:
+ *   { "ok": true, "status": "ready_for_followup"|"timed_out",
+ *     "repo": "...", "issue": N, "prNumber": N|null, "prUrl": "..."|null,
+ *     "attempts": N, "elapsedMs": N }
+ *
+ * Failure behavior:
+ *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
+ *   on stderr and exit non-zero.
+ *   gh/runtime failures emit { "ok": false, "error": "..." } on stderr and
+ *   exit non-zero.
+ */
+import { setTimeout as delay } from "node:timers/promises";
+
+import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { parseRepoSlug } from "../github/_github-helpers.mjs";
+import { detectInitialCopilotPrState, LINKED_PR_STATE } from "./detect-initial-copilot-pr-state.mjs";
+
+const USAGE = `Usage: watch-initial-copilot-pr.mjs --repo <owner/name> --issue <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
+
+Wait for the Copilot-first bootstrap-only draft PR to become substantive.
+
+Polls detect-initial-copilot-pr-state in a durable loop until the linked PR
+leaves the bootstrap-only draft shape or the watch budget is exhausted.
+
+Both waiting_for_initial_copilot_implementation and no_linked_pr are healthy
+non-terminal wait states for this seam.  Quiet poll cycles do not surface as
+errors.  The 1-hour default watch budget matches the Copilot-first durable-wait
+seam from the public dev-loop contract.
+
+Required:
+  --repo <owner/name>           Repository slug (e.g. owner/repo)
+  --issue <number>              Issue number
+
+Optional:
+  --poll-interval-ms <ms>       Milliseconds between polls (default: 60000, i.e. 1 minute)
+  --timeout-ms <ms>             Total watch budget in ms; 0 = single check (default: 3600000, i.e. 1 hour)
+
+Output (stdout, JSON):
+  { "ok": true, "status": "ready_for_followup"|"timed_out",
+    "repo": "...", "issue": N, "prNumber": N|null, "prUrl": "..."|null,
+    "attempts": N, "elapsedMs": N }
+
+Status values:
+  ready_for_followup   Linked PR has left the bootstrap-only draft shape;
+                       proceed with PR follow-up using the returned prNumber
+  timed_out            Watch budget exhausted while linked PR was still
+                       bootstrap-only; this is an explicit still-waiting timeout
+                       outcome, not an implementation failure
+
+Error output (stderr, JSON):
+  Argument/usage errors:
+    { "ok": false, "error": "...", "usage": "..." }
+  gh/runtime failures:
+    { "ok": false, "error": "..." }
+
+Exit codes:
+  0  Success (both ready_for_followup and timed_out are healthy outcomes)
+  1  Argument error or gh failure`.trim();
+
+/** Default poll interval: 1 minute */
+const DEFAULT_POLL_INTERVAL_MS = 60_000;
+/** Default watch budget: 1 hour — Copilot-first durable-wait seam */
+const DEFAULT_TIMEOUT_MS = 3_600_000;
+
+function parseError(message) {
+  return Object.assign(new Error(message), { usage: USAGE });
+}
+
+function requireOptionValue(args, flag) {
+  const value = args.shift();
+
+  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
+    throw parseError(`Missing value for ${flag}`);
+  }
+
+  return value;
+}
+
+function parsePositiveInteger(value, flag) {
+  if (!/^\d+$/.test(value) || Number(value) === 0) {
+    throw parseError(`${flag} must be a positive integer`);
+  }
+
+  return Number(value);
+}
+
+function parseNonNegativeInteger(value, flag) {
+  if (!/^\d+$/.test(value)) {
+    throw parseError(`${flag} must be a non-negative integer`);
+  }
+
+  return Number(value);
+}
+
+function parseIssueNumber(value) {
+  if (!/^\d+$/.test(value) || Number(value) === 0) {
+    throw parseError("--issue must be a positive integer");
+  }
+
+  return Number(value);
+}
+
+export function parseWatchInitialCopilotPrCliArgs(argv) {
+  const args = [...argv];
+  const options = {
+    help: false,
+    repo: undefined,
+    issue: undefined,
+    pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
+
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo").trim();
+      continue;
+    }
+
+    if (token === "--issue") {
+      options.issue = parseIssueNumber(requireOptionValue(args, "--issue"));
+      continue;
+    }
+
+    if (token === "--poll-interval-ms") {
+      options.pollIntervalMs = parsePositiveInteger(
+        requireOptionValue(args, "--poll-interval-ms"),
+        "--poll-interval-ms",
+      );
+      continue;
+    }
+
+    if (token === "--timeout-ms") {
+      options.timeoutMs = parseNonNegativeInteger(
+        requireOptionValue(args, "--timeout-ms"),
+        "--timeout-ms",
+      );
+      continue;
+    }
+
+    throw parseError(`Unknown argument: ${token}`);
+  }
+
+  if (options.repo === undefined || options.issue === undefined) {
+    throw parseError("watch-initial-copilot-pr requires both --repo <owner/name> and --issue <number>");
+  }
+
+  try {
+    parseRepoSlug(options.repo);
+  } catch (error) {
+    throw parseError(error instanceof Error ? error.message : String(error));
+  }
+
+  return options;
+}
+
+/**
+ * Poll detect-initial-copilot-pr-state until the linked PR becomes substantive
+ * or the watch budget is exhausted.
+ *
+ * Both `waiting_for_initial_copilot_implementation` and `no_linked_pr` are
+ * treated as healthy non-terminal wait states — they are not implementation
+ * failures.  Only `linked_pr_ready_for_followup` triggers early exit with a
+ * follow-up handoff result.
+ *
+ * @param {{ repo: string, issue: number, pollIntervalMs: number, timeoutMs: number }} options
+ * @param {{ env?: object, ghCommand?: string, delayImpl?: function, nowMs?: function,
+ *           detectInitialCopilotPrStateImpl?: function }} deps
+ * @returns {Promise<{ ok: true, status: "ready_for_followup"|"timed_out",
+ *                     repo: string, issue: number, prNumber: number|null,
+ *                     prUrl: string|null, attempts: number, elapsedMs: number }>}
+ */
+export async function watchInitialCopilotPr(
+  options,
+  {
+    env = process.env,
+    ghCommand = "gh",
+    delayImpl = delay,
+    nowMs = () => Date.now(),
+    detectInitialCopilotPrStateImpl = detectInitialCopilotPrState,
+  } = {},
+) {
+  const { repo, issue, pollIntervalMs, timeoutMs } = options;
+  const startMs = nowMs();
+  let attempts = 0;
+
+  while (true) {
+    attempts += 1;
+
+    const detection = await detectInitialCopilotPrStateImpl({ repo, issue }, { env, ghCommand });
+    const elapsedMs = nowMs() - startMs;
+
+    if (detection.state === LINKED_PR_STATE.LINKED_PR_READY_FOR_FOLLOWUP) {
+      return {
+        ok: true,
+        status: "ready_for_followup",
+        repo,
+        issue,
+        prNumber: detection.prNumber,
+        prUrl: detection.prUrl,
+        attempts,
+        elapsedMs,
+      };
+    }
+
+    // `waiting_for_initial_copilot_implementation` and `no_linked_pr` are both
+    // healthy non-terminal wait states for this Copilot-first seam.
+    // Only budget exhaustion terminates the loop.
+
+    if (timeoutMs === 0 || elapsedMs >= timeoutMs) {
+      return {
+        ok: true,
+        status: "timed_out",
+        repo,
+        issue,
+        prNumber: detection.prNumber,
+        prUrl: detection.prUrl,
+        attempts,
+        elapsedMs,
+      };
+    }
+
+    const remaining = timeoutMs - (nowMs() - startMs);
+    if (remaining > 0) {
+      await delayImpl(Math.min(pollIntervalMs, remaining));
+    }
+  }
+}
+
+export async function runCli(
+  argv = process.argv.slice(2),
+  { stdout = process.stdout, env = process.env, ghCommand = "gh" } = {},
+) {
+  const options = parseWatchInitialCopilotPrCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(`${USAGE}\n`);
+    return;
+  }
+
+  const result = await watchInitialCopilotPr(options, { env, ghCommand });
+  stdout.write(`${JSON.stringify(result)}\n`);
+}
+
+if (isDirectCliRun(import.meta.url)) {
+  runCli().catch((error) => {
+    process.stderr.write(`${formatCliError(error)}\n`);
+    process.exitCode = 1;
+  });
+}

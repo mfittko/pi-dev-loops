@@ -217,7 +217,12 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    ```sh
    node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
    ```
-   - `waiting_for_initial_copilot_implementation`: keep waiting and continue polling; do not enter PR tightening or local review/fix yet
+   - `waiting_for_initial_copilot_implementation`: keep waiting; in durable-auto mode, enter the Copilot-first wait seam (up to 1 hour):
+     ```sh
+     node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
+     ```
+     - `ready_for_followup`: linked PR has become substantive; route to the existing PR follow-up path immediately with the returned PR number
+     - `timed_out`: watch budget exhausted; exit with an explicit still-waiting timeout outcome rather than an implementation failure
    - `linked_pr_ready_for_followup`: route to the existing PR follow-up path immediately with that PR number
    - `no_linked_pr`: continue to Phase 3
 6. If no linked PR exists, proceed to Phase 3 with this issue as the execution entry point.
@@ -243,7 +248,12 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
       ```sh
       node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
       ```
-    - if the state is `waiting_for_initial_copilot_implementation`, keep waiting and do not enter PR tightening/local review-fix yet
+    - if the state is `waiting_for_initial_copilot_implementation`, keep waiting; in durable-auto mode, use the Copilot-first wait seam (up to 1 hour):
+      ```sh
+      node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
+      ```
+      - `ready_for_followup`: resume at the PR follow-up path with the returned PR number
+      - `timed_out`: exit with an explicit still-waiting timeout outcome rather than an implementation failure
     - if the state is `linked_pr_ready_for_followup`, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
     - otherwise confirm with the user and proceed with that issue
 6. If no matching issue exists:
@@ -347,7 +357,12 @@ If the helper returns an open linked PR in `<resolved-repo>`, run:
 ```sh
 node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
 ```
-- `waiting_for_initial_copilot_implementation`: keep waiting; do not enter draft-stage PR tightening or local review/fix yet
+- `waiting_for_initial_copilot_implementation`: keep waiting; do not enter draft-stage PR tightening or local review/fix yet. In durable-auto mode, enter the Copilot-first wait seam (up to 1 hour):
+  ```sh
+  node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
+  ```
+  - `ready_for_followup`: linked PR has become substantive; proceed to Phase 5 with the returned PR number
+  - `timed_out`: the 1-hour Copilot-first watch budget expired; exit with an explicit still-waiting timeout outcome rather than an implementation failure
 - `linked_pr_ready_for_followup`: resume from that PR and do not retrigger Copilot for the same scope
 
 ## Phase 5 — PR tightening
