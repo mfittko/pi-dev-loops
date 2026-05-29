@@ -121,6 +121,8 @@ Prior chat context is only a hint, never state authority.
 
 If authoritative identity/state (including issue↔PR linkage when relevant) cannot be resolved confidently, fail closed to reconcile/unknown instead of guessing.
 
+When the routed next step requires confirmation for a mutation, the status/startup next action should name that concrete pending mutation (for example issue assignment) instead of generic "approval gate" wording.
+
 ## Authoritative startup/resume bundle contract
 
 Fresh-session `continue`, `inspect`, and status-style paths should compose one bounded authoritative startup/resume bundle from the existing routing/status contract fields.

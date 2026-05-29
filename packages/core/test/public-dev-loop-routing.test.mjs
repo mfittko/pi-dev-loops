@@ -123,6 +123,8 @@ test("start_on_issue routes to issue_intake through the public dev-loop façade"
   assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.ISSUE);
   assert.equal(result.canonicalState.nextActor, DEV_LOOP_ACTOR.USER);
   assert.equal(result.canonicalState.authorization, DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION);
+  assert.equal(result.nextAction, "Authorize the next mutation: assign Copilot to issue #86 now?");
+  assert.doesNotMatch(result.nextAction, /approval gate/i);
 });
 
 test("start_on_issue with a linked PR routes directly to PR follow-up", () => {
@@ -1112,6 +1114,27 @@ test("authoritative status resolution accepts issue state only after explicit no
   assert.equal(report.activeArtifact.kind, DEV_LOOP_TARGET_KIND.ISSUE);
   assert.equal(report.activeArtifact.issue, 93);
   assert.equal(report.activeArtifact.pr, null);
+  assert.equal(
+    report.nextAction,
+    "Authorize the next mutation: assign Copilot to issue #93 now?",
+  );
+});
+
+test("authoritative status resolution keeps non-confirmation issue-intake nextAction execution-oriented", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.USER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    loopState: "active",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
   assert.equal(
     report.nextAction,
     "Proceed with issue intake on the issue itself; authoritative linkage resolution already established that no open PR exists.",
