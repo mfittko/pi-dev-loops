@@ -126,6 +126,22 @@ test("isQualifyingAsyncCompletion: wait/watch route does not qualify (not a comp
   assert.equal(isQualifyingAsyncCompletion(result), false);
 });
 
+test("isQualifyingAsyncCompletion: inspect route does not qualify", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
+  assert.equal(isQualifyingAsyncCompletion(result), false);
+});
+
 test("isQualifyingAsyncCompletion: stop result does not qualify", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
@@ -339,6 +355,17 @@ test("evaluateRetrospectiveGate: null proposedRouting returns a fail-closed reco
 
   assert.equal(result.routeKind, "needs_reconcile");
   assert.equal(result.selectedGate, "fail_closed_reconcile");
+});
+
+test("evaluateRetrospectiveGate: fail-closed reconcile result keeps stable routing-shape defaults", () => {
+  const result = evaluateRetrospectiveGate({
+    checkpointState: RETROSPECTIVE_CHECKPOINT_STATE.NONE,
+    proposedRouting: null,
+  });
+
+  assert.equal(result.executionMode, "bounded_handoff");
+  assert.equal(result.waitSemantics, "default");
+  assert.equal(result.issueAssignmentSeam, "not_applicable");
 });
 
 test("evaluateRetrospectiveGate: called with no arguments returns a fail-closed reconcile result", () => {

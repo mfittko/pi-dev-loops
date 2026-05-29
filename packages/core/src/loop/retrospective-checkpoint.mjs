@@ -84,7 +84,7 @@ export function normalizeRetrospectiveCheckpointState(value) {
 export function isQualifyingAsyncCompletion(routingResult) {
   if (!routingResult || typeof routingResult !== "object") return false;
   const { routeKind, selectedGate } = routingResult;
-  if (routeKind === "stop" || routeKind === "needs_reconcile" || routeKind === "wait") {
+  if (routeKind !== "route") {
     return false;
   }
   if (typeof selectedGate !== "string") return false;
@@ -122,8 +122,10 @@ export function evaluateRetrospectiveGate({ checkpointState, proposedRouting } =
       selectedGate: "fail_closed_reconcile",
       selectedStrategy: null,
       compatibilityEntrypoint: null,
-      executionMode: null,
+      executionMode: "bounded_handoff",
+      waitSemantics: "default",
       canonicalState: null,
+      issueAssignmentSeam: "not_applicable",
       nextAction: "Reconcile the retrospective checkpoint state before routing.",
       reason: "Missing or invalid proposed routing result for retrospective gate evaluation.",
     };
@@ -155,6 +157,8 @@ export function evaluateRetrospectiveGate({ checkpointState, proposedRouting } =
       selectedGate: "fail_closed_reconcile",
       selectedStrategy: null,
       compatibilityEntrypoint: null,
+      waitSemantics: proposedRouting.waitSemantics ?? "default",
+      issueAssignmentSeam: proposedRouting.issueAssignmentSeam ?? "not_applicable",
       nextAction:
         "Complete or explicitly skip the required post-run behavioral retrospective before starting or resuming the next dev-loop run.",
       reason:
@@ -169,6 +173,8 @@ export function evaluateRetrospectiveGate({ checkpointState, proposedRouting } =
     selectedGate: "fail_closed_reconcile",
     selectedStrategy: null,
     compatibilityEntrypoint: null,
+    waitSemantics: proposedRouting.waitSemantics ?? "default",
+    issueAssignmentSeam: proposedRouting.issueAssignmentSeam ?? "not_applicable",
     nextAction: "Reconcile the retrospective checkpoint state before routing.",
     reason: `Unrecognized retrospective checkpoint state: "${String(checkpointState)}".`,
   };
