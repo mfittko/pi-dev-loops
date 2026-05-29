@@ -55,7 +55,13 @@ import {
   normalizeReviewerSnapshot,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
 import { interpretOuterLoopState } from "../../packages/core/src/loop/outer-loop-state.mjs";
-import { evaluateConductorRouting } from "../../packages/core/src/loop/conductor-routing.mjs";
+import {
+  ENTRYPOINT,
+  evaluateConductorRouting,
+  LOOP_FAMILY,
+  ROUTING_OUTCOME,
+  SOURCE_MODE,
+} from "../../packages/core/src/loop/conductor-routing.mjs";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 
@@ -106,6 +112,12 @@ Stop reasons:
   review_unavailable                   Copilot review is unavailable
   unsafe_local_edit_requires_isolation Next step needs local mutation/execution
                                        but checkout is dirty or detached
+  unsafe_local_branch_mismatch_requires_reconcile
+                                       Next step needs PR-local work but local
+                                       branch does not match PR head branch
+  unsafe_local_head_mismatch_requires_reconcile
+                                       Next step needs PR-local work but local
+                                       HEAD does not match PR head commit
   unknown_state                        Unrecognized combined state
 
 Error output (stderr, JSON):
@@ -258,25 +270,111 @@ function runChild(command, args, env) {
  * Check whether the current git checkout is dirty or has a detached HEAD.
  *
  * @param {{ env?: object, gitCommand?: string }} deps
- * @returns {Promise<{ isDirty: boolean, isDetached: boolean }>}
+ * @returns {Promise<{ isDirty: boolean, isDetached: boolean, branchName: string|null, headSha: string|null }>}
  */
 async function checkGitStatus({ env = process.env, gitCommand = "git" } = {}) {
-  const [statusResult, headResult] = await Promise.all([
+  const [statusResult, headRefResult, headShaResult] = await Promise.all([
     runChild(gitCommand, ["status", "--porcelain"], env),
     runChild(gitCommand, ["rev-parse", "--abbrev-ref", "HEAD"], env),
+    runChild(gitCommand, ["rev-parse", "HEAD"], env),
   ]);
 
   const isDirty = statusResult.code === 0
     ? statusResult.stdout.trim().length > 0
     : false;
 
-  const headRef = headResult.code === 0
-    ? headResult.stdout.trim()
+  const headRef = headRefResult.code === 0
+    ? headRefResult.stdout.trim()
     : "";
 
   const isDetached = headRef === "HEAD";
+  const branchName = !isDetached && headRef.length > 0 ? headRef : null;
+  const headSha = headShaResult.code === 0
+    ? headShaResult.stdout.trim() || null
+    : null;
 
-  return { isDirty, isDetached };
+  return { isDirty, isDetached, branchName, headSha };
+}
+
+async function fetchPrHeadIdentity({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    ["pr", "view", String(pr), "--repo", repo, "--json", "headRefName,headRefOid"],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || result.stdout.trim() || `exit code ${result.code}`;
+    throw new Error(`Failed to read PR head identity: ${detail}`);
+  }
+
+  const payload = parseJsonText(result.stdout);
+  const branchName = typeof payload.headRefName === "string" && payload.headRefName.trim().length > 0
+    ? payload.headRefName.trim()
+    : null;
+  const headSha = typeof payload.headRefOid === "string" && payload.headRefOid.trim().length > 0
+    ? payload.headRefOid.trim()
+    : null;
+
+  return { branchName, headSha };
+}
+
+function requiresPrLocalIdentityGate(outerAction) {
+  return outerAction === "reenter_copilot_loop" || outerAction === "reenter_reviewer_loop";
+}
+
+function evaluatePrLocalIdentity({
+  localBranch,
+  localHeadSha,
+  prBranch,
+  prHeadSha,
+}) {
+  const branchMatches = typeof prBranch === "string" && prBranch.length > 0
+    ? localBranch === prBranch
+    : null;
+  const headMatches = typeof prHeadSha === "string" && prHeadSha.length > 0
+    ? localHeadSha === prHeadSha
+    : null;
+
+  const mismatchReason = branchMatches === false
+    ? "unsafe_local_branch_mismatch_requires_reconcile"
+    : (headMatches === false ? "unsafe_local_head_mismatch_requires_reconcile" : null);
+
+  return {
+    localBranch,
+    localHeadSha,
+    prBranch,
+    prHeadSha,
+    branchMatches,
+    headMatches,
+    mismatchReason,
+  };
+}
+
+function buildPrLocalIdentityStopRouting({
+  repo,
+  pr,
+  branchIdentity,
+}) {
+  const targetIdentity = { repo, pr };
+  const reason = branchIdentity.mismatchReason === "unsafe_local_branch_mismatch_requires_reconcile"
+    ? `Local branch '${branchIdentity.localBranch ?? "(unknown)"}' does not match PR head branch '${branchIdentity.prBranch ?? "(unknown)"}'; reconcile local branch/worktree before PR-local follow-up.`
+    : `Local HEAD '${branchIdentity.localHeadSha ?? "(unknown)"}' does not match PR head '${branchIdentity.prHeadSha ?? "(unknown)"}'; reconcile local branch/worktree before PR-local follow-up.`;
+
+  return {
+    routingOutcome: ROUTING_OUTCOME.STOP_NEEDS_HUMAN,
+    outerAction: "stop",
+    stopReason: branchIdentity.mismatchReason,
+    handoffEnvelope: {
+      targetIdentity,
+      loopFamily: LOOP_FAMILY.NONE,
+      entrypoint: ENTRYPOINT.NONE,
+      reason,
+      requiredArgs: { repo, pr },
+      requiresLocalIsolation: false,
+      confidence: SOURCE_MODE.LOCAL,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -450,7 +548,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     ? "snapshot"
     : "local";
 
-  const conductorRouting = evaluateConductorRouting({
+  let conductorRouting = evaluateConductorRouting({
     target: { repo: normalizedRepo, pr },
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
@@ -468,8 +566,29 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
 
   // Derive outer-loop action from the authoritative outer interpretation
   // while preserving the existing backward-compat output shape.
-  const outerAction = outerInterpretation.outerAction;
-  const outerReason = outerInterpretation.stopReason;
+  let outerAction = outerInterpretation.outerAction;
+  let outerReason = outerInterpretation.stopReason;
+
+  let branchIdentity = null;
+  if (outerReason === null && sourceMode === "local" && requiresPrLocalIdentityGate(outerAction)) {
+    const prHeadIdentity = await fetchPrHeadIdentity({ repo: normalizedRepo, pr }, { env, ghCommand });
+    branchIdentity = evaluatePrLocalIdentity({
+      localBranch: gitStatus.branchName,
+      localHeadSha: gitStatus.headSha,
+      prBranch: prHeadIdentity.branchName,
+      prHeadSha: prHeadIdentity.headSha ?? currentHeadSha,
+    });
+
+    if (branchIdentity.mismatchReason !== null) {
+      outerAction = "stop";
+      outerReason = branchIdentity.mismatchReason;
+      conductorRouting = buildPrLocalIdentityStopRouting({
+        repo: normalizedRepo,
+        pr,
+        branchIdentity,
+      });
+    }
+  }
 
   // Read previous checkpoint to track wait cycles
   const { checkpoint: prevCheckpoint } = await readResolvedCheckpoint({
@@ -514,6 +633,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
       reviewerLogin: reviewerSnapshot.reviewerLogin,
     },
     ...(outerReason !== null && outerReason !== undefined ? { reason: outerReason } : {}),
+    ...(branchIdentity !== null ? { branchIdentity } : {}),
     conductorRouting,
     checkpoint,
   };

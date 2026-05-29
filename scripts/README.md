@@ -453,6 +453,11 @@ Contract:
   and reviewer `waiting_for_re_request` as outer-loop-owned `continue_wait` states
 - stops with `unsafe_local_edit_requires_isolation` when the next step needs local execution or
   mutation and the checkout is dirty or detached
+- for PR-local re-entry actions, verifies local branch/HEAD identity against the active PR head;
+  stops with `unsafe_local_branch_mismatch_requires_reconcile` or
+  `unsafe_local_head_mismatch_requires_reconcile` when checkout identity is not aligned
+- when that PR-local identity gate trips, the emitted `conductorRouting` result is also fail-closed
+  to a stop outcome with no handoff entrypoint, so consumers cannot keep following a stale handoff envelope
 - persists bounded checkpoint state to `tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json` for
   async continuation and false-positive wakeup detection
 - emits an additive `conductorRouting` field with the conductor-owned routing outcome, derived
@@ -460,7 +465,7 @@ Contract:
 - supports snapshot-input mode for deterministic gh-free testing
 
 Success output shape:
-- `{ "ok": true, "outerAction": "...", "copilotState": "...", "reviewerState": "...", "reviewerScope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, "reason"?: "...", "conductorRouting": { "routingOutcome": "...", "outerAction": "...", "stopReason": null|"...", "handoffEnvelope": { ... } }, "checkpoint": { ... } }`
+- `{ "ok": true, "outerAction": "...", "copilotState": "...", "reviewerState": "...", "reviewerScope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, "reason"?: "...", "branchIdentity"?: { ... }, "conductorRouting": { "routingOutcome": "...", "outerAction": "...", "stopReason": null|"...", "handoffEnvelope": { ... } }, "checkpoint": { ... } }`
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
