@@ -579,7 +579,7 @@ function routeForState(canonicalState, { executionMode = DEV_LOOP_EXECUTION_MODE
       executionMode,
       canonicalState: routableCanonicalState,
       nextAction: needsIssueMutationConfirmation
-        ? `Authorize the next mutation: assign Copilot to issue #${routableCanonicalState.target.issue} now?`
+        ? buildIssueAssignmentConfirmationNextAction(routableCanonicalState.target.issue)
         : "Normalize the issue, confirm scope, and determine whether an existing PR already exists.",
       reason: "Issue targets without a linked PR route to issue intake before PR follow-up.",
     });
@@ -641,6 +641,10 @@ function buildStatusArtifactIdentity(canonicalState) {
   };
 }
 
+function buildIssueAssignmentConfirmationNextAction(issueNumber) {
+  return `Authorize the next mutation: assign Copilot to issue #${issueNumber} now?`;
+}
+
 function buildAuthoritativeStatusNextAction(routed, issueLinkageResolution) {
   if (
     routed?.selectedGate === DEV_LOOP_GATE.ISSUE_INTAKE
@@ -648,7 +652,7 @@ function buildAuthoritativeStatusNextAction(routed, issueLinkageResolution) {
     && issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR
   ) {
     if (routed.canonicalState.authorization === DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION) {
-      return `Authorize the next mutation: assign Copilot to issue #${routed.canonicalState.target.issue} now?`;
+      return buildIssueAssignmentConfirmationNextAction(routed.canonicalState.target.issue);
     }
     return "Proceed with issue intake on the issue itself; authoritative linkage resolution already established that no open PR exists.";
   }
