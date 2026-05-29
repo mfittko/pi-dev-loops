@@ -289,6 +289,8 @@ When the public intent is `auto dev loop`, the router must:
 
 In healthy waiting states, quiet watcher observations (for example `timeout` or `idle`) are observational only and must not be surfaced as attention by themselves. Escalation is still expected for true blocked/authorization/reconcile/action-required states.
 
+For the Copilot-first bootstrap seam (`waiting_for_initial_copilot_implementation`), durable-auto ownership must route to the dedicated `watch-initial-copilot-pr.mjs` watcher with its default 1-hour watch budget. Quiet/no-activity observations alone do not eject durable ownership while refreshed authoritative state still resolves `waiting_for_initial_copilot_implementation`; inspect/status intents may still summarize that state and exit normally.
+
 ## Internal / external model
 
 ```mermaid
