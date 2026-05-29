@@ -146,7 +146,7 @@ Rules 6 and 7 check `unresolvedThreadCount > 0` **before** checking review-reque
 
 ### Active current-head request state keeps the wait open
 
-Rule 8 routes to `waiting_for_copilot_review` whenever the effective request status is `requested` or `already-requested`. A submitted (non-PENDING) Copilot review on the current head is necessary evidence for clean convergence, but it is not sufficient while the request remains active. The loop falls through to rule 9+ only after the current-head request status settles to `none` or another non-active terminal status.
+Rule 8 routes to `waiting_for_copilot_review` whenever the effective request status is `requested` or `already-requested`. A submitted (non-PENDING) Copilot review on the current head is necessary evidence for clean convergence, but it is not sufficient while the request remains active. The auto-detect path treats `requested_reviewers` as stale and settles the request to `none` when a submitted current-head Copilot review exists and no PENDING current-head Copilot review remains. The loop falls through to rule 9+ only after the current-head request status settles to `none` or another non-active terminal status.
 
 ### Automatic same-head re-request suppression after clean convergence
 

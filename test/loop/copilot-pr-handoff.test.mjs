@@ -787,7 +787,7 @@ process.exit(97);
   }
 });
 
-test("copilot-pr-handoff keeps waiting while requested_reviewers still indicates an active current-head request", async () => {
+test("copilot-pr-handoff treats stale requested_reviewers as clean convergence after current-head review", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-current-head-review-"));
 
   try {
@@ -827,17 +827,20 @@ test("copilot-pr-handoff keeps waiting while requested_reviewers still indicates
 
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    assert.equal(output.action, "watch");
-    assert.equal(output.state, "waiting_for_copilot_review");
-    assert.equal(output.reviewRequestStatus, "requested");
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.reviewRequestStatus, undefined);
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, true);
-    assert.ok(output.watchArgs, "expected watchArgs for active request wait");
+    assert.equal(output.sameHeadCleanConverged, true);
+    assert.equal(output.loopDisposition, "clean_converged");
+    assert.equal(output.terminal, true);
+    assert.equal(output.watchArgs, undefined);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("copilot-pr-handoff classifies watch timeout plus active request as non-terminal pending", async () => {
+test("copilot-pr-handoff classifies watch timeout plus stale requested_reviewers as clean-converged", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-timeout-clean-converged-"));
 
   try {
@@ -877,13 +880,13 @@ test("copilot-pr-handoff classifies watch timeout plus active request as non-ter
 
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    assert.equal(output.action, "watch");
-    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "ready_to_rerequest_review");
     assert.equal(output.watchStatus, "timeout");
-    assert.equal(output.sameHeadCleanConverged, false);
-    assert.equal(output.loopDisposition, "pending");
-    assert.equal(output.terminal, false);
-    assert.ok(output.watchArgs, "expected watchArgs while request remains active");
+    assert.equal(output.sameHeadCleanConverged, true);
+    assert.equal(output.loopDisposition, "clean_converged");
+    assert.equal(output.terminal, true);
+    assert.equal(output.watchArgs, undefined);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1487,13 +1490,13 @@ test("copilot-pr-handoff classifies watch timeout with CI still pending as non-t
 
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    assert.equal(output.action, "watch");
-    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "waiting_for_ci");
     assert.equal(output.watchStatus, "timeout");
     assert.equal(output.loopDisposition, "pending");
     assert.equal(output.terminal, false);
     assert.equal(output.sameHeadCleanConverged, false);
-    assert.ok(output.watchArgs, "expected watchArgs while request remains active");
+    assert.equal(output.watchArgs, undefined);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

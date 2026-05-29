@@ -514,7 +514,14 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     copilotReviewRequestStatus = "requested";
   } else {
     const copilotRequested = await fetchCopilotRequested({ repo, pr }, { env, ghCommand });
-    copilotReviewRequestStatus = copilotRequested ? "requested" : "none";
+    // GitHub can briefly leave Copilot in requested_reviewers after it has
+    // already submitted a current-head review. Treat that as settled when no
+    // pending current-head review remains; otherwise stale requested_reviewers
+    // would block clean convergence forever.
+    copilotReviewRequestStatus = copilotRequested
+      && (!reviewSummary.hasSubmittedReviewOnCurrentHead || reviewSummary.hasPendingReviewOnCurrentHead)
+      ? "requested"
+      : "none";
   }
 
   // Fetch review threads for unresolved counts. This must fail closed: if we

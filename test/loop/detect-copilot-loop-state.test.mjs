@@ -1246,9 +1246,10 @@ test("detect-copilot-loop-state treats mixed head-scoped failure-plus-pending ch
   }
 });
 
-test("detect-copilot-loop-state keeps waiting_for_copilot_review while current-head request status is still active", async () => {
-  // requested_reviewers still lists Copilot; even with a submitted current-head review,
-  // the request lifecycle is not yet conclusively settled for this head.
+test("detect-copilot-loop-state allows clean convergence when only stale requested_reviewers remains after current-head review", async () => {
+  // requested_reviewers can briefly still list Copilot after a submitted
+  // current-head review. With no pending current-head review, auto-detect should
+  // treat that as settled rather than over-blocking forever.
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-review-on-head-"));
 
   try {
@@ -1293,14 +1294,14 @@ test("detect-copilot-loop-state keeps waiting_for_copilot_review while current-h
 
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.state, "ready_to_rerequest_review");
     assert.equal(output.snapshot.copilotReviewPresent, true);
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, true);
-    assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
+    assert.equal(output.snapshot.copilotReviewRequestStatus, "none");
     assert.equal(output.autoRerequestEligible, false);
-    assert.equal(output.sameHeadCleanConverged, false);
-    assert.equal(output.loopDisposition, "pending");
-    assert.equal(output.terminal, false);
+    assert.equal(output.sameHeadCleanConverged, true);
+    assert.equal(output.loopDisposition, "clean_converged");
+    assert.equal(output.terminal, true);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
