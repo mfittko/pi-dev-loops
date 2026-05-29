@@ -30,6 +30,16 @@ test("validateAsyncStartContext: rejects when markers are empty strings", () => 
   assert.equal(result.status, ASYNC_START_STATUS.REJECTED);
 });
 
+test("validateAsyncStartContext: rejects when markers are whitespace-only", () => {
+  const env = {
+    PI_SUBAGENT_RUN_ID: "   ",
+    PI_SESSION_ID: "\t",
+    PI_ASYNC_CONTEXT: " ",
+  };
+  const result = validateAsyncStartContext({ env });
+  assert.equal(result.status, ASYNC_START_STATUS.REJECTED);
+});
+
 // ---------------------------------------------------------------------------
 // validateAsyncStartContext: valid (Pi-managed context detected)
 // ---------------------------------------------------------------------------

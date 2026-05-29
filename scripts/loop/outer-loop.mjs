@@ -683,7 +683,8 @@ export async function runCli(
 
   const result = await runOuterLoop(options, { env, ghCommand, gitCommand });
 
-  // Fail closed on async-start contract rejection: emit on stderr and exit non-zero.
+  // Fail closed when runOuterLoop returns ok:false (e.g. async-start contract rejection).
+  // This covers any ok:false result, not only async-start rejections.
   if (result.ok === false) {
     stderr.write(`${JSON.stringify(result)}\n`);
     process.exitCode = 1;

@@ -1699,11 +1699,10 @@ test("outer-loop CLI: async-start rejection exits non-zero and writes JSON error
   }
 });
 
-test("outer-loop: proceeds when PI_SESSION_ID is set", async () => {
+test("outer-loop: proceeds when PI_SESSION_ID is set (non-snapshot mode)", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
-    const reviewerInputPath = path.join(tempDir, "reviewer.json");
     await writeJson(copilotInputPath, {
       prExists: true,
       prState: "OPEN",
@@ -1717,23 +1716,13 @@ test("outer-loop: proceeds when PI_SESSION_ID is set", async () => {
       resolvedThreadIds: [],
       unresolvedThreadIds: [],
     });
-    await writeJson(reviewerInputPath, {
-      prExists: true,
-      prState: "OPEN",
-      prNumber: 47,
-      prHeadSha: "abc123",
-      reviewerScope: "all_reviewers",
-      reviewerLogin: null,
-      submittedReviewPresent: false,
-      submittedReviewState: null,
-      submittedReviewCommitSha: null,
-      pendingReviewRequestPresent: false,
-    });
     const gitEnv = await writeGitStub(tempDir);
-    const env = { ...gitEnv, PI_SESSION_ID: "test-session-123" };
+    const ghEnv = await writeGhStub(tempDir, { repo: "owner/repo", pr: 47 });
+    const env = { ...gitEnv, ...ghEnv, PI_SESSION_ID: "test-session-123" };
 
+    // copilot-input only — not snapshot mode; PI_SESSION_ID must satisfy the check
     const result = await runOuterLoop(
-      { repo: "owner/repo", pr: 47, copilotInputPath, reviewerInputPath, checkpointDir: tempDir },
+      { repo: "owner/repo", pr: 47, copilotInputPath, checkpointDir: tempDir },
       { env, gitCommand: path.join(tempDir, "git") },
     );
 
@@ -1744,11 +1733,10 @@ test("outer-loop: proceeds when PI_SESSION_ID is set", async () => {
   }
 });
 
-test("outer-loop: proceeds when PI_ASYNC_START_BYPASS=1 even without context markers", async () => {
+test("outer-loop: proceeds when PI_ASYNC_START_BYPASS=1 (non-snapshot mode)", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
-    const reviewerInputPath = path.join(tempDir, "reviewer.json");
     await writeJson(copilotInputPath, {
       prExists: true,
       prState: "OPEN",
@@ -1762,23 +1750,13 @@ test("outer-loop: proceeds when PI_ASYNC_START_BYPASS=1 even without context mar
       resolvedThreadIds: [],
       unresolvedThreadIds: [],
     });
-    await writeJson(reviewerInputPath, {
-      prExists: true,
-      prState: "OPEN",
-      prNumber: 47,
-      prHeadSha: "abc123",
-      reviewerScope: "all_reviewers",
-      reviewerLogin: null,
-      submittedReviewPresent: false,
-      submittedReviewState: null,
-      submittedReviewCommitSha: null,
-      pendingReviewRequestPresent: false,
-    });
     const gitEnv = await writeGitStub(tempDir);
-    const env = { ...gitEnv, PI_ASYNC_START_BYPASS: "1" };
+    const ghEnv = await writeGhStub(tempDir, { repo: "owner/repo", pr: 47 });
+    const env = { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" };
 
+    // copilot-input only — not snapshot mode; bypass must satisfy the check
     const result = await runOuterLoop(
-      { repo: "owner/repo", pr: 47, copilotInputPath, reviewerInputPath, checkpointDir: tempDir },
+      { repo: "owner/repo", pr: 47, copilotInputPath, checkpointDir: tempDir },
       { env, gitCommand: path.join(tempDir, "git") },
     );
 

@@ -90,7 +90,7 @@ export function validateAsyncStartContext({
   // Check for any Pi-managed async context marker
   for (const marker of PI_ASYNC_CONTEXT_MARKERS) {
     const value = env[marker];
-    if (typeof value === "string" && value.length > 0) {
+    if (typeof value === "string" && value.trim().length > 0) {
       return {
         status: ASYNC_START_STATUS.VALID,
         reason: `Pi-managed async context detected via ${marker}.`,
