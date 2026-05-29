@@ -216,6 +216,10 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   }
 
   const interpretationSummary = summarizeLoopInterpretation(interpretation);
+  const effectiveReviewRequestStatus = reviewRequestStatus
+    ?? (snapshot.copilotReviewRequestStatus === "requested" || snapshot.copilotReviewRequestStatus === "already-requested"
+      ? snapshot.copilotReviewRequestStatus
+      : undefined);
 
   let action;
   if (reviewRequestStatus === "requested" || reviewRequestStatus === "already-requested") {
@@ -241,8 +245,8 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     snapshot,
   };
 
-  if (reviewRequestStatus !== undefined) {
-    result.reviewRequestStatus = reviewRequestStatus;
+  if (effectiveReviewRequestStatus !== undefined) {
+    result.reviewRequestStatus = effectiveReviewRequestStatus;
   }
 
   if (options.watchStatus !== undefined) {

@@ -787,7 +787,7 @@ process.exit(97);
   }
 });
 
-test("copilot-pr-handoff stops after a current-head Copilot review even if requested_reviewers lingers", async () => {
+test("copilot-pr-handoff treats stale requested_reviewers as clean convergence after current-head review", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-current-head-review-"));
 
   try {
@@ -805,6 +805,7 @@ test("copilot-pr-handoff stops after a current-head Copilot review even if reque
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "newsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
             },
           ],
           statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
@@ -814,6 +815,12 @@ test("copilot-pr-handoff stops after a current-head Copilot review even if reque
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
+      {
+        // Timeline: review_requested predates the submitted review (stale)
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"Copilot","created_at":"2026-01-15T10:00:00Z"}\n',
+      },
+
       {
         assertArgs: ["api", "graphql"],
         stdout: EMPTY_THREADS + "\n",
@@ -831,13 +838,16 @@ test("copilot-pr-handoff stops after a current-head Copilot review even if reque
     assert.equal(output.state, "ready_to_rerequest_review");
     assert.equal(output.reviewRequestStatus, undefined);
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, true);
+    assert.equal(output.sameHeadCleanConverged, true);
+    assert.equal(output.loopDisposition, "clean_converged");
+    assert.equal(output.terminal, true);
     assert.equal(output.watchArgs, undefined);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("copilot-pr-handoff classifies watch timeout plus current-head clean review as clean-converged", async () => {
+test("copilot-pr-handoff classifies watch timeout plus stale requested_reviewers as clean-converged", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-timeout-clean-converged-"));
 
   try {
@@ -855,6 +865,7 @@ test("copilot-pr-handoff classifies watch timeout plus current-head clean review
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "newsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
             },
           ],
           statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
@@ -864,6 +875,12 @@ test("copilot-pr-handoff classifies watch timeout plus current-head clean review
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
+      {
+        // Timeline: review_requested predates the submitted review (stale)
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"Copilot","created_at":"2026-01-15T10:00:00Z"}\n',
+      },
+
       {
         assertArgs: ["api", "graphql"],
         stdout: EMPTY_THREADS + "\n",
@@ -1348,6 +1365,7 @@ test("copilot-pr-handoff classifies watch timeout with refreshed unresolved thre
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "newsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
             },
           ],
           statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
@@ -1357,6 +1375,12 @@ test("copilot-pr-handoff classifies watch timeout with refreshed unresolved thre
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
+      {
+        // Timeline: review_requested predates the submitted review (stale)
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"Copilot","created_at":"2026-01-15T10:00:00Z"}\n',
+      },
+
       {
         assertArgs: ["api", "graphql"],
         stdout: unresolvedThreads + "\n",
@@ -1465,6 +1489,7 @@ test("copilot-pr-handoff classifies watch timeout with CI still pending as non-t
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "newsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
             },
           ],
           statusCheckRollup: [{ status: "IN_PROGRESS", conclusion: "", name: "ci" }],
@@ -1474,6 +1499,12 @@ test("copilot-pr-handoff classifies watch timeout with CI still pending as non-t
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
+      {
+        // Timeline: review_requested predates the submitted review (stale)
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"Copilot","created_at":"2026-01-15T10:00:00Z"}\n',
+      },
+
       {
         assertArgs: ["api", "graphql"],
         stdout: EMPTY_THREADS + "\n",
@@ -1493,6 +1524,7 @@ test("copilot-pr-handoff classifies watch timeout with CI still pending as non-t
     assert.equal(output.loopDisposition, "pending");
     assert.equal(output.terminal, false);
     assert.equal(output.sameHeadCleanConverged, false);
+    assert.equal(output.watchArgs, undefined);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

@@ -341,9 +341,9 @@ test("interpretLoopState returns waiting_for_copilot_review when Copilot is in r
 // Regression: fresh Copilot review on current head should exit waiting_for_copilot_review
 // ---------------------------------------------------------------------------
 
-test("interpretLoopState exits waiting_for_copilot_review when Copilot has a submitted review on current head", () => {
-  // Even if requested_reviewers still lists Copilot, a submitted review on the current
-  // head means the wait is done.
+test("interpretLoopState keeps waiting_for_copilot_review while current-head request status remains active", () => {
+  // Even with a submitted current-head review, an active requested_reviewers signal is
+  // treated as not yet conclusively settled for this head.
   for (const status of ["requested", "already-requested"]) {
     const result = interpretLoopState({
       prExists: true,
@@ -354,14 +354,10 @@ test("interpretLoopState exits waiting_for_copilot_review when Copilot has a sub
       unresolvedThreadCount: 0,
       ciStatus: "success",
     });
-    assert.notEqual(result.state, STATE.WAITING_FOR_COPILOT_REVIEW,
-      `must not remain in waiting_for_copilot_review when copilotReviewOnCurrentHead=true (status=${status})`);
-    assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW,
-      `expected ready_to_rerequest_review when copilotReviewOnCurrentHead=true (status=${status})`);
-    assert.equal(result.autoRerequestEligible, false,
-      `expected auto re-request suppression when copilotReviewOnCurrentHead=true (status=${status})`);
-    assert.equal(result.sameHeadCleanConverged, true,
-      `expected sameHeadCleanConverged when copilotReviewOnCurrentHead=true (status=${status})`);
+    assert.equal(result.state, STATE.WAITING_FOR_COPILOT_REVIEW,
+      `expected waiting_for_copilot_review while request status is ${status}`);
+    assert.equal(result.autoRerequestEligible, false);
+    assert.equal(result.sameHeadCleanConverged, false);
   }
 });
 
@@ -406,7 +402,7 @@ test("interpretLoopState stays in waiting_for_copilot_review when review is not 
   assert.equal(result.state, STATE.WAITING_FOR_COPILOT_REVIEW);
 });
 
-test("interpretLoopState routes to waiting_for_ci when copilotReviewOnCurrentHead and CI is pending", () => {
+test("interpretLoopState keeps waiting_for_copilot_review while request is active even when ci is pending", () => {
   const result = interpretLoopState({
     prExists: true,
     prNumber: 17,
@@ -416,8 +412,7 @@ test("interpretLoopState routes to waiting_for_ci when copilotReviewOnCurrentHea
     unresolvedThreadCount: 0,
     ciStatus: "pending",
   });
-  assert.equal(result.state, STATE.WAITING_FOR_CI);
-  assert.notEqual(result.state, STATE.WAITING_FOR_COPILOT_REVIEW);
+  assert.equal(result.state, STATE.WAITING_FOR_COPILOT_REVIEW);
 });
 
 test("interpretLoopState returns ready_to_rerequest_review when Copilot has reviewed and all threads resolved", () => {
@@ -434,6 +429,22 @@ test("interpretLoopState returns ready_to_rerequest_review when Copilot has revi
   assert.ok(result.allowedTransitions.includes(STATE.DONE));
   assert.equal(result.autoRerequestEligible, true);
   assert.equal(result.sameHeadCleanConverged, false);
+});
+
+test("interpretLoopState allows clean current-head convergence once request status is settled", () => {
+  const result = interpretLoopState({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: true,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    ciStatus: "success",
+  });
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+  assert.equal(result.autoRerequestEligible, false);
+  assert.equal(result.sameHeadCleanConverged, true);
 });
 
 test("interpretLoopState returns waiting_for_ci when Copilot has reviewed and ciStatus is none", () => {
@@ -558,7 +569,7 @@ test("summarizeLoopInterpretation marks same-head clean convergence as terminal"
   const summary = summarizeLoopInterpretation({
     prExists: true,
     prNumber: 17,
-    copilotReviewRequestStatus: "requested",
+    copilotReviewRequestStatus: "none",
     copilotReviewPresent: true,
     copilotReviewOnCurrentHead: true,
     unresolvedThreadCount: 0,

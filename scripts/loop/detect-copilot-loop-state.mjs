@@ -329,6 +329,40 @@ async function fetchCopilotRequested({ repo, pr }, { env, ghCommand }) {
   return users.some((user) => isCopilotLogin(user?.login));
 }
 
+/**
+ * Fetch the timestamp of the most recent review_requested event for Copilot
+ * from the PR timeline. Returns an ISO string or null if not found.
+ */
+async function fetchLatestCopilotReviewRequestAt({ repo, pr }, { env, ghCommand }) {
+  const result = await runChild(
+    ghCommand,
+    ["api", `repos/${repo}/issues/${pr}/timeline`, "--paginate", "--jq",
+      '.[] | select(.event == "review_requested") | select(.requested_reviewer.login != null) | {login: .requested_reviewer.login, created_at: .created_at}'],
+    env,
+  );
+
+  if (result.code !== 0) {
+    // Non-fatal: if timeline is unavailable, fail open (trust requested_reviewers)
+    return null;
+  }
+
+  let latestAt = null;
+  for (const line of result.stdout.trim().split("\n")) {
+    if (!line) continue;
+    try {
+      const event = JSON.parse(line);
+      if (isCopilotLogin(event?.login)) {
+        if (latestAt === null || event.created_at > latestAt) {
+          latestAt = event.created_at;
+        }
+      }
+    } catch {
+      // skip malformed lines
+    }
+  }
+  return latestAt;
+}
+
 function normalizeHeadScopedCheckRunsStatus(payload) {
   const runs = Array.isArray(payload?.check_runs) ? payload.check_runs : [];
   if (runs.length === 0) {
@@ -514,7 +548,30 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     copilotReviewRequestStatus = "requested";
   } else {
     const copilotRequested = await fetchCopilotRequested({ repo, pr }, { env, ghCommand });
-    copilotReviewRequestStatus = copilotRequested ? "requested" : "none";
+    if (!copilotRequested) {
+      copilotReviewRequestStatus = "none";
+    } else if (!reviewSummary.hasSubmittedReviewOnCurrentHead) {
+      // Copilot is requested and no submitted review on current head yet — genuinely pending.
+      copilotReviewRequestStatus = "requested";
+    } else {
+      // Copilot is in requested_reviewers AND has a submitted review on current head.
+      // This is ambiguous: either GitHub is stale (left Copilot after submission)
+      // or a deliberate same-head re-request was made after the last review.
+      // Resolve by comparing the latest review_requested timeline event against
+      // the latest submitted review timestamp.
+      const latestRequestAt = await fetchLatestCopilotReviewRequestAt({ repo, pr }, { env, ghCommand });
+      const latestReviewAt = reviewSummary.latestSubmittedReviewOnCurrentHeadAt;
+      if (latestRequestAt !== null && latestReviewAt !== null && latestRequestAt > latestReviewAt) {
+        // The re-request is more recent than the last submitted review — genuinely active.
+        copilotReviewRequestStatus = "requested";
+      } else if (latestRequestAt === null) {
+        // Timeline unavailable — fail open, trust requested_reviewers as authoritative.
+        copilotReviewRequestStatus = "requested";
+      } else {
+        // The request predates the submitted review — stale; settle it.
+        copilotReviewRequestStatus = "none";
+      }
+    }
   }
 
   // Fetch review threads for unresolved counts. This must fail closed: if we

@@ -199,8 +199,8 @@ function isAutoRerequestEligible(snapshot, state) {
  *     — current known Copilot review-request state, or "none" if unknown
  * - copilotReviewPresent {boolean} — whether at least one Copilot review exists on the PR
  * - copilotReviewOnCurrentHead {boolean} — whether a submitted (non-PENDING) Copilot review
- *     exists for the current head commit; when true, the review is done even if
- *     requested_reviewers has not yet cleared
+ *     exists for the current head commit; this alone does not prove the current-head
+ *     review-request lifecycle is settled, so callers must still check request-state fields
  * - unresolvedThreadCount {number} — total unresolved review-thread count
  * - actionableThreadCount {number} — unresolved threads with non-bot actionable comments
  * - ciStatus {"success"|"failure"|"pending"|"none"} — current CI check rollup status
@@ -282,9 +282,8 @@ export function applyConfirmedReviewRequest(snapshot, reviewRequestStatus) {
  * - unresolvedThreadCount > 0 always routes into fix/reply-resolve flow, never into wait
  * - "unavailable" or "failed" review-request status routes into stop/report states
  * - agentFixStatus "applied" distinguishes fix-needed from already-fixed-needs-reply/resolve
- * - Copilot review still in progress (via requested_reviewers or a PENDING current-head Copilot review) routes into waiting_for_copilot_review
- *   UNLESS a submitted Copilot review already exists on the current head (copilotReviewOnCurrentHead),
- *   which means the wait is done and the loop can advance to ready_to_rerequest_review
+ * - Copilot review request still active (via requested_reviewers or a PENDING current-head Copilot review)
+ *   routes into waiting_for_copilot_review until that request is conclusively settled for this head
  *
  * @param {object} snapshot - raw or normalized snapshot
  * @returns {{
@@ -316,8 +315,8 @@ export function interpretLoopState(snapshot) {
   } else if (s.unresolvedThreadCount > 0) {
     // Unresolved feedback exists — do not wait; enter fix/reply-resolve handling
     state = STATE.UNRESOLVED_FEEDBACK_PRESENT;
-  } else if ((s.copilotReviewRequestStatus === "requested" || s.copilotReviewRequestStatus === "already-requested") && !s.copilotReviewOnCurrentHead) {
-    // Copilot is in requested_reviewers but has not yet submitted a review on the current head
+  } else if (s.copilotReviewRequestStatus === "requested" || s.copilotReviewRequestStatus === "already-requested") {
+    // A current-head Copilot request is still active/pending and must settle before gate progression.
     state = STATE.WAITING_FOR_COPILOT_REVIEW;
   } else if (s.copilotReviewPresent) {
     // Copilot has reviewed at least once; all threads resolved
