@@ -466,6 +466,7 @@ This is the default pre-approval gate for this workflow boundary and owns the DR
   - short findings summary, or `no issues found`
   - next action
   - If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval.
+  - Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA.
   - Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence.
   - If the required comment cannot be posted (fail-closed), do not declare final-approval readiness for that head.
   - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.

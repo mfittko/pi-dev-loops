@@ -774,6 +774,11 @@ test("gate-review comment requirement is enforced in draft gate and pre-approval
     );
     assert.match(
       draftGate,
+      /visible `clean` `draft_gate` gate-review comment exists for the current head SHA/i,
+      `${label} draft gate should require a clean current-head gate comment before ready-for-review`,
+    );
+    assert.match(
+      draftGate,
       /post a new gate-review comment for the new head/i,
       `${label} draft gate should require a new visible comment when the head advances`,
     );
@@ -811,6 +816,11 @@ test("gate-review comment requirement is enforced in draft gate and pre-approval
       preApprovalGate,
       /follow-up fixes are required before final approval/i,
       `${label} pre-approval gate should say findings require follow-up fixes before final approval`,
+    );
+    assert.match(
+      preApprovalGate,
+      /visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA/i,
+      `${label} pre-approval gate should require a clean current-head gate comment before final-approval readiness`,
     );
     assert.match(
       preApprovalGate,
