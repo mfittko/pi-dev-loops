@@ -1904,7 +1904,7 @@ test("authoritative startup/resume bundle applies retrospective gating when chec
 
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
   assert.equal(bundle.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
-  assert.match(bundle.nextAction, /reconcile/i);
+  assert.match(bundle.nextAction, /retrospective/i);
   assert.match(bundle.reason, /retrospective/i);
 });
 
@@ -1947,4 +1947,43 @@ test("authoritative status fails closed when retrospective checkpoint input is i
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
   assert.equal(report.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.match(report.reason, /retrospective checkpoint-state/i);
+});
+
+
+test("authoritative startup/resume bundle preserves the retrospective gate nextAction", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "copilot_followup_active",
+    retrospectiveCheckpointState: RETROSPECTIVE_CHECKPOINT_STATE.MISSING,
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.nextAction, /Complete or explicitly skip/i);
+});
+
+test("authoritative status preserves the retrospective gate nextAction", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "copilot_followup_active",
+    retrospectiveCheckpointState: RETROSPECTIVE_CHECKPOINT_STATE.MISSING,
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.match(report.nextAction, /Complete or explicitly skip/i);
 });

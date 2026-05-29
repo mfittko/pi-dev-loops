@@ -767,14 +767,18 @@ function buildAuthoritativeStatusNextAction(routed) {
   return routed?.nextAction ?? "Reconcile the current state before answering status.";
 }
 
-function buildStatusReconcile(reason, canonicalState = null) {
+function buildStatusReconcile(
+  reason,
+  canonicalState = null,
+  nextAction = "Stop and reconcile the authoritative active artifact and current loop state before answering status.",
+) {
   return {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE,
     reason,
     activeArtifact: canonicalState ? buildStatusArtifactIdentity(canonicalState) : null,
     artifactState: null,
     loopState: "unknown",
-    nextAction: "Stop and reconcile the authoritative active artifact and current loop state before answering status.",
+    nextAction,
     selectedGate: DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE,
     routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
@@ -788,6 +792,7 @@ function buildStartupResumeBundleReconcile({
   canonicalState = null,
   issueLinkageResolution = null,
   artifactState = null,
+  nextAction = "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
 }) {
   return {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE,
@@ -796,7 +801,7 @@ function buildStartupResumeBundleReconcile({
     artifactState,
     issueLinkageResolution,
     loopState: "unknown",
-    nextAction: "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
+    nextAction,
     selectedGate: DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE,
     routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
@@ -1006,6 +1011,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       canonicalState: effectiveRouted.canonicalState ?? routed.canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState,
+      nextAction: effectiveRouted.nextAction,
     });
   }
 
@@ -1030,7 +1036,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
   const { intent: _ignoredIntent, ...statusInput } = input;
   const bundle = resolveAuthoritativeStartupResumeBundle(statusInput);
   if (bundle.bundleKind === DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE) {
-    return buildStatusReconcile(bundle.reason, bundle.canonicalState);
+    return buildStatusReconcile(bundle.reason, bundle.canonicalState, bundle.nextAction);
   }
 
   return {
