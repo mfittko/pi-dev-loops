@@ -224,13 +224,15 @@ export async function detectCopilotSessionActivity({ repo, branch, limit = DEFAU
     .filter(Boolean)
     .sort(compareRunsNewestFirst);
 
-  const active = runs.find((run) => ACTIVE_RUN_STATUSES.has(String(run.runStatus ?? "").toLowerCase()));
-  if (active) {
-    return toActivityPayload("active", branch, active);
-  }
-
   if (runs.length > 0) {
-    return toActivityPayload("concluded", branch, runs[0]);
+    const latest = runs[0];
+    const latestStatus = String(latest.runStatus ?? "").toLowerCase();
+
+    if (ACTIVE_RUN_STATUSES.has(latestStatus)) {
+      return toActivityPayload("active", branch, latest);
+    }
+
+    return toActivityPayload("concluded", branch, latest);
   }
 
   return toActivityPayload("idle", branch);

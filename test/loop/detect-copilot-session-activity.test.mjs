@@ -114,6 +114,45 @@ test("detect-copilot-session-activity reports active when matching run is in pro
   }
 });
 
+test("detect-copilot-session-activity prefers the newest matching run over older active runs", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-session-newest-wins-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch", "--limit", "20"],
+        stdout: `${JSON.stringify([
+          {
+            databaseId: 200,
+            name: "Addressing comment on PR owner/repo#17",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-05-27T13:10:00Z",
+          },
+          {
+            databaseId: 150,
+            name: "Addressing comment on PR owner/repo#17",
+            status: "in_progress",
+            conclusion: "",
+            createdAt: "2026-05-27T13:00:00Z",
+          },
+        ])}\n`,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--branch", "copilot/example-branch"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.activity, "concluded");
+    assert.equal(payload.runId, 200);
+    assert.equal(payload.runStatus, "completed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-session-activity reports concluded when latest matching run completed", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-session-concluded-"));
 
