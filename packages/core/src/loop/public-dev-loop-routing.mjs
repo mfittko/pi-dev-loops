@@ -425,6 +425,37 @@ function normalizeOptionalLoopState(value) {
   return normalized;
 }
 
+function normalizeAsyncRunId(value) {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  if (Number.isInteger(value) && value > 0) {
+    return String(value);
+  }
+  return null;
+}
+
+function normalizeAsyncRun(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const kind = typeof value.kind === "string" ? value.kind.trim().toLowerCase() : "";
+  if (kind !== "pi_managed_run" && kind !== "detached_process") {
+    return null;
+  }
+
+  return {
+    kind,
+    runId: normalizeAsyncRunId(value.runId),
+    processId: Number.isInteger(value.processId) && value.processId > 0 ? value.processId : null,
+    visible: value.visible === true,
+  };
+}
+
 function normalizeIssueLinkageResolution(value) {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
   return ISSUE_LINKAGE_RESOLUTION_SET.has(normalized) ? normalized : null;
@@ -865,6 +896,7 @@ function buildStatusReconcile(
   nextAction = "Stop and reconcile the authoritative active artifact and current loop state before answering status.",
   executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
+  asyncRun = null,
 ) {
   return {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE,
@@ -879,6 +911,7 @@ function buildStatusReconcile(
     compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
     executionMode,
     waitSemantics,
+    asyncRun,
     canonicalState,
   };
 }
@@ -891,6 +924,7 @@ function buildStartupResumeBundleReconcile({
   nextAction = "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
   executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
+  asyncRun = null,
 }) {
   return {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE,
@@ -906,6 +940,7 @@ function buildStartupResumeBundleReconcile({
     compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
     executionMode,
     waitSemantics,
+    asyncRun,
     canonicalState,
   };
 }
@@ -998,6 +1033,8 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const issueReadiness = normalizeIssueReadiness(input.issueReadiness);
   const issueAssignmentState = normalizeIssueAssignmentState(input.issueAssignmentState);
   const gateReviewEvidence = normalizeGateReviewEvidence(input.gateReviewEvidence);
+  const asyncRunProvided = input.asyncRun !== undefined && input.asyncRun !== null;
+  const asyncRun = asyncRunProvided ? normalizeAsyncRun(input.asyncRun) : null;
   const retrospectiveCheckpointState = input.retrospectiveCheckpointState !== undefined
     ? normalizeRetrospectiveCheckpointState(input.retrospectiveCheckpointState)
     : null;
@@ -1007,6 +1044,14 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const normalizedIssueLinkageResolution = normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageResolution);
   const issueReadinessProvided = input.issueReadiness !== undefined && input.issueReadiness !== null;
   const issueAssignmentStateProvided = input.issueAssignmentState !== undefined && input.issueAssignmentState !== null;
+
+  if (asyncRunProvided && asyncRun === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing received an invalid async-run registration value.",
+      canonicalState,
+      executionMode: effectiveMode,
+    });
+  }
 
   if (issueLinkageResolutionProvided && issueLinkageResolution === null) {
     return buildStartupResumeBundleReconcile({
@@ -1149,7 +1194,29 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       nextAction: effectiveRouted.nextAction,
       executionMode: effectiveRouted.executionMode,
       waitSemantics: effectiveRouted.waitSemantics,
+      asyncRun,
     });
+  }
+
+  if (effectiveRouted.executionMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO) {
+    if (
+      !asyncRunProvided
+      || asyncRun?.kind !== "pi_managed_run"
+      || asyncRun.runId === null
+      || asyncRun.visible !== true
+    ) {
+      return buildStartupResumeBundleReconcile({
+        reason: asyncRun?.kind === "detached_process"
+          ? "Durable auto startup/resume requires a visible Pi-managed async run; detached local background processes do not satisfy the async-start contract."
+          : "Durable auto startup/resume requires a visible registered Pi-managed async run id before startup can be reported as successful.",
+        canonicalState: effectiveRouted.canonicalState,
+        issueLinkageResolution: normalizedIssueLinkageResolution,
+        artifactState,
+        executionMode: effectiveRouted.executionMode,
+        waitSemantics: effectiveRouted.waitSemantics,
+        asyncRun,
+      });
+    }
   }
 
   return {
@@ -1165,6 +1232,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     compatibilityEntrypoint: effectiveRouted.compatibilityEntrypoint,
     executionMode: effectiveRouted.executionMode,
     waitSemantics: effectiveRouted.waitSemantics,
+    asyncRun: effectiveRouted.executionMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO ? asyncRun : null,
     issueAssignmentSeam: effectiveRouted.issueAssignmentSeam,
     nextAction: buildAuthoritativeStatusNextAction(effectiveRouted),
     reason: effectiveRouted.reason,
@@ -1181,6 +1249,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
       bundle.nextAction,
       bundle.executionMode,
       bundle.waitSemantics,
+      bundle.asyncRun,
     );
   }
 
@@ -1196,6 +1265,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     compatibilityEntrypoint: bundle.compatibilityEntrypoint,
     executionMode: bundle.executionMode,
     waitSemantics: bundle.waitSemantics,
+    asyncRun: bundle.asyncRun,
     issueAssignmentSeam: bundle.issueAssignmentSeam,
     canonicalState: bundle.canonicalState,
     reason: bundle.reason,

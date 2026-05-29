@@ -121,6 +121,7 @@ Before answering status/progress/readiness/merge-state/next-step questions, cons
 Prior chat context is only a hint, never state authority.
 
 If authoritative identity/state (including issue↔PR linkage when relevant) cannot be resolved confidently, fail closed to reconcile/unknown instead of guessing.
+For async/durable-auto flows, do not claim that `dev-loop` has started or is running unless a visible Pi-managed async run id has also been resolved.
 
 When the routed next step requires confirmation for a mutation, the status/startup next action should name that concrete pending mutation (for example issue assignment to `copilot-swe-agent`) instead of generic "approval gate" wording.
 
@@ -147,6 +148,10 @@ Required authoritative inputs:
   - required for Copilot-first issue targets with `issueLinkageResolution=resolved_no_open_pr`
 - `artifactState` (`open` \| `closed` \| `merged` \| `not_applicable`)
 - explicit resolved `loopState` (`unknown` is not authoritative input)
+- required for async/durable-auto startup or status paths: `asyncRun`
+  - shape: `{ "kind": "pi_managed_run" | "detached_process", "runId": "<visible-run-id>" | null, "processId": 12345 | null, "visible": true|false }`
+  - durable-auto success requires `kind=pi_managed_run`, a non-empty visible `runId`, and `visible=true`
+  - detached local processes are diagnostic-only evidence and must fail closed instead of being treated as a successful async start
 
 Resolved bundle output shape:
 
@@ -177,6 +182,12 @@ Resolved bundle output shape:
   "compatibilityEntrypoint": "...",
   "executionMode": "bounded_handoff | durable_auto",
   "waitSemantics": "default | auto_healthy_wait",
+  "asyncRun": {
+    "kind": "pi_managed_run",
+    "runId": "run-186",
+    "processId": null,
+    "visible": true
+  },
   "nextAction": "...",
   "reason": "..."
 }
@@ -191,6 +202,8 @@ Fail-closed semantics:
   - `compatibilityEntrypoint = none`
   - `loopState = unknown`
   - `nextAction` must instruct reconciliation before routing/status answers
+- `executionMode=durable_auto` must fail closed unless a visible Pi-managed async run is already registered
+- a detached watcher/background pid is never acceptable evidence of async `dev-loop` startup success
 - invalid explicit `intent` also fails closed
 - do not introduce additional public degraded states for this slice
 
@@ -201,6 +214,7 @@ Active issue: <owner/repo>#<n> (when applicable)
 Active PR: <owner/repo>#<n> (when applicable)
 Artifact state: open|closed|merged|not_applicable
 Loop state: <resolved loop state>
+Async run: <visible Pi-managed run id>|unknown
 Next action: <resolved next action>
 ```
 
