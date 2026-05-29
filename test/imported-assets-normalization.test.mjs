@@ -386,6 +386,8 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(publicContract, /`dev-loop --intent auto_continue_current`/i);
   assert.match(publicContract, /stop at the final human approval decision by default/i);
   assert.match(publicContract, /waiting_for_merge_authorization/i);
+  assert.match(publicContract, /R --> A\[Final approval gate\]/i);
+  assert.match(publicContract, /R --> M\[Wait for merge authorization\]/i);
 
   assert.match(devLoopSkill, /Shorthand issue-based auto trigger contract/i);
   assert.match(devLoopSkill, /same public `dev-loop` intent \(`auto_continue_current`\)/i);

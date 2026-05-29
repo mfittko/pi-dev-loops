@@ -119,6 +119,22 @@ test("public contract doc stays aligned with the machine-checkable gate contract
     routingGateSection,
     PUBLIC_DEV_LOOP_GATE_CONTRACT.map(({ gate }) => gate),
   );
+
+  const finalApprovalSummary = PUBLIC_DEV_LOOP_GATE_CONTRACT.find(({ gate }) => gate === DEV_LOOP_GATE.FINAL_APPROVAL)?.summary;
+  const waitingForMergeSummary = PUBLIC_DEV_LOOP_GATE_CONTRACT.find(({ gate }) => gate === DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION)?.summary;
+
+  assert.equal(
+    finalApprovalSummary,
+    "approval-ready canonical state routes to final approval; merge-ready routes here only when merge authorization is explicit",
+  );
+  assert.equal(
+    waitingForMergeSummary,
+    "merge-ready canonical state without explicit merge authorization stops and waits for merge authorization",
+  );
+  assert.match(
+    publicContract,
+    /approval-ready canonical state routes to the final approval gate; merge-ready routes here only when merge authorization is explicit/i,
+  );
 });
 
 test("start_on_issue routes to issue_intake through the public dev-loop façade", () => {

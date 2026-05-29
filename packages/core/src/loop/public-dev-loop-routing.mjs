@@ -225,7 +225,7 @@ export const PUBLIC_DEV_LOOP_GATE_CONTRACT = Object.freeze([
     gate: DEV_LOOP_GATE.FINAL_APPROVAL,
     routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL,
-    summary: "approval-ready or merge-ready canonical state routes to final approval",
+    summary: "approval-ready canonical state routes to final approval; merge-ready routes here only when merge authorization is explicit",
   }),
   Object.freeze({
     gate: DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION,

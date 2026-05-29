@@ -297,7 +297,8 @@ flowchart TD
     R --> HP[External-human PR follow-up]
     R --> RF[Reviewer / fixer]
     R --> W[Wait / watch]
-    R --> A[Final approval and merge-authorization gate]
+    R --> A[Final approval gate]
+    R --> M[Wait for merge authorization]
 
     L --> S
     I --> S
@@ -306,6 +307,7 @@ flowchart TD
     RF --> S
     W --> S
     A --> S
+    M --> S
 ```
 
 ## Single-entrypoint convergence posture
