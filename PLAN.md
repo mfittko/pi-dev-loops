@@ -25,7 +25,7 @@ Do **not** use `PLAN.md` for one-off issue execution plans, PR-specific checklis
 - For active implementation and release work in this repo, the default routed path should still prefer the GitHub-first internal strategies when practical.
 - The local implementation strategy remains supported when the user explicitly wants local phase-bounded work.
 - GitHub issues are the backlog and GitHub PRs are the main execution trail for remote-loop work.
-- Packaged skills are installed explicitly through `/dev-loops install ...` and refreshed through `/dev-loops update ...`; package install alone does not auto-install skills.
+- Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes packaged skills through `package.json` `pi.skills`; `/dev-loops install` and `/dev-loops update` are removed — use `pi install` / `pi update` directly.
 
 ## Product intent
 
@@ -60,7 +60,6 @@ The public entrypoint should expose user intent; internal strategy names are com
 
 Thin package-level UX under `extension/`, `cli/`, and `bin/` for:
 - readiness and diagnostics
-- explicit skill install/update flows
 - shell access to shared deterministic helpers
 - lightweight orchestration glue that defers real mechanics to scripts/core modules
 
