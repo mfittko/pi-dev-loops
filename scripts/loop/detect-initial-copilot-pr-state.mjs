@@ -33,7 +33,14 @@ Success output (stdout, JSON):
     "isDraft": true|false|null,
     "changedFiles": 0|null,
     "commitCount": 1|null,
-    "soleCommitHeadline": "Initial plan"|null
+    "soleCommitHeadline": "Initial plan"|null,
+    "sessionActivity": "active"|"concluded"|"idle"|null,
+    "sessionRunId": 123|null,
+    "sessionRunName": "..."|null,
+    "sessionRunStatus": "..."|null,
+    "sessionRunConclusion": "success"|null,
+    "sessionRunCreatedAt": "..."|null,
+    "sessionConfidence": "high"|null
   }
 
 Error output (stderr, JSON):
