@@ -44,7 +44,7 @@ async function writeJson(filePath, data) {
  * porcelainOutput: what `git status --porcelain` should return (empty string = clean)
  * headRef: what `git rev-parse --abbrev-ref HEAD` should return (e.g. "main" or "HEAD")
  */
-async function writeGitStub(tempDir, { porcelainOutput = "", headRef = "main" } = {}) {
+async function writeGitStub(tempDir, { porcelainOutput = "", headRef = "main", headSha = "abc123" } = {}) {
   const gitPath = path.join(tempDir, "git");
   await writeFile(
     gitPath,
@@ -57,6 +57,10 @@ async function writeGitStub(tempDir, { porcelainOutput = "", headRef = "main" } 
       `}`,
       `if (args.includes('rev-parse') && args.includes('abbrev-ref')) {`,
       `  process.stdout.write(${JSON.stringify(headRef + "\n")});`,
+      `  process.exit(0);`,
+      `}`,
+      `if (args === 'rev-parse HEAD') {`,
+      `  process.stdout.write(${JSON.stringify(headSha + "\n")});`,
       `  process.exit(0);`,
       `}`,
       `process.exit(0);`,
@@ -72,7 +76,12 @@ async function writeGitStub(tempDir, { porcelainOutput = "", headRef = "main" } 
   };
 }
 
-async function writeGhStub(tempDir, { repo = "owner/myrepo", pr = 47, headSha = "abc123" } = {}) {
+async function writeGhStub(tempDir, {
+  repo = "owner/myrepo",
+  pr = 47,
+  headSha = "abc123",
+  headRefName = "copilot/example-branch",
+} = {}) {
   const ghPath = path.join(tempDir, "gh");
   await writeFile(
     ghPath,
@@ -83,8 +92,9 @@ async function writeGhStub(tempDir, { repo = "owner/myrepo", pr = 47, headSha = 
       `const repo = ${JSON.stringify(repo)};`,
       `const pr = ${JSON.stringify(pr)};`,
       `const headSha = ${JSON.stringify(headSha)};`,
+      `const headRefName = ${JSON.stringify(headRefName)};`,
       "if (joined.includes('pr view') && joined.includes('--json')) {",
-      "  process.stdout.write(JSON.stringify({ isDraft: false, state: 'OPEN', number: pr, headRefOid: headSha, reviews: [], statusCheckRollup: [] }));",
+      "  process.stdout.write(JSON.stringify({ isDraft: false, state: 'OPEN', number: pr, headRefOid: headSha, headRefName, reviews: [], statusCheckRollup: [] }));",
       "  process.exit(0);",
       "}",
       "if (joined.includes('requested_reviewers')) {",
@@ -894,6 +904,108 @@ test("outer-loop: detached HEAD + reviewer review_requested → stop / unsafe_lo
     assert.equal(output.ok, true);
     assert.equal(output.outerAction, "stop");
     assert.equal(output.reason, "unsafe_local_edit_requires_isolation");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: active PR branch mismatch stops with explicit reconcile reason", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-branch-mismatch-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "none",
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 1,
+      actionableThreadCount: 1,
+      ciStatus: "success",
+    });
+
+    const gitEnv = await writeGitStub(tempDir, {
+      porcelainOutput: "",
+      headRef: "main",
+      headSha: "abc123",
+    });
+    const ghEnv = await writeGhStub(tempDir, {
+      repo: "owner/repo",
+      pr: 47,
+      headRefName: "copilot/fix-gate-progression-issue",
+      headSha: "abc123",
+    });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--checkpoint-dir", tempDir,
+    ], { env: { ...gitEnv, ...ghEnv } });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.outerAction, "stop");
+    assert.equal(output.reason, "unsafe_local_branch_mismatch_requires_reconcile");
+    assert.equal(output.branchIdentity.localBranch, "main");
+    assert.equal(output.branchIdentity.prBranch, "copilot/fix-gate-progression-issue");
+    assert.equal(output.branchIdentity.branchMatches, false);
+    assert.equal(output.branchIdentity.headMatches, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: branch match but local head mismatch stops with explicit reconcile reason", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-head-mismatch-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: false,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "none",
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 1,
+      actionableThreadCount: 1,
+      ciStatus: "success",
+    });
+
+    const gitEnv = await writeGitStub(tempDir, {
+      porcelainOutput: "",
+      headRef: "copilot/fix-gate-progression-issue",
+      headSha: "def456",
+    });
+    const ghEnv = await writeGhStub(tempDir, {
+      repo: "owner/repo",
+      pr: 47,
+      headRefName: "copilot/fix-gate-progression-issue",
+      headSha: "abc123",
+    });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--checkpoint-dir", tempDir,
+    ], { env: { ...gitEnv, ...ghEnv } });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.outerAction, "stop");
+    assert.equal(output.reason, "unsafe_local_head_mismatch_requires_reconcile");
+    assert.equal(output.branchIdentity.localBranch, "copilot/fix-gate-progression-issue");
+    assert.equal(output.branchIdentity.prBranch, "copilot/fix-gate-progression-issue");
+    assert.equal(output.branchIdentity.branchMatches, true);
+    assert.equal(output.branchIdentity.headMatches, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
