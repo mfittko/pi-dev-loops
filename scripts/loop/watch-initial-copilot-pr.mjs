@@ -148,17 +148,52 @@ function runChild(command, args, env) {
   });
 }
 
-export async function watchCopilotRunUntilComplete({ repo, runId }, { env = process.env, ghCommand = "gh" } = {}) {
-  const result = await runChild(
-    ghCommand,
-    ["run", "watch", String(runId), "--repo", repo],
-    env,
-  );
+export async function watchCopilotRunUntilComplete(
+  { repo, runId, timeoutMs = null },
+  { env = process.env, ghCommand = "gh" } = {},
+) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      ghCommand,
+      ["run", "watch", String(runId), "--repo", repo],
+      { env, stdio: ["ignore", "pipe", "pipe"] },
+    );
 
-  if (result.code !== 0) {
-    const detail = result.stderr.trim() || `exit code ${result.code}`;
-    throw new Error(`gh command failed: ${detail}`);
-  }
+    let stderr = "";
+    let timedOut = false;
+    let timeoutId = null;
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    if (Number.isInteger(timeoutMs) && timeoutMs >= 0) {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGTERM");
+      }, timeoutMs);
+    }
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+
+      if (timedOut) {
+        resolve({ status: "timed_out" });
+        return;
+      }
+
+      if (code !== 0) {
+        const detail = stderr.trim() || `exit code ${code}`;
+        reject(new Error(`gh command failed: ${detail}`));
+        return;
+      }
+
+      resolve({ status: "completed" });
+    });
+  });
 }
 
 export function parseWatchInitialCopilotPrCliArgs(argv) {
@@ -292,10 +327,26 @@ export async function watchInitialCopilotPr(
       detection.state === LINKED_PR_STATE.COPILOT_SESSION_ACTIVE
       && Number.isInteger(detection.sessionRunId)
     ) {
-      await watchCopilotRunUntilCompleteImpl(
-        { repo, runId: detection.sessionRunId },
+      const watchResult = await watchCopilotRunUntilCompleteImpl(
+        {
+          repo,
+          runId: detection.sessionRunId,
+          timeoutMs: timeoutMs - elapsedMs,
+        },
         { env, ghCommand },
       );
+      if (watchResult?.status === "timed_out") {
+        return {
+          ok: true,
+          status: "timed_out",
+          repo,
+          issue,
+          prNumber: detection.prNumber,
+          prUrl: detection.prUrl,
+          attempts,
+          elapsedMs: nowMs() - startMs,
+        };
+      }
       continue;
     }
 

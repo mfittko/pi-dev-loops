@@ -27,6 +27,7 @@ Output (stdout, JSON):
   { "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...",
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
     "reviewRequestStatus"?: "...", "watchArgs"?: { ... },
+    "sessionActivity"?: { ... },
     "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... },
     "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done",
     "cycleDisposition": "pending"|"needs_followup"|"terminal",
