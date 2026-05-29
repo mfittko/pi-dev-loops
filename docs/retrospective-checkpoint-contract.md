@@ -1,0 +1,117 @@
+# Retrospective checkpoint contract
+
+This document defines the enforcement seam for the required post-run behavioral retrospective after qualifying async `dev-loop` completions in this repository.
+
+## Relationship to formal dev mode
+
+Formal local dev mode and the required post-run behavioral retrospective are related but distinct:
+
+| Requirement | Scope |
+|---|---|
+| **Formal local dev mode** | Local implementation/self-improvement work; explicitly scoped in `skills/dev-loop/SKILL.md` |
+| **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo |
+
+Routed GitHub-first async `dev-loop` runs do **not** need to be in full formal local dev mode, but they **do** require the retrospective checkpoint.
+
+## Qualifying completions
+
+A qualifying async `dev-loop` completion is one that:
+- routes through a GitHub-first Copilot-owned strategy gate, and
+- has a non-stop, non-wait, non-reconcile route kind (i.e., it is actively routing work).
+
+Qualifying gates:
+
+| Gate | Strategy | Description |
+|---|---|---|
+| `copilot_pr_followup` | Copilot PR follow-up | Primary routed GitHub-first async path |
+| `issue_intake` | Issue intake | Copilot-first issue assignment path |
+
+The authoritative classification function is `isQualifyingAsyncCompletion(routingResult)` in `packages/core/src/loop/retrospective-checkpoint.mjs`.
+
+## Checkpoint states
+
+A fresh session can determine the status of the required retrospective by reading `.pi/dev-loop-retrospective-checkpoint.json`:
+
+| File state | Mapped checkpoint state | Meaning |
+|---|---|---|
+| File absent | `RETROSPECTIVE_CHECKPOINT_STATE.NONE` | No qualifying completion has occurred; no requirement |
+| `{ "state": "required" }` | `RETROSPECTIVE_CHECKPOINT_STATE.MISSING` | Qualifying completion detected; retrospective pending |
+| `{ "state": "complete" }` | `RETROSPECTIVE_CHECKPOINT_STATE.COMPLETE` | Retrospective recorded; requirement satisfied |
+| `{ "state": "skipped" }` | `RETROSPECTIVE_CHECKPOINT_STATE.SKIPPED` | Explicitly skipped with reason; requirement satisfied |
+
+## Enforcement gate
+
+The enforcement seam is the pure function `evaluateRetrospectiveGate` in `packages/core/src/loop/retrospective-checkpoint.mjs`.
+
+### Inputs
+
+```js
+evaluateRetrospectiveGate({
+  checkpointState,  // one of RETROSPECTIVE_CHECKPOINT_STATE
+  proposedRouting,  // result from evaluatePublicDevLoopRouting()
+})
+```
+
+### Outputs
+
+- **Pass-through** (proposed routing returned unchanged) when:
+  - `checkpointState` is `none`, `complete`, or `skipped`
+  - `proposedRouting` is already `stop`, `needs_reconcile`, or `inspect`
+- **Fail-closed** (`needs_reconcile` result) when:
+  - `checkpointState` is `missing`
+  - `checkpointState` is unrecognized
+
+### Caller contract
+
+Before calling `evaluatePublicDevLoopRouting`, callers must:
+
+1. Read `.pi/dev-loop-retrospective-checkpoint.json` (if it exists).
+2. Map the file contents to a `RETROSPECTIVE_CHECKPOINT_STATE` value.
+3. Call `evaluatePublicDevLoopRouting(...)` to get the proposed routing.
+4. Call `evaluateRetrospectiveGate({ checkpointState, proposedRouting })`.
+5. Use the gate result (not the raw routing result) as the effective routing decision.
+
+If the gate returns `needs_reconcile`, the caller must not proceed with the proposed routing. The `nextAction` field instructs the operator to complete or explicitly skip the retrospective.
+
+## Durable artifact format
+
+The checkpoint file is written by `.pi/extensions/dev-loop-behavioral-review.ts`:
+
+### On qualifying completion (written automatically by extension)
+
+```json
+{
+  "state": "required",
+  "triggeredAt": "2026-05-29T16:00:00.000Z"
+}
+```
+
+### After retrospective is done (written by operator or skill)
+
+```json
+{
+  "state": "complete",
+  "completedAt": "2026-05-29T16:30:00.000Z",
+  "notes": "Loop followed working agreement; minor drift on thread resolution."
+}
+```
+
+### Explicit skip with reason
+
+```json
+{
+  "state": "skipped",
+  "skippedAt": "2026-05-29T16:30:00.000Z",
+  "reason": "Trivial documentation-only change; no behavioral review needed."
+}
+```
+
+## Authoritative source locations
+
+| Artifact | Location |
+|---|---|
+| Checkpoint state machine | `packages/core/src/loop/retrospective-checkpoint.mjs` |
+| Tests | `packages/core/test/retrospective-checkpoint.test.mjs` |
+| Extension (writes required marker, fires review prompt) | `.pi/extensions/dev-loop-behavioral-review.ts` |
+| Checkpoint file | `.pi/dev-loop-retrospective-checkpoint.json` |
+| AGENTS.md section | `AGENTS.md` — "Formal dev mode vs required post-run retrospective" |

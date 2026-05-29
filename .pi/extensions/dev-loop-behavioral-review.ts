@@ -8,9 +8,32 @@
  *
  * Activation: fires when a user-visible "Background task completed: dev-loop"
  * message arrives, which is the standard async-subagent delivery format.
+ *
+ * Enforcement seam: on each qualifying completion, this extension writes a
+ * durable retrospective checkpoint marker to
+ * `.pi/dev-loop-retrospective-checkpoint.json` with `state: "required"`.
+ * The marker persists until the retrospective is recorded (`state: "complete"`)
+ * or explicitly skipped (`state: "skipped"`). The public dev-loop routing gate
+ * (`evaluateRetrospectiveGate` in `@pi-dev-loops/core`) fails closed on the
+ * next start/resume when this marker shows `state: "required"`.
+ *
+ * Completing the retrospective:
+ * After running the review below, record the outcome by writing
+ * `.pi/dev-loop-retrospective-checkpoint.json` with one of:
+ *   { "state": "complete", "completedAt": "<ISO timestamp>", "notes": "<summary>" }
+ *   { "state": "skipped",  "skippedAt":  "<ISO timestamp>", "reason": "<reason>"  }
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+/**
+ * Path of the durable retrospective checkpoint file, relative to the repo root.
+ * Callers (skills, agents) read this file and map its contents to
+ * RETROSPECTIVE_CHECKPOINT_STATE before calling evaluateRetrospectiveGate.
+ */
+export const RETROSPECTIVE_CHECKPOINT_FILE = ".pi/dev-loop-retrospective-checkpoint.json";
 
 const REVIEW_PROMPT = `
 Run a brief behavioral review of the dev-loop run that just completed.
@@ -23,6 +46,15 @@ Check:
 - Any corrections needed before the next loop starts?
 
 Keep it concise and honest — this is not a formality.
+
+After completing this review, record the outcome by writing
+\`.pi/dev-loop-retrospective-checkpoint.json\` with:
+  { "state": "complete", "completedAt": "<ISO timestamp>", "notes": "<one-line summary>" }
+or, to explicitly skip:
+  { "state": "skipped", "skippedAt": "<ISO timestamp>", "reason": "<reason>" }
+
+Until that file is written with state "complete" or "skipped", the next
+dev-loop start/resume will fail closed at the retrospective gate.
 `.trim();
 
 function isDevLoopCompletion(content: unknown): boolean {
@@ -31,6 +63,29 @@ function isDevLoopCompletion(content: unknown): boolean {
     content.includes("Background task completed") &&
     content.includes("dev-loop")
   );
+}
+
+/**
+ * Writes the retrospective checkpoint marker to the durable checkpoint file,
+ * marking the state as "required" so the next dev-loop start/resume can
+ * detect the outstanding requirement.
+ *
+ * Best-effort: file-system errors are caught and do not throw. The prompt
+ * and manual write instructions in REVIEW_PROMPT remain the fallback.
+ */
+function writeRequiredCheckpoint(repoRoot: string): void {
+  try {
+    const checkpointPath = path.join(repoRoot, RETROSPECTIVE_CHECKPOINT_FILE);
+    const marker = JSON.stringify(
+      { state: "required", triggeredAt: new Date().toISOString() },
+      null,
+      2,
+    );
+    fs.mkdirSync(path.dirname(checkpointPath), { recursive: true });
+    fs.writeFileSync(checkpointPath, marker + "\n", "utf8");
+  } catch {
+    // Best-effort write — do not fail the extension or block the review prompt.
+  }
 }
 
 export default function devLoopBehavioralReview(pi: ExtensionAPI) {
@@ -47,6 +102,10 @@ export default function devLoopBehavioralReview(pi: ExtensionAPI) {
           : trigger.content
       )
     ) {
+      // Write the durable checkpoint marker before sending the prompt so that
+      // a fresh session can detect the outstanding requirement even if the
+      // current session ends before the review is recorded.
+      writeRequiredCheckpoint(process.cwd());
       pi.sendUserMessage(REVIEW_PROMPT);
     }
   });
