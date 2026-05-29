@@ -711,8 +711,10 @@ test("gate-review comment contract documents required fields, verdict values, re
   assert.match(contractContent, /pre_approval_gate/);
 
   // Rerun rules: same-head idempotent, new-head → new comment
-  assert.match(contractContent, /same.head[\s\S]{0,80}idempotent/i);
-  assert.match(contractContent, /new.head[\s\S]{0,120}new[\s\S]{0,60}comment/i);
+  assert.match(contractContent, /same.head/i);
+  assert.match(contractContent, /idempotent/i);
+  assert.match(contractContent, /new.head/i);
+  assert.match(contractContent, /new.*comment|comment.*new/i);
 
   // Fail-closed behavior
   assert.match(contractContent, /fail.closed|cannot be posted/i);

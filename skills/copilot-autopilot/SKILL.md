@@ -406,7 +406,16 @@ This is the draft-stage gate for the draft → ready-for-review boundary.
   ```sh
   gh pr ready <pr-number> --repo <resolved-repo>
   ```
-- **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR that includes the gate name (`draft_gate`), the head SHA reviewed, the verdict (`clean`, `findings_present`, or `blocked`), a short findings summary or `no issues found`, and the next action. Do not run `gh pr ready` unless a visible `clean` `draft_gate` gate-review comment exists for the current head SHA. If the required comment cannot be posted (fail-closed), do not mark the PR ready for review. A gate-review comment for an older head SHA does not satisfy this requirement for the current head. If fixes advance the head SHA, post a new gate-review comment for the new head.
+- **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR. The comment must include:
+  - gate name: `draft_gate`
+  - head SHA reviewed
+  - verdict: `clean`, `findings_present`, or `blocked`
+  - short findings summary, or `no issues found`
+  - next action
+  - Do not run `gh pr ready` unless a visible `clean` `draft_gate` gate-review comment exists for the current head SHA.
+  - If the required comment cannot be posted (fail-closed), do not mark the PR ready for review.
+  - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
+  - If fixes advance the head SHA, post a new gate-review comment for the new head.
 
 Do **not** run DRY, KISS, or YAGNI at this gate. Those lenses belong exclusively to the pre-approval gate (Phase 7 below).
 
@@ -449,7 +458,16 @@ This is the default pre-approval gate for this workflow boundary and owns the DR
   - YAGNI
 - **Pass criteria:** DRY, KISS, and YAGNI lens passes are completed in fresh context and in parallel when practical; if parallel execution is impractical (for example due to tooling or resource constraints), still run all three lenses and explicitly record the limitation in the review verdict summary or a `tmp/copilot-loop/` handoff artifact.
 - **Next step after passing:** continue to Phase 8 — Final independent review.
-- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible gate-review comment on the PR that includes the gate name (`pre_approval_gate`), the head SHA reviewed, the verdict (`clean`, `findings_present`, or `blocked`), a short findings summary or `no issues found`, and the next action. Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence. If the required comment cannot be posted (fail-closed), do not declare final-approval readiness for that head. A gate-review comment for an older head SHA does not satisfy this requirement for the current head. If fixes advance the head SHA, post a new gate-review comment for the new head.
+- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible gate-review comment on the PR. The comment must include:
+  - gate name: `pre_approval_gate`
+  - head SHA reviewed
+  - verdict: `clean`, `findings_present`, or `blocked`
+  - short findings summary, or `no issues found`
+  - next action
+  - Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence.
+  - If the required comment cannot be posted (fail-closed), do not declare final-approval readiness for that head.
+  - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
+  - If fixes advance the head SHA, post a new gate-review comment for the new head.
 
 Do not make unrelated cleanup changes just because the branch is already open.
 
