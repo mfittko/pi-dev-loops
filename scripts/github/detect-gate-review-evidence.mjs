@@ -149,6 +149,18 @@ async function runGhJson(args, { env, ghCommand }) {
   return parseJsonText(result.stdout, { label: `gh ${args.slice(0, 2).join(" ")}` });
 }
 
+function normalizeIssueCommentsPayload(payload) {
+  if (!Array.isArray(payload)) {
+    throw new Error("Invalid gh issue comments payload: expected an array");
+  }
+
+  if (payload.every((entry) => Array.isArray(entry))) {
+    return payload.flat();
+  }
+
+  return payload;
+}
+
 function emptyGateSummary() {
   return {
     visible: false,
@@ -181,7 +193,7 @@ function normalizeGateSummary(summary) {
 
 export async function detectGateReviewEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
   const prPayload = await runGhJson(["pr", "view", String(options.pr), "--repo", options.repo, "--json", "headRefOid"], { env, ghCommand });
-  const commentsPayload = await runGhJson(["api", `repos/${options.repo}/issues/${options.pr}/comments?per_page=100`], { env, ghCommand });
+  const commentsPayload = normalizeIssueCommentsPayload(await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/issues/${options.pr}/comments?per_page=100`], { env, ghCommand }));
 
   const currentHeadSha = typeof prPayload?.headRefOid === "string" && prPayload.headRefOid.trim().length > 0
     ? prPayload.headRefOid.trim()

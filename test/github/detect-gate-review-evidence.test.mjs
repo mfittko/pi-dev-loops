@@ -261,6 +261,53 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
   }
 });
 
+test("detect-gate-review-evidence flattens paginated issue-comment payloads before summarizing gates", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-pages-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: `${JSON.stringify([
+          [
+            {
+              id: 51,
+              body: "noise",
+              updated_at: "2026-05-29T20:00:00Z",
+            },
+          ],
+          [
+            {
+              id: 52,
+              body: [
+                "Gate review: draft_gate",
+                "Head SHA: abc1234",
+                "Verdict: clean",
+                "Findings: no issues found",
+                "Next action: mark ready for review",
+              ].join("\n"),
+              updated_at: "2026-05-29T21:00:00Z",
+              html_url: "https://github.com/owner/repo/pull/17#issuecomment-52",
+            },
+          ],
+        ])}\n`,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(JSON.parse(result.stdout).draftGate.commentId, 52);
+    assert.equal(JSON.parse(result.stdout).draftGate.visible, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-gate-review-evidence reports gh failures deterministically", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-fail-"));
 
