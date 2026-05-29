@@ -438,6 +438,37 @@ test("detect-initial-copilot-pr-state exits bootstrap wait state when implementa
   }
 });
 
+test("detect-initial-copilot-pr-state falls back to substantive PR heuristics when session activity is idle", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-idle-substantive-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload(),
+      },
+      {
+        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
+        stdout: pullRequestFactsPayload({ changedFiles: 3, commitCount: 2 }),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload(),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.state, "linked_pr_ready_for_followup");
+    assert.equal(payload.sessionActivity, "idle");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-initial-copilot-pr-state returns copilot_session_active while Copilot run is in progress", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-active-session-"));
 

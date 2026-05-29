@@ -244,7 +244,11 @@ export async function runWatchCycle(
     );
     result.sessionActivity = session;
 
-    if (session.activity === "active" && Number.isInteger(session.runId)) {
+    if (
+      !options.probeOnly
+      && session.activity === "active"
+      && Number.isInteger(session.runId)
+    ) {
       await watchWorkflowRunImpl(
         { repo: options.repo, runId: session.runId },
         { env, ghCommand },
