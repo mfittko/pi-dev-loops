@@ -399,9 +399,13 @@ test("watchInitialCopilotPr 1-hour watch budget expiry produces explicit timed_o
   ]);
 
   // Clock: 0 → 30 min → 60 min (= timeoutMs) → triggers timed_out on 2nd poll
+  // The first two 0s are the start-time read and the elapsed check after poll 1;
+  // 1_800_000 is the elapsed check after delayImpl; 3_600_000 is elapsed after poll 2.
+  const HALF_HOUR_MS = 1_800_000;
+  const ONE_HOUR_MS = 3_600_000;
   let tick = 0;
   const nowMs = () => {
-    const times = [0, 0, 1_800_000, 3_600_000];
+    const times = [0, 0, HALF_HOUR_MS, ONE_HOUR_MS];
     return times[Math.min(tick++, times.length - 1)];
   };
 
