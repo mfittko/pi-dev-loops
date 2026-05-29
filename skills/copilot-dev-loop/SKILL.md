@@ -626,7 +626,7 @@ When a PR verdict is requested:
 - first summarize pending comments/threads
 - summarize proposed resolution status
 - draft the verdict text
-- if the PR was not opened by the active GitHub user, use a formal GitHub review after confirmation: Approve for merge-ready, Request Changes for must-fix findings
+- if the PR was not opened by the active GitHub user, use a formal GitHub review after confirmation: Approve for merge-ready, Request Changes for must-fix findings; treat merge authorization as a separate explicit decision
 - do not leave only a plain PR comment for those verdicts
 - ask for confirmation before submitting the review
 

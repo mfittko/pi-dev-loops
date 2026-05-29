@@ -47,8 +47,9 @@ Canonical mapping:
 Stop-boundary contract for this shorthand:
 
 1. continue through the normal GitHub/Copilot loop (assignment, PR watch, draft review/fix, Copilot review/fix, and final pre-approval work) unless a genuine stop condition is reached
-2. stop at the final human approval gate by default
-3. merge only when merge authorization was explicitly granted for the active issue/PR scope
+2. stop at the final human approval decision by default
+3. after formal approval, stop again in `waiting_for_merge_authorization` unless merge authorization is explicitly granted for the active issue/PR scope
+4. merge only after explicit merge authorization for the active issue/PR scope
 
 ## Surfaced-UX deprecation readiness bar
 
@@ -210,7 +211,8 @@ The public router currently maps to these deterministic internal strategies:
 | `external_pr_followup` | external-human contributor PR follow-up | none |
 | `reviewer_fixer` | reviewer/fixer passes on the current PR | none |
 | `wait_watch` | waiting/watch states | `dev-loop` |
-| `final_approval` | approval-ready or merge-ready gate | none |
+| `final_approval` | approval-ready gate, or merge-ready with explicit merge authorization | none |
+| `waiting_for_merge_authorization` | merge-ready but still awaiting explicit merge authorization | none |
 
 Internal strategy naming is implementation detail; normal orchestration always starts from `dev-loop`.
 
@@ -238,7 +240,8 @@ The shared machine-checkable gate contract is exported from `packages/core/src/l
 |---|---|---|---|
 | `stop_blocked_or_not_authorized` | `stop` | none | blocked or not-authorized canonical state stops for a human decision |
 | `stop_done_terminal` | `stop` | none | done canonical state stops as terminal work |
-| `final_approval` | `route` | `final_approval` | approval-ready or merge-ready canonical state routes to the final approval gate |
+| `final_approval` | `route` | `final_approval` | approval-ready canonical state routes to the final approval gate; merge-ready routes here only when merge authorization is explicit |
+| `waiting_for_merge_authorization` | `stop` | none | merge-ready canonical state without explicit merge authorization stops and waits for explicit merge authorization |
 | `wait_watch` | `wait` | `wait_watch` | waiting canonical state routes to the shared wait/watch strategy |
 | `local_implementation` | `route` | `local_implementation` | local branch or local phase canonical state stays on local implementation |
 | `issue_intake` | `route` | `issue_intake` | issue canonical state without a linked PR routes to issue intake |
@@ -258,15 +261,16 @@ First-match-wins routing posture:
 
 1. blocked or not-authorized state -> stop and ask for a human decision
 2. done -> terminal stop
-3. approval-ready / merge-ready -> `final_approval`
-4. waiting -> `wait_watch`
-5. local branch / local phase -> `local_implementation`
-6. issue target with `linkedPr` -> route as the linked PR with the same ownership/actor state
-7. issue target without `linkedPr` -> `issue_intake`
-8. PR owned by external human -> `external_pr_followup`
-9. PR owned by reviewer or next actor reviewer -> `reviewer_fixer`
-10. PR owned by Copilot -> `copilot_pr_followup`
-11. anything else -> fail closed to `needs_reconcile`
+3. merge-ready + `authorization=needs_confirmation` -> `waiting_for_merge_authorization`
+4. approval-ready, or merge-ready + `authorization=authorized` -> `final_approval`
+5. waiting -> `wait_watch`
+6. local branch / local phase -> `local_implementation`
+7. issue target with `linkedPr` -> route as the linked PR with the same ownership/actor state
+8. issue target without `linkedPr` -> `issue_intake`
+9. PR owned by external human -> `external_pr_followup`
+10. PR owned by reviewer or next actor reviewer -> `reviewer_fixer`
+11. PR owned by Copilot -> `copilot_pr_followup`
+12. anything else -> fail closed to `needs_reconcile`
 
 ## `auto dev loop` durable auto contract
 
@@ -293,7 +297,7 @@ flowchart TD
     R --> HP[External-human PR follow-up]
     R --> RF[Reviewer / fixer]
     R --> W[Wait / watch]
-    R --> A[Final approval / merge gate]
+    R --> A[Final approval and merge-authorization gate]
 
     L --> S
     I --> S

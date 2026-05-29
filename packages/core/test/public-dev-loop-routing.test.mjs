@@ -60,6 +60,11 @@ test("public dev-loop routing exposes an explicit gate contract for the current 
         selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL,
       },
       {
+        gate: DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION,
+        routeKind: DEV_LOOP_ROUTE_KIND.STOP,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
+      },
+      {
         gate: DEV_LOOP_GATE.WAIT_WATCH,
         routeKind: DEV_LOOP_ROUTE_KIND.WAIT,
         selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH,
@@ -439,24 +444,62 @@ test("done states stop as terminal states", () => {
   assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
 });
 
-test("approval-ready and merge-ready states route to final approval", () => {
-  for (const status of [DEV_LOOP_STATUS.APPROVAL_READY, DEV_LOOP_STATUS.MERGE_READY]) {
-    const result = evaluatePublicDevLoopRouting({
-      intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
-      currentState: {
-        target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
-        ownership: DEV_LOOP_ACTOR.MAINTAINER,
-        nextActor: DEV_LOOP_ACTOR.MAINTAINER,
-        status,
-        authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
-      },
-    });
+test("approval-ready states route to final approval and keep merge authorization separate", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.APPROVAL_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+  });
 
-    assert.equal(result.selectedGate, DEV_LOOP_GATE.FINAL_APPROVAL);
-    assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
-    assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL);
-    assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
-  }
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FINAL_APPROVAL);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL);
+  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
+  assert.match(result.nextAction, /do not treat approval as merge authorization/i);
+  assert.doesNotMatch(result.nextAction, /approval\/merge/i);
+});
+
+test("merge-ready states without merge authorization stop in waiting-for-merge-authorization", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.MERGE_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
+  assert.match(result.nextAction, /wait for explicit merge authorization/i);
+  assert.match(result.nextAction, /ambiguous/i);
+  assert.match(result.reason, /must stop and wait/i);
+});
+
+test("merge-ready states with explicit merge authorization may proceed to final approval merge step", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.MERGE_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FINAL_APPROVAL);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL);
+  assert.match(result.nextAction, /merge is explicitly authorized/i);
 });
 
 test("waiting states remain deterministic wait/watch states", () => {
@@ -1265,6 +1308,26 @@ test("authoritative status resolution keeps waiting linked issue states on the a
     report.nextAction,
     "Keep waiting or watching against the same canonical state instead of switching public loop names.",
   );
+});
+
+test("authoritative status reports approved-but-not-merged PRs as waiting for explicit merge authorization", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 175 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.USER,
+      status: DEV_LOOP_STATUS.MERGE_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "waiting_for_merge_authorization",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION);
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+  assert.match(report.nextAction, /wait for explicit merge authorization/i);
 });
 
 test("authoritative status resolution fails closed when loop state is the unknown sentinel", () => {
