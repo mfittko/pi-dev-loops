@@ -17,7 +17,7 @@ Routed GitHub-first async `dev-loop` runs do **not** need to be in full formal l
 
 A qualifying async `dev-loop` completion is one that:
 - routes through a GitHub-first Copilot-owned strategy gate, and
-- has a non-stop, non-wait, non-reconcile route kind (i.e., it is actively routing work).
+- has `routeKind === "route"` (inspect/status-only results do not qualify).
 
 Qualifying gates:
 

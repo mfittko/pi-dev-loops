@@ -83,8 +83,10 @@ function writeRequiredCheckpoint(repoRoot: string): void {
     );
     fs.mkdirSync(path.dirname(checkpointPath), { recursive: true });
     fs.writeFileSync(checkpointPath, marker + "\n", "utf8");
-  } catch {
+  } catch (error) {
     // Best-effort write — do not fail the extension or block the review prompt.
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[dev-loop-behavioral-review] failed to write retrospective checkpoint: ${detail}`);
   }
 }
 

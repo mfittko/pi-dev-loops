@@ -79,7 +79,7 @@ export function normalizeRetrospectiveCheckpointState(value) {
  *
  * A qualifying completion is one that:
  * - has a `selectedGate` in RETROSPECTIVE_QUALIFYING_GATES
- * - with a non-stop, non-wait, non-reconcile route kind (i.e., it is actively routing)
+ * - with `routeKind === "route"` (inspect/status-only results do not qualify)
  */
 export function isQualifyingAsyncCompletion(routingResult) {
   if (!routingResult || typeof routingResult !== "object") return false;
