@@ -444,6 +444,13 @@ test("blocked and not-authorized states stop instead of routing", () => {
       status: DEV_LOOP_STATUS.ACTIVE,
       authorization: DEV_LOOP_AUTHORIZATION.NOT_AUTHORIZED,
     },
+    {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.APPROVAL_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.NOT_AUTHORIZED,
+    },
   ]) {
     const result = evaluatePublicDevLoopRouting({
       intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,

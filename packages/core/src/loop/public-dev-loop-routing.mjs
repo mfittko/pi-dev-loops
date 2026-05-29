@@ -663,8 +663,10 @@ function routeForState(
   } = {},
 ) {
   const routableCanonicalState = toRoutableCanonicalState(canonicalState);
+  const selectedGate = selectGateForState(routableCanonicalState);
   if (
-    routableCanonicalState.target.kind === DEV_LOOP_TARGET_KIND.PR
+    selectedGate === DEV_LOOP_GATE.FINAL_APPROVAL
+    && routableCanonicalState.target.kind === DEV_LOOP_TARGET_KIND.PR
     && isFinalApprovalState(routableCanonicalState)
     && !hasCleanVisibleCurrentHeadPreApprovalGate(gateReviewEvidence)
   ) {
@@ -674,7 +676,6 @@ function routeForState(
       executionMode,
     );
   }
-  const selectedGate = selectGateForState(routableCanonicalState);
 
   if (selectedGate === DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED) {
     return buildResult({
