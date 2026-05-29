@@ -340,7 +340,7 @@ test("copilot-autopilot skill requires unattended resume-from-state behavior whe
   assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
   assert.match(content, /continue unattended until the final approval gate/i);
   assert.match(content, /stop for a human approval decision by default/i);
-  assert.match(content, /waiting-for-merge-authorization state/i);
+  assert.match(content, /waiting_for_merge_authorization/i);
   assert.match(content, /does \*\*not\*\* imply unattended merge by default/i);
   assert.match(content, /materially unclear, contradictory, off-trail/i);
   assert.match(content, /stop and ask for human direction rather than guessing/i);
@@ -358,7 +358,7 @@ test("copilot-autopilot behavior remains internal and resumable behind dev-loop"
   assert.match(content, /automatically detect the current lifecycle entrypoint/i);
   assert.match(content, /deterministic helper\/state-machine surface/i);
   assert.match(content, /stop for a human approval decision by default/i);
-  assert.match(content, /waiting-for-merge-authorization state/i);
+  assert.match(content, /waiting_for_merge_authorization/i);
   assert.match(content, /materially unclear, contradictory, off-trail/i);
   assert.match(content, /stop and ask for human direction rather than guessing/i);
   assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);

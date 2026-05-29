@@ -150,7 +150,7 @@ Under that unattended authorization:
 - if the PR is draft, enter the draft-stage PR tightening / local review / fix path automatically rather than stopping just because it has not left draft yet
 - use the deterministic state graph as the authority for current-state routing and next-step selection, not ad hoc phase guessing
 - continue unattended until the final approval gate unless you hit a genuine stop condition: `pause_for_clarification`, `review_request_unavailable`, `blocked_needs_user_decision`, unrelated CI failure needing maintainer judgment, or another ambiguity the contract explicitly forbids guessing through
-- stop for a human approval decision by default once the final review verdict is ready; after approval, stop again in a waiting-for-merge-authorization state unless merge is explicitly authorized for the current issue/PR scope
+- stop for a human approval decision by default once the final review verdict is ready; after approval, stop again in `waiting_for_merge_authorization` unless merge is explicitly authorized for the current issue/PR scope
 - for issue-based shorthand such as `auto dev loop on issue <n>`, `enter copilot auto dev loop on issue <n>`, and `run auto dev loop on <n> until approval gate`, preserve this same stop boundary and final human approval gate default
 
 If unattended authorization has **not** been given, keep the normal confirmation checkpoints below.

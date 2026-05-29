@@ -484,7 +484,7 @@ test("approval-ready states route to final approval and keep merge authorization
   assert.doesNotMatch(result.nextAction, /approval\/merge/i);
 });
 
-test("merge-ready states without merge authorization stop in waiting-for-merge-authorization", () => {
+test("merge-ready states without merge authorization stop in waiting_for_merge_authorization", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
     currentState: {
