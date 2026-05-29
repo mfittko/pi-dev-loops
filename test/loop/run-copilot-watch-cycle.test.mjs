@@ -423,11 +423,11 @@ test("runWatchCycle integration keeps re-requested newer-head wait state non-ter
         stdout: `${EMPTY_THREADS}\n`,
       },
       {
-        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs"],
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
         stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"SUCCESS"}]}\n',
       },
       {
-        assertArgs: ["api", "repos/owner/repo/commits/newsha/status"],
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
         stdout: '{"statuses":[]}\n',
       },
       {

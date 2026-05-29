@@ -411,13 +411,13 @@ function mergeHeadScopedCiStatuses(checkRunsStatus, commitStatus) {
 async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
   const checkRunsResult = await runChild(
     ghCommand,
-    ["api", `repos/${repo}/commits/${headSha}/check-runs`],
+    ["api", `repos/${repo}/commits/${headSha}/check-runs?per_page=100`],
     env,
   );
 
   const statusesResult = await runChild(
     ghCommand,
-    ["api", `repos/${repo}/commits/${headSha}/status`],
+    ["api", `repos/${repo}/commits/${headSha}/status?per_page=100`],
     env,
   );
 
@@ -534,6 +534,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
 
   const shouldRefreshCurrentHeadCi =
     prHeadSha !== null
+    && fallbackCiStatus === "success"
     && !reviewSummary.hasSubmittedReviewOnCurrentHead
     && hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, prHeadSha);
 

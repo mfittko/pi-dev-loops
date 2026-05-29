@@ -705,11 +705,11 @@ test("copilot-pr-handoff still re-requests review when a stale pending Copilot r
         stdout: `${EMPTY_THREADS}\n`,
       },
       {
-        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs"],
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
         stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"SUCCESS"}]}\n',
       },
       {
-        assertArgs: ["api", "repos/owner/repo/commits/newsha/status"],
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
         stdout: '{"statuses":[]}\n',
       },
       {
@@ -949,11 +949,11 @@ test("copilot-pr-handoff auto re-requests when a newer head has no submitted Cop
         stdout: EMPTY_THREADS + "\n",
       },
       {
-        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs"],
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
         stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"SUCCESS"}]}\n',
       },
       {
-        assertArgs: ["api", "repos/owner/repo/commits/newsha/status"],
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
         stdout: '{"statuses":[]}\n',
       },
       {
