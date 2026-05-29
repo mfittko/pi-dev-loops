@@ -369,7 +369,10 @@ node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <r
   ```
   - this seam keeps durable ownership while refreshed authoritative state remains `waiting_for_initial_copilot_implementation`; quiet/no-activity watch observations alone are non-terminal
   - `ready_for_followup`: linked PR has become substantive; proceed to Phase 5 with the returned PR number
-  - `timed_out`: the 1-hour Copilot-first watch budget expired; exit with an explicit still-waiting timeout outcome rather than an implementation failure
+  - `timed_out`: treat this as observational first; refresh authoritative state with `detect-initial-copilot-pr-state.mjs`
+    - if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached to the same durable wait seam and continue waiting instead of surfacing completion/attention
+    - only surface timeout attention when the seam's durable watch budget is actually exhausted or the refreshed state exits this seam
+    - for explicit inspect/status requests, report the refreshed still-waiting state and exit normally
 - `linked_pr_ready_for_followup`: resume from that PR and do not retrigger Copilot for the same scope
 
 ## Phase 5 — PR tightening
