@@ -32,6 +32,7 @@
  *   exit non-zero.
  */
 import { setTimeout as delay } from "node:timers/promises";
+import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../github/_github-helpers.mjs";
@@ -44,10 +45,10 @@ Wait for the Copilot-first bootstrap-only draft PR to become substantive.
 Polls detect-initial-copilot-pr-state in a durable loop until the linked PR
 leaves the bootstrap-only draft shape or the watch budget is exhausted.
 
-Both waiting_for_initial_copilot_implementation and no_linked_pr are healthy
-non-terminal wait states for this seam.  Quiet poll cycles do not surface as
-errors.  The 1-hour default watch budget matches the Copilot-first durable-wait
-seam from the public dev-loop contract.
+Both waiting_for_initial_copilot_implementation, copilot_session_active, and
+no_linked_pr are healthy non-terminal wait states for this seam.  Quiet poll
+cycles do not surface as errors.  The 1-hour default watch budget matches the
+Copilot-first durable-wait seam from the public dev-loop contract.
 
 Required:
   --repo <owner/name>           Repository slug (e.g. owner/repo)
@@ -122,6 +123,44 @@ function parseIssueNumber(value) {
   return Number(value);
 }
 
+function runChild(command, args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+export async function watchCopilotRunUntilComplete({ repo, runId }, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    ["run", "watch", String(runId), "--repo", repo],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+}
+
 export function parseWatchInitialCopilotPrCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -186,14 +225,14 @@ export function parseWatchInitialCopilotPrCliArgs(argv) {
  * Poll detect-initial-copilot-pr-state until the linked PR becomes substantive
  * or the watch budget is exhausted.
  *
- * Both `waiting_for_initial_copilot_implementation` and `no_linked_pr` are
- * treated as healthy non-terminal wait states — they are not implementation
- * failures.  Only `linked_pr_ready_for_followup` triggers early exit with a
- * follow-up handoff result.
+ * Both `waiting_for_initial_copilot_implementation`, `copilot_session_active`,
+ * and `no_linked_pr` are treated as healthy non-terminal wait states — they are
+ * not implementation failures.  Only `linked_pr_ready_for_followup` triggers
+ * early exit with a follow-up handoff result.
  *
  * @param {{ repo: string, issue: number, pollIntervalMs: number, timeoutMs: number }} options
  * @param {{ env?: object, ghCommand?: string, delayImpl?: function, nowMs?: function,
- *           detectInitialCopilotPrStateImpl?: function }} deps
+ *           detectInitialCopilotPrStateImpl?: function, watchCopilotRunUntilCompleteImpl?: function }} deps
  * @returns {Promise<{ ok: true, status: "ready_for_followup"|"timed_out",
  *                     repo: string, issue: number, prNumber: number|null,
  *                     prUrl: string|null, attempts: number, elapsedMs: number }>}
@@ -206,6 +245,7 @@ export async function watchInitialCopilotPr(
     delayImpl = delay,
     nowMs = () => Date.now(),
     detectInitialCopilotPrStateImpl = detectInitialCopilotPrState,
+    watchCopilotRunUntilCompleteImpl = watchCopilotRunUntilComplete,
   } = {},
 ) {
   const { repo, issue, pollIntervalMs, timeoutMs } = options;
@@ -231,8 +271,19 @@ export async function watchInitialCopilotPr(
       };
     }
 
-    // `waiting_for_initial_copilot_implementation` and `no_linked_pr` are both
-    // healthy non-terminal wait states for this Copilot-first seam.
+    if (
+      detection.state === LINKED_PR_STATE.COPILOT_SESSION_ACTIVE
+      && Number.isInteger(detection.sessionRunId)
+    ) {
+      await watchCopilotRunUntilCompleteImpl(
+        { repo, runId: detection.sessionRunId },
+        { env, ghCommand },
+      );
+      continue;
+    }
+
+    // `waiting_for_initial_copilot_implementation`, `copilot_session_active`,
+    // and `no_linked_pr` are healthy non-terminal wait states for this seam.
     // Only budget exhaustion terminates the loop.
 
     if (timeoutMs === 0 || elapsedMs >= timeoutMs) {

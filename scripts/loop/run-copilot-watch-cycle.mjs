@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 
+import { spawn } from "node:child_process";
+
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../github/capture-review-threads.mjs";
 import { watchCopilotReview } from "../github/watch-copilot-review.mjs";
 import { runHandoff } from "./copilot-pr-handoff.mjs";
+import { detectCopilotSessionActivity } from "./detect-copilot-session-activity.mjs";
 
 const USAGE = `Usage: run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number> [--force-rerequest-review] [--probe-only]
 
@@ -64,6 +67,70 @@ function parsePrNumber(value) {
   }
 
   return Number(value);
+}
+
+function runChild(command, args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+async function fetchPrHeadBranch({ repo, pr }, { env, ghCommand }) {
+  const result = await runChild(
+    ghCommand,
+    ["pr", "view", String(pr), "--repo", repo, "--json", "headRefName"],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Invalid JSON from gh: ${result.stdout.trim() || "<empty>"}`);
+  }
+
+  if (typeof payload.headRefName !== "string" || payload.headRefName.trim().length === 0) {
+    throw new Error("Missing required PR facts: headRefName");
+  }
+
+  return payload.headRefName.trim();
+}
+
+async function watchWorkflowRun({ repo, runId }, { env, ghCommand }) {
+  const result = await runChild(
+    ghCommand,
+    ["run", "watch", String(runId), "--repo", repo],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
 }
 
 export function parseWatchCycleCliArgs(argv) {
@@ -127,6 +194,9 @@ export async function runWatchCycle(
     ghCommand = "gh",
     runHandoffImpl = runHandoff,
     watchCopilotReviewImpl = watchCopilotReview,
+    detectCopilotSessionActivityImpl = detectCopilotSessionActivity,
+    fetchPrHeadBranchImpl = fetchPrHeadBranch,
+    watchWorkflowRunImpl = watchWorkflowRun,
   } = {},
 ) {
   const handoff = await runHandoffImpl(options, { env, ghCommand });
@@ -154,9 +224,30 @@ export async function runWatchCycle(
     return result;
   }
 
+  if (runHandoffImpl === runHandoff) {
+    const headBranch = await fetchPrHeadBranchImpl({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+    const session = await detectCopilotSessionActivityImpl(
+      {
+        repo: options.repo,
+        branch: headBranch,
+      },
+      { env, ghCommand },
+    );
+    result.sessionActivity = session;
+
+    if (session.activity === "active" && Number.isInteger(session.runId)) {
+      await watchWorkflowRunImpl(
+        { repo: options.repo, runId: session.runId },
+        { env, ghCommand },
+      );
+    }
+  }
+
   const watchOptions = {
     ...handoff.watchArgs,
-    timeoutMs: options.probeOnly ? 0 : handoff.watchArgs.timeoutMs,
+    timeoutMs: options.probeOnly || result.sessionActivity?.activity === "active"
+      ? 0
+      : handoff.watchArgs.timeoutMs,
   };
   const watch = await watchCopilotReviewImpl(watchOptions, { env, ghCommand });
 

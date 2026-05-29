@@ -342,6 +342,14 @@ test("runWatchCycle integration keeps initial request-review -> waiting_for_copi
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[]}\n',
       },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefName"],
+        stdout: '{"headRefName":"copilot/session-branch"}\n',
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/session-branch"],
+        stdout: "[]\n",
+      },
     ]);
 
     const result = await runWatchCycle(
@@ -433,6 +441,14 @@ test("runWatchCycle integration keeps re-requested newer-head wait state non-ter
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefName"],
+        stdout: '{"headRefName":"copilot/session-branch"}\n',
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/session-branch"],
+        stdout: "[]\n",
+      },
     ]);
 
     const result = await runWatchCycle(
@@ -467,6 +483,87 @@ test("runWatchCycle integration keeps re-requested newer-head wait state non-ter
     assert.equal(result.terminal, false);
     assert.equal(result.watchStatus, "timeout");
     assert.equal(watcherOptions.timeoutMs, 86_400_000);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runWatchCycle integration waits on active Copilot workflow run before idle probe", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-cycle-session-active-"));
+  let watcherOptions;
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${EMPTY_THREADS}\n`,
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefName"],
+        stdout: '{"headRefName":"copilot/session-branch"}\n',
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/session-branch"],
+        stdout: `${JSON.stringify([
+          {
+            databaseId: 444,
+            name: "Addressing comment on PR owner/repo#17",
+            status: "in_progress",
+            conclusion: "",
+            createdAt: "2026-05-27T13:08:48Z",
+          },
+        ])}\n`,
+      },
+      {
+        assertArgs: ["run", "watch", "444", "--repo", "owner/repo"],
+        stdout: "",
+      },
+    ]);
+
+    const result = await runWatchCycle(
+      {
+        repo: "owner/repo",
+        pr: 17,
+        forceRerequestReview: false,
+        probeOnly: false,
+      },
+      {
+        env,
+        watchCopilotReviewImpl: async (options) => {
+          watcherOptions = options;
+          return {
+            ok: true,
+            status: "idle",
+            repo: options.repo,
+            pr: options.pr,
+            attempts: 1,
+            newComments: [],
+            newReviews: [],
+            newIssueComments: [],
+          };
+        },
+      },
+    );
+
+    assert.equal(result.handoffAction, "watch");
+    assert.equal(result.sessionActivity.activity, "active");
+    assert.equal(watcherOptions.timeoutMs, 0);
+    assert.equal(result.watchStatus, "idle");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
