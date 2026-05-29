@@ -397,6 +397,8 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(autopilotSkill, /interpret them as compatibility wording for the same public `dev-loop` intent/i);
   assert.match(autopilotSkill, /preserve this same stop boundary and final human approval gate default/i);
   assert.match(autopilotSkill, /waiting_for_merge_authorization/i);
+  assert.match(autopilotSkill, /If merge authorization is still missing or ambiguous.*waiting_for_merge_authorization/i);
+  assert.doesNotMatch(autopilotSkill, /Only when merge has been explicitly authorized for this issue\/PR scope:/i);
 
   assert.match(devLoopAgent, /Interpret issue-based shorthand triggers/i);
   assert.match(devLoopAgent, /not a second public workflow entrypoint/i);

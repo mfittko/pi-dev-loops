@@ -135,6 +135,10 @@ test("public contract doc stays aligned with the machine-checkable gate contract
     publicContract,
     /approval-ready canonical state routes to the final approval gate; merge-ready routes here only when merge authorization is explicit/i,
   );
+
+  const internalStrategySection = publicContract.split("## Internal strategy families")[1]?.split("## Copilot-first issue-assignment seam")[0] ?? "";
+  assert.doesNotMatch(internalStrategySection, /\|\s*`waiting_for_merge_authorization`\s*\|/i);
+  assert.match(internalStrategySection, /stop gate rather than an internal strategy/i);
 });
 
 test("start_on_issue routes to issue_intake through the public dev-loop façade", () => {

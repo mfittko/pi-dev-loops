@@ -505,13 +505,13 @@ Default behavior:
 
 If final human approval is required, return a concise approval-ready summary and wait.
 
-Only when merge has been explicitly authorized for this issue/PR scope:
+Handle the post-approval path in this order:
 
-1. Submit a formal GitHub review approval when approval has been explicitly authorized and not yet recorded (if the PR was not opened by the active GitHub user):
+1. If approval has been explicitly authorized for this issue/PR scope and is not yet recorded, submit a formal GitHub review approval (if the PR was not opened by the active GitHub user):
    ```sh
    gh pr review <pr-number> --repo <resolved-repo> --approve --body "..."
    ```
-2. If merge authorization is still missing or ambiguous (for example combined wording like "approve/merge"), stop and ask for an explicit merge decision for the active PR scope.
+2. If merge authorization is still missing or ambiguous (for example combined wording like "approve/merge"), report `waiting_for_merge_authorization` and stop for an explicit merge decision on the active PR scope.
 3. Merge only after explicit merge authorization:
    ```sh
    gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch

@@ -212,7 +212,8 @@ The public router currently maps to these deterministic internal strategies:
 | `reviewer_fixer` | reviewer/fixer passes on the current PR | none |
 | `wait_watch` | waiting/watch states | `dev-loop` |
 | `final_approval` | approval-ready gate, or merge-ready with explicit merge authorization | none |
-| `waiting_for_merge_authorization` | merge-ready but still awaiting explicit merge authorization | none |
+
+`waiting_for_merge_authorization` is part of the gate contract below as a stop gate rather than an internal strategy.
 
 Internal strategy naming is implementation detail; normal orchestration always starts from `dev-loop`.
 
