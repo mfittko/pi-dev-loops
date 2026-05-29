@@ -121,7 +121,7 @@ Prior chat context is only a hint, never state authority.
 
 If authoritative identity/state (including issue↔PR linkage when relevant) cannot be resolved confidently, fail closed to reconcile/unknown instead of guessing.
 
-When the routed next step requires confirmation for a mutation, the status/startup next action should name that concrete pending mutation (for example issue assignment) instead of generic "approval gate" wording.
+When the routed next step requires confirmation for a mutation, the status/startup next action should name that concrete pending mutation (for example issue assignment to `copilot-swe-agent`) instead of generic "approval gate" wording.
 
 ## Authoritative startup/resume bundle contract
 
@@ -137,6 +137,10 @@ Required authoritative inputs:
   - `inspect_state` preserves the bundle's `inspect` route kind and inspect-style next action
 - `issueLinkageResolution` (`resolved_linked_pr` \| `resolved_no_open_pr` \| `not_applicable`)
   - required when `currentState.target.kind === issue`
+- `issueReadiness` (`ready` \| `needs_clarification` \| `not_applicable`)
+  - required for Copilot-first issue targets with `issueLinkageResolution=resolved_no_open_pr`
+- `issueAssignmentState` (`unassigned` \| `assigned_to_copilot` \| `not_applicable`)
+  - required for Copilot-first issue targets with `issueLinkageResolution=resolved_no_open_pr`
 - `artifactState` (`open` \| `closed` \| `merged` \| `not_applicable`)
 - explicit resolved `loopState` (`unknown` is not authoritative input)
 
@@ -154,6 +158,7 @@ Resolved bundle output shape:
   },
   "artifactState": "open | closed | merged | not_applicable",
   "issueLinkageResolution": "resolved_linked_pr | resolved_no_open_pr | not_applicable",
+  "issueAssignmentSeam": "needs_refinement | ready_needs_assignment_confirmation | ready_assign_now | assigned_to_copilot | not_applicable",
   "canonicalState": {
     "target": { "kind": "..." },
     "ownership": "...",
@@ -208,6 +213,17 @@ The public router currently maps to these deterministic internal strategies:
 | `final_approval` | approval-ready or merge-ready gate | none |
 
 Internal strategy naming is implementation detail; normal orchestration always starts from `dev-loop`.
+
+## Copilot-first issue-assignment seam (unassigned issues)
+
+For Copilot-first issue flows (`currentState.target.kind=issue`, `ownership=copilot`, and no linked PR), orchestration must resolve this seam from authoritative issue facts before follow-up routing:
+
+1. `issueReadiness=needs_clarification` → ask clarification questions and stop before assignment (`issueAssignmentSeam=needs_refinement`)
+2. `issueReadiness=ready` + `issueAssignmentState=unassigned` + `authorization=needs_confirmation` → ask for explicit assignment confirmation (`issueAssignmentSeam=ready_needs_assignment_confirmation`)
+3. `issueReadiness=ready` + `issueAssignmentState=unassigned` + `authorization=authorized` → assign `copilot-swe-agent` now before PR/bootstrap/watch follow-up (`issueAssignmentSeam=ready_assign_now`)
+4. `issueReadiness=ready` + `issueAssignmentState=assigned_to_copilot` → assignment seam satisfied; proceed to follow-up (`issueAssignmentSeam=assigned_to_copilot`)
+
+Fail closed if those readiness/assignment facts are missing or invalid.
 
 ## Authoritative gate contract
 
@@ -319,6 +335,8 @@ Any conflict that would materially change artifact identity, ownership truth, or
 | `targetPreference` | `prefer_github_first` (default) \| `prefer_local` | Steers routing preference; must not override authoritative linked-PR or active-artifact truth |
 
 The bounded allow-list is exported from `packages/core/src/loop/public-dev-loop-routing.mjs` as `DEV_LOOP_VARIATION_PARAMETER_CONTRACT`.
+
+`issueReadiness` and `issueAssignmentState` are **not** part of that bounded variation-parameter allow-list. They are authoritative issue-state facts used only for the Copilot-first unassigned-issue seam during startup/status/routing resolution.
 
 ### Explicit non-parameters for this slice
 

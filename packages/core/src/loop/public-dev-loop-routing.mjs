@@ -14,6 +14,7 @@
  */
 
 export const PUBLIC_DEV_LOOP_ENTRYPOINT = "dev-loop";
+const COPILOT_ISSUE_ASSIGNEE = "copilot-swe-agent";
 
 export const DEV_LOOP_PUBLIC_INTENT = Object.freeze({
   START_ON_ISSUE: "start_on_issue",
@@ -125,6 +126,26 @@ export const DEV_LOOP_WAIT_SEMANTICS = Object.freeze({
 export const DEV_LOOP_ISSUE_LINKAGE_RESOLUTION = Object.freeze({
   RESOLVED_LINKED_PR: "resolved_linked_pr",
   RESOLVED_NO_OPEN_PR: "resolved_no_open_pr",
+  NOT_APPLICABLE: "not_applicable",
+});
+
+export const DEV_LOOP_ISSUE_READINESS = Object.freeze({
+  READY: "ready",
+  NEEDS_CLARIFICATION: "needs_clarification",
+  NOT_APPLICABLE: "not_applicable",
+});
+
+export const DEV_LOOP_ISSUE_ASSIGNMENT_STATE = Object.freeze({
+  UNASSIGNED: "unassigned",
+  ASSIGNED_TO_COPILOT: "assigned_to_copilot",
+  NOT_APPLICABLE: "not_applicable",
+});
+
+export const DEV_LOOP_ISSUE_ASSIGNMENT_SEAM = Object.freeze({
+  NEEDS_REFINEMENT: "needs_refinement",
+  READY_NEEDS_ASSIGNMENT_CONFIRMATION: "ready_needs_assignment_confirmation",
+  READY_ASSIGN_NOW: "ready_assign_now",
+  ASSIGNED_TO_COPILOT: "assigned_to_copilot",
   NOT_APPLICABLE: "not_applicable",
 });
 
@@ -251,6 +272,8 @@ const AUTHORIZATION_SET = new Set(Object.values(DEV_LOOP_AUTHORIZATION));
 const INTENT_SET = new Set(Object.values(DEV_LOOP_PUBLIC_INTENT));
 const ARTIFACT_STATE_SET = new Set(Object.values(DEV_LOOP_ARTIFACT_STATE));
 const ISSUE_LINKAGE_RESOLUTION_SET = new Set(Object.values(DEV_LOOP_ISSUE_LINKAGE_RESOLUTION));
+const ISSUE_READINESS_SET = new Set(Object.values(DEV_LOOP_ISSUE_READINESS));
+const ISSUE_ASSIGNMENT_STATE_SET = new Set(Object.values(DEV_LOOP_ISSUE_ASSIGNMENT_STATE));
 const VARIATION_MODE_SET = new Set(DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues);
 const TARGET_PREFERENCE_SET = new Set(DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedTargetPreferenceValues);
 const ALLOWED_MODE_VALUES_TEXT = DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues.join(", ");
@@ -349,6 +372,16 @@ function normalizeIssueLinkageResolution(value) {
   return ISSUE_LINKAGE_RESOLUTION_SET.has(normalized) ? normalized : null;
 }
 
+function normalizeIssueReadiness(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return ISSUE_READINESS_SET.has(normalized) ? normalized : null;
+}
+
+function normalizeIssueAssignmentState(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return ISSUE_ASSIGNMENT_STATE_SET.has(normalized) ? normalized : null;
+}
+
 function normalizeVariationMode(value) {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
   return VARIATION_MODE_SET.has(normalized) ? normalized : null;
@@ -369,6 +402,7 @@ function buildResult({
   reason,
   executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
+  issueAssignmentSeam = DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.NOT_APPLICABLE,
 }) {
   return {
     publicEntrypoint: PUBLIC_DEV_LOOP_ENTRYPOINT,
@@ -379,6 +413,7 @@ function buildResult({
     executionMode,
     waitSemantics,
     canonicalState,
+    issueAssignmentSeam,
     nextAction,
     reason,
   };
@@ -486,7 +521,70 @@ function selectGateForState(canonicalState) {
   return DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE;
 }
 
-function routeForState(canonicalState, { executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF } = {}) {
+function isCopilotFirstIssueFlow(canonicalState) {
+  return canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && canonicalState.ownership === DEV_LOOP_ACTOR.COPILOT;
+}
+
+function shouldAcceptIssueAssignmentFacts({ intent, explicitTarget, explicitState }) {
+  if (explicitState) {
+    return isCopilotFirstIssueFlow(explicitState) && explicitState.target.linkedPr === null;
+  }
+
+  return intent === DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE && explicitTarget?.kind === DEV_LOOP_TARGET_KIND.ISSUE;
+}
+
+function buildIssueClarificationStopNextAction(issueNumber) {
+  return `Issue #${issueNumber} is not ready yet; ask focused clarification questions and stop before assigning ${COPILOT_ISSUE_ASSIGNEE}.`;
+}
+
+function buildIssueAssignmentNowNextAction(issueNumber) {
+  return `Issue #${issueNumber} is ready and still unassigned; assign ${COPILOT_ISSUE_ASSIGNEE} now before PR/bootstrap/watch follow-up.`;
+}
+
+function buildIssueAssignedContinueNextAction(issueNumber) {
+  return `Issue #${issueNumber} is ready and already assigned to ${COPILOT_ISSUE_ASSIGNEE}; continue into PR/bootstrap/watch follow-up work.`;
+}
+
+function resolveCopilotFirstIssueAssignmentSeam(canonicalState, issueReadiness, issueAssignmentState) {
+  if (issueReadiness === DEV_LOOP_ISSUE_READINESS.NEEDS_CLARIFICATION) {
+    return {
+      issueAssignmentSeam: DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.NEEDS_REFINEMENT,
+      routeKind: DEV_LOOP_ROUTE_KIND.STOP,
+      nextAction: buildIssueClarificationStopNextAction(canonicalState.target.issue),
+    };
+  }
+
+  if (issueAssignmentState === DEV_LOOP_ISSUE_ASSIGNMENT_STATE.ASSIGNED_TO_COPILOT) {
+    return {
+      issueAssignmentSeam: DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.ASSIGNED_TO_COPILOT,
+      routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+      nextAction: buildIssueAssignedContinueNextAction(canonicalState.target.issue),
+    };
+  }
+
+  if (canonicalState.authorization === DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION) {
+    return {
+      issueAssignmentSeam: DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.READY_NEEDS_ASSIGNMENT_CONFIRMATION,
+      routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+      nextAction: buildIssueAssignmentConfirmationNextAction(canonicalState.target.issue),
+    };
+  }
+
+  return {
+    issueAssignmentSeam: DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.READY_ASSIGN_NOW,
+    routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+    nextAction: buildIssueAssignmentNowNextAction(canonicalState.target.issue),
+  };
+}
+
+function routeForState(
+  canonicalState,
+  {
+    executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+    issueReadiness = null,
+    issueAssignmentState = null,
+  } = {},
+) {
   const routableCanonicalState = toRoutableCanonicalState(canonicalState);
   const selectedGate = selectGateForState(routableCanonicalState);
 
@@ -569,18 +667,22 @@ function routeForState(canonicalState, { executionMode = DEV_LOOP_EXECUTION_MODE
   }
 
   if (selectedGate === DEV_LOOP_GATE.ISSUE_INTAKE) {
-    const needsIssueMutationConfirmation =
-      routableCanonicalState.authorization === DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION;
+    const copilotFirstIssueSeam = isCopilotFirstIssueFlow(routableCanonicalState)
+      ? resolveCopilotFirstIssueAssignmentSeam(routableCanonicalState, issueReadiness, issueAssignmentState)
+      : {
+          issueAssignmentSeam: DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.NOT_APPLICABLE,
+          routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+          nextAction: "Normalize the issue, confirm scope, and determine whether an existing PR already exists.",
+        };
     return buildResult({
       selectedGate,
-      routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+      routeKind: copilotFirstIssueSeam.routeKind,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE,
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.COPILOT_AUTOPILOT,
       executionMode,
       canonicalState: routableCanonicalState,
-      nextAction: needsIssueMutationConfirmation
-        ? buildIssueAssignmentConfirmationNextAction(routableCanonicalState.target.issue)
-        : "Normalize the issue, confirm scope, and determine whether an existing PR already exists.",
+      issueAssignmentSeam: copilotFirstIssueSeam.issueAssignmentSeam,
+      nextAction: copilotFirstIssueSeam.nextAction,
       reason: "Issue targets without a linked PR route to issue intake before PR follow-up.",
     });
   }
@@ -642,21 +744,10 @@ function buildStatusArtifactIdentity(canonicalState) {
 }
 
 function buildIssueAssignmentConfirmationNextAction(issueNumber) {
-  return `Authorize the next mutation: assign Copilot to issue #${issueNumber} now?`;
+  return `Authorize the next mutation: assign ${COPILOT_ISSUE_ASSIGNEE} to issue #${issueNumber} now?`;
 }
 
-function buildAuthoritativeStatusNextAction(routed, issueLinkageResolution) {
-  if (
-    routed?.selectedGate === DEV_LOOP_GATE.ISSUE_INTAKE
-    && routed?.canonicalState?.target?.kind === DEV_LOOP_TARGET_KIND.ISSUE
-    && issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR
-  ) {
-    if (routed.canonicalState.authorization === DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION) {
-      return buildIssueAssignmentConfirmationNextAction(routed.canonicalState.target.issue);
-    }
-    return "Proceed with issue intake on the issue itself; authoritative linkage resolution already established that no open PR exists.";
-  }
-
+function buildAuthoritativeStatusNextAction(routed) {
   return routed?.nextAction ?? "Reconcile the current state before answering status.";
 }
 
@@ -752,14 +843,34 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   }
 
   const issueLinkageResolution = normalizeIssueLinkageResolution(input.issueLinkageResolution);
+  const issueReadiness = normalizeIssueReadiness(input.issueReadiness);
+  const issueAssignmentState = normalizeIssueAssignmentState(input.issueAssignmentState);
   const issueLinkageResolutionProvided = input.issueLinkageResolution !== undefined && input.issueLinkageResolution !== null;
   const normalizedIssueLinkageResolution = normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageResolution);
+  const issueReadinessProvided = input.issueReadiness !== undefined && input.issueReadiness !== null;
+  const issueAssignmentStateProvided = input.issueAssignmentState !== undefined && input.issueAssignmentState !== null;
 
   if (issueLinkageResolutionProvided && issueLinkageResolution === null) {
     return buildStartupResumeBundleReconcile({
       reason: "Authoritative startup/resume routing received an invalid issue↔PR linkage resolution value.",
       canonicalState,
       issueLinkageResolution: null,
+    });
+  }
+
+  if (issueReadinessProvided && issueReadiness === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing received an invalid issue readiness value.",
+      canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+    });
+  }
+
+  if (issueAssignmentStateProvided && issueAssignmentState === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing received an invalid issue assignment-state value.",
+      canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
     });
   }
 
@@ -782,7 +893,33 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     });
   }
 
-  const routed = routeForState(canonicalState, { executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF });
+  if (
+    canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
+    && canonicalState.ownership === DEV_LOOP_ACTOR.COPILOT
+    && issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR
+  ) {
+    if (!issueReadinessProvided) {
+      return buildStartupResumeBundleReconcile({
+        reason: "Copilot-first issue targets require explicit authoritative issue readiness before assignment/routing decisions.",
+        canonicalState,
+        issueLinkageResolution: normalizedIssueLinkageResolution,
+      });
+    }
+
+    if (!issueAssignmentStateProvided) {
+      return buildStartupResumeBundleReconcile({
+        reason: "Copilot-first issue targets require explicit authoritative issue assignment state before assignment/routing decisions.",
+        canonicalState,
+        issueLinkageResolution: normalizedIssueLinkageResolution,
+      });
+    }
+  }
+
+  const routed = routeForState(canonicalState, {
+    executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+    issueReadiness,
+    issueAssignmentState,
+  });
   if (routed.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) {
     return buildStartupResumeBundleReconcile({
       reason: routed.reason,
@@ -833,9 +970,10 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     selectedGate: routed.selectedGate,
     selectedStrategy: routed.selectedStrategy,
     compatibilityEntrypoint: routed.compatibilityEntrypoint,
+    issueAssignmentSeam: routed.issueAssignmentSeam,
     nextAction: inspectStateIntent
       ? "Describe the canonical state and the routed internal strategy without changing public entrypoints."
-      : buildAuthoritativeStatusNextAction(routed, issueLinkageResolution),
+      : buildAuthoritativeStatusNextAction(routed),
     reason: routed.reason,
   };
 }
@@ -857,6 +995,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     routeKind: bundle.routeKind,
     selectedStrategy: bundle.selectedStrategy,
     compatibilityEntrypoint: bundle.compatibilityEntrypoint,
+    issueAssignmentSeam: bundle.issueAssignmentSeam,
     canonicalState: bundle.canonicalState,
     reason: bundle.reason,
   };
@@ -872,6 +1011,14 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   const watchProvided = input.watch !== undefined;
   const watchRequested = input.watch === true;
   const targetPreference = input.targetPreference !== undefined ? normalizeTargetPreference(input.targetPreference) : null;
+
+  // These are authoritative issue-state facts for the Copilot-first
+  // unassigned-issue seam, not bounded public variation parameters.
+  const issueReadiness = input.issueReadiness !== undefined ? normalizeIssueReadiness(input.issueReadiness) : null;
+  const issueAssignmentState = input.issueAssignmentState !== undefined
+    ? normalizeIssueAssignmentState(input.issueAssignmentState)
+    : null;
+  const acceptsIssueAssignmentFacts = shouldAcceptIssueAssignmentFacts({ intent, explicitTarget, explicitState });
   const requestedExecutionMode =
     variationMode
     ?? (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT
@@ -888,6 +1035,26 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   if (watchProvided && typeof input.watch !== "boolean") {
     return buildReconcile("Unrecognized `watch` parameter; allowed values: true or false.", null, requestedExecutionMode);
   }
+  if (acceptsIssueAssignmentFacts && input.issueReadiness !== undefined && issueReadiness === null) {
+    return buildReconcile(
+      `Unrecognized \`issueReadiness\` input; allowed values: ${Object.values(DEV_LOOP_ISSUE_READINESS).join(", ")}.`,
+      null,
+      requestedExecutionMode,
+    );
+  }
+  if (acceptsIssueAssignmentFacts && input.issueAssignmentState !== undefined && issueAssignmentState === null) {
+    return buildReconcile(
+      `Unrecognized \`issueAssignmentState\` input; allowed values: ${Object.values(DEV_LOOP_ISSUE_ASSIGNMENT_STATE).join(", ")}.`,
+      null,
+      requestedExecutionMode,
+    );
+  }
+
+  const routingOptions = {
+    executionMode: null,
+    issueReadiness: acceptsIssueAssignmentFacts ? issueReadiness : null,
+    issueAssignmentState: acceptsIssueAssignmentFacts ? issueAssignmentState : null,
+  };
 
   if (!intent) {
     return buildReconcile("The public dev-loop intent is missing or unrecognized.", null, requestedExecutionMode);
@@ -923,7 +1090,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       return buildReconcile("`inspect_state` requires a valid canonical current state.", null, effectiveMode);
     }
 
-    const routed = routeForState(explicitState, { executionMode: effectiveMode });
+    const routed = routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode });
     return applyWatchValidation({
       ...routed,
       routeKind: DEV_LOOP_ROUTE_KIND.INSPECT,
@@ -959,7 +1126,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         }
       }
 
-      return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
+      return applyWatchValidation(
+        routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
+        watchRequested,
+      );
     }
 
     // No canonical state: steer toward local when prefer_local is requested
@@ -978,7 +1148,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
           nextActor: DEV_LOOP_ACTOR.LOCAL,
           status: DEV_LOOP_STATUS.ACTIVE,
           authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
-        }, { executionMode: effectiveMode }),
+        }, { ...routingOptions, executionMode: effectiveMode }),
         watchRequested,
       );
     }
@@ -990,7 +1160,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         nextActor: DEV_LOOP_ACTOR.USER,
         status: DEV_LOOP_STATUS.ACTIVE,
         authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
-      }, { executionMode: effectiveMode }),
+      }, { ...routingOptions, executionMode: effectiveMode }),
       watchRequested,
     );
   }
@@ -1014,7 +1184,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       ) {
         return buildReconcile("Local issue-start target conflicts with the canonical current state.", explicitState, effectiveMode);
       }
-      return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
+      return applyWatchValidation(
+        routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
+        watchRequested,
+      );
     }
 
     const routed = routeForState({
@@ -1030,7 +1203,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       nextActor: DEV_LOOP_ACTOR.LOCAL,
       status: DEV_LOOP_STATUS.ACTIVE,
       authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
-    }, { executionMode: effectiveMode });
+    }, { ...routingOptions, executionMode: effectiveMode });
 
     const routedWithContinueAction = intent === DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY_THEN_CONTINUE
       ? {
@@ -1063,7 +1236,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       );
     }
 
-    return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
+    return applyWatchValidation(
+      routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
+      watchRequested,
+    );
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT) {
@@ -1085,7 +1261,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       }
     }
 
-    return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
+    return applyWatchValidation(
+      routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
+      watchRequested,
+    );
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT) {
@@ -1096,7 +1275,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
       );
     }
-    return applyWatchValidation(routeForState(explicitState, { executionMode: effectiveMode }), watchRequested);
+    return applyWatchValidation(
+      routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
+      watchRequested,
+    );
   }
 
   return buildReconcile("The public dev-loop intent is recognized but not implemented in this first slice.", null, effectiveMode);
