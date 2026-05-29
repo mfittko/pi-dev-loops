@@ -409,17 +409,18 @@ function mergeHeadScopedCiStatuses(checkRunsStatus, commitStatus) {
 }
 
 async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
-  const checkRunsResult = await runChild(
-    ghCommand,
-    ["api", `repos/${repo}/commits/${headSha}/check-runs?per_page=100`],
-    env,
-  );
-
-  const statusesResult = await runChild(
-    ghCommand,
-    ["api", `repos/${repo}/commits/${headSha}/status?per_page=100`],
-    env,
-  );
+  const [checkRunsResult, statusesResult] = await Promise.all([
+    runChild(
+      ghCommand,
+      ["api", `repos/${repo}/commits/${headSha}/check-runs?per_page=100`],
+      env,
+    ),
+    runChild(
+      ghCommand,
+      ["api", `repos/${repo}/commits/${headSha}/status?per_page=100`],
+      env,
+    ),
+  ]);
 
   let checkRunsStatus = null;
   if (checkRunsResult.code === 0) {

@@ -395,70 +395,102 @@ test("runWatchCycle integration keeps re-requested newer-head wait state non-ter
   let watcherOptions;
 
   try {
-    const env = await writeGhStub(tempDir, [
+    const ghPath = path.join(tempDir, "gh");
+    await writeFile(
+      ghPath,
+      `#!/usr/bin/env node
+import { existsSync, writeFileSync } from "node:fs";
+const args = process.argv.slice(2);
+const write = (value) => process.stdout.write(typeof value === "string" ? value : JSON.stringify(value) + "\\n");
+const requestedStatePath = process.env.GH_REREQUEST_STATE_PATH;
+
+if (args[0] === "pr" && args[1] === "view" && !args.includes("--json")) {
+  write({
+    isDraft: false,
+    state: "OPEN",
+    number: 17,
+    headRefOid: "newsha",
+    reviews: [
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
-        stdout: JSON.stringify({
-          isDraft: false,
-          state: "OPEN",
-          number: 17,
-          headRefOid: "newsha",
-          reviews: [
-            {
-              id: "r-1",
-              author: { login: "copilot-pull-request-reviewer[bot]" },
-              state: "COMMENTED",
-              commit: { oid: "oldsha" },
-            },
-          ],
-          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
-        }) + "\n",
-      },
+        id: "r-1",
+        author: { login: "copilot-pull-request-reviewer[bot]" },
+        state: "COMMENTED",
+        commit: { oid: "oldsha" }
+      }
+    ],
+    statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }]
+  });
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/17/requested_reviewers") {
+  const requested = existsSync(requestedStatePath);
+  write(requested ? { users: [{ login: "Copilot" }], teams: [] } : { users: [], teams: [] });
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "graphql") {
+  write(${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })});
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/commits/newsha/check-runs?per_page=100") {
+  write({ check_runs: [{ status: "COMPLETED", conclusion: "SUCCESS" }] });
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/commits/newsha/status?per_page=100") {
+  write({ statuses: [] });
+  process.exit(0);
+}
+
+if (args[0] === "pr" && args[1] === "view" && args.includes("--json") && args.includes("headRefOid,isDraft,state,number,reviews,statusCheckRollup")) {
+  write({
+    headRefOid: "newsha",
+    isDraft: false,
+    state: "OPEN",
+    number: 17,
+    reviews: [
       {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${EMPTY_THREADS}\n`,
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
-        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"SUCCESS"}]}\n',
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
-        stdout: '{"statuses":[]}\n',
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
-        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
-      },
-      {
-        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
-        stdout: "https://github.com/owner/repo/pull/17\n",
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
-        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
-      },
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefName"],
-        stdout: '{"headRefName":"copilot/session-branch"}\n',
-      },
-      {
-        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/session-branch"],
-        stdout: "[]\n",
-      },
-    ]);
+        id: "r-1",
+        state: "COMMENTED",
+        author: { login: "copilot-pull-request-reviewer[bot]" },
+        commit: { oid: "oldsha" }
+      }
+    ],
+    statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }]
+  });
+  process.exit(0);
+}
+
+if (args[0] === "pr" && args[1] === "edit" && args.includes("--add-reviewer") && args.includes("@copilot")) {
+  writeFileSync(requestedStatePath, "requested\\n");
+  write("https://github.com/owner/repo/pull/17\\n");
+  process.exit(0);
+}
+
+if (args[0] === "pr" && args[1] === "view" && args.includes("--json") && args.includes("headRefName")) {
+  write({ headRefName: "copilot/session-branch" });
+  process.exit(0);
+}
+
+if (args[0] === "run" && args[1] === "list" && args.includes("--branch") && args.includes("copilot/session-branch")) {
+  write([]);
+  process.exit(0);
+}
+
+process.stderr.write("unexpected gh args: " + args.join(" ") + "\\n");
+process.exit(97);
+`,
+      "utf8",
+    );
+    await chmod(ghPath, 0o755);
+
+    const env = {
+      ...process.env,
+      PATH: `${tempDir}${path.delimiter}${process.env.PATH ?? ""}`,
+      GH_REREQUEST_STATE_PATH: path.join(tempDir, "requested-state.txt"),
+    };
 
     const result = await runWatchCycle(
       {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -49,42 +50,46 @@ async function writeJson(filePath, value) {
  */
 async function writeGhStub(tempDir, entries) {
   const sequencePath = path.join(tempDir, "gh-sequence.json");
-  const counterPath = path.join(tempDir, "gh-counter.txt");
+  const claimsDir = path.join(tempDir, "gh-claims");
   const ghPath = path.join(tempDir, "gh");
 
+  const { mkdir } = await import("node:fs/promises");
   await writeFile(sequencePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
-  await writeFile(counterPath, "0\n", "utf8");
+  await mkdir(claimsDir, { recursive: true });
   await writeFile(
     ghPath,
     [
       "#!/usr/bin/env node",
-      'import { readFileSync, writeFileSync } from "node:fs";',
+      'import { mkdirSync, readFileSync } from "node:fs";',
+      'import path from "node:path";',
       "const sequencePath = process.env.GH_SEQUENCE_PATH;",
-      "const counterPath = process.env.GH_COUNTER_PATH;",
+      "const claimsDir = process.env.GH_CLAIMS_DIR;",
       'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
-      'const current = Number(readFileSync(counterPath, "utf8").trim() || "0");',
-      'if (current >= entries.length) {',
-      '  process.stderr.write("unexpected gh call beyond scripted sequence\\n");',
-      '  process.exit(97);',
-      '}',
-      'const entry = entries[current] ?? { stdout: "{}\\n" };',
-      'writeFileSync(counterPath, String(current + 1));',
       'const actual = process.argv.slice(2);',
-      'if (entry.assertArgs) {',
-      '  for (const expected of entry.assertArgs) {',
-      '    if (!actual.includes(expected)) {',
-      '      process.stderr.write(`missing expected gh arg: ${expected}\\n`);',
-      '      process.exit(98);',
-      '    }',
+      'let selected = null;',
+      'for (let index = 0; index < entries.length; index += 1) {',
+      '  const entry = entries[index] ?? { stdout: "{}\\n" };',
+      '  const expectedArgs = Array.isArray(entry.assertArgs) ? entry.assertArgs : [];',
+      '  if (!expectedArgs.every((expected) => actual.includes(expected))) continue;',
+      '  try {',
+      '    mkdirSync(path.join(claimsDir, String(index)));',
+      '    selected = entry;',
+      '    break;',
+      '  } catch {',
+      '    continue;',
       '  }',
       '}',
-      'if (entry.stderr) {',
-      '  process.stderr.write(entry.stderr);',
+      'if (selected == null) {',
+      '  process.stderr.write("unexpected gh args: " + actual.join(" ") + "\\n");',
+      '  process.exit(97);',
       '}',
-      'if (entry.stdout) {',
-      '  process.stdout.write(entry.stdout);',
+      'if (selected.stderr) {',
+      '  process.stderr.write(selected.stderr);',
       '}',
-      'process.exit(entry.exitCode ?? 0);',
+      'if (selected.stdout) {',
+      '  process.stdout.write(selected.stdout);',
+      '}',
+      'process.exit(selected.exitCode ?? 0);',
       "",
     ].join("\n"),
     "utf8",
@@ -96,7 +101,7 @@ async function writeGhStub(tempDir, entries) {
       ...process.env,
       PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
       GH_SEQUENCE_PATH: sequencePath,
-      GH_COUNTER_PATH: counterPath,
+      GH_CLAIMS_DIR: claimsDir,
     },
   };
 }
@@ -1025,6 +1030,103 @@ test("detect-copilot-loop-state uses head-scoped check-runs when commit status r
   }
 });
 
+test("detect-copilot-loop-state refreshes head-scoped CI probes in parallel for stale-success cases", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-head-refresh-parallel-"));
+
+  try {
+    const ghPath = path.join(tempDir, "gh");
+    const overlapPath = path.join(tempDir, "overlap-detected");
+    await writeFile(
+      ghPath,
+      `#!/usr/bin/env node
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
+const args = process.argv.slice(2);
+const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+const tempDir = process.env.GH_PARALLEL_TEMP_DIR;
+const overlapPath = process.env.GH_PARALLEL_OVERLAP_PATH;
+
+if (args[0] === "pr" && args[1] === "view") {
+  write({
+    isDraft: false,
+    state: "OPEN",
+    number: 17,
+    headRefOid: "newsha",
+    reviews: [
+      {
+        author: { login: "copilot-pull-request-reviewer[bot]" },
+        state: "COMMENTED",
+        commit: { oid: "oldsha" }
+      }
+    ],
+    statusCheckRollup: [
+      { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" }
+    ]
+  });
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/17/requested_reviewers") {
+  write({ users: [], teams: [] });
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] === "graphql") {
+  write({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
+  process.exit(0);
+}
+
+if (args[0] === "api" && (args[1] === "repos/owner/repo/commits/newsha/check-runs?per_page=100" || args[1] === "repos/owner/repo/commits/newsha/status?per_page=100")) {
+  const endpoint = args[1].includes("check-runs") ? "check-runs" : "status";
+  const otherEndpoint = endpoint === "check-runs" ? "status" : "check-runs";
+  const markerPath = join(tempDir, endpoint + ".started");
+  const otherMarkerPath = join(tempDir, otherEndpoint + ".started");
+  writeFileSync(markerPath, "started\\n");
+  for (let index = 0; index < 40; index += 1) {
+    if (existsSync(otherMarkerPath)) {
+      writeFileSync(overlapPath, "detected\\n");
+      break;
+    }
+    await sleep(25);
+  }
+  await sleep(250);
+  if (endpoint === "check-runs") {
+    write({ check_runs: [{ status: "COMPLETED", conclusion: "SUCCESS" }] });
+  } else {
+    write({ statuses: [] });
+  }
+  process.exit(0);
+}
+
+process.stderr.write("unexpected gh args: " + args.join(" ") + "\\n");
+process.exit(97);
+`,
+      "utf8",
+    );
+    await chmod(ghPath, 0o755);
+
+    const env = {
+      ...process.env,
+      PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
+      GH_PARALLEL_TEMP_DIR: tempDir,
+      GH_PARALLEL_OVERLAP_PATH: overlapPath,
+    };
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.snapshot.ciStatus, "success");
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+    assert.equal(existsSync(overlapPath), true, "expected head-scoped CI refresh probes to overlap in time");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-loop-state treats cancelled head-scoped check runs as success", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-head-cancelled-success-"));
 
@@ -1412,7 +1514,7 @@ test("detect-copilot-loop-state auto-detect fails when gh stub call budget is ex
     assert.equal(result.stdout, "");
     assert.deepEqual(JSON.parse(result.stderr), {
       ok: false,
-      error: "gh command failed: unexpected gh call beyond scripted sequence",
+      error: "gh command failed: unexpected gh args: api repos/owner/repo/pulls/17/requested_reviewers",
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
