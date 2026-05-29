@@ -13,7 +13,7 @@
  * Pi-managed async context markers (any one is sufficient):
  * - PI_SUBAGENT_RUN_ID env var (set by Pi subagent framework for async runs)
  * - PI_SESSION_ID env var (set by Pi for all managed sessions)
- * - PI_ASYNC_CONTEXT=1 env var (explicit opt-in for testing/integration)
+ * - PI_ASYNC_CONTEXT env var (any non-empty value; explicit opt-in for testing/integration)
  *
  * Bypass:
  * - PI_ASYNC_START_BYPASS=1 allows callers to explicitly skip this check
