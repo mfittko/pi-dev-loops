@@ -217,10 +217,11 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
    ```sh
    node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
    ```
-   - `waiting_for_initial_copilot_implementation`: keep waiting; in durable-auto mode, enter the Copilot-first wait seam (up to 1 hour):
+   - `copilot_session_active` or `waiting_for_initial_copilot_implementation`: keep waiting; in durable-auto mode, enter the Copilot-first wait seam (up to 1 hour):
      ```sh
      node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
      ```
+     - the watcher handles active-session `gh run watch` behavior internally before the next detect pass
      - `ready_for_followup`: linked PR has become substantive; route to the existing PR follow-up path immediately with the returned PR number
      - `timed_out`: watch budget exhausted; exit with an explicit still-waiting timeout outcome rather than an implementation failure
    - `linked_pr_ready_for_followup`: route to the existing PR follow-up path immediately with that PR number
@@ -248,10 +249,11 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
       ```sh
       node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
       ```
-    - if the state is `waiting_for_initial_copilot_implementation`, keep waiting; in durable-auto mode, use the Copilot-first wait seam (up to 1 hour):
+    - if the state is `copilot_session_active` or `waiting_for_initial_copilot_implementation`, keep waiting; in durable-auto mode, use the Copilot-first wait seam (up to 1 hour):
       ```sh
       node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
       ```
+      - the watcher handles active-session `gh run watch` behavior internally before the next detect pass
       - `ready_for_followup`: resume at the PR follow-up path with the returned PR number
       - `timed_out`: exit with an explicit still-waiting timeout outcome rather than an implementation failure
     - if the state is `linked_pr_ready_for_followup`, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
@@ -431,7 +433,7 @@ Use the deterministic helpers from the resolved skill scripts directory:
 node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <resolved-repo> --pr <number>
 ```
 
-When that helper returns `action: "watch"`, run `watch-copilot-review.mjs` with the emitted `watchArgs` rather than assuming the handoff command waited by itself.
+When that helper returns `action: "watch"`, run `run-copilot-watch-cycle.mjs` so active Copilot workflow sessions are detected via `detect-copilot-session-activity.mjs` and blocked with `gh run watch` before the post-session probe.
 
 Follow `copilot-dev-loop` Steps 5–7 exactly for:
 - PR discovery and interpretation

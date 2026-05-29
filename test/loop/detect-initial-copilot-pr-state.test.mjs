@@ -120,6 +120,7 @@ function linkedPrPayload({ hasOpenLinkedPr = true, prNumber = 79, prUrl = "https
 function pullRequestFactsPayload({
   number = 79,
   url = "https://github.com/owner/repo/pull/79",
+  headRefName = "copilot/example-branch",
   state = "OPEN",
   isDraft = true,
   repo = "owner/repo",
@@ -139,6 +140,7 @@ function pullRequestFactsPayload({
         pullRequest: {
           number,
           url,
+          headRefName,
           state,
           isDraft,
           changedFiles,
@@ -152,6 +154,10 @@ function pullRequestFactsPayload({
       },
     },
   })}\n`;
+}
+
+function workflowRunsPayload(runs = []) {
+  return `${JSON.stringify(runs)}\n`;
 }
 
 test("detect-initial-copilot-pr-state returns no_linked_pr when no linked PR exists", async () => {
@@ -176,11 +182,19 @@ test("detect-initial-copilot-pr-state returns no_linked_pr when no linked PR exi
       state: "no_linked_pr",
       prNumber: null,
       prUrl: null,
+      headBranch: null,
+      authorLogin: null,
       isDraft: null,
       changedFiles: null,
       commitCount: null,
       soleCommitHeadline: null,
-      authorLogin: null,
+      sessionActivity: null,
+      sessionRunId: null,
+      sessionRunName: null,
+      sessionRunStatus: null,
+      sessionRunConclusion: null,
+      sessionRunCreatedAt: null,
+      sessionConfidence: null,
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -199,6 +213,10 @@ test("detect-initial-copilot-pr-state returns waiting_for_initial_copilot_implem
       {
         assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
         stdout: pullRequestFactsPayload(),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload(),
       },
     ]);
 
@@ -225,6 +243,10 @@ test("detect-initial-copilot-pr-state returns waiting_for_initial_copilot_implem
         assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
         stdout: pullRequestFactsPayload({ authorLogin: "copilot-swe-agent" }),
       },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload(),
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
@@ -250,6 +272,18 @@ test("detect-initial-copilot-pr-state returns linked_pr_ready_for_followup for s
         assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
         stdout: pullRequestFactsPayload({ changedFiles: 2 }),
       },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload([
+          {
+            databaseId: 91,
+            name: "Copilot coding for issue mfittko/pi-dev-loops#59",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-05-21T12:00:00Z",
+          },
+        ]),
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
@@ -274,6 +308,18 @@ test("detect-initial-copilot-pr-state returns linked_pr_ready_for_followup when 
       {
         assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
         stdout: pullRequestFactsPayload({ commitCount: 2, changedFiles: 0, messageHeadline: "Initial plan" }),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload([
+          {
+            databaseId: 91,
+            name: "Copilot coding for issue mfittko/pi-dev-loops#59",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-05-21T12:00:00Z",
+          },
+        ]),
       },
     ]);
 
@@ -351,6 +397,10 @@ test("detect-initial-copilot-pr-state exits bootstrap wait state when implementa
         assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
         stdout: pullRequestFactsPayload({ commitCount: 1, changedFiles: 0, messageHeadline: "Initial plan" }),
       },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload(),
+      },
     ]);
     const secondEnv = await writeGhStub(secondDir, [
       {
@@ -360,6 +410,18 @@ test("detect-initial-copilot-pr-state exits bootstrap wait state when implementa
       {
         assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
         stdout: pullRequestFactsPayload({ commitCount: 2, changedFiles: 1, messageHeadline: "Implement feature" }),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload([
+          {
+            databaseId: 91,
+            name: "Copilot coding for issue mfittko/pi-dev-loops#59",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-05-21T12:00:00Z",
+          },
+        ]),
       },
     ]);
 
@@ -374,6 +436,111 @@ test("detect-initial-copilot-pr-state exits bootstrap wait state when implementa
   } finally {
     await rm(firstDir, { recursive: true, force: true });
     await rm(secondDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-initial-copilot-pr-state falls back to substantive PR heuristics when session activity is idle", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-idle-substantive-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload(),
+      },
+      {
+        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
+        stdout: pullRequestFactsPayload({ changedFiles: 3, commitCount: 2 }),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload(),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.state, "linked_pr_ready_for_followup");
+    assert.equal(payload.sessionActivity, "idle");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-initial-copilot-pr-state fails closed when the session-activity probe fails", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-session-failure-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload(),
+      },
+      {
+        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
+        stdout: pullRequestFactsPayload({ changedFiles: 3, commitCount: 2 }),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stderr: "session probe failed\n",
+        exitCode: 1,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /gh command failed: session probe failed/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-initial-copilot-pr-state returns copilot_session_active while Copilot run is in progress", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-active-session-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload(),
+      },
+      {
+        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
+        stdout: pullRequestFactsPayload({ changedFiles: 3, commitCount: 2 }),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload([
+          {
+            databaseId: 123,
+            name: "Addressing comment on PR mfittko/pi-dev-loops#79",
+            status: "in_progress",
+            conclusion: "",
+            createdAt: "2026-05-21T12:00:00Z",
+          },
+        ]),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.state, "copilot_session_active");
+    assert.equal(payload.authorLogin, "Copilot");
+    assert.equal(payload.sessionActivity, "active");
+    assert.equal(payload.sessionRunId, 123);
+    assert.equal(payload.sessionRunStatus, "in_progress");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
   }
 });
 

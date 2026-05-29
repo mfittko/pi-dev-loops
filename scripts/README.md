@@ -183,8 +183,13 @@ Contract:
 - uses `scripts/github/detect-linked-issue-pr.mjs` as the authoritative linked-PR selector
 - returns exactly one deterministic state:
   - `no_linked_pr`
+  - `copilot_session_active`
   - `waiting_for_initial_copilot_implementation`
   - `linked_pr_ready_for_followup`
+- uses `scripts/loop/detect-copilot-session-activity.mjs` on the linked PR head branch for Copilot-authored draft PRs
+- while `activity=active`, emits `copilot_session_active` regardless of commit/file-count heuristics
+- for non-bootstrap linked PRs, falls back to the existing substantive PR heuristics when session activity is `idle` or `concluded`
+- if the session-activity check itself fails, the helper fails closed instead of pretending session state was unavailable
 - classifies `waiting_for_initial_copilot_implementation` only for the bounded bootstrap-only draft shape:
   - open same-repo linked PR
   - draft
@@ -195,7 +200,26 @@ Contract:
 - fails closed with explicit error output when required PR facts cannot be fetched
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/name", "issue": 59, "state": "...", "prNumber": 79|null, "prUrl": "..."|null, "isDraft": true|false|null, "changedFiles": 0|null, "commitCount": 1|null, "soleCommitHeadline": "Initial plan"|null, "authorLogin": "Copilot"|null }`
+- `{ "ok": true, "repo": "owner/name", "issue": 59, "state": "...", "prNumber": 79|null, "prUrl": "..."|null, "headBranch": "..."|null, "authorLogin": "Copilot"|null, "isDraft": true|false|null, "changedFiles": 0|null, "commitCount": 1|null, "soleCommitHeadline": "Initial plan"|null, "sessionActivity": "active"|"concluded"|"idle"|null, "sessionRunId": 123|null, "sessionRunName": "..."|null, "sessionRunStatus": "..."|null, "sessionRunConclusion": "success"|null, "sessionRunCreatedAt": "..."|null, "sessionConfidence": "high"|null }`
+
+### `scripts/loop/detect-copilot-session-activity.mjs`
+
+Detect deterministic Copilot workflow session activity on a branch.
+
+Required:
+- `--repo <owner/name>`
+- `--branch <name>`
+
+Optional:
+- `--limit <positive-integer>` (default `20`)
+
+Contract:
+- uses `gh run list --branch <branch>` as the primary signal
+- pattern-matches known Copilot run names (`Copilot coding for issue`, `Addressing comment on PR`, `Addressing review on PR`)
+- classifies activity as:
+  - `active` when a matching run is currently in progress
+  - `concluded` when the most recent matching run is completed
+  - `idle` when no matching runs are found
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
@@ -243,7 +267,9 @@ Optional:
 
 Contract:
 - runs `copilot-pr-handoff.mjs` first and preserves its current state / next action / watch args
-- when handoff returns `action: "watch"`, runs `watch-copilot-review.mjs` with the emitted non-zero `watchArgs`
+- when handoff stays in watch mode, checks Copilot session activity on the PR head branch via `detect-copilot-session-activity.mjs`
+- when activity is `active`, blocks on `gh run watch <run-id>` and then switches to a zero-timeout probe (`timeoutMs: 0`) instead of long polling
+- when handoff returns `action: "watch"`, runs `watch-copilot-review.mjs` with the emitted `watchArgs` (or zero-timeout probe after active session watch)
 - treats `waiting_for_copilot_review` as a persistence boundary, not a completion boundary
 - for explicit async loop entry/continuation, `cycleDisposition: "pending"` with `terminal: false` means stay attached and run another watch boundary rather than exiting as clean success
 - after a follow-up fix / reply-resolve / re-request path returns to `waiting_for_copilot_review`, resume this helper again instead of treating the re-request handoff as completion

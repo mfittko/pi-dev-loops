@@ -342,6 +342,14 @@ test("runWatchCycle integration keeps initial request-review -> waiting_for_copi
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[]}\n',
       },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefName"],
+        stdout: '{"headRefName":"copilot/session-branch"}\n',
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/session-branch"],
+        stdout: "[]\n",
+      },
     ]);
 
     const result = await runWatchCycle(
@@ -353,6 +361,7 @@ test("runWatchCycle integration keeps initial request-review -> waiting_for_copi
       },
       {
         env,
+        detectSessionActivity: true,
         watchCopilotReviewImpl: async (options) => {
           watcherOptions = options;
           return {
@@ -433,6 +442,14 @@ test("runWatchCycle integration keeps re-requested newer-head wait state non-ter
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefName"],
+        stdout: '{"headRefName":"copilot/session-branch"}\n',
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/session-branch"],
+        stdout: "[]\n",
+      },
     ]);
 
     const result = await runWatchCycle(
@@ -444,6 +461,7 @@ test("runWatchCycle integration keeps re-requested newer-head wait state non-ter
       },
       {
         env,
+        detectSessionActivity: true,
         watchCopilotReviewImpl: async (options) => {
           watcherOptions = options;
           return {
@@ -467,6 +485,228 @@ test("runWatchCycle integration keeps re-requested newer-head wait state non-ter
     assert.equal(result.terminal, false);
     assert.equal(result.watchStatus, "timeout");
     assert.equal(watcherOptions.timeoutMs, 86_400_000);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runWatchCycle integration keeps probe-only checks non-blocking even with an active Copilot workflow run", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-cycle-session-active-probe-"));
+  let watcherOptions;
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${EMPTY_THREADS}\n`,
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefName"],
+        stdout: '{"headRefName":"copilot/session-branch"}\n',
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/session-branch"],
+        stdout: `${JSON.stringify([
+          {
+            databaseId: 444,
+            name: "Addressing comment on PR owner/repo#17",
+            status: "in_progress",
+            conclusion: "",
+            createdAt: "2026-05-27T13:08:48Z",
+          },
+        ])}\n`,
+      },
+    ]);
+
+    const result = await runWatchCycle(
+      {
+        repo: "owner/repo",
+        pr: 17,
+        forceRerequestReview: false,
+        probeOnly: true,
+      },
+      {
+        env,
+        detectSessionActivity: true,
+        watchCopilotReviewImpl: async (options) => {
+          watcherOptions = options;
+          return {
+            ok: true,
+            status: "idle",
+            repo: options.repo,
+            pr: options.pr,
+            attempts: 1,
+            newComments: [],
+            newReviews: [],
+            newIssueComments: [],
+          };
+        },
+      },
+    );
+
+    assert.equal(result.handoffAction, "watch");
+    assert.equal(result.sessionActivity.activity, "active");
+    assert.equal(watcherOptions.timeoutMs, 0);
+    assert.equal(result.watchStatus, "idle");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runWatchCycle integration bounds active Copilot workflow waits by the emitted watch budget", async () => {
+  let receivedTimeoutMs = null;
+
+  const result = await runWatchCycle(
+    {
+      repo: "owner/repo",
+      pr: 17,
+      forceRerequestReview: false,
+      probeOnly: false,
+    },
+    {
+      runHandoffImpl: async () => ({
+        ok: true,
+        action: "watch",
+        state: "waiting_for_copilot_review",
+        allowedTransitions: ["unresolved_feedback_present"],
+        nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+        snapshot: { repo: "owner/repo", pr: 17 },
+        loopDisposition: "pending",
+        terminal: false,
+        watchArgs: {
+          repo: "owner/repo",
+          pr: 17,
+          pollIntervalMs: 60_000,
+          timeoutMs: 86_400_000,
+        },
+      }),
+      detectSessionActivity: true,
+      fetchPrHeadBranchImpl: async () => "copilot/session-branch",
+      detectCopilotSessionActivityImpl: async () => ({
+        ok: true,
+        activity: "active",
+        runId: 444,
+        runName: "Addressing comment on PR owner/repo#17",
+        runStatus: "in_progress",
+        runConclusion: null,
+        runCreatedAt: "2026-05-27T13:08:48Z",
+        branch: "copilot/session-branch",
+        confidence: "high",
+      }),
+      watchWorkflowRunImpl: async ({ timeoutMs }) => {
+        receivedTimeoutMs = timeoutMs;
+        return { status: "timed_out" };
+      },
+      watchCopilotReviewImpl: async (options) => ({
+        ok: true,
+        status: "idle",
+        repo: options.repo,
+        pr: options.pr,
+        attempts: 1,
+        newComments: [],
+        newReviews: [],
+        newIssueComments: [],
+      }),
+    },
+  );
+
+  assert.equal(receivedTimeoutMs, 86_400_000);
+  assert.equal(result.sessionActivity.activity, "active");
+  assert.equal(result.watchStatus, "idle");
+});
+
+test("runWatchCycle integration waits on active Copilot workflow run before idle probe", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-cycle-session-active-"));
+  let watcherOptions;
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${EMPTY_THREADS}\n`,
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefName"],
+        stdout: '{"headRefName":"copilot/session-branch"}\n',
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/session-branch"],
+        stdout: `${JSON.stringify([
+          {
+            databaseId: 444,
+            name: "Addressing comment on PR owner/repo#17",
+            status: "in_progress",
+            conclusion: "",
+            createdAt: "2026-05-27T13:08:48Z",
+          },
+        ])}\n`,
+      },
+      {
+        assertArgs: ["run", "watch", "444", "--repo", "owner/repo"],
+        stdout: "",
+      },
+    ]);
+
+    const result = await runWatchCycle(
+      {
+        repo: "owner/repo",
+        pr: 17,
+        forceRerequestReview: false,
+        probeOnly: false,
+      },
+      {
+        env,
+        detectSessionActivity: true,
+        watchCopilotReviewImpl: async (options) => {
+          watcherOptions = options;
+          return {
+            ok: true,
+            status: "idle",
+            repo: options.repo,
+            pr: options.pr,
+            attempts: 1,
+            newComments: [],
+            newReviews: [],
+            newIssueComments: [],
+          };
+        },
+      },
+    );
+
+    assert.equal(result.handoffAction, "watch");
+    assert.equal(result.sessionActivity.activity, "active");
+    assert.equal(watcherOptions.timeoutMs, 0);
+    assert.equal(result.watchStatus, "idle");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

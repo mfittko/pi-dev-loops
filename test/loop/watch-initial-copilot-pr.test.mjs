@@ -128,6 +128,7 @@ function linkedPrPayload({ hasOpenLinkedPr = true, prNumber = 79, prUrl = "https
 function pullRequestFactsPayload({
   number = 79,
   url = "https://github.com/owner/repo/pull/79",
+  headRefName = "copilot/example-branch",
   state = "OPEN",
   isDraft = true,
   repo = "owner/repo",
@@ -145,6 +146,7 @@ function pullRequestFactsPayload({
         pullRequest: {
           number,
           url,
+          headRefName,
           state,
           isDraft,
           changedFiles,
@@ -366,6 +368,104 @@ test("watchInitialCopilotPr transitions to ready_for_followup when PR becomes su
   assert.equal(delayCount, 1); // waited once between the two polls
 });
 
+test("watchInitialCopilotPr blocks on active Copilot session run before continuing", async () => {
+  const detect = makeDetectMock([
+    {
+      ok: true,
+      state: "copilot_session_active",
+      prNumber: 79,
+      prUrl: "https://github.com/owner/repo/pull/79",
+      sessionRunId: 444,
+    },
+    {
+      ok: true,
+      state: "linked_pr_ready_for_followup",
+      prNumber: 79,
+      prUrl: "https://github.com/owner/repo/pull/79",
+    },
+  ]);
+
+  let watchCalls = 0;
+  let delayCount = 0;
+  const result = await watchInitialCopilotPr(
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 60_000 },
+    {
+      detectInitialCopilotPrStateImpl: detect,
+      watchCopilotRunUntilCompleteImpl: async ({ runId }) => {
+        watchCalls += 1;
+        assert.equal(runId, 444);
+      },
+      delayImpl: async () => { delayCount += 1; },
+      nowMs: makeFakeNow(0, 0),
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "ready_for_followup");
+  assert.equal(result.attempts, 2);
+  assert.equal(watchCalls, 1);
+  assert.equal(delayCount, 0);
+});
+
+test("watchInitialCopilotPr honors an exhausted timeout before blocking on an active Copilot session", async () => {
+  const detect = makeDetectMock([
+    {
+      ok: true,
+      state: "copilot_session_active",
+      prNumber: 79,
+      prUrl: "https://github.com/owner/repo/pull/79",
+      sessionRunId: 444,
+    },
+  ]);
+
+  let watchCalls = 0;
+  const result = await watchInitialCopilotPr(
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 0 },
+    {
+      detectInitialCopilotPrStateImpl: detect,
+      watchCopilotRunUntilCompleteImpl: async () => {
+        watchCalls += 1;
+      },
+      nowMs: makeFakeNow(0, 0),
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "timed_out");
+  assert.equal(result.attempts, 1);
+  assert.equal(watchCalls, 0);
+});
+
+test("watchInitialCopilotPr returns timed_out when the active-session watch exhausts the remaining budget", async () => {
+  const detect = makeDetectMock([
+    {
+      ok: true,
+      state: "copilot_session_active",
+      prNumber: 79,
+      prUrl: "https://github.com/owner/repo/pull/79",
+      sessionRunId: 444,
+    },
+  ]);
+
+  let receivedTimeoutMs = null;
+  const result = await watchInitialCopilotPr(
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 5_000 },
+    {
+      detectInitialCopilotPrStateImpl: detect,
+      watchCopilotRunUntilCompleteImpl: async ({ timeoutMs }) => {
+        receivedTimeoutMs = timeoutMs;
+        return { status: "timed_out" };
+      },
+      nowMs: makeFakeNow(0, 0),
+    },
+  );
+
+  assert.equal(receivedTimeoutMs, 5_000);
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "timed_out");
+  assert.equal(result.attempts, 1);
+});
+
 test("watchInitialCopilotPr quiet idle/timeout cycles are healthy non-terminal waits", async () => {
   // Multiple bootstrap-only cycles before eventual transition.
   // None of the quiet cycles should surface as failures.
@@ -526,6 +626,18 @@ test("watch-initial-copilot-pr returns ready_for_followup via CLI when PR is imm
         assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
         stdout: pullRequestFactsPayload({ changedFiles: 3, commitCount: 2, messageHeadline: "Add feature" }),
       },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: `${JSON.stringify([
+          {
+            databaseId: 12,
+            name: "Copilot coding for issue owner/repo#59",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-05-21T09:49:32Z",
+          },
+        ])}\n`,
+      },
     ]);
 
     const result = await runNode(
@@ -558,6 +670,10 @@ test("watch-initial-copilot-pr returns timed_out via CLI for bootstrap-only PR (
       {
         assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
         stdout: pullRequestFactsPayload(),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: "[]\n",
       },
     ]);
 

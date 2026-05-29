@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../github/_github-helpers.mjs";
 import { detectLinkedIssuePr } from "../github/detect-linked-issue-pr.mjs";
+import { detectCopilotSessionActivity } from "./detect-copilot-session-activity.mjs";
 
 const USAGE = `Usage: detect-initial-copilot-pr-state.mjs --repo <owner/name> --issue <number>
 
@@ -16,6 +17,7 @@ Required:
 
 States:
   no_linked_pr
+  copilot_session_active
   waiting_for_initial_copilot_implementation
   linked_pr_ready_for_followup
 
@@ -24,14 +26,22 @@ Success output (stdout, JSON):
     "ok": true,
     "repo": "owner/name",
     "issue": 59,
-    "state": "no_linked_pr"|"waiting_for_initial_copilot_implementation"|"linked_pr_ready_for_followup",
+    "state": "no_linked_pr"|"copilot_session_active"|"waiting_for_initial_copilot_implementation"|"linked_pr_ready_for_followup",
     "prNumber": 79|null,
     "prUrl": "..."|null,
+    "headBranch": "..."|null,
+    "authorLogin": "Copilot"|null,
     "isDraft": true|false|null,
     "changedFiles": 0|null,
     "commitCount": 1|null,
     "soleCommitHeadline": "Initial plan"|null,
-    "authorLogin": "Copilot"|null
+    "sessionActivity": "active"|"concluded"|"idle"|null,
+    "sessionRunId": 123|null,
+    "sessionRunName": "..."|null,
+    "sessionRunStatus": "..."|null,
+    "sessionRunConclusion": "success"|null,
+    "sessionRunCreatedAt": "..."|null,
+    "sessionConfidence": "high"|null
   }
 
 Error output (stderr, JSON):
@@ -42,6 +52,7 @@ Error output (stderr, JSON):
 
 export const LINKED_PR_STATE = Object.freeze({
   NO_LINKED_PR: "no_linked_pr",
+  COPILOT_SESSION_ACTIVE: "copilot_session_active",
   WAITING_FOR_INITIAL_COPILOT_IMPLEMENTATION: "waiting_for_initial_copilot_implementation",
   LINKED_PR_READY_FOR_FOLLOWUP: "linked_pr_ready_for_followup",
 });
@@ -52,6 +63,7 @@ const INITIAL_COPILOT_PR_FACTS_QUERY = [
   "    pullRequest(number:$pr) {",
   "      number",
   "      url",
+  "      headRefName",
   "      state",
   "      isDraft",
   "      changedFiles",
@@ -230,6 +242,10 @@ function classifyInitialCopilotPrState({ repo, facts }) {
     && facts.changedFiles === 0
     && facts.soleCommitHeadline === "Initial plan";
 
+  if (facts.sessionActivity === "active") {
+    return LINKED_PR_STATE.COPILOT_SESSION_ACTIVE;
+  }
+
   return isBootstrapOnly
     ? LINKED_PR_STATE.WAITING_FOR_INITIAL_COPILOT_IMPLEMENTATION
     : LINKED_PR_STATE.LINKED_PR_READY_FOR_FOLLOWUP;
@@ -265,6 +281,7 @@ async function fetchLinkedPrFacts({ repo, prNumber }, { env, ghCommand }) {
   return {
     number: getRequiredPositiveInteger(pr.number, "pullRequest.number"),
     url: getRequiredString(pr.url, "pullRequest.url"),
+    headBranch: getRequiredString(pr.headRefName, "pullRequest.headRefName"),
     state: getRequiredString(pr.state, "pullRequest.state"),
     isDraft: getRequiredBoolean(pr.isDraft, "pullRequest.isDraft"),
     changedFiles: getRequiredNonNegativeInteger(pr.changedFiles, "pullRequest.changedFiles"),
@@ -286,28 +303,61 @@ export async function detectInitialCopilotPrState({ repo, issue }, { env = proce
       state: LINKED_PR_STATE.NO_LINKED_PR,
       prNumber: null,
       prUrl: null,
+      headBranch: null,
+      authorLogin: null,
       isDraft: null,
       changedFiles: null,
       commitCount: null,
       soleCommitHeadline: null,
-      authorLogin: null,
+      sessionActivity: null,
+      sessionRunId: null,
+      sessionRunName: null,
+      sessionRunStatus: null,
+      sessionRunConclusion: null,
+      sessionRunCreatedAt: null,
+      sessionConfidence: null,
     };
   }
 
   const facts = await fetchLinkedPrFacts({ repo, prNumber: linked.prNumber }, { env, ghCommand });
+  let sessionActivity = null;
+
+  if (facts.isDraft && isCopilotAuthored(facts.authorLogin)) {
+    sessionActivity = await detectCopilotSessionActivity(
+      {
+        repo,
+        branch: facts.headBranch,
+      },
+      { env, ghCommand },
+    );
+  }
 
   return {
     ok: true,
     repo,
     issue,
-    state: classifyInitialCopilotPrState({ repo, facts }),
+    state: classifyInitialCopilotPrState({
+      repo,
+      facts: {
+        ...facts,
+        sessionActivity: sessionActivity?.activity ?? null,
+      },
+    }),
     prNumber: facts.number,
     prUrl: facts.url,
+    headBranch: facts.headBranch,
+    authorLogin: facts.authorLogin,
     isDraft: facts.isDraft,
     changedFiles: facts.changedFiles,
     commitCount: facts.commitCount,
     soleCommitHeadline: facts.soleCommitHeadline,
-    authorLogin: facts.authorLogin,
+    sessionActivity: sessionActivity?.activity ?? null,
+    sessionRunId: sessionActivity?.runId ?? null,
+    sessionRunName: sessionActivity?.runName ?? null,
+    sessionRunStatus: sessionActivity?.runStatus ?? null,
+    sessionRunConclusion: sessionActivity?.runConclusion ?? null,
+    sessionRunCreatedAt: sessionActivity?.runCreatedAt ?? null,
+    sessionConfidence: sessionActivity?.confidence ?? null,
   };
 }
 
