@@ -19,4 +19,8 @@ test("packages/core exports public loop contract modules in package metadata", a
     packageJson.exports["./loop/public-dev-loop-routing"],
     "./src/loop/public-dev-loop-routing.mjs",
   );
+  assert.equal(
+    packageJson.exports["./loop/retrospective-checkpoint"],
+    "./src/loop/retrospective-checkpoint.mjs",
+  );
 });

@@ -56,6 +56,23 @@ export const RETROSPECTIVE_QUALIFYING_GATES = Object.freeze([
 ]);
 
 /**
+ * Normalizes an external retrospective checkpoint-state input to one of the
+ * stable RETROSPECTIVE_CHECKPOINT_STATE values. Returns null when the value is
+ * absent or unrecognized.
+ *
+ * @param {unknown} value
+ * @returns {"none"|"complete"|"skipped"|"missing"|null}
+ */
+export function normalizeRetrospectiveCheckpointState(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return Object.values(RETROSPECTIVE_CHECKPOINT_STATE).includes(normalized) ? normalized : null;
+}
+
+/**
  * Returns true if a routing result represents a qualifying GitHub-first async
  * dev-loop completion that requires a post-run behavioral retrospective before
  * the next start/resume.

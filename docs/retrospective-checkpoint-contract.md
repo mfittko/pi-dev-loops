@@ -43,6 +43,8 @@ A fresh session can determine the status of the required retrospective by readin
 
 The enforcement seam is the pure function `evaluateRetrospectiveGate` in `packages/core/src/loop/retrospective-checkpoint.mjs`.
 
+For convenience, the public routing helpers in `packages/core/src/loop/public-dev-loop-routing.mjs` also accept an optional `retrospectiveCheckpointState` input and apply the same gate internally before returning routed start/resume/status results.
+
 ### Inputs
 
 ```js
@@ -63,7 +65,19 @@ evaluateRetrospectiveGate({
 
 ### Caller contract
 
-Before calling `evaluatePublicDevLoopRouting`, callers must:
+Callers have two supported integration options:
+
+#### Option A — direct public-routing helper integration (preferred)
+
+1. Read `.pi/dev-loop-retrospective-checkpoint.json` (if it exists).
+2. Map the file contents to a `RETROSPECTIVE_CHECKPOINT_STATE` value.
+3. Pass that value as `retrospectiveCheckpointState` to one of:
+   - `evaluatePublicDevLoopRouting(...)`
+   - `resolveAuthoritativeStartupResumeBundle(...)`
+   - `resolveAuthoritativeDevLoopStatus(...)`
+4. Use the returned result directly. When the checkpoint is missing, these helpers fail closed to `needs_reconcile`.
+
+#### Option B — explicit manual gate composition
 
 1. Read `.pi/dev-loop-retrospective-checkpoint.json` (if it exists).
 2. Map the file contents to a `RETROSPECTIVE_CHECKPOINT_STATE` value.
@@ -71,7 +85,7 @@ Before calling `evaluatePublicDevLoopRouting`, callers must:
 4. Call `evaluateRetrospectiveGate({ checkpointState, proposedRouting })`.
 5. Use the gate result (not the raw routing result) as the effective routing decision.
 
-If the gate returns `needs_reconcile`, the caller must not proceed with the proposed routing. The `nextAction` field instructs the operator to complete or explicitly skip the retrospective.
+If the gate result is `needs_reconcile`, the caller must not proceed with the proposed routing. The `nextAction` field instructs the operator to complete or explicitly skip the retrospective.
 
 ## Durable artifact format
 
@@ -110,7 +124,7 @@ The checkpoint file is written by `.pi/extensions/dev-loop-behavioral-review.ts`
 
 | Artifact | Location |
 |---|---|
-| Checkpoint state machine | `packages/core/src/loop/retrospective-checkpoint.mjs` |
+| Checkpoint state machine | `packages/core/src/loop/retrospective-checkpoint.mjs` (`@pi-dev-loops/core/loop/retrospective-checkpoint`) |
 | Tests | `packages/core/test/retrospective-checkpoint.test.mjs` |
 | Extension (writes required marker, fires review prompt) | `.pi/extensions/dev-loop-behavioral-review.ts` |
 | Checkpoint file | `.pi/dev-loop-retrospective-checkpoint.json` |
