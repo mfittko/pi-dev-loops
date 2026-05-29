@@ -60,6 +60,10 @@ Snapshot schema (all fields optional; unknown fields are ignored):
   prDraft            boolean     Whether the PR is in draft state
   prMerged           boolean     Whether the PR has been merged
   prClosed           boolean     Whether the PR is closed on GitHub (merged PRs are also closed)
+  prHeadSha          string|null Current PR head SHA
+  draftGateCommentVisible boolean Whether the draft-gate comment is visible on the PR thread
+  draftGateCommentHeadSha string|null Head SHA encoded in the draft-gate comment
+  draftGateCommentVerdict string|null Draft-gate verdict: clean|findings_present|blocked
 
 This snapshot intentionally excludes tracker-native workflow readiness/blocking
 state. Callers must combine tracker-owned workflow state separately when

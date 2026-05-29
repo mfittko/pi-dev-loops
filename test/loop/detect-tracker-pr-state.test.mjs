@@ -133,9 +133,13 @@ test("detect-tracker-pr-state CLI emits stable output for pr_reviewable state", 
       trackerItemId: "PROJ-3",
       prExists: true,
       prNumber: 11,
+      prHeadSha: "abc1234",
       prDraft: false,
       prMerged: false,
       prClosed: false,
+      draftGateCommentVisible: true,
+      draftGateCommentHeadSha: "abc1234",
+      draftGateCommentVerdict: "clean",
     });
 
     const result = await runNode(["--input", snapshotPath]);

@@ -32,6 +32,10 @@ test("normalizeTrackerPrSnapshot returns safe defaults for an empty object", () 
     prDraft: false,
     prMerged: false,
     prClosed: false,
+    prHeadSha: null,
+    draftGateCommentVisible: false,
+    draftGateCommentHeadSha: null,
+    draftGateCommentVerdict: null,
   });
 });
 
@@ -81,6 +85,10 @@ test("normalizeTrackerPrSnapshot treats junk boolean-like strings as safe false 
     prDraft: false,
     prMerged: false,
     prClosed: false,
+    prHeadSha: null,
+    draftGateCommentVisible: false,
+    draftGateCommentHeadSha: null,
+    draftGateCommentVerdict: null,
   });
 });
 
@@ -200,15 +208,37 @@ test("interpretTrackerPrState routes to pr_reviewable when PR is open and not dr
     trackerItemId: "PROJ-1",
     prExists: true,
     prNumber: 10,
+    prHeadSha: "abc1234",
     prDraft: false,
     prMerged: false,
     prClosed: false,
+    draftGateCommentVisible: true,
+    draftGateCommentHeadSha: "abc1234",
+    draftGateCommentVerdict: "clean",
   });
   assert.equal(result.state, TRACKER_PR_STATE.PR_REVIEWABLE);
   assert.ok(result.allowedTransitions.includes(TRACKER_PR_STATE.PR_MERGED));
   assert.ok(result.allowedTransitions.includes(TRACKER_PR_STATE.PR_CLOSED_UNMERGED));
   assert.ok(result.allowedTransitions.includes(TRACKER_PR_STATE.DRAFT_PR_OPEN));
   assert.equal(result.reverseSyncAction, "set_reviewable");
+});
+
+test("interpretTrackerPrState fails closed for open non-draft PR when clean current-head draft gate comment is missing", () => {
+  const result = interpretTrackerPrState({
+    trackerItemExists: true,
+    trackerItemId: "PROJ-1",
+    prExists: true,
+    prNumber: 10,
+    prHeadSha: "abc1234",
+    prDraft: false,
+    prMerged: false,
+    prClosed: false,
+    draftGateCommentVisible: true,
+    draftGateCommentHeadSha: "old5678",
+    draftGateCommentVerdict: "clean",
+  });
+  assert.equal(result.state, TRACKER_PR_STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.deepEqual(result.allowedTransitions, []);
 });
 
 test("interpretTrackerPrState routes to pr_merged when PR has been merged", () => {
