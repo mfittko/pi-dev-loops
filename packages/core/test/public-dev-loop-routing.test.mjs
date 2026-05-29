@@ -1033,6 +1033,56 @@ test("authoritative startup/resume bundle preserves inspect-state semantics when
   assert.match(bundle.nextAction, /Describe the canonical state/i);
 });
 
+test("authoritative startup/resume bundle keeps durable wait semantics for linked-PR bootstrap wait states", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 177, linkedPr: 179 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(bundle.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(bundle.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.equal(bundle.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(bundle.activeArtifact.issue, 177);
+  assert.equal(bundle.activeArtifact.pr, 179);
+  assert.match(bundle.nextAction, /remain in durable auto ownership/i);
+});
+
+test("authoritative startup/resume bundle preserves inspect routing in durable_auto mode", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 177, linkedPr: 179 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
+  assert.equal(bundle.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(bundle.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.match(bundle.nextAction, /Describe the canonical state/i);
+});
+
 test("authoritative startup/resume bundle fails closed on invalid explicit intent", () => {
   const bundle = resolveAuthoritativeStartupResumeBundle({
     intent: "bogus_intent",
@@ -1098,6 +1148,8 @@ test("authoritative status resolution consumes the startup/resume bundle output"
   assert.equal(report.routeKind, bundle.routeKind);
   assert.equal(report.selectedStrategy, bundle.selectedStrategy);
   assert.equal(report.compatibilityEntrypoint, bundle.compatibilityEntrypoint);
+  assert.equal(report.executionMode, bundle.executionMode);
+  assert.equal(report.waitSemantics, bundle.waitSemantics);
   assert.equal(report.nextAction, bundle.nextAction);
   assert.equal(report.reason, bundle.reason);
 });
@@ -1328,6 +1380,29 @@ test("authoritative status resolution keeps waiting linked issue states on the a
     report.nextAction,
     "Keep waiting or watching against the same canonical state instead of switching public loop names.",
   );
+});
+
+test("authoritative status resolution preserves durable healthy-wait semantics for linked-PR bootstrap waits", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 177, linkedPr: 179 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(report.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(report.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.match(report.nextAction, /remain in durable auto ownership/i);
 });
 
 test("authoritative status reports approved-but-not-merged PRs as waiting for explicit merge authorization", () => {

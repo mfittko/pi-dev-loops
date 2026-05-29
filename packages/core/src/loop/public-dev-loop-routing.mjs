@@ -804,6 +804,8 @@ function buildStatusReconcile(
   reason,
   canonicalState = null,
   nextAction = "Stop and reconcile the authoritative active artifact and current loop state before answering status.",
+  executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+  waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
 ) {
   return {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE,
@@ -816,6 +818,8 @@ function buildStatusReconcile(
     routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
     compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+    executionMode,
+    waitSemantics,
     canonicalState,
   };
 }
@@ -826,6 +830,8 @@ function buildStartupResumeBundleReconcile({
   issueLinkageResolution = null,
   artifactState = null,
   nextAction = "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
+  executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+  waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
 }) {
   return {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE,
@@ -839,6 +845,8 @@ function buildStartupResumeBundleReconcile({
     routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
     compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+    executionMode,
+    waitSemantics,
     canonicalState,
   };
 }
@@ -883,9 +891,16 @@ function validateIssueLinkageResolution(canonicalState, issueLinkageResolution) 
 export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const canonicalState = normalizeState(input.currentState);
   const intent = normalizeIntent(input.intent);
+  const variationMode = input.mode !== undefined ? normalizeVariationMode(input.mode) : null;
+  const requestedExecutionMode =
+    variationMode
+    ?? (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT
+      ? DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO
+      : DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
   if (!canonicalState) {
     return buildStartupResumeBundleReconcile({
       reason: "Authoritative startup/resume routing requires a valid canonical current state.",
+      executionMode: requestedExecutionMode,
     });
   }
 
@@ -893,8 +908,32 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     return buildStartupResumeBundleReconcile({
       reason: "Authoritative startup/resume routing received an invalid public dev-loop intent.",
       canonicalState,
+      executionMode: requestedExecutionMode,
     });
   }
+
+  if (input.mode !== undefined && variationMode === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: `Authoritative startup/resume routing received an invalid execution mode value; allowed values: ${ALLOWED_MODE_VALUES_TEXT}.`,
+      canonicalState,
+      executionMode: requestedExecutionMode,
+    });
+  }
+
+  if (
+    intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT
+    && variationMode === DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF
+  ) {
+    return buildStartupResumeBundleReconcile({
+      reason: "`mode=bounded_handoff` conflicts with the `auto_continue_current` intent; `auto_continue_current` always uses durable auto execution mode.",
+      canonicalState,
+      executionMode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    });
+  }
+
+  const effectiveMode = intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT
+    ? DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO
+    : (variationMode ?? DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
 
   const issueLinkageResolution = normalizeIssueLinkageResolution(input.issueLinkageResolution);
   const issueReadiness = normalizeIssueReadiness(input.issueReadiness);
@@ -983,7 +1022,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   }
 
   const routed = routeForState(canonicalState, {
-    executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+    executionMode: effectiveMode,
     issueReadiness,
     issueAssignmentState,
   });
@@ -992,6 +1031,8 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       reason: routed.reason,
       canonicalState: routed.canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
+      executionMode: routed.executionMode,
+      waitSemantics: routed.waitSemantics,
     });
   }
 
@@ -1045,6 +1086,8 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState,
       nextAction: effectiveRouted.nextAction,
+      executionMode: effectiveRouted.executionMode,
+      waitSemantics: effectiveRouted.waitSemantics,
     });
   }
 
@@ -1059,6 +1102,8 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     selectedGate: effectiveRouted.selectedGate,
     selectedStrategy: effectiveRouted.selectedStrategy,
     compatibilityEntrypoint: effectiveRouted.compatibilityEntrypoint,
+    executionMode: effectiveRouted.executionMode,
+    waitSemantics: effectiveRouted.waitSemantics,
     issueAssignmentSeam: effectiveRouted.issueAssignmentSeam,
     nextAction: buildAuthoritativeStatusNextAction(effectiveRouted),
     reason: effectiveRouted.reason,
@@ -1069,7 +1114,13 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
   const { intent: _ignoredIntent, ...statusInput } = input;
   const bundle = resolveAuthoritativeStartupResumeBundle(statusInput);
   if (bundle.bundleKind === DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE) {
-    return buildStatusReconcile(bundle.reason, bundle.canonicalState, bundle.nextAction);
+    return buildStatusReconcile(
+      bundle.reason,
+      bundle.canonicalState,
+      bundle.nextAction,
+      bundle.executionMode,
+      bundle.waitSemantics,
+    );
   }
 
   return {
@@ -1082,6 +1133,8 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     routeKind: bundle.routeKind,
     selectedStrategy: bundle.selectedStrategy,
     compatibilityEntrypoint: bundle.compatibilityEntrypoint,
+    executionMode: bundle.executionMode,
+    waitSemantics: bundle.waitSemantics,
     issueAssignmentSeam: bundle.issueAssignmentSeam,
     canonicalState: bundle.canonicalState,
     reason: bundle.reason,
