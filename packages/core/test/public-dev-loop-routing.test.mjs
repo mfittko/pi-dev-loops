@@ -10,6 +10,9 @@ import {
   DEV_LOOP_GATE,
   DEV_LOOP_PUBLIC_INTENT,
   DEV_LOOP_EXECUTION_MODE,
+  DEV_LOOP_ISSUE_ASSIGNMENT_SEAM,
+  DEV_LOOP_ISSUE_ASSIGNMENT_STATE,
+  DEV_LOOP_ISSUE_READINESS,
   DEV_LOOP_ROUTE_KIND,
   DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND,
   DEV_LOOP_WAIT_SEMANTICS,
@@ -123,8 +126,24 @@ test("start_on_issue routes to issue_intake through the public dev-loop façade"
   assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.ISSUE);
   assert.equal(result.canonicalState.nextActor, DEV_LOOP_ACTOR.USER);
   assert.equal(result.canonicalState.authorization, DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION);
-  assert.equal(result.nextAction, "Authorize the next mutation: assign Copilot to issue #86 now?");
+  assert.equal(result.issueAssignmentSeam, DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.READY_NEEDS_ASSIGNMENT_CONFIRMATION);
+  assert.equal(result.nextAction, "Authorize the next mutation: assign copilot-swe-agent to issue #86 now?");
   assert.doesNotMatch(result.nextAction, /approval gate/i);
+});
+
+test("copilot-first unassigned issue stops for clarification when readiness is missing", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 86 },
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.NEEDS_CLARIFICATION,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.UNASSIGNED,
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.ISSUE_INTAKE);
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+  assert.equal(result.issueAssignmentSeam, DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.NEEDS_REFINEMENT);
+  assert.match(result.nextAction, /ask focused clarification questions/i);
+  assert.match(result.nextAction, /stop before assigning copilot-swe-agent/i);
 });
 
 test("start_on_issue with a linked PR routes directly to PR follow-up", () => {
@@ -1095,7 +1114,7 @@ test("authoritative status resolution fails closed for issue targets when linkag
   assert.equal(report.loopState, "unknown");
 });
 
-test("authoritative status resolution accepts issue state only after explicit no-open-PR linkage resolution", () => {
+test("authoritative status resolution fails closed when copilot-first issue readiness/assignment seam facts are missing", () => {
   const report = resolveAuthoritativeDevLoopStatus({
     currentState: {
       target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93 },
@@ -1109,18 +1128,40 @@ test("authoritative status resolution accepts issue state only after explicit no
     loopState: "active",
   });
 
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.equal(report.loopState, "unknown");
+});
+
+test("authoritative status resolution accepts issue state only after explicit no-open-PR linkage resolution", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.USER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.READY,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.UNASSIGNED,
+    loopState: "active",
+  });
+
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
   assert.equal(report.selectedGate, DEV_LOOP_GATE.ISSUE_INTAKE);
+  assert.equal(report.issueAssignmentSeam, DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.READY_NEEDS_ASSIGNMENT_CONFIRMATION);
   assert.equal(report.activeArtifact.kind, DEV_LOOP_TARGET_KIND.ISSUE);
   assert.equal(report.activeArtifact.issue, 93);
   assert.equal(report.activeArtifact.pr, null);
   assert.equal(
     report.nextAction,
-    "Authorize the next mutation: assign Copilot to issue #93 now?",
+    "Authorize the next mutation: assign copilot-swe-agent to issue #93 now?",
   );
 });
 
-test("authoritative status resolution keeps non-confirmation issue-intake nextAction execution-oriented", () => {
+test("authoritative status resolution requires assignment before follow-up when issue is ready but still unassigned", () => {
   const report = resolveAuthoritativeDevLoopStatus({
     currentState: {
       target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93 },
@@ -1131,13 +1172,40 @@ test("authoritative status resolution keeps non-confirmation issue-intake nextAc
     },
     artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
     issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.READY,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.UNASSIGNED,
     loopState: "active",
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.issueAssignmentSeam, DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.READY_ASSIGN_NOW);
   assert.equal(
     report.nextAction,
-    "Proceed with issue intake on the issue itself; authoritative linkage resolution already established that no open PR exists.",
+    "Issue #93 is ready and still unassigned; assign copilot-swe-agent now before PR/bootstrap/watch follow-up.",
+  );
+});
+
+test("authoritative status resolution allows follow-up once issue is ready and already assigned", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 93 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.USER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.READY,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.ASSIGNED_TO_COPILOT,
+    loopState: "active",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.issueAssignmentSeam, DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.ASSIGNED_TO_COPILOT);
+  assert.equal(
+    report.nextAction,
+    "Issue #93 is ready and already assigned to copilot-swe-agent; continue into PR/bootstrap/watch follow-up work.",
   );
 });
 
@@ -1152,6 +1220,8 @@ test("authoritative status resolution keeps waiting nextAction for waiting issue
     },
     artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
     issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.READY,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.ASSIGNED_TO_COPILOT,
     loopState: "waiting_for_copilot",
   });
 
