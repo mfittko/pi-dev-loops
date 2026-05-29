@@ -103,6 +103,9 @@ conductor-wide control plane.
   - `live_steering_unavailable_trust`
   - `live_steering_unavailable_markers`
   - `live_steering_unavailable_unknown_state`
+  - `live_steering_unavailable_terminal_state`
+- terminal/non-running loop states must fail closed even when a steering file is present;
+  a steering locator alone must not imply that live steering is usable
 
 `steer-loop submit` should preserve the same fail-closed shape for steering
 attempts with stable machine-readable `reasonCode` values (for example

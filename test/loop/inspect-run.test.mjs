@@ -847,6 +847,44 @@ test("composeRunInspectionSnapshot: steering file exists but snapshot-mode evide
   assert.equal("latestAcknowledgement" in snapshot.layers.steering, false);
 });
 
+test("composeRunInspectionSnapshot: live authoritative terminal state does not advertise live steering", () => {
+  const copilotEvidence = makeCopilotEvidence("done");
+  copilotEvidence.snapshot.prMerged = true;
+
+  const snapshot = composeRunInspectionSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "done_terminal",
+    outerAllowedTransitions: [],
+    outerAction: "done",
+    copilotEvidence,
+    reviewerEvidence: makeReviewerEvidence("waiting_for_review_request"),
+    existingCheckpoint: null,
+    liveAvailability: { copilot: "ok", reviewer: "ok" },
+    steeringLocatorPath: "/tmp/run-1-steering.json",
+    steeringEvidence: {
+      runId: "pr-55",
+      schemaVersion: 1,
+      effectiveStack: [],
+      queuedEvents: [],
+    },
+    steeringLoadFailed: false,
+    steeringReadback: {
+      latestAcknowledgement: null,
+      effectiveConstraints: { hardConstraints: [], preferences: [], clarifications: [], stopAtNextSafeGate: false, unknownConstraints: [] },
+      pendingSummary: { queuedCount: 0, queuedKinds: [], stopAtNextSafeGateQueued: false },
+      stopAtNextSafeGate: { effective: false, queued: false, terminal: true, safePointCategory: "terminal" },
+    },
+  });
+
+  assert.equal(snapshot.statusClass, STATUS_CLASS.DONE);
+  assert.equal(snapshot.layers.steering.status, "unavailable");
+  assert.equal(snapshot.layers.steering.reason, "live_steering_unavailable_terminal_state");
+  assert.equal(snapshot.layers.steering.liveSteering.status, "unavailable");
+  assert.equal(snapshot.layers.steering.liveSteering.reason, "live_steering_unavailable_terminal_state");
+  assert.equal("latestAcknowledgement" in snapshot.layers.steering, false);
+});
+
 test("composeRunInspectionSnapshot: steering load failed → load_failed reason", () => {
   const snapshot = composeRunInspectionSnapshot({
     target: { repo: "owner/repo", pr: 55 },

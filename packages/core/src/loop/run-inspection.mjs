@@ -120,6 +120,13 @@ function buildReviewerScope(snapshotLike) {
   };
 }
 
+const LIVE_STEERING_TERMINAL_STATES = new Set([
+  "no_pr",
+  "done",
+  "review_request_unavailable",
+  "blocked_needs_user_decision",
+]);
+
 function evaluateLiveSteeringAvailability({
   sourceMode,
   trust,
@@ -145,6 +152,14 @@ function evaluateLiveSteeringAvailability({
 
   if (statusClass === STATUS_CLASS.UNKNOWN || typeof copilotCurrentState !== "string") {
     return { status: "unavailable", reason: "live_steering_unavailable_unknown_state" };
+  }
+
+  if (
+    statusClass === STATUS_CLASS.DONE
+    || statusClass === STATUS_CLASS.BLOCKED
+    || LIVE_STEERING_TERMINAL_STATES.has(copilotCurrentState)
+  ) {
+    return { status: "unavailable", reason: "live_steering_unavailable_terminal_state" };
   }
 
   return { status: "available", reason: null };
