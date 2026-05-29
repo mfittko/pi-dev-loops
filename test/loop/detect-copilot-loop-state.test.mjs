@@ -1313,6 +1313,67 @@ test("detect-copilot-loop-state allows clean convergence when only stale request
   }
 });
 
+test("detect-copilot-loop-state keeps request active when timeline re-request is newer than submitted review", async () => {
+  // A deliberate same-head re-request was made AFTER the existing submitted review.
+  // The detector must keep the request active (not demote to stale).
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-fresh-rerequest-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "currentsha",
+          reviews: [
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "currentsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
+            },
+          ],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        // Copilot is in requested_reviewers (genuine re-request)
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
+      },
+      {
+        // Timeline: re-request event is NEWER than the submitted review
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"copilot-pull-request-reviewer[bot]","created_at":"2026-01-15T11:00:00Z"}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
+    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.loopDisposition, "pending");
+    assert.equal(output.terminal, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-loop-state allows clean convergence once current-head request status is settled", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-review-on-head-settled-"));
 
