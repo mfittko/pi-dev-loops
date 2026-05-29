@@ -55,8 +55,9 @@ Current commands:
 - `/dev-loops` — help output
 - `/dev-loops status` — concise readiness summary
 - `/dev-loops doctor` — full diagnostics
-- `/dev-loops install` / `/dev-loops update` — removed; use `pi install` / `pi update` directly instead
 - `/dev-loops hide` — clear the readiness widget
+
+Legacy `/dev-loops install` and `/dev-loops update` command names are removed; use `pi install` / `pi update` directly instead.
 
 Important install/update contract:
 - installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes the `/dev-loops` extension command surface, the `pi-dev-loops` shell CLI, and the packaged skills from `package.json` `pi.skills`
