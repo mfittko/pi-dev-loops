@@ -805,6 +805,7 @@ test("copilot-pr-handoff treats stale requested_reviewers as clean convergence a
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "newsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
             },
           ],
           statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
@@ -814,6 +815,12 @@ test("copilot-pr-handoff treats stale requested_reviewers as clean convergence a
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
+      {
+        // Timeline: review_requested predates the submitted review (stale)
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"Copilot","created_at":"2026-01-15T10:00:00Z"}\n',
+      },
+
       {
         assertArgs: ["api", "graphql"],
         stdout: EMPTY_THREADS + "\n",
@@ -858,6 +865,7 @@ test("copilot-pr-handoff classifies watch timeout plus stale requested_reviewers
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "newsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
             },
           ],
           statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
@@ -867,6 +875,12 @@ test("copilot-pr-handoff classifies watch timeout plus stale requested_reviewers
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
+      {
+        // Timeline: review_requested predates the submitted review (stale)
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"Copilot","created_at":"2026-01-15T10:00:00Z"}\n',
+      },
+
       {
         assertArgs: ["api", "graphql"],
         stdout: EMPTY_THREADS + "\n",
@@ -1351,6 +1365,7 @@ test("copilot-pr-handoff classifies watch timeout with refreshed unresolved thre
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "newsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
             },
           ],
           statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
@@ -1360,6 +1375,12 @@ test("copilot-pr-handoff classifies watch timeout with refreshed unresolved thre
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
+      {
+        // Timeline: review_requested predates the submitted review (stale)
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"Copilot","created_at":"2026-01-15T10:00:00Z"}\n',
+      },
+
       {
         assertArgs: ["api", "graphql"],
         stdout: unresolvedThreads + "\n",
@@ -1468,6 +1489,7 @@ test("copilot-pr-handoff classifies watch timeout with CI still pending as non-t
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "newsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
             },
           ],
           statusCheckRollup: [{ status: "IN_PROGRESS", conclusion: "", name: "ci" }],
@@ -1477,6 +1499,12 @@ test("copilot-pr-handoff classifies watch timeout with CI still pending as non-t
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
       },
+      {
+        // Timeline: review_requested predates the submitted review (stale)
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"Copilot","created_at":"2026-01-15T10:00:00Z"}\n',
+      },
+
       {
         assertArgs: ["api", "graphql"],
         stdout: EMPTY_THREADS + "\n",

@@ -1271,6 +1271,7 @@ test("detect-copilot-loop-state allows clean convergence when only stale request
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "currentsha" },
+              submittedAt: "2026-01-15T10:30:00Z",
             },
           ],
           statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
@@ -1280,6 +1281,11 @@ test("detect-copilot-loop-state allows clean convergence when only stale request
         // GitHub's requested_reviewers still lists Copilot (stale — not yet cleared)
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
         stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
+      },
+      {
+        // Timeline: the review_requested event predates the submitted review (stale)
+        assertArgs: ["api", "repos/owner/repo/issues/17/timeline", "--paginate", "--jq"],
+        stdout: '{"login":"copilot-pull-request-reviewer[bot]","created_at":"2026-01-15T10:00:00Z"}\n',
       },
       {
         assertArgs: ["api", "graphql"],

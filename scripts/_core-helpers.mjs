@@ -45,6 +45,7 @@ export function summarizeCopilotReviews(reviews, { headSha } = {}) {
 
   let hasPendingReviewOnCurrentHead = false;
   let hasSubmittedReviewOnCurrentHead = false;
+  let latestSubmittedReviewOnCurrentHeadAt = null;
 
   for (const review of copilotReviews) {
     const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
@@ -62,6 +63,10 @@ export function summarizeCopilotReviews(reviews, { headSha } = {}) {
 
     if (SUBMITTED_REVIEW_STATES.has(state)) {
       hasSubmittedReviewOnCurrentHead = true;
+      const submittedAt = typeof review?.submittedAt === "string" ? review.submittedAt : null;
+      if (submittedAt !== null && (latestSubmittedReviewOnCurrentHeadAt === null || submittedAt > latestSubmittedReviewOnCurrentHeadAt)) {
+        latestSubmittedReviewOnCurrentHeadAt = submittedAt;
+      }
     }
   }
 
@@ -74,5 +79,6 @@ export function summarizeCopilotReviews(reviews, { headSha } = {}) {
     copilotReviewPresent: copilotReviews.length > 0,
     hasPendingReviewOnCurrentHead,
     hasSubmittedReviewOnCurrentHead,
+    latestSubmittedReviewOnCurrentHeadAt,
   };
 }
