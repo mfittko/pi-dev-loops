@@ -542,6 +542,7 @@ test("runWatchCycle integration keeps probe-only checks non-blocking even with a
       },
       {
         env,
+        detectSessionActivity: true,
         watchCopilotReviewImpl: async (options) => {
           watcherOptions = options;
           return {
