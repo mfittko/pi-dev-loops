@@ -74,6 +74,7 @@ export const DEV_LOOP_GATE = Object.freeze({
   STOP_BLOCKED_OR_NOT_AUTHORIZED: "stop_blocked_or_not_authorized",
   STOP_DONE_TERMINAL: "stop_done_terminal",
   FINAL_APPROVAL: "final_approval",
+  WAITING_FOR_MERGE_AUTHORIZATION: "waiting_for_merge_authorization",
   WAIT_WATCH: "wait_watch",
   LOCAL_IMPLEMENTATION: "local_implementation",
   ISSUE_INTAKE: "issue_intake",
@@ -224,7 +225,13 @@ export const PUBLIC_DEV_LOOP_GATE_CONTRACT = Object.freeze([
     gate: DEV_LOOP_GATE.FINAL_APPROVAL,
     routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL,
-    summary: "approval-ready or merge-ready canonical state routes to final approval",
+    summary: "approval-ready canonical state routes to final approval; merge-ready routes here only when merge authorization is explicit",
+  }),
+  Object.freeze({
+    gate: DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION,
+    routeKind: DEV_LOOP_ROUTE_KIND.STOP,
+    selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
+    summary: "merge-ready canonical state without explicit merge authorization stops and waits for merge authorization",
   }),
   Object.freeze({
     gate: DEV_LOOP_GATE.WAIT_WATCH,
@@ -498,6 +505,13 @@ function selectGateForState(canonicalState) {
   }
 
   if (
+    canonicalState.status === DEV_LOOP_STATUS.MERGE_READY
+    && canonicalState.authorization === DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION
+  ) {
+    return DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION;
+  }
+
+  if (
     canonicalState.status === DEV_LOOP_STATUS.APPROVAL_READY ||
     canonicalState.status === DEV_LOOP_STATUS.MERGE_READY
   ) {
@@ -631,6 +645,12 @@ function routeForState(
   }
 
   if (selectedGate === DEV_LOOP_GATE.FINAL_APPROVAL) {
+    const approvalNextAction = routableCanonicalState.status === DEV_LOOP_STATUS.APPROVAL_READY
+      ? "Run only the final approval step for the current PR; do not treat approval as merge authorization."
+      : "Merge is explicitly authorized for the current PR scope; run the final merge step.";
+    const approvalReason = routableCanonicalState.status === DEV_LOOP_STATUS.APPROVAL_READY
+      ? "Approval-ready states require an explicit approval decision before any merge authorization check."
+      : "Merge-ready states with explicit merge authorization may proceed to merge.";
     return buildResult({
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
@@ -638,8 +658,21 @@ function routeForState(
       compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
       executionMode,
       canonicalState: routableCanonicalState,
-      nextAction: "Run the approval/merge gate for the current artifact without changing the public entrypoint.",
-      reason: "Approval-ready and merge-ready states route to the final approval strategy.",
+      nextAction: approvalNextAction,
+      reason: approvalReason,
+    });
+  }
+
+  if (selectedGate === DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION) {
+    return buildResult({
+      selectedGate,
+      routeKind: DEV_LOOP_ROUTE_KIND.STOP,
+      selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
+      compatibilityEntrypoint: COMPATIBILITY_ENTRYPOINT.NONE,
+      executionMode,
+      canonicalState: routableCanonicalState,
+      nextAction: "Formal approval is complete; wait for explicit merge authorization for this PR scope before merging. If authorization wording is ambiguous, ask for an explicit merge decision.",
+      reason: "Merge-ready states must stop and wait when merge authorization is still missing.",
     });
   }
 

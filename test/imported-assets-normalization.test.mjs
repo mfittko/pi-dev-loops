@@ -339,7 +339,8 @@ test("copilot-autopilot skill requires unattended resume-from-state behavior whe
   assert.match(content, /When the draft PR appears, classify whether it is still the bootstrap-only Copilot draft/i);
   assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
   assert.match(content, /continue unattended until the final approval gate/i);
-  assert.match(content, /stop for human approval\/merge by default/i);
+  assert.match(content, /stop for a human approval decision by default/i);
+  assert.match(content, /waiting_for_merge_authorization/i);
   assert.match(content, /does \*\*not\*\* imply unattended merge by default/i);
   assert.match(content, /materially unclear, contradictory, off-trail/i);
   assert.match(content, /stop and ask for human direction rather than guessing/i);
@@ -356,7 +357,8 @@ test("copilot-autopilot behavior remains internal and resumable behind dev-loop"
   assert.match(content, /unattended execution/i);
   assert.match(content, /automatically detect the current lifecycle entrypoint/i);
   assert.match(content, /deterministic helper\/state-machine surface/i);
-  assert.match(content, /stop for human approval\/merge by default/i);
+  assert.match(content, /stop for a human approval decision by default/i);
+  assert.match(content, /waiting_for_merge_authorization/i);
   assert.match(content, /materially unclear, contradictory, off-trail/i);
   assert.match(content, /stop and ask for human direction rather than guessing/i);
   assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
@@ -382,7 +384,10 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(publicContract, /Issue-based shorthand auto trigger contract/i);
   assert.match(publicContract, /same bounded public `dev-loop` intent/i);
   assert.match(publicContract, /`dev-loop --intent auto_continue_current`/i);
-  assert.match(publicContract, /stop at the final human approval gate by default/i);
+  assert.match(publicContract, /stop at the final human approval decision by default/i);
+  assert.match(publicContract, /waiting_for_merge_authorization/i);
+  assert.match(publicContract, /R --> A\[Final approval gate\]/i);
+  assert.match(publicContract, /R --> M\[Wait for merge authorization\]/i);
 
   assert.match(devLoopSkill, /Shorthand issue-based auto trigger contract/i);
   assert.match(devLoopSkill, /same public `dev-loop` intent \(`auto_continue_current`\)/i);
@@ -391,6 +396,9 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
 
   assert.match(autopilotSkill, /interpret them as compatibility wording for the same public `dev-loop` intent/i);
   assert.match(autopilotSkill, /preserve this same stop boundary and final human approval gate default/i);
+  assert.match(autopilotSkill, /waiting_for_merge_authorization/i);
+  assert.match(autopilotSkill, /If merge authorization is still missing or ambiguous.*waiting_for_merge_authorization/i);
+  assert.doesNotMatch(autopilotSkill, /Only when merge has been explicitly authorized for this issue\/PR scope:/i);
 
   assert.match(devLoopAgent, /Interpret issue-based shorthand triggers/i);
   assert.match(devLoopAgent, /not a second public workflow entrypoint/i);

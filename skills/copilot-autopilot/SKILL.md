@@ -150,7 +150,7 @@ Under that unattended authorization:
 - if the PR is draft, enter the draft-stage PR tightening / local review / fix path automatically rather than stopping just because it has not left draft yet
 - use the deterministic state graph as the authority for current-state routing and next-step selection, not ad hoc phase guessing
 - continue unattended until the final approval gate unless you hit a genuine stop condition: `pause_for_clarification`, `review_request_unavailable`, `blocked_needs_user_decision`, unrelated CI failure needing maintainer judgment, or another ambiguity the contract explicitly forbids guessing through
-- stop for human approval/merge by default once the final review verdict is ready; only merge unattended when the user has explicitly authorized unattended merge for the current issue/PR scope
+- stop for a human approval decision by default once the final review verdict is ready; after approval, stop again in `waiting_for_merge_authorization` unless merge is explicitly authorized for the current issue/PR scope
 - for issue-based shorthand such as `auto dev loop on issue <n>`, `enter copilot auto dev loop on issue <n>`, and `run auto dev loop on <n> until approval gate`, preserve this same stop boundary and final human approval gate default
 
 If unattended authorization has **not** been given, keep the normal confirmation checkpoints below.
@@ -494,27 +494,29 @@ Before merge, run a final independent Pi review:
 
 Report the verdict and get confirmation before submitting any formal GitHub review action.
 
-## Phase 9 — Final approval gate and merge
+## Phase 9 — Final approval gate and explicit merge authorization
 
 After the final review verdict is `approve`, stop at the final approval gate by default.
 
 Default behavior:
-- report that the PR is ready for final human approval/merge
+- report that the PR is ready for a final human approval decision (not merge)
+- if approval is authorized and submitted, report `waiting_for_merge_authorization` and stop again
 - do **not** merge unattended unless the user has explicitly authorized unattended merge for the current issue/PR scope
 
-If final human approval is required, return a concise merge-ready summary and wait.
+If final human approval is required, return a concise approval-ready summary and wait.
 
-Only when merge has been explicitly authorized for this issue/PR scope:
+Handle the post-approval path in this order:
 
-1. Submit a formal GitHub review approval (if the PR was not opened by the active GitHub user):
+1. If approval has been explicitly authorized for this issue/PR scope and is not yet recorded, submit a formal GitHub review approval (if the PR was not opened by the active GitHub user):
    ```sh
    gh pr review <pr-number> --repo <resolved-repo> --approve --body "..."
    ```
-2. Merge:
+2. If merge authorization is still missing or ambiguous (for example combined wording like "approve/merge"), report `waiting_for_merge_authorization` and stop for an explicit merge decision on the active PR scope.
+3. Merge only after explicit merge authorization:
    ```sh
    gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch
    ```
-3. Verify the issue was closed by the merge (GitHub should close it automatically if the PR references the issue; otherwise close it manually).
+4. Verify the issue was closed by the merge (GitHub should close it automatically if the PR references the issue; otherwise close it manually).
 
 ## Workflow state overview
 
@@ -536,7 +538,9 @@ input
                                                               └─► Copilot review loop
                                                                     └─► final independent review
                                                                           └─► final approval gate
-                                                                                └─► approve + merge (only with explicit merge authorization)
+                                                                                └─► approval submitted
+                                                                                      └─► waiting_for_merge_authorization
+                                                                                            └─► merge (only with explicit merge authorization)
 ```
 
 ## Confirmation checkpoints
@@ -554,7 +558,7 @@ Always stop and ask before:
 
 If the user has already explicitly authorized unattended end-to-end execution for the current issue/PR scope, treat that authorization as covering the normal loop mutations above except where a stop condition below still requires user judgment.
 
-Unattended end-to-end execution does **not** imply unattended merge by default. Unless the user explicitly authorizes unattended merge for the current issue/PR scope, stop at the final approval gate for human approval/merge.
+Unattended end-to-end execution does **not** imply unattended merge by default. Unless the user explicitly authorizes unattended merge for the current issue/PR scope, stop at the final approval gate for a human approval decision, then stop again in `waiting_for_merge_authorization` before any merge.
 
 ## Stop conditions
 
