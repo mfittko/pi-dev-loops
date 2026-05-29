@@ -717,6 +717,44 @@ test("renderInspectRunViewerHtml shows waiting inbox signal when outer routing h
   assert.match(html, /title="Waiting state"/);
 });
 
+test("renderInspectRunViewerHtml does not headline waiting_for_ci when reviewer loop is the authoritative owner", () => {
+  const reviewerActiveSnapshot = makeSnapshot({
+    target: { repo: "owner/repo", pr: 7 },
+    outerState: "handoff_to_reviewer_loop",
+    outerAction: "reenter_reviewer_loop",
+    activeFamilyState: "reenter_reviewer_loop",
+    statusClass: "active",
+    needsAttention: false,
+    layers: {
+      copilot: {
+        currentState: "waiting_for_ci",
+        allowedTransitions: ["ready_to_rerequest_review"],
+      },
+      reviewer: {
+        currentState: "review_requested",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["determine_review_plan"],
+        submittedReviewState: "APPROVED",
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 7 },
+    snapshot: reviewerActiveSnapshot,
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 7 }, title: "fix: reviewer beats ci wait", updatedAt: "2026-05-22T00:00:00Z", snapshot: reviewerActiveSnapshot },
+    ],
+  });
+
+  assert.match(html, /<p class="current-pr-state-summary-headline">Reviewer loop active<\/p>/);
+  assert.match(html, /<span class="assigned-pr-headline">Reviewer loop active<\/span>/);
+  assert.doesNotMatch(html, /<p class="current-pr-state-summary-headline">Waiting for CI<\/p>/);
+  assert.doesNotMatch(html, /<span class="assigned-pr-headline">Waiting for CI<\/span>/);
+});
+
 test("renderInspectRunViewerHtml keeps hard attention ahead of waiting layer inbox signals", () => {
   const attentionSnapshot = makeSnapshot({
     target: { repo: "owner/repo", pr: 3 },
