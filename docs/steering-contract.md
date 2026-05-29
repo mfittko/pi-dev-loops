@@ -90,6 +90,25 @@ Each submitted steering event receives exactly one of the following results:
 This first slice does **not** attach to the live worker or introduce a generic
 conductor-wide control plane.
 
+### Live-steering advertisement contract
+
+`inspect-run` must fail closed for live-steering availability:
+
+- a steering file can be present while live steering is still unavailable
+- `layers.steering.status: "available"` is only valid when inspection evidence is
+  live-detector-backed + authoritative and free of stale/missing/conflict markers
+- when those conditions are not met, `layers.steering.status` is
+  `"unavailable"` with a stable machine-readable reason such as:
+  - `live_steering_unavailable_source_mode`
+  - `live_steering_unavailable_trust`
+  - `live_steering_unavailable_markers`
+  - `live_steering_unavailable_unknown_state`
+
+`steer-loop submit` should preserve the same fail-closed shape for steering
+attempts with stable machine-readable `reasonCode` values (for example
+`inspection_not_authoritative`) whenever operator-facing steering is rejected
+before mutation.
+
 ---
 
 ## Safe-point model

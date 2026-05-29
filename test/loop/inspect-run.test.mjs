@@ -805,11 +805,46 @@ test("composeRunInspectionSnapshot: steering locator given and file loads → av
   });
 
   assert.equal(snapshot.layers.steering.status, "available");
+  assert.equal(snapshot.layers.steering.liveSteering.status, "available");
+  assert.equal(snapshot.layers.steering.liveSteering.reason, null);
   assert.equal(snapshot.layers.steering.locatorPath, undefined);
   assert.equal(snapshot.layers.steering.latestAcknowledgement, null);
   assert.equal(snapshot.layers.steering.pendingSummary.queuedCount, 0);
   assert.equal(snapshot.layers.steering.stopAtNextSafeGate.effective, false);
   assert.equal("state" in snapshot.layers.steering, false);
+});
+
+test("composeRunInspectionSnapshot: steering file exists but snapshot-mode evidence does not advertise live steering", () => {
+  const snapshot = composeRunInspectionSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    inspectedAt: "2026-05-18T12:00:00Z",
+    outerAction: "continue_wait",
+    copilotEvidence: makeCopilotEvidence("waiting_for_copilot_review"),
+    reviewerEvidence: makeReviewerEvidence("waiting_for_author_followup"),
+    existingCheckpoint: null,
+    liveAvailability: { copilot: "ok", reviewer: "ok" },
+    evidenceSourceKinds: { copilot: "input", reviewer: "input" },
+    steeringLocatorPath: "/tmp/run-1-steering.json",
+    steeringEvidence: {
+      runId: "run-1",
+      schemaVersion: 1,
+      effectiveStack: [],
+      queuedEvents: [],
+    },
+    steeringLoadFailed: false,
+    steeringReadback: {
+      latestAcknowledgement: null,
+      effectiveConstraints: { hardConstraints: [], preferences: [], clarifications: [], stopAtNextSafeGate: false, unknownConstraints: [] },
+      pendingSummary: { queuedCount: 0, queuedKinds: [], stopAtNextSafeGateQueued: false },
+      stopAtNextSafeGate: { effective: false, queued: false, terminal: false, safePointCategory: "immediate" },
+    },
+  });
+
+  assert.equal(snapshot.layers.steering.status, "unavailable");
+  assert.equal(snapshot.layers.steering.reason, "live_steering_unavailable_source_mode");
+  assert.equal(snapshot.layers.steering.liveSteering.status, "unavailable");
+  assert.equal(snapshot.layers.steering.liveSteering.reason, "live_steering_unavailable_source_mode");
+  assert.equal("latestAcknowledgement" in snapshot.layers.steering, false);
 });
 
 test("composeRunInspectionSnapshot: steering load failed → load_failed reason", () => {
@@ -1678,7 +1713,7 @@ test("inspect-run CLI: --steering-state-file with mismatched target is unavailab
   });
 });
 
-test("inspect-run CLI: --steering-state-file given and file exists → available", async () => {
+test("inspect-run CLI: --steering-state-file with snapshot-mode inputs fails closed for live steering", async () => {
   await withTempDir(async (tempDir) => {
     const copilotPath = path.join(tempDir, "copilot.json");
     const reviewerPath = path.join(tempDir, "reviewer.json");
@@ -1744,16 +1779,46 @@ test("inspect-run CLI: --steering-state-file given and file exists → available
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);
-    assert.equal(output.layers.steering.status, "available");
+    assert.equal(output.layers.steering.status, "unavailable");
+    assert.equal(output.layers.steering.reason, "live_steering_unavailable_source_mode");
+    assert.equal(output.layers.steering.liveSteering.status, "unavailable");
+    assert.equal(output.layers.steering.liveSteering.reason, "live_steering_unavailable_source_mode");
     assert.equal(output.layers.steering.locatorPath, undefined);
     assert.equal(output.runId, "pr-55");
-    assert.equal(output.layers.steering.latestAcknowledgement.result, "queued_for_safe_point");
-    assert.equal(output.layers.steering.pendingSummary.queuedCount, 1);
-    assert.equal(output.layers.steering.pendingSummary.stopAtNextSafeGateQueued, true);
-    assert.equal(output.layers.steering.stopAtNextSafeGate.effective, false);
-    assert.equal(output.layers.steering.stopAtNextSafeGate.queued, true);
-    assert.equal(output.layers.steering.effectiveConstraints.stopAtNextSafeGate, false);
-    assert.equal("state" in output.layers.steering, false);
+    assert.equal("latestAcknowledgement" in output.layers.steering, false);
+  });
+});
+
+test("inspect-run CLI: --steering-state-file with live authoritative evidence advertises steering availability", async () => {
+  await withTempDir(async (tempDir) => {
+    const steeringPath = path.join(tempDir, "steering.json");
+    const ghPath = await writeGhStub(tempDir);
+    const env = { ...process.env, PATH: `${tempDir}${path.delimiter}${process.env.PATH}` };
+    assert.ok(ghPath.endsWith(path.join(tempDir, "gh")));
+
+    await writeJson(steeringPath, {
+      runId: "pr-55",
+      target: { repo: "owner/repo", pr: 55 },
+      schemaVersion: 1,
+      events: [],
+      effectiveStack: [],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 1,
+    });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "55",
+      "--steering-state-file", steeringPath,
+    ], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.layers.steering.status, "available");
+    assert.equal(output.layers.steering.liveSteering.status, "available");
+    assert.equal(output.layers.steering.liveSteering.reason, null);
   });
 });
 
