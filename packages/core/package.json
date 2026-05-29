@@ -13,6 +13,7 @@
     "./loop/tracker-pr-state": "./src/loop/tracker-pr-state.mjs",
     "./loop/conductor-pr-projection": "./src/loop/conductor-pr-projection.mjs",
     "./loop/public-dev-loop-routing": "./src/loop/public-dev-loop-routing.mjs",
+    "./loop/retrospective-checkpoint": "./src/loop/retrospective-checkpoint.mjs",
     "./github/review-threads": "./src/github/review-threads.mjs"
   },
   "bin": {

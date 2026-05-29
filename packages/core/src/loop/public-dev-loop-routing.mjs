@@ -1,3 +1,8 @@
+import {
+  evaluateRetrospectiveGate,
+  normalizeRetrospectiveCheckpointState,
+} from "./retrospective-checkpoint.mjs";
+
 /**
  * Public dev-loop façade routing contract.
  *
@@ -392,6 +397,17 @@ function normalizeTargetPreference(value) {
   return TARGET_PREFERENCE_SET.has(normalized) ? normalized : null;
 }
 
+function applyRetrospectiveCheckpointGate(result, checkpointState, checkpointStateProvided) {
+  if (!checkpointStateProvided) {
+    return result;
+  }
+
+  return evaluateRetrospectiveGate({
+    checkpointState,
+    proposedRouting: result,
+  });
+}
+
 function buildResult({
   selectedGate,
   routeKind,
@@ -751,14 +767,18 @@ function buildAuthoritativeStatusNextAction(routed) {
   return routed?.nextAction ?? "Reconcile the current state before answering status.";
 }
 
-function buildStatusReconcile(reason, canonicalState = null) {
+function buildStatusReconcile(
+  reason,
+  canonicalState = null,
+  nextAction = "Stop and reconcile the authoritative active artifact and current loop state before answering status.",
+) {
   return {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE,
     reason,
     activeArtifact: canonicalState ? buildStatusArtifactIdentity(canonicalState) : null,
     artifactState: null,
     loopState: "unknown",
-    nextAction: "Stop and reconcile the authoritative active artifact and current loop state before answering status.",
+    nextAction,
     selectedGate: DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE,
     routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
@@ -772,6 +792,7 @@ function buildStartupResumeBundleReconcile({
   canonicalState = null,
   issueLinkageResolution = null,
   artifactState = null,
+  nextAction = "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
 }) {
   return {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE,
@@ -780,7 +801,7 @@ function buildStartupResumeBundleReconcile({
     artifactState,
     issueLinkageResolution,
     loopState: "unknown",
-    nextAction: "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
+    nextAction,
     selectedGate: DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE,
     routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
@@ -845,6 +866,11 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const issueLinkageResolution = normalizeIssueLinkageResolution(input.issueLinkageResolution);
   const issueReadiness = normalizeIssueReadiness(input.issueReadiness);
   const issueAssignmentState = normalizeIssueAssignmentState(input.issueAssignmentState);
+  const retrospectiveCheckpointState = input.retrospectiveCheckpointState !== undefined
+    ? normalizeRetrospectiveCheckpointState(input.retrospectiveCheckpointState)
+    : null;
+  const retrospectiveCheckpointStateProvided =
+    input.retrospectiveCheckpointState !== undefined && input.retrospectiveCheckpointState !== null;
   const issueLinkageResolutionProvided = input.issueLinkageResolution !== undefined && input.issueLinkageResolution !== null;
   const normalizedIssueLinkageResolution = normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageResolution);
   const issueReadinessProvided = input.issueReadiness !== undefined && input.issueReadiness !== null;
@@ -869,6 +895,14 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   if (issueAssignmentStateProvided && issueAssignmentState === null) {
     return buildStartupResumeBundleReconcile({
       reason: "Authoritative startup/resume routing received an invalid issue assignment-state value.",
+      canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+    });
+  }
+
+  if (retrospectiveCheckpointStateProvided && retrospectiveCheckpointState === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing received an invalid retrospective checkpoint-state value.",
       canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
     });
@@ -958,23 +992,43 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   }
 
   const inspectStateIntent = intent === DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE;
+  const routedWithIntentSemantics = inspectStateIntent
+    ? {
+        ...routed,
+        routeKind: DEV_LOOP_ROUTE_KIND.INSPECT,
+        nextAction: "Describe the canonical state and the routed internal strategy without changing public entrypoints.",
+      }
+    : routed;
+  const effectiveRouted = applyRetrospectiveCheckpointGate(
+    routedWithIntentSemantics,
+    retrospectiveCheckpointState,
+    retrospectiveCheckpointStateProvided,
+  );
+
+  if (effectiveRouted.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) {
+    return buildStartupResumeBundleReconcile({
+      reason: effectiveRouted.reason,
+      canonicalState: effectiveRouted.canonicalState ?? routed.canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+      artifactState,
+      nextAction: effectiveRouted.nextAction,
+    });
+  }
 
   return {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED,
-    activeArtifact: buildStatusArtifactIdentity(routed.canonicalState),
+    activeArtifact: buildStatusArtifactIdentity(effectiveRouted.canonicalState),
     artifactState,
     issueLinkageResolution: normalizedIssueLinkageResolution,
-    canonicalState: routed.canonicalState,
+    canonicalState: effectiveRouted.canonicalState,
     loopState,
-    routeKind: inspectStateIntent ? DEV_LOOP_ROUTE_KIND.INSPECT : routed.routeKind,
-    selectedGate: routed.selectedGate,
-    selectedStrategy: routed.selectedStrategy,
-    compatibilityEntrypoint: routed.compatibilityEntrypoint,
-    issueAssignmentSeam: routed.issueAssignmentSeam,
-    nextAction: inspectStateIntent
-      ? "Describe the canonical state and the routed internal strategy without changing public entrypoints."
-      : buildAuthoritativeStatusNextAction(routed),
-    reason: routed.reason,
+    routeKind: effectiveRouted.routeKind,
+    selectedGate: effectiveRouted.selectedGate,
+    selectedStrategy: effectiveRouted.selectedStrategy,
+    compatibilityEntrypoint: effectiveRouted.compatibilityEntrypoint,
+    issueAssignmentSeam: effectiveRouted.issueAssignmentSeam,
+    nextAction: buildAuthoritativeStatusNextAction(effectiveRouted),
+    reason: effectiveRouted.reason,
   };
 }
 
@@ -982,7 +1036,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
   const { intent: _ignoredIntent, ...statusInput } = input;
   const bundle = resolveAuthoritativeStartupResumeBundle(statusInput);
   if (bundle.bundleKind === DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE) {
-    return buildStatusReconcile(bundle.reason, bundle.canonicalState);
+    return buildStatusReconcile(bundle.reason, bundle.canonicalState, bundle.nextAction);
   }
 
   return {
@@ -1019,6 +1073,11 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     ? normalizeIssueAssignmentState(input.issueAssignmentState)
     : null;
   const acceptsIssueAssignmentFacts = shouldAcceptIssueAssignmentFacts({ intent, explicitTarget, explicitState });
+  const retrospectiveCheckpointState = input.retrospectiveCheckpointState !== undefined
+    ? normalizeRetrospectiveCheckpointState(input.retrospectiveCheckpointState)
+    : null;
+  const retrospectiveCheckpointStateProvided =
+    input.retrospectiveCheckpointState !== undefined && input.retrospectiveCheckpointState !== null;
   const requestedExecutionMode =
     variationMode
     ?? (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT
@@ -1050,11 +1109,25 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     );
   }
 
+  if (retrospectiveCheckpointStateProvided && retrospectiveCheckpointState === null) {
+    return buildReconcile(
+      "Unrecognized `retrospectiveCheckpointState` input; allowed values: none, complete, skipped, missing.",
+      null,
+      requestedExecutionMode,
+    );
+  }
+
   const routingOptions = {
     executionMode: null,
     issueReadiness: acceptsIssueAssignmentFacts ? issueReadiness : null,
     issueAssignmentState: acceptsIssueAssignmentFacts ? issueAssignmentState : null,
   };
+
+  const finalizeRoutingResult = (result) => applyRetrospectiveCheckpointGate(
+    result,
+    retrospectiveCheckpointState,
+    retrospectiveCheckpointStateProvided,
+  );
 
   if (!intent) {
     return buildReconcile("The public dev-loop intent is missing or unrecognized.", null, requestedExecutionMode);
@@ -1091,11 +1164,11 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     }
 
     const routed = routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode });
-    return applyWatchValidation({
+    return finalizeRoutingResult(applyWatchValidation({
       ...routed,
       routeKind: DEV_LOOP_ROUTE_KIND.INSPECT,
       nextAction: "Describe the canonical state and the routed internal strategy without changing public entrypoints.",
-    }, watchRequested);
+    }, watchRequested));
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE) {
@@ -1126,15 +1199,15 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         }
       }
 
-      return applyWatchValidation(
+      return finalizeRoutingResult(applyWatchValidation(
         routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
         watchRequested,
-      );
+      ));
     }
 
     // No canonical state: steer toward local when prefer_local is requested
     if (targetPreference === DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL) {
-      return applyWatchValidation(
+      return finalizeRoutingResult(applyWatchValidation(
         routeForState({
           target: {
             kind: DEV_LOOP_TARGET_KIND.LOCAL_PHASE,
@@ -1150,10 +1223,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
           authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
         }, { ...routingOptions, executionMode: effectiveMode }),
         watchRequested,
-      );
+      ));
     }
 
-    return applyWatchValidation(
+    return finalizeRoutingResult(applyWatchValidation(
       routeForState({
         target: explicitTarget,
         ownership: DEV_LOOP_ACTOR.COPILOT,
@@ -1162,7 +1235,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
       }, { ...routingOptions, executionMode: effectiveMode }),
       watchRequested,
-    );
+    ));
   }
 
   if (
@@ -1184,10 +1257,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       ) {
         return buildReconcile("Local issue-start target conflicts with the canonical current state.", explicitState, effectiveMode);
       }
-      return applyWatchValidation(
+      return finalizeRoutingResult(applyWatchValidation(
         routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
         watchRequested,
-      );
+      ));
     }
 
     const routed = routeForState({
@@ -1213,7 +1286,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         }
       : routed;
 
-    return applyWatchValidation(routedWithContinueAction, watchRequested);
+    return finalizeRoutingResult(applyWatchValidation(routedWithContinueAction, watchRequested));
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR) {
@@ -1236,10 +1309,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       );
     }
 
-    return applyWatchValidation(
+    return finalizeRoutingResult(applyWatchValidation(
       routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
       watchRequested,
-    );
+    ));
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT) {
@@ -1261,10 +1334,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       }
     }
 
-    return applyWatchValidation(
+    return finalizeRoutingResult(applyWatchValidation(
       routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
       watchRequested,
-    );
+    ));
   }
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT) {
@@ -1275,10 +1348,10 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
       );
     }
-    return applyWatchValidation(
+    return finalizeRoutingResult(applyWatchValidation(
       routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
       watchRequested,
-    );
+    ));
   }
 
   return buildReconcile("The public dev-loop intent is recognized but not implemented in this first slice.", null, effectiveMode);
