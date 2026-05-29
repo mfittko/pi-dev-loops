@@ -14,7 +14,7 @@
  */
 
 export const PUBLIC_DEV_LOOP_ENTRYPOINT = "dev-loop";
-export const COPILOT_ISSUE_ASSIGNEE = "copilot-swe-agent";
+const COPILOT_ISSUE_ASSIGNEE = "copilot-swe-agent";
 
 export const DEV_LOOP_PUBLIC_INTENT = Object.freeze({
   START_ON_ISSUE: "start_on_issue",
@@ -525,6 +525,14 @@ function isCopilotFirstIssueFlow(canonicalState) {
   return canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && canonicalState.ownership === DEV_LOOP_ACTOR.COPILOT;
 }
 
+function shouldAcceptIssueAssignmentFacts({ intent, explicitTarget, explicitState }) {
+  if (explicitState) {
+    return isCopilotFirstIssueFlow(explicitState) && explicitState.target.linkedPr === null;
+  }
+
+  return intent === DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE && explicitTarget?.kind === DEV_LOOP_TARGET_KIND.ISSUE;
+}
+
 function buildIssueClarificationStopNextAction(issueNumber) {
   return `Issue #${issueNumber} is not ready yet; ask focused clarification questions and stop before assigning ${COPILOT_ISSUE_ASSIGNEE}.`;
 }
@@ -1003,10 +1011,14 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   const watchProvided = input.watch !== undefined;
   const watchRequested = input.watch === true;
   const targetPreference = input.targetPreference !== undefined ? normalizeTargetPreference(input.targetPreference) : null;
+
+  // These are authoritative issue-state facts for the Copilot-first
+  // unassigned-issue seam, not bounded public variation parameters.
   const issueReadiness = input.issueReadiness !== undefined ? normalizeIssueReadiness(input.issueReadiness) : null;
   const issueAssignmentState = input.issueAssignmentState !== undefined
     ? normalizeIssueAssignmentState(input.issueAssignmentState)
     : null;
+  const acceptsIssueAssignmentFacts = shouldAcceptIssueAssignmentFacts({ intent, explicitTarget, explicitState });
   const requestedExecutionMode =
     variationMode
     ?? (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT
@@ -1023,20 +1035,26 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   if (watchProvided && typeof input.watch !== "boolean") {
     return buildReconcile("Unrecognized `watch` parameter; allowed values: true or false.", null, requestedExecutionMode);
   }
-  if (input.issueReadiness !== undefined && issueReadiness === null) {
+  if (acceptsIssueAssignmentFacts && input.issueReadiness !== undefined && issueReadiness === null) {
     return buildReconcile(
-      `Unrecognized \`issueReadiness\` parameter; allowed values: ${Object.values(DEV_LOOP_ISSUE_READINESS).join(", ")}.`,
+      `Unrecognized \`issueReadiness\` input; allowed values: ${Object.values(DEV_LOOP_ISSUE_READINESS).join(", ")}.`,
       null,
       requestedExecutionMode,
     );
   }
-  if (input.issueAssignmentState !== undefined && issueAssignmentState === null) {
+  if (acceptsIssueAssignmentFacts && input.issueAssignmentState !== undefined && issueAssignmentState === null) {
     return buildReconcile(
-      `Unrecognized \`issueAssignmentState\` parameter; allowed values: ${Object.values(DEV_LOOP_ISSUE_ASSIGNMENT_STATE).join(", ")}.`,
+      `Unrecognized \`issueAssignmentState\` input; allowed values: ${Object.values(DEV_LOOP_ISSUE_ASSIGNMENT_STATE).join(", ")}.`,
       null,
       requestedExecutionMode,
     );
   }
+
+  const routingOptions = {
+    executionMode: null,
+    issueReadiness: acceptsIssueAssignmentFacts ? issueReadiness : null,
+    issueAssignmentState: acceptsIssueAssignmentFacts ? issueAssignmentState : null,
+  };
 
   if (!intent) {
     return buildReconcile("The public dev-loop intent is missing or unrecognized.", null, requestedExecutionMode);
@@ -1072,11 +1090,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       return buildReconcile("`inspect_state` requires a valid canonical current state.", null, effectiveMode);
     }
 
-    const routed = routeForState(explicitState, {
-      executionMode: effectiveMode,
-      issueReadiness,
-      issueAssignmentState,
-    });
+    const routed = routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode });
     return applyWatchValidation({
       ...routed,
       routeKind: DEV_LOOP_ROUTE_KIND.INSPECT,
@@ -1113,7 +1127,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       }
 
       return applyWatchValidation(
-        routeForState(explicitState, { executionMode: effectiveMode, issueReadiness, issueAssignmentState }),
+        routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
         watchRequested,
       );
     }
@@ -1134,7 +1148,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
           nextActor: DEV_LOOP_ACTOR.LOCAL,
           status: DEV_LOOP_STATUS.ACTIVE,
           authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
-        }, { executionMode: effectiveMode, issueReadiness, issueAssignmentState }),
+        }, { ...routingOptions, executionMode: effectiveMode }),
         watchRequested,
       );
     }
@@ -1146,7 +1160,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         nextActor: DEV_LOOP_ACTOR.USER,
         status: DEV_LOOP_STATUS.ACTIVE,
         authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
-      }, { executionMode: effectiveMode, issueReadiness, issueAssignmentState }),
+      }, { ...routingOptions, executionMode: effectiveMode }),
       watchRequested,
     );
   }
@@ -1171,7 +1185,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         return buildReconcile("Local issue-start target conflicts with the canonical current state.", explicitState, effectiveMode);
       }
       return applyWatchValidation(
-        routeForState(explicitState, { executionMode: effectiveMode, issueReadiness, issueAssignmentState }),
+        routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
         watchRequested,
       );
     }
@@ -1189,7 +1203,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       nextActor: DEV_LOOP_ACTOR.LOCAL,
       status: DEV_LOOP_STATUS.ACTIVE,
       authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
-    }, { executionMode: effectiveMode, issueReadiness, issueAssignmentState });
+    }, { ...routingOptions, executionMode: effectiveMode });
 
     const routedWithContinueAction = intent === DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY_THEN_CONTINUE
       ? {
@@ -1223,7 +1237,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     }
 
     return applyWatchValidation(
-      routeForState(explicitState, { executionMode: effectiveMode, issueReadiness, issueAssignmentState }),
+      routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
       watchRequested,
     );
   }
@@ -1248,7 +1262,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     }
 
     return applyWatchValidation(
-      routeForState(explicitState, { executionMode: effectiveMode, issueReadiness, issueAssignmentState }),
+      routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
       watchRequested,
     );
   }
@@ -1262,7 +1276,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
       );
     }
     return applyWatchValidation(
-      routeForState(explicitState, { executionMode: effectiveMode, issueReadiness, issueAssignmentState }),
+      routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
       watchRequested,
     );
   }

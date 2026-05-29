@@ -1309,6 +1309,8 @@ test("variation parameter contract exports the bounded allow-list, precedence, a
     [...DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedParameters],
     ["mode", "watch", "intent", "targetPreference"],
   );
+  assert.ok(!DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedParameters.includes("issueReadiness"));
+  assert.ok(!DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedParameters.includes("issueAssignmentState"));
   assert.deepEqual(
     [...DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues],
     [DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO],

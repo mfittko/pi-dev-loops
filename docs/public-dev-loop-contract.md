@@ -336,6 +336,8 @@ Any conflict that would materially change artifact identity, ownership truth, or
 
 The bounded allow-list is exported from `packages/core/src/loop/public-dev-loop-routing.mjs` as `DEV_LOOP_VARIATION_PARAMETER_CONTRACT`.
 
+`issueReadiness` and `issueAssignmentState` are **not** part of that bounded variation-parameter allow-list. They are authoritative issue-state facts used only for the Copilot-first unassigned-issue seam during startup/status/routing resolution.
+
 ### Explicit non-parameters for this slice
 
 These must **not** become public variation knobs:
