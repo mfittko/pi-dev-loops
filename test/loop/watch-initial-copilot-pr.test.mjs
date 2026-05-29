@@ -407,6 +407,35 @@ test("watchInitialCopilotPr blocks on active Copilot session run before continui
   assert.equal(delayCount, 0);
 });
 
+test("watchInitialCopilotPr honors an exhausted timeout before blocking on an active Copilot session", async () => {
+  const detect = makeDetectMock([
+    {
+      ok: true,
+      state: "copilot_session_active",
+      prNumber: 79,
+      prUrl: "https://github.com/owner/repo/pull/79",
+      sessionRunId: 444,
+    },
+  ]);
+
+  let watchCalls = 0;
+  const result = await watchInitialCopilotPr(
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 0 },
+    {
+      detectInitialCopilotPrStateImpl: detect,
+      watchCopilotRunUntilCompleteImpl: async () => {
+        watchCalls += 1;
+      },
+      nowMs: makeFakeNow(0, 0),
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "timed_out");
+  assert.equal(result.attempts, 1);
+  assert.equal(watchCalls, 0);
+});
+
 test("watchInitialCopilotPr quiet idle/timeout cycles are healthy non-terminal waits", async () => {
   // Multiple bootstrap-only cycles before eventual transition.
   // None of the quiet cycles should surface as failures.

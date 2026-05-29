@@ -221,7 +221,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
      ```sh
      node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
      ```
-     - while the returned state is `copilot_session_active`, prefer `gh run watch <sessionRunId> --repo <resolved-repo>` before the next detect pass
+     - the watcher handles active-session `gh run watch` behavior internally before the next detect pass
      - `ready_for_followup`: linked PR has become substantive; route to the existing PR follow-up path immediately with the returned PR number
      - `timed_out`: watch budget exhausted; exit with an explicit still-waiting timeout outcome rather than an implementation failure
    - `linked_pr_ready_for_followup`: route to the existing PR follow-up path immediately with that PR number
@@ -253,7 +253,7 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
       ```sh
       node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
       ```
-      - while the returned state is `copilot_session_active`, prefer `gh run watch <sessionRunId> --repo <resolved-repo>` before the next detect pass
+      - the watcher handles active-session `gh run watch` behavior internally before the next detect pass
       - `ready_for_followup`: resume at the PR follow-up path with the returned PR number
       - `timed_out`: exit with an explicit still-waiting timeout outcome rather than an implementation failure
     - if the state is `linked_pr_ready_for_followup`, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again

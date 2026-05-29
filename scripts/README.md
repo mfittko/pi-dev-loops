@@ -188,7 +188,7 @@ Contract:
   - `linked_pr_ready_for_followup`
 - uses `scripts/loop/detect-copilot-session-activity.mjs` on the linked PR head branch for Copilot-authored draft PRs
 - while `activity=active`, emits `copilot_session_active` regardless of commit/file-count heuristics
-- only emits `linked_pr_ready_for_followup` for Copilot-authored draft PRs when session activity is `concluded`
+- for non-bootstrap linked PRs, falls back to the existing substantive PR heuristics when session activity is `idle`, `concluded`, or unavailable
 - classifies `waiting_for_initial_copilot_implementation` only for the bounded bootstrap-only draft shape:
   - open same-repo linked PR
   - draft
@@ -199,7 +199,7 @@ Contract:
 - fails closed with explicit error output when required PR facts cannot be fetched
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/name", "issue": 59, "state": "...", "prNumber": 79|null, "prUrl": "..."|null, "headBranch": "..."|null, "isDraft": true|false|null, "changedFiles": 0|null, "commitCount": 1|null, "soleCommitHeadline": "Initial plan"|null, "sessionActivity": "active"|"concluded"|"idle"|null, "sessionRunId": 123|null, "sessionRunName": "..."|null, "sessionRunStatus": "..."|null }`
+- `{ "ok": true, "repo": "owner/name", "issue": 59, "state": "...", "prNumber": 79|null, "prUrl": "..."|null, "headBranch": "..."|null, "isDraft": true|false|null, "changedFiles": 0|null, "commitCount": 1|null, "soleCommitHeadline": "Initial plan"|null, "sessionActivity": "active"|"concluded"|"idle"|null, "sessionRunId": 123|null, "sessionRunName": "..."|null, "sessionRunStatus": "..."|null, "sessionRunConclusion": "success"|null, "sessionRunCreatedAt": "..."|null, "sessionConfidence": "high"|null }`
 
 ### `scripts/loop/detect-copilot-session-activity.mjs`
 

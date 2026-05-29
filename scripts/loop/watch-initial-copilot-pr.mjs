@@ -271,17 +271,6 @@ export async function watchInitialCopilotPr(
       };
     }
 
-    if (
-      detection.state === LINKED_PR_STATE.COPILOT_SESSION_ACTIVE
-      && Number.isInteger(detection.sessionRunId)
-    ) {
-      await watchCopilotRunUntilCompleteImpl(
-        { repo, runId: detection.sessionRunId },
-        { env, ghCommand },
-      );
-      continue;
-    }
-
     // `waiting_for_initial_copilot_implementation`, `copilot_session_active`,
     // and `no_linked_pr` are healthy non-terminal wait states for this seam.
     // Only budget exhaustion terminates the loop.
@@ -297,6 +286,17 @@ export async function watchInitialCopilotPr(
         attempts,
         elapsedMs,
       };
+    }
+
+    if (
+      detection.state === LINKED_PR_STATE.COPILOT_SESSION_ACTIVE
+      && Number.isInteger(detection.sessionRunId)
+    ) {
+      await watchCopilotRunUntilCompleteImpl(
+        { repo, runId: detection.sessionRunId },
+        { env, ghCommand },
+      );
+      continue;
     }
 
     const remaining = timeoutMs - (nowMs() - startMs);
