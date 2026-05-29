@@ -62,6 +62,11 @@ import {
   ROUTING_OUTCOME,
   SOURCE_MODE,
 } from "../../packages/core/src/loop/conductor-routing.mjs";
+import {
+  ASYNC_START_STATUS,
+  buildAsyncStartRejection,
+  validateAsyncStartContext,
+} from "../../packages/core/src/loop/async-start-contract.mjs";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 
@@ -120,11 +125,20 @@ Stop reasons:
                                        HEAD does not match PR head commit
   unknown_state                        Unrecognized combined state
 
+Async-start contract:
+  This loop must run within a visible Pi-managed async context. It fails closed
+  unless one of [PI_SUBAGENT_RUN_ID, PI_SESSION_ID, PI_ASYNC_CONTEXT] is set, to
+  prevent hidden detached-process fallback (nohup, disowned shell jobs, etc.).
+  Snapshot/test input mode (both --copilot-input and --reviewer-input) is exempt.
+  Set PI_ASYNC_START_BYPASS=1 only for explicitly authorized standalone runs.
+
 Error output (stderr, JSON):
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
   gh/git/runtime failures:
     { "ok": false, "error": "..." }
+  Async-start contract rejection:
+    { "ok": false, "error": "...", "asyncStartContract": "rejected" }
 
 Exit codes:
   0  Success
@@ -513,6 +527,13 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   const normalizedRepo = repo.trim().toLowerCase();
   const checkpointDir = options.checkpointDir ?? defaultCheckpointDir(normalizedRepo, pr);
 
+  // Async-start contract enforcement: fail closed when not in a Pi-managed context
+  const isSnapshotMode = copilotInputPath !== undefined && reviewerInputPath !== undefined;
+  const asyncStartValidation = validateAsyncStartContext({ env, isSnapshotMode });
+  if (asyncStartValidation.status === ASYNC_START_STATUS.REJECTED) {
+    return buildAsyncStartRejection(asyncStartValidation);
+  }
+
   // Detect copilot state
   let copilotSnapshot;
   if (copilotInputPath !== undefined) {
@@ -647,6 +668,7 @@ export async function runCli(
   argv = process.argv.slice(2),
   {
     stdout = process.stdout,
+    stderr = process.stderr,
     env = process.env,
     ghCommand = "gh",
     gitCommand = "git",
@@ -660,6 +682,14 @@ export async function runCli(
   }
 
   const result = await runOuterLoop(options, { env, ghCommand, gitCommand });
+
+  // Fail closed on async-start contract rejection: emit on stderr and exit non-zero.
+  if (result.ok === false) {
+    stderr.write(`${JSON.stringify(result)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
   stdout.write(`${JSON.stringify(result)}\n`);
 }
 
