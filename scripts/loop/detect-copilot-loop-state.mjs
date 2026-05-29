@@ -67,7 +67,13 @@ import {
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
 import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
-import { buildSnapshotFromPrFacts, interpretLoopState, normalizeSnapshot, summarizeLoopInterpretation } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import {
+  buildSnapshotFromPrFacts,
+  interpretLoopState,
+  normalizeCiStatus,
+  normalizeSnapshot,
+  summarizeLoopInterpretation,
+} from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
   createSteeringState,
   normalizeSteeringState,
@@ -323,6 +329,146 @@ async function fetchCopilotRequested({ repo, pr }, { env, ghCommand }) {
   return users.some((user) => isCopilotLogin(user?.login));
 }
 
+function normalizeHeadScopedCheckRunsStatus(payload) {
+  const runs = Array.isArray(payload?.check_runs) ? payload.check_runs : [];
+  if (runs.length === 0) {
+    return "none";
+  }
+
+  const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
+  const SUCCESS_CONCLUSIONS = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
+  let hasPending = false;
+  let hasFailure = false;
+  let hasSuccess = false;
+
+  for (const run of runs) {
+    const status = typeof run?.status === "string" ? run.status.toUpperCase() : "";
+    const conclusion = typeof run?.conclusion === "string" ? run.conclusion.toUpperCase() : "";
+
+    if (status !== "COMPLETED") {
+      hasPending = true;
+      continue;
+    }
+
+    if (FAILURE_CONCLUSIONS.has(conclusion)) {
+      hasFailure = true;
+      continue;
+    }
+
+    if (SUCCESS_CONCLUSIONS.has(conclusion)) {
+      hasSuccess = true;
+      continue;
+    }
+  }
+
+  if (hasPending) return "pending";
+  if (hasFailure) return "failure";
+  if (hasSuccess) return "success";
+  return "none";
+}
+
+function normalizeHeadScopedCommitStatus(payload) {
+  const statuses = Array.isArray(payload?.statuses) ? payload.statuses : [];
+  if (statuses.length === 0) {
+    return "none";
+  }
+
+  let hasPending = false;
+  let hasFailure = false;
+  let hasSuccess = false;
+
+  for (const statusItem of statuses) {
+    const state = typeof statusItem?.state === "string" ? statusItem.state.toLowerCase() : "";
+    if (state === "pending") {
+      hasPending = true;
+      continue;
+    }
+    if (state === "failure" || state === "error") {
+      hasFailure = true;
+      continue;
+    }
+    if (state === "success") {
+      hasSuccess = true;
+      continue;
+    }
+  }
+
+  if (hasPending) return "pending";
+  if (hasFailure) return "failure";
+  if (hasSuccess) return "success";
+  return "none";
+}
+
+function mergeHeadScopedCiStatuses(checkRunsStatus, commitStatus) {
+  if (checkRunsStatus === "pending" || commitStatus === "pending") {
+    return "pending";
+  }
+  if (checkRunsStatus === "failure" || commitStatus === "failure") {
+    return "failure";
+  }
+  if (checkRunsStatus === "success" || commitStatus === "success") {
+    return "success";
+  }
+  return "none";
+}
+
+async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
+  const checkRunsResult = await runChild(
+    ghCommand,
+    ["api", `repos/${repo}/commits/${headSha}/check-runs`],
+    env,
+  );
+  if (checkRunsResult.code !== 0) {
+    return null;
+  }
+
+  const statusesResult = await runChild(
+    ghCommand,
+    ["api", `repos/${repo}/commits/${headSha}/status`],
+    env,
+  );
+  if (statusesResult.code !== 0) {
+    return null;
+  }
+
+  let checkRunsPayload;
+  let statusesPayload;
+  try {
+    checkRunsPayload = JSON.parse(checkRunsResult.stdout);
+    statusesPayload = JSON.parse(statusesResult.stdout);
+  } catch {
+    return null;
+  }
+
+  return mergeHeadScopedCiStatuses(
+    normalizeHeadScopedCheckRunsStatus(checkRunsPayload),
+    normalizeHeadScopedCommitStatus(statusesPayload),
+  );
+}
+
+function hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, currentHeadSha) {
+  if (currentHeadSha == null) {
+    return false;
+  }
+
+  const reviews = Array.isArray(reviewSummary?.copilotReviews) ? reviewSummary.copilotReviews : [];
+  for (const review of reviews) {
+    const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
+    if (state === "PENDING" || state === "COMMENTED" || state === "DISMISSED") {
+      continue;
+    }
+
+    const commitSha = typeof review?.commit?.oid === "string"
+      ? review.commit.oid
+      : (typeof review?.commit_id === "string" ? review.commit_id : null);
+    if (commitSha && commitSha !== currentHeadSha) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * Auto-detect the current loop snapshot by querying GitHub.
  * Exported for use by higher-level orchestration helpers.
@@ -352,6 +498,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     ? prData.headRefOid.trim()
     : null;
   const reviewSummary = summarizeCopilotReviews(prData.reviews, { headSha: prHeadSha });
+  const fallbackCiStatus = normalizeCiStatus(prData.statusCheckRollup);
 
   // Determine review request status
   let copilotReviewRequestStatus;
@@ -382,6 +529,17 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     throw new Error(`Could not determine review-thread state: ${detail}`);
   }
 
+  const shouldRefreshCurrentHeadCi =
+    prHeadSha !== null
+    && !reviewSummary.hasSubmittedReviewOnCurrentHead
+    && hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, prHeadSha);
+
+  let currentHeadCiStatus = fallbackCiStatus;
+  if (shouldRefreshCurrentHeadCi) {
+    const refreshed = await fetchCurrentHeadCiStatus({ repo, headSha: prHeadSha }, { env, ghCommand });
+    currentHeadCiStatus = refreshed ?? "none";
+  }
+
   return buildSnapshotFromPrFacts({
     prData,
     prNumber: pr,
@@ -390,6 +548,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
     unresolvedThreadCount,
     actionableThreadCount,
+    ciStatus: currentHeadCiStatus,
   });
 }
 

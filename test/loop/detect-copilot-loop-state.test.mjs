@@ -613,6 +613,126 @@ test("detect-copilot-loop-state auto-detect ignores stale pending Copilot review
       data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
     });
 
+    test("detect-copilot-loop-state fails closed from old-head green to new-head pending", async () => {
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-old-green-new-pending-"));
+
+      try {
+        const emptyThreads = JSON.stringify({
+          data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+        });
+
+        const { env } = await writeGhStub(tempDir, [
+          {
+            assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+            stdout: JSON.stringify({
+              isDraft: false,
+              state: "OPEN",
+              number: 17,
+              headRefOid: "newsha",
+              reviews: [
+                {
+                  id: "r-old-submitted",
+                  author: { login: "copilot-pull-request-reviewer[bot]" },
+                  state: "CHANGES_REQUESTED",
+                  commit: { oid: "oldsha" },
+                },
+              ],
+              statusCheckRollup: [
+                { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+              ],
+            }) + "\n",
+          },
+          {
+            assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+            stdout: '{"users":[],"teams":[]}\n',
+          },
+          {
+            assertArgs: ["api", "graphql"],
+            stdout: emptyThreads + "\n",
+          },
+          {
+            assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs"],
+            stdout: '{"check_runs":[{"status":"IN_PROGRESS","conclusion":null}]}\n',
+          },
+          {
+            assertArgs: ["api", "repos/owner/repo/commits/newsha/status"],
+            stdout: '{"statuses":[]}\n',
+          },
+        ]);
+
+        const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+        assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+        const output = JSON.parse(result.stdout);
+        assert.equal(output.state, "waiting_for_ci");
+        assert.equal(output.snapshot.ciStatus, "pending");
+        assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    test("detect-copilot-loop-state fails closed from old-head green to new-head none", async () => {
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-old-green-new-none-"));
+
+      try {
+        const emptyThreads = JSON.stringify({
+          data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+        });
+
+        const { env } = await writeGhStub(tempDir, [
+          {
+            assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+            stdout: JSON.stringify({
+              isDraft: false,
+              state: "OPEN",
+              number: 17,
+              headRefOid: "newsha",
+              reviews: [
+                {
+                  id: "r-old-submitted",
+                  author: { login: "copilot-pull-request-reviewer[bot]" },
+                  state: "CHANGES_REQUESTED",
+                  commit: { oid: "oldsha" },
+                },
+              ],
+              statusCheckRollup: [
+                { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+              ],
+            }) + "\n",
+          },
+          {
+            assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+            stdout: '{"users":[],"teams":[]}\n',
+          },
+          {
+            assertArgs: ["api", "graphql"],
+            stdout: emptyThreads + "\n",
+          },
+          {
+            assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs"],
+            stdout: '{"check_runs":[]}\n',
+          },
+          {
+            assertArgs: ["api", "repos/owner/repo/commits/newsha/status"],
+            stdout: '{"statuses":[]}\n',
+          },
+        ]);
+
+        const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+        assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+        const output = JSON.parse(result.stdout);
+        assert.equal(output.state, "waiting_for_ci");
+        assert.equal(output.snapshot.ciStatus, "none");
+        assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
     const { env } = await writeGhStub(tempDir, [
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],

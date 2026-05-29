@@ -154,6 +154,7 @@ export function buildSnapshotFromPrFacts({
   copilotReviewOnCurrentHead = false,
   unresolvedThreadCount = 0,
   actionableThreadCount = 0,
+  ciStatus,
 }) {
   const prState = typeof prData?.state === "string" ? prData.state.toUpperCase() : "OPEN";
   const prMerged = prState === "MERGED";
@@ -170,7 +171,7 @@ export function buildSnapshotFromPrFacts({
     copilotReviewOnCurrentHead,
     unresolvedThreadCount,
     actionableThreadCount,
-    ciStatus: normalizeCiStatus(prData?.statusCheckRollup),
+    ciStatus: ciStatus ?? normalizeCiStatus(prData?.statusCheckRollup),
   });
 }
 
