@@ -183,6 +183,7 @@ test("detect-initial-copilot-pr-state returns no_linked_pr when no linked PR exi
       prNumber: null,
       prUrl: null,
       headBranch: null,
+      authorLogin: null,
       isDraft: null,
       changedFiles: null,
       commitCount: null,
@@ -502,6 +503,7 @@ test("detect-initial-copilot-pr-state returns copilot_session_active while Copil
     assert.equal(result.stderr, "");
     const payload = JSON.parse(result.stdout);
     assert.equal(payload.state, "copilot_session_active");
+    assert.equal(payload.authorLogin, "Copilot");
     assert.equal(payload.sessionActivity, "active");
     assert.equal(payload.sessionRunId, 123);
     assert.equal(payload.sessionRunStatus, "in_progress");

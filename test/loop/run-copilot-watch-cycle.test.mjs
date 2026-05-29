@@ -568,6 +568,68 @@ test("runWatchCycle integration keeps probe-only checks non-blocking even with a
   }
 });
 
+test("runWatchCycle integration bounds active Copilot workflow waits by the emitted watch budget", async () => {
+  let receivedTimeoutMs = null;
+
+  const result = await runWatchCycle(
+    {
+      repo: "owner/repo",
+      pr: 17,
+      forceRerequestReview: false,
+      probeOnly: false,
+    },
+    {
+      runHandoffImpl: async () => ({
+        ok: true,
+        action: "watch",
+        state: "waiting_for_copilot_review",
+        allowedTransitions: ["unresolved_feedback_present"],
+        nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+        snapshot: { repo: "owner/repo", pr: 17 },
+        loopDisposition: "pending",
+        terminal: false,
+        watchArgs: {
+          repo: "owner/repo",
+          pr: 17,
+          pollIntervalMs: 60_000,
+          timeoutMs: 86_400_000,
+        },
+      }),
+      detectSessionActivity: true,
+      fetchPrHeadBranchImpl: async () => "copilot/session-branch",
+      detectCopilotSessionActivityImpl: async () => ({
+        ok: true,
+        activity: "active",
+        runId: 444,
+        runName: "Addressing comment on PR owner/repo#17",
+        runStatus: "in_progress",
+        runConclusion: null,
+        runCreatedAt: "2026-05-27T13:08:48Z",
+        branch: "copilot/session-branch",
+        confidence: "high",
+      }),
+      watchWorkflowRunImpl: async ({ timeoutMs }) => {
+        receivedTimeoutMs = timeoutMs;
+        return { status: "timed_out" };
+      },
+      watchCopilotReviewImpl: async (options) => ({
+        ok: true,
+        status: "idle",
+        repo: options.repo,
+        pr: options.pr,
+        attempts: 1,
+        newComments: [],
+        newReviews: [],
+        newIssueComments: [],
+      }),
+    },
+  );
+
+  assert.equal(receivedTimeoutMs, 86_400_000);
+  assert.equal(result.sessionActivity.activity, "active");
+  assert.equal(result.watchStatus, "idle");
+});
+
 test("runWatchCycle integration waits on active Copilot workflow run before idle probe", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-cycle-session-active-"));
   let watcherOptions;

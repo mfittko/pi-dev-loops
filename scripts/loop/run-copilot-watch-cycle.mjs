@@ -121,17 +121,49 @@ async function fetchPrHeadBranch({ repo, pr }, { env, ghCommand }) {
   return payload.headRefName.trim();
 }
 
-async function watchWorkflowRun({ repo, runId }, { env, ghCommand }) {
-  const result = await runChild(
-    ghCommand,
-    ["run", "watch", String(runId), "--repo", repo],
-    env,
-  );
+async function watchWorkflowRun({ repo, runId, timeoutMs = null }, { env, ghCommand }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      ghCommand,
+      ["run", "watch", String(runId), "--repo", repo],
+      { env, stdio: ["ignore", "pipe", "pipe"] },
+    );
 
-  if (result.code !== 0) {
-    const detail = result.stderr.trim() || `exit code ${result.code}`;
-    throw new Error(`gh command failed: ${detail}`);
-  }
+    let stderr = "";
+    let timedOut = false;
+    let timeoutId = null;
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    if (Number.isInteger(timeoutMs) && timeoutMs >= 0) {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGTERM");
+      }, timeoutMs);
+    }
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+
+      if (timedOut) {
+        resolve({ status: "timed_out" });
+        return;
+      }
+
+      if (code !== 0) {
+        const detail = stderr.trim() || `exit code ${code}`;
+        reject(new Error(`gh command failed: ${detail}`));
+        return;
+      }
+
+      resolve({ status: "completed" });
+    });
+  });
 }
 
 function determineWatchTimeout({ probeOnly, defaultTimeoutMs, sessionActivity }) {
@@ -251,7 +283,11 @@ export async function runWatchCycle(
       && Number.isInteger(session.runId)
     ) {
       await watchWorkflowRunImpl(
-        { repo: options.repo, runId: session.runId },
+        {
+          repo: options.repo,
+          runId: session.runId,
+          timeoutMs: handoff.watchArgs.timeoutMs,
+        },
         { env, ghCommand },
       );
     }
