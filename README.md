@@ -55,14 +55,14 @@ Current commands:
 - `/dev-loops` — help output
 - `/dev-loops status` — concise readiness summary
 - `/dev-loops doctor` — full diagnostics
-- `/dev-loops install` / `/dev-loops update` — deprecated compatibility commands that point users to package install/update flows
+- `/dev-loops install` / `/dev-loops update` — removed; use `pi install` / `pi update` directly instead
 - `/dev-loops hide` — clear the readiness widget
 
 Important install/update contract:
 - installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes the `/dev-loops` extension command surface, the `pi-dev-loops` shell CLI, and the packaged skills from `package.json` `pi.skills`
 - for a project-local install, use `pi install -l git:github.com/mfittko/pi-dev-loops`
 - packaged `.pi/agents/*.agent.md` files are synchronized into `~/.agents/` on `session_start`
-- `/dev-loops install ...` and `/dev-loops update ...` are deprecated compatibility commands and no longer copy skills into `.pi/skills` or `~/.pi/agent/skills`
+- `/dev-loops install ...` and `/dev-loops update ...` are removed; use `pi install` / `pi update` directly instead
 
 See `extension/README.md` for the full command and package-install contract.
 
