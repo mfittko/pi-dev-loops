@@ -136,6 +136,9 @@ Required authoritative inputs:
 - optional `intent`
   - when present, it must be a valid public `dev-loop` intent
   - `inspect_state` preserves the bundle's `inspect` route kind and inspect-style next action
+- optional `mode` (`bounded_handoff` \| `durable_auto`)
+  - same bounded variation-mode semantics as `evaluatePublicDevLoopRouting`
+  - `auto_continue_current` always resolves to `durable_auto`
 - `issueLinkageResolution` (`resolved_linked_pr` \| `resolved_no_open_pr` \| `not_applicable`)
   - required when `currentState.target.kind === issue`
 - `issueReadiness` (`ready` \| `needs_clarification` \| `not_applicable`)
@@ -172,6 +175,8 @@ Resolved bundle output shape:
   "selectedGate": "...",
   "selectedStrategy": "...",
   "compatibilityEntrypoint": "...",
+  "executionMode": "bounded_handoff | durable_auto",
+  "waitSemantics": "default | auto_healthy_wait",
   "nextAction": "...",
   "reason": "..."
 }
