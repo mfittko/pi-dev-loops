@@ -199,8 +199,8 @@ function isAutoRerequestEligible(snapshot, state) {
  *     — current known Copilot review-request state, or "none" if unknown
  * - copilotReviewPresent {boolean} — whether at least one Copilot review exists on the PR
  * - copilotReviewOnCurrentHead {boolean} — whether a submitted (non-PENDING) Copilot review
- *     exists for the current head commit; when true, the review is done even if
- *     requested_reviewers has not yet cleared
+ *     exists for the current head commit; this alone does not prove the current-head
+ *     review-request lifecycle is settled, so callers must still check request-state fields
  * - unresolvedThreadCount {number} — total unresolved review-thread count
  * - actionableThreadCount {number} — unresolved threads with non-bot actionable comments
  * - ciStatus {"success"|"failure"|"pending"|"none"} — current CI check rollup status
