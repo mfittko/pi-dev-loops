@@ -692,3 +692,107 @@ test("tracker-first MVP state graph is documented as adapter-agnostic, mutually 
 
   assert.match(skillContent, /inherits[\s\S]*source-of-truth ownership[\s\S]*work item <-> PR link[\s\S]*reverse-sync semantics from\s*`#21`/i);
 });
+
+test("gate-review comment contract documents required fields, verdict values, rerun rules, and fail-closed behavior", async () => {
+  const contractContent = await readRepo("docs/gate-review-comment-contract.md");
+
+  // Required fields
+  assert.match(contractContent, /gate name/i);
+  assert.match(contractContent, /head SHA/i);
+  assert.match(contractContent, /verdict/i);
+  assert.match(contractContent, /\bclean\b/);
+  assert.match(contractContent, /findings_present/);
+  assert.match(contractContent, /\bblocked\b/);
+  assert.match(contractContent, /findings summary|no issues found/i);
+  assert.match(contractContent, /next action/i);
+
+  // Both gate names must appear
+  assert.match(contractContent, /draft_gate/);
+  assert.match(contractContent, /pre_approval_gate/);
+
+  // Rerun rules: same-head idempotent, new-head → new comment
+  assert.match(contractContent, /same.head[\s\S]{0,80}idempotent/i);
+  assert.match(contractContent, /new.head[\s\S]{0,120}new[\s\S]{0,60}comment/i);
+
+  // Fail-closed behavior
+  assert.match(contractContent, /fail.closed|cannot be posted/i);
+  assert.match(contractContent, /do not run `gh pr ready`|do not mark the PR ready/i);
+  assert.match(contractContent, /do not declare final.approval readiness/i);
+});
+
+test("gate-review comment requirement is enforced in draft gate and pre-approval gate sections of all skill files", async () => {
+  const [autopilotSkill, copilotDevLoopSkill] = await Promise.all([
+    readRepo("skills/copilot-autopilot/SKILL.md"),
+    readRepo("skills/copilot-dev-loop/SKILL.md"),
+  ]);
+
+  for (const [label, content] of [
+    ["copilot-autopilot", autopilotSkill],
+    ["copilot-dev-loop", copilotDevLoopSkill],
+  ]) {
+    const draftGateMatch = content.match(/### Draft gate contract[\s\S]*?(?=\n### |\n## |$)/);
+    const draftGate = draftGateMatch ? draftGateMatch[0] : "";
+    assert.ok(draftGate.length > 0, `${label} draft gate section not found`);
+
+    assert.match(
+      draftGate,
+      /Required PR comment/i,
+      `${label} draft gate should require a visible gate-review PR comment`,
+    );
+    assert.match(
+      draftGate,
+      /`draft_gate`/,
+      `${label} draft gate comment should name the gate as draft_gate`,
+    );
+    assert.match(
+      draftGate,
+      /head SHA/i,
+      `${label} draft gate comment should require head SHA`,
+    );
+    assert.match(
+      draftGate,
+      /fail.closed|cannot be posted/i,
+      `${label} draft gate should define fail-closed behavior`,
+    );
+    assert.match(
+      draftGate,
+      /older head SHA does not satisfy/i,
+      `${label} draft gate should state that an older-head comment does not satisfy the requirement`,
+    );
+
+    const preApprovalGateMatch = content.match(/### Pre-approval gate contract[\s\S]*?(?=\n### |\n## |$)/);
+    const preApprovalGate = preApprovalGateMatch ? preApprovalGateMatch[0] : "";
+    assert.ok(preApprovalGate.length > 0, `${label} pre-approval gate section not found`);
+
+    assert.match(
+      preApprovalGate,
+      /Required PR comment/i,
+      `${label} pre-approval gate should require a visible gate-review PR comment`,
+    );
+    assert.match(
+      preApprovalGate,
+      /`pre_approval_gate`/,
+      `${label} pre-approval gate comment should name the gate as pre_approval_gate`,
+    );
+    assert.match(
+      preApprovalGate,
+      /head SHA/i,
+      `${label} pre-approval gate comment should require head SHA`,
+    );
+    assert.match(
+      preApprovalGate,
+      /fail.closed|cannot be posted/i,
+      `${label} pre-approval gate should define fail-closed behavior`,
+    );
+    assert.match(
+      preApprovalGate,
+      /older head SHA does not satisfy/i,
+      `${label} pre-approval gate should state that an older-head comment does not satisfy the requirement`,
+    );
+    assert.match(
+      preApprovalGate,
+      /must not rely only on local or hidden artifacts/i,
+      `${label} pre-approval gate should require visible PR evidence instead of only hidden artifacts`,
+    );
+  }
+});
