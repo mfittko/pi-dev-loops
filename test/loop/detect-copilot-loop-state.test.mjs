@@ -45,7 +45,8 @@ async function writeJson(filePath, value) {
 }
 
 /**
- * Write a gh stub that responds to a sequence of calls.
+ * Write a gh stub that matches scripted gh invocations in any order.
+ * Each matching entry is claimed at most once via the claims directory.
  * Each entry: { assertArgs?, stdout?, stderr?, exitCode? }
  */
 async function writeGhStub(tempDir, entries) {
@@ -1491,7 +1492,7 @@ test("detect-copilot-loop-state auto-detect prioritizes CI failure over pending 
   }
 });
 
-test("detect-copilot-loop-state auto-detect fails when gh stub call budget is exceeded", async () => {
+test("detect-copilot-loop-state auto-detect fails when the gh stub is missing a scripted invocation", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gh-budget-"));
 
   try {
