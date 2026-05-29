@@ -424,6 +424,7 @@ function buildAcknowledgement({
   directiveText,
   resultCode,
   reason,
+  reasonCode = null,
   inspectedState,
   safePointCategory,
   readbackPath,
@@ -435,6 +436,7 @@ function buildAcknowledgement({
     disposition: mapDisposition(resultCode),
     resultCode,
     reason,
+    ...(reasonCode ? { reasonCode } : {}),
     inspectedState,
     safePointCategory,
     effectiveNow: resultCode === STEERING_RESULT.APPLIED_NOW,
@@ -443,12 +445,20 @@ function buildAcknowledgement({
   };
 }
 
-function buildLowLevelResult({ eventId, seq, resultCode, reason, acknowledgedAt = new Date().toISOString() }) {
+function buildLowLevelResult({
+  eventId,
+  seq,
+  resultCode,
+  reason,
+  reasonCode = null,
+  acknowledgedAt = new Date().toISOString(),
+}) {
   return {
     eventId,
     seq,
     result: resultCode,
     reason,
+    ...(reasonCode ? { reasonCode } : {}),
     acknowledgedAt,
   };
 }
@@ -479,10 +489,12 @@ async function loadOrCreateSteeringState(filePath, runId, target = null) {
 
 function rejectUnsteerableInspection(inspection, { runId, eventId, seq, directiveKind, directiveText, readbackPath }) {
   if (inspection.activeStateFamily !== ACTIVE_STATE_FAMILY) {
+    const reasonCode = "inspection_unsupported_state_family";
     const result = buildLowLevelResult({
       eventId,
       seq,
       resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+      reasonCode,
       reason: `inspection target family '${inspection.activeStateFamily}' is unsupported for operator-facing steering`,
     });
     return {
@@ -494,6 +506,7 @@ function rejectUnsteerableInspection(inspection, { runId, eventId, seq, directiv
         directiveText,
         resultCode: result.result,
         reason: result.reason,
+        reasonCode: result.reasonCode,
         inspectedState: inspection.layers?.copilot?.currentState ?? "unknown",
         safePointCategory: null,
         readbackPath,
@@ -503,10 +516,12 @@ function rejectUnsteerableInspection(inspection, { runId, eventId, seq, directiv
   }
 
   if (inspection.runId !== runId) {
+    const reasonCode = "inspection_run_mismatch";
     const result = buildLowLevelResult({
       eventId,
       seq,
       resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+      reasonCode,
       reason: `inspection run mismatch: expected ${JSON.stringify(runId)} but inspected ${JSON.stringify(inspection.runId)}`,
     });
     return {
@@ -518,6 +533,7 @@ function rejectUnsteerableInspection(inspection, { runId, eventId, seq, directiv
         directiveText,
         resultCode: result.result,
         reason: result.reason,
+        reasonCode: result.reasonCode,
         inspectedState: inspection.layers?.copilot?.currentState ?? "unknown",
         safePointCategory: null,
         readbackPath,
@@ -530,10 +546,12 @@ function rejectUnsteerableInspection(inspection, { runId, eventId, seq, directiv
   const safePointCategory = typeof inspectedState === "string" ? classifySafePoint(inspectedState) : null;
 
   if (typeof inspectedState !== "string" || inspection.statusClass === "unknown") {
+    const reasonCode = "inspection_target_unidentifiable";
     const result = buildLowLevelResult({
       eventId,
       seq,
       resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+      reasonCode,
       reason: "target run could not be confidently identified from the inspection snapshot",
     });
     return {
@@ -545,6 +563,7 @@ function rejectUnsteerableInspection(inspection, { runId, eventId, seq, directiv
         directiveText,
         resultCode: result.result,
         reason: result.reason,
+        reasonCode: result.reasonCode,
         inspectedState: inspectedState ?? "unknown",
         safePointCategory,
         readbackPath,
@@ -567,10 +586,12 @@ function rejectUnsteerableInspection(inspection, { runId, eventId, seq, directiv
       `stale=${inspection.markers.stale.length}`,
       `conflicts=${inspection.markers.conflicts.length}`,
     ].join(", ");
+    const reasonCode = "inspection_not_authoritative";
     const result = buildLowLevelResult({
       eventId,
       seq,
       resultCode: STEERING_RESULT.REJECTED_UNSAFE_NOW,
+      reasonCode,
       reason: `inspection snapshot is degraded or stale and cannot be steered safely (${detail})`,
     });
     return {
@@ -582,6 +603,7 @@ function rejectUnsteerableInspection(inspection, { runId, eventId, seq, directiv
         directiveText,
         resultCode: result.result,
         reason: result.reason,
+        reasonCode: result.reasonCode,
         inspectedState,
         safePointCategory,
         readbackPath,

@@ -514,8 +514,10 @@ test("runSubmit operator mode rejects degraded snapshot inputs and keeps a deter
     assert.equal(output.ok, true);
     assert.equal(output.acknowledgement.disposition, "rejected");
     assert.equal(output.acknowledgement.resultCode, STEERING_RESULT.REJECTED_UNSAFE_NOW);
+    assert.equal(output.acknowledgement.reasonCode, "inspection_not_authoritative");
     assert.match(output.acknowledgement.reason, /degraded or stale/i);
     assert.equal(output.result.result, STEERING_RESULT.REJECTED_UNSAFE_NOW);
+    assert.equal(output.result.reasonCode, "inspection_not_authoritative");
     assert.equal(output.steeringState.events.length, 0);
   });
 });

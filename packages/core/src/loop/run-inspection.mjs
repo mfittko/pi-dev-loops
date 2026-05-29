@@ -120,6 +120,51 @@ function buildReviewerScope(snapshotLike) {
   };
 }
 
+const LIVE_STEERING_TERMINAL_STATES = new Set([
+  "no_pr",
+  "done",
+  "review_request_unavailable",
+  "blocked_needs_user_decision",
+]);
+
+function evaluateLiveSteeringAvailability({
+  sourceMode,
+  trust,
+  markers,
+  statusClass,
+  copilotCurrentState,
+}) {
+  if (sourceMode !== SOURCE_MODE.LIVE_DETECTOR_BACKED) {
+    return { status: "unavailable", reason: "live_steering_unavailable_source_mode" };
+  }
+
+  if (trust !== TRUST.AUTHORITATIVE) {
+    return { status: "unavailable", reason: "live_steering_unavailable_trust" };
+  }
+
+  if (
+    markers.missing.length > 0
+    || markers.stale.length > 0
+    || markers.conflicts.length > 0
+  ) {
+    return { status: "unavailable", reason: "live_steering_unavailable_markers" };
+  }
+
+  if (statusClass === STATUS_CLASS.UNKNOWN || typeof copilotCurrentState !== "string") {
+    return { status: "unavailable", reason: "live_steering_unavailable_unknown_state" };
+  }
+
+  if (
+    statusClass === STATUS_CLASS.DONE
+    || statusClass === STATUS_CLASS.BLOCKED
+    || LIVE_STEERING_TERMINAL_STATES.has(copilotCurrentState)
+  ) {
+    return { status: "unavailable", reason: "live_steering_unavailable_terminal_state" };
+  }
+
+  return { status: "available", reason: null };
+}
+
 // ---------------------------------------------------------------------------
 // Snapshot composer
 // ---------------------------------------------------------------------------
@@ -467,10 +512,27 @@ export function composeRunInspectionSnapshot({
       reason: "no_steering_file",
     };
   } else {
-    layers.steering = {
-      status: "available",
-      ...(steeringReadback ?? {}),
-    };
+    const liveSteering = evaluateLiveSteeringAvailability({
+      sourceMode,
+      trust,
+      markers,
+      statusClass,
+      copilotCurrentState: layers.copilot?.currentState,
+    });
+
+    if (liveSteering.status === "available") {
+      layers.steering = {
+        status: "available",
+        ...(steeringReadback ?? {}),
+        liveSteering,
+      };
+    } else {
+      layers.steering = {
+        status: "unavailable",
+        reason: liveSteering.reason,
+        liveSteering,
+      };
+    }
   }
 
   // -------------------------------------------------------------------------
