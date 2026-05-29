@@ -955,6 +955,10 @@ test("outer-loop: active PR branch mismatch stops with explicit reconcile reason
     assert.equal(output.branchIdentity.prBranch, "copilot/fix-gate-progression-issue");
     assert.equal(output.branchIdentity.branchMatches, false);
     assert.equal(output.branchIdentity.headMatches, true);
+    assert.equal(output.conductorRouting.routingOutcome, "stop_needs_human");
+    assert.equal(output.conductorRouting.stopReason, "unsafe_local_branch_mismatch_requires_reconcile");
+    assert.equal(output.conductorRouting.handoffEnvelope.loopFamily, null);
+    assert.equal(output.conductorRouting.handoffEnvelope.entrypoint, null);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1006,6 +1010,10 @@ test("outer-loop: branch match but local head mismatch stops with explicit recon
     assert.equal(output.branchIdentity.prBranch, "copilot/fix-gate-progression-issue");
     assert.equal(output.branchIdentity.branchMatches, true);
     assert.equal(output.branchIdentity.headMatches, false);
+    assert.equal(output.conductorRouting.routingOutcome, "stop_needs_human");
+    assert.equal(output.conductorRouting.stopReason, "unsafe_local_head_mismatch_requires_reconcile");
+    assert.equal(output.conductorRouting.handoffEnvelope.loopFamily, null);
+    assert.equal(output.conductorRouting.handoffEnvelope.entrypoint, null);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

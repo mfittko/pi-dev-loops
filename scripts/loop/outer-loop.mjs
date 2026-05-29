@@ -55,7 +55,13 @@ import {
   normalizeReviewerSnapshot,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
 import { interpretOuterLoopState } from "../../packages/core/src/loop/outer-loop-state.mjs";
-import { evaluateConductorRouting } from "../../packages/core/src/loop/conductor-routing.mjs";
+import {
+  ENTRYPOINT,
+  evaluateConductorRouting,
+  LOOP_FAMILY,
+  ROUTING_OUTCOME,
+  SOURCE_MODE,
+} from "../../packages/core/src/loop/conductor-routing.mjs";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 
@@ -345,6 +351,32 @@ function evaluatePrLocalIdentity({
   };
 }
 
+function buildPrLocalIdentityStopRouting({
+  repo,
+  pr,
+  branchIdentity,
+}) {
+  const targetIdentity = { repo, pr };
+  const reason = branchIdentity.mismatchReason === "unsafe_local_branch_mismatch_requires_reconcile"
+    ? `Local branch '${branchIdentity.localBranch ?? "(unknown)"}' does not match PR head branch '${branchIdentity.prBranch ?? "(unknown)"}'; reconcile local branch/worktree before PR-local follow-up.`
+    : `Local HEAD '${branchIdentity.localHeadSha ?? "(unknown)"}' does not match PR head '${branchIdentity.prHeadSha ?? "(unknown)"}'; reconcile local branch/worktree before PR-local follow-up.`;
+
+  return {
+    routingOutcome: ROUTING_OUTCOME.STOP_NEEDS_HUMAN,
+    outerAction: "stop",
+    stopReason: branchIdentity.mismatchReason,
+    handoffEnvelope: {
+      targetIdentity,
+      loopFamily: LOOP_FAMILY.NONE,
+      entrypoint: ENTRYPOINT.NONE,
+      reason,
+      requiredArgs: { repo, pr },
+      requiresLocalIsolation: false,
+      confidence: SOURCE_MODE.LOCAL,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Checkpoint I/O
 // ---------------------------------------------------------------------------
@@ -516,7 +548,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     ? "snapshot"
     : "local";
 
-  const conductorRouting = evaluateConductorRouting({
+  let conductorRouting = evaluateConductorRouting({
     target: { repo: normalizedRepo, pr },
     copilotState: copilotInterpretation.state,
     reviewerState: reviewerInterpretation.state,
@@ -550,6 +582,11 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     if (branchIdentity.mismatchReason !== null) {
       outerAction = "stop";
       outerReason = branchIdentity.mismatchReason;
+      conductorRouting = buildPrLocalIdentityStopRouting({
+        repo: normalizedRepo,
+        pr,
+        branchIdentity,
+      });
     }
   }
 
