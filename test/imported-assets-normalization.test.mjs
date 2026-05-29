@@ -481,14 +481,15 @@ test("copilot-autopilot wires waiting_for_initial_copilot_implementation to dura
   assert.match(skillContent, /watch-initial-copilot-pr\.mjs --repo <resolved-repo> --issue <number>/i);
   assert.match(skillContent, /must use the dedicated `watch-initial-copilot-pr\.mjs` watcher and its default 1-hour watch budget/i);
   assert.match(skillContent, /ready_for_followup.*linked PR has.*substantive/i);
-  assert.match(skillContent, /timed_out.*still-waiting timeout outcome.*implementation failure/i);
   assert.match(skillContent, /timed_out.*observational first; refresh authoritative state/i);
   assert.match(skillContent, /if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached/i);
+  assert.match(skillContent, /if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention/i);
+  assert.match(skillContent, /only surface timeout attention when the seam's durable watch budget is actually exhausted/i);
   assert.match(skillContent, /quiet\/no-activity watch observations alone are non-terminal/i);
   assert.match(skillContent, /inspect\/status requests.*still-waiting state and exit normally/i);
-  assert.match(skillContent, /only surface timeout attention.*durable watch budget is actually exhausted or the refreshed state exits this seam/i);
+  assert.doesNotMatch(skillContent, /timed_out.*still-waiting timeout outcome.*implementation failure/i);
   assert.match(skillContent, /Phase 4 — Copilot handoff[\s\S]*timed_out.*observational first; refresh authoritative state/i);
-  assert.doesNotMatch(skillContent, /Phase 4 — Copilot handoff[\s\S]*timed_out.*watch budget expired; exit with an explicit still-waiting timeout outcome/i);
+  assert.match(skillContent, /From a plan-doc path[\s\S]*timed_out.*observational first; refresh authoritative state/i);
   assert.match(skillContent, /1.hour.*watch budget|1-hour.*Copilot-first wait/i);
 });
 
