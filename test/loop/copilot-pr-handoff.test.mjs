@@ -702,7 +702,15 @@ test("copilot-pr-handoff still re-requests review when a stale pending Copilot r
       },
       {
         assertArgs: ["api", "graphql"],
-        stdout: `${EMPTY_THREADS}\n`,
+        stdout: `${EMPTY_THREADS}\n` ,
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs"],
+        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"SUCCESS"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status"],
+        stdout: '{"statuses":[]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -866,7 +874,7 @@ test("copilot-pr-handoff preserves copilotReviewPresent=false for an initial req
       },
       {
         assertArgs: ["api", "graphql"],
-        stdout: EMPTY_THREADS + "\n",
+        stdout: EMPTY_THREADS + "\n" ,
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -939,6 +947,14 @@ test("copilot-pr-handoff auto re-requests when a newer head has no submitted Cop
       {
         assertArgs: ["api", "graphql"],
         stdout: EMPTY_THREADS + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs"],
+        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"SUCCESS"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status"],
+        stdout: '{"statuses":[]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],

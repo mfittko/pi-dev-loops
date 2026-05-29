@@ -361,8 +361,8 @@ function normalizeHeadScopedCheckRunsStatus(payload) {
     }
   }
 
-  if (hasPending) return "pending";
   if (hasFailure) return "failure";
+  if (hasPending) return "pending";
   if (hasSuccess) return "success";
   return "none";
 }
@@ -393,18 +393,18 @@ function normalizeHeadScopedCommitStatus(payload) {
     }
   }
 
-  if (hasPending) return "pending";
   if (hasFailure) return "failure";
+  if (hasPending) return "pending";
   if (hasSuccess) return "success";
   return "none";
 }
 
 function mergeHeadScopedCiStatuses(checkRunsStatus, commitStatus) {
-  if (checkRunsStatus === "pending" || commitStatus === "pending") {
-    return "pending";
-  }
   if (checkRunsStatus === "failure" || commitStatus === "failure") {
     return "failure";
+  }
+  if (checkRunsStatus === "pending" || commitStatus === "pending") {
+    return "pending";
   }
   if (checkRunsStatus === "success" || commitStatus === "success") {
     return "success";
@@ -454,7 +454,7 @@ function hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, currentHeadSha) 
   const reviews = Array.isArray(reviewSummary?.copilotReviews) ? reviewSummary.copilotReviews : [];
   for (const review of reviews) {
     const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
-    if (state === "PENDING" || state === "COMMENTED" || state === "DISMISSED") {
+    if (state === "PENDING") {
       continue;
     }
 

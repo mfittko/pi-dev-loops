@@ -320,7 +320,7 @@ test("runWatchCycle integration keeps initial request-review -> waiting_for_copi
       },
       {
         assertArgs: ["api", "graphql"],
-        stdout: `${EMPTY_THREADS}\n`,
+        stdout: `${EMPTY_THREADS}\n` ,
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -421,6 +421,14 @@ test("runWatchCycle integration keeps re-requested newer-head wait state non-ter
       {
         assertArgs: ["api", "graphql"],
         stdout: `${EMPTY_THREADS}\n`,
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs"],
+        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"SUCCESS"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status"],
+        stdout: '{"statuses":[]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
