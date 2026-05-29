@@ -463,6 +463,15 @@ test("copilot-autopilot docs define the closed direct-issue branch and keep sear
   assert.doesNotMatch(skillContent, /gh pr list --repo <resolved-repo> --state open --search "copilot\/ <issue-number>"/);
 });
 
+test("copilot-autopilot wires waiting_for_initial_copilot_implementation to durable watch seam", async () => {
+  const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
+
+  assert.match(skillContent, /watch-initial-copilot-pr\.mjs --repo <resolved-repo> --issue <number>/i);
+  assert.match(skillContent, /ready_for_followup.*linked PR has.*substantive/i);
+  assert.match(skillContent, /timed_out.*still-waiting timeout outcome.*implementation failure/i);
+  assert.match(skillContent, /1.hour.*watch budget|1-hour.*Copilot-first wait/i);
+});
+
 test("copilot-autopilot delegates linked-PR detection mechanics to deterministic helper tooling", async () => {
   const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
 
