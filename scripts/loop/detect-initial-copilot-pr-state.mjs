@@ -238,11 +238,17 @@ function classifyInitialCopilotPrState({ repo, facts }) {
     return LINKED_PR_STATE.COPILOT_SESSION_ACTIVE;
   }
 
-  return isBootstrapOnly
-    ? LINKED_PR_STATE.WAITING_FOR_INITIAL_COPILOT_IMPLEMENTATION
-    : facts.sessionActivity === "concluded" || facts.sessionActivity === null
-      ? LINKED_PR_STATE.LINKED_PR_READY_FOR_FOLLOWUP
-      : LINKED_PR_STATE.WAITING_FOR_INITIAL_COPILOT_IMPLEMENTATION;
+  if (isBootstrapOnly) {
+    return LINKED_PR_STATE.WAITING_FOR_INITIAL_COPILOT_IMPLEMENTATION;
+  }
+
+  // `idle` means there is no authoritative concluded Copilot run yet; keep waiting.
+  // Also fail closed for any other non-concluded activity values.
+  if (facts.sessionActivity !== null && facts.sessionActivity !== "concluded") {
+    return LINKED_PR_STATE.WAITING_FOR_INITIAL_COPILOT_IMPLEMENTATION;
+  }
+
+  return LINKED_PR_STATE.LINKED_PR_READY_FOR_FOLLOWUP;
 }
 
 async function fetchLinkedPrFacts({ repo, prNumber }, { env, ghCommand }) {

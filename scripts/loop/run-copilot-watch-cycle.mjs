@@ -133,6 +133,14 @@ async function watchWorkflowRun({ repo, runId }, { env, ghCommand }) {
   }
 }
 
+function determineWatchTimeout({ probeOnly, defaultTimeoutMs, sessionActivity }) {
+  if (probeOnly || sessionActivity === "active") {
+    return 0;
+  }
+
+  return defaultTimeoutMs;
+}
+
 export function parseWatchCycleCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -197,6 +205,7 @@ export async function runWatchCycle(
     detectCopilotSessionActivityImpl = detectCopilotSessionActivity,
     fetchPrHeadBranchImpl = fetchPrHeadBranch,
     watchWorkflowRunImpl = watchWorkflowRun,
+    detectSessionActivity = false,
   } = {},
 ) {
   const handoff = await runHandoffImpl(options, { env, ghCommand });
@@ -224,7 +233,7 @@ export async function runWatchCycle(
     return result;
   }
 
-  if (runHandoffImpl === runHandoff) {
+  if (detectSessionActivity) {
     const headBranch = await fetchPrHeadBranchImpl({ repo: options.repo, pr: options.pr }, { env, ghCommand });
     const session = await detectCopilotSessionActivityImpl(
       {
@@ -245,9 +254,11 @@ export async function runWatchCycle(
 
   const watchOptions = {
     ...handoff.watchArgs,
-    timeoutMs: options.probeOnly || result.sessionActivity?.activity === "active"
-      ? 0
-      : handoff.watchArgs.timeoutMs,
+    timeoutMs: determineWatchTimeout({
+      probeOnly: options.probeOnly,
+      defaultTimeoutMs: handoff.watchArgs.timeoutMs,
+      sessionActivity: result.sessionActivity?.activity ?? null,
+    }),
   };
   const watch = await watchCopilotReviewImpl(watchOptions, { env, ghCommand });
 
@@ -281,6 +292,7 @@ export async function runCli(
     ghCommand,
     runHandoffImpl,
     watchCopilotReviewImpl,
+    detectSessionActivity: true,
   });
   stdout.write(`${JSON.stringify(result)}\n`);
 }

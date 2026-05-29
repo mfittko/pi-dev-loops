@@ -361,6 +361,7 @@ test("runWatchCycle integration keeps initial request-review -> waiting_for_copi
       },
       {
         env,
+        detectSessionActivity: true,
         watchCopilotReviewImpl: async (options) => {
           watcherOptions = options;
           return {
@@ -460,6 +461,7 @@ test("runWatchCycle integration keeps re-requested newer-head wait state non-ter
       },
       {
         env,
+        detectSessionActivity: true,
         watchCopilotReviewImpl: async (options) => {
           watcherOptions = options;
           return {
@@ -544,6 +546,7 @@ test("runWatchCycle integration waits on active Copilot workflow run before idle
       },
       {
         env,
+        detectSessionActivity: true,
         watchCopilotReviewImpl: async (options) => {
           watcherOptions = options;
           return {

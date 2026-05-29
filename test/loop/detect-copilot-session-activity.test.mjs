@@ -175,3 +175,22 @@ test("detect-copilot-session-activity reports idle when no matching run names ex
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("detect-copilot-session-activity reports idle when branch has no runs", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-session-empty-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [{
+      assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/topic"],
+      stdout: "[]\n",
+    }]);
+
+    const result = await runNode(["--repo", "owner/repo", "--branch", "copilot/topic"], { env });
+    assert.equal(result.code, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.activity, "idle");
+    assert.equal(payload.runId, null);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
