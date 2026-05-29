@@ -336,7 +336,6 @@ function normalizeHeadScopedCheckRunsStatus(payload) {
   }
 
   const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
-  const SUCCESS_CONCLUSIONS = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
   let hasPending = false;
   let hasFailure = false;
   let hasSuccess = false;
@@ -355,10 +354,7 @@ function normalizeHeadScopedCheckRunsStatus(payload) {
       continue;
     }
 
-    if (SUCCESS_CONCLUSIONS.has(conclusion)) {
-      hasSuccess = true;
-      continue;
-    }
+    hasSuccess = true;
   }
 
   if (hasFailure) return "failure";
@@ -418,31 +414,38 @@ async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
     ["api", `repos/${repo}/commits/${headSha}/check-runs`],
     env,
   );
-  if (checkRunsResult.code !== 0) {
-    return null;
-  }
 
   const statusesResult = await runChild(
     ghCommand,
     ["api", `repos/${repo}/commits/${headSha}/status`],
     env,
   );
-  if (statusesResult.code !== 0) {
-    return null;
+
+  let checkRunsStatus = null;
+  if (checkRunsResult.code === 0) {
+    try {
+      checkRunsStatus = normalizeHeadScopedCheckRunsStatus(JSON.parse(checkRunsResult.stdout));
+    } catch {
+      checkRunsStatus = null;
+    }
   }
 
-  let checkRunsPayload;
-  let statusesPayload;
-  try {
-    checkRunsPayload = JSON.parse(checkRunsResult.stdout);
-    statusesPayload = JSON.parse(statusesResult.stdout);
-  } catch {
+  let commitStatus = null;
+  if (statusesResult.code === 0) {
+    try {
+      commitStatus = normalizeHeadScopedCommitStatus(JSON.parse(statusesResult.stdout));
+    } catch {
+      commitStatus = null;
+    }
+  }
+
+  if (checkRunsStatus === null && commitStatus === null) {
     return null;
   }
 
   return mergeHeadScopedCiStatuses(
-    normalizeHeadScopedCheckRunsStatus(checkRunsPayload),
-    normalizeHeadScopedCommitStatus(statusesPayload),
+    checkRunsStatus ?? "none",
+    commitStatus ?? "none",
   );
 }
 

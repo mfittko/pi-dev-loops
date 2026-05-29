@@ -320,7 +320,7 @@ test("runWatchCycle integration keeps initial request-review -> waiting_for_copi
       },
       {
         assertArgs: ["api", "graphql"],
-        stdout: `${EMPTY_THREADS}\n` ,
+        stdout: `${EMPTY_THREADS}\n`,
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
