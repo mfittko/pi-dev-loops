@@ -221,9 +221,14 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
      ```sh
      node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
      ```
+     - this seam must use the dedicated `watch-initial-copilot-pr.mjs` watcher and its default 1-hour watch budget
      - the watcher handles active-session `gh run watch` behavior internally before the next detect pass
      - `ready_for_followup`: linked PR has become substantive; route to the existing PR follow-up path immediately with the returned PR number
-     - `timed_out`: watch budget exhausted; exit with an explicit still-waiting timeout outcome rather than an implementation failure
+     - `timed_out`: treat this as observational first; refresh authoritative state with `detect-initial-copilot-pr-state.mjs`
+       - if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached to the same durable wait seam and continue waiting instead of surfacing completion/attention
+       - if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention
+       - only surface timeout attention when the seam's durable watch budget is actually exhausted
+     - for explicit inspect/status requests, report the refreshed still-waiting state and exit normally (do not silently continue unattended waiting)
    - `linked_pr_ready_for_followup`: route to the existing PR follow-up path immediately with that PR number
    - `no_linked_pr`: continue to Phase 3
 6. If no linked PR exists, proceed to Phase 3 with this issue as the execution entry point.
@@ -255,7 +260,11 @@ Normalize any non-issue input to a GitHub issue before entering the main executi
       ```
       - the watcher handles active-session `gh run watch` behavior internally before the next detect pass
       - `ready_for_followup`: resume at the PR follow-up path with the returned PR number
-      - `timed_out`: exit with an explicit still-waiting timeout outcome rather than an implementation failure
+      - `timed_out`: treat this as observational first; refresh authoritative state with `detect-initial-copilot-pr-state.mjs`
+        - if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached to the same durable wait seam and continue waiting instead of surfacing completion/attention
+        - if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention
+        - only surface timeout attention when the seam's durable watch budget is actually exhausted
+        - for explicit inspect/status requests, report the refreshed still-waiting state and exit normally
     - if the state is `linked_pr_ready_for_followup`, route immediately into the existing PR follow-up path instead of entering Phase 3 refinement again
     - otherwise confirm with the user and proceed with that issue
 6. If no matching issue exists:
@@ -363,8 +372,12 @@ node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <r
   ```sh
   node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
   ```
+  - this seam keeps durable ownership while refreshed authoritative state remains `waiting_for_initial_copilot_implementation`; quiet/no-activity watch observations alone are non-terminal
   - `ready_for_followup`: linked PR has become substantive; proceed to Phase 5 with the returned PR number
-  - `timed_out`: the 1-hour Copilot-first watch budget expired; exit with an explicit still-waiting timeout outcome rather than an implementation failure
+  - `timed_out`: treat this as observational first; refresh authoritative state with `detect-initial-copilot-pr-state.mjs`
+    - if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached to the same durable wait seam and continue waiting instead of surfacing completion/attention
+    - only surface timeout attention when the seam's durable watch budget is actually exhausted or the refreshed state exits this seam
+    - for explicit inspect/status requests, report the refreshed still-waiting state and exit normally
 - `linked_pr_ready_for_followup`: resume from that PR and do not retrigger Copilot for the same scope
 
 ## Phase 5 — PR tightening

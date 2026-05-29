@@ -386,6 +386,10 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(publicContract, /`dev-loop --intent auto_continue_current`/i);
   assert.match(publicContract, /stop at the final human approval decision by default/i);
   assert.match(publicContract, /waiting_for_merge_authorization/i);
+  assert.match(publicContract, /Copilot-first bootstrap seam.*waiting_for_initial_copilot_implementation/i);
+  assert.match(publicContract, /watch-initial-copilot-pr\.mjs.*default 1-hour watch budget/i);
+  assert.match(publicContract, /Quiet\/no-activity observations alone do not eject durable ownership/i);
+  assert.match(publicContract, /inspect\/status intents may still summarize that state and exit normally/i);
   assert.match(publicContract, /R --> A\[Final approval gate\]/i);
   assert.match(publicContract, /R --> M\[Wait for merge authorization\]/i);
 
@@ -475,8 +479,17 @@ test("copilot-autopilot wires waiting_for_initial_copilot_implementation to dura
   const skillContent = await readRepo("skills/copilot-autopilot/SKILL.md");
 
   assert.match(skillContent, /watch-initial-copilot-pr\.mjs --repo <resolved-repo> --issue <number>/i);
+  assert.match(skillContent, /must use the dedicated `watch-initial-copilot-pr\.mjs` watcher and its default 1-hour watch budget/i);
   assert.match(skillContent, /ready_for_followup.*linked PR has.*substantive/i);
-  assert.match(skillContent, /timed_out.*still-waiting timeout outcome.*implementation failure/i);
+  assert.match(skillContent, /timed_out.*observational first; refresh authoritative state/i);
+  assert.match(skillContent, /if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached/i);
+  assert.match(skillContent, /if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention/i);
+  assert.match(skillContent, /only surface timeout attention when the seam's durable watch budget is actually exhausted/i);
+  assert.match(skillContent, /quiet\/no-activity watch observations alone are non-terminal/i);
+  assert.match(skillContent, /inspect\/status requests.*still-waiting state and exit normally/i);
+  assert.doesNotMatch(skillContent, /timed_out.*still-waiting timeout outcome.*implementation failure/i);
+  assert.match(skillContent, /Phase 4 — Copilot handoff[\s\S]*timed_out.*observational first; refresh authoritative state/i);
+  assert.match(skillContent, /From a plan-doc path[\s\S]*timed_out.*observational first; refresh authoritative state/i);
   assert.match(skillContent, /1.hour.*watch budget|1-hour.*Copilot-first wait/i);
 });
 
