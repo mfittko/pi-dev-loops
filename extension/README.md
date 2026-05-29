@@ -65,7 +65,7 @@ Current Phase 3+ contract:
 Root tests and skill-local tests are intentionally separate:
 - `npm test` runs the current root test suite (`test:assets`, `test:extension`, `test:scripts`, and `test:core`)
 - `npm run test:extension`
-- `node --import tsx --test test/extension-checks.test.mjs test/extension-installer.test.mjs test/extension-command-contract.test.mjs test/extension-package-contract.test.mjs test/dev-loops-core.test.mjs test/dev-loops-cli.test.mjs`
+- `npm run test:extension` currently expands to one `node --import tsx --test ...` invocation in `package.json`; prefer the script entrypoint over copying the file list into downstream docs or runbooks
 - `npm run test:assets`
 - `npm run test:dev-loop`
 

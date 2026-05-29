@@ -75,14 +75,15 @@ Verification surfaces used for current behavior:
 - **Disposition**
   - `fix docs now`
 
-## Audited surface with no actual mismatch
+## Audited surface with no install/update mismatch
 
 ### `extension/README.md`
 
-- `extension/README.md` already states that `pi install git:github.com/mfittko/pi-dev-loops` is the package-install path, that packaged skills are exposed through `package.json` `pi.skills`, and that `/dev-loops install ...` / `/dev-loops update ...` are removed.
-- `test/extension-package-contract.test.mjs` already verifies those claims.
+- `extension/README.md` already stated the correct install/update/skill-discovery contract: `pi install git:github.com/mfittko/pi-dev-loops`, packaged skills exposed through `package.json` `pi.skills`, and `/dev-loops install ...` / `/dev-loops update ...` removed from the command surface.
+- `test/extension-package-contract.test.mjs` already verifies those contract claims.
+- This PR only syncs the extension README's extension-test command note so the new regression test is not omitted from the documented test entrypoint.
 - **Disposition**
-  - No doc fix needed in this issue.
+  - No install/update contract fix needed; keep the README's adjacent test-command note in sync with the new regression coverage.
 
 ## Safe doc-only corrections applied now
 

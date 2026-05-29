@@ -26,11 +26,15 @@ test("install/update/skill-discovery docs align on the current package-install c
     );
   }
 
-  assert.match(readme, /Current commands:\n- `\/dev-loops`[\s\S]*?- `\/dev-loops status`[\s\S]*?- `\/dev-loops doctor`[\s\S]*?- `\/dev-loops hide`/i);
+  const currentCommandsBlock = readme.match(/Current commands:\n((?:- .+\n)+)/i)?.[1] ?? "";
+  assert.match(currentCommandsBlock, /- `\/dev-loops`/i);
+  assert.match(currentCommandsBlock, /- `\/dev-loops status`/i);
+  assert.match(currentCommandsBlock, /- `\/dev-loops doctor`/i);
+  assert.match(currentCommandsBlock, /- `\/dev-loops hide`/i);
   assert.doesNotMatch(
-    readme,
-    /Current commands:\n(?:- .+\n){0,8}- `\/dev-loops install`[\s\S]*\/dev-loops update/i,
-    "README should not list removed install/update names as current commands",
+    currentCommandsBlock,
+    /\/dev-loops install|\/dev-loops update/i,
+    "README should not list removed install/update names as current commands, even with legacy argument suffixes",
   );
 
   for (const [file, content] of [
