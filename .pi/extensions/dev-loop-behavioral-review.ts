@@ -9,7 +9,7 @@
  * Activation: fires when a user-visible "Background task completed: dev-loop"
  * message arrives, which is the standard async-subagent delivery format.
  *
- * Enforcement seam: on each qualifying completion, this extension writes a
+ * Enforcement seam: on each observed async dev-loop completion message, this extension writes a
  * durable retrospective checkpoint marker to
  * `.pi/dev-loop-retrospective-checkpoint.json` with `state: "required"`.
  * The marker persists until the retrospective is recorded (`state: "complete"`)

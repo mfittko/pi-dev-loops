@@ -89,9 +89,9 @@ If the gate result is `needs_reconcile`, the caller must not proceed with the pr
 
 ## Durable artifact format
 
-The checkpoint file is written by `.pi/extensions/dev-loop-behavioral-review.ts`:
+The checkpoint file is written by `.pi/extensions/dev-loop-behavioral-review.ts` when it observes the standard async `dev-loop` completion message. The extension trigger is message-based; qualifying-path policy is enforced by the checkpoint gate and repo contract, not by deep route inspection in the extension itself:
 
-### On qualifying completion (written automatically by extension)
+### On observed async dev-loop completion message (written automatically by extension)
 
 ```json
 {
