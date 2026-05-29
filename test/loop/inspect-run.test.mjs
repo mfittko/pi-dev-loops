@@ -1264,6 +1264,16 @@ if (apiPath === "repos/owner/repo/pulls/55/comments?per_page=100") {
   process.exit(0);
 }
 
+if (apiPath === "repos/owner/repo/commits/newsha/check-runs?per_page=100") {
+  out({ check_runs: [] });
+  process.exit(0);
+}
+
+if (apiPath === "repos/owner/repo/commits/newsha/status?per_page=100") {
+  out({ statuses: [] });
+  process.exit(0);
+}
+
 if (apiPath === "repos/owner/repo/pulls/55/commits?per_page=100") {
   out([{ sha: "newsha", commit: { committer: { date: "2026-05-20T10:30:00Z" } }, author: { login: "author-user" } }]);
   process.exit(0);

@@ -172,7 +172,17 @@ Auto-detect must fail closed when review-thread state cannot be captured or pars
 
 ### Green validation precondition before follow-up re-request
 
-Re-requesting Copilot after a follow-up fix is gated on the updated head being green or credibly green. In practice: run the smallest honest local validation for the accepted fix scope, continue remediation if that validation is still known red, continue remediation if CI/checks for the current head are known red for a fixable issue, and do not treat `ciStatus: "none"` as equivalent to green.
+Re-requesting Copilot after a follow-up fix is gated on the updated head being green or credibly green. In practice:
+
+- run the smallest honest local validation for the accepted fix scope
+- continue remediation if that local validation is still known red
+- after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for CI-dependent follow-up
+- refresh the relevant GitHub CI/check state for the current head before advancing
+- treat `ciStatus: "pending"` and `ciStatus: "none"` for the current head as wait states, not as green
+- passing local validation alone does not satisfy a follow-up step that still requires GitHub CI/check readiness for the current head
+- only current-head results may satisfy that CI-dependent step; older-head results must not unblock the new head
+- continue remediation if CI/checks for the current head are known red for a fixable issue
+- if waiting for current-head checks times out before they settle, remain waiting/blocked rather than crossing the CI-dependent boundary anyway
 
 ### `waiting_for_copilot_review` is a persistence boundary for explicit async loop entry
 
