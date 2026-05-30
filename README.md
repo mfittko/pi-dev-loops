@@ -98,6 +98,7 @@ CI currently runs `npm ci`, `npm run verify`, and the explicit Playwright viewer
 ## Where to read next
 
 - `PLAN.md` — durable repo intent and roadmap
+- `docs/index.md` — docs start-here index for active docs, history, and presentations
 - `docs/IMPLEMENTATION_STATE.md` — current implementation snapshot
 - `docs/IMPLEMENTATION_WORKFLOW.md` — repo workflow contract and docs-sync rules
 - `skills/docs/public-dev-loop-contract.md` — public façade and routing contract

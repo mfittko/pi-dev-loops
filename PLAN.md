@@ -148,7 +148,7 @@ Success for Phase 7 means:
 
 The durable phase plan lives in `docs/phases/phase-7.md`.
 
-A separate supporting memo at `docs/workflow-remediation-prep.md` records the workflow-remediation findings behind issue #70. That memo supports bounded prep chunks, but it is not a roadmap phase and does not replace Phase 7.
+A separate supporting memo at `docs/archive/workflow-remediation-prep.md` records the workflow-remediation findings behind issue #70. That memo supports bounded prep chunks, but it is not a roadmap phase and does not replace Phase 7.
 
 ### After Phase 7
 

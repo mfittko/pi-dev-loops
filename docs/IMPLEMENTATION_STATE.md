@@ -19,7 +19,7 @@ Current `main` also includes the current conductor-adjacent ownership/routing co
 
 ## Supporting context
 
-- Workflow-remediation findings memo for issue #70: `docs/workflow-remediation-prep.md`
+- Workflow-remediation findings memo for issue #70: `docs/archive/workflow-remediation-prep.md`
 
 ## Current phase
 
@@ -40,7 +40,7 @@ If the user says **"continue implementation"**:
 7. start from the public `dev-loop` entrypoint and let routing choose the right internal path
 8. inspect `tmp/phases/index.json` and any useful prior artifacts only if prior context helps
 9. if durable repo truth changed during the work, sync `README.md`, `PLAN.md`, `docs/IMPLEMENTATION_STATE.md`, and any affected contract docs before closing the slice
-10. if the request is about workflow-remediation preparation, read `docs/workflow-remediation-prep.md` and work the next bounded #70 chunk without widening scope
+10. if the request is about workflow-remediation preparation, read `docs/archive/workflow-remediation-prep.md` and work the next bounded #70 chunk without widening scope
 11. for Phase 7 specifically, clarify the target repository and pilot path if they are still unset before implementation starts
 
 ## Next unfinished phase
