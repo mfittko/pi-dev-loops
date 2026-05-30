@@ -45,6 +45,8 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.doesNotMatch(readme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i);
   assert.match(readme, /node --import tsx --test/i);
   assert.match(readme, /does not yet claim a specific supported `gh` version/i);
+  assert.match(readme, /npm run verify/i);
   assert.match(readme, /npm run test:extension/i);
   assert.match(readme, /npm run test:dev-loop/i);
+  assert.match(readme, /npm run test:playwright:viewer/i);
 });

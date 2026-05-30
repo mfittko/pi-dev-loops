@@ -23,6 +23,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Default phase and issue refinement to multiple parallel variants before converging on a merged plan; do not rely on a single-plan synthesis when fan-out is practical.
 - Keep logs under `tmp/` in deterministic phase-scoped paths.
 - Use feature branches and small commits only after local verification.
+- Use `npm run verify` as the default repo-level local verification path when a full local validation pass is warranted.
 - For public-facing or release-bound changes, prefer GitHub issues/PRs/CI over direct local-main finalization.
 - Use detailed structured PR descriptions, not thin placeholder summaries. At minimum include: change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
 - In PR review/fix loops, do not stop at local code changes alone: after an accepted fix is pushed, reply to the addressed review comments with the resolving commit reference and resolve the corresponding threads when genuinely satisfied.

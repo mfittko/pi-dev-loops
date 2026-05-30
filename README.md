@@ -151,15 +151,17 @@ Current code and docs assume:
 
 ## Development and validation
 
-Root test commands from `package.json`:
+Root verification and test commands from `package.json`:
+- `npm run verify` — canonical root verification path (`npm test` + `npm run test:dev-loop`)
 - `npm test`
 - `npm run test:assets`
 - `npm run test:extension`
 - `npm run test:scripts`
 - `npm run test:core`
 - `npm run test:dev-loop`
+- `npm run test:playwright:viewer` — explicit viewer/browser smoke, not part of the default root verify path
 
-CI currently runs `npm ci` and `npm test` on Node 24 in `.github/workflows/ci.yml`.
+CI currently runs `npm ci`, `npm run verify`, and the explicit Playwright viewer smoke on Node 24 in `.github/workflows/ci.yml`.
 
 ## Where to read next
 
