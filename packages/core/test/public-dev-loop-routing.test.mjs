@@ -1238,6 +1238,32 @@ test("authoritative startup/resume bundle fails closed on detached-process async
   assert.match(bundle.reason, /detached local background processes do not satisfy the async-start contract/i);
 });
 
+test("authoritative startup/resume bundle fails closed on uninspectable pi-managed async run evidence", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 186, linkedPr: 188 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+    asyncRun: {
+      kind: "pi_managed_run",
+      runId: "run-188",
+      visible: true,
+      inspectionState: "uninspectable",
+    },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /uninspectable.*no child message route registered/i);
+});
+
 test("authoritative startup/resume bundle fails closed on asyncRun with unrecognized kind", () => {
   const bundle = resolveAuthoritativeStartupResumeBundle({
     intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,

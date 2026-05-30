@@ -127,7 +127,7 @@ Stop reasons:
 
 Async-start contract:
   This loop must run within a visible Pi-managed async context. It fails closed
-  unless one of [PI_SUBAGENT_RUN_ID, PI_SESSION_ID, PI_ASYNC_CONTEXT] is set, to
+  unless PI_SUBAGENT_RUN_ID is set, to
   prevent hidden detached-process fallback (nohup, disowned shell jobs, etc.).
   Snapshot/test input mode (both --copilot-input and --reviewer-input) is exempt.
   Set PI_ASYNC_START_BYPASS=1 only for explicitly authorized standalone runs.
