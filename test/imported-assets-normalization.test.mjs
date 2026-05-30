@@ -116,7 +116,7 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
 });
 
 
-test("installed skill copies bundle required runtime contract docs and skills point at the installed docs", async () => {
+test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
   const [devLoopSkill, copilotSkill, publicContract, retrospectiveContract, projectionContract] = await Promise.all([
     readRepo(".pi/skills/dev-loop/SKILL.md"),
     readRepo(".pi/skills/copilot-dev-loop/SKILL.md"),

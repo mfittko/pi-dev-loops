@@ -39,7 +39,6 @@ This contract starts **after**:
 | Core unit tests | `packages/core/test/conductor-pr-projection.test.mjs` |
 
 ---
-
 ## Authority boundary
 
 Visible PR updates and closeout artifacts are **downstream observability projections only**.
