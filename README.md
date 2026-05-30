@@ -59,8 +59,14 @@ Current code and docs assume:
 - Node `>=20`
 - a Pi host that satisfies peer dependencies on `@mariozechner/pi-coding-agent` and `@mariozechner/pi-tui`
 - `pi-subagents` for current workflow assumptions
+- `pi-intercom` if you want live mid-run async child steering / follow-up via `subagent({ action: "resume", ... })`
 - `gh` installed and authenticated for GitHub/Copilot workflows
 - a git repository checkout for the normal local and remote loop paths
+
+Notes:
+- without `pi-intercom`, async subagent workflows still support start, status inspection, interrupt, and post-completion resume/revive from saved child sessions
+- live follow-up to a still-running async child depends on the `pi-subagents` intercom bridge, which requires `pi-intercom`
+- install it with `pi install npm:pi-intercom`
 
 ## Repository layout
 
