@@ -54,7 +54,6 @@ import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
-import { interpretOuterLoopState } from "../../packages/core/src/loop/outer-loop-state.mjs";
 import {
   ENTRYPOINT,
   evaluateConductorRouting,
@@ -454,15 +453,15 @@ function shouldCarryForwardWaitCycles(previousCheckpoint, { repo, pr, headSha, o
  * @returns {{ outerAction: string, reason?: string }}
  */
 export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
-  const interpretation = interpretOuterLoopState({
+  const routing = evaluateConductorRouting({
     target: { repo: "routing/sentinel", pr: 1 },
     copilotState,
     reviewerState,
     requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
   });
   return {
-    outerAction: interpretation.outerAction,
-    ...(interpretation.stopReason !== null ? { reason: interpretation.stopReason } : {}),
+    outerAction: routing.outerAction,
+    ...(routing.stopReason !== null ? { reason: routing.stopReason } : {}),
   };
 }
 
@@ -533,19 +532,11 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     sourceMode,
     requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
   });
-  const outerInterpretation = interpretOuterLoopState({
-    target: { repo: normalizedRepo, pr },
-    copilotState: copilotInterpretation.state,
-    reviewerState: reviewerInterpretation.state,
-    sourceMode,
-    requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
-    routing: conductorRouting,
-  });
 
-  // Derive outer-loop action from the authoritative outer interpretation
-  // while preserving the existing backward-compat output shape.
-  let outerAction = outerInterpretation.outerAction;
-  let outerReason = outerInterpretation.stopReason;
+  // Derive outer-loop action from authoritative conductor routing while
+  // preserving the existing backward-compat output shape.
+  let outerAction = conductorRouting.outerAction;
+  let outerReason = conductorRouting.stopReason;
 
   let branchIdentity = null;
   if (outerReason === null && sourceMode === "local" && requiresPrLocalIdentityGate(outerAction)) {
