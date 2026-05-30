@@ -1,7 +1,8 @@
+#!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { access, constants as fsConstants } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   describeReadiness,
@@ -10,7 +11,6 @@ import {
   summarizeChecks,
   DEV_LOOP_CHECK_IDS,
 } from "../lib/dev-loops-core.mjs";
-import { resolveSystemSkillsRoot } from "../lib/dev-loops-installer.mjs";
 
 const CLI_SETUP_GUIDANCE = {
   "gh-installed": "Install GitHub CLI to enable remote GitHub/Copilot workflows.",
@@ -82,15 +82,6 @@ async function commandExists(
   return false;
 }
 
-async function pathExists(targetPath) {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function buildCliHelpLines() {
   return [
     "pi-dev-loops help",
@@ -144,28 +135,13 @@ function writeLines(stream, lines) {
 
 export function createCliRuntime({
   cwd = process.cwd(),
-  homeDirectory = os.homedir(),
   searchPath = process.env.PATH ?? "",
   platform = process.platform,
   pathExt = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
 } = {}) {
-  let repoRootPromise;
-
-  async function resolveRepoRoot() {
-    if (!repoRootPromise) {
-      repoRootPromise = Promise.resolve().then(() => {
-        const result = spawnResult("git", ["rev-parse", "--show-toplevel"], { cwd });
-        return result.ok ? result.stdout.trim() || undefined : undefined;
-      });
-    }
-
-    return repoRootPromise;
-  }
-
   return {
     surface: "cli",
     cwd,
-    homeDirectory,
     async commandExists(command) {
       return commandExists(command, { searchPath, platform, pathExt });
     },
@@ -175,45 +151,12 @@ export function createCliRuntime({
     async insideGitRepo() {
       return spawnResult("git", ["rev-parse", "--is-inside-work-tree"], { cwd }).ok;
     },
-    resolveRepoRoot,
     async getSubagentAvailability() {
       const ok = await commandExists("pi-subagents", { searchPath, platform, pathExt });
       return {
         ok,
         availableDetail: "`pi-subagents` is available on PATH.",
         unavailableDetail: "Install or enable `pi-subagents`; current loops assume subagent support.",
-      };
-    },
-    async getSkillAvailability(skillName) {
-      const repoRoot = await resolveRepoRoot();
-      const repoSkillPath = repoRoot ? path.join(repoRoot, ".pi", "skills", skillName, "SKILL.md") : undefined;
-      const systemSkillPath = path.join(resolveSystemSkillsRoot(homeDirectory), skillName, "SKILL.md");
-      const repoInstalled = repoSkillPath ? await pathExists(repoSkillPath) : false;
-      const systemInstalled = await pathExists(systemSkillPath);
-      const ok = repoInstalled || systemInstalled;
-
-      const installDetail = `Install the packaged skill under ${repoRoot ? "`.pi/skills` or " : ""}\`${resolveSystemSkillsRoot(homeDirectory)}\` to make it discoverable.`;
-
-      if (repoInstalled && repoSkillPath) {
-        return {
-          ok,
-          availableDetail: `Packaged skill is installed in this repository (${repoSkillPath}).`,
-          unavailableDetail: `Packaged skill is already installed in this repository (${repoSkillPath}).`,
-        };
-      }
-
-      if (systemInstalled) {
-        return {
-          ok,
-          availableDetail: `Packaged skill is installed in the system skill root (${systemSkillPath}).`,
-          unavailableDetail: `Packaged skill is already installed in the system skill root (${systemSkillPath}).`,
-        };
-      }
-
-      return {
-        ok: false,
-        availableDetail: "Packaged skill is not installed yet.",
-        unavailableDetail: installDetail,
       };
     },
   };
@@ -232,20 +175,12 @@ export async function runCli({
   stderr = process.stderr,
   runtime,
   cwd = process.cwd(),
-  homeDirectory = os.homedir(),
 } = {}) {
-  if (runtime && runtime.homeDirectory !== undefined && runtime.homeDirectory !== homeDirectory) {
-    throw new Error(
-      `runCli received mismatched homeDirectory values: runtime.homeDirectory=${runtime.homeDirectory} option.homeDirectory=${homeDirectory}`,
-    );
-  }
-
-  const activeRuntime = runtime ?? createCliRuntime({ cwd, homeDirectory });
+  const activeRuntime = runtime ?? createCliRuntime({ cwd });
   const result = await executeDevLoopsCommand({
     input: argv,
     surface: "cli",
     runtime: activeRuntime,
-    homeDirectory,
   });
 
   switch (result.kind) {
@@ -285,4 +220,12 @@ export async function runCli({
     default:
       throw new Error(`Unhandled CLI result: ${result.kind}`);
   }
+}
+
+const invokedAsScript = process.argv[1]
+  ? fileURLToPath(import.meta.url) === fileURLToPath(pathToFileURL(process.argv[1]))
+  : false;
+
+if (invokedAsScript) {
+  process.exitCode = await runCli();
 }

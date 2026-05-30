@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
@@ -27,10 +27,7 @@ function createBufferStream() {
 }
 
 function createRuntime(overrides = {}) {
-  const { homeDirectory = "/tmp/home", ...rest } = overrides;
-
   return {
-    homeDirectory,
     async commandExists(command) {
       return command === "gh";
     },
@@ -40,9 +37,6 @@ function createRuntime(overrides = {}) {
     async insideGitRepo() {
       return true;
     },
-    async resolveRepoRoot() {
-      return "/tmp/repo";
-    },
     async getSubagentAvailability() {
       return {
         ok: true,
@@ -50,14 +44,7 @@ function createRuntime(overrides = {}) {
         unavailableDetail: "missing subagent",
       };
     },
-    async getSkillAvailability(skillName) {
-      return {
-        ok: skillName !== "copilot-autopilot",
-        availableDetail: `skill available: ${skillName}`,
-        unavailableDetail: `skill missing: ${skillName}`,
-      };
-    },
-    ...rest,
+    ...overrides,
   };
 }
 
@@ -88,7 +75,6 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
     runtime: createRuntime(),
     stdout: statusStdout.stream,
     stderr: statusStderr.stream,
-    homeDirectory: "/tmp/home",
   });
 
   assert.equal(statusExitCode, 0);
@@ -104,7 +90,6 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
     runtime: createRuntime(),
     stdout: removedStdout.stream,
     stderr: removedStderr.stream,
-    homeDirectory: "/tmp/home",
   });
 
   assert.equal(removedExitCode, 1);
@@ -119,7 +104,6 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
     runtime: createRuntime(),
     stdout: malformedStdout.stream,
     stderr: malformedStderr.stream,
-    homeDirectory: "/tmp/home",
   });
 
   assert.equal(malformedExitCode, 1);
@@ -136,7 +120,6 @@ test("CLI help leads with dev-loop as the primary workflow entry", async () => {
     runtime: createRuntime(),
     stdout: helpStdout.stream,
     stderr: helpStderr.stream,
-    homeDirectory: "/tmp/home",
   });
 
   assert.equal(helpExitCode, 0);
@@ -152,18 +135,9 @@ test("CLI status next steps lead with dev-loop when all checks pass", async () =
   const statusStderr = createBufferStream();
   const statusExitCode = await runCli({
     argv: ["status"],
-    runtime: createRuntime({
-      async getSkillAvailability(skillName) {
-        return {
-          ok: true,
-          availableDetail: `skill available: ${skillName}`,
-          unavailableDetail: `skill missing: ${skillName}`,
-        };
-      },
-    }),
+    runtime: createRuntime(),
     stdout: statusStdout.stream,
     stderr: statusStderr.stream,
-    homeDirectory: "/tmp/home",
   });
 
   assert.equal(statusExitCode, 0);
@@ -187,7 +161,6 @@ exit 0
   try {
     const runtime = createCliRuntime({
       cwd: tempRoot,
-      homeDirectory: tempRoot,
       searchPath: binDir,
     });
 
@@ -224,11 +197,10 @@ exit 0
   try {
     process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
 
-    const runtime = createCliRuntime({ cwd: repoDir, homeDirectory: tempRoot });
+    const runtime = createCliRuntime({ cwd: repoDir });
     assert.equal(await runtime.commandExists("pi-subagents"), true);
     assert.equal(await runtime.ghAuthOk(), true);
     assert.equal(await runtime.insideGitRepo(), true);
-    assert.equal(await runtime.resolveRepoRoot(), await realpath(repoDir));
   } finally {
     if (previousPath === undefined) {
       delete process.env.PATH;
@@ -252,7 +224,6 @@ test("createCliRuntime honors PATHEXT lookups when simulating Windows PATH resol
   try {
     const runtime = createCliRuntime({
       cwd: tempRoot,
-      homeDirectory: tempRoot,
       searchPath: binDir,
       platform: "win32",
       pathExt: ".EXE;.CMD",
@@ -274,10 +245,9 @@ test("CLI rejects removed update command", async () => {
   try {
     const exitCode = await runCli({
       argv: ["update", "system"],
-      runtime: createRuntime({ homeDirectory: tempRoot }),
+      runtime: createRuntime(),
       stdout: stdout.stream,
       stderr: stderr.stream,
-      homeDirectory: tempRoot,
     });
 
     assert.equal(exitCode, 1);
@@ -289,79 +259,3 @@ test("CLI rejects removed update command", async () => {
   }
 });
 
-test("runCli rejects custom runtime/homeDirectory mismatches", async () => {
-  await assert.rejects(
-    runCli({
-      argv: ["status"],
-      runtime: createRuntime({ homeDirectory: "/tmp/runtime-home" }),
-      homeDirectory: "/tmp/other-home",
-    }),
-    /runCli received mismatched homeDirectory values/,
-  );
-
-  await assert.rejects(
-    runCli({
-      argv: ["status"],
-      runtime: createRuntime({ homeDirectory: "/tmp/runtime-home" }),
-    }),
-    /runCli received mismatched homeDirectory values/,
-  );
-});
-
-test("runCli uses the supplied homeDirectory when building its default runtime", async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-home-"));
-  const binDir = path.join(tempRoot, "bin");
-  const repoDir = path.join(tempRoot, "repo");
-  const skillsRoot = path.join(tempRoot, ".pi", "agent", "skills");
-  const statusStdout = createBufferStream();
-  const statusStderr = createBufferStream();
-  await mkdir(binDir, { recursive: true });
-  await mkdir(repoDir, { recursive: true });
-  await writeFile(path.join(binDir, "gh"), `#!/bin/sh
-exit 0
-`);
-  await writeFile(path.join(binDir, "pi-subagents"), `#!/bin/sh
-exit 0
-`);
-  await chmod(path.join(binDir, "gh"), 0o755);
-  await chmod(path.join(binDir, "pi-subagents"), 0o755);
-
-  for (const skillName of ["dev-loop", "copilot-dev-loop", "copilot-autopilot"]) {
-    await mkdir(path.join(skillsRoot, skillName), { recursive: true });
-    await writeFile(path.join(skillsRoot, skillName, "SKILL.md"), `# ${skillName}
-`);
-  }
-
-  const init = spawnSync("git", ["init", "-q"], {
-    cwd: repoDir,
-    encoding: "utf8",
-  });
-  assert.equal(init.status, 0, init.stderr);
-
-  const previousPath = process.env.PATH;
-
-  try {
-    process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
-
-    const exitCode = await runCli({
-      argv: ["status"],
-      cwd: repoDir,
-      stdout: statusStdout.stream,
-      stderr: statusStderr.stream,
-      homeDirectory: tempRoot,
-    });
-
-    assert.equal(exitCode, 0);
-    assert.match(statusStdout.read(), /Local loop readiness: ready/);
-    assert.match(statusStdout.read(), /Remote GitHub\/Copilot readiness: ready/);
-    assert.equal(statusStderr.read(), "");
-  } finally {
-    if (previousPath === undefined) {
-      delete process.env.PATH;
-    } else {
-      process.env.PATH = previousPath;
-    }
-
-    await rm(tempRoot, { recursive: true, force: true });
-  }
-});
