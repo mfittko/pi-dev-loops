@@ -462,6 +462,12 @@ Preferred approach for Copilot review follow-up:
 
 Use an existing repo-local async review-follow-up skill or deterministic watcher when available.
 
+### Canonical async dispatch wording
+
+Every async dev-loop dispatch task body must include this clause verbatim so fresh-context subagents inherit the gate requirement:
+
+> Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean gate-review comment exists on the PR for the current head SHA. Do not stop or report completion without this evidence.
+
 Key rules:
 - expected polling idle time is normal
 - do not restart watchers just because there has been a short quiet period
@@ -494,7 +500,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - if the guard exits non-zero (`branch_mismatch`), stop and realign to the expected branch before staging or committing
 7. if files changed, push the resolving commit before any thread reply claims the fix is present
 8. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
-   - prefer the deterministic helper `reply-resolve-review-thread.mjs` from the resolved skill scripts directory when it exists
+   - must use the deterministic helper `reply-resolve-review-thread.mjs` from the resolved skill scripts directory for thread reply/resolve work
    - when using that helper, pair `--comment-id` and `--thread-id` from the same fresh PR thread snapshot rather than mixing ids across review rounds
    - use a body file under `tmp/` rather than inline shell text for the reply body
    - when the intent is GitHub linkability, keep commit SHAs and issue/PR refs as plain text (for example 3ee82fc and owner/repo#70) and do not wrap them in backticks
@@ -502,7 +508,9 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
 9. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
    - do not stop at a local fix if GitHub-side reply/resolve is authorized
-10. only after GitHub-side reply/resolve work is done for the addressed threads, decide whether another Copilot pass is desired
+10. after completing reply/resolve for a pass, verify `unresolvedThreadCount === 0` via `capture-review-threads.mjs` before proceeding
+   - if the refreshed snapshot reports a non-zero unresolved thread count, re-enter the reply/resolve loop for the missed threads
+11. only after GitHub-side reply/resolve work is done for the addressed threads and the refreshed thread snapshot proves `unresolvedThreadCount === 0`, decide whether another Copilot pass is desired
    - if yes, run the smallest honest local validation for the accepted fix scope
    - if that local validation is still known red, continue remediation instead of re-requesting Copilot
    - after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for any CI-dependent follow-up decision
@@ -516,8 +524,8 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
    - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
    - if the request command fails unexpectedly, stop and report the error rather than sleeping and hoping for a new review
-11. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
-12. if scope has broadened, stop and ask before continuing
+12. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
+13. if scope has broadened, stop and ask before continuing
 
 Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 
@@ -573,6 +581,17 @@ This is the default pre-approval gate for this workflow boundary and owns the DR
   - If the required comment cannot be posted (fail-closed), do not declare final-approval readiness for that head.
   - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
   - If fixes advance the head SHA, post a new gate-review comment for the new head.
+- The `pre_approval_gate` procedure must be entered and completed (visible comment posted) before any merge-ready or approval-ready declaration. Skipping the gate is not recoverable by asserting convergence.
+
+### Merge-ready preconditions
+
+Do not declare merge-ready unless all of these checks pass in order:
+
+1. `unresolvedThreadCount === 0`, verified via `capture-review-threads.mjs` rather than by prose assertion alone
+2. a visible `pre_approval_gate` comment exists on the PR for the current head SHA with verdict `clean`
+3. CI is green on the current head SHA
+
+If any check fails, do not declare merge-ready.
 
 For any parallel review pass:
 - start each reviewer in fresh context
@@ -672,7 +691,11 @@ Do not:
 - create a separate local backlog
 - broaden a Copilot PR into multiple issue scopes
 - resolve threads without checking whether the current branch actually fixes them
+- use inline `gh api` to post thread replies without the resolve mutation
 - submit a merge-ready verdict without first summarizing the pending thread state
+- declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA
+- declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence
+- dispatch an async dev-loop task that omits the pre-approval gate requirement
 - bypass Pi async notifications with detached automation when the user wants in-session async behavior
 - assume the generated wiki is authoritative over code or CI
 
