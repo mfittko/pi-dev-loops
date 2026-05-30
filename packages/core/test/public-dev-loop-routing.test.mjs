@@ -1116,6 +1116,38 @@ test("authoritative startup/resume bundle preserves inspect routing in durable_a
   assert.match(bundle.nextAction, /Describe the canonical state/i);
 });
 
+test("authoritative startup/resume bundle reroutes stale bootstrap wait states when linked PR becomes ready for followup", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 177, linkedPr: 179 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "linked_pr_ready_for_followup",
+    asyncRun: buildVisibleAsyncRun("run-181"),
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+  assert.equal(bundle.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(bundle.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.DEFAULT);
+  assert.equal(bundle.asyncRun?.runId, "run-181");
+  assert.equal(bundle.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(bundle.activeArtifact.issue, 177);
+  assert.equal(bundle.activeArtifact.pr, 179);
+  assert.equal(bundle.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(bundle.canonicalState.status, DEV_LOOP_STATUS.ACTIVE);
+  assert.equal(bundle.loopState, "linked_pr_ready_for_followup");
+  assert.match(bundle.nextAction, /Copilot PR follow-up/i);
+});
+
 test("authoritative startup/resume bundle fails closed when durable auto has no visible async run", () => {
   const bundle = resolveAuthoritativeStartupResumeBundle({
     intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
@@ -1543,6 +1575,36 @@ test("authoritative status resolution preserves durable healthy-wait semantics f
   assert.equal(report.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
   assert.equal(report.asyncRun?.runId, "run-181");
   assert.match(report.nextAction, /remain in durable auto ownership/i);
+});
+
+test("authoritative status resolution reroutes stale bootstrap wait states when linked PR becomes ready for followup", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 177, linkedPr: 179 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "linked_pr_ready_for_followup",
+    asyncRun: buildVisibleAsyncRun("run-182"),
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+  assert.equal(report.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
+  assert.equal(report.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.DEFAULT);
+  assert.equal(report.asyncRun?.runId, "run-182");
+  assert.equal(report.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(report.activeArtifact.issue, 177);
+  assert.equal(report.activeArtifact.pr, 179);
+  assert.equal(report.loopState, "linked_pr_ready_for_followup");
+  assert.match(report.nextAction, /Copilot PR follow-up/i);
 });
 
 test("authoritative status resolution fails closed instead of claiming durable auto started without a visible async run", () => {

@@ -152,6 +152,7 @@ Required authoritative inputs:
   - shape: `{ "kind": "pi_managed_run" | "detached_process", "runId": "<visible-run-id>" | null, "processId": 12345 | null, "visible": true|false }`
   - durable-auto success requires `kind=pi_managed_run`, a non-empty visible `runId`, and `visible=true`
   - detached local processes are diagnostic-only evidence and must fail closed instead of being treated as a successful async start
+- when refreshed loop state is `linked_pr_ready_for_followup` for an issue target with a resolved linked PR, startup/resume and status resolution must promote stale bootstrap waiting to the linked PR follow-up path (or fail closed if the linked-PR facts are incomplete/contradictory) instead of preserving the old bootstrap wait route
 
 Resolved bundle output shape:
 
