@@ -167,7 +167,7 @@ test("branch guard exits non-zero with structured error for unknown argument", a
   assert.match(parsed.error, /Unknown argument/i);
 });
 
-test("branch guard runCli rejects when git command fails with non-empty stderr", async () => {
+test("branch guard runCli rejects when git command does not exist (ENOENT)", async () => {
   const chunks = [];
   const errChunks = [];
   const out = { write: (c) => chunks.push(c) };
@@ -216,4 +216,11 @@ test("branch guard runCli rejects when git exits non-zero with empty stderr", as
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("parseBranchGuardCliArgs rejects single-dash flag-like value for --expected-branch", () => {
+  assert.throws(
+    () => parseBranchGuardCliArgs(["--expected-branch", "-x"]),
+    /Missing value for --expected-branch/i,
+  );
 });

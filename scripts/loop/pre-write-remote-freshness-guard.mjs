@@ -26,7 +26,7 @@ function parseError(message) {
 
 function requireOptionValue(args, flag) {
   const value = args.shift();
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
+  if (typeof value !== "string" || value.length === 0 || value.startsWith("-")) {
     throw parseError(`Missing value for ${flag}`);
   }
   return value;

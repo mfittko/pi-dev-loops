@@ -172,7 +172,7 @@ test("freshness guard exits non-zero with structured error for unknown argument"
   assert.match(parsed.error, /Unknown argument/i);
 });
 
-test("freshness guard runCli rejects when git command fails with non-empty stderr", async () => {
+test("freshness guard runCli rejects when git command does not exist (ENOENT)", async () => {
   const out = { write: () => {} };
   const err = { write: () => {} };
 
@@ -219,4 +219,11 @@ test("freshness guard runCli rejects when git exits non-zero with empty stderr",
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("parseRemoteFreshnessGuardCliArgs rejects single-dash flag-like value for --branch", () => {
+  assert.throws(
+    () => parseRemoteFreshnessGuardCliArgs(["--branch", "-x"]),
+    /Missing value for --branch/i,
+  );
 });
