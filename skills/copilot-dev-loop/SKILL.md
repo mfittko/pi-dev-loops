@@ -893,6 +893,8 @@ Do not:
 - submit a merge-ready verdict without first summarizing the pending thread state
 - declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA
 - declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence
+- suggest approval, approve and merge, or any approval-ready statement without explicit current-head `pre_approval_gate` gate-review evidence
+- treat CI green + resolved review threads + clean Copilot rereview as sufficient for approval or merge without an explicit current-head `pre_approval_gate` gate-review comment
 - dispatch an async dev-loop task that omits the pre-approval gate requirement
 - bypass Pi async notifications with detached automation when the user wants in-session async behavior
 - assume the generated wiki is authoritative over code or CI

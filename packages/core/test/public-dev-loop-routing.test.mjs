@@ -2290,6 +2290,62 @@ test("approval-ready states fail closed when clean current-head pre-approval gat
   assert.match(result.reason, /current head sha/i);
 });
 
+test("approval-ready with stale pre-approval gate evidence (older head SHA) fails closed — regression: CI green + resolved threads + clean rereview are not sufficient", () => {
+  // Regression for issue where CI green, resolved review threads, and clean Copilot
+  // rereview led to an approval suggestion even though the pre_approval_gate comment
+  // was for an older head SHA, not the current one.
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.APPROVAL_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    gateReviewEvidence: {
+      currentHeadSha: "new-sha-123",
+      preApprovalGate: {
+        visible: true,
+        headSha: "old-sha-456",
+        verdict: "clean",
+      },
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.match(result.reason, /pre_approval_gate/i);
+  assert.match(result.reason, /current head sha/i);
+});
+
+test("merge-ready with stale pre-approval gate evidence (older head SHA) fails closed — regression: CI green + resolved threads + clean rereview are not sufficient", () => {
+  // Same regression, for MERGE_READY status with explicit authorization.
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.MERGE_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    gateReviewEvidence: {
+      currentHeadSha: "new-sha-123",
+      preApprovalGate: {
+        visible: true,
+        headSha: "old-sha-456",
+        verdict: "clean",
+      },
+    },
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+  assert.match(result.reason, /pre_approval_gate/i);
+  assert.match(result.reason, /current head sha/i);
+});
+
 test("representative translation: 'run dev loop on PR 88 and stay on it' → continue_on_pr + watch", () => {
   // "run dev loop on PR 88 and stay on it" → dev-loop on PR 88 --watch
   const result = evaluatePublicDevLoopRouting({
