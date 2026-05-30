@@ -486,7 +486,7 @@ test("issue-intake overlay wires waiting_for_initial_copilot_implementation to d
   assert.match(skillContent, /if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached/i);
   assert.match(skillContent, /if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention/i);
   assert.match(skillContent, /when the refreshed state is `linked_pr_ready_for_followup`, re-enter normal PR follow-up/i);
-  assert.match(skillContent, /`unsafe_local_edit_requires_isolation` is the only blocker[\s\S]*isolated-checkout\/worktree handoff and continue/i);
+  assert.match(skillContent, /follow-up handoff carries `conductorRouting\.handoffEnvelope\.requiresLocalIsolation=true`[\s\S]*isolated-checkout\/worktree handoff and continue/i);
   assert.match(skillContent, /only surface timeout attention when the seam's durable watch budget is actually exhausted/i);
   assert.match(skillContent, /quiet\/no-activity watch observations alone are non-terminal/i);
   assert.match(skillContent, /inspect\/status requests.*still-waiting state and exit normally/i);

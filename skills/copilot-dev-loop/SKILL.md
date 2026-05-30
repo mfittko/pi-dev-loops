@@ -308,7 +308,7 @@ Preflight verdicts:
   - `timed_out`: observational first; refresh authoritative state
   - if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached to the same durable wait seam and continue waiting
   - if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention
-  - when the refreshed state is `linked_pr_ready_for_followup`, re-enter normal PR follow-up; if `unsafe_local_edit_requires_isolation` is the only blocker, perform the expected isolated-checkout/worktree handoff and continue
+  - when the refreshed state is `linked_pr_ready_for_followup`, re-enter normal PR follow-up; if the follow-up handoff carries `conductorRouting.handoffEnvelope.requiresLocalIsolation=true`, perform the expected isolated-checkout/worktree handoff and continue
   - only surface timeout attention when the seam's durable watch budget is actually exhausted
   - for explicit inspect/status requests, report the still-waiting state and exit normally
 - Carry that resolved repo slug through every later GitHub issue/PR command

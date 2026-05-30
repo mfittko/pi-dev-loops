@@ -88,7 +88,6 @@ test("STOP_REASON exports the required stop reason codes", () => {
   assert.equal(STOP_REASON.COPILOT_BLOCKED, "copilot_blocked");
   assert.equal(STOP_REASON.REVIEWER_BLOCKED, "reviewer_blocked");
   assert.equal(STOP_REASON.REVIEW_UNAVAILABLE, "review_unavailable");
-  assert.equal(STOP_REASON.UNSAFE_LOCAL_EDIT, "unsafe_local_edit_requires_isolation");
   assert.equal(STOP_REASON.OWNERSHIP_CONFLICT, "ownership_conflict");
   assert.equal(STOP_REASON.UNKNOWN_STATE, "unknown_state");
 });

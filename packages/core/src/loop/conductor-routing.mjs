@@ -106,7 +106,6 @@ export const STOP_REASON = Object.freeze({
   COPILOT_BLOCKED: "copilot_blocked",
   REVIEWER_BLOCKED: "reviewer_blocked",
   REVIEW_UNAVAILABLE: "review_unavailable",
-  UNSAFE_LOCAL_EDIT: "unsafe_local_edit_requires_isolation",
   OWNERSHIP_CONFLICT: "ownership_conflict",
   UNKNOWN_STATE: "unknown_state",
 });
@@ -114,12 +113,6 @@ export const STOP_REASON = Object.freeze({
 // ---------------------------------------------------------------------------
 // Internal: state classification sets
 // ---------------------------------------------------------------------------
-
-// Copilot states requiring local mutation or execution
-const COPILOT_NEEDS_LOCAL_EXECUTION = new Set([
-  "pr_draft",
-  "unresolved_feedback_present",
-]);
 
 // Copilot strong active states: win over reviewer wait states
 const COPILOT_STRONG_ACTIVE = new Set([
@@ -150,15 +143,6 @@ const REVIEWER_ACTIVE = new Set([
   "waiting_for_user_submit",
   "submitted_review",
   "review_invalidated",
-]);
-
-// Reviewer states requiring local execution
-const REVIEWER_NEEDS_LOCAL_EXECUTION = new Set([
-  "review_requested",
-  "determine_review_plan",
-  "reviews_running",
-  "merge_results",
-  "draft_review_ready",
 ]);
 
 // Reviewer wait states owned by the outer loop
