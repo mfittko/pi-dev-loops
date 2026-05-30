@@ -1689,16 +1689,36 @@ test("outer-loop CLI: async-start rejection exits non-zero and writes JSON error
   }
 });
 
-test("outer-loop: proceeds when PI_SESSION_ID is set (non-snapshot mode)", async () => {
+test("outer-loop: rejects when only PI_SESSION_ID is set (non-snapshot mode)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
+  try {
+    const copilotInputPath = path.join(tempDir, "copilot.json");
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
+    const env = { PI_SESSION_ID: "test-session-123" };
+
+    // copilot-input only — not snapshot mode; session marker alone is not sufficient evidence
+    const result = await runOuterLoop(
+      { repo: "owner/repo", pr: 47, copilotInputPath, checkpointDir: tempDir },
+      { env, ghCommand: "false", gitCommand: "false" },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.asyncStartContract, "rejected");
+    assert.ok(result.error.includes("PI_SUBAGENT_RUN_ID"));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: proceeds when PI_SUBAGENT_RUN_ID is set (non-snapshot mode)", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
     await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
     const gitEnv = await writeGitStub(tempDir);
     const ghEnv = await writeGhStub(tempDir, { repo: "owner/repo", pr: 47 });
-    const env = { ...gitEnv, ...ghEnv, PI_SESSION_ID: "test-session-123" };
+    const env = { ...gitEnv, ...ghEnv, PI_SUBAGENT_RUN_ID: "run-123" };
 
-    // copilot-input only — not snapshot mode; PI_SESSION_ID must satisfy the check
     const result = await runOuterLoop(
       { repo: "owner/repo", pr: 47, copilotInputPath, checkpointDir: tempDir },
       { env, gitCommand: path.join(tempDir, "git") },

@@ -51,18 +51,20 @@ test("validateAsyncStartContext: valid when PI_SUBAGENT_RUN_ID is set", () => {
   assert.equal(result.detectedMarker, "PI_SUBAGENT_RUN_ID");
 });
 
-test("validateAsyncStartContext: valid when PI_SESSION_ID is set", () => {
+test("validateAsyncStartContext: rejects when only PI_SESSION_ID is set without a run id", () => {
   const env = { PI_SESSION_ID: "session-xyz" };
   const result = validateAsyncStartContext({ env });
-  assert.equal(result.status, ASYNC_START_STATUS.VALID);
-  assert.equal(result.detectedMarker, "PI_SESSION_ID");
+  assert.equal(result.status, ASYNC_START_STATUS.REJECTED);
+  assert.equal(result.detectedMarker, null);
+  assert.ok(result.reason.includes("PI_SUBAGENT_RUN_ID"));
 });
 
-test("validateAsyncStartContext: valid when PI_ASYNC_CONTEXT is set", () => {
+test("validateAsyncStartContext: rejects when only PI_ASYNC_CONTEXT is set without a run id", () => {
   const env = { PI_ASYNC_CONTEXT: "1" };
   const result = validateAsyncStartContext({ env });
-  assert.equal(result.status, ASYNC_START_STATUS.VALID);
-  assert.equal(result.detectedMarker, "PI_ASYNC_CONTEXT");
+  assert.equal(result.status, ASYNC_START_STATUS.REJECTED);
+  assert.equal(result.detectedMarker, null);
+  assert.ok(result.reason.includes("PI_SUBAGENT_RUN_ID"));
 });
 
 test("validateAsyncStartContext: first matching marker wins (priority order)", () => {
@@ -135,9 +137,7 @@ test("buildAsyncStartRejection: builds error payload from rejected validation", 
 
 test("PI_ASYNC_CONTEXT_MARKERS contains expected markers", () => {
   assert.ok(PI_ASYNC_CONTEXT_MARKERS.includes("PI_SUBAGENT_RUN_ID"));
-  assert.ok(PI_ASYNC_CONTEXT_MARKERS.includes("PI_SESSION_ID"));
-  assert.ok(PI_ASYNC_CONTEXT_MARKERS.includes("PI_ASYNC_CONTEXT"));
-  assert.equal(PI_ASYNC_CONTEXT_MARKERS.length, 3);
+  assert.equal(PI_ASYNC_CONTEXT_MARKERS.length, 1);
 });
 
 test("ASYNC_START_STATUS has all expected values", () => {
