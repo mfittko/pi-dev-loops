@@ -11,10 +11,12 @@ import { readExistingCheckpoint } from "../../scripts/loop/_checkpoint-io.mjs";
 // ---------------------------------------------------------------------------
 
 async function withTempDir(fn) {
+  const originalCwd = process.cwd();
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-checkpoint-io-test-"));
   try {
     return await fn(tempDir);
   } finally {
+    process.chdir(originalCwd);
     await rm(tempDir, { recursive: true, force: true });
   }
 }

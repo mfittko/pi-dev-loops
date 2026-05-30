@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import test from "node:test";
 
 import { loadCopilotEvidence, loadReviewerEvidence } from "../../scripts/loop/_loop-evidence.mjs";
@@ -12,10 +11,12 @@ import { loadCopilotEvidence, loadReviewerEvidence } from "../../scripts/loop/_l
 // ---------------------------------------------------------------------------
 
 async function withTempDir(fn) {
+  const originalCwd = process.cwd();
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-loop-evidence-test-"));
   try {
     return await fn(tempDir);
   } finally {
+    process.chdir(originalCwd);
     await rm(tempDir, { recursive: true, force: true });
   }
 }
