@@ -656,6 +656,92 @@ test("copilot-dev-loop skill keeps async watch persistence explicit", async () =
   assert.match(stateGraph, /If the next deterministic state returns to `waiting_for_copilot_review`, resume watch mode again instead of treating the re-request handoff as the end of the async run/i);
 });
 
+test("copilot-dev-loop skill hardens reply-resolve, gate sequencing, and merge-ready checks", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  const step6Match = skillContent.match(/## Step 6: Async watch behavior[\s\S]*?(?=\n## Step 7|$)/);
+  const step6 = step6Match ? step6Match[0] : "";
+  assert.ok(step6.length > 0, "copilot-dev-loop Step 6 section not found");
+  assert.match(
+    step6,
+    /Every async dev-loop dispatch task body must include this clause verbatim/i,
+    "Step 6 should define canonical async dispatch wording",
+  );
+  assert.match(
+    step6,
+    /Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean gate-review comment exists on the PR for the current head SHA\. Do not stop or report completion without this evidence\./i,
+    "Step 6 should embed the required pre-approval gate dispatch clause verbatim",
+  );
+
+  const step7Match = skillContent.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Validation policy|$)/);
+  const step7 = step7Match ? step7Match[0] : "";
+  assert.ok(step7.length > 0, "copilot-dev-loop Step 7 section not found");
+
+  assert.match(
+    step7,
+    /must use the deterministic helper `reply-resolve-review-thread\.mjs`/i,
+    "Step 7 should require the reply-resolve helper",
+  );
+  assert.doesNotMatch(
+    step7,
+    /prefer the deterministic helper `reply-resolve-review-thread\.mjs`/i,
+    "Step 7 should not leave the reply-resolve helper optional",
+  );
+  assert.match(
+    step7,
+    /verify `unresolvedThreadCount === 0` via `capture-review-threads\.mjs` before proceeding/i,
+    "Step 7 should require deterministic unresolved-thread verification before advancing",
+  );
+  assert.match(
+    step7,
+    /if the refreshed snapshot reports a non-zero unresolved thread count, re-enter the reply\/resolve loop for the missed threads/i,
+    "Step 7 should require re-entering the reply-resolve loop when unresolved threads remain",
+  );
+  assert.match(
+    step7,
+    /The `pre_approval_gate` procedure must be entered and completed \(visible comment posted\) before any merge-ready or approval-ready declaration/i,
+    "pre-approval gate sequencing should forbid skipping the gate",
+  );
+  assert.match(
+    step7,
+    /Skipping the gate is not recoverable by asserting convergence/i,
+    "pre-approval gate sequencing should reject convergence-only claims",
+  );
+  assert.match(
+    step7,
+    /### Merge-ready preconditions/i,
+    "Step 7 should include a merge-ready preconditions subsection",
+  );
+  assert.match(
+    step7,
+    /1\.\s+`unresolvedThreadCount === 0`, verified via `capture-review-threads\.mjs` rather than by prose assertion alone/i,
+    "merge-ready preconditions should require deterministic thread-state verification",
+  );
+  assert.match(
+    step7,
+    /2\.\s+a visible `pre_approval_gate` comment exists on the PR for the current head SHA with verdict `clean`/i,
+    "merge-ready preconditions should require current-head clean gate evidence",
+  );
+  assert.match(
+    step7,
+    /3\.\s+CI is green on the current head SHA/i,
+    "merge-ready preconditions should require current-head green CI",
+  );
+  assert.match(
+    step7,
+    /If any check fails, do not declare merge-ready\./i,
+    "merge-ready preconditions should be a hard gate",
+  );
+
+  const antiPatternsMatch = skillContent.match(/## Anti-patterns[\s\S]*?(?=\n## Recommended companion skills|$)/);
+  const antiPatterns = antiPatternsMatch ? antiPatternsMatch[0] : "";
+  assert.ok(antiPatterns.length > 0, "copilot-dev-loop anti-patterns section not found");
+  assert.match(antiPatterns, /use inline `gh api` to post thread replies without the resolve mutation/i);
+  assert.match(antiPatterns, /declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA/i);
+  assert.match(antiPatterns, /declare merge-ready based solely on `mergeable_state: clean` \+ CI green without gate evidence/i);
+  assert.match(antiPatterns, /dispatch an async dev-loop task that omits the pre-approval gate requirement/i);
+});
+
 test("legacy copilot workflow entrypoint agents are removed from normal executable surfaces", async () => {
   const agentFiles = (await readdir(fromRepoRoot("agents")))
     .filter((name) => name.endsWith(".agent.md"))
