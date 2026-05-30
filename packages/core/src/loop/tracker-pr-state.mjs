@@ -3,13 +3,10 @@
  *
  * This module provides:
  * - TRACKER_PR_STATE: stable state name constants
+ * - TRACKER_PR_TRANSITIONS: legal next-state graph for each state
  * - normalizeTrackerPrSnapshot: validate and canonicalize a raw snapshot
  * - interpretTrackerPrState: map a snapshot to one current state + allowed transitions + next action
  * - REVERSE_SYNC_ACTION: canonical reverse-sync action for each state
- *
- * The transition graph (`TRACKER_PR_TRANSITIONS`) is an internal implementation detail.
- * Callers obtain the allowed transitions for a specific state from the
- * `allowedTransitions` field returned by `interpretTrackerPrState`.
  *
  * MVP invariant: one tracker work item -> one GitHub PR.
  *
@@ -80,11 +77,8 @@ export const TRACKER_PR_STATE = Object.freeze({
  * Legal transitions for each state.
  * The agent layer selects among allowed transitions; the state machine enforces
  * the graph.
- *
- * Internal implementation detail. Callers receive the allowed transitions for a
- * given state via the `allowedTransitions` field of `interpretTrackerPrState`.
  */
-const TRACKER_PR_TRANSITIONS = Object.freeze({
+export const TRACKER_PR_TRANSITIONS = Object.freeze({
   [TRACKER_PR_STATE.NO_TRACKER_ITEM]: [],
   [TRACKER_PR_STATE.READY_NO_PR]: [TRACKER_PR_STATE.DRAFT_PR_OPEN],
   [TRACKER_PR_STATE.DRAFT_PR_OPEN]: [TRACKER_PR_STATE.PR_REVIEWABLE],

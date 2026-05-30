@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   TRACKER_PR_STATE,
+  TRACKER_PR_TRANSITIONS,
   REVERSE_SYNC_ACTION,
   normalizeTrackerPrSnapshot,
   interpretTrackerPrState,
@@ -115,46 +116,22 @@ test("normalizeTrackerPrSnapshot normalizes prNumber independently as a positive
 });
 
 // ---------------------------------------------------------------------------
-// Transition graph integrity via interpretTrackerPrState behavior
+// TRACKER_PR_TRANSITIONS coverage
 // ---------------------------------------------------------------------------
 
-test("interpretTrackerPrState allowedTransitions only contains known states for each reachable state", () => {
-  const allStates = new Set(Object.values(TRACKER_PR_STATE));
-
-  // One representative snapshot per state
-  const snapshots = [
-    { trackerItemExists: false },                                               // -> NO_TRACKER_ITEM
-    { trackerItemExists: true },                                                // -> READY_NO_PR
-    { trackerItemExists: true, prExists: true, prDraft: true },                 // -> DRAFT_PR_OPEN
-    {                                                                           // -> PR_REVIEWABLE
-      trackerItemExists: true, prExists: true,
-      prHeadSha: "abc1234",
-      draftGateCommentVisible: true,
-      draftGateCommentHeadSha: "abc1234",
-      draftGateCommentVerdict: "clean",
-    },
-    { trackerItemExists: true, prExists: true, prMerged: true },                // -> PR_MERGED
-    { trackerItemExists: true, prExists: true, prClosed: true },                // -> PR_CLOSED_UNMERGED
-    { trackerItemExists: false, prExists: true },                               // -> BLOCKED_NEEDS_USER_DECISION
-  ];
-
-  const reachedStates = new Set();
-  for (const snap of snapshots) {
-    const result = interpretTrackerPrState(snap);
-    reachedStates.add(result.state);
-    for (const target of result.allowedTransitions) {
-      assert.ok(
-        allStates.has(target),
-        `allowedTransitions for ${result.state} contains unknown state: ${target}`,
-      );
-    }
-  }
-
-  for (const state of allStates) {
+test("TRACKER_PR_TRANSITIONS covers every TRACKER_PR_STATE", () => {
+  const valid = new Set(Object.values(TRACKER_PR_STATE));
+  for (const state of valid) {
     assert.ok(
-      reachedStates.has(state),
-      `state ${state} was not reached by any representative snapshot`,
+      Object.prototype.hasOwnProperty.call(TRACKER_PR_TRANSITIONS, state),
+      `missing transition entry for state: ${state}`,
     );
+  }
+  for (const [from, targets] of Object.entries(TRACKER_PR_TRANSITIONS)) {
+    assert.ok(valid.has(from), `transition key ${from} is not a known state`);
+    for (const target of targets) {
+      assert.ok(valid.has(target), `${from} -> ${target} references an unknown state`);
+    }
   }
 });
 
