@@ -9,8 +9,9 @@ Other repo docs may summarize or link this contract, but they should not redefin
 This file is a required runtime contract doc for installed `dev-loop` skill consumers.
 
 Installer/package guarantee for this slice:
-- source-tree canonical ownership for this doc is `skills/docs/public-dev-loop-contract.md`; installed copies of the `dev-loop` and `copilot-dev-loop` skills must expose one shared installed copy resolved as `../docs/public-dev-loop-contract.md` from each installed skill directory (`.pi/skills/...` in this checkout is only a local dev alias to `skills/...`)
-- installed skill/runtime guidance must read that bundled installed copy instead of assuming a source-repository checkout is present
+- source-tree canonical ownership for this doc is `docs/public-dev-loop-contract.md`
+- installer/package output must ship this file in the package-level installed `docs/` location
+- installed skill/runtime guidance must read that package-level installed copy (for this source layout, from `skills/<skill>/` it resolves as `../../docs/public-dev-loop-contract.md`) instead of assuming a source-repository checkout is present
 - if the bundled installed copy is missing, treat that as a packaging/installer bug rather than silently falling back to an unrelated checkout
 
 ## Public surface

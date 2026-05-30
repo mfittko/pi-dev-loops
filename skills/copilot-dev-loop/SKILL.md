@@ -108,8 +108,8 @@ Read only the constitution / contract docs and runtime surface needed for the cu
 Before planning, review, or automation:
 
 1. `AGENTS.md` if present
-2. `../docs/public-dev-loop-contract.md`
-3. if the current step depends on async start/resume/status or retrospective enforcement, `../docs/retrospective-checkpoint-contract.md`
+2. `../../docs/public-dev-loop-contract.md`
+3. if the current step depends on async start/resume/status or retrospective enforcement, `../../docs/retrospective-checkpoint-contract.md`
 4. the relevant GitHub issue or PR
 5. the repository's actual validation/runtime surface:
    - root `package.json`
@@ -127,19 +127,19 @@ Verify all material claims against source, tests, configuration, and CI.
 When this skill refers to helper paths such as `scripts/...` or `docs/...`, resolve them from the actual skill installation layout you are running, not from the active target repository checkout.
 
 Use this rule:
-- if the skill is installed as a normalized standalone copy, the required bundled contract docs live under the shared `../docs/` directory next to the installed skill directories; do not assume helper scripts are bundled unless that installed layout actually contains them
-- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-dev-loop/`, so source-repo helper scripts live two levels up at `../../scripts/`, while required bundled contract docs live one level up at `../docs/`
+- if the skill is installed as a normalized standalone copy, the required bundled contract docs live in the package-level `docs/` directory (for this source layout, resolved as `../../docs/` from this skill directory); do not assume helper scripts are bundled unless that installed layout actually contains them
+- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-dev-loop/`, so source-repo helper scripts live two levels up at `../../scripts/`, and required contract docs resolve from `../../docs/`
 - when in doubt, resolve helper paths relative to this `SKILL.md` file first, then verify the target file exists before running it
 
 Required bundled runtime contract docs for installed copies of this skill:
-- `../docs/public-dev-loop-contract.md`
-- `../docs/retrospective-checkpoint-contract.md`
-- `../docs/conductor-pr-projection-contract.md`
+- `../../docs/public-dev-loop-contract.md`
+- `../../docs/retrospective-checkpoint-contract.md`
+- `../../docs/conductor-pr-projection-contract.md`
 
-Read those bundled `../docs/` files from the installed skill layout instead of assuming the source repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
+Read those bundled package-level `../../docs/` files from the installed skill layout instead of assuming the source repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
 Do not assume `scripts/...` is repo-local to the target codebase you are operating on.
 
-When a PR changes conductor-owned projection / closeout behavior, or when review comments ask how visible projection or durable closeout should work, read the resolved `../docs/conductor-pr-projection-contract.md` alongside the relevant issue/PR. When runtime package resolution is available, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; in installed skill copies that bundle `packages/core/src/...` support files, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` path from the resolved skill layout instead of assuming the source repository checkout is present.
+When a PR changes conductor-owned projection / closeout behavior, or when review comments ask how visible projection or durable closeout should work, read the resolved `../../docs/conductor-pr-projection-contract.md` alongside the relevant issue/PR. When runtime package resolution is available, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; in installed skill copies that bundle `packages/core/src/...` support files, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` path from the resolved skill layout instead of assuming the source repository checkout is present.
 
 ## Authority and safety rules
 

@@ -47,7 +47,8 @@ source-repository-relative paths such as `packages/core/...` or `docs/...` exist
 checkout.
 
 Use this rule:
-- this file is a required runtime contract doc for installed `dev-loop` / `copilot-dev-loop` skill consumers; source-tree canonical ownership is `skills/docs/conductor-pr-projection-contract.md`, and installed copies must expose one shared installed copy resolved as `../docs/conductor-pr-projection-contract.md` from each installed skill directory (`.pi/skills/...` in this checkout is only a local dev alias to `skills/...`)
+- this file is a required runtime contract doc for installed `dev-loop` / `copilot-dev-loop` skill consumers; source-tree canonical ownership is `docs/conductor-pr-projection-contract.md`
+- installer/package output must ship this file in the package-level installed `docs/` location, and installed skill guidance must resolve that package-level installed copy (for this source layout, from `skills/<skill>/` it resolves as `../../docs/conductor-pr-projection-contract.md`)
 - when the runtime already exposes the published package surface, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`
 - when operating from an installed skill copy that bundles `packages/core/src/...` support files instead of package resolution, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` copy under that installed skill layout
 - read the bundled installed copy of this contract doc instead of assuming a source-repository checkout is present
