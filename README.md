@@ -10,10 +10,7 @@ This repo supports both local and GitHub-first work, but the public workflow sur
 - use the local implementation strategy only when the user explicitly wants phase-bounded local planning/implementation
 - keep internal routed workflow logic behind that public façade rather than presenting it as peer workflow choices
 
-A canonical shorthand example still maps to the same public `dev-loop` intent:
-- `auto dev loop on issue 112`
-
-The canonical public routing and shorthand contract lives in `skills/docs/public-dev-loop-contract.md`.
+The canonical public routing and shorthand contract lives in `docs/public-dev-loop-contract.md`.
 
 ## What this repository provides
 
@@ -101,7 +98,7 @@ CI currently runs `npm ci`, `npm run verify`, and the explicit Playwright viewer
 - `docs/index.md` — docs start-here index for active docs, history, and presentations
 - `docs/IMPLEMENTATION_STATE.md` — current implementation snapshot
 - `docs/IMPLEMENTATION_WORKFLOW.md` — repo workflow contract and docs-sync rules
-- `skills/docs/public-dev-loop-contract.md` — public façade and routing contract
+- `docs/public-dev-loop-contract.md` — canonical public façade and routing contract
 - `extension/README.md` — `/dev-loops` command and package-install contract
 - `scripts/README.md` — deterministic script contracts
 - `skills/*/SKILL.md` — workflow-specific operating instructions

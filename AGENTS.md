@@ -4,7 +4,7 @@
 
 This repository uses `dev-loop` as the single public workflow entrypoint.
 
-For the canonical public routing and shorthand contract, see `skills/docs/public-dev-loop-contract.md`.
+For the canonical public routing and shorthand contract, see `docs/public-dev-loop-contract.md`.
 
 Repo-specific posture summary:
 - prefer the GitHub-first routed path when work should move through GitHub branches, pull requests, CI, and review

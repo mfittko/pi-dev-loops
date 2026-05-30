@@ -117,9 +117,10 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
 
 
 test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
-  const [devLoopSkill, copilotSkill, publicContract, retrospectiveContract, projectionContract] = await Promise.all([
+  const [devLoopSkill, copilotSkill, canonicalPublicContract, packagedPublicContract, retrospectiveContract, projectionContract] = await Promise.all([
     readRepo(".pi/skills/dev-loop/SKILL.md"),
     readRepo(".pi/skills/copilot-dev-loop/SKILL.md"),
+    readRepo("docs/public-dev-loop-contract.md"),
     readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/docs/retrospective-checkpoint-contract.md"),
     readRepo("skills/docs/conductor-pr-projection-contract.md"),
@@ -136,8 +137,13 @@ test("installed skill guidance owns packaging guarantees and contract docs stay 
   assert.match(copilotSkill, /Read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
   assert.match(copilotSkill, /packaging\/installer bug/i);
 
+  assert.match(canonicalPublicContract, /canonical authority for the public `dev-loop` entrypoint/i);
+  assert.match(packagedPublicContract, /thin summary/i);
+  assert.match(packagedPublicContract, /canonical semantic owner/i);
+  assert.match(packagedPublicContract, /docs\/public-dev-loop-contract\.md/i);
+
   for (const [label, content] of [
-    ["skills/docs/public-dev-loop-contract.md", publicContract],
+    ["skills/docs/public-dev-loop-contract.md", packagedPublicContract],
     ["skills/docs/retrospective-checkpoint-contract.md", retrospectiveContract],
     ["skills/docs/conductor-pr-projection-contract.md", projectionContract],
   ]) {
@@ -174,7 +180,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
     readRepo("PLAN.md"),
     readRepo("AGENTS.md"),
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),
-    readRepo("skills/docs/public-dev-loop-contract.md"),
+    readRepo("docs/public-dev-loop-contract.md"),
     readRepo("extension/README.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
@@ -207,9 +213,9 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
   assert.match(extensionReadme, /single public workflow entrypoint/i, "extension README should lead with the public entrypoint");
   assert.doesNotMatch(extensionReadme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i, "extension README should not surface internal seam names as readiness choices");
 
-  assert.match(devLoopSkill, /authoritative contract is `skills\/docs\/public-dev-loop-contract\.md`/i);
+  assert.match(devLoopSkill, /authoritative contract is `docs\/public-dev-loop-contract\.md`/i);
   assert.match(devLoopSkill, /@pi-dev-loops\/core\/loop\/public-dev-loop-routing/i);
-  assert.match(devLoopSkill, /summary/i);
+  assert.match(devLoopSkill, /operational guidance/i);
 
   assert.match(copilotSkill, /canonical internal/i, "skills/copilot-dev-loop/SKILL.md should preserve canonical-internal framing");
   assert.match(copilotSkill, /public `dev-loop`/i, "skills/copilot-dev-loop/SKILL.md should point back to the public dev-loop façade");
@@ -217,7 +223,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
 
 test("workflow-surface taxonomy stays explicit and guards the entrypoint asset surface", async () => {
   const [publicContract, devLoopAgent] = await Promise.all([
-    readRepo("skills/docs/public-dev-loop-contract.md"),
+    readRepo("docs/public-dev-loop-contract.md"),
     readRepo("agents/dev-loop.agent.md"),
   ]);
 
@@ -289,7 +295,7 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
 
 test("status reporting contract requires authoritative state-first resolution and fail-closed reconcile behavior", async () => {
   const [publicContract, devLoopSkill, copilotSkill] = await Promise.all([
-    readRepo("skills/docs/public-dev-loop-contract.md"),
+    readRepo("docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
   ]);
@@ -403,19 +409,18 @@ test("issue-intake/autonomy behavior remains internal and resumable behind dev-l
 });
 
 test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the final approval gate", async () => {
-  const [readme, publicContract, devLoopSkill, copilotSkill, devLoopAgent] = await Promise.all([
+  const [readme, publicContract, packagedPublicContract, devLoopSkill, copilotSkill, devLoopAgent] = await Promise.all([
     readRepo("README.md"),
+    readRepo("docs/public-dev-loop-contract.md"),
     readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
     readRepo("agents/dev-loop.agent.md"),
   ]);
 
-  for (const content of [readme, publicContract, devLoopSkill, copilotSkill, devLoopAgent]) {
-    assert.match(content, /auto dev loop on issue/i);
-  }
-
-  assert.match(readme, /canonical shorthand example/i);
+  assert.doesNotMatch(readme, /canonical shorthand example/i);
+  assert.match(packagedPublicContract, /thin summary/i);
+  assert.match(packagedPublicContract, /docs\/public-dev-loop-contract\.md/i);
 
   assert.match(publicContract, /Issue-based shorthand auto trigger contract/i);
   assert.match(publicContract, /resolves to the same bounded public `dev-loop` intent/i);
@@ -432,18 +437,10 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(publicContract, /R --> A\[Final approval gate\]/i);
   assert.match(publicContract, /R --> M\[Wait for merge authorization\]/i);
 
-  assert.match(devLoopSkill, /Shorthand issue-based auto trigger contract/i);
-  assert.match(devLoopSkill, /public `dev-loop` intent `auto_continue_current`/i);
-  assert.match(devLoopSkill, /stop at the final human approval gate by default/i);
-
-  assert.match(copilotSkill, /Issue-first shorthand such as `auto dev loop on issue <n>`/i);
-  assert.match(copilotSkill, /preserve this same stop boundary and final human approval gate default/i);
-  assert.match(copilotSkill, /waiting_for_merge_authorization/i);
-  assert.match(copilotSkill, /after approval, report `waiting_for_merge_authorization` and stop again/i);
-  assert.doesNotMatch(copilotSkill, /Only when merge has been explicitly authorized for this issue\/PR scope:/i);
-
-  assert.match(devLoopAgent, /Interpret issue-based shorthand triggers/i);
-  assert.match(devLoopAgent, /not a second public workflow entrypoint/i);
+  assert.match(devLoopSkill, /Shorthand issue-based intent semantics are canonicalized in `docs\/public-dev-loop-contract\.md`/i);
+  assert.match(copilotSkill, /Issue-first shorthand semantics are canonicalized in `docs\/public-dev-loop-contract\.md`/i);
+  assert.match(devLoopAgent, /shorthand trigger semantics, follow `docs\/public-dev-loop-contract\.md`/i);
+  assert.doesNotMatch(devLoopSkill, /Shorthand issue-based auto trigger contract/i);
 });
 
 test("copilot-dev-loop issue-intake overlay keeps issue refinement separate from the phase-scoped refiner and explains thin entrypoint agents", async () => {

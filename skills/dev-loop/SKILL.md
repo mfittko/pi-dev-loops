@@ -22,7 +22,7 @@ This skill is the public `dev-loop` façade for this repository. It should route
 
 ## First-slice public routing contract
 
-The authoritative contract is `skills/docs/public-dev-loop-contract.md`; the executable evaluator is exported as `@pi-dev-loops/core/loop/public-dev-loop-routing` and lives in the source repository at `packages/core/src/loop/public-dev-loop-routing.mjs`.
+The authoritative contract is `docs/public-dev-loop-contract.md`; the executable evaluator is exported as `@pi-dev-loops/core/loop/public-dev-loop-routing` and lives in the source repository at `packages/core/src/loop/public-dev-loop-routing.mjs`.
 For UI validation under `dev-loop`, see `docs/ui-validation-contract.md`.
 
 Required installed runtime contract docs for this skill are the shared bundled copies under `../docs/` from this skill directory:
@@ -57,10 +57,7 @@ Use it when the user says things like:
 - start implementation in dev mode
 - continue implementation in dev mode
 
-Shorthand issue-based auto trigger contract:
-- treat `auto dev loop on issue 112` as the public `dev-loop` intent `auto_continue_current` after authoritative current-state resolution
-- continue through the normal GitHub/Copilot loop until the next genuine stop condition or the final human approval gate
-- stop at the final human approval gate by default unless merge was explicitly authorized
+Shorthand issue-based intent semantics are canonicalized in `docs/public-dev-loop-contract.md`; keep this skill as operational guidance rather than a second semantic contract source.
 
 ## Minimal required project inputs
 

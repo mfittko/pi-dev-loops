@@ -46,7 +46,7 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 - `pi install git:github.com/mfittko/pi-dev-loops` is the distribution mechanism for the extension, skills, scripts, packaged agents, and required installed runtime contract docs
 - `pi install -l git:github.com/mfittko/pi-dev-loops` is the project-local replacement for the old `install repo` flow
 - `pi update git:github.com/mfittko/pi-dev-loops` refreshes an installed package
-- source-tree canonical contract docs live under `skills/docs/`; installer/package output must ship this shared docs bundle with the installed skills subtree: `public-dev-loop-contract.md`, `retrospective-checkpoint-contract.md`, and `conductor-pr-projection-contract.md`
+- source-tree canonical public dev-loop contract doc is `docs/public-dev-loop-contract.md`; installer/package output must still ship the shared installed docs bundle under `skills/docs/`: `public-dev-loop-contract.md`, `retrospective-checkpoint-contract.md`, and `conductor-pr-projection-contract.md`
 - installed skill/runtime guidance must read those bundled shared docs (from installed `skills/<skill>/`, resolve via `../docs/`) instead of assuming a source checkout is present; a missing bundled contract doc is a packaging/installer bug
 - packaged agents are refreshed into `~/.agents/` on each `session_start`
 - `/dev-loops install ...` and `/dev-loops update ...` are removed; use `pi install` / `pi update` directly instead

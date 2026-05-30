@@ -33,7 +33,7 @@ import {
   resolveAuthoritativeDevLoopStatus,
 } from "../src/loop/public-dev-loop-routing.mjs";
 
-const publicContractUrl = new URL("../../../skills/docs/public-dev-loop-contract.md", import.meta.url);
+const publicContractUrl = new URL("../../../docs/public-dev-loop-contract.md", import.meta.url);
 
 function buildCleanPreApprovalGateEvidence(currentHeadSha = "abc1234") {
   return {
