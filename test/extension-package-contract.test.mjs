@@ -52,7 +52,7 @@ test("extension README documents the command surface and runtime/build/test cont
 });
 
 
-test("required installed runtime contract docs are shipped from package-level docs without duplicated skill docs trees", async () => {
+test("required installed runtime contract docs are bundled once in the shared installed docs location", async () => {
   const extensionReadme = await readRepo("extension/README.md");
 
   assert.match(extensionReadme, /required installed runtime contract docs/i);
@@ -68,19 +68,23 @@ test("required installed runtime contract docs are shipped from package-level do
   ];
 
   for (const doc of requiredDocs) {
-    const rootCopy = await readRepo(`docs/${doc}`);
-    assert.match(rootCopy, /^# /m);
+    const [rootCopy, sourceBundledCopy, installedBundledCopy] = await Promise.all([
+      readRepo(`docs/${doc}`),
+      readRepo(`skills/docs/${doc}`),
+      readRepo(`.pi/skills/docs/${doc}`),
+    ]);
+    assert.equal(
+      sourceBundledCopy,
+      rootCopy,
+      `shared source docs bundle (skills/docs/${doc}) should stay byte-for-byte aligned with docs/${doc}`,
+    );
+    assert.equal(
+      installedBundledCopy,
+      sourceBundledCopy,
+      `installed shared docs copy (.pi dev alias: .pi/skills/docs/${doc}) should stay byte-for-byte aligned with docs/${doc}`,
+    );
   }
 
-  const [devLoopSkill, copilotSkill] = await Promise.all([
-    readRepo(".pi/skills/dev-loop/SKILL.md"),
-    readRepo(".pi/skills/copilot-dev-loop/SKILL.md"),
-  ]);
-  assert.match(devLoopSkill, /\.\.\/\.\.\/docs\/public-dev-loop-contract\.md/i);
-  assert.match(copilotSkill, /\.\.\/\.\.\/docs\/public-dev-loop-contract\.md/i);
-
-  await assert.rejects(stat(fromRepoRoot("skills/docs")), /ENOENT/);
-  await assert.rejects(stat(fromRepoRoot(".pi/skills/docs")), /ENOENT/);
   await assert.rejects(stat(fromRepoRoot(".pi/skills/dev-loop/docs")), /ENOENT/);
   await assert.rejects(stat(fromRepoRoot(".pi/skills/copilot-dev-loop/docs")), /ENOENT/);
 });
