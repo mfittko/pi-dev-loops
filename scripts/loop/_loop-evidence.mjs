@@ -56,8 +56,9 @@ export async function loadCopilotEvidence({ repo, pr, copilotInputPath }, { env 
  * Load the reviewer inner-loop snapshot and compute its interpretation.
  *
  * When reviewerInputPath is provided, the snapshot is read from that file
- * (snapshot/test mode) and live GitHub detection is skipped.
- * reviewerInputPath cannot be combined with reviewerLogin.
+ * (snapshot/test mode) and live GitHub detection is skipped. In this helper,
+ * reviewerInputPath takes precedence and reviewerLogin is ignored. The CLI
+ * entrypoints reject that combination before calling this helper.
  *
  * @param {object} options
  * @param {string} options.repo   Repository slug (owner/name).
