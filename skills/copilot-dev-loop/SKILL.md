@@ -522,6 +522,8 @@ When you do hand work to Copilot:
 
 When opening or updating a PR through this workflow, do not use a thin placeholder body.
 
+New PRs in this workflow must be opened as **draft** PRs first. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft-gate review is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is even eligible.
+
 The PR description should be detailed enough that a fresh reviewer can understand the intended change without reconstructing it from commits alone.
 
 At minimum include clearly labeled sections for:
@@ -531,6 +533,11 @@ At minimum include clearly labeled sections for:
 - explicit definition of done
 - explicit non-goals
 - links to the relevant issue, durable phase doc, or other planning source when applicable
+
+When creating the PR from the CLI, prefer:
+```sh
+gh pr create --draft --repo <owner/name> --base <base> --head <head> --title "..." --body-file <body-file>
+```
 
 Keep verdict status, pass/fail assessments, evidence tables, and changelog-style release notes out of the PR description; those belong in review output, validation logs, or release notes instead.
 

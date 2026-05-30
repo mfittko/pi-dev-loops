@@ -331,6 +331,9 @@ test("copilot-dev-loop issue-intake overlay requires unattended resume-from-stat
   assert.match(content, /waiting_for_initial_copilot_implementation.*keep waiting/i);
   assert.match(content, /linked_pr_ready_for_followup.*route to the existing PR follow-up path immediately/i);
   assert.match(content, /When the draft PR appears, classify whether it is still the bootstrap-only Copilot draft/i);
+  assert.match(content, /New PRs in this workflow must be opened as \*\*draft\*\* PRs first/i);
+  assert.match(content, /Do not create a fresh PR directly in ready-for-review state/i);
+  assert.match(content, /gh pr create --draft --repo <owner\/name> --base <base> --head <head> --title/i);
   assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
   assert.match(content, /continue unattended until the final approval gate/i);
   assert.match(content, /stop for a human approval decision by default/i);
