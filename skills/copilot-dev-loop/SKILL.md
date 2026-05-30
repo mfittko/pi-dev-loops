@@ -544,6 +544,7 @@ This is the draft-stage gate for the draft → ready-for-review boundary.
   - No unrelated files
 - **Pass criteria:** all five draft-gate angles pass; all must-fix findings are addressed or explicitly deferred with rationale; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review.
+- **Non-substitution rule:** a clean `draft_gate` comment only authorizes the draft → ready-for-review transition for that head SHA. It does **not** satisfy `pre_approval_gate`, final-approval readiness, or merge-ready requirements.
 - **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR. The comment must include:
   - gate name: `draft_gate`
   - head SHA reviewed
@@ -570,6 +571,7 @@ This is the default pre-approval gate for this workflow boundary and owns the DR
   - YAGNI
 - **Pass criteria:** DRY, KISS, and YAGNI lens passes are completed in fresh context and in parallel when practical; if parallel execution is impractical (for example due to tooling or resource constraints), still run all three lenses and explicitly record the limitation in the review verdict summary or a `tmp/copilot-loop/` handoff artifact.
 - **Next step after passing:** continue the Step 7 flow and then proceed to Step 8.
+- **Non-substitution rule:** a clean `pre_approval_gate` comment is separate from `draft_gate` evidence. It governs final-approval readiness for that head SHA; it does **not** replace the required `draft_gate` evidence for leaving draft.
 - **Required PR comment:** after the `pre_approval_gate` review runs, post a visible gate-review comment on the PR. The comment must include:
   - gate name: `pre_approval_gate`
   - head SHA reviewed

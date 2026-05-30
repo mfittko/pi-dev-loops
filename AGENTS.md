@@ -42,26 +42,16 @@ These are related but distinct requirements:
 | Requirement | Scope | Enforcement |
 |---|---|---|
 | **Formal local dev mode** | Local implementation/self-improvement phases; explicitly scoped in `skills/dev-loop/SKILL.md` | Skill procedure; operator choice |
-| **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo (copilot PR follow-up, issue intake) | Machine-checkable enforcement seam (see below) |
+| **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo (copilot PR follow-up, issue intake) | Machine-checkable enforcement seam |
 
-Routed GitHub-first async `dev-loop` runs in this repo **do not** need to be in full formal local dev mode, but they **do** require the post-run behavioral retrospective checkpoint.
+Routed GitHub-first async `dev-loop` runs in this repo do **not** need to be in full formal local dev mode, but they **do** require the post-run behavioral retrospective checkpoint.
 
-### Retrospective checkpoint enforcement
+Authoritative checkpoint details live in `docs/retrospective-checkpoint-contract.md`.
 
-The enforcement seam is:
-
-1. **Detection**: `.pi/extensions/dev-loop-behavioral-review.ts` detects "Background task completed: dev-loop" and writes `.pi/dev-loop-retrospective-checkpoint.json` with `state: "required"`.
-2. **Review**: the extension also sends the behavioral review prompt (as before).
-3. **Recording**: after completing the review, write the checkpoint file with:
-   - `{ "state": "complete", "completedAt": "<ISO>", "notes": "<summary>" }` — review done, or
-   - `{ "state": "skipped", "skippedAt": "<ISO>", "reason": "<reason>" }` — explicitly skipped.
-4. **Gate**: the next `dev-loop` start/resume reads the checkpoint file, maps it to `RETROSPECTIVE_CHECKPOINT_STATE`, and calls `evaluateRetrospectiveGate` from `@pi-dev-loops/core/loop/retrospective-checkpoint`. If the state is `missing`, the gate fails closed and returns a `needs_reconcile` result instead of proceeding.
-
-A fresh session can always determine the retrospective status by reading `.pi/dev-loop-retrospective-checkpoint.json`:
-- File absent → `none` (no qualifying completion; no requirement)
-- `state: "required"` → `missing` (retrospective pending)
-- `state: "complete"` → `complete` (satisfied)
-- `state: "skipped"` → `skipped` (satisfied)
+Practical rule:
+- qualifying async `dev-loop` completions write `.pi/dev-loop-retrospective-checkpoint.json`
+- the next qualifying `dev-loop` start/resume must honor that checkpoint gate
+- complete or explicitly skip the retrospective before starting the next qualifying run
 
 ## Core guard rails
 

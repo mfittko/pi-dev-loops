@@ -31,7 +31,7 @@
     "test:playwright:viewer": "playwright test -c playwright.inspect-run-viewer.config.mjs"
   },
   "bin": {
-    "pi-dev-loops": "./bin/pi-dev-loops.mjs"
+    "pi-dev-loops": "./cli/index.mjs"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",

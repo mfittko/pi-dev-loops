@@ -49,7 +49,7 @@ function createRuntime(overrides = {}) {
 }
 
 test("package CLI entrypoint prints help and rejects hide as unsupported", () => {
-  const help = spawnSync("node", ["./bin/pi-dev-loops.mjs", "help"], {
+  const help = spawnSync("node", ["./cli/index.mjs", "help"], {
     cwd: repoRoot,
     encoding: "utf8",
   });
@@ -58,7 +58,7 @@ test("package CLI entrypoint prints help and rejects hide as unsupported", () =>
   assert.match(help.stdout, /pi-dev-loops status/);
   assert.equal(help.stderr, "");
 
-  const hide = spawnSync("node", ["./bin/pi-dev-loops.mjs", "hide"], {
+  const hide = spawnSync("node", ["./cli/index.mjs", "hide"], {
     cwd: repoRoot,
     encoding: "utf8",
   });

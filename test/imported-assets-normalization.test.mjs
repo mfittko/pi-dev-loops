@@ -512,7 +512,7 @@ test("copilot-autopilot docs resolve the target repo for non-issue inputs and RE
   assert.match(skillContent, /if the plan-doc reference explicitly points at another GitHub repository/i);
   assert.match(skillContent, /resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path/i);
   assert.match(readmeContent, /generic role agents plus thin workflow entrypoint agents where needed/i);
-  assert.match(readmeContent, /thin workflow entrypoint agents allowed when they only load a skill and defer policy to it/i);
+  assert.match(readmeContent, /thin workflow entrypoint agents are allowed when they only load a skill and defer policy to it/i);
 });
 
 test("copilot-autopilot safety layer contract is documented", async () => {
@@ -833,6 +833,10 @@ test("gate-review comment contract documents required fields, verdict values, re
   assert.match(contractContent, /fail.closed|cannot be posted/i);
   assert.match(contractContent, /do not run `gh pr ready`|do not mark the PR ready/i);
   assert.match(contractContent, /do not declare final.approval readiness/i);
+
+  // Draft vs pre-approval distinction must stay explicit
+  assert.match(contractContent, /A clean `draft_gate` comment does \*\*not\*\* satisfy `pre_approval_gate` requirements/i);
+  assert.match(contractContent, /A clean `pre_approval_gate` comment does \*\*not\*\* retroactively replace the required `draft_gate` evidence/i);
 });
 
 test("gate-review comment requirement is enforced in draft gate and pre-approval gate sections of all skill files", async () => {
@@ -889,6 +893,11 @@ test("gate-review comment requirement is enforced in draft gate and pre-approval
       /post a new gate-review comment for the new head/i,
       `${label} draft gate should require a new visible comment when the head advances`,
     );
+    assert.match(
+      draftGate,
+      /does \*\*not\*\* satisfy `pre_approval_gate`|does not satisfy `pre_approval_gate`/i,
+      `${label} draft gate should explicitly say it does not satisfy pre_approval_gate`,
+    );
 
     const preApprovalGateMatch = content.match(/### Pre-approval gate contract[\s\S]*?(?=\n### |\n## |$)/);
     const preApprovalGate = preApprovalGateMatch ? preApprovalGateMatch[0] : "";
@@ -938,6 +947,11 @@ test("gate-review comment requirement is enforced in draft gate and pre-approval
       preApprovalGate,
       /post a new gate-review comment for the new head/i,
       `${label} pre-approval gate should require a new visible comment when the head advances`,
+    );
+    assert.match(
+      preApprovalGate,
+      /does \*\*not\*\* replace the required `draft_gate` evidence|does not replace the required `draft_gate` evidence/i,
+      `${label} pre-approval gate should explicitly say it does not replace draft_gate evidence`,
     );
   }
 });
