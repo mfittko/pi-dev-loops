@@ -582,7 +582,7 @@ test("waiting linked issue states route as the authoritative linked PR artifact"
   assert.equal(result.canonicalState.target.linkedPr, null);
 });
 
-test("waiting states with local ownership keep the dev-loop compatibility entrypoint", () => {
+test("waiting states with local ownership still route through the shared wait/watch strategy", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
     currentState: {

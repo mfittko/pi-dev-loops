@@ -10,7 +10,7 @@ import {
  * - one public entrypoint: `dev-loop`
  * - one canonical current-state shape
  * - deterministic routing to internal strategy families
- * - explicit compatibility entrypoints for existing specialized skills
+ * - no legacy compatibility entrypoint projection in routed results
  *
  * The evaluator is intentionally pure and side-effect free. It does not inspect
  * GitHub or local state itself; callers may provide the authoritative current
@@ -699,7 +699,7 @@ function routeForState(
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.STOP,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
-        executionMode,
+      executionMode,
       canonicalState: routableCanonicalState,
       nextAction: "Stop for a human decision or authorization before continuing the dev loop.",
       reason: "The canonical state is blocked or not authorized for an automated state change.",
@@ -711,7 +711,7 @@ function routeForState(
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.STOP,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
-        executionMode,
+      executionMode,
       canonicalState: routableCanonicalState,
       nextAction: "Report the terminal state and wait for a new work item.",
       reason: "The canonical state is already done.",
@@ -729,7 +729,7 @@ function routeForState(
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL,
-        executionMode,
+      executionMode,
       canonicalState: routableCanonicalState,
       nextAction: approvalNextAction,
       reason: approvalReason,
@@ -741,7 +741,7 @@ function routeForState(
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.STOP,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
-        executionMode,
+      executionMode,
       canonicalState: routableCanonicalState,
       nextAction: "Formal approval is complete; wait for explicit merge authorization for this PR scope before merging. If authorization wording is ambiguous, ask for an explicit merge decision.",
       reason: "Merge-ready states must stop and wait when merge authorization is still missing.",
@@ -754,7 +754,7 @@ function routeForState(
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.WAIT,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH,
-        executionMode,
+      executionMode,
       waitSemantics: isDurableAuto
         ? DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT
         : DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
@@ -771,7 +771,7 @@ function routeForState(
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION,
-        executionMode,
+      executionMode,
       canonicalState: routableCanonicalState,
       nextAction: "Run the local implementation strategy for the current branch or phase slice.",
       reason: "Local branch/phase targets stay on the local implementation strategy.",
@@ -790,7 +790,7 @@ function routeForState(
       selectedGate,
       routeKind: copilotFirstIssueSeam.routeKind,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE,
-        executionMode,
+      executionMode,
       canonicalState: routableCanonicalState,
       issueAssignmentSeam: copilotFirstIssueSeam.issueAssignmentSeam,
       nextAction: copilotFirstIssueSeam.nextAction,
@@ -803,7 +803,7 @@ function routeForState(
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.EXTERNAL_PR_FOLLOWUP,
-        executionMode,
+      executionMode,
       canonicalState: routableCanonicalState,
       nextAction: "Run the external-contributor PR follow-up strategy against the current PR state.",
       reason: "External-human PR ownership routes to the external PR follow-up strategy.",
@@ -815,7 +815,7 @@ function routeForState(
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.REVIEWER_FIXER,
-        executionMode,
+      executionMode,
       canonicalState: routableCanonicalState,
       nextAction: "Run the reviewer/fixer strategy for the current PR.",
       reason: "Reviewer-owned or reviewer-next PR states route to the reviewer/fixer strategy.",
@@ -827,7 +827,7 @@ function routeForState(
       selectedGate,
       routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP,
-        executionMode,
+      executionMode,
       canonicalState: routableCanonicalState,
       nextAction: "Run the Copilot PR follow-up strategy for the current PR.",
       reason: "Copilot-owned PR states route to the Copilot PR follow-up strategy.",
