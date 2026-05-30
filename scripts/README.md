@@ -352,6 +352,30 @@ Key behavioral guarantees:
 - When the current head already has a clean submitted Copilot review, `sameHeadCleanConverged=true` and automatic same-head re-request is suppressed until a meaningful remediation event occurs
 - If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
 
+### `scripts/github/upsert-gate-review-comment.mjs`
+
+Creates or updates the visible gate-review PR comment for one `gate + headSha` pair.
+Use this at the `draft_gate` / `pre_approval_gate` boundaries so same-head reruns
+remain idempotent: the helper updates an existing same-head marker in place when
+correction is needed and suppresses duplicate reposts when the visible comment
+already matches the requested contract fields.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+- `--gate <draft_gate|pre_approval_gate>`
+- `--head-sha <sha>`
+- `--verdict <clean|findings_present|blocked>`
+- `--findings-summary <text>`
+- `--next-action <text>`
+
+Success output shape:
+- `{ "ok": true, "action": "created"|"updated"|"noop", "repo": "owner/repo", "pr": 17, "gate": "draft_gate", "headSha": "abc1234", "currentHeadSha": "abc1234", "commentId": 101, "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101" }`
+
+Failure behavior:
+- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- contradictory head-SHA requests or unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/github/detect-gate-review-evidence.mjs`
 
 Fetches the live PR head SHA plus visible PR issue comments, then summarizes the
