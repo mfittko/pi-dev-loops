@@ -437,11 +437,26 @@ function normalizeAsyncRun(value) {
   if (kind !== "pi_managed_run" && kind !== "detached_process") {
     return null;
   }
+  const hasInspectionState = value.inspectionState !== undefined && value.inspectionState !== null;
+  const inspectionState = hasInspectionState
+    ? (typeof value.inspectionState === "string" ? value.inspectionState.trim().toLowerCase() : "")
+    : null;
+  if (
+    hasInspectionState
+    && inspectionState !== "visible"
+    && inspectionState !== "hidden"
+    && inspectionState !== "stale"
+    && inspectionState !== "uninspectable"
+    && inspectionState !== "missing"
+  ) {
+    return null;
+  }
 
   return {
     kind,
     runId: normalizeAsyncRunId(value.runId),
     visible: value.visible === true,
+    inspectionState,
   };
 }
 
@@ -1227,15 +1242,25 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   }
 
   if (effectiveRouted.executionMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO) {
+    const asyncRunInspectionState = asyncRun?.inspectionState;
     if (
       !asyncRunProvided
       || asyncRun?.kind !== "pi_managed_run"
       || asyncRun.runId === null
       || asyncRun.visible !== true
+      || asyncRunInspectionState === "uninspectable"
+      || asyncRunInspectionState === "hidden"
+      || asyncRunInspectionState === "stale"
     ) {
       return buildStartupResumeBundleReconcile({
         reason: asyncRun?.kind === "detached_process"
           ? "Durable auto startup/resume requires a visible Pi-managed async run; detached local background processes do not satisfy the async-start contract."
+          : asyncRunInspectionState === "uninspectable"
+            ? "Durable auto startup/resume requires inspectable Pi-managed async evidence; observed run is uninspectable (no child message route registered)."
+            : asyncRunInspectionState === "hidden"
+              ? "Durable auto startup/resume requires visible Pi-managed async evidence; observed run evidence is hidden."
+              : asyncRunInspectionState === "stale"
+                ? "Durable auto startup/resume requires fresh Pi-managed async evidence; observed run evidence is stale."
           : "Durable auto startup/resume requires a visible registered Pi-managed async run id before startup can be reported as successful.",
         canonicalState: effectiveRouted.canonicalState,
         issueLinkageResolution: normalizedIssueLinkageResolution,

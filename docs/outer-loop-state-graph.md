@@ -13,9 +13,11 @@ Implementation lives in:
 
 - **Pure logic**: `packages/core/src/loop/outer-loop-state.mjs`
 - **Routing authority reused by that module**: `packages/core/src/loop/conductor-routing.mjs`
-- **Compatibility CLI surface**: `scripts/loop/outer-loop.mjs`
+- **Inspection CLI surface**: `scripts/loop/inspect-run.mjs`
 - **Inspection surface**: `packages/core/src/loop/run-inspection.mjs` and `scripts/loop/inspect-run.mjs`
 - **Viewer**: `scripts/loop/inspect-run-viewer.mjs`
+
+`scripts/loop/outer-loop.mjs` now calls `evaluateConductorRouting()` directly and treats `conductor-routing.mjs` as the runtime authority.
 
 ## Authoritative Outer States
 

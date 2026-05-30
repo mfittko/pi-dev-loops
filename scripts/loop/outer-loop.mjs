@@ -33,10 +33,10 @@
  *   gh/git failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { autoDetectSnapshot as autoDetectCopilotSnapshot } from "./detect-copilot-loop-state.mjs";
@@ -54,7 +54,6 @@ import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
-import { interpretOuterLoopState } from "../../packages/core/src/loop/outer-loop-state.mjs";
 import {
   ENTRYPOINT,
   evaluateConductorRouting,
@@ -127,7 +126,7 @@ Stop reasons:
 
 Async-start contract:
   This loop must run within a visible Pi-managed async context. It fails closed
-  unless one of [PI_SUBAGENT_RUN_ID, PI_SESSION_ID, PI_ASYNC_CONTEXT] is set, to
+  unless PI_SUBAGENT_RUN_ID is set, to
   prevent hidden detached-process fallback (nohup, disowned shell jobs, etc.).
   Snapshot/test input mode (both --copilot-input and --reviewer-input) is exempt.
   Set PI_ASYNC_START_BYPASS=1 only for explicitly authorized standalone runs.
@@ -161,24 +160,6 @@ function parseReviewerLogin(value) {
   return normalized;
 }
 
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parsePrNumber(value) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw parseError("--pr must be a positive integer");
-  }
-
-  return Number(value);
-}
-
 export function parseOuterLoopCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -200,32 +181,32 @@ export function parseOuterLoopCliArgs(argv) {
     }
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo").trim();
+      options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
 
     if (token === "--pr") {
-      options.pr = parsePrNumber(requireOptionValue(args, "--pr"));
+      options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
       continue;
     }
 
     if (token === "--reviewer-login") {
-      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login"));
+      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login", parseError));
       continue;
     }
 
     if (token === "--checkpoint-dir") {
-      options.checkpointDir = requireOptionValue(args, "--checkpoint-dir");
+      options.checkpointDir = requireOptionValue(args, "--checkpoint-dir", parseError);
       continue;
     }
 
     if (token === "--copilot-input") {
-      options.copilotInputPath = requireOptionValue(args, "--copilot-input");
+      options.copilotInputPath = requireOptionValue(args, "--copilot-input", parseError);
       continue;
     }
 
     if (token === "--reviewer-input") {
-      options.reviewerInputPath = requireOptionValue(args, "--reviewer-input");
+      options.reviewerInputPath = requireOptionValue(args, "--reviewer-input", parseError);
       continue;
     }
 
@@ -254,31 +235,6 @@ export function parseOuterLoopCliArgs(argv) {
 // ---------------------------------------------------------------------------
 // Git dirty / detached check
 // ---------------------------------------------------------------------------
-
-function runChild(command, args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
 
 /**
  * Check whether the current git checkout is dirty or has a detached HEAD.
@@ -497,15 +453,15 @@ function shouldCarryForwardWaitCycles(previousCheckpoint, { repo, pr, headSha, o
  * @returns {{ outerAction: string, reason?: string }}
  */
 export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
-  const interpretation = interpretOuterLoopState({
+  const routing = evaluateConductorRouting({
     target: { repo: "routing/sentinel", pr: 1 },
     copilotState,
     reviewerState,
     requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
   });
   return {
-    outerAction: interpretation.outerAction,
-    ...(interpretation.stopReason !== null ? { reason: interpretation.stopReason } : {}),
+    outerAction: routing.outerAction,
+    ...(routing.stopReason !== null ? { reason: routing.stopReason } : {}),
   };
 }
 
@@ -576,19 +532,11 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     sourceMode,
     requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
   });
-  const outerInterpretation = interpretOuterLoopState({
-    target: { repo: normalizedRepo, pr },
-    copilotState: copilotInterpretation.state,
-    reviewerState: reviewerInterpretation.state,
-    sourceMode,
-    requiresLocalIsolation: gitStatus.isDirty || gitStatus.isDetached,
-    routing: conductorRouting,
-  });
 
-  // Derive outer-loop action from the authoritative outer interpretation
-  // while preserving the existing backward-compat output shape.
-  let outerAction = outerInterpretation.outerAction;
-  let outerReason = outerInterpretation.stopReason;
+  // Derive outer-loop action from authoritative conductor routing while
+  // preserving the existing backward-compat output shape.
+  let outerAction = conductorRouting.outerAction;
+  let outerReason = conductorRouting.stopReason;
 
   let branchIdentity = null;
   if (outerReason === null && sourceMode === "local" && requiresPrLocalIdentityGate(outerAction)) {

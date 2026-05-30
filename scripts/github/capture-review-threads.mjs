@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { spawn } from "node:child_process";
 
 import {
   formatCliError,
@@ -10,6 +9,7 @@ import {
   parseReviewThreads,
   readInput,
 } from "../_core-helpers.mjs";
+import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 
 export const REVIEW_THREADS_QUERY = [
@@ -37,24 +37,6 @@ export const REVIEW_THREADS_QUERY = [
   "  }",
   "}",
 ].join("\n");
-
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw new Error(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parsePrNumber(value) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw new Error("--pr must be a positive integer");
-  }
-
-  return Number(value);
-}
 
 export function parseCaptureCliArgs(argv) {
   const args = [...argv];
@@ -103,32 +85,6 @@ export function parseCaptureCliArgs(argv) {
   }
 
   return options;
-}
-
-
-function runChild(command, args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
 }
 
 export async function fetchGithubReviewThreadsPayload(

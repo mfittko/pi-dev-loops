@@ -2,6 +2,7 @@
 
 import { spawn } from "node:child_process";
 
+import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { watchCopilotReview } from "../github/watch-copilot-review.mjs";
@@ -50,49 +51,6 @@ Exit codes:
 
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
-}
-
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parsePrNumber(value) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw parseError("--pr must be a positive integer");
-  }
-
-  return Number(value);
-}
-
-function runChild(command, args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
 }
 
 async function fetchPrHeadBranch({ repo, pr }, { env, ghCommand }) {
@@ -193,12 +151,12 @@ export function parseWatchCycleCliArgs(argv) {
     }
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo").trim();
+      options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
 
     if (token === "--pr") {
-      options.pr = parsePrNumber(requireOptionValue(args, "--pr"));
+      options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
       continue;
     }
 

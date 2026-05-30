@@ -145,8 +145,9 @@ Required authoritative inputs:
 - `artifactState` (`open` \| `closed` \| `merged` \| `not_applicable`)
 - explicit resolved `loopState` (`unknown` is not authoritative input)
 - required for async/durable-auto startup or status paths: `asyncRun`
-  - shape: `{ "kind": "pi_managed_run" | "detached_process", "runId": "<visible-run-id>" | null, "processId": 12345 | null, "visible": true|false }`
+  - shape: `{ "kind": "pi_managed_run" | "detached_process", "runId": "<visible-run-id>" | null, "processId": 12345 | null, "visible": true|false, "inspectionState"?: "visible" | "hidden" | "stale" | "uninspectable" | "missing" }`
   - durable-auto success requires `kind=pi_managed_run`, a non-empty visible `runId`, and `visible=true`
+  - when `inspectionState` is provided as `hidden`, `stale`, or `uninspectable`, durable-auto must fail closed with that state surfaced in diagnostics
   - detached local processes are diagnostic-only evidence and must fail closed instead of being treated as a successful async start
 - when refreshed loop state is `linked_pr_ready_for_followup` for an issue target with a resolved linked PR, startup/resume and status resolution must promote stale bootstrap waiting to the linked PR follow-up path (or fail closed if the linked-PR facts are incomplete/contradictory) instead of preserving the old bootstrap wait route
 
