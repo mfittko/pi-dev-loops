@@ -475,6 +475,7 @@ Key rules:
 - do not bypass session-based async notifications with detached shell automation unless explicitly asked
 - if a watcher is sleeping between polls, prefer raising the orchestration inactivity threshold over interrupting the child
 - if Pi async subagents or the designated async follow-up skill are not appropriate or available, stop and report rather than improvising a shell watcher
+- the async-start contract is also enforced in code: `outer-loop.mjs` fails closed unless it detects a visible Pi-managed async context (one of `PI_SUBAGENT_RUN_ID`, `PI_SESSION_ID`, or `PI_ASYNC_CONTEXT`). Snapshot/test input mode (both `--copilot-input` and `--reviewer-input`) is exempt. Use `PI_ASYNC_START_BYPASS=1` only for explicitly authorized standalone runs, never to route around the in-session async requirement.
 
 ## Step 7: Pi review/fix follow-up loop
 
@@ -485,25 +486,31 @@ This step covers three responsibilities: the draft gate right before `gh pr read
 When actionable review feedback exists, use a narrow follow-up loop:
 
 1. inspect unresolved comments/threads and failing checks
-2. classify findings:
+2. before the first local file write in each fixer pass on a Copilot-assigned PR, run `node scripts/loop/pre-write-remote-freshness-guard.mjs --branch <headRefName>` as a required fail-closed guard
+   - source `<headRefName>` from authoritative PR state (`headRefName`), not from a local branch guess
+   - if the guard exits non-zero (`remote_ahead`), stop writing locally, reconcile to the refreshed remote head, then restart the fixer pass
+3. classify findings:
    - must fix now
    - worth fixing now
    - defer / non-blocking / disagree
-3. apply only the accepted narrow fixes
-4. run the smallest validation that honestly proves the fix
-5. if files changed, push the resolving commit before any thread reply claims the fix is present
-6. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
+4. apply only the accepted narrow fixes
+5. run the smallest validation that honestly proves the fix
+6. if files changed, run `node scripts/loop/pre-commit-branch-guard.mjs --expected-branch <headRefName>` immediately before every `git add && git commit` sequence as a required fail-closed guard
+   - source `<headRefName>` from authoritative PR state (`headRefName`), not from a local branch guess
+   - if the guard exits non-zero (`branch_mismatch`), stop and realign to the expected branch before staging or committing
+7. if files changed, push the resolving commit before any thread reply claims the fix is present
+8. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
    - must use the deterministic helper `reply-resolve-review-thread.mjs` from the resolved skill scripts directory for thread reply/resolve work
    - when using that helper, pair `--comment-id` and `--thread-id` from the same fresh PR thread snapshot rather than mixing ids across review rounds
    - use a body file under `tmp/` rather than inline shell text for the reply body
    - when the intent is GitHub linkability, keep commit SHAs and issue/PR refs as plain text (for example 3ee82fc and owner/repo#70) and do not wrap them in backticks
    - keep backticks for actual code/path/CLI literals only
    - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
-7. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
+9. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
    - do not stop at a local fix if GitHub-side reply/resolve is authorized
-8. after completing reply/resolve for a pass, verify `unresolvedThreadCount === 0` via `capture-review-threads.mjs` before proceeding
+10. after completing reply/resolve for a pass, verify `unresolvedThreadCount === 0` via `capture-review-threads.mjs` before proceeding
    - if the refreshed snapshot reports a non-zero unresolved thread count, re-enter the reply/resolve loop for the missed threads
-9. only after GitHub-side reply/resolve work is done for the addressed threads and the refreshed thread snapshot proves `unresolvedThreadCount === 0`, decide whether another Copilot pass is desired
+11. only after GitHub-side reply/resolve work is done for the addressed threads and the refreshed thread snapshot proves `unresolvedThreadCount === 0`, decide whether another Copilot pass is desired
    - if yes, run the smallest honest local validation for the accepted fix scope
    - if that local validation is still known red, continue remediation instead of re-requesting Copilot
    - after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for any CI-dependent follow-up decision
@@ -517,8 +524,8 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
    - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
    - if the request command fails unexpectedly, stop and report the error rather than sleeping and hoping for a new review
-10. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
-11. if scope has broadened, stop and ask before continuing
+12. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
+13. if scope has broadened, stop and ask before continuing
 
 Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 

@@ -39,6 +39,20 @@ async function writeJson(filePath, data) {
   await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
+const MINIMAL_COPILOT_SNAPSHOT = Object.freeze({
+  prExists: true,
+  prState: "OPEN",
+  isDraft: false,
+  prNumber: 47,
+  prHeadSha: "abc123",
+  hasPendingCopilotReview: false,
+  hasExistingCopilotReview: false,
+  resolvedThreadCount: 0,
+  unresolvedThreadCount: 0,
+  resolvedThreadIds: [],
+  unresolvedThreadIds: [],
+});
+
 /**
  * Write a fake `git` stub that responds to specific commands.
  * porcelainOutput: what `git status --porcelain` should return (empty string = clean)
@@ -567,7 +581,7 @@ test("outer-loop mixed live+snapshot input keeps local sourceMode", async () => 
       pr: 47,
       reviewerInputPath: reviewerSnapshotPath,
       checkpointDir: tempDir,
-    }, { env: { ...gitEnv, ...env }, ghCommand: "gh", gitCommand: "git" });
+    }, { env: { ...gitEnv, ...env, PI_ASYNC_START_BYPASS: "1" }, ghCommand: "gh", gitCommand: "git" });
 
     assert.equal(output.conductorRouting.handoffEnvelope.confidence, "local");
   } finally {
@@ -945,7 +959,7 @@ test("outer-loop: active PR branch mismatch stops with explicit reconcile reason
       "--pr", "47",
       "--copilot-input", copilotSnapshotPath,
       "--checkpoint-dir", tempDir,
-    ], { env: { ...gitEnv, ...ghEnv } });
+    ], { env: { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" } });
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);
@@ -1000,7 +1014,7 @@ test("outer-loop: branch match but local head mismatch stops with explicit recon
       "--pr", "47",
       "--copilot-input", copilotSnapshotPath,
       "--checkpoint-dir", tempDir,
-    ], { env: { ...gitEnv, ...ghEnv } });
+    ], { env: { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" } });
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);
@@ -1621,6 +1635,132 @@ test("outer-loop: checkpoint file is created at default location under --checkpo
     assert.equal(checkpoint.copilotState, "waiting_for_copilot_review");
     assert.equal(checkpoint.waitCycles, 1);
     assert.ok(typeof checkpoint.timestamp === "string");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Async-start contract enforcement in runOuterLoop
+// ---------------------------------------------------------------------------
+
+test("outer-loop: rejects when no Pi-managed async context markers are present", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
+  try {
+    const copilotInputPath = path.join(tempDir, "copilot.json");
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
+
+    // Provide only copilot-input (not snapshot mode) with empty env — no Pi markers
+    const result = await runOuterLoop(
+      { repo: "owner/repo", pr: 47, copilotInputPath, checkpointDir: tempDir },
+      { env: {}, ghCommand: "false", gitCommand: "false" },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.asyncStartContract, "rejected");
+    assert.ok(result.error.includes("No Pi-managed async context detected"));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop CLI: async-start rejection exits non-zero and writes JSON error to stderr", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-cli-"));
+  try {
+    const copilotInputPath = path.join(tempDir, "copilot.json");
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
+
+    // Clean env with PATH only — no Pi markers, no bypass; only copilot-input so not snapshot mode
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "47",
+      "--copilot-input", copilotInputPath,
+      "--checkpoint-dir", tempDir,
+    ], { env: { PATH: process.env.PATH } });
+
+    assert.equal(result.code, 1, `stdout=${result.stdout} stderr=${result.stderr}`);
+    assert.equal(result.stdout.trim(), "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.asyncStartContract, "rejected");
+    assert.ok(payload.error.includes("No Pi-managed async context detected"));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: proceeds when PI_SESSION_ID is set (non-snapshot mode)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
+  try {
+    const copilotInputPath = path.join(tempDir, "copilot.json");
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
+    const gitEnv = await writeGitStub(tempDir);
+    const ghEnv = await writeGhStub(tempDir, { repo: "owner/repo", pr: 47 });
+    const env = { ...gitEnv, ...ghEnv, PI_SESSION_ID: "test-session-123" };
+
+    // copilot-input only — not snapshot mode; PI_SESSION_ID must satisfy the check
+    const result = await runOuterLoop(
+      { repo: "owner/repo", pr: 47, copilotInputPath, checkpointDir: tempDir },
+      { env, gitCommand: path.join(tempDir, "git") },
+    );
+
+    assert.equal(result.ok, true);
+    assert.ok(result.outerAction);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: proceeds when PI_ASYNC_START_BYPASS=1 (non-snapshot mode)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
+  try {
+    const copilotInputPath = path.join(tempDir, "copilot.json");
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
+    const gitEnv = await writeGitStub(tempDir);
+    const ghEnv = await writeGhStub(tempDir, { repo: "owner/repo", pr: 47 });
+    const env = { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" };
+
+    // copilot-input only — not snapshot mode; bypass must satisfy the check
+    const result = await runOuterLoop(
+      { repo: "owner/repo", pr: 47, copilotInputPath, checkpointDir: tempDir },
+      { env, gitCommand: path.join(tempDir, "git") },
+    );
+
+    assert.equal(result.ok, true);
+    assert.ok(result.outerAction);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: snapshot mode (both inputs provided) bypasses async-start check", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
+  try {
+    const copilotInputPath = path.join(tempDir, "copilot.json");
+    const reviewerInputPath = path.join(tempDir, "reviewer.json");
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
+    await writeJson(reviewerInputPath, {
+      prExists: true,
+      prState: "OPEN",
+      prNumber: 47,
+      prHeadSha: "abc123",
+      reviewerScope: "all_reviewers",
+      reviewerLogin: null,
+      submittedReviewPresent: false,
+      submittedReviewState: null,
+      submittedReviewCommitSha: null,
+      pendingReviewRequestPresent: false,
+    });
+    const gitEnv = await writeGitStub(tempDir);
+
+    // No Pi markers, no bypass — but both inputs provided = snapshot mode
+    const result = await runOuterLoop(
+      { repo: "owner/repo", pr: 47, copilotInputPath, reviewerInputPath, checkpointDir: tempDir },
+      { env: gitEnv, gitCommand: path.join(tempDir, "git") },
+    );
+
+    assert.equal(result.ok, true);
+    assert.ok(result.outerAction);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

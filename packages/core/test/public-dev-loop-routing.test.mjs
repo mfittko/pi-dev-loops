@@ -47,6 +47,14 @@ function buildCleanPreApprovalGateEvidence(currentHeadSha = "abc1234") {
   };
 }
 
+function buildVisibleAsyncRun(runId = "run-123") {
+  return {
+    kind: "pi_managed_run",
+    runId,
+    visible: true,
+  };
+}
+
 test("public dev-loop routing exports the single public façade name", () => {
   assert.equal(PUBLIC_DEV_LOOP_ENTRYPOINT, "dev-loop");
 });
@@ -1067,6 +1075,7 @@ test("authoritative startup/resume bundle keeps durable wait semantics for linke
     artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
     issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
     loopState: "waiting_for_initial_copilot_implementation",
+    asyncRun: buildVisibleAsyncRun("run-179"),
   });
 
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
@@ -1074,6 +1083,7 @@ test("authoritative startup/resume bundle keeps durable wait semantics for linke
   assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(bundle.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.equal(bundle.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.equal(bundle.asyncRun?.runId, "run-179");
   assert.equal(bundle.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
   assert.equal(bundle.activeArtifact.issue, 177);
   assert.equal(bundle.activeArtifact.pr, 179);
@@ -1094,6 +1104,7 @@ test("authoritative startup/resume bundle preserves inspect routing in durable_a
     artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
     issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
     loopState: "waiting_for_initial_copilot_implementation",
+    asyncRun: buildVisibleAsyncRun("run-180"),
   });
 
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
@@ -1101,7 +1112,112 @@ test("authoritative startup/resume bundle preserves inspect routing in durable_a
   assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
   assert.equal(bundle.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.equal(bundle.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.equal(bundle.asyncRun?.runId, "run-180");
   assert.match(bundle.nextAction, /Describe the canonical state/i);
+});
+
+test("authoritative startup/resume bundle fails closed when durable auto has no visible async run", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 177, linkedPr: 179 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /visible registered Pi-managed async run id/i);
+});
+
+test("authoritative startup/resume bundle fails closed on detached-process async fallback", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 186, linkedPr: 188 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+    asyncRun: {
+      kind: "detached_process",
+      visible: false,
+    },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /detached local background processes do not satisfy the async-start contract/i);
+});
+
+test("authoritative startup/resume bundle fails closed on asyncRun with unrecognized kind", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 186, linkedPr: 188 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+    asyncRun: { kind: "tmux_session", runId: "x", visible: true },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /invalid async-run registration/i);
+});
+
+test("authoritative startup/resume bundle fails closed on pi_managed_run with null runId", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 186, linkedPr: 188 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+    asyncRun: { kind: "pi_managed_run", runId: null, visible: true },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /visible registered Pi-managed async run id/i);
+});
+
+test("authoritative startup/resume bundle fails closed on pi_managed_run with visible=false", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 186, linkedPr: 188 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+    asyncRun: { kind: "pi_managed_run", runId: "run-99", visible: false },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /visible registered Pi-managed async run id/i);
 });
 
 test("authoritative startup/resume bundle fails closed on invalid explicit intent", () => {
@@ -1171,6 +1287,7 @@ test("authoritative status resolution consumes the startup/resume bundle output"
   assert.equal(report.compatibilityEntrypoint, bundle.compatibilityEntrypoint);
   assert.equal(report.executionMode, bundle.executionMode);
   assert.equal(report.waitSemantics, bundle.waitSemantics);
+  assert.equal(report.asyncRun, bundle.asyncRun);
   assert.equal(report.nextAction, bundle.nextAction);
   assert.equal(report.reason, bundle.reason);
 });
@@ -1416,6 +1533,7 @@ test("authoritative status resolution preserves durable healthy-wait semantics f
     artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
     issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
     loopState: "waiting_for_initial_copilot_implementation",
+    asyncRun: buildVisibleAsyncRun("run-181"),
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
@@ -1423,7 +1541,32 @@ test("authoritative status resolution preserves durable healthy-wait semantics f
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(report.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.equal(report.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.equal(report.asyncRun?.runId, "run-181");
   assert.match(report.nextAction, /remain in durable auto ownership/i);
+});
+
+test("authoritative status resolution fails closed instead of claiming durable auto started without a visible async run", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 186, linkedPr: 188 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    loopState: "waiting_for_initial_copilot_implementation",
+    asyncRun: {
+      kind: "detached_process",
+      visible: false,
+    },
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(report.nextAction, /reconcile/i);
 });
 
 test("authoritative status reports approved-but-not-merged PRs as waiting for explicit merge authorization", () => {
