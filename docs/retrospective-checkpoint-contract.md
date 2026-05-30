@@ -7,7 +7,7 @@ This document defines the enforcement seam for the required post-run behavioral 
 This file is a required runtime contract doc for installed `dev-loop` skill consumers.
 
 Installer/package guarantee for this slice:
-- installed copies of the `dev-loop` and `copilot-dev-loop` skills must bundle this document under `docs/retrospective-checkpoint-contract.md` beside the installed `SKILL.md`
+- installed copies of the `dev-loop` and `copilot-dev-loop` skills must bundle this document once under the canonical shared installed path `.pi/skills/docs/retrospective-checkpoint-contract.md` (resolved as `../docs/retrospective-checkpoint-contract.md` from each installed skill directory)
 - installed skill/runtime guidance must read that bundled installed copy instead of assuming a source-repository checkout is present
 - if the bundled installed copy is missing, treat that as a packaging/installer bug rather than silently falling back to an unrelated checkout
 

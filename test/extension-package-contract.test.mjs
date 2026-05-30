@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 
 const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), "utf8");
@@ -52,7 +52,7 @@ test("extension README documents the command surface and runtime/build/test cont
 });
 
 
-test("required installed runtime contract docs are bundled beside both packaged skills", async () => {
+test("required installed runtime contract docs are bundled once in canonical installed skills/docs", async () => {
   const extensionReadme = await readRepo("extension/README.md");
 
   assert.match(extensionReadme, /required installed runtime contract docs/i);
@@ -66,19 +66,19 @@ test("required installed runtime contract docs are bundled beside both packaged 
     "retrospective-checkpoint-contract.md",
     "conductor-pr-projection-contract.md",
   ];
-  const skills = ["dev-loop", "copilot-dev-loop"];
 
-  for (const skill of skills) {
-    for (const doc of requiredDocs) {
-      const [rootCopy, bundledCopy] = await Promise.all([
-        readRepo(`docs/${doc}`),
-        readRepo(`.pi/skills/${skill}/docs/${doc}`),
-      ]);
-      assert.equal(
-        bundledCopy,
-        rootCopy,
-        `.pi/skills/${skill}/docs/${doc} should stay byte-for-byte aligned with docs/${doc}`,
-      );
-    }
+  for (const doc of requiredDocs) {
+    const [rootCopy, bundledCopy] = await Promise.all([
+      readRepo(`docs/${doc}`),
+      readRepo(`.pi/skills/docs/${doc}`),
+    ]);
+    assert.equal(
+      bundledCopy,
+      rootCopy,
+      `.pi/skills/docs/${doc} should stay byte-for-byte aligned with docs/${doc}`,
+    );
   }
+
+  await assert.rejects(stat(fromRepoRoot(".pi/skills/dev-loop/docs")), /ENOENT/);
+  await assert.rejects(stat(fromRepoRoot(".pi/skills/copilot-dev-loop/docs")), /ENOENT/);
 });

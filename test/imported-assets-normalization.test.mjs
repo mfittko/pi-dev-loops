@@ -126,24 +126,24 @@ test("installed skill copies bundle required runtime contract docs and skills po
   ]);
 
   assert.match(devLoopSkill, /Required installed runtime contract docs/i);
-  assert.match(devLoopSkill, /bundled copies under `docs\/` beside the installed skill/i);
-  assert.match(devLoopSkill, /read those bundled `docs\/` files from the installed skill layout/i);
+  assert.match(devLoopSkill, /shared bundled copies under `\.\.\/docs\/` from this skill directory/i);
+  assert.match(devLoopSkill, /read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
   assert.match(devLoopSkill, /packaging\/installer bug/i);
 
   assert.match(copilotSkill, /Required bundled runtime contract docs for installed copies of this skill/i);
-  assert.match(copilotSkill, /required bundled contract docs live under `docs\/` inside the installed skill directory/i);
+  assert.match(copilotSkill, /required bundled contract docs live under the shared `\.\.\/docs\/` directory next to the installed skill directories/i);
   assert.match(copilotSkill, /do not assume helper scripts are bundled unless that installed layout actually contains them/i);
-  assert.match(copilotSkill, /Read those bundled `docs\/` files from the installed skill layout/i);
+  assert.match(copilotSkill, /Read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
   assert.match(copilotSkill, /packaging\/installer bug/i);
 
   assert.match(publicContract, /required runtime contract doc for installed `dev-loop` skill consumers/i);
-  assert.match(publicContract, /must bundle this document under `docs\/public-dev-loop-contract\.md` beside the installed `SKILL\.md`/i);
+  assert.match(publicContract, /must bundle this document once under the canonical shared installed path `\.pi\/skills\/docs\/public-dev-loop-contract\.md`/i);
 
   assert.match(retrospectiveContract, /required runtime contract doc for installed `dev-loop` skill consumers/i);
-  assert.match(retrospectiveContract, /must bundle this document under `docs\/retrospective-checkpoint-contract\.md` beside the installed `SKILL\.md`/i);
+  assert.match(retrospectiveContract, /must bundle this document once under the canonical shared installed path `\.pi\/skills\/docs\/retrospective-checkpoint-contract\.md`/i);
 
   assert.match(projectionContract, /required runtime contract doc for installed `dev-loop` \/ `copilot-dev-loop` skill consumers/i);
-  assert.match(projectionContract, /must be bundled under `docs\/conductor-pr-projection-contract\.md` beside the installed `SKILL\.md`/i);
+  assert.match(projectionContract, /must be bundled once under the canonical shared installed path `\.pi\/skills\/docs\/conductor-pr-projection-contract\.md`/i);
 });
 
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {
@@ -271,7 +271,15 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
 
   const userInvocableSkillEntrypoints = [];
   for (const skillDir of (await readdir(fromRepoRoot("skills"))).sort().filter((name) => !name.startsWith("."))) {
-    const content = await readRepo(`skills/${skillDir}/SKILL.md`);
+    let content;
+    try {
+      content = await readRepo(`skills/${skillDir}/SKILL.md`);
+    } catch (error) {
+      if (error?.code === "ENOENT") {
+        continue;
+      }
+      throw error;
+    }
     if (/^user-invocable:\s*true\s*$/m.test(content)) {
       userInvocableSkillEntrypoints.push(skillDir);
     }
@@ -310,7 +318,7 @@ test("copilot skill still contains its core workflow guidance", async () => {
   assert.match(content, /Before planning, review, or automation:/);
   assert.match(content, /Skill asset path resolution/);
   assert.match(content, /Do not assume `scripts\/\.\.\.` is repo-local to the target codebase/i);
-  assert.match(content, /source repository the skill scripts directory is `\.\.\/\.\.\/scripts\//);
+  assert.match(content, /source-repo helper scripts live two levels up at `\.\.\/\.\.\/scripts\/`/i);
   assert.match(content, /Before any GitHub mutation/);
   assert.match(content, /Preferred defaults for this repo:/);
   assert.match(content, /Default validation should match or approximate/);
