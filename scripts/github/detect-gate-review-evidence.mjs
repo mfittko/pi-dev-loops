@@ -3,6 +3,7 @@ import {
   formatCliError,
   isDirectCliRun,
   parseJsonText,
+  summarizeGateReviewCommentMarkers,
   summarizeGateReviewComments,
 } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
@@ -29,6 +30,17 @@ Output (stdout, JSON):
       "verdict": "clean",
       "findingsSummary": "no issues found",
       "nextAction": "mark ready for review",
+      "commentId": 101,
+      "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101",
+      "updatedAt": "2026-05-29T22:00:00Z"
+    },
+    "draftGateMarker": {
+      "visible": true,
+      "headSha": "abc1234",
+      "verdict": "clean",
+      "findingsSummary": "no issues found",
+      "nextAction": "mark ready for review",
+      "contractComplete": true,
       "commentId": 101,
       "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101",
       "updatedAt": "2026-05-29T22:00:00Z"
@@ -150,6 +162,38 @@ function normalizeGateSummary(summary) {
   };
 }
 
+function emptyGateMarkerSummary() {
+  return {
+    visible: false,
+    headSha: null,
+    verdict: null,
+    findingsSummary: null,
+    nextAction: null,
+    contractComplete: false,
+    commentId: null,
+    commentUrl: null,
+    updatedAt: null,
+  };
+}
+
+function normalizeGateMarkerSummary(summary) {
+  if (!summary) {
+    return emptyGateMarkerSummary();
+  }
+
+  return {
+    visible: true,
+    headSha: summary.headSha,
+    verdict: summary.verdict,
+    findingsSummary: summary.findingsSummary,
+    nextAction: summary.nextAction,
+    contractComplete: summary.contractComplete === true,
+    commentId: summary.commentId,
+    commentUrl: summary.commentUrl,
+    updatedAt: summary.updatedAt,
+  };
+}
+
 export async function detectGateReviewEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
   const prPayload = await runGhJson(["pr", "view", String(options.pr), "--repo", options.repo, "--json", "headRefOid"], { env, ghCommand });
   const commentsPayload = normalizeIssueCommentsPayload(await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/issues/${options.pr}/comments?per_page=100`], { env, ghCommand }));
@@ -163,6 +207,7 @@ export async function detectGateReviewEvidence(options, { env = process.env, ghC
   }
 
   const commentSummary = summarizeGateReviewComments(commentsPayload);
+  const markerSummary = summarizeGateReviewCommentMarkers(commentsPayload, { headSha: currentHeadSha });
 
   return {
     ok: true,
@@ -171,6 +216,8 @@ export async function detectGateReviewEvidence(options, { env = process.env, ghC
     currentHeadSha,
     draftGate: normalizeGateSummary(commentSummary.draft_gate),
     preApprovalGate: normalizeGateSummary(commentSummary.pre_approval_gate),
+    draftGateMarker: normalizeGateMarkerSummary(markerSummary.draft_gate),
+    preApprovalGateMarker: normalizeGateMarkerSummary(markerSummary.pre_approval_gate),
   };
 }
 

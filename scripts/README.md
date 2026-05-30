@@ -352,6 +352,30 @@ Key behavioral guarantees:
 - When the current head already has a clean submitted Copilot review, `sameHeadCleanConverged=true` and automatic same-head re-request is suppressed until a meaningful remediation event occurs
 - If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
 
+### `scripts/github/upsert-gate-review-comment.mjs`
+
+Creates or updates the visible gate-review PR comment for one `gate + headSha` pair.
+Use this at the `draft_gate` / `pre_approval_gate` boundaries so same-head reruns
+remain idempotent: the helper updates an existing same-head marker in place when
+correction is needed and suppresses duplicate reposts when the visible comment
+already matches the requested contract fields. The rendered visible comment uses compact readable labels (`Gate review`, `Reviewed head SHA`, `Verdict`, `Findings summary`, `Next action`). When a gate pass needed corrective changes before reaching `clean`, pass a truthful `--findings-summary` that briefly states the gap, the change, and why the current head is now acceptable instead of defaulting to `no issues found`.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+- `--gate <draft_gate|pre_approval_gate>`
+- `--head-sha <sha>` — full current head SHA or a hexadecimal prefix of it; the helper canonicalizes to the full current head before comparing/updating visible markers
+- `--verdict <clean|findings_present|blocked>`
+- `--findings-summary <text>`
+- `--next-action <text>`
+
+Success output shape:
+- `{ "ok": true, "action": "created"|"updated"|"noop", "repo": "owner/repo", "pr": 17, "gate": "draft_gate", "headSha": "abc1234", "currentHeadSha": "abc1234", "commentId": 101, "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101" }`
+
+Failure behavior:
+- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- contradictory head-SHA requests or unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/github/detect-gate-review-evidence.mjs`
 
 Fetches the live PR head SHA plus visible PR issue comments, then summarizes the
@@ -364,9 +388,11 @@ Required:
 - `--pr <number>`
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/repo", "pr": 17, "currentHeadSha": "abc1234", "draftGate": { ... }, "preApprovalGate": { ... } }`
+- `{ "ok": true, "repo": "owner/repo", "pr": 17, "currentHeadSha": "abc1234", "draftGate": { ... }, "preApprovalGate": { ... }, "draftGateMarker": { ... }, "preApprovalGateMarker": { ... } }`
 - each gate summary includes `visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`, `commentId`, `commentUrl`, and `updatedAt`
 - when no valid visible comment exists for a gate, its summary is emitted with `visible=false` and the other fields set to `null`
+- each marker summary includes `visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`, `contractComplete`, `commentId`, `commentUrl`, and `updatedAt`
+- marker summaries track the newest visible marker for the current head (`gate + currentHeadSha`) even if contract fields are partial, enabling same-head rerun idempotency without posting duplicate visible markers
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
