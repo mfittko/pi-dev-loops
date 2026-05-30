@@ -25,7 +25,7 @@
     "test:extension": "node --import tsx --test --test-reporter ./test/failure-summary-reporter.mjs test/extension-checks.test.mjs test/extension-command-contract.test.mjs test/extension-package-contract.test.mjs test/dev-loops-core.test.mjs test/dev-loops-cli.test.mjs",
     "test:scripts": "node --test --test-reporter ./test/failure-summary-reporter.mjs test/github/*.test.mjs test/loop/*.test.mjs",
     "test:core": "node --test --test-reporter ./test/failure-summary-reporter.mjs packages/core/test/*.test.mjs",
-    "test:dev-loop": "npm --prefix skills/dev-loop test",
+    "test:dev-loop": "node --test --test-reporter ./test/failure-summary-reporter.mjs skills/dev-loop/scripts/dev-mode-context.test.mjs skills/dev-loop/scripts/render-template.test.mjs",
     "playwright:install:safari": "playwright install webkit",
     "test:playwright:viewer": "playwright test -c playwright.inspect-run-viewer.config.mjs"
   },
