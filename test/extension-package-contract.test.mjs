@@ -72,12 +72,12 @@ test("required installed runtime contract docs are bundled beside both packaged 
     for (const doc of requiredDocs) {
       const [rootCopy, bundledCopy] = await Promise.all([
         readRepo(`docs/${doc}`),
-        readRepo(`skills/${skill}/docs/${doc}`),
+        readRepo(`.pi/skills/${skill}/docs/${doc}`),
       ]);
       assert.equal(
         bundledCopy,
         rootCopy,
-        `skills/${skill}/docs/${doc} should stay byte-for-byte aligned with docs/${doc}`,
+        `.pi/skills/${skill}/docs/${doc} should stay byte-for-byte aligned with docs/${doc}`,
       );
     }
   }

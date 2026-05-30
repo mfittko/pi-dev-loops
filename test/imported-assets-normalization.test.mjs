@@ -131,7 +131,8 @@ test("installed skill copies bundle required runtime contract docs and skills po
   assert.match(devLoopSkill, /packaging\/installer bug/i);
 
   assert.match(copilotSkill, /Required bundled runtime contract docs for installed copies of this skill/i);
-  assert.match(copilotSkill, /helper assets live under `scripts\/` and the required bundled contract docs live under `docs\/`/i);
+  assert.match(copilotSkill, /required bundled contract docs live under `docs\/` inside the installed skill directory/i);
+  assert.match(copilotSkill, /do not assume helper scripts are bundled unless that installed layout actually contains them/i);
   assert.match(copilotSkill, /Read those bundled `docs\/` files from the installed skill layout/i);
   assert.match(copilotSkill, /packaging\/installer bug/i);
 
@@ -309,7 +310,7 @@ test("copilot skill still contains its core workflow guidance", async () => {
   assert.match(content, /Before planning, review, or automation:/);
   assert.match(content, /Skill asset path resolution/);
   assert.match(content, /Do not assume `scripts\/\.\.\.` is repo-local to the target codebase/i);
-  assert.match(content, /source repository the skill scripts directory is `\.\.\/scripts\//);
+  assert.match(content, /source repository the skill scripts directory is `\.\.\/\.\.\/scripts\//);
   assert.match(content, /Before any GitHub mutation/);
   assert.match(content, /Preferred defaults for this repo:/);
   assert.match(content, /Default validation should match or approximate/);
