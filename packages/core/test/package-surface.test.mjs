@@ -23,4 +23,12 @@ test("packages/core exports public loop contract modules in package metadata", a
     packageJson.exports["./loop/retrospective-checkpoint"],
     "./src/loop/retrospective-checkpoint.mjs",
   );
+  assert.equal(
+    packageJson.exports["./loop/tracker-pr-state"],
+    "./src/loop/tracker-pr-state.mjs",
+  );
+  assert.equal(
+    packageJson.exports["./loop/conductor-pr-projection"],
+    "./src/loop/conductor-pr-projection.mjs",
+  );
 });
