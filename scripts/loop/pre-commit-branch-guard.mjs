@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 
-import { isDirectCliRun } from "../_core-helpers.mjs";
+import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 
 const USAGE = `Usage:
   pre-commit-branch-guard.mjs --expected-branch <name>
@@ -93,18 +93,6 @@ function runCommand(command, args, { cwd = process.cwd(), env = process.env } = 
   });
 }
 
-function formatCliError(error) {
-  const payload = {
-    ok: false,
-    error: error instanceof Error ? error.message : String(error),
-  };
-
-  if (error instanceof Error && typeof error.usage === "string") {
-    payload.usage = error.usage;
-  }
-
-  return JSON.stringify(payload);
-}
 
 export async function runCli(
   argv = process.argv.slice(2),
