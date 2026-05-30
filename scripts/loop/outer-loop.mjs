@@ -32,28 +32,19 @@
  *   on stderr and exit non-zero.
  *   gh/git failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
-import { autoDetectSnapshot as autoDetectCopilotSnapshot } from "./detect-copilot-loop-state.mjs";
 import {
   buildCheckpointFilePath,
   buildDefaultCheckpointDir,
-  buildLegacyDefaultCheckpointDir,
 } from "./_checkpoint-paths.mjs";
-import { autoDetectReviewerSnapshot } from "./detect-reviewer-loop-state.mjs";
-import {
-  interpretLoopState,
-  normalizeSnapshot as normalizeCopilotSnapshot,
-} from "../../packages/core/src/loop/copilot-loop-state.mjs";
-import {
-  interpretReviewerLoopState,
-  normalizeReviewerSnapshot,
-} from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+import { readExistingCheckpoint } from "./_checkpoint-io.mjs";
+import { loadCopilotEvidence, loadReviewerEvidence } from "./_loop-evidence.mjs";
 import {
   ENTRYPOINT,
   evaluateConductorRouting,
@@ -372,33 +363,6 @@ function enrichHandoffWithPrHeadIdentity(routing, { branchName, headSha }) {
 // ---------------------------------------------------------------------------
 
 /**
- * Build the default checkpoint directory path from repo/pr.
- */
-function defaultCheckpointDir(repo, pr) {
-  return buildDefaultCheckpointDir(repo, pr);
-}
-
-/**
- * Read the previous checkpoint if it exists. Returns null if not found.
- *
- * @param {string} checkpointDir
- * @returns {Promise<object|null>}
- */
-async function readCheckpoint(checkpointDir) {
-  const filePath = buildCheckpointFilePath(checkpointDir);
-
-  try {
-    const text = await readFile(filePath, "utf8");
-    return parseJsonText(text);
-  } catch (error) {
-    if (error && error.code === "ENOENT") {
-      return null;
-    }
-    throw new Error(`Failed to read checkpoint '${filePath}': ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-/**
  * Write the checkpoint to disk.
  *
  * @param {string} checkpointDir
@@ -408,37 +372,6 @@ async function writeCheckpoint(checkpointDir, checkpoint) {
   await mkdir(checkpointDir, { recursive: true });
   const filePath = buildCheckpointFilePath(checkpointDir);
   await writeFile(filePath, `${JSON.stringify(checkpoint, null, 2)}\n`, "utf8");
-}
-
-async function readResolvedCheckpoint({ repo, pr, checkpointDir }) {
-  if (checkpointDir !== undefined) {
-    return { checkpoint: await readCheckpoint(checkpointDir), filePath: buildCheckpointFilePath(checkpointDir) };
-  }
-
-  const preferredDir = defaultCheckpointDir(repo, pr);
-  const preferredCheckpoint = await readCheckpoint(preferredDir);
-  if (preferredCheckpoint !== null) {
-    return {
-      checkpoint: preferredCheckpoint,
-      filePath: buildCheckpointFilePath(preferredDir),
-    };
-  }
-
-  const legacyDir = buildLegacyDefaultCheckpointDir(pr);
-  const legacyCheckpoint = await readCheckpoint(legacyDir);
-  if (legacyCheckpoint !== null
-    && legacyCheckpoint.repo === repo
-    && legacyCheckpoint.pr === pr) {
-    return {
-      checkpoint: legacyCheckpoint,
-      filePath: buildCheckpointFilePath(legacyDir),
-    };
-  }
-
-  return {
-    checkpoint: null,
-    filePath: buildCheckpointFilePath(preferredDir),
-  };
 }
 
 function shouldCarryForwardWaitCycles(previousCheckpoint, { repo, pr, headSha, outerAction }) {
@@ -501,7 +434,7 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
 export async function runOuterLoop(options, { env = process.env, ghCommand = "gh", gitCommand = "git" } = {}) {
   const { repo, pr, reviewerLogin, copilotInputPath, reviewerInputPath } = options;
   const normalizedRepo = repo.trim().toLowerCase();
-  const checkpointDir = options.checkpointDir ?? defaultCheckpointDir(normalizedRepo, pr);
+  const checkpointDir = options.checkpointDir ?? buildDefaultCheckpointDir(normalizedRepo, pr);
 
   // Async-start contract enforcement: fail closed when not in a Pi-managed context
   const isSnapshotMode = copilotInputPath !== undefined && reviewerInputPath !== undefined;
@@ -510,28 +443,16 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     return buildAsyncStartRejection(asyncStartValidation);
   }
 
-  // Detect copilot state
-  let copilotSnapshot;
-  if (copilotInputPath !== undefined) {
-    const text = await readFile(copilotInputPath, "utf8");
-    copilotSnapshot = normalizeCopilotSnapshot(parseJsonText(text));
-  } else {
-    copilotSnapshot = await autoDetectCopilotSnapshot({ repo: normalizedRepo, pr }, { env, ghCommand });
-  }
-  const copilotInterpretation = interpretLoopState(copilotSnapshot);
+  // Detect copilot and reviewer inner-loop state via shared evidence loaders.
+  const { snapshot: copilotSnapshot, interpretation: copilotInterpretation } = await loadCopilotEvidence(
+    { repo: normalizedRepo, pr, copilotInputPath },
+    { env, ghCommand },
+  );
 
-  // Detect reviewer state
-  let reviewerSnapshot;
-  if (reviewerInputPath !== undefined) {
-    const text = await readFile(reviewerInputPath, "utf8");
-    reviewerSnapshot = normalizeReviewerSnapshot(parseJsonText(text));
-  } else {
-    reviewerSnapshot = await autoDetectReviewerSnapshot(
-      { repo: normalizedRepo, pr, reviewerLogin },
-      { env, ghCommand },
-    );
-  }
-  const reviewerInterpretation = interpretReviewerLoopState(reviewerSnapshot);
+  const { snapshot: reviewerSnapshot, interpretation: reviewerInterpretation } = await loadReviewerEvidence(
+    { repo: normalizedRepo, pr, reviewerLogin, reviewerInputPath },
+    { env, ghCommand },
+  );
   const currentHeadSha = typeof reviewerSnapshot?.prHeadSha === "string" && reviewerSnapshot.prHeadSha.length > 0
     ? reviewerSnapshot.prHeadSha
     : null;
@@ -581,10 +502,8 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     }
   }
 
-  // Read previous checkpoint to track wait cycles
-  const { checkpoint: prevCheckpoint } = await readResolvedCheckpoint({
-    repo: normalizedRepo,
-    pr,
+  // Read previous checkpoint to track wait cycles.
+  const { checkpoint: prevCheckpoint } = await readExistingCheckpoint(normalizedRepo, pr, {
     checkpointDir: options.checkpointDir,
   });
   const prevWaitCycles = typeof prevCheckpoint?.waitCycles === "number" ? prevCheckpoint.waitCycles : 0;
