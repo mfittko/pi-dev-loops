@@ -1,6 +1,8 @@
 # Public dev-loop contract
 
-This document defines the first-slice contract for issue #86: one public `dev-loop` façade with deterministic routing to internal strategy families.
+This document is the canonical authority for the public `dev-loop` entrypoint, its routed semantics, accepted shorthand, and the rule that internal strategy names stay behind that public façade.
+
+Other repo docs may summarize or link this contract, but they should not redefine it.
 
 ## Public surface
 

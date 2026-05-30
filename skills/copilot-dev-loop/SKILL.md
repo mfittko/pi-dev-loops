@@ -1,12 +1,11 @@
 ---
 name: copilot-dev-loop
 description: >-
-  Use for GitHub-first Pi development workflows when the user wants to choose or
-  confirm a ready GitHub issue, align on scope and acceptance criteria, hand
-  work to Copilot when appropriate, watch the resulting PR for new Copilot
-  review activity, run async Pi follow-up review/fix passes in-session,
-  validate with repository-appropriate checks, and stop for confirmation before
-  any GitHub or branch state changes.
+  Internal routed strategy behind `dev-loop` for GitHub-first Copilot-owned PR
+  follow-up: confirm a ready issue, align on scope and acceptance criteria,
+  watch the resulting PR for new Copilot review activity, run async Pi
+  review/fix passes in-session, validate with repository-appropriate checks,
+  and stop for confirmation before any GitHub or branch state changes.
 compatibility: Pi skill for git+GitHub repositories. Requires gh auth; async follow-up works best in Pi/TelePi sessions.
 allowed-tools: read bash edit write subagent review_loop
 user-invocable: false
@@ -18,12 +17,14 @@ This skill is the Copilot-owned PR follow-up compatibility/internal strategy beh
 
 Use it only when the public `dev-loop` router lands on a Copilot-owned issue/PR path. Keep repository specifics grounded in the active repo's actual files, scripts, CI, and GitHub state rather than assuming a hard-coded project layout.
 
-Typical triggers:
+Compatibility phrasing that may route here:
 - start the copilot dev loop
 - continue the copilot loop
 - hand the next ready issue to Copilot
 - watch the Copilot PR and follow up
 - continue PR review/fix work for the current Copilot branch
+
+These are compatibility phrases for routed `dev-loop` behavior, not peer public workflow entrypoints.
 
 ## Operational cookbook
 

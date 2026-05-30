@@ -4,18 +4,12 @@
 
 ## Workflow posture
 
-This repo supports both local and GitHub-first workflows, but the current repo contract is:
+This repo supports both local and GitHub-first workflows, but the current repo contract is simple:
 - use **`dev-loop`** as the single public workflow entrypoint
-- let the canonical current state route that public entrypoint deterministically to the correct internal strategy
-- prefer the GitHub-first internal strategies by default for active implementation and release work when practical
+- prefer the GitHub-first routed path for active implementation and release work when practical
 - use the local implementation strategy only when the user explicitly wants phase-bounded local planning/implementation
 
-High-level shorthand examples for the unattended issue-based GitHub/Copilot path:
-- `auto dev loop on issue 112`
-- `enter copilot auto dev loop on issue 112`
-- `run auto dev loop on 112 until approval gate`
-
-These all map to the same public `dev-loop` intent (not a second public workflow name) and continue through the normal GitHub/Copilot loop until the final human approval gate unless merge was explicitly authorized.
+For the canonical public routing and shorthand contract, see `docs/public-dev-loop-contract.md`.
 
 For the latest durable roadmap and status, start with:
 - `PLAN.md`

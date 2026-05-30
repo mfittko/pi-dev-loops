@@ -69,7 +69,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
    - asserts stable machine-readable CLI output on success
    - asserts deterministic failure behavior for invalid JSON / invalid arguments
 4. thin-wrapper regression coverage
-   - reduce `skills/dev-loop/scripts/phase-files.test.mjs` to wrapper-contract checks, or retain equivalent root smoke coverage proving the skill still works through the shared package boundary
+   - retain equivalent root smoke coverage proving the skill still works through the shared package boundary without reintroducing wrapper-specific duplicate tests
 5. keep passing regression coverage for `packages/core/test/bash-exit-one.test.mjs`
 
 ## Acceptance criteria
@@ -111,7 +111,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 - `packages/core/test/bash-exit-one.test.mjs` still passes unchanged unless a strictly necessary package-contract adjustment is documented
 - `npm run test:core` passes
 - `npm test` passes
-- `npm run test:dev-loop` is run when the local harness is available; if it is unavailable in the checkout, the limitation is logged under `tmp/phases/phase-4/` and the repo-level smoke test still passes
+- `npm run test:dev-loop` is run as the repo-level dev-loop script
 - `git diff --check` passes
 - changed deterministic logic has explicit coverage evidence against the repo coverage contract when local tooling is available; otherwise a bounded coverage-tooling gap is recorded under `tmp/phases/phase-4/coverage.md` and coverage is not marked as validated implicitly
 - no timeout-policy module, check-status normalization module, watcher script suite, second-repo pilot, or package-strategy work is partially implemented under the Phase 4 banner
@@ -126,7 +126,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 - probe for reusable local coverage tooling with `npx --no-install c8 --version`
 - if `c8` is available locally, run `NODE_V8_COVERAGE=tmp/phases/phase-4/coverage/raw npx --no-install c8 --reporter=text-summary node --test packages/core/test/*.test.mjs` and capture the summary under `tmp/phases/phase-4/coverage.md`
 - if `c8` is not available locally, write `tmp/phases/phase-4/coverage.md` recording the attempted command, the missing-tooling limitation, the changed files that still require coverage confidence, and that coverage remains a tracked validation gap rather than a passed check
-- run `npm run test:dev-loop` if the local harness is available; otherwise log the limitation clearly under `tmp/phases/phase-4/`
+- run `npm run test:dev-loop`
 - run `git diff --check`
 - do a focused read-through of:
   - `packages/core/package.json`
@@ -157,7 +157,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 - export names and CLI names chosen now may become sticky public package surface; keep them explicit and minimal
 - the extraction can accidentally preserve duplicate logic in the skill-local wrapper if the wrapper is not reduced aggressively enough
 - GitHub fixture design can overfit or drift from real payloads; keep the normalized shape narrow and driven by actual fixture-backed use cases
-- the skill-local Jest harness may still be unavailable in some checkouts, so wrapper regression detection must not rely only on that harness
+- wrapper regression detection must rely on the surviving root/core smoke coverage rather than on duplicate wrapper-specific test paths
 
 ## Unresolved questions
 
