@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 
 const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), "utf8");
@@ -135,6 +135,9 @@ test("installed skill guidance owns packaging guarantees and contract docs stay 
   assert.match(copilotSkill, /do not assume helper scripts are bundled unless that installed layout actually contains them/i);
   assert.match(copilotSkill, /Read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
   assert.match(copilotSkill, /packaging\/installer bug/i);
+  assert.match(publicContract, /canonical owner lives in the shipped `skills\/docs\/` surface/i);
+  assert.match(publicContract, /installed skill\/runtime consumers reliably own the skills subtree/i);
+  assert.match(publicContract, /read the same contract via `\.\.\/docs\/public-dev-loop-contract\.md` from the installed skill directory/i);
 
   for (const [label, content] of [
     ["skills/docs/public-dev-loop-contract.md", publicContract],
@@ -147,6 +150,22 @@ test("installed skill guidance owns packaging guarantees and contract docs stay 
     assert.doesNotMatch(content, /shared installed copy resolved as `\.\.\/docs\//i, `${label} should not duplicate install-contract ownership prose`);
     assert.doesNotMatch(content, /packaging\/installer bug/i, `${label} should not duplicate install-contract ownership prose`);
   }
+});
+
+test("root docs path does not become a second semantic owner for the public dev-loop contract", async () => {
+  const rootContractPath = fromRepoRoot("docs/public-dev-loop-contract.md");
+  const rootContractExists = await stat(rootContractPath).then(() => true).catch(() => false);
+
+  if (!rootContractExists) {
+    return;
+  }
+
+  const rootContract = await readRepo("docs/public-dev-loop-contract.md");
+  assert.match(rootContract, /skills\/docs\/public-dev-loop-contract\.md/i);
+  assert.doesNotMatch(rootContract, /canonical authority/i);
+  assert.doesNotMatch(rootContract, /canonical public-contract owner/i);
+  assert.match(rootContract, /pointer|summary|summarize|summarise/i);
+  assert.match(rootContract, /must not redefine/i);
 });
 
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {
