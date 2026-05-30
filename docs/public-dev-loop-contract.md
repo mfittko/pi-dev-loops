@@ -23,28 +23,22 @@ Day-one user-intent forms:
 - start issue `<n>` locally, then continue the loop
 - continue the current dev loop
 - auto dev loop (durable auto ownership over the detected routed loop)
-- auto dev loop on issue `<n>` (issue-scoped durable-auto shorthand)
+- auto dev loop on issue `<n>`
 - what state is the dev loop in?
 
 Users should not have to choose `dev-loop` vs internal seam names up front.
 
 ## Issue-based shorthand auto trigger contract
 
-These shorthand forms are explicitly accepted and must resolve to the same bounded public `dev-loop` intent:
+This shorthand form is explicitly accepted and resolves to the same bounded public `dev-loop` intent:
 
 - `auto dev loop on issue 112`
-- `enter copilot auto dev loop on issue 112`
-- `run auto dev loop on 112 until approval gate`
-
-They are compatibility wording for the single public entrypoint, not a second public workflow name.
 
 Canonical mapping:
 
 | Shorthand phrase | Canonical public intent |
 |---|---|
 | `auto dev loop on issue 112` | `dev-loop --intent auto_continue_current` with authoritative current state targeting issue 112 |
-| `enter copilot auto dev loop on issue 112` | same as above; `copilot` wording is compatibility phrasing only |
-| `run auto dev loop on 112 until approval gate` | same as above, with the default stop boundary at the final human approval gate |
 
 Stop-boundary contract for this shorthand:
 
@@ -75,7 +69,7 @@ Use this taxonomy consistently across docs, discovery surfaces, and tests:
 | Surface class | Entrypoints | Guardrail |
 |---|---|---|
 | Public workflow entrypoint | `dev-loop` | treat as the default and converging public workflow surface |
-| Internal routed strategy modules | `copilot-dev-loop`, `copilot-autopilot` logic | keep internal-only behind `dev-loop`; do not expose as executable peer workflow entrypoints |
+| Internal routed strategy modules | `copilot-dev-loop` logic | keep internal-only behind `dev-loop`; do not expose as executable peer workflow entrypoints |
 | Reusable role agents | `coordinator`, `developer`, `docs`, `review`, `fixer`, `quality`, `refiner` | keep framed as reusable building blocks, not peer public workflow entrypoints |
 
 Any remaining specialized Copilot behavior stays internal-only behind `dev-loop`.
@@ -182,7 +176,6 @@ Resolved bundle output shape:
   "routeKind": "route | wait | stop | inspect | needs_reconcile",
   "selectedGate": "...",
   "selectedStrategy": "...",
-  "compatibilityEntrypoint": "...",
   "executionMode": "bounded_handoff | durable_auto",
   "waitSemantics": "default | auto_healthy_wait",
   "asyncRun": {
@@ -202,7 +195,6 @@ Fail-closed semantics:
   - `bundleKind = needs_reconcile`
   - `routeKind = needs_reconcile`
   - `selectedStrategy = none`
-  - `compatibilityEntrypoint = none`
   - `loopState = unknown`
   - `nextAction` must instruct reconciliation before routing/status answers
 - `executionMode=durable_auto` must fail closed unless a visible Pi-managed async run is already registered
@@ -338,10 +330,10 @@ flowchart TD
 ## Single-entrypoint convergence posture
 
 - `dev-loop` is the only intended public workflow entrypoint.
-- any remaining `copilot-dev-loop` and `copilot-autopilot` behavior is internal-only and non-user-invocable.
+- any remaining specialized Copilot behavior is internal-only and non-user-invocable under the canonical `copilot-dev-loop` routed surface.
 - Documentation and examples should lead with `dev-loop` and explain routed behavior.
 - Almost all workflow branching should converge into deterministic state-machine/tooling surfaces behind `dev-loop`.
-- User-visible variation should be expressed through the external `dev-loop` API / bounded parameters or settings, not by preserving multiple public workflow names.
+- User-visible variation should be expressed through the external `dev-loop` API / bounded parameters or settings, not by preserving multiple public workflow names or legacy compatibility seams.
 
 ## Bounded variation parameter contract
 

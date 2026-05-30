@@ -9,8 +9,9 @@ For the canonical public routing and shorthand contract, see `docs/public-dev-lo
 Repo-specific posture summary:
 - prefer the GitHub-first routed path when work should move through GitHub branches, pull requests, CI, and review
 - use the local implementation strategy only when the user explicitly wants a local phase-based path
-- treat `copilot-dev-loop` and `copilot-autopilot` as internal routed seams behind `dev-loop`, not equal public entrypoints
+- `dev-loop` is the only public workflow entrypoint; keep one concise canonical workflow description instead of parallel skill surfaces
 - this is a greenfield, declutter-first repo: when workflow or agent guidance can be simplified safely, prefer removing or demoting extra surface area over preserving it just in case
+- do not preserve backwards compatibility, legacy aliases, compatibility wrappers, or duplicate prompt/docs surfaces unless the user explicitly asks for that specific compatibility in the current conversation
 
 These skills may be provided repo-locally or globally; this contract does not assume a local skill path.
 
@@ -59,6 +60,9 @@ Practical rule:
 - SRP
 - YAGNI
 - for workflow surface and agent guidance decisions, YAGNI-driven simplification takes priority over preserving speculative compatibility or extra entrypoint names
+- one concise canonical version of each workflow contract, prompt surface, and operator path; delete superseded variants instead of keeping them around for comfort
+- no backwards-compatibility-by-default posture: do not add or preserve legacy names, aliases, compatibility shims, compatibility entrypoints, or duplicate docs/tests unless that compatibility is explicitly required and approved
+- when choosing between a clean canonical replacement and legacy support, choose the clean canonical replacement
 - strict TypeScript
 - thin runtime glue
 - no production reliance on Pi private internals
