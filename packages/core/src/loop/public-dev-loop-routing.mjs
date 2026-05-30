@@ -291,6 +291,7 @@ const TARGET_PREFERENCE_SET = new Set(DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allo
 const GATE_REVIEW_VERDICT_SET = new Set(["clean", "findings_present", "blocked"]);
 const ALLOWED_MODE_VALUES_TEXT = DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues.join(", ");
 const ALLOWED_TARGET_PREFERENCE_VALUES_TEXT = DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedTargetPreferenceValues.join(", ");
+const LINKED_PR_READY_FOR_FOLLOWUP_LOOP_STATE = "linked_pr_ready_for_followup";
 
 function normalizeIntent(intent) {
   const normalized = typeof intent === "string" ? intent.trim().toLowerCase() : "";
@@ -952,6 +953,52 @@ function normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageRe
   return null;
 }
 
+function applyInitialCopilotBootstrapRefreshSeam(canonicalState, issueLinkageResolution, loopState) {
+  if (loopState !== LINKED_PR_READY_FOR_FOLLOWUP_LOOP_STATE) {
+    return { canonicalState, reason: null };
+  }
+
+  if (canonicalState.target.kind === DEV_LOOP_TARGET_KIND.PR) {
+    return { canonicalState, reason: null };
+  }
+
+  if (canonicalState.target.kind !== DEV_LOOP_TARGET_KIND.ISSUE) {
+    return {
+      canonicalState,
+      reason:
+        "Refreshed `linked_pr_ready_for_followup` state requires a linked PR canonical target; reconcile before routing startup/resume state.",
+    };
+  }
+
+  if (
+    issueLinkageResolution !== DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR
+    || canonicalState.target.linkedPr === null
+    || canonicalState.ownership !== DEV_LOOP_ACTOR.COPILOT
+  ) {
+    return {
+      canonicalState,
+      reason:
+        "Refreshed `linked_pr_ready_for_followup` state conflicts with authoritative linked PR follow-up facts; reconcile before routing startup/resume state.",
+    };
+  }
+
+  return {
+    canonicalState: {
+      ...canonicalState,
+      target: {
+        kind: DEV_LOOP_TARGET_KIND.PR,
+        issue: canonicalState.target.issue,
+        pr: canonicalState.target.linkedPr,
+        linkedPr: null,
+        branch: null,
+        phase: null,
+      },
+      status: DEV_LOOP_STATUS.ACTIVE,
+    },
+    reason: null,
+  };
+}
+
 function isArtifactStateCompatible(canonicalState, artifactState) {
   if (canonicalState.target.kind !== DEV_LOOP_TARGET_KIND.PR) {
     return artifactState === DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE;
@@ -1039,6 +1086,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const normalizedIssueLinkageResolution = normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageResolution);
   const issueReadinessProvided = input.issueReadiness !== undefined && input.issueReadiness !== null;
   const issueAssignmentStateProvided = input.issueAssignmentState !== undefined && input.issueAssignmentState !== null;
+  const loopState = normalizeOptionalLoopState(input.loopState);
 
   if (asyncRunProvided && asyncRun === null) {
     return buildStartupResumeBundleReconcile({
@@ -1079,6 +1127,30 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       issueLinkageResolution: normalizedIssueLinkageResolution,
     });
   }
+
+  if (loopState === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing requires an explicit resolved loop state before routing or answering status.",
+      canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+      artifactState: normalizeArtifactState(input.artifactState),
+    });
+  }
+
+  const bootstrapRefresh = applyInitialCopilotBootstrapRefreshSeam(
+    canonicalState,
+    issueLinkageResolution,
+    loopState,
+  );
+  if (bootstrapRefresh.reason !== null) {
+    return buildStartupResumeBundleReconcile({
+      reason: bootstrapRefresh.reason,
+      canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+      artifactState: normalizeArtifactState(input.artifactState),
+    });
+  }
+  const canonicalStateForRouting = bootstrapRefresh.canonicalState;
 
   if (
     canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
@@ -1121,7 +1193,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     }
   }
 
-  const routed = routeForState(canonicalState, {
+  const routed = routeForState(canonicalStateForRouting, {
     executionMode: effectiveMode,
     issueReadiness,
     issueAssignmentState,
@@ -1150,16 +1222,6 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   if (!isArtifactStateCompatible(routed.canonicalState, artifactState)) {
     return buildStartupResumeBundleReconcile({
       reason: "Canonical current state conflicts with the provided artifact state; reconcile before routing startup/resume state.",
-      canonicalState: routed.canonicalState,
-      issueLinkageResolution: normalizedIssueLinkageResolution,
-      artifactState,
-    });
-  }
-
-  const loopState = normalizeOptionalLoopState(input.loopState);
-  if (loopState === null) {
-    return buildStartupResumeBundleReconcile({
-      reason: "Authoritative startup/resume routing requires an explicit resolved loop state before routing or answering status.",
       canonicalState: routed.canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState,
