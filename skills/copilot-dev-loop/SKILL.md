@@ -246,7 +246,9 @@ Under that unattended execution contract:
 - If a PR already exists, classify the post-assignment seam before follow-up
 - `waiting_for_initial_copilot_implementation`: keep waiting
 - `linked_pr_ready_for_followup`: route to the existing PR follow-up path immediately; resume from that PR
+- when routing leaves bootstrap wait for `linked_pr_ready_for_followup`, do not stop only because local isolation is required; re-enter the same PR follow-up from a safe isolated checkout/worktree
 - When the draft PR appears, classify whether it is still the bootstrap-only Copilot draft before entering normal follow-up
+- if a child async run exits while the deterministic state is still non-terminal (for example `waiting_for_copilot_review`), automatically resume/restart follow-up when continuation is feasible instead of requiring manual operator restart
 - continue unattended until the final approval gate unless a genuine stop condition is reached
 - stop for a human approval decision by default
 - after approval, report `waiting_for_merge_authorization` and stop again unless merge has been explicitly authorized
@@ -306,6 +308,7 @@ Preflight verdicts:
   - `timed_out`: observational first; refresh authoritative state
   - if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached to the same durable wait seam and continue waiting
   - if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention
+  - when the refreshed state is `linked_pr_ready_for_followup`, re-enter normal PR follow-up; if `unsafe_local_edit_requires_isolation` is the only blocker, perform the expected isolated-checkout/worktree handoff and continue
   - only surface timeout attention when the seam's durable watch budget is actually exhausted
   - for explicit inspect/status requests, report the still-waiting state and exit normally
 - Carry that resolved repo slug through every later GitHub issue/PR command
@@ -639,6 +642,7 @@ Preferred approach for Copilot review follow-up:
 - watcher timeout/idle is observational only; it is non-terminal unless the refreshed detector output proves `terminal=true`
 - zero-timeout `idle` probes are for explicit one-shot status/reattach checks only; they are not the normal async wait mechanism
 - after a successful fix / reply-resolve / re-request cycle, returning to `waiting_for_copilot_review` is a persistence boundary: resume the watcher instead of reporting completion
+- if a child async run exits and the refreshed state remains non-terminal (for example `waiting_for_copilot_review`), treat that as early exit and automatically restart/resume the same-PR follow-up path when feasible
 - do not report the loop complete while fresh Copilot comments remain unresolved; a new Copilot pass must flow back into fixer/reply/resolve work before completion when authorization exists
 - use explicit long timeouts from the timeout policy above rather than short defaults
 

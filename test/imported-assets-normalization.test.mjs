@@ -330,7 +330,11 @@ test("copilot-dev-loop issue-intake overlay requires unattended resume-from-stat
   assert.match(content, /If a PR already exists, classify the post-assignment seam before follow-up/i);
   assert.match(content, /waiting_for_initial_copilot_implementation.*keep waiting/i);
   assert.match(content, /linked_pr_ready_for_followup.*route to the existing PR follow-up path immediately/i);
+  assert.match(content, /linked_pr_ready_for_followup[\s\S]*do not stop only because local isolation is required/i);
+  assert.match(content, /safe isolated checkout\/worktree/i);
   assert.match(content, /When the draft PR appears, classify whether it is still the bootstrap-only Copilot draft/i);
+  assert.match(content, /child async run exits[\s\S]*non-terminal[\s\S]*waiting_for_copilot_review/i);
+  assert.match(content, /automatically resume\/restart follow-up when continuation is feasible/i);
   assert.match(content, /New PRs in this workflow must be opened as \*\*draft\*\* PRs first/i);
   assert.match(content, /Do not create a fresh PR directly in ready-for-review state/i);
   assert.match(content, /gh pr create --draft --repo <owner\/name> --base <base> --head <head> --title/i);
@@ -385,6 +389,9 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(publicContract, /watch-initial-copilot-pr\.mjs.*default 1-hour watch budget/i);
   assert.match(publicContract, /Quiet\/no-activity observations alone do not eject durable ownership/i);
   assert.match(publicContract, /inspect\/status intents may still summarize that state and exit normally/i);
+  assert.match(publicContract, /linked_pr_ready_for_followup[\s\S]*isolated checkout\/worktree transition instead of treating that boundary as final completion/i);
+  assert.match(publicContract, /non-terminal follow-up\/wait states[\s\S]*waiting_for_copilot_review[\s\S]*continuation boundaries/i);
+  assert.match(publicContract, /async child exits before the requested stop boundary[\s\S]*automatically resume\/restart/i);
   assert.match(publicContract, /R --> A\[Final approval gate\]/i);
   assert.match(publicContract, /R --> M\[Wait for merge authorization\]/i);
 
@@ -478,6 +485,8 @@ test("issue-intake overlay wires waiting_for_initial_copilot_implementation to d
   assert.match(skillContent, /timed_out.*observational first; refresh authoritative state/i);
   assert.match(skillContent, /if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached/i);
   assert.match(skillContent, /if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention/i);
+  assert.match(skillContent, /when the refreshed state is `linked_pr_ready_for_followup`, re-enter normal PR follow-up/i);
+  assert.match(skillContent, /`unsafe_local_edit_requires_isolation` is the only blocker[\s\S]*isolated-checkout\/worktree handoff and continue/i);
   assert.match(skillContent, /only surface timeout attention when the seam's durable watch budget is actually exhausted/i);
   assert.match(skillContent, /quiet\/no-activity watch observations alone are non-terminal/i);
   assert.match(skillContent, /inspect\/status requests.*still-waiting state and exit normally/i);
@@ -618,6 +627,7 @@ test("copilot-dev-loop skill keeps async watch persistence explicit", async () =
   assert.match(skillContent, /persistent async watch\/fix loop, not handoff-only behavior/i);
   assert.match(skillContent, /if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary/i);
   assert.match(skillContent, /if the user explicitly asks for async handoff-only behavior/i);
+  assert.match(skillContent, /child async run exits[\s\S]*waiting_for_copilot_review[\s\S]*automatically restart\/resume the same-PR follow-up path when feasible/i);
   assert.match(scriptsReadme, /`cycleDisposition: "pending"` with `terminal: false` means stay attached and run another watch boundary rather than exiting as clean success/i);
   assert.match(scriptsReadme, /handoff-only behavior must be explicitly requested/i);
   assert.match(stateGraph, /`waiting_for_copilot_review` is a persistence boundary for explicit async loop entry/i);
