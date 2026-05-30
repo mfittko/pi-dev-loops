@@ -7,32 +7,14 @@
  * 2) --repo <owner/name> --pr <number> auto-detect from GitHub (+ optional local state file)
  */
 import { readFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
 
+import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
-
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw new Error(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parsePrNumber(value) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw new Error("--pr must be a positive integer");
-  }
-
-  return Number(value);
-}
 
 function parseBool(value, flag) {
   if (value === "true") return true;
@@ -124,31 +106,6 @@ export function parseDetectReviewerCliArgs(argv) {
   }
 
   return options;
-}
-
-function runChild(command, args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
 }
 
 async function runGhJson(args, { env, ghCommand }) {
