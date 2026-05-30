@@ -364,9 +364,11 @@ Required:
 - `--pr <number>`
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/repo", "pr": 17, "currentHeadSha": "abc1234", "draftGate": { ... }, "preApprovalGate": { ... } }`
+- `{ "ok": true, "repo": "owner/repo", "pr": 17, "currentHeadSha": "abc1234", "draftGate": { ... }, "preApprovalGate": { ... }, "draftGateMarker": { ... }, "preApprovalGateMarker": { ... } }`
 - each gate summary includes `visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`, `commentId`, `commentUrl`, and `updatedAt`
 - when no valid visible comment exists for a gate, its summary is emitted with `visible=false` and the other fields set to `null`
+- each marker summary includes `visible`, `headSha`, `verdict`, `contractComplete`, `commentId`, `commentUrl`, and `updatedAt`
+- marker summaries track the newest visible gate marker (gate + head SHA) even if contract fields are partial, enabling same-head rerun idempotency without posting duplicate visible markers
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero

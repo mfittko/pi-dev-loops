@@ -6,7 +6,9 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 
 import {
+  parseGateReviewCommentMarkerBody,
   parseGateReviewCommentBody,
+  summarizeGateReviewCommentMarkers,
   summarizeGateReviewComments,
 } from "../../scripts/_core-helpers.mjs";
 import {
@@ -111,6 +113,23 @@ test("parseGateReviewCommentBody rejects comments missing required contract fiel
   ].join("\n")), null);
 });
 
+test("parseGateReviewCommentMarkerBody accepts gate/head markers even when contract fields are partial", () => {
+  const parsed = parseGateReviewCommentMarkerBody([
+    "Gate review: draft_gate",
+    "Head SHA: abc1234",
+    "Verdict: clean",
+  ].join("\n"));
+
+  assert.deepEqual(parsed, {
+    gate: "draft_gate",
+    headSha: "abc1234",
+    verdict: "clean",
+    findingsSummary: null,
+    nextAction: null,
+    contractComplete: false,
+  });
+});
+
 test("summarizeGateReviewComments keeps the newest valid comment for each gate", () => {
   const summary = summarizeGateReviewComments([
     {
@@ -152,6 +171,35 @@ test("summarizeGateReviewComments keeps the newest valid comment for each gate",
   assert.equal(summary.draft_gate?.headSha, "abc1234");
   assert.equal(summary.pre_approval_gate?.commentId, 12);
   assert.equal(summary.pre_approval_gate?.nextAction, "await final human approval");
+});
+
+test("summarizeGateReviewCommentMarkers keeps newest gate+head marker even if contract fields are malformed", () => {
+  const summary = summarizeGateReviewCommentMarkers([
+    {
+      id: 10,
+      body: [
+        "Gate review: draft_gate",
+        "Head SHA: abc1234",
+        "Verdict: clean",
+        "Findings: no issues found",
+        "Next action: mark ready for review",
+      ].join("\n"),
+      updated_at: "2026-05-29T20:00:00Z",
+    },
+    {
+      id: 11,
+      body: [
+        "Gate review: draft_gate",
+        "Head SHA: abc1234",
+        "Verdict: clean",
+      ].join("\n"),
+      updated_at: "2026-05-29T21:00:00Z",
+    },
+  ]);
+
+  assert.equal(summary.draft_gate?.commentId, 11);
+  assert.equal(summary.draft_gate?.headSha, "abc1234");
+  assert.equal(summary.draft_gate?.contractComplete, false);
 });
 
 test("parseDetectGateReviewEvidenceCliArgs rejects malformed arguments deterministically", () => {
@@ -255,6 +303,24 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
         commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-43",
         updatedAt: "2026-05-29T22:00:00Z",
       },
+      draftGateMarker: {
+        visible: true,
+        headSha: "abc1234",
+        verdict: "clean",
+        contractComplete: true,
+        commentId: 42,
+        commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-42",
+        updatedAt: "2026-05-29T21:00:00Z",
+      },
+      preApprovalGateMarker: {
+        visible: true,
+        headSha: "abc1234",
+        verdict: "clean",
+        contractComplete: true,
+        commentId: 43,
+        commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-43",
+        updatedAt: "2026-05-29T22:00:00Z",
+      },
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -303,6 +369,47 @@ test("detect-gate-review-evidence flattens paginated issue-comment payloads befo
     assert.equal(result.code, 0);
     assert.equal(JSON.parse(result.stdout).draftGate.commentId, 52);
     assert.equal(JSON.parse(result.stdout).draftGate.visible, true);
+    assert.equal(JSON.parse(result.stdout).draftGateMarker.commentId, 52);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-gate-review-evidence exposes same-head markers even when latest gate contract fields are partial", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-marker-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: `${JSON.stringify([
+          {
+            id: 61,
+            body: [
+              "Gate review: draft_gate",
+              "Head SHA: abc1234",
+              "Verdict: clean",
+            ].join("\n"),
+            updated_at: "2026-05-29T21:00:00Z",
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-61",
+          },
+        ])}\n`,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.draftGate.visible, false);
+    assert.equal(payload.draftGateMarker.visible, true);
+    assert.equal(payload.draftGateMarker.headSha, "abc1234");
+    assert.equal(payload.draftGateMarker.contractComplete, false);
+    assert.equal(payload.draftGateMarker.commentId, 61);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

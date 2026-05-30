@@ -79,7 +79,7 @@ Every gate-review PR comment must include:
 
 | Scenario | Rule |
 |---|---|
-| Same head SHA rerun | The gate comment for that head may be updated idempotently in place |
+| Same head SHA rerun | Idempotent behavior: do not post a second visible marker for the same gate+head. Reuse/suppress by default; if correction is needed, update/replace the existing marker in place. |
 | New head SHA rerun | A new visible gate-review comment must be posted for the new head; the older-head comment remains but does not satisfy readiness for the new head |
 
 ## Fail-closed behavior

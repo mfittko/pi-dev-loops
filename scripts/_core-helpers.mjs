@@ -74,6 +74,14 @@ function normalizeGateReviewHeadSha(value) {
 }
 
 export function parseGateReviewCommentBody(body) {
+  const parsed = parseGateReviewCommentFields(body);
+  if (!parsed || !parsed.verdict || !parsed.findingsSummary || !parsed.nextAction) {
+    return null;
+  }
+  return parsed;
+}
+
+function parseGateReviewCommentFields(body) {
   if (typeof body !== "string" || body.trim().length === 0) {
     return null;
   }
@@ -123,11 +131,27 @@ export function parseGateReviewCommentBody(body) {
     }
   }
 
-  if (!fields.gate || !fields.headSha || !fields.verdict || !fields.findingsSummary || !fields.nextAction) {
+  if (!fields.gate || !fields.headSha) {
     return null;
   }
 
   return fields;
+}
+
+export function parseGateReviewCommentMarkerBody(body) {
+  const fields = parseGateReviewCommentFields(body);
+  if (!fields || !fields.gate || !fields.headSha) {
+    return null;
+  }
+
+  return {
+    gate: fields.gate,
+    headSha: fields.headSha,
+    verdict: fields.verdict,
+    findingsSummary: fields.findingsSummary,
+    nextAction: fields.nextAction,
+    contractComplete: Boolean(fields.verdict && fields.findingsSummary && fields.nextAction),
+  };
 }
 
 export function summarizeGateReviewComments(comments) {
@@ -153,6 +177,48 @@ export function summarizeGateReviewComments(comments) {
       verdict: parsed.verdict,
       findingsSummary: parsed.findingsSummary,
       nextAction: parsed.nextAction,
+      commentId: Number.isInteger(comment?.id) ? comment.id : null,
+      commentUrl: typeof comment?.html_url === "string" && comment.html_url.trim().length > 0 ? comment.html_url.trim() : null,
+      updatedAt: typeof (comment?.updated_at ?? comment?.updatedAt) === "string"
+        ? (comment.updated_at ?? comment.updatedAt).trim()
+        : typeof (comment?.created_at ?? comment?.createdAt) === "string"
+          ? (comment.created_at ?? comment.createdAt).trim()
+          : null,
+      updatedAtMs,
+      arrayIndex: index,
+    };
+
+    const current = summary[parsed.gate];
+    if (!current || (candidate.updatedAtMs ?? -1) > (current.updatedAtMs ?? -1) || ((candidate.updatedAtMs ?? -1) === (current.updatedAtMs ?? -1) && candidate.arrayIndex > current.arrayIndex)) {
+      summary[parsed.gate] = candidate;
+    }
+  }
+
+  return summary;
+}
+
+export function summarizeGateReviewCommentMarkers(comments) {
+  const summary = {
+    draft_gate: null,
+    pre_approval_gate: null,
+  };
+
+  const entries = Array.isArray(comments) ? comments : [];
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const comment = entries[index];
+    const parsed = parseGateReviewCommentMarkerBody(comment?.body);
+    if (!parsed) {
+      continue;
+    }
+
+    const updatedAtMs = normalizeTimestamp(comment?.updated_at ?? comment?.updatedAt ?? comment?.created_at ?? comment?.createdAt);
+    const candidate = {
+      visible: true,
+      gate: parsed.gate,
+      headSha: parsed.headSha,
+      verdict: parsed.verdict,
+      contractComplete: parsed.contractComplete,
       commentId: Number.isInteger(comment?.id) ? comment.id : null,
       commentUrl: typeof comment?.html_url === "string" && comment.html_url.trim().length > 0 ? comment.html_url.trim() : null,
       updatedAt: typeof (comment?.updated_at ?? comment?.updatedAt) === "string"
