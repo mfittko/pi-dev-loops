@@ -17,6 +17,18 @@ This contract covers exactly two gates:
 - `draft_gate` — runs right before `gh pr ready` (draft → ready-for-review boundary)
 - `pre_approval_gate` — runs right before final approval / merge readiness
 
+## Review-angle ownership and non-substitution rules
+
+These gates are related but **not interchangeable**.
+
+| Gate | Boundary it governs | Review-angle ownership | What a clean comment authorizes | What it does **not** authorize |
+|---|---|---|---|---|
+| `draft_gate` | Draft → ready for review | correctness vs acceptance criteria, scope compliance, test coverage adequacy, CI/check status, no unrelated files | `gh pr ready` / leaving draft for the reviewed head SHA | final-approval readiness, merge-ready claims, or satisfaction of `pre_approval_gate` |
+| `pre_approval_gate` | Final approval / merge readiness | DRY, KISS, YAGNI | approval-ready / final-human-approval readiness for the reviewed head SHA | draft-stage `gh pr ready` decisions for a different gate run |
+
+A clean `draft_gate` comment does **not** satisfy `pre_approval_gate` requirements.
+A clean `pre_approval_gate` comment does **not** retroactively replace the required `draft_gate` evidence for leaving draft.
+
 ## Required fields
 
 Every gate-review PR comment must include:

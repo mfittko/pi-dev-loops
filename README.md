@@ -31,7 +31,7 @@ Its main surfaces are:
 4. **Deterministic support code** in `packages/core/`, `scripts/`, and `lib/`
    - shared helpers, loop-state detectors, and GitHub/Copilot support code
 
-Thin workflow entrypoint agents allowed when they only load a skill and defer policy to it.
+Thin workflow entrypoint agents are allowed when they only load a skill and defer policy to it.
 
 ## Current status
 
