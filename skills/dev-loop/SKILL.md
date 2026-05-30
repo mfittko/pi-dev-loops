@@ -66,13 +66,28 @@ For a new project, the only required inputs are:
 
 Everything else is optional and may be bootstrapped by this skill.
 
-## Required read order
+## Required startup reads
 
-Before doing any planning or coding:
+Read only what the current routed step actually needs.
 
-1. read `PLAN.md`
-2. read this skill
-3. if `AGENTS.md` exists, read it
+### GitHub-first routed requests (`issue_intake`, `copilot_pr_followup`, `reviewer_fixer`, `wait_watch`, `final_approval`)
+
+Before acting on a GitHub-first issue/PR request:
+
+1. read this skill
+2. if `AGENTS.md` exists, read it first as the repo constitution / working agreement
+3. read `docs/public-dev-loop-contract.md`
+4. if the current step depends on async start/resume/status or retrospective enforcement, read `docs/retrospective-checkpoint-contract.md`
+5. read the relevant GitHub issue or PR
+6. inspect the actual validation/runtime surface needed for the current step (`package.json`, CI/workflows, touched files, helper contracts)
+
+### Local implementation routed requests (`local_implementation`)
+
+Before local phase planning or coding:
+
+1. read this skill
+2. if `AGENTS.md` exists, read it
+3. read `PLAN.md`
 4. if `docs/IMPLEMENTATION_WORKFLOW.md` exists, read it
 5. if `docs/IMPLEMENTATION_STATE.md` exists, read it
 6. if `docs/phases/phase-x.md` exists for the active phase, read it

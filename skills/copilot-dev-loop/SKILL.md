@@ -101,19 +101,22 @@ Treat these as the primary workflow surfaces:
 
 Do **not** default to a local `tmp/phases/phase-x` implementation workflow here.
 
-## Required read order
+## Required startup reads
+
+Read only the constitution / contract docs and runtime surface needed for the current step.
 
 Before planning, review, or automation:
 
-1. `README.md`
-2. `PLAN.md` if present
-3. `AGENTS.md` if present
+1. `AGENTS.md` if present
+2. `docs/public-dev-loop-contract.md`
+3. if the current step depends on async start/resume/status or retrospective enforcement, `docs/retrospective-checkpoint-contract.md`
 4. the relevant GitHub issue or PR
-5. the repository's actual validation surface:
+5. the repository's actual validation/runtime surface:
    - root `package.json`
    - relevant package-level `package.json` files
    - CI/workflow configuration if present
-6. task-relevant source files, tests, configuration, and any repo-local documentation or generated context
+   - touched helper contract docs when the PR changes a documented contract
+6. task-relevant source files, tests, and configuration
 
 If the repo includes generated wiki or LLM context files, treat them as orientation aids only.
 
