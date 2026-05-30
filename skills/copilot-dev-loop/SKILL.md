@@ -469,6 +469,7 @@ Key rules:
 - do not bypass session-based async notifications with detached shell automation unless explicitly asked
 - if a watcher is sleeping between polls, prefer raising the orchestration inactivity threshold over interrupting the child
 - if Pi async subagents or the designated async follow-up skill are not appropriate or available, stop and report rather than improvising a shell watcher
+- the async-start contract is also enforced in code: `outer-loop.mjs` fails closed unless it detects a visible Pi-managed async context (one of `PI_SUBAGENT_RUN_ID`, `PI_SESSION_ID`, or `PI_ASYNC_CONTEXT`). Snapshot/test input mode (both `--copilot-input` and `--reviewer-input`) is exempt. Use `PI_ASYNC_START_BYPASS=1` only for explicitly authorized standalone runs, never to route around the in-session async requirement.
 
 ## Step 7: Pi review/fix follow-up loop
 
