@@ -7,7 +7,7 @@ import {
   parseJsonText,
   summarizeGateReviewComments,
 } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "./capture-review-threads.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 
 const USAGE = `Usage: detect-gate-review-evidence.mjs --repo <owner/name> --pr <number>
 

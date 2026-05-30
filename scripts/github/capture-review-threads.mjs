@@ -10,7 +10,7 @@ import {
   parseReviewThreads,
   readInput,
 } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "./_github-helpers.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 
 export const REVIEW_THREADS_QUERY = [
   "query($owner: String!, $name: String!, $pr: Int!) {",
@@ -105,7 +105,6 @@ export function parseCaptureCliArgs(argv) {
   return options;
 }
 
-export { parseRepoSlug };
 
 function runChild(command, args, env) {
   return new Promise((resolve, reject) => {

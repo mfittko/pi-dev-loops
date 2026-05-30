@@ -57,7 +57,8 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
-import { fetchGithubReviewThreadsPayload, parseRepoSlug } from "../github/capture-review-threads.mjs";
+import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { autoDetectSnapshot as autoDetectCopilotSnapshot } from "./detect-copilot-loop-state.mjs";
 import {
   buildCheckpointFilePath,

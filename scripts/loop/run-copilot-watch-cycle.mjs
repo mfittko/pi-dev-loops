@@ -3,7 +3,7 @@
 import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../github/capture-review-threads.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { watchCopilotReview } from "../github/watch-copilot-review.mjs";
 import { runHandoff } from "./copilot-pr-handoff.mjs";
 import { detectCopilotSessionActivity } from "./detect-copilot-session-activity.mjs";

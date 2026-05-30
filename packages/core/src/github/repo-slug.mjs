@@ -7,6 +7,13 @@ export function isSafeRepoSegment(segment) {
     && !/\s/.test(segment);
 }
 
+export function parseRepoSlug(
+  repo,
+  { errorMessage = "--repo must match <owner/name>", lowercase = false } = {},
+) {
+  return parseRepoSlugParts(repo, { errorMessage, lowercase });
+}
+
 export function parseRepoSlugParts(
   repo,
   { errorMessage = "repo must match <owner/name>", lowercase = false } = {},
