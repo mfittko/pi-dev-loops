@@ -1090,6 +1090,67 @@ test("authoritative startup/resume bundle keeps durable wait semantics for linke
   assert.match(bundle.nextAction, /remain in durable auto ownership/i);
 });
 
+test("authoritative startup/resume bundle reroutes stale bootstrap wait state when refreshed loop state reports linked PR ready", () => {
+  const input = {
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 176, linkedPr: 178 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
+    asyncRun: buildVisibleAsyncRun("run-178"),
+  };
+
+  const waitingBundle = resolveAuthoritativeStartupResumeBundle({
+    ...input,
+    loopState: "waiting_for_initial_copilot_implementation",
+  });
+  const readyBundle = resolveAuthoritativeStartupResumeBundle({
+    ...input,
+    loopState: "linked_pr_ready_for_followup",
+  });
+
+  assert.equal(waitingBundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(waitingBundle.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(waitingBundle.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
+  assert.equal(waitingBundle.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(waitingBundle.activeArtifact.pr, 178);
+
+  assert.equal(readyBundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(readyBundle.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
+  assert.equal(readyBundle.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(readyBundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
+  assert.equal(readyBundle.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(readyBundle.activeArtifact.issue, 176);
+  assert.equal(readyBundle.activeArtifact.pr, 178);
+  assert.match(readyBundle.nextAction, /Copilot PR follow-up strategy/i);
+});
+
+test("authoritative startup/resume bundle fails closed when linked-pr-ready refresh facts are contradictory", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 176 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    loopState: "linked_pr_ready_for_followup",
+    asyncRun: buildVisibleAsyncRun("run-178"),
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /linked_pr_ready_for_followup.*conflicts/i);
+});
+
 test("authoritative startup/resume bundle preserves inspect routing in durable_auto mode", () => {
   const bundle = resolveAuthoritativeStartupResumeBundle({
     intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
