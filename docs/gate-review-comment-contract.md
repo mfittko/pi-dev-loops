@@ -42,7 +42,7 @@ Every gate-review PR comment must include:
 | **Gate name** | `draft_gate` or `pre_approval_gate` |
 | **Head SHA reviewed** | The exact commit SHA that was reviewed |
 | **Verdict** | `clean`, `findings_present`, or `blocked` |
-| **Findings summary** | Short summary of findings, or `no issues found` |
+| **Findings summary** | Short truthful audit summary. Use `no issues found` only when the reviewed head needed no corrective change for that gate pass. |
 | **Next action** | One of: `stay draft and fix`, `rerun gate`, `mark ready for review`, `await final human approval` |
 
 ## Verdict definitions
@@ -52,6 +52,14 @@ Every gate-review PR comment must include:
 | `clean` | All gate review angles passed; no must-fix findings remain |
 | `findings_present` | The gate found issues; fixes are required before the gate boundary can be crossed |
 | `blocked` | The gate could not complete or a hard blocker prevented a verdict |
+
+## Readable deterministic format
+
+- Keep the visible comment compact and deterministic, but slightly human-friendly:
+  prefer labels like `Gate review`, `Reviewed head SHA`, `Verdict`, `Findings summary`, and `Next action`.
+- Preserve parser stability for gate name and reviewed head SHA; minor label wording is fine as long as those fields remain easy to extract deterministically.
+- When a gate pass reached `clean` only after corrective changes on the reviewed head, the findings summary should briefly say what gap was found, what changed, and why the current head now satisfies the gate.
+
 
 ## Behavior requirements
 

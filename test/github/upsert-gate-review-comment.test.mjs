@@ -98,6 +98,17 @@ test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments determinis
     /requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary, and --next-action/i,
   );
 
+  const parsed = parseUpsertGateReviewCommentCliArgs([
+    "--repo", "owner/repo",
+    "--pr", "17",
+    "--gate", "draft_gate",
+    "--head-sha", "ABC1234",
+    "--verdict", "clean",
+    "--findings-summary", "no issues found",
+    "--next-action", "mark ready for review",
+  ]);
+  assert.equal(parsed.headSha, "abc1234");
+
   assert.throws(
     () => parseUpsertGateReviewCommentCliArgs([
       "--repo", "owner/repo",
@@ -127,7 +138,7 @@ test("upsert-gate-review-comment creates a new comment when no same-head marker 
       },
       {
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
-        assertArgContains: ["body=Gate review: draft_gate", "Head SHA: abc1234", "Next action: mark ready for review"],
+        assertArgContains: ["body=Gate review: draft_gate", "Reviewed head SHA: abc1234", "Next action: mark ready for review"],
         stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
       },
     ]);
@@ -176,9 +187,9 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
             id: 101,
             body: [
               "Gate review: draft_gate",
-              "Head SHA: abc1234",
+              "Reviewed head SHA: abc1234",
               "Verdict: clean",
-              "Findings: no issues found",
+              "Findings summary: no issues found",
               "Next action: mark ready for review",
             ].join("\n"),
             html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
@@ -233,7 +244,7 @@ test("upsert-gate-review-comment updates an incomplete same-head marker in place
             id: 101,
             body: [
               "Gate review: draft_gate",
-              "Head SHA: abc1234",
+              "Reviewed head SHA: abc1234",
               "Verdict: clean",
             ].join("\n"),
             html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
@@ -242,8 +253,8 @@ test("upsert-gate-review-comment updates an incomplete same-head marker in place
         ])}\n`,
       },
       {
-        assertArgs: ["api", "-X", "PATCH", "repos/issues/comments/101", "-f"],
-        assertArgContains: ["body=Gate review: draft_gate", "Findings: no issues found"],
+        assertArgs: ["api", "-X", "PATCH", "repos/owner/repo/issues/comments/101", "-f"],
+        assertArgContains: ["body=Gate review: draft_gate", "Findings summary: no issues found"],
         stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
       },
     ]);
@@ -255,6 +266,77 @@ test("upsert-gate-review-comment updates an incomplete same-head marker in place
       "--head-sha", "abc1234",
       "--verdict", "clean",
       "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      action: "updated",
+      repo: "owner/repo",
+      pr: 17,
+      gate: "draft_gate",
+      headSha: "abc1234",
+      currentHeadSha: "abc1234",
+      commentId: 101,
+      commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment updates the current same-head marker even when another head has a newer marker", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-current-head-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: `${JSON.stringify([
+          {
+            id: 101,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: abc1234",
+              "Verdict: clean",
+            ].join("\n"),
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
+            updated_at: "2026-05-30T17:00:00Z",
+          },
+          {
+            id: 202,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: def5678",
+              "Verdict: clean",
+              "Findings summary: later head marker",
+              "Next action: rerun gate",
+            ].join("\n"),
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-202",
+            updated_at: "2026-05-30T18:00:00Z",
+          },
+        ])}\n`,
+      },
+      {
+        assertArgs: ["api", "-X", "PATCH", "repos/owner/repo/issues/comments/101", "-f"],
+        assertArgContains: ["Reviewed head SHA: abc1234", "Findings summary: fixed the marker for the current head"],
+        stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "ABC1234",
+      "--verdict", "clean",
+      "--findings-summary", "fixed the marker for the current head",
       "--next-action", "mark ready for review",
     ], { env });
 

@@ -89,9 +89,9 @@ async function writeGhStub(tempDir, entries) {
 test("parseGateReviewCommentBody parses the deterministic visible gate comment format", () => {
   const parsed = parseGateReviewCommentBody([
     "Gate review: `draft_gate`",
-    "Head SHA: `abc1234`",
+    "Reviewed head SHA: `ABC1234`",
     "Verdict: clean",
-    "Findings: no issues found",
+    "Findings summary: no issues found",
     "Next action: mark ready for review",
   ].join("\n"));
 
@@ -107,16 +107,16 @@ test("parseGateReviewCommentBody parses the deterministic visible gate comment f
 test("parseGateReviewCommentBody rejects comments missing required contract fields", () => {
   assert.equal(parseGateReviewCommentBody([
     "Gate review: draft_gate",
-    "Head SHA: abc1234",
+    "Reviewed head SHA: abc1234",
     "Verdict: clean",
-    "Findings: no issues found",
+    "Findings summary: no issues found",
   ].join("\n")), null);
 });
 
 test("parseGateReviewCommentMarkerBody accepts gate/head markers even when contract fields are partial", () => {
   const parsed = parseGateReviewCommentMarkerBody([
     "Gate review: draft_gate",
-    "Head SHA: abc1234",
+    "Reviewed head SHA: abc1234",
     "Verdict: clean",
   ].join("\n"));
 
@@ -136,9 +136,9 @@ test("summarizeGateReviewComments keeps the newest valid comment for each gate",
       id: 10,
       body: [
         "Gate review: draft_gate",
-        "Head SHA: old1234",
+        "Reviewed head SHA: old1234",
         "Verdict: findings_present",
-        "Findings: fix tests",
+        "Findings summary: fix tests",
         "Next action: stay draft and fix",
       ].join("\n"),
       updated_at: "2026-05-29T20:00:00Z",
@@ -147,9 +147,9 @@ test("summarizeGateReviewComments keeps the newest valid comment for each gate",
       id: 11,
       body: [
         "Gate review: draft_gate",
-        "Head SHA: abc1234",
+        "Reviewed head SHA: abc1234",
         "Verdict: clean",
-        "Findings: no issues found",
+        "Findings summary: no issues found",
         "Next action: mark ready for review",
       ].join("\n"),
       updated_at: "2026-05-29T21:00:00Z",
@@ -158,9 +158,9 @@ test("summarizeGateReviewComments keeps the newest valid comment for each gate",
       id: 12,
       body: [
         "Gate review: pre_approval_gate",
-        "Head SHA: abc1234",
+        "Reviewed head SHA: abc1234",
         "Verdict: clean",
-        "Findings: no issues found",
+        "Findings summary: no issues found",
         "Next action: await final human approval",
       ].join("\n"),
       updated_at: "2026-05-29T22:00:00Z",
@@ -173,15 +173,43 @@ test("summarizeGateReviewComments keeps the newest valid comment for each gate",
   assert.equal(summary.pre_approval_gate?.nextAction, "await final human approval");
 });
 
+test("summarizeGateReviewCommentMarkers can target the newest marker for the current gate+head pair", () => {
+  const summary = summarizeGateReviewCommentMarkers([
+    {
+      id: 10,
+      body: [
+        "Gate review: draft_gate",
+        "Reviewed head SHA: abc1234",
+        "Verdict: clean",
+      ].join("\n"),
+      updated_at: "2026-05-29T20:00:00Z",
+    },
+    {
+      id: 11,
+      body: [
+        "Gate review: draft_gate",
+        "Reviewed head SHA: def5678",
+        "Verdict: clean",
+        "Findings summary: later head marker",
+        "Next action: rerun gate",
+      ].join("\n"),
+      updated_at: "2026-05-29T21:00:00Z",
+    },
+  ], { headSha: "abc1234" });
+
+  assert.equal(summary.draft_gate?.commentId, 10);
+  assert.equal(summary.draft_gate?.headSha, "abc1234");
+});
+
 test("summarizeGateReviewCommentMarkers keeps newest gate+head marker even if contract fields are malformed", () => {
   const summary = summarizeGateReviewCommentMarkers([
     {
       id: 10,
       body: [
         "Gate review: draft_gate",
-        "Head SHA: abc1234",
+        "Reviewed head SHA: abc1234",
         "Verdict: clean",
-        "Findings: no issues found",
+        "Findings summary: no issues found",
         "Next action: mark ready for review",
       ].join("\n"),
       updated_at: "2026-05-29T20:00:00Z",
@@ -190,7 +218,7 @@ test("summarizeGateReviewCommentMarkers keeps newest gate+head marker even if co
       id: 11,
       body: [
         "Gate review: draft_gate",
-        "Head SHA: abc1234",
+        "Reviewed head SHA: abc1234",
         "Verdict: clean",
       ].join("\n"),
       updated_at: "2026-05-29T21:00:00Z",
@@ -233,9 +261,9 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
             id: 41,
             body: [
               "Gate review: draft_gate",
-              "Head SHA: old5678",
+              "Reviewed head SHA: old5678",
               "Verdict: findings_present",
-              "Findings: missing tests",
+              "Findings summary: missing tests",
               "Next action: stay draft and fix",
             ].join("\n"),
             updated_at: "2026-05-29T20:00:00Z",
@@ -245,9 +273,9 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
             id: 42,
             body: [
               "Gate review: draft_gate",
-              "Head SHA: abc1234",
+              "Reviewed head SHA: abc1234",
               "Verdict: clean",
-              "Findings: no issues found",
+              "Findings summary: no issues found",
               "Next action: mark ready for review",
             ].join("\n"),
             updated_at: "2026-05-29T21:00:00Z",
@@ -257,9 +285,9 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
             id: 43,
             body: [
               "Gate review: pre_approval_gate",
-              "Head SHA: abc1234",
+              "Reviewed head SHA: abc1234",
               "Verdict: clean",
-              "Findings: no issues found",
+              "Findings summary: no issues found",
               "Next action: await final human approval",
             ].join("\n"),
             updated_at: "2026-05-29T22:00:00Z",
@@ -351,9 +379,9 @@ test("detect-gate-review-evidence flattens paginated issue-comment payloads befo
               id: 52,
               body: [
                 "Gate review: draft_gate",
-                "Head SHA: abc1234",
+                "Reviewed head SHA: abc1234",
                 "Verdict: clean",
-                "Findings: no issues found",
+                "Findings summary: no issues found",
                 "Next action: mark ready for review",
               ].join("\n"),
               updated_at: "2026-05-29T21:00:00Z",
@@ -391,7 +419,7 @@ test("detect-gate-review-evidence exposes same-head markers even when latest gat
             id: 61,
             body: [
               "Gate review: draft_gate",
-              "Head SHA: abc1234",
+              "Reviewed head SHA: abc1234",
               "Verdict: clean",
             ].join("\n"),
             updated_at: "2026-05-29T21:00:00Z",

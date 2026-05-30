@@ -59,7 +59,7 @@ function normalizeVerdict(value) {
 }
 
 function normalizeHeadSha(value) {
-  const normalized = typeof value === "string" ? value.trim() : "";
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
   return /^[0-9a-f]{7,64}$/i.test(normalized) ? normalized : null;
 }
 
@@ -160,9 +160,9 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
 function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction }) {
   return [
     `Gate review: ${gate}`,
-    `Head SHA: ${headSha}`,
+    `Reviewed head SHA: ${headSha}`,
     `Verdict: ${verdict}`,
-    `Findings: ${findingsSummary}`,
+    `Findings summary: ${findingsSummary}`,
     `Next action: ${nextAction}`,
   ].join("\n");
 }
@@ -239,8 +239,8 @@ async function createComment({ repo, pr, body }, { env, ghCommand }) {
   return parseCommentMutationResponse(payload);
 }
 
-async function updateComment({ commentId, body }, { env, ghCommand }) {
-  const payload = await runGhJson(["api", "-X", "PATCH", `repos/issues/comments/${commentId}`, "-f", `body=${body}`], { env, ghCommand });
+async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
+  const payload = await runGhJson(["api", "-X", "PATCH", `repos/${repo}/issues/comments/${commentId}`, "-f", `body=${body}`], { env, ghCommand });
   return parseCommentMutationResponse(payload);
 }
 
@@ -275,7 +275,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
   }
 
   if (existing) {
-    const updated = await updateComment({ commentId: existing.commentId, body: desiredBody }, { env, ghCommand });
+    const updated = await updateComment({ repo: options.repo, commentId: existing.commentId, body: desiredBody }, { env, ghCommand });
     return {
       ok: true,
       action: "updated",

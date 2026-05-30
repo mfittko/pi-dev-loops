@@ -358,7 +358,7 @@ Creates or updates the visible gate-review PR comment for one `gate + headSha` p
 Use this at the `draft_gate` / `pre_approval_gate` boundaries so same-head reruns
 remain idempotent: the helper updates an existing same-head marker in place when
 correction is needed and suppresses duplicate reposts when the visible comment
-already matches the requested contract fields.
+already matches the requested contract fields. The rendered visible comment uses compact readable labels (`Gate review`, `Reviewed head SHA`, `Verdict`, `Findings summary`, `Next action`). When a gate pass needed corrective changes before reaching `clean`, pass a truthful `--findings-summary` that briefly states the gap, the change, and why the current head is now acceptable instead of defaulting to `no issues found`.
 
 Required:
 - `--repo <owner/name>`
@@ -392,7 +392,7 @@ Success output shape:
 - each gate summary includes `visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`, `commentId`, `commentUrl`, and `updatedAt`
 - when no valid visible comment exists for a gate, its summary is emitted with `visible=false` and the other fields set to `null`
 - each marker summary includes `visible`, `headSha`, `verdict`, `contractComplete`, `commentId`, `commentUrl`, and `updatedAt`
-- marker summaries track the newest visible gate marker (gate + head SHA) even if contract fields are partial, enabling same-head rerun idempotency without posting duplicate visible markers
+- marker summaries track the newest visible marker for the current head (`gate + currentHeadSha`) even if contract fields are partial, enabling same-head rerun idempotency without posting duplicate visible markers
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero

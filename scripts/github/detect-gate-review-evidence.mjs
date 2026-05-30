@@ -201,7 +201,7 @@ export async function detectGateReviewEvidence(options, { env = process.env, ghC
   }
 
   const commentSummary = summarizeGateReviewComments(commentsPayload);
-  const markerSummary = summarizeGateReviewCommentMarkers(commentsPayload);
+  const markerSummary = summarizeGateReviewCommentMarkers(commentsPayload, { headSha: currentHeadSha });
 
   return {
     ok: true,

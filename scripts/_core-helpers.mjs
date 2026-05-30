@@ -69,7 +69,7 @@ function normalizeGateReviewVerdict(value) {
 }
 
 function normalizeGateReviewHeadSha(value) {
-  const normalized = stripOptionalCodeTicks(value);
+  const normalized = stripOptionalCodeTicks(value).toLowerCase();
   return /^[0-9a-f]{7,64}$/i.test(normalized) ? normalized : null;
 }
 
@@ -197,18 +197,23 @@ export function summarizeGateReviewComments(comments) {
   return summary;
 }
 
-export function summarizeGateReviewCommentMarkers(comments) {
+export function summarizeGateReviewCommentMarkers(comments, { headSha } = {}) {
   const summary = {
     draft_gate: null,
     pre_approval_gate: null,
   };
 
   const entries = Array.isArray(comments) ? comments : [];
+  const normalizedHeadSha = normalizeGateReviewHeadSha(headSha);
 
   for (let index = 0; index < entries.length; index += 1) {
     const comment = entries[index];
     const parsed = parseGateReviewCommentMarkerBody(comment?.body);
     if (!parsed) {
+      continue;
+    }
+
+    if (normalizedHeadSha && parsed.headSha !== normalizedHeadSha) {
       continue;
     }
 
@@ -218,6 +223,8 @@ export function summarizeGateReviewCommentMarkers(comments) {
       gate: parsed.gate,
       headSha: parsed.headSha,
       verdict: parsed.verdict,
+      findingsSummary: parsed.findingsSummary,
+      nextAction: parsed.nextAction,
       contractComplete: parsed.contractComplete,
       commentId: Number.isInteger(comment?.id) ? comment.id : null,
       commentUrl: typeof comment?.html_url === "string" && comment.html_url.trim().length > 0 ? comment.html_url.trim() : null,
