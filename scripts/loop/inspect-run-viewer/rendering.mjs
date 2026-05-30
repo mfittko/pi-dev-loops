@@ -11,7 +11,7 @@ import {
   MERMAID_BROWSER_ASSET_PATH,
   MERMAID_BROWSER_ASSET_ROUTE,
 } from "./constants.mjs";
-import { dedupeRepoSlugOptions, normalizeRepoSlug, repoSlugEquals } from "./scope.mjs";
+import { dedupeRepoSlugOptions, repoSlugEquals, tryNormalizeRepoSlug } from "../../../packages/core/src/github/repo-slug.mjs";
 import {
   STATE as COPILOT_STATE,
   TRANSITIONS as COPILOT_TRANSITIONS,
@@ -1200,7 +1200,7 @@ export function renderTargetKey(target) {
   if (!target || target.pr === null || target.pr === undefined) {
     return "";
   }
-  const normalizedRepo = normalizeRepoSlug(target.repo);
+  const normalizedRepo = tryNormalizeRepoSlug(target.repo);
   if (normalizedRepo === null) {
     return "";
   }

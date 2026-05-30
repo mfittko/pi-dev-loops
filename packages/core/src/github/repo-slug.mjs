@@ -41,3 +41,43 @@ export function normalizeRepoSlug(
   const { owner, name } = parseRepoSlugParts(repo, { errorMessage, lowercase: true });
   return `${owner}/${name}`;
 }
+
+/**
+ * Lenient variant: trims and lowercases a slug string. Returns null for
+ * non-strings, empty strings, or strings that cannot be trimmed to a
+ * non-empty value. Does NOT validate owner/name structure.
+ */
+export function tryNormalizeRepoSlug(slug) {
+  if (typeof slug !== "string") {
+    return null;
+  }
+  const trimmed = slug.trim();
+  return trimmed.length > 0 ? trimmed.toLowerCase() : null;
+}
+
+export function repoSlugEquals(left, right) {
+  const normalizedLeft = tryNormalizeRepoSlug(left);
+  const normalizedRight = tryNormalizeRepoSlug(right);
+  if (normalizedLeft === null || normalizedRight === null) {
+    return left === right;
+  }
+  return normalizedLeft === normalizedRight;
+}
+
+export function dedupeRepoSlugOptions(options) {
+  const uniqueOptions = [];
+  const seen = new Set();
+  for (const option of options) {
+    if (typeof option !== "string") {
+      continue;
+    }
+    const trimmed = option.trim();
+    const normalized = tryNormalizeRepoSlug(trimmed);
+    if (normalized === null || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    uniqueOptions.push(trimmed);
+  }
+  return uniqueOptions;
+}
