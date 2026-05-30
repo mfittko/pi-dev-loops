@@ -137,13 +137,16 @@ test("installed skill copies bundle required runtime contract docs and skills po
   assert.match(copilotSkill, /packaging\/installer bug/i);
 
   assert.match(publicContract, /required runtime contract doc for installed `dev-loop` skill consumers/i);
-  assert.match(publicContract, /must bundle this document once under the canonical shared installed path `\.pi\/skills\/docs\/public-dev-loop-contract\.md`/i);
+  assert.match(publicContract, /source-tree canonical ownership for this doc is `skills\/docs\/public-dev-loop-contract\.md`/i);
+  assert.match(publicContract, /shared installed copy resolved as `\.\.\/docs\/public-dev-loop-contract\.md`/i);
 
   assert.match(retrospectiveContract, /required runtime contract doc for installed `dev-loop` skill consumers/i);
-  assert.match(retrospectiveContract, /must bundle this document once under the canonical shared installed path `\.pi\/skills\/docs\/retrospective-checkpoint-contract\.md`/i);
+  assert.match(retrospectiveContract, /source-tree canonical ownership for this doc is `skills\/docs\/retrospective-checkpoint-contract\.md`/i);
+  assert.match(retrospectiveContract, /shared installed copy resolved as `\.\.\/docs\/retrospective-checkpoint-contract\.md`/i);
 
   assert.match(projectionContract, /required runtime contract doc for installed `dev-loop` \/ `copilot-dev-loop` skill consumers/i);
-  assert.match(projectionContract, /must be bundled once under the canonical shared installed path `\.pi\/skills\/docs\/conductor-pr-projection-contract\.md`/i);
+  assert.match(projectionContract, /source-tree canonical ownership is `skills\/docs\/conductor-pr-projection-contract\.md`/i);
+  assert.match(projectionContract, /shared installed copy resolved as `\.\.\/docs\/conductor-pr-projection-contract\.md`/i);
 });
 
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {

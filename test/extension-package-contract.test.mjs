@@ -52,7 +52,7 @@ test("extension README documents the command surface and runtime/build/test cont
 });
 
 
-test("required installed runtime contract docs are bundled once in canonical installed skills/docs", async () => {
+test("required installed runtime contract docs are bundled once in the shared installed docs location", async () => {
   const extensionReadme = await readRepo("extension/README.md");
 
   assert.match(extensionReadme, /required installed runtime contract docs/i);
@@ -75,7 +75,7 @@ test("required installed runtime contract docs are bundled once in canonical ins
     assert.equal(
       bundledCopy,
       rootCopy,
-      `.pi/skills/docs/${doc} should stay byte-for-byte aligned with docs/${doc}`,
+      `installed shared docs copy (.pi dev alias: .pi/skills/docs/${doc}) should stay byte-for-byte aligned with docs/${doc}`,
     );
   }
 
