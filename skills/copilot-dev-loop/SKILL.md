@@ -108,8 +108,8 @@ Read only the constitution / contract docs and runtime surface needed for the cu
 Before planning, review, or automation:
 
 1. `AGENTS.md` if present
-2. `docs/public-dev-loop-contract.md`
-3. if the current step depends on async start/resume/status or retrospective enforcement, `docs/retrospective-checkpoint-contract.md`
+2. `docs/public-dev-loop-contract.md` (resolved from the installed skill layout per the path rule below)
+3. if the current step depends on async start/resume/status or retrospective enforcement, `docs/retrospective-checkpoint-contract.md` (same resolution rule)
 4. the relevant GitHub issue or PR
 5. the repository's actual validation/runtime surface:
    - root `package.json`
@@ -126,8 +126,10 @@ Verify all material claims against source, tests, configuration, and CI.
 
 When this skill refers to helper paths such as `scripts/...` or `docs/...`, resolve them from the actual skill installation layout you are running, not from the active target repository checkout.
 
+The required contract docs (`docs/public-dev-loop-contract.md`, `docs/retrospective-checkpoint-contract.md`, `docs/conductor-pr-projection-contract.md`) are guaranteed to ship with this skill in the installed layout. If a required contract doc is missing from the installed layout, that is a packaging/installer bug.
+
 Use this rule:
-- if the skill is installed as a normalized standalone copy, helper assets may live under `scripts/` and `docs/` inside the skill directory
+- if the skill is installed as a normalized standalone copy, helper assets live under `scripts/` and `docs/` inside the skill directory
 - if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-dev-loop/`, so the same helper assets live one level up at `../scripts/` and `../docs/`
 - when in doubt, resolve helper paths relative to this `SKILL.md` file first, then verify the target file exists before running it
 
