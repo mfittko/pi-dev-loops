@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
-import { parseBranchGuardCliArgs } from "../../scripts/loop/pre-commit-branch-guard.mjs";
+import { parseBranchGuardCliArgs, runCli } from "../../scripts/loop/pre-commit-branch-guard.mjs";
 
 const scriptPath = path.resolve("scripts/loop/pre-commit-branch-guard.mjs");
 
@@ -124,4 +124,96 @@ test("branch guard exits non-zero with usage when --expected-branch is missing",
   assert.equal(parsed.ok, false);
   assert.ok(/required/i.test(parsed.error));
   assert.ok(typeof parsed.usage === "string" && parsed.usage.includes("--expected-branch"));
+});
+
+test("parseBranchGuardCliArgs --help returns help flag", () => {
+  const options = parseBranchGuardCliArgs(["--help"]);
+  assert.equal(options.help, true);
+});
+
+test("parseBranchGuardCliArgs -h returns help flag", () => {
+  const options = parseBranchGuardCliArgs(["-h"]);
+  assert.equal(options.help, true);
+});
+
+test("parseBranchGuardCliArgs rejects unknown argument", () => {
+  assert.throws(() => parseBranchGuardCliArgs(["--unknown-flag"]), /Unknown argument/i);
+});
+
+test("parseBranchGuardCliArgs rejects flag-like value for --expected-branch", () => {
+  assert.throws(
+    () => parseBranchGuardCliArgs(["--expected-branch", "--other-flag"]),
+    /Missing value for --expected-branch/i,
+  );
+});
+
+test("branch guard exits 0 and prints usage with --help", async () => {
+  const result = await runNode(["--help"]);
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /--expected-branch/);
+});
+
+test("branch guard exits 0 and prints usage with -h", async () => {
+  const result = await runNode(["-h"]);
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /--expected-branch/);
+});
+
+test("branch guard exits non-zero with structured error for unknown argument", async () => {
+  const result = await runNode(["--unexpected-arg"]);
+  assert.equal(result.code, 1);
+  const parsed = JSON.parse(result.stderr.trim());
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /Unknown argument/i);
+});
+
+test("branch guard runCli rejects when git command fails with non-empty stderr", async () => {
+  const chunks = [];
+  const errChunks = [];
+  const out = { write: (c) => chunks.push(c) };
+  const err = { write: (c) => errChunks.push(c) };
+
+  await assert.rejects(
+    () =>
+      runCli(["--expected-branch", "main"], {
+        stdout: out,
+        stderr: err,
+        gitCommand: "this-binary-does-not-exist-xyz",
+      }),
+    (e) => {
+      assert.ok(e instanceof Error);
+      return true;
+    },
+  );
+});
+
+test("branch guard runCli rejects when git exits non-zero with empty stderr", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "branch-guard-err-"));
+  try {
+    const gitPath = path.join(tempDir, "git");
+    await writeFile(
+      gitPath,
+      [
+        "#!/usr/bin/env node",
+        "process.exit(2);",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(gitPath, 0o755);
+    const env = { ...process.env, PATH: `${tempDir}${path.delimiter}${process.env.PATH}` };
+    const out = { write: () => {} };
+    const err = { write: () => {} };
+
+    await assert.rejects(
+      () => runCli(["--expected-branch", "main"], { stdout: out, stderr: err, env }),
+      (e) => {
+        assert.ok(e instanceof Error);
+        assert.match(e.message, /exited with code/i);
+        return true;
+      },
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });

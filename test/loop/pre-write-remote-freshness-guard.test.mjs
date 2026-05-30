@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
-import { parseRemoteFreshnessGuardCliArgs } from "../../scripts/loop/pre-write-remote-freshness-guard.mjs";
+import { parseRemoteFreshnessGuardCliArgs, runCli } from "../../scripts/loop/pre-write-remote-freshness-guard.mjs";
 
 const scriptPath = path.resolve("scripts/loop/pre-write-remote-freshness-guard.mjs");
 
@@ -129,4 +129,94 @@ test("freshness guard exits non-zero with usage when --branch is missing", async
   assert.equal(parsed.ok, false);
   assert.ok(/required/i.test(parsed.error));
   assert.ok(typeof parsed.usage === "string" && parsed.usage.includes("--branch"));
+});
+
+test("parseRemoteFreshnessGuardCliArgs --help returns help flag", () => {
+  const options = parseRemoteFreshnessGuardCliArgs(["--help"]);
+  assert.equal(options.help, true);
+});
+
+test("parseRemoteFreshnessGuardCliArgs -h returns help flag", () => {
+  const options = parseRemoteFreshnessGuardCliArgs(["-h"]);
+  assert.equal(options.help, true);
+});
+
+test("parseRemoteFreshnessGuardCliArgs rejects unknown argument", () => {
+  assert.throws(() => parseRemoteFreshnessGuardCliArgs(["--unknown-flag"]), /Unknown argument/i);
+});
+
+test("parseRemoteFreshnessGuardCliArgs rejects flag-like value for --branch", () => {
+  assert.throws(
+    () => parseRemoteFreshnessGuardCliArgs(["--branch", "--other-flag"]),
+    /Missing value for --branch/i,
+  );
+});
+
+test("freshness guard exits 0 and prints usage with --help", async () => {
+  const result = await runNode(["--help"]);
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /--branch/);
+});
+
+test("freshness guard exits 0 and prints usage with -h", async () => {
+  const result = await runNode(["-h"]);
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /--branch/);
+});
+
+test("freshness guard exits non-zero with structured error for unknown argument", async () => {
+  const result = await runNode(["--unexpected-arg"]);
+  assert.equal(result.code, 1);
+  const parsed = JSON.parse(result.stderr.trim());
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /Unknown argument/i);
+});
+
+test("freshness guard runCli rejects when git command fails with non-empty stderr", async () => {
+  const out = { write: () => {} };
+  const err = { write: () => {} };
+
+  await assert.rejects(
+    () =>
+      runCli(["--branch", "main"], {
+        stdout: out,
+        stderr: err,
+        gitCommand: "this-binary-does-not-exist-xyz",
+      }),
+    (e) => {
+      assert.ok(e instanceof Error);
+      return true;
+    },
+  );
+});
+
+test("freshness guard runCli rejects when git exits non-zero with empty stderr", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "freshness-guard-err-"));
+  try {
+    const gitPath = path.join(tempDir, "git");
+    await writeFile(
+      gitPath,
+      [
+        "#!/usr/bin/env node",
+        "process.exit(2);",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(gitPath, 0o755);
+    const env = { ...process.env, PATH: `${tempDir}${path.delimiter}${process.env.PATH}` };
+    const out = { write: () => {} };
+    const err = { write: () => {} };
+
+    await assert.rejects(
+      () => runCli(["--branch", "main"], { stdout: out, stderr: err, env }),
+      (e) => {
+        assert.ok(e instanceof Error);
+        assert.match(e.message, /exited with code/i);
+        return true;
+      },
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
