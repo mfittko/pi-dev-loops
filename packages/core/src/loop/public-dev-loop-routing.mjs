@@ -953,6 +953,52 @@ function normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageRe
   return null;
 }
 
+function applyInitialCopilotBootstrapRefreshSeam(canonicalState, issueLinkageResolution, loopState) {
+  if (loopState !== LINKED_PR_READY_FOR_FOLLOWUP_LOOP_STATE) {
+    return { canonicalState, reason: null };
+  }
+
+  if (canonicalState.target.kind === DEV_LOOP_TARGET_KIND.PR) {
+    return { canonicalState, reason: null };
+  }
+
+  if (canonicalState.target.kind !== DEV_LOOP_TARGET_KIND.ISSUE) {
+    return {
+      canonicalState,
+      reason:
+        "Refreshed `linked_pr_ready_for_followup` state requires a linked PR canonical target; reconcile before routing startup/resume state.",
+    };
+  }
+
+  if (
+    issueLinkageResolution !== DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR
+    || canonicalState.target.linkedPr === null
+    || canonicalState.ownership !== DEV_LOOP_ACTOR.COPILOT
+  ) {
+    return {
+      canonicalState,
+      reason:
+        "Refreshed `linked_pr_ready_for_followup` state conflicts with authoritative linked PR follow-up facts; reconcile before routing startup/resume state.",
+    };
+  }
+
+  return {
+    canonicalState: {
+      ...canonicalState,
+      target: {
+        kind: DEV_LOOP_TARGET_KIND.PR,
+        issue: canonicalState.target.issue,
+        pr: canonicalState.target.linkedPr,
+        linkedPr: null,
+        branch: null,
+        phase: null,
+      },
+      status: DEV_LOOP_STATUS.ACTIVE,
+    },
+    reason: null,
+  };
+}
+
 function isArtifactStateCompatible(canonicalState, artifactState) {
   if (canonicalState.target.kind !== DEV_LOOP_TARGET_KIND.PR) {
     return artifactState === DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE;
@@ -976,48 +1022,6 @@ function validateIssueLinkageResolution(canonicalState, issueLinkageResolution) 
   }
 
   return issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR;
-}
-
-function reconcileLinkedPrReadyForFollowupState(canonicalState, issueLinkageResolution, loopState) {
-  if (loopState !== LINKED_PR_READY_FOR_FOLLOWUP_LOOP_STATE) {
-    return { canonicalState };
-  }
-
-  if (canonicalState.target.kind === DEV_LOOP_TARGET_KIND.PR) {
-    return { canonicalState };
-  }
-
-  if (
-    canonicalState.target.kind !== DEV_LOOP_TARGET_KIND.ISSUE
-    || canonicalState.ownership !== DEV_LOOP_ACTOR.COPILOT
-    || canonicalState.target.linkedPr === null
-    || issueLinkageResolution !== DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR
-  ) {
-    return {
-      reconcileReason:
-        "Loop state `linked_pr_ready_for_followup` requires authoritative Copilot issue ownership plus a resolved linked PR; reconcile stale bootstrap-wait facts before routing.",
-    };
-  }
-
-  return {
-    canonicalState: {
-      ...canonicalState,
-      target: {
-        kind: DEV_LOOP_TARGET_KIND.PR,
-        issue: canonicalState.target.issue,
-        pr: canonicalState.target.linkedPr,
-        linkedPr: null,
-        branch: null,
-        phase: null,
-      },
-      nextActor: canonicalState.status === DEV_LOOP_STATUS.WAITING
-        ? DEV_LOOP_ACTOR.COPILOT
-        : canonicalState.nextActor,
-      status: canonicalState.status === DEV_LOOP_STATUS.WAITING
-        ? DEV_LOOP_STATUS.ACTIVE
-        : canonicalState.status,
-    },
-  };
 }
 
 export function resolveAuthoritativeStartupResumeBundle(input = {}) {
@@ -1082,6 +1086,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const normalizedIssueLinkageResolution = normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageResolution);
   const issueReadinessProvided = input.issueReadiness !== undefined && input.issueReadiness !== null;
   const issueAssignmentStateProvided = input.issueAssignmentState !== undefined && input.issueAssignmentState !== null;
+  const loopState = normalizeOptionalLoopState(input.loopState);
 
   if (asyncRunProvided && asyncRun === null) {
     return buildStartupResumeBundleReconcile({
@@ -1122,6 +1127,30 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       issueLinkageResolution: normalizedIssueLinkageResolution,
     });
   }
+
+  if (loopState === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Authoritative startup/resume routing requires an explicit resolved loop state before routing or answering status.",
+      canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+      artifactState: normalizeArtifactState(input.artifactState),
+    });
+  }
+
+  const bootstrapRefresh = applyInitialCopilotBootstrapRefreshSeam(
+    canonicalState,
+    issueLinkageResolution,
+    loopState,
+  );
+  if (bootstrapRefresh.reason !== null) {
+    return buildStartupResumeBundleReconcile({
+      reason: bootstrapRefresh.reason,
+      canonicalState,
+      issueLinkageResolution: normalizedIssueLinkageResolution,
+      artifactState: normalizeArtifactState(input.artifactState),
+    });
+  }
+  const canonicalStateForRouting = bootstrapRefresh.canonicalState;
 
   if (
     canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
@@ -1164,33 +1193,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     }
   }
 
-  const loopState = normalizeOptionalLoopState(input.loopState);
-  if (loopState === null) {
-    return buildStartupResumeBundleReconcile({
-      reason: "Authoritative startup/resume routing requires an explicit resolved loop state before routing or answering status.",
-      canonicalState,
-      issueLinkageResolution: normalizedIssueLinkageResolution,
-      artifactState: null,
-    });
-  }
-
-  const linkedPrReadyFollowup = reconcileLinkedPrReadyForFollowupState(
-    canonicalState,
-    issueLinkageResolution,
-    loopState,
-  );
-  if (linkedPrReadyFollowup.reconcileReason) {
-    return buildStartupResumeBundleReconcile({
-      reason: linkedPrReadyFollowup.reconcileReason,
-      canonicalState,
-      issueLinkageResolution: normalizedIssueLinkageResolution,
-      artifactState: null,
-      executionMode: effectiveMode,
-    });
-  }
-
-  const effectiveCanonicalState = linkedPrReadyFollowup.canonicalState;
-  const routed = routeForState(effectiveCanonicalState, {
+  const routed = routeForState(canonicalStateForRouting, {
     executionMode: effectiveMode,
     issueReadiness,
     issueAssignmentState,
