@@ -358,6 +358,77 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
   }
 });
 
+test("upsert-gate-review-comment prefers the latest same-head marker when it differs from the older strict summary", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-latest-marker-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: `${JSON.stringify([
+          {
+            id: 101,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: abc1234",
+              "Verdict: clean",
+              "Findings summary: already complete",
+              "Next action: mark ready for review",
+            ].join("\n"),
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
+            updated_at: "2026-05-30T17:00:00Z",
+          },
+          {
+            id: 202,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: abc1234",
+              "Verdict: clean",
+            ].join("\n"),
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-202",
+            updated_at: "2026-05-30T18:00:00Z",
+          },
+        ])}\n`,
+      },
+      {
+        assertArgs: ["api", "-X", "PATCH", "repos/owner/repo/issues/comments/202", "-f"],
+        assertArgContains: ["body=Gate review: draft_gate", "Reviewed head SHA: abc1234", "Findings summary: corrected the newer malformed marker"],
+        stdout: '{"id":202,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-202"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "corrected the newer malformed marker",
+      "--next-action", "mark ready for review",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      action: "updated",
+      repo: "owner/repo",
+      pr: 17,
+      gate: "draft_gate",
+      headSha: "abc1234",
+      currentHeadSha: "abc1234",
+      commentId: 202,
+      commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-202",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("upsert-gate-review-comment fails closed when the requested head SHA is stale", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-stale-"));
 

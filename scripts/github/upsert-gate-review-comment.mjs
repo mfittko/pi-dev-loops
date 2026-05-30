@@ -185,6 +185,18 @@ function summarizeExistingComment({ strict, marker, headSha }) {
   const strictSameHead = strict?.visible === true && strict.headSha === headSha ? strict : null;
   const markerSameHead = marker?.visible === true && marker.headSha === headSha ? marker : null;
 
+  if (markerSameHead && (!strictSameHead || markerSameHead.commentId !== strictSameHead.commentId)) {
+    return {
+      kind: "marker",
+      commentId: markerSameHead.commentId,
+      commentUrl: markerSameHead.commentUrl,
+      verdict: markerSameHead.verdict,
+      findingsSummary: markerSameHead.findingsSummary ?? null,
+      nextAction: markerSameHead.nextAction ?? null,
+      contractComplete: markerSameHead.contractComplete === true,
+    };
+  }
+
   if (strictSameHead) {
     return {
       kind: "strict",
@@ -203,8 +215,8 @@ function summarizeExistingComment({ strict, marker, headSha }) {
       commentId: markerSameHead.commentId,
       commentUrl: markerSameHead.commentUrl,
       verdict: markerSameHead.verdict,
-      findingsSummary: null,
-      nextAction: null,
+      findingsSummary: markerSameHead.findingsSummary ?? null,
+      nextAction: markerSameHead.nextAction ?? null,
       contractComplete: markerSameHead.contractComplete === true,
     };
   }
