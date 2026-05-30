@@ -429,6 +429,63 @@ test("upsert-gate-review-comment prefers the latest same-head marker when it dif
   }
 });
 
+test("upsert-gate-review-comment expands an abbreviated current-head SHA before matching same-head markers", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-short-head-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abcdef1234567890abcdef1234567890abcdef12"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: `${JSON.stringify([
+          {
+            id: 101,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: abcdef1234567890abcdef1234567890abcdef12",
+              "Verdict: clean",
+              "Findings summary: no issues found",
+              "Next action: mark ready for review",
+            ].join("\n"),
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
+            updated_at: "2026-05-30T18:00:00Z",
+          },
+        ])}\n`,
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "ABCDEF1",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      action: "noop",
+      repo: "owner/repo",
+      pr: 17,
+      gate: "draft_gate",
+      headSha: "abcdef1234567890abcdef1234567890abcdef12",
+      currentHeadSha: "abcdef1234567890abcdef1234567890abcdef12",
+      commentId: 101,
+      commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+    });
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 2);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("upsert-gate-review-comment fails closed when the requested head SHA is stale", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-stale-"));
 

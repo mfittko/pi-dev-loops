@@ -335,6 +335,8 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
         visible: true,
         headSha: "abc1234",
         verdict: "clean",
+        findingsSummary: "no issues found",
+        nextAction: "mark ready for review",
         contractComplete: true,
         commentId: 42,
         commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-42",
@@ -344,6 +346,8 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
         visible: true,
         headSha: "abc1234",
         verdict: "clean",
+        findingsSummary: "no issues found",
+        nextAction: "await final human approval",
         contractComplete: true,
         commentId: 43,
         commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-43",
@@ -436,6 +440,8 @@ test("detect-gate-review-evidence exposes same-head markers even when latest gat
     assert.equal(payload.draftGate.visible, false);
     assert.equal(payload.draftGateMarker.visible, true);
     assert.equal(payload.draftGateMarker.headSha, "abc1234");
+    assert.equal(payload.draftGateMarker.findingsSummary, null);
+    assert.equal(payload.draftGateMarker.nextAction, null);
     assert.equal(payload.draftGateMarker.contractComplete, false);
     assert.equal(payload.draftGateMarker.commentId, 61);
   } finally {

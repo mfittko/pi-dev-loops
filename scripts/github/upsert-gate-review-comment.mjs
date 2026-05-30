@@ -18,7 +18,7 @@ Required:
   --repo <owner/name>
   --pr <number>
   --gate <draft_gate|pre_approval_gate>
-  --head-sha <sha>
+  --head-sha <sha>                            Full current head SHA or hexadecimal prefix of it
   --verdict <clean|findings_present|blocked>
   --findings-summary <text>
   --next-action <text>
@@ -167,6 +167,18 @@ function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, 
   ].join("\n");
 }
 
+function resolveRequestedHeadSha(requestedHeadSha, currentHeadSha) {
+  if (requestedHeadSha === currentHeadSha) {
+    return currentHeadSha;
+  }
+
+  if (currentHeadSha.startsWith(requestedHeadSha)) {
+    return currentHeadSha;
+  }
+
+  throw new Error(`Requested head SHA ${requestedHeadSha} does not match the current PR head SHA ${currentHeadSha}; refuse to mutate stale gate evidence.`);
+}
+
 function selectGateEvidence(evidence, gate) {
   if (gate === "draft_gate") {
     return {
@@ -257,14 +269,11 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
 }
 
 export async function upsertGateReviewComment(options, { env = process.env, ghCommand = "gh" } = {}) {
-  const desiredBody = renderGateReviewCommentBody(options);
   const evidence = await detectGateReviewEvidence({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+  const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
+  const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha });
 
-  if (evidence.currentHeadSha !== options.headSha) {
-    throw new Error(`Requested head SHA ${options.headSha} does not match the current PR head SHA ${evidence.currentHeadSha}; refuse to mutate stale gate evidence.`);
-  }
-
-  const existing = summarizeExistingComment({ ...selectGateEvidence(evidence, options.gate), headSha: options.headSha });
+  const existing = summarizeExistingComment({ ...selectGateEvidence(evidence, options.gate), headSha: canonicalHeadSha });
 
   if (
     existing
@@ -279,7 +288,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       repo: options.repo,
       pr: options.pr,
       gate: options.gate,
-      headSha: options.headSha,
+      headSha: canonicalHeadSha,
       currentHeadSha: evidence.currentHeadSha,
       commentId: existing.commentId,
       commentUrl: existing.commentUrl,
@@ -294,7 +303,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       repo: options.repo,
       pr: options.pr,
       gate: options.gate,
-      headSha: options.headSha,
+      headSha: canonicalHeadSha,
       currentHeadSha: evidence.currentHeadSha,
       commentId: updated.commentId,
       commentUrl: updated.commentUrl,
@@ -308,7 +317,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     repo: options.repo,
     pr: options.pr,
     gate: options.gate,
-    headSha: options.headSha,
+    headSha: canonicalHeadSha,
     currentHeadSha: evidence.currentHeadSha,
     commentId: created.commentId,
     commentUrl: created.commentUrl,

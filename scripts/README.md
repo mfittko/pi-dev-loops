@@ -364,7 +364,7 @@ Required:
 - `--repo <owner/name>`
 - `--pr <number>`
 - `--gate <draft_gate|pre_approval_gate>`
-- `--head-sha <sha>`
+- `--head-sha <sha>` — full current head SHA or a hexadecimal prefix of it; the helper canonicalizes to the full current head before comparing/updating visible markers
 - `--verdict <clean|findings_present|blocked>`
 - `--findings-summary <text>`
 - `--next-action <text>`
@@ -391,7 +391,7 @@ Success output shape:
 - `{ "ok": true, "repo": "owner/repo", "pr": 17, "currentHeadSha": "abc1234", "draftGate": { ... }, "preApprovalGate": { ... }, "draftGateMarker": { ... }, "preApprovalGateMarker": { ... } }`
 - each gate summary includes `visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`, `commentId`, `commentUrl`, and `updatedAt`
 - when no valid visible comment exists for a gate, its summary is emitted with `visible=false` and the other fields set to `null`
-- each marker summary includes `visible`, `headSha`, `verdict`, `contractComplete`, `commentId`, `commentUrl`, and `updatedAt`
+- each marker summary includes `visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`, `contractComplete`, `commentId`, `commentUrl`, and `updatedAt`
 - marker summaries track the newest visible marker for the current head (`gate + currentHeadSha`) even if contract fields are partial, enabling same-head rerun idempotency without posting duplicate visible markers
 
 Failure behavior:
