@@ -1,1 +1,0 @@
-../skills/docs/public-dev-loop-contract.md

@@ -120,9 +120,9 @@ test("installed skill copies bundle required runtime contract docs and skills po
   const [devLoopSkill, copilotSkill, publicContract, retrospectiveContract, projectionContract] = await Promise.all([
     readRepo(".pi/skills/dev-loop/SKILL.md"),
     readRepo(".pi/skills/copilot-dev-loop/SKILL.md"),
-    readRepo("docs/public-dev-loop-contract.md"),
-    readRepo("docs/retrospective-checkpoint-contract.md"),
-    readRepo("docs/conductor-pr-projection-contract.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/retrospective-checkpoint-contract.md"),
+    readRepo("skills/docs/conductor-pr-projection-contract.md"),
   ]);
 
   assert.match(devLoopSkill, /Required installed runtime contract docs/i);
@@ -174,7 +174,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
     readRepo("PLAN.md"),
     readRepo("AGENTS.md"),
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),
-    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("extension/README.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
@@ -207,7 +207,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
   assert.match(extensionReadme, /single public workflow entrypoint/i, "extension README should lead with the public entrypoint");
   assert.doesNotMatch(extensionReadme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i, "extension README should not surface internal seam names as readiness choices");
 
-  assert.match(devLoopSkill, /authoritative contract is `docs\/public-dev-loop-contract\.md`/i);
+  assert.match(devLoopSkill, /authoritative contract is `skills\/docs\/public-dev-loop-contract\.md`/i);
   assert.match(devLoopSkill, /@pi-dev-loops\/core\/loop\/public-dev-loop-routing/i);
   assert.match(devLoopSkill, /summary/i);
 
@@ -217,7 +217,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
 
 test("workflow-surface taxonomy stays explicit and guards the entrypoint asset surface", async () => {
   const [publicContract, devLoopAgent] = await Promise.all([
-    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("agents/dev-loop.agent.md"),
   ]);
 
@@ -289,7 +289,7 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
 
 test("status reporting contract requires authoritative state-first resolution and fail-closed reconcile behavior", async () => {
   const [publicContract, devLoopSkill, copilotSkill] = await Promise.all([
-    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
   ]);
@@ -405,7 +405,7 @@ test("issue-intake/autonomy behavior remains internal and resumable behind dev-l
 test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the final approval gate", async () => {
   const [readme, publicContract, devLoopSkill, copilotSkill, devLoopAgent] = await Promise.all([
     readRepo("README.md"),
-    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
     readRepo("agents/dev-loop.agent.md"),

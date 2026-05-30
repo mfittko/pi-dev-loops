@@ -4,7 +4,7 @@
 
 This repository uses `dev-loop` as the single public workflow entrypoint.
 
-For the canonical public routing and shorthand contract, see `docs/public-dev-loop-contract.md`.
+For the canonical public routing and shorthand contract, see `skills/docs/public-dev-loop-contract.md`.
 
 Repo-specific posture summary:
 - prefer the GitHub-first routed path when work should move through GitHub branches, pull requests, CI, and review
@@ -48,7 +48,7 @@ These are related but distinct requirements:
 
 Routed GitHub-first async `dev-loop` runs in this repo do **not** need to be in full formal local dev mode, but they **do** require the post-run behavioral retrospective checkpoint.
 
-Authoritative checkpoint details live in `docs/retrospective-checkpoint-contract.md`.
+Authoritative checkpoint details live in `skills/docs/retrospective-checkpoint-contract.md`.
 
 Practical rule:
 - qualifying async `dev-loop` completions write `.pi/dev-loop-retrospective-checkpoint.json`

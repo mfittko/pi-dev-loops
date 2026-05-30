@@ -20,7 +20,7 @@ When that skill is not available at the expected path, resolve it from the skill
 
 This entrypoint must stay thin: do not restate the skill's phase sequencing or workflow policy here. Defer routing, sequencing, delegation, helper usage, and confirmation rules to the skill.
 
-Treat the deterministic public routing contract in `docs/public-dev-loop-contract.md` and the `dev-loop` skill as the authority for choosing the current execution path. Do not force users to choose internal strategy names up front.
+Treat the deterministic public routing contract in `skills/docs/public-dev-loop-contract.md` and the `dev-loop` skill as the authority for choosing the current execution path. Do not force users to choose internal strategy names up front.
 
 Interpret issue-based shorthand triggers like `auto dev loop on issue <n>`, `enter copilot auto dev loop on issue <n>`, and `run auto dev loop on <n> until approval gate` as compatibility wording for the same public `dev-loop` intent, not a second public workflow entrypoint.
 

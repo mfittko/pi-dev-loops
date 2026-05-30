@@ -25,7 +25,7 @@ import { isSafeRepoSegment, normalizeRepoSlug } from "../github/repo-slug.mjs";
  * - Lossy outerAction compatibility projections are NOT accepted as authoritative; callers must
  *   supply the authoritative routingOutcome when available.
  *
- * Integration boundary (see docs/conductor-pr-projection-contract.md):
+ * Integration boundary (see skills/docs/conductor-pr-projection-contract.md):
  * - This module starts after upstream state truth has already been determined:
  *   ownership (#32), family-local lifecycle (#26), conductor routing (#61).
  * - It consumes those already-determined outcomes and decides which transitions to mirror.

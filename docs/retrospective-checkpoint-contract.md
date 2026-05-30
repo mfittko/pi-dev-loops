@@ -1,1 +1,0 @@
-../skills/docs/retrospective-checkpoint-contract.md
