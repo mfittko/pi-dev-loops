@@ -136,17 +136,17 @@ test("installed skill copies bundle required runtime contract docs and skills po
   assert.match(copilotSkill, /Read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
   assert.match(copilotSkill, /packaging\/installer bug/i);
 
-  assert.match(publicContract, /required runtime contract doc for installed `dev-loop` skill consumers/i);
-  assert.match(publicContract, /source-tree canonical ownership for this doc is `skills\/docs\/public-dev-loop-contract\.md`/i);
-  assert.match(publicContract, /shared installed copy resolved as `\.\.\/docs\/public-dev-loop-contract\.md`/i);
-
-  assert.match(retrospectiveContract, /required runtime contract doc for installed `dev-loop` skill consumers/i);
-  assert.match(retrospectiveContract, /source-tree canonical ownership for this doc is `skills\/docs\/retrospective-checkpoint-contract\.md`/i);
-  assert.match(retrospectiveContract, /shared installed copy resolved as `\.\.\/docs\/retrospective-checkpoint-contract\.md`/i);
-
-  assert.match(projectionContract, /required runtime contract doc for installed `dev-loop` \/ `copilot-dev-loop` skill consumers/i);
-  assert.match(projectionContract, /source-tree canonical ownership is `skills\/docs\/conductor-pr-projection-contract\.md`/i);
-  assert.match(projectionContract, /shared installed copy resolved as `\.\.\/docs\/conductor-pr-projection-contract\.md`/i);
+  for (const [label, content] of [
+    ["skills/docs/public-dev-loop-contract.md", publicContract],
+    ["skills/docs/retrospective-checkpoint-contract.md", retrospectiveContract],
+    ["skills/docs/conductor-pr-projection-contract.md", projectionContract],
+  ]) {
+    assert.doesNotMatch(content, /Packaged \/ installed skill use|Packaged \/ installed agent use/i, `${label} should not restate the shared install contract block`);
+    assert.doesNotMatch(content, /required runtime contract doc for installed/i, `${label} should not duplicate install-contract ownership prose`);
+    assert.doesNotMatch(content, /source-tree canonical ownership/i, `${label} should not duplicate install-contract ownership prose`);
+    assert.doesNotMatch(content, /shared installed copy resolved as `\.\.\/docs\//i, `${label} should not duplicate install-contract ownership prose`);
+    assert.doesNotMatch(content, /packaging\/installer bug/i, `${label} should not duplicate install-contract ownership prose`);
+  }
 });
 
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {

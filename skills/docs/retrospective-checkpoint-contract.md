@@ -2,15 +2,6 @@
 
 This document defines the enforcement seam for the required post-run behavioral retrospective after qualifying async `dev-loop` completions in this repository.
 
-## Packaged / installed skill use
-
-This file is a required runtime contract doc for installed `dev-loop` skill consumers.
-
-Installer/package guarantee for this slice:
-- source-tree canonical ownership for this doc is `skills/docs/retrospective-checkpoint-contract.md`; installed copies of the `dev-loop` and `copilot-dev-loop` skills must expose one shared installed copy resolved as `../docs/retrospective-checkpoint-contract.md` from each installed skill directory (`.pi/skills/...` in this checkout is only a local dev alias to `skills/...`)
-- installed skill/runtime guidance must read that bundled installed copy instead of assuming a source-repository checkout is present
-- if the bundled installed copy is missing, treat that as a packaging/installer bug rather than silently falling back to an unrelated checkout
-
 ## Relationship to formal dev mode
 
 Formal local dev mode and the required post-run behavioral retrospective are related but distinct:
