@@ -108,8 +108,8 @@ Read only the constitution / contract docs and runtime surface needed for the cu
 Before planning, review, or automation:
 
 1. `AGENTS.md` if present
-2. `docs/public-dev-loop-contract.md` (resolved from the installed skill layout per the path rule below)
-3. if the current step depends on async start/resume/status or retrospective enforcement, `docs/retrospective-checkpoint-contract.md` (same resolution rule)
+2. `docs/public-dev-loop-contract.md`
+3. if the current step depends on async start/resume/status or retrospective enforcement, `docs/retrospective-checkpoint-contract.md`
 4. the relevant GitHub issue or PR
 5. the repository's actual validation/runtime surface:
    - root `package.json`
@@ -126,13 +126,17 @@ Verify all material claims against source, tests, configuration, and CI.
 
 When this skill refers to helper paths such as `scripts/...` or `docs/...`, resolve them from the actual skill installation layout you are running, not from the active target repository checkout.
 
-The required contract docs (`docs/public-dev-loop-contract.md`, `docs/retrospective-checkpoint-contract.md`, `docs/conductor-pr-projection-contract.md`) are guaranteed to ship with this skill in the installed layout. If a required contract doc is missing from the installed layout, that is a packaging/installer bug.
-
 Use this rule:
-- if the skill is installed as a normalized standalone copy, helper assets live under `scripts/` and `docs/` inside the skill directory
-- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-dev-loop/`, so the same helper assets live one level up at `../scripts/` and `../docs/`
+- if the skill is installed as a normalized standalone copy, helper assets live under `scripts/` and the required bundled contract docs live under `docs/` inside the installed skill directory
+- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-dev-loop/`, so the same helper assets live one level up at `../scripts/`; the bundled installed-doc copies live at `docs/` beside this `SKILL.md`, while the source-repo authorities also exist under the repo-root `docs/`
 - when in doubt, resolve helper paths relative to this `SKILL.md` file first, then verify the target file exists before running it
 
+Required bundled runtime contract docs for installed copies of this skill:
+- `docs/public-dev-loop-contract.md`
+- `docs/retrospective-checkpoint-contract.md`
+- `docs/conductor-pr-projection-contract.md`
+
+Read those bundled `docs/` files from the installed skill layout instead of assuming the source repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
 Do not assume `scripts/...` is repo-local to the target codebase you are operating on.
 
 When a PR changes conductor-owned projection / closeout behavior, or when review comments ask how visible projection or durable closeout should work, read the resolved `docs/conductor-pr-projection-contract.md` alongside the relevant issue/PR. When runtime package resolution is available, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; in installed skill copies that bundle `packages/core/src/...` support files, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` path from the resolved skill layout instead of assuming the source repository checkout is present.

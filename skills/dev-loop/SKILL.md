@@ -25,12 +25,13 @@ This skill is the public `dev-loop` façade for this repository. It should route
 The authoritative contract is `docs/public-dev-loop-contract.md`; the executable evaluator is exported as `@pi-dev-loops/core/loop/public-dev-loop-routing` and lives in the source repository at `packages/core/src/loop/public-dev-loop-routing.mjs`.
 For UI validation under `dev-loop`, see `docs/ui-validation-contract.md`.
 
-Required contract docs (`docs/public-dev-loop-contract.md`, `docs/retrospective-checkpoint-contract.md`, `docs/conductor-pr-projection-contract.md`) ship with this skill in the installed layout and are guaranteed to be present. Resolve them relative to this `SKILL.md` file:
-- in an installed skill copy they live at `docs/` inside the skill directory
-- in the `pi-dev-loops` source repository this file lives under `skills/dev-loop/`, so they live at `../docs/` from here
+Required installed runtime contract docs for this skill are the bundled copies under `docs/` beside the installed skill:
+- `docs/public-dev-loop-contract.md`
+- `docs/retrospective-checkpoint-contract.md`
+- `docs/conductor-pr-projection-contract.md`
 
-For installed packaged copies of this skill, do not assume source-repository paths such as `packages/core/...` exist beside the skill. Use the package export when the runtime is available.
-For conductor PR projection / closeout work, read the resolved `docs/conductor-pr-projection-contract.md` from the installed skill layout. When runtime package resolution is available, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; when operating from an installed skill copy that bundles `packages/core/src/...` support files, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` from the resolved skill layout.
+For installed packaged copies of this skill, read those bundled `docs/` files from the installed skill layout instead of assuming a source-repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
+When runtime package resolution is available, prefer the package export for executable logic. For conductor PR projection / closeout work, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; when operating from an installed skill copy that bundles `packages/core/src/...` support files, use that bundled `packages/core/src/loop/conductor-pr-projection.mjs` copy instead of assuming source-repo-relative paths.
 
 Operational summary:
 - route from the canonical current state through the shared gate contract before choosing any internal strategy; prefer the exported `DEV_LOOP_GATE` / `PUBLIC_DEV_LOOP_GATE_CONTRACT` semantics over restating route families ad hoc
@@ -80,8 +81,8 @@ Before acting on a GitHub-first issue/PR request:
 
 1. read this skill
 2. if `AGENTS.md` exists, read it first as the repo constitution / working agreement
-3. read `docs/public-dev-loop-contract.md` (resolved relative to this `SKILL.md` file per the path rule above)
-4. if the current step depends on async start/resume/status or retrospective enforcement, read `docs/retrospective-checkpoint-contract.md` (same resolution rule)
+3. read `docs/public-dev-loop-contract.md`
+4. if the current step depends on async start/resume/status or retrospective enforcement, read `docs/retrospective-checkpoint-contract.md`
 5. read the relevant GitHub issue or PR
 6. inspect the actual validation/runtime surface needed for the current step (`package.json`, CI/workflows, touched files, helper contracts)
 

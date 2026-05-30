@@ -115,6 +115,36 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
   assert.match(devLoopSkill, /wire it into CI once it becomes required validation for that slice/i);
 });
 
+
+test("installed skill copies bundle required runtime contract docs and skills point at the installed docs", async () => {
+  const [devLoopSkill, copilotSkill, publicContract, retrospectiveContract, projectionContract] = await Promise.all([
+    readRepo("skills/dev-loop/SKILL.md"),
+    readRepo("skills/copilot-dev-loop/SKILL.md"),
+    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("docs/retrospective-checkpoint-contract.md"),
+    readRepo("docs/conductor-pr-projection-contract.md"),
+  ]);
+
+  assert.match(devLoopSkill, /Required installed runtime contract docs/i);
+  assert.match(devLoopSkill, /bundled copies under `docs\/` beside the installed skill/i);
+  assert.match(devLoopSkill, /read those bundled `docs\/` files from the installed skill layout/i);
+  assert.match(devLoopSkill, /packaging\/installer bug/i);
+
+  assert.match(copilotSkill, /Required bundled runtime contract docs for installed copies of this skill/i);
+  assert.match(copilotSkill, /helper assets live under `scripts\/` and the required bundled contract docs live under `docs\/`/i);
+  assert.match(copilotSkill, /Read those bundled `docs\/` files from the installed skill layout/i);
+  assert.match(copilotSkill, /packaging\/installer bug/i);
+
+  assert.match(publicContract, /required runtime contract doc for installed `dev-loop` skill consumers/i);
+  assert.match(publicContract, /must bundle this document under `docs\/public-dev-loop-contract\.md` beside the installed `SKILL\.md`/i);
+
+  assert.match(retrospectiveContract, /required runtime contract doc for installed `dev-loop` skill consumers/i);
+  assert.match(retrospectiveContract, /must bundle this document under `docs\/retrospective-checkpoint-contract\.md` beside the installed `SKILL\.md`/i);
+
+  assert.match(projectionContract, /required runtime contract doc for installed `dev-loop` \/ `copilot-dev-loop` skill consumers/i);
+  assert.match(projectionContract, /must be bundled under `docs\/conductor-pr-projection-contract\.md` beside the installed `SKILL\.md`/i);
+});
+
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {
   const [workflowDoc, scriptsReadme, devLoopSkill] = await Promise.all([
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),

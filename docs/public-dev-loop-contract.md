@@ -4,6 +4,15 @@ This document is the canonical authority for the public `dev-loop` entrypoint, i
 
 Other repo docs may summarize or link this contract, but they should not redefine it.
 
+## Packaged / installed skill use
+
+This file is a required runtime contract doc for installed `dev-loop` skill consumers.
+
+Installer/package guarantee for this slice:
+- installed copies of the `dev-loop` and `copilot-dev-loop` skills must bundle this document under `docs/public-dev-loop-contract.md` beside the installed `SKILL.md`
+- installed skill/runtime guidance must read that bundled installed copy instead of assuming a source-repository checkout is present
+- if the bundled installed copy is missing, treat that as a packaging/installer bug rather than silently falling back to an unrelated checkout
+
 ## Public surface
 
 The single public entrypoint is:

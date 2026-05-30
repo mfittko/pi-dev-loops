@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), "utf8");
@@ -51,55 +51,34 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.match(readme, /npm run test:playwright:viewer/i);
 });
 
-const REQUIRED_SKILL_CONTRACT_DOCS = [
-  "public-dev-loop-contract.md",
-  "retrospective-checkpoint-contract.md",
-  "conductor-pr-projection-contract.md",
-];
 
-const INSTALLED_SKILLS = ["dev-loop", "copilot-dev-loop"];
+test("required installed runtime contract docs are bundled beside both packaged skills", async () => {
+  const extensionReadme = await readRepo("extension/README.md");
 
-test("installed skill layouts include required contract docs in docs/ subdirectory", async () => {
-  for (const skill of INSTALLED_SKILLS) {
-    for (const doc of REQUIRED_SKILL_CONTRACT_DOCS) {
-      await assert.doesNotReject(
-        access(fromRepoRoot(`.pi/skills/${skill}/docs/${doc}`)),
-        `required contract doc ${doc} must exist in installed .pi/skills/${skill}/docs/`,
-      );
-    }
-  }
-});
+  assert.match(extensionReadme, /required installed runtime contract docs/i);
+  assert.match(extensionReadme, /public-dev-loop-contract\.md/i);
+  assert.match(extensionReadme, /retrospective-checkpoint-contract\.md/i);
+  assert.match(extensionReadme, /conductor-pr-projection-contract\.md/i);
+  assert.match(extensionReadme, /packaging\/installer bug/i);
 
-test("installed skill contract docs match the source docs", async () => {
-  for (const skill of INSTALLED_SKILLS) {
-    for (const doc of REQUIRED_SKILL_CONTRACT_DOCS) {
-      const installedContent = await readRepo(`.pi/skills/${skill}/docs/${doc}`);
-      const sourceContent = await readRepo(`docs/${doc}`);
+  const requiredDocs = [
+    "public-dev-loop-contract.md",
+    "retrospective-checkpoint-contract.md",
+    "conductor-pr-projection-contract.md",
+  ];
+  const skills = ["dev-loop", "copilot-dev-loop"];
+
+  for (const skill of skills) {
+    for (const doc of requiredDocs) {
+      const [rootCopy, bundledCopy] = await Promise.all([
+        readRepo(`docs/${doc}`),
+        readRepo(`skills/${skill}/docs/${doc}`),
+      ]);
       assert.equal(
-        installedContent,
-        sourceContent,
-        `installed .pi/skills/${skill}/docs/${doc} must match source docs/${doc}`,
+        bundledCopy,
+        rootCopy,
+        `skills/${skill}/docs/${doc} should stay byte-for-byte aligned with docs/${doc}`,
       );
     }
   }
-});
-
-test("dev-loop SKILL.md documents the installed-docs path resolution guarantee", async () => {
-  const skill = await readRepo(".pi/skills/dev-loop/SKILL.md");
-  assert.match(skill, /ship with this skill in the installed layout and are guaranteed to be present/i);
-  assert.match(skill, /docs\/public-dev-loop-contract\.md/);
-  assert.match(skill, /docs\/retrospective-checkpoint-contract\.md/);
-  assert.match(skill, /docs\/conductor-pr-projection-contract\.md/);
-  assert.match(skill, /in an installed skill copy they live at `docs\/` inside the skill directory/);
-  assert.match(skill, /skills\/dev-loop.*`\.\.\/docs\/`/s);
-});
-
-test("copilot-dev-loop SKILL.md documents the installed-docs path resolution guarantee", async () => {
-  const skill = await readRepo(".pi/skills/copilot-dev-loop/SKILL.md");
-  assert.match(skill, /are guaranteed to ship with this skill in the installed layout/i);
-  assert.match(skill, /docs\/public-dev-loop-contract\.md/);
-  assert.match(skill, /docs\/retrospective-checkpoint-contract\.md/);
-  assert.match(skill, /docs\/conductor-pr-projection-contract\.md/);
-  assert.match(skill, /skills\/copilot-dev-loop.*`\.\.\/scripts\/`.*`\.\.\/docs\/`/s);
-  assert.match(skill, /packaging\/installer bug/i);
 });
