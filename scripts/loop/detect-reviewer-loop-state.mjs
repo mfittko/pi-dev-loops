@@ -10,7 +10,7 @@ import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../github/capture-review-threads.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,

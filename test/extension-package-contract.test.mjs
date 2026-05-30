@@ -8,7 +8,7 @@ const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), "utf8");
 test("package metadata exposes the extension entrypoint and root extension test script", async () => {
   const packageJson = JSON.parse(await readRepo("package.json"));
 
-  assert.deepEqual(packageJson.pi.extensions, ["./index.ts"]);
+  assert.deepEqual(packageJson.pi.extensions, ["./extension/index.ts"]);
   assert.equal(packageJson.bin["pi-dev-loops"], "./cli/index.mjs");
   assert.match(packageJson.engines.node, />=20/);
   assert.equal(typeof packageJson.peerDependencies["@mariozechner/pi-coding-agent"], "string");

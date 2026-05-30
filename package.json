@@ -43,7 +43,7 @@
   },
   "pi": {
     "extensions": [
-      "./index.ts"
+      "./extension/index.ts"
     ],
     "skills": [
       ".pi/skills"

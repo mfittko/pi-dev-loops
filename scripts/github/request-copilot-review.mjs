@@ -8,7 +8,8 @@ import {
   parseReviewThreads,
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
-import { fetchGithubReviewThreadsPayload, parseRepoSlug } from "./capture-review-threads.mjs";
+import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { buildSnapshotFromPrFacts, interpretLoopState } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";

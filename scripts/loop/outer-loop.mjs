@@ -38,7 +38,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../github/capture-review-threads.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { autoDetectSnapshot as autoDetectCopilotSnapshot } from "./detect-copilot-loop-state.mjs";
 import {
   buildCheckpointFilePath,

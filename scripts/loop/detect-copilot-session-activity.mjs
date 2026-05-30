@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../github/_github-helpers.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 
 const USAGE = `Usage: detect-copilot-session-activity.mjs --repo <owner/name> --branch <name> [--limit <number>]
 

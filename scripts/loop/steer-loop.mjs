@@ -71,7 +71,7 @@ import {
 } from "./_steering-state-file.mjs";
 
 import { formatCliError } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../github/capture-review-threads.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 
 // ---------------------------------------------------------------------------
 // Usage text

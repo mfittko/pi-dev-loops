@@ -35,7 +35,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../github/_github-helpers.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { detectInitialCopilotPrState, LINKED_PR_STATE } from "./detect-initial-copilot-pr-state.mjs";
 
 const USAGE = `Usage: watch-initial-copilot-pr.mjs --repo <owner/name> --issue <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]

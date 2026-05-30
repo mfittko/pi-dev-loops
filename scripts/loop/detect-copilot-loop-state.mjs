@@ -66,7 +66,8 @@ import {
   parseReviewThreads,
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
-import { parseRepoSlug, fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
+import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import {
   buildSnapshotFromPrFacts,
   interpretLoopState,

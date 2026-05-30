@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun, parseReviewThreads } from "../_core-helpers.mjs";
-import { fetchGithubReviewThreadsPayload, parseRepoSlug } from "./capture-review-threads.mjs";
+import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 
 const RESOLVE_REVIEW_THREAD_MUTATION = [
   "mutation($threadId: ID!) {",
