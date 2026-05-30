@@ -279,54 +279,54 @@ test("decideOuterAction: copilot review_request_unavailable → stop / review_un
   assert.equal(result.reason, "review_unavailable");
 });
 
-test("decideOuterAction: dirty checkout + pr_draft → unsafe_local_edit_requires_isolation", () => {
+test("decideOuterAction: dirty checkout + pr_draft → reenter_copilot_loop", () => {
   const result = decideOuterAction({
     copilotState: "pr_draft",
     reviewerState: "waiting_for_review_request",
     gitStatus: { isDirty: true, isDetached: false },
   });
-  assert.equal(result.outerAction, "stop");
-  assert.equal(result.reason, "unsafe_local_edit_requires_isolation");
+  assert.equal(result.outerAction, "reenter_copilot_loop");
+  assert.equal(result.reason, undefined);
 });
 
-test("decideOuterAction: detached HEAD + pr_draft → unsafe_local_edit_requires_isolation", () => {
+test("decideOuterAction: detached HEAD + pr_draft → reenter_copilot_loop", () => {
   const result = decideOuterAction({
     copilotState: "pr_draft",
     reviewerState: "waiting_for_review_request",
     gitStatus: { isDirty: false, isDetached: true },
   });
-  assert.equal(result.outerAction, "stop");
-  assert.equal(result.reason, "unsafe_local_edit_requires_isolation");
+  assert.equal(result.outerAction, "reenter_copilot_loop");
+  assert.equal(result.reason, undefined);
 });
 
-test("decideOuterAction: dirty checkout + unresolved_feedback → unsafe_local_edit_requires_isolation", () => {
+test("decideOuterAction: dirty checkout + unresolved_feedback → reenter_copilot_loop", () => {
   const result = decideOuterAction({
     copilotState: "unresolved_feedback_present",
     reviewerState: "waiting_for_author_followup",
     gitStatus: { isDirty: true, isDetached: false },
   });
-  assert.equal(result.outerAction, "stop");
-  assert.equal(result.reason, "unsafe_local_edit_requires_isolation");
+  assert.equal(result.outerAction, "reenter_copilot_loop");
+  assert.equal(result.reason, undefined);
 });
 
-test("decideOuterAction: detached HEAD + unresolved_feedback → unsafe_local_edit_requires_isolation", () => {
+test("decideOuterAction: detached HEAD + unresolved_feedback → reenter_copilot_loop", () => {
   const result = decideOuterAction({
     copilotState: "unresolved_feedback_present",
     reviewerState: "waiting_for_review_request",
     gitStatus: { isDirty: false, isDetached: true },
   });
-  assert.equal(result.outerAction, "stop");
-  assert.equal(result.reason, "unsafe_local_edit_requires_isolation");
+  assert.equal(result.outerAction, "reenter_copilot_loop");
+  assert.equal(result.reason, undefined);
 });
 
-test("decideOuterAction: dirty checkout + reviewer review_requested → unsafe_local_edit_requires_isolation", () => {
+test("decideOuterAction: dirty checkout + reviewer review_requested → reenter_reviewer_loop", () => {
   const result = decideOuterAction({
     copilotState: "pr_ready_no_feedback",
     reviewerState: "review_requested",
     gitStatus: { isDirty: true, isDetached: false },
   });
-  assert.equal(result.outerAction, "stop");
-  assert.equal(result.reason, "unsafe_local_edit_requires_isolation");
+  assert.equal(result.outerAction, "reenter_reviewer_loop");
+  assert.equal(result.reason, undefined);
 });
 
 test("decideOuterAction: dirty checkout + reviewer waiting_for_user_submit → reenter_reviewer_loop (no local exec needed)", () => {
@@ -819,10 +819,10 @@ test("outer-loop: waiting_for_re_request → review_requested after re-detect �
 });
 
 // ---------------------------------------------------------------------------
-// CLI: dirty/detached checkout + mutation-needed → unsafe_local_edit_requires_isolation
+// CLI: isolation-needed re-entry stays as a handoff with requiresLocalIsolation
 // ---------------------------------------------------------------------------
 
-test("outer-loop: dirty checkout + unresolved_feedback → stop / unsafe_local_edit_requires_isolation", async () => {
+test("outer-loop: dirty checkout + unresolved_feedback → handoff_to_copilot_loop with isolation flag", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-dirty-copilot-"));
 
   try {
@@ -866,15 +866,17 @@ test("outer-loop: dirty checkout + unresolved_feedback → stop / unsafe_local_e
 
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    assert.equal(output.outerAction, "stop");
-    assert.equal(output.reason, "unsafe_local_edit_requires_isolation");
+    assert.equal(output.outerAction, "reenter_copilot_loop");
+    assert.equal(output.reason, undefined);
     assert.equal(output.copilotState, "unresolved_feedback_present");
+    assert.equal(output.conductorRouting.routingOutcome, "handoff_to_copilot_loop");
+    assert.equal(output.conductorRouting.handoffEnvelope.requiresLocalIsolation, true);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("outer-loop: detached HEAD + reviewer review_requested → stop / unsafe_local_edit_requires_isolation", async () => {
+test("outer-loop: detached HEAD + reviewer review_requested → handoff_to_reviewer_loop with isolation flag", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-detached-reviewer-"));
 
   try {
@@ -916,8 +918,65 @@ test("outer-loop: detached HEAD + reviewer review_requested → stop / unsafe_lo
 
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
-    assert.equal(output.outerAction, "stop");
-    assert.equal(output.reason, "unsafe_local_edit_requires_isolation");
+    assert.equal(output.outerAction, "reenter_reviewer_loop");
+    assert.equal(output.reason, undefined);
+    assert.equal(output.conductorRouting.routingOutcome, "handoff_to_reviewer_loop");
+    assert.equal(output.conductorRouting.handoffEnvelope.requiresLocalIsolation, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("outer-loop: dirty local checkout keeps PR-draft follow-up as an isolation-managed handoff", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-dirty-local-pr-draft-"));
+
+  try {
+    const copilotSnapshotPath = path.join(tempDir, "copilot-snapshot.json");
+
+    await writeJson(copilotSnapshotPath, {
+      prExists: true,
+      prNumber: 47,
+      prDraft: true,
+      prMerged: false,
+      prClosed: false,
+      copilotReviewRequestStatus: "none",
+      copilotReviewPresent: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      ciStatus: "none",
+    });
+
+    const gitEnv = await writeGitStub(tempDir, {
+      porcelainOutput: " M docs/notes.md",
+      headRef: "main",
+      headSha: "def456",
+    });
+    const ghEnv = await writeGhStub(tempDir, {
+      repo: "owner/repo",
+      pr: 47,
+      headRefName: "copilot/fix-gate-progression-issue",
+      headSha: "abc123",
+    });
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "47",
+      "--copilot-input", copilotSnapshotPath,
+      "--checkpoint-dir", tempDir,
+    ], { env: { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" } });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.outerAction, "reenter_copilot_loop");
+    assert.equal(output.reason, undefined);
+    assert.equal(output.branchIdentity.localBranch, "main");
+    assert.equal(output.branchIdentity.prBranch, "copilot/fix-gate-progression-issue");
+    assert.equal(output.branchIdentity.branchMatches, false);
+    assert.equal(output.branchIdentity.headMatches, false);
+    assert.equal(output.conductorRouting.routingOutcome, "handoff_to_copilot_loop");
+    assert.equal(output.conductorRouting.handoffEnvelope.requiresLocalIsolation, true);
+    assert.equal(output.conductorRouting.handoffEnvelope.requiredArgs.headRefName, "copilot/fix-gate-progression-issue");
+    assert.equal(output.conductorRouting.handoffEnvelope.requiredArgs.headRefOid, "abc123");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
