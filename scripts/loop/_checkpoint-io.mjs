@@ -86,7 +86,13 @@ export async function readExistingCheckpoint(repo, pr, { checkpointDir, failSile
       return { checkpoint, filePath: legacyPath };
     }
     return { checkpoint: null, filePath: null };
-  } catch {
-    return { checkpoint: null, filePath: null };
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return { checkpoint: null, filePath: null };
+    }
+    if (failSilently) {
+      return { checkpoint: null, filePath: null };
+    }
+    throw new Error(`Failed to read checkpoint '${legacyPath}': ${error instanceof Error ? error.message : String(error)}`);
   }
 }

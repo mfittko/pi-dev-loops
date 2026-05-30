@@ -237,3 +237,35 @@ test("readExistingCheckpoint: explicit checkpointDir failSilently=true returns n
     assert.equal(filePath, null);
   });
 });
+
+
+test("readExistingCheckpoint: legacy fallback failSilently=false throws on non-ENOENT error", async () => {
+  await withTempDir(async (tempDir) => {
+    const legacyPath = path.join(tempDir, "tmp", "copilot-loop", "pr-42", "outer-loop-state.json");
+    await mkdir(legacyPath, { recursive: true });
+
+    process.chdir(tempDir);
+    await assert.rejects(
+      () => readExistingCheckpoint("owner/repo", 42),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.ok(err.message.includes("Failed to read checkpoint"), `Unexpected message: ${err.message}`);
+        assert.ok(err.message.includes(path.join("tmp", "copilot-loop", "pr-42", "outer-loop-state.json")));
+        return true;
+      },
+    );
+  });
+});
+
+test("readExistingCheckpoint: legacy fallback failSilently=true returns null on non-ENOENT error", async () => {
+  await withTempDir(async (tempDir) => {
+    const legacyPath = path.join(tempDir, "tmp", "copilot-loop", "pr-42", "outer-loop-state.json");
+    await mkdir(legacyPath, { recursive: true });
+
+    process.chdir(tempDir);
+    const { checkpoint, filePath } = await readExistingCheckpoint("owner/repo", 42, { failSilently: true });
+
+    assert.equal(checkpoint, null);
+    assert.equal(filePath, null);
+  });
+});
