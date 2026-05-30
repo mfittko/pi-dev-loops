@@ -108,8 +108,8 @@ Read only the constitution / contract docs and runtime surface needed for the cu
 Before planning, review, or automation:
 
 1. `AGENTS.md` if present
-2. `docs/public-dev-loop-contract.md`
-3. if the current step depends on async start/resume/status or retrospective enforcement, `docs/retrospective-checkpoint-contract.md`
+2. `../docs/public-dev-loop-contract.md`
+3. if the current step depends on async start/resume/status or retrospective enforcement, `../docs/retrospective-checkpoint-contract.md`
 4. the relevant GitHub issue or PR
 5. the repository's actual validation/runtime surface:
    - root `package.json`
@@ -127,13 +127,19 @@ Verify all material claims against source, tests, configuration, and CI.
 When this skill refers to helper paths such as `scripts/...` or `docs/...`, resolve them from the actual skill installation layout you are running, not from the active target repository checkout.
 
 Use this rule:
-- if the skill is installed as a normalized standalone copy, helper assets may live under `scripts/` and `docs/` inside the skill directory
-- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-dev-loop/`, so the same helper assets live one level up at `../scripts/` and `../docs/`
+- if the skill is installed as a normalized standalone copy, the required bundled contract docs live under the shared `../docs/` directory next to the installed skill directories; do not assume helper scripts are bundled unless that installed layout actually contains them
+- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-dev-loop/`, so source-repo helper scripts live two levels up at `../../scripts/`, while required bundled contract docs live one level up at `../docs/`
 - when in doubt, resolve helper paths relative to this `SKILL.md` file first, then verify the target file exists before running it
 
+Required bundled runtime contract docs for installed copies of this skill:
+- `../docs/public-dev-loop-contract.md`
+- `../docs/retrospective-checkpoint-contract.md`
+- `../docs/conductor-pr-projection-contract.md`
+
+Read those bundled `../docs/` files from the installed skill layout instead of assuming the source repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
 Do not assume `scripts/...` is repo-local to the target codebase you are operating on.
 
-When a PR changes conductor-owned projection / closeout behavior, or when review comments ask how visible projection or durable closeout should work, read the resolved `docs/conductor-pr-projection-contract.md` alongside the relevant issue/PR. When runtime package resolution is available, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; in installed skill copies that bundle `packages/core/src/...` support files, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` path from the resolved skill layout instead of assuming the source repository checkout is present.
+When a PR changes conductor-owned projection / closeout behavior, or when review comments ask how visible projection or durable closeout should work, read the resolved `../docs/conductor-pr-projection-contract.md` alongside the relevant issue/PR. When runtime package resolution is available, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; in installed skill copies that bundle `packages/core/src/...` support files, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` path from the resolved skill layout instead of assuming the source repository checkout is present.
 
 ## Authority and safety rules
 
@@ -378,8 +384,8 @@ as the authoritative source for:
 - reviewer-side PR review loop: `detect-reviewer-loop-state.mjs` from the resolved skill scripts directory
 
 Resolve those helper paths from the skill asset layout described above. In the `pi-dev-loops`
-source repository the skill scripts directory is `../scripts/` relative to this file; in normalized
-installed copies it may instead be `scripts/` inside the installed skill directory.
+source repository the skill scripts directory is `../../scripts/` relative to this file; in normalized
+installed copies it may instead be `scripts/` inside the installed skill directory when that layout bundles the helper scripts.
 
 - what state the PR/loop is in right now
 - what transitions are currently allowed
@@ -389,8 +395,8 @@ installed copies it may instead be `scripts/` inside the installed skill directo
 Each machine captures an observable snapshot from GitHub facts (plus explicit bounded local loop
 metadata when required) and interprets it into exactly one current state plus allowed next
 transitions. See `copilot-loop-state-graph.md` and `reviewer-loop-state-graph.md` in the resolved
-skill docs directory; in the `pi-dev-loops` source repository that docs directory is `../docs/`
-relative to this file.
+skill docs directory; in the `pi-dev-loops` source repository those source-authority docs live under
+`../../docs/` relative to this file.
 
 For tracker-first MVP `story -> PR -> tracker sync` work, also use
 `tracker-first-mvp-state-graph.md` in that same docs directory as the bounded workflow-family

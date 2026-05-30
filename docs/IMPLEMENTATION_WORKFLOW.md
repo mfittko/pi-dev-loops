@@ -10,7 +10,7 @@ Use these defaults unless the user explicitly asks for something else:
 - use the local implementation strategy for phase-bounded local planning/implementation only when explicitly requested
 
 Authority split:
-- `docs/public-dev-loop-contract.md` owns the public routing/shorthand contract
+- `skills/docs/public-dev-loop-contract.md` owns the public routing/shorthand contract
 - this file owns workflow layering, source-of-truth boundaries, and the local phase process
 - internal compatibility/routed strategy details stay behind that public contract rather than acting as peer public entrypoints
 

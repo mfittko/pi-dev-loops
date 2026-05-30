@@ -39,19 +39,6 @@ This contract starts **after**:
 | Core unit tests | `packages/core/test/conductor-pr-projection.test.mjs` |
 
 ---
-
-## Packaged / installed agent use
-
-When this contract is consumed from an installed skill or packaged agent runtime, do **not** assume
-source-repository-relative paths such as `packages/core/...` or `docs/...` exist beside the active
-checkout.
-
-Use this rule:
-- when the runtime already exposes the published package surface, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`
-- when operating from an installed skill copy that bundles `packages/core/src/...` support files instead of package resolution, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` copy under that installed skill layout
-- use this contract doc as the human-readable behavior summary when it is available in the source repository or bundled installed docs
-- keep skill guidance thin and refer back to this contract instead of restating the full projection state model in prompt text
-
 ## Authority boundary
 
 Visible PR updates and closeout artifacts are **downstream observability projections only**.

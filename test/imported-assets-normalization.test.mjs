@@ -115,6 +115,40 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
   assert.match(devLoopSkill, /wire it into CI once it becomes required validation for that slice/i);
 });
 
+
+test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
+  const [devLoopSkill, copilotSkill, publicContract, retrospectiveContract, projectionContract] = await Promise.all([
+    readRepo(".pi/skills/dev-loop/SKILL.md"),
+    readRepo(".pi/skills/copilot-dev-loop/SKILL.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/retrospective-checkpoint-contract.md"),
+    readRepo("skills/docs/conductor-pr-projection-contract.md"),
+  ]);
+
+  assert.match(devLoopSkill, /Required installed runtime contract docs/i);
+  assert.match(devLoopSkill, /shared bundled copies under `\.\.\/docs\/` from this skill directory/i);
+  assert.match(devLoopSkill, /read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
+  assert.match(devLoopSkill, /packaging\/installer bug/i);
+
+  assert.match(copilotSkill, /Required bundled runtime contract docs for installed copies of this skill/i);
+  assert.match(copilotSkill, /required bundled contract docs live under the shared `\.\.\/docs\/` directory next to the installed skill directories/i);
+  assert.match(copilotSkill, /do not assume helper scripts are bundled unless that installed layout actually contains them/i);
+  assert.match(copilotSkill, /Read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
+  assert.match(copilotSkill, /packaging\/installer bug/i);
+
+  for (const [label, content] of [
+    ["skills/docs/public-dev-loop-contract.md", publicContract],
+    ["skills/docs/retrospective-checkpoint-contract.md", retrospectiveContract],
+    ["skills/docs/conductor-pr-projection-contract.md", projectionContract],
+  ]) {
+    assert.doesNotMatch(content, /Packaged \/ installed skill use|Packaged \/ installed agent use/i, `${label} should not restate the shared install contract block`);
+    assert.doesNotMatch(content, /required runtime contract doc for installed/i, `${label} should not duplicate install-contract ownership prose`);
+    assert.doesNotMatch(content, /source-tree canonical ownership/i, `${label} should not duplicate install-contract ownership prose`);
+    assert.doesNotMatch(content, /shared installed copy resolved as `\.\.\/docs\//i, `${label} should not duplicate install-contract ownership prose`);
+    assert.doesNotMatch(content, /packaging\/installer bug/i, `${label} should not duplicate install-contract ownership prose`);
+  }
+});
+
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {
   const [workflowDoc, scriptsReadme, devLoopSkill] = await Promise.all([
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),
@@ -140,7 +174,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
     readRepo("PLAN.md"),
     readRepo("AGENTS.md"),
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),
-    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("extension/README.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
@@ -173,7 +207,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
   assert.match(extensionReadme, /single public workflow entrypoint/i, "extension README should lead with the public entrypoint");
   assert.doesNotMatch(extensionReadme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i, "extension README should not surface internal seam names as readiness choices");
 
-  assert.match(devLoopSkill, /authoritative contract is `docs\/public-dev-loop-contract\.md`/i);
+  assert.match(devLoopSkill, /authoritative contract is `skills\/docs\/public-dev-loop-contract\.md`/i);
   assert.match(devLoopSkill, /@pi-dev-loops\/core\/loop\/public-dev-loop-routing/i);
   assert.match(devLoopSkill, /summary/i);
 
@@ -183,7 +217,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
 
 test("workflow-surface taxonomy stays explicit and guards the entrypoint asset surface", async () => {
   const [publicContract, devLoopAgent] = await Promise.all([
-    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("agents/dev-loop.agent.md"),
   ]);
 
@@ -240,6 +274,9 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
 
   const userInvocableSkillEntrypoints = [];
   for (const skillDir of (await readdir(fromRepoRoot("skills"))).sort().filter((name) => !name.startsWith("."))) {
+    if (skillDir === "docs") {
+      continue;
+    }
     const content = await readRepo(`skills/${skillDir}/SKILL.md`);
     if (/^user-invocable:\s*true\s*$/m.test(content)) {
       userInvocableSkillEntrypoints.push(skillDir);
@@ -252,7 +289,7 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
 
 test("status reporting contract requires authoritative state-first resolution and fail-closed reconcile behavior", async () => {
   const [publicContract, devLoopSkill, copilotSkill] = await Promise.all([
-    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
   ]);
@@ -279,7 +316,7 @@ test("copilot skill still contains its core workflow guidance", async () => {
   assert.match(content, /Before planning, review, or automation:/);
   assert.match(content, /Skill asset path resolution/);
   assert.match(content, /Do not assume `scripts\/\.\.\.` is repo-local to the target codebase/i);
-  assert.match(content, /source repository the skill scripts directory is `\.\.\/scripts\//);
+  assert.match(content, /source-repo helper scripts live two levels up at `\.\.\/\.\.\/scripts\/`/i);
   assert.match(content, /Before any GitHub mutation/);
   assert.match(content, /Preferred defaults for this repo:/);
   assert.match(content, /Default validation should match or approximate/);
@@ -368,7 +405,7 @@ test("issue-intake/autonomy behavior remains internal and resumable behind dev-l
 test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the final approval gate", async () => {
   const [readme, publicContract, devLoopSkill, copilotSkill, devLoopAgent] = await Promise.all([
     readRepo("README.md"),
-    readRepo("docs/public-dev-loop-contract.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
     readRepo("skills/copilot-dev-loop/SKILL.md"),
     readRepo("agents/dev-loop.agent.md"),

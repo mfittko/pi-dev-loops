@@ -13,7 +13,7 @@ This repo supports both local and GitHub-first work, but the public workflow sur
 A canonical shorthand example still maps to the same public `dev-loop` intent:
 - `auto dev loop on issue 112`
 
-The canonical public routing and shorthand contract lives in `docs/public-dev-loop-contract.md`.
+The canonical public routing and shorthand contract lives in `skills/docs/public-dev-loop-contract.md`.
 
 ## What this repository provides
 
@@ -100,7 +100,8 @@ CI currently runs `npm ci`, `npm run verify`, and the explicit Playwright viewer
 - `PLAN.md` — durable repo intent and roadmap
 - `docs/IMPLEMENTATION_STATE.md` — current implementation snapshot
 - `docs/IMPLEMENTATION_WORKFLOW.md` — repo workflow contract and docs-sync rules
-- `docs/public-dev-loop-contract.md` — public façade and routing contract
+- `skills/docs/public-dev-loop-contract.md` — public façade and routing contract
 - `extension/README.md` — `/dev-loops` command and package-install contract
 - `scripts/README.md` — deterministic script contracts
 - `skills/*/SKILL.md` — workflow-specific operating instructions
+- `skills/docs/*.md` — canonical shared runtime contract docs for packaged skills
