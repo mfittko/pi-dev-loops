@@ -54,31 +54,6 @@ It does **not** define:
 
 ---
 
-## Bounded #202 evaluation: `outer-loop-state` keep vs collapse
-
-### Consumer inventory (current)
-
-| Consumer type | Concrete consumers |
-|---|---|
-| Runtime | `scripts/loop/inspect-run.mjs`, `packages/core/src/loop/run-inspection.mjs`, `scripts/loop/inspect-run-viewer/rendering.mjs` |
-| Tests | `packages/core/test/outer-loop-state.test.mjs`, `test/loop/inspect-run-viewer.test.mjs`, `packages/core/test/package-surface.test.mjs` |
-| Docs | `docs/outer-loop-state-graph.md`, this contract doc |
-
-### Recommendation
-
-Keep `outer-loop-state` as a **thinner compatibility/inspection shim**, not as routing authority.
-
-- `conductor-routing.mjs` remains the single runtime routing authority.
-- `outer-loop-state.mjs` remains for compatibility vocabulary and graph/inspection metadata.
-- Immediate collapse is unsafe for this slice because inspection/viewer surfaces still consume the outer graph metadata contract.
-
-### Small reduction applied in this slice
-
-`scripts/loop/outer-loop.mjs` now consumes `evaluateConductorRouting()` directly and no longer depends on `interpretOuterLoopState()`.
-This removes one real runtime consumer from the `outer-loop-state` seam while keeping behavior and output shape unchanged.
-
----
-
 ## Routing inputs
 
 The evaluator (`evaluateConductorRouting`) consumes a single normalized input object.
