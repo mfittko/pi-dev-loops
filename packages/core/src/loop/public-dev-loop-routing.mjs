@@ -426,12 +426,8 @@ function normalizeOptionalLoopState(value) {
 }
 
 function normalizeAsyncRunId(value) {
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value.trim();
-  }
-  if (Number.isInteger(value) && value > 0) {
-    return String(value);
-  }
+  const asString = normalizeSha(value);
+  if (asString !== null) return asString;
   return null;
 }
 
@@ -451,7 +447,6 @@ function normalizeAsyncRun(value) {
   return {
     kind,
     runId: normalizeAsyncRunId(value.runId),
-    processId: Number.isInteger(value.processId) && value.processId > 0 ? value.processId : null,
     visible: value.visible === true,
   };
 }

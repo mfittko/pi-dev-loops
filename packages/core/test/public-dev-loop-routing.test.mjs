@@ -1151,14 +1151,12 @@ test("authoritative startup/resume bundle fails closed on detached-process async
     loopState: "waiting_for_initial_copilot_implementation",
     asyncRun: {
       kind: "detached_process",
-      processId: 93708,
       visible: false,
     },
   });
 
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
   assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
-  assert.equal(bundle.asyncRun?.processId, 93708);
   assert.match(bundle.reason, /detached local background processes do not satisfy the async-start contract/i);
 });
 
@@ -1562,14 +1560,12 @@ test("authoritative status resolution fails closed instead of claiming durable a
     loopState: "waiting_for_initial_copilot_implementation",
     asyncRun: {
       kind: "detached_process",
-      processId: 93708,
       visible: false,
     },
   });
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
-  assert.equal(report.asyncRun?.processId, 93708);
   assert.match(report.nextAction, /reconcile/i);
 });
 

@@ -39,6 +39,20 @@ async function writeJson(filePath, data) {
   await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
+const MINIMAL_COPILOT_SNAPSHOT = Object.freeze({
+  prExists: true,
+  prState: "OPEN",
+  isDraft: false,
+  prNumber: 47,
+  prHeadSha: "abc123",
+  hasPendingCopilotReview: false,
+  hasExistingCopilotReview: false,
+  resolvedThreadCount: 0,
+  unresolvedThreadCount: 0,
+  resolvedThreadIds: [],
+  unresolvedThreadIds: [],
+});
+
 /**
  * Write a fake `git` stub that responds to specific commands.
  * porcelainOutput: what `git status --porcelain` should return (empty string = clean)
@@ -1634,19 +1648,7 @@ test("outer-loop: rejects when no Pi-managed async context markers are present",
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
-    await writeJson(copilotInputPath, {
-      prExists: true,
-      prState: "OPEN",
-      isDraft: false,
-      prNumber: 47,
-      prHeadSha: "abc123",
-      hasPendingCopilotReview: false,
-      hasExistingCopilotReview: false,
-      resolvedThreadCount: 0,
-      unresolvedThreadCount: 0,
-      resolvedThreadIds: [],
-      unresolvedThreadIds: [],
-    });
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
 
     // Provide only copilot-input (not snapshot mode) with empty env — no Pi markers
     const result = await runOuterLoop(
@@ -1666,19 +1668,7 @@ test("outer-loop CLI: async-start rejection exits non-zero and writes JSON error
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-cli-"));
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
-    await writeJson(copilotInputPath, {
-      prExists: true,
-      prState: "OPEN",
-      isDraft: false,
-      prNumber: 47,
-      prHeadSha: "abc123",
-      hasPendingCopilotReview: false,
-      hasExistingCopilotReview: false,
-      resolvedThreadCount: 0,
-      unresolvedThreadCount: 0,
-      resolvedThreadIds: [],
-      unresolvedThreadIds: [],
-    });
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
 
     // Clean env with PATH only — no Pi markers, no bypass; only copilot-input so not snapshot mode
     const result = await runNode([
@@ -1703,19 +1693,7 @@ test("outer-loop: proceeds when PI_SESSION_ID is set (non-snapshot mode)", async
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
-    await writeJson(copilotInputPath, {
-      prExists: true,
-      prState: "OPEN",
-      isDraft: false,
-      prNumber: 47,
-      prHeadSha: "abc123",
-      hasPendingCopilotReview: false,
-      hasExistingCopilotReview: false,
-      resolvedThreadCount: 0,
-      unresolvedThreadCount: 0,
-      resolvedThreadIds: [],
-      unresolvedThreadIds: [],
-    });
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
     const gitEnv = await writeGitStub(tempDir);
     const ghEnv = await writeGhStub(tempDir, { repo: "owner/repo", pr: 47 });
     const env = { ...gitEnv, ...ghEnv, PI_SESSION_ID: "test-session-123" };
@@ -1737,19 +1715,7 @@ test("outer-loop: proceeds when PI_ASYNC_START_BYPASS=1 (non-snapshot mode)", as
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
-    await writeJson(copilotInputPath, {
-      prExists: true,
-      prState: "OPEN",
-      isDraft: false,
-      prNumber: 47,
-      prHeadSha: "abc123",
-      hasPendingCopilotReview: false,
-      hasExistingCopilotReview: false,
-      resolvedThreadCount: 0,
-      unresolvedThreadCount: 0,
-      resolvedThreadIds: [],
-      unresolvedThreadIds: [],
-    });
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
     const gitEnv = await writeGitStub(tempDir);
     const ghEnv = await writeGhStub(tempDir, { repo: "owner/repo", pr: 47 });
     const env = { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" };
@@ -1772,19 +1738,7 @@ test("outer-loop: snapshot mode (both inputs provided) bypasses async-start chec
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
     const reviewerInputPath = path.join(tempDir, "reviewer.json");
-    await writeJson(copilotInputPath, {
-      prExists: true,
-      prState: "OPEN",
-      isDraft: false,
-      prNumber: 47,
-      prHeadSha: "abc123",
-      hasPendingCopilotReview: false,
-      hasExistingCopilotReview: false,
-      resolvedThreadCount: 0,
-      unresolvedThreadCount: 0,
-      resolvedThreadIds: [],
-      unresolvedThreadIds: [],
-    });
+    await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
     await writeJson(reviewerInputPath, {
       prExists: true,
       prState: "OPEN",
