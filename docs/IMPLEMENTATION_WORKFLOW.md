@@ -12,6 +12,7 @@ Use these defaults unless the user explicitly asks for something else:
 Authority split:
 - `docs/public-dev-loop-contract.md` owns the public routing/shorthand contract
 - this file owns workflow layering, source-of-truth boundaries, and the local phase process
+- internal compatibility/routed strategy details stay behind that public contract rather than acting as peer public entrypoints
 
 ## Layers of truth
 

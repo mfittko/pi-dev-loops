@@ -5,9 +5,15 @@
 ## Workflow posture
 
 This repo supports both local and GitHub-first workflows, but the current repo contract is simple:
-- use **`dev-loop`** as the single public workflow entrypoint
+- use **`dev-loop`** as the single public façade and workflow entrypoint
 - prefer the GitHub-first routed path for active implementation and release work when practical
 - use the local implementation strategy only when the user explicitly wants phase-bounded local planning/implementation
+- keep compatibility/internal strategy names behind that public façade rather than presenting them as peer workflow choices
+
+High-level shorthand examples still map to the same public `dev-loop` intent:
+- `auto dev loop on issue 112`
+- `enter copilot auto dev loop on issue 112`
+- `run auto dev loop on 112 until approval gate`
 
 For the canonical public routing and shorthand contract, see `docs/public-dev-loop-contract.md`.
 
