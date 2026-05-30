@@ -10,7 +10,7 @@
  *   - continue_wait          Durable outer-loop wait; re-run after bounded wait
  *   - reenter_copilot_loop   Copilot inner loop needs action
  *   - reenter_reviewer_loop  Reviewer inner loop needs action
- *   - stop                   Terminal, blocked, or isolation-needed; do not proceed
+ *   - stop                   Terminal, blocked, or reconcile-needed; do not proceed
  *   - done                   PR is merged or closed
  *
  * A minimal checkpoint is persisted to
@@ -106,7 +106,7 @@ Outer actions:
   continue_wait          Durable outer-loop wait state; re-run after bounded wait
   reenter_copilot_loop   Copilot inner loop needs action
   reenter_reviewer_loop  Reviewer inner loop needs action
-  stop                   Terminal, blocked, or isolation-needed; do not proceed
+  stop                   Terminal, blocked, or reconcile-needed; do not proceed
   done                   PR is merged or closed; loop complete
 
 Stop reasons:
@@ -114,8 +114,6 @@ Stop reasons:
   copilot_blocked                      Copilot loop is blocked
   reviewer_blocked                     Reviewer loop is blocked
   review_unavailable                   Copilot review is unavailable
-  unsafe_local_edit_requires_isolation Next step needs local mutation/execution
-                                       but checkout is dirty or detached
   unsafe_local_branch_mismatch_requires_reconcile
                                        Next step needs PR-local work but local
                                        branch does not match PR head branch
@@ -347,6 +345,28 @@ function buildPrLocalIdentityStopRouting({
   };
 }
 
+function enrichHandoffWithPrHeadIdentity(routing, { branchName, headSha }) {
+  if (!routing || typeof routing !== "object" || !routing.handoffEnvelope || typeof routing.handoffEnvelope !== "object") {
+    return routing;
+  }
+
+  const requiredArgs = {
+    ...(routing.handoffEnvelope.requiredArgs && typeof routing.handoffEnvelope.requiredArgs === "object"
+      ? routing.handoffEnvelope.requiredArgs
+      : {}),
+    ...(typeof branchName === "string" && branchName.length > 0 ? { headRefName: branchName } : {}),
+    ...(typeof headSha === "string" && headSha.length > 0 ? { headRefOid: headSha } : {}),
+  };
+
+  return {
+    ...routing,
+    handoffEnvelope: {
+      ...routing.handoffEnvelope,
+      requiredArgs,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Checkpoint I/O
 // ---------------------------------------------------------------------------
@@ -541,6 +561,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   let branchIdentity = null;
   if (outerReason === null && sourceMode === "local" && requiresPrLocalIdentityGate(outerAction)) {
     const prHeadIdentity = await fetchPrHeadIdentity({ repo: normalizedRepo, pr }, { env, ghCommand });
+    conductorRouting = enrichHandoffWithPrHeadIdentity(conductorRouting, prHeadIdentity);
     branchIdentity = evaluatePrLocalIdentity({
       localBranch: gitStatus.branchName,
       localHeadSha: gitStatus.headSha,
@@ -548,7 +569,8 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
       prHeadSha: prHeadIdentity.headSha ?? currentHeadSha,
     });
 
-    if (branchIdentity.mismatchReason !== null) {
+    const isolationManagedHandoff = conductorRouting.handoffEnvelope?.requiresLocalIsolation === true;
+    if (branchIdentity.mismatchReason !== null && !isolationManagedHandoff) {
       outerAction = "stop";
       outerReason = branchIdentity.mismatchReason;
       conductorRouting = buildPrLocalIdentityStopRouting({

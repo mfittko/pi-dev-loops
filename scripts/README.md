@@ -497,10 +497,10 @@ Contract:
 - treats draft PRs as a re-entry point into owned draft-stage follow-up rather than a terminal stop
 - treats `waiting_for_copilot_review`, `waiting_for_ci`, reviewer `waiting_for_author_followup`,
   and reviewer `waiting_for_re_request` as outer-loop-owned `continue_wait` states
-- stops with `unsafe_local_edit_requires_isolation` when the next step needs local execution or
-  mutation and the checkout is dirty or detached
+- when the next step needs local execution or mutation and the checkout is dirty or detached, preserves the loop-family handoff and marks `conductorRouting.handoffEnvelope.requiresLocalIsolation=true` so callers can continue from an isolated checkout/worktree instead of treating the boundary as terminal
 - for PR-local re-entry actions, verifies local branch/HEAD identity against the active PR head;
-  stops with `unsafe_local_branch_mismatch_requires_reconcile` or
+  when an isolation-managed handoff is already in effect, it enriches the handoff with `headRefName` / `headRefOid` for the target PR head instead of failing the handoff on the parent checkout's expected mismatch
+- otherwise stops with `unsafe_local_branch_mismatch_requires_reconcile` or
   `unsafe_local_head_mismatch_requires_reconcile` when checkout identity is not aligned
 - when that PR-local identity gate trips, the emitted `conductorRouting` result is also fail-closed
   to a stop outcome with no handoff entrypoint, so consumers cannot keep following a stale handoff envelope

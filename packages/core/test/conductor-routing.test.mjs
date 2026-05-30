@@ -88,7 +88,6 @@ test("STOP_REASON exports the required stop reason codes", () => {
   assert.equal(STOP_REASON.COPILOT_BLOCKED, "copilot_blocked");
   assert.equal(STOP_REASON.REVIEWER_BLOCKED, "reviewer_blocked");
   assert.equal(STOP_REASON.REVIEW_UNAVAILABLE, "review_unavailable");
-  assert.equal(STOP_REASON.UNSAFE_LOCAL_EDIT, "unsafe_local_edit_requires_isolation");
   assert.equal(STOP_REASON.OWNERSHIP_CONFLICT, "ownership_conflict");
   assert.equal(STOP_REASON.UNKNOWN_STATE, "unknown_state");
 });
@@ -292,39 +291,44 @@ test("terminal: copilot done → done_terminal", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 6: unsafe local isolation routes to stop_needs_human
+// Scenario 6: local-isolation-needed states stay as handoffs with requiresLocalIsolation
 // ---------------------------------------------------------------------------
 
-test("isolation: pr_draft + requiresLocalIsolation=true → stop_needs_human", () => {
+test("isolation: pr_draft + requiresLocalIsolation=true → handoff_to_copilot_loop with isolation flag", () => {
   const result = evaluateConductorRouting(makeInput({
     copilotState: "pr_draft",
     reviewerState: "waiting_for_review_request",
     requiresLocalIsolation: true,
   }));
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
-  assert.equal(result.outerAction, "stop");
-  assert.equal(result.stopReason, STOP_REASON.UNSAFE_LOCAL_EDIT);
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP);
+  assert.equal(result.outerAction, "reenter_copilot_loop");
+  assert.equal(result.stopReason, null);
+  assert.equal(result.handoffEnvelope.loopFamily, LOOP_FAMILY.COPILOT_LOOP);
   assert.equal(result.handoffEnvelope.requiresLocalIsolation, true);
 });
 
-test("isolation: unresolved_feedback_present + requiresLocalIsolation=true → stop_needs_human", () => {
+test("isolation: unresolved_feedback_present + requiresLocalIsolation=true → handoff_to_copilot_loop with isolation flag", () => {
   const result = evaluateConductorRouting(makeInput({
     copilotState: "unresolved_feedback_present",
     reviewerState: "waiting_for_author_followup",
     requiresLocalIsolation: true,
   }));
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
-  assert.equal(result.stopReason, STOP_REASON.UNSAFE_LOCAL_EDIT);
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_COPILOT_LOOP);
+  assert.equal(result.outerAction, "reenter_copilot_loop");
+  assert.equal(result.stopReason, null);
+  assert.equal(result.handoffEnvelope.requiresLocalIsolation, true);
 });
 
-test("isolation: reviewer review_requested (needs local) + requiresLocalIsolation=true → stop_needs_human", () => {
+test("isolation: reviewer review_requested (needs local) + requiresLocalIsolation=true → handoff_to_reviewer_loop with isolation flag", () => {
   const result = evaluateConductorRouting(makeInput({
     copilotState: "pr_ready_no_feedback",
     reviewerState: "review_requested",
     requiresLocalIsolation: true,
   }));
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
-  assert.equal(result.stopReason, STOP_REASON.UNSAFE_LOCAL_EDIT);
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.HANDOFF_TO_REVIEWER_LOOP);
+  assert.equal(result.outerAction, "reenter_reviewer_loop");
+  assert.equal(result.stopReason, null);
+  assert.equal(result.handoffEnvelope.requiresLocalIsolation, true);
 });
 
 test("isolation: reviewer waiting_for_user_submit (no local exec needed) + requiresLocalIsolation=true → handoff", () => {
@@ -395,16 +399,18 @@ test("live_owner: pr_draft + ownershipState=live_owner → stay_with_current_liv
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.STAY_WITH_CURRENT_LIVE_OWNER);
 });
 
-test("live_owner: pr_draft + ownershipState=live_owner + requiresLocalIsolation → stop (isolation wins)", () => {
-  // Unsafe isolation takes priority over the live-owner check
+test("live_owner: pr_draft + ownershipState=live_owner + requiresLocalIsolation → stay_with_current_live_owner", () => {
+  // live_owner remains authoritative; requiresLocalIsolation stays on the envelope for the next executor
   const result = evaluateConductorRouting(makeInput({
     copilotState: "pr_draft",
     reviewerState: "waiting_for_review_request",
     ownershipState: "live_owner",
     requiresLocalIsolation: true,
   }));
-  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STOP_NEEDS_HUMAN);
-  assert.equal(result.stopReason, STOP_REASON.UNSAFE_LOCAL_EDIT);
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.STAY_WITH_CURRENT_LIVE_OWNER);
+  assert.equal(result.outerAction, "continue_wait");
+  assert.equal(result.stopReason, null);
+  assert.equal(result.handoffEnvelope.requiresLocalIsolation, true);
 });
 
 test("live_owner: wait states + ownershipState=live_owner → continue_current_wait (unchanged)", () => {

@@ -85,7 +85,7 @@ In that fail-closed result, `handoffEnvelope.targetIdentity` is stable:
 |---|---|---|---|
 | `ownershipState` | `string` | `undefined` | Settled ownership/idempotency classification from `conductor-ownership.mjs`. `"live_owner"` → `stay_with_current_live_owner` for active states. `"duplicate_local_owners"` → `needs_reconcile`. Other values or omission → routing continues purely from states. **See ownership availability note below.** |
 | `sourceMode` | `string` | `"local"` | Source/confidence mode: `"authoritative"` \| `"local"` \| `"snapshot"` |
-| `requiresLocalIsolation` | `boolean` | `false` | Whether the checkout is dirty or detached; blocks states that require local mutation/execution |
+| `requiresLocalIsolation` | `boolean` | `false` | Whether the checkout is dirty or detached; callers must continue local-execution handoffs from an isolated checkout/worktree when this is true |
 
 ### Ownership availability note
 
@@ -181,20 +181,17 @@ The evaluator applies the following first-match-wins priority order:
 | 4 | `copilotState === "review_request_unavailable"` | `stop_needs_human` (`review_unavailable`) |
 | 5 | `copilotState === "blocked_needs_user_decision"` | `stop_needs_human` (`copilot_blocked`) |
 | 6 | `reviewerState === "blocked_needs_user_decision"` | `stop_needs_human` (`reviewer_blocked`) |
-| 7 | `copilotState === "pr_draft"` + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
-| 8 | `copilotState === "pr_draft"` + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
-| 9 | `copilotState === "pr_draft"` | `handoff_to_copilot_loop` |
-| 10 | `copilotState === "waiting_for_copilot_review"` | `continue_current_wait` |
-| 11 | reviewer active state + needs local exec + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
-| 12 | reviewer active state + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
-| 13 | reviewer active state | `handoff_to_reviewer_loop` |
-| 14 | copilot strong-active + needs local exec + `requiresLocalIsolation` | `stop_needs_human` (`unsafe_local_edit_requires_isolation`) |
-| 15 | copilot strong-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
-| 16 | copilot strong-active | `handoff_to_copilot_loop` |
-| 17 | copilot wait state OR reviewer wait state | `continue_current_wait` |
-| 18 | copilot weak-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
-| 19 | copilot weak-active | `handoff_to_copilot_loop` |
-| 20 | anything else | `needs_reconcile` |
+| 7 | `copilotState === "pr_draft"` + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 8 | `copilotState === "pr_draft"` | `handoff_to_copilot_loop` (`requiresLocalIsolation` passthrough when true) |
+| 9 | `copilotState === "waiting_for_copilot_review"` | `continue_current_wait` |
+| 10 | reviewer active state + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 11 | reviewer active state | `handoff_to_reviewer_loop` (`requiresLocalIsolation` passthrough when true) |
+| 12 | copilot strong-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 13 | copilot strong-active | `handoff_to_copilot_loop` (`requiresLocalIsolation` passthrough when true) |
+| 14 | copilot wait state OR reviewer wait state | `continue_current_wait` |
+| 15 | copilot weak-active + `ownershipState === "live_owner"` | `stay_with_current_live_owner` |
+| 16 | copilot weak-active | `handoff_to_copilot_loop` |
+| 17 | anything else | `needs_reconcile` |
 
 **Copilot strong-active states** (win over reviewer wait states): `unresolved_feedback_present`, `already_fixed_needs_reply_resolve`
 
@@ -203,6 +200,8 @@ The evaluator applies the following first-match-wins priority order:
 **Reviewer active states**: `review_requested`, `determine_review_plan`, `reviews_running`, `merge_results`, `draft_review_ready`, `draft_review_posted`, `waiting_for_user_submit`, `submitted_review`, `review_invalidated`
 
 **Reviewer active states needing local execution**: `review_requested`, `determine_review_plan`, `reviews_running`, `merge_results`, `draft_review_ready`
+
+When `requiresLocalIsolation=true`, those local-execution states do **not** become terminal stop outcomes by themselves. The routing result stays on the owning loop family and carries `handoffEnvelope.requiresLocalIsolation=true` so the caller can re-enter from a safe isolated checkout/worktree.
 
 **Copilot/reviewer wait states** (owned by outer loop): `waiting_for_copilot_review`, `waiting_for_ci` (copilot); `waiting_for_author_followup`, `waiting_for_re_request` (reviewer)
 

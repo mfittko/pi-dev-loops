@@ -106,7 +106,6 @@ export const STOP_REASON = Object.freeze({
   COPILOT_BLOCKED: "copilot_blocked",
   REVIEWER_BLOCKED: "reviewer_blocked",
   REVIEW_UNAVAILABLE: "review_unavailable",
-  UNSAFE_LOCAL_EDIT: "unsafe_local_edit_requires_isolation",
   OWNERSHIP_CONFLICT: "ownership_conflict",
   UNKNOWN_STATE: "unknown_state",
 });
@@ -114,12 +113,6 @@ export const STOP_REASON = Object.freeze({
 // ---------------------------------------------------------------------------
 // Internal: state classification sets
 // ---------------------------------------------------------------------------
-
-// Copilot states requiring local mutation or execution
-const COPILOT_NEEDS_LOCAL_EXECUTION = new Set([
-  "pr_draft",
-  "unresolved_feedback_present",
-]);
 
 // Copilot strong active states: win over reviewer wait states
 const COPILOT_STRONG_ACTIVE = new Set([
@@ -150,15 +143,6 @@ const REVIEWER_ACTIVE = new Set([
   "waiting_for_user_submit",
   "submitted_review",
   "review_invalidated",
-]);
-
-// Reviewer states requiring local execution
-const REVIEWER_NEEDS_LOCAL_EXECUTION = new Set([
-  "review_requested",
-  "determine_review_plan",
-  "reviews_running",
-  "merge_results",
-  "draft_review_ready",
 ]);
 
 // Reviewer wait states owned by the outer loop
@@ -315,10 +299,10 @@ function continueCurrentWait({
  *   3. Missing PR (no_pr) → stop_needs_human / pr_not_ready
  *   4. Hard copilot stop (review_request_unavailable, blocked) → stop_needs_human
  *   5. Hard reviewer stop (blocked) → stop_needs_human
- *   6. pr_draft — isolation check, then live-owner check, then handoff
+ *   6. pr_draft — live-owner check, then handoff (marking requiresLocalIsolation when needed)
  *   7. Copilot explicit review-settle wait (waiting_for_copilot_review) → continue_current_wait
- *   8. Reviewer active states — isolation check, live-owner check, handoff
- *   9. Copilot strong active states — isolation check, live-owner check, handoff
+ *   8. Reviewer active states — live-owner check, handoff (marking requiresLocalIsolation when needed)
+ *   9. Copilot strong active states — live-owner check, handoff (marking requiresLocalIsolation when needed)
  *   10. Outer-loop wait states (copilot or reviewer)
  *   11. Copilot weak active states (yield to reviewer wait above)
  *   12. Fallback → needs_reconcile / unknown_state
@@ -449,24 +433,11 @@ function routeFromStates({
     };
   }
 
-  // 6. pr_draft — requires local execution; isolation blocks it
+  // 6. pr_draft — hand off to the copilot loop; dirty/detached checkouts
+  // are surfaced via handoffEnvelope.requiresLocalIsolation so callers can
+  // re-enter from an isolated checkout/worktree instead of treating the seam
+  // as a terminal stop.
   if (copilotState === "pr_draft") {
-    if (requiresLocalIsolation) {
-      return {
-        routingOutcome: ROUTING_OUTCOME.STOP_NEEDS_HUMAN,
-        outerAction: "stop",
-        stopReason: STOP_REASON.UNSAFE_LOCAL_EDIT,
-        handoffEnvelope: buildEnvelope({
-          targetIdentity: normalizedTarget,
-          loopFamily: LOOP_FAMILY.NONE,
-          entrypoint: ENTRYPOINT.NONE,
-          reason: "PR draft requires local execution but checkout is dirty or detached",
-          requiredArgs: baseArgs,
-          requiresLocalIsolation,
-          confidence,
-        }),
-      };
-    }
     if (ownershipState === OWNERSHIP_LIVE_OWNER) {
       return stayWithLiveOwner({ normalizedTarget, copilotState, reviewerState, baseArgs, requiresLocalIsolation, confidence });
     }
@@ -500,22 +471,6 @@ function routeFromStates({
 
   // 8. Reviewer active states
   if (REVIEWER_ACTIVE.has(reviewerState)) {
-    if (REVIEWER_NEEDS_LOCAL_EXECUTION.has(reviewerState) && requiresLocalIsolation) {
-      return {
-        routingOutcome: ROUTING_OUTCOME.STOP_NEEDS_HUMAN,
-        outerAction: "stop",
-        stopReason: STOP_REASON.UNSAFE_LOCAL_EDIT,
-        handoffEnvelope: buildEnvelope({
-          targetIdentity: normalizedTarget,
-          loopFamily: LOOP_FAMILY.NONE,
-          entrypoint: ENTRYPOINT.NONE,
-          reason: `Reviewer state ${reviewerState} requires local execution but checkout is dirty or detached`,
-          requiredArgs: baseArgs,
-          requiresLocalIsolation,
-          confidence,
-        }),
-      };
-    }
     if (ownershipState === OWNERSHIP_LIVE_OWNER) {
       return stayWithLiveOwner({ normalizedTarget, copilotState, reviewerState, baseArgs, requiresLocalIsolation, confidence });
     }
@@ -537,22 +492,6 @@ function routeFromStates({
 
   // 9. Copilot strong active states — win over reviewer wait states
   if (COPILOT_STRONG_ACTIVE.has(copilotState)) {
-    if (COPILOT_NEEDS_LOCAL_EXECUTION.has(copilotState) && requiresLocalIsolation) {
-      return {
-        routingOutcome: ROUTING_OUTCOME.STOP_NEEDS_HUMAN,
-        outerAction: "stop",
-        stopReason: STOP_REASON.UNSAFE_LOCAL_EDIT,
-        handoffEnvelope: buildEnvelope({
-          targetIdentity: normalizedTarget,
-          loopFamily: LOOP_FAMILY.NONE,
-          entrypoint: ENTRYPOINT.NONE,
-          reason: `Copilot state ${copilotState} requires local execution but checkout is dirty or detached`,
-          requiredArgs: baseArgs,
-          requiresLocalIsolation,
-          confidence,
-        }),
-      };
-    }
     if (ownershipState === OWNERSHIP_LIVE_OWNER) {
       return stayWithLiveOwner({ normalizedTarget, copilotState, reviewerState, baseArgs, requiresLocalIsolation, confidence });
     }
