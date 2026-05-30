@@ -92,7 +92,7 @@ Phase 2 improved local phase refinement and clarified RFC boundaries. The next i
 - write the root extension tests first
 - run `node --test test/extension-checks.test.mjs test/extension-command-contract.test.mjs test/extension-package-contract.test.mjs`
 - run existing root tests via the updated root test script
-- run `npm run test:dev-loop` if runnable in this checkout; otherwise record the limitation honestly
+- run `npm run test:dev-loop` for the surviving script-level dev-loop tests, and use the relevant root smoke/contract tests when the touched surface is primarily template-driven
 - run `git diff --check`
 - do a focused read-through of `extension/index.ts`, `extension/checks.ts`, any new presentation helper, `extension/README.md`, and `package.json`
 
@@ -104,7 +104,7 @@ Phase 2 improved local phase refinement and clarified RFC boundaries. The next i
 - Phase 3 should document Node support from `package.json`, Pi host expectations from peer dependencies, and `gh` prerequisite checks without claiming tested Pi/`gh` version ranges that the repo cannot yet prove
 - setup guidance remains advisory rather than mutating in this phase
 - a small pure presentation helper is justified here to keep `extension/index.ts` thin while separating copy and readiness composition from Pi wiring
-- the root test story should be explicit: `npm test` for the current root suite, `npm run test:extension` for extension-specific tests, and `npm run test:dev-loop` separately when the skill-local harness is available
+- the root test story should be explicit: `npm test` for the current root suite, `npm run test:extension` for extension-specific tests, and `npm run test:dev-loop` as the repo-level dev-loop script
 
 ## Open questions
 

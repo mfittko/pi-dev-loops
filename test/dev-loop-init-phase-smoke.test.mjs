@@ -32,6 +32,7 @@ test("init-phase materializes DoD-enabled planning artifacts", async () => {
       await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "manifest.json"), "utf8"),
     );
     const phaseDoc = await readFile(path.join(tempDir, "docs", "phases", "phase-2.md"), "utf8");
+    const variantA = await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "variant-a.md"), "utf8");
     const mergedPlan = await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "merged-plan.md"), "utf8");
     const review = await readFile(path.join(tempDir, "tmp", "phases", "phase-2", "review.md"), "utf8");
 
@@ -46,6 +47,7 @@ test("init-phase materializes DoD-enabled planning artifacts", async () => {
     ]);
     assert.match(phaseDoc, /# phase-2 durable plan/);
     assert.match(phaseDoc, /## Definition of done/);
+    assert.match(variantA, /# Phase phase-2 variant a/);
     assert.match(mergedPlan, /# Phase phase-2 merged plan/);
     assert.match(mergedPlan, /## Definition of done/);
     assert.match(review, /## Definition-of-done clarity check/);

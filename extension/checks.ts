@@ -68,21 +68,6 @@ export function createExtensionCoreRuntime(pi: ExtensionAPI) {
         unavailableDetail: "Install/enable `pi-subagents`; current loops assume subagent support.",
       };
     },
-    async resolveRepoRoot() {
-      try {
-        const result = await pi.exec("bash", ["-lc", "git rev-parse --show-toplevel"], {
-          timeout: 5_000,
-        });
-
-        if (result.code !== 0) {
-          return undefined;
-        }
-
-        return result.stdout.trim() || undefined;
-      } catch {
-        return undefined;
-      }
-    },
   };
 }
 

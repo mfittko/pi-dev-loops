@@ -14,21 +14,11 @@ function createRuntime(overrides = {}) {
     async insideGitRepo() {
       return true;
     },
-    async resolveRepoRoot() {
-      return "/tmp/repo";
-    },
     async getSubagentAvailability() {
       return {
         ok: true,
         availableDetail: "`subagent` tool is available.",
         unavailableDetail: "missing subagent",
-      };
-    },
-    async getSkillAvailability(skillName) {
-      return {
-        ok: true,
-        availableDetail: `skill available: ${skillName}`,
-        unavailableDetail: `skill missing: ${skillName}`,
       };
     },
     ...overrides,
@@ -104,7 +94,6 @@ test("shared executor returns deterministic status and rejects removed install a
     input: ["status"],
     surface: "cli",
     runtime: createRuntime(),
-    homeDirectory: "/tmp/home",
   });
 
   assert.equal(status.kind, "checks");
@@ -116,7 +105,6 @@ test("shared executor returns deterministic status and rejects removed install a
     input: ["install", "repo"],
     surface: "cli",
     runtime: createRuntime(),
-    homeDirectory: "/tmp/home",
   });
 
   assert.deepEqual(removedInstall, {
@@ -130,7 +118,6 @@ test("shared executor returns deterministic status and rejects removed install a
     input: ["update", "system"],
     surface: "cli",
     runtime: createRuntime(),
-    homeDirectory: "/tmp/home",
   });
 
   assert.deepEqual(removedUpdate, {
@@ -144,7 +131,6 @@ test("shared executor returns deterministic status and rejects removed install a
     input: ["install", "repo"],
     surface: "extension",
     runtime: createRuntime(),
-    homeDirectory: "/tmp/home",
   });
 
   assert.deepEqual(removedExtensionInstall, { kind: "help" });
@@ -153,7 +139,6 @@ test("shared executor returns deterministic status and rejects removed install a
     input: ["update", "system"],
     surface: "extension",
     runtime: createRuntime(),
-    homeDirectory: "/tmp/home",
   });
 
   assert.deepEqual(removedExtensionUpdate, { kind: "help" });

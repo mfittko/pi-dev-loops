@@ -1,12 +1,11 @@
 ---
 name: copilot-autopilot
 description: >-
-  Use for end-to-end GitHub-first execution that starts with preflight
-  clarification, normalizes any input (issue number, plan-doc path, or abstract
-  roadmap idea) to a GitHub issue, runs an async issue-refinement fan-out,
-  assigns Copilot, then drives the full draft-PR → local review/fix →
-  Copilot re-review → final review → merge cycle. Pauses for clarification
-  when input is ambiguous rather than proceeding blindly.
+  Internal routed strategy behind `dev-loop` for end-to-end GitHub-first issue
+  intake and Copilot execution: preflight clarification, input normalization to
+  a GitHub issue, async issue refinement, Copilot assignment, then the draft-PR
+  → local review/fix → Copilot re-review → final review → merge cycle. Pauses
+  for clarification when input is ambiguous rather than proceeding blindly.
 compatibility: Pi skill for git+GitHub repositories. Requires gh auth and pi-subagents; async follow-up works best in Pi/TelePi sessions.
 allowed-tools: read bash edit write subagent review_loop
 user-invocable: false
@@ -23,14 +22,14 @@ It extends the `copilot-dev-loop` with:
 3. An **async issue-refinement phase** (fan-out / fan-in) that tightens the issue before Copilot assignment.
 4. The **full GitHub/Copilot lifecycle loop** from Copilot assignment through draft PR, review/fix, Copilot re-review, final review, and merge.
 
-Typical triggers:
+Compatibility phrasing that may route here:
 - start autopilot from issue 42
 - run the full Copilot loop for this plan section
 - auto dev loop on issue 112
 - enter copilot auto dev loop on issue 112
 - run auto dev loop on 112 until approval gate
 
-When these shorthand phrases are used, interpret them as compatibility wording for the same public `dev-loop` intent (not as a second public workflow name), then execute this internal strategy only when routed here by canonical state.
+When these phrases are used, interpret them as compatibility wording for the same public `dev-loop` intent, then execute this internal strategy only when routed here by canonical state.
 
 ## Skill asset path resolution
 

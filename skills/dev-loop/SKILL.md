@@ -364,10 +364,9 @@ After the phase plan passes review:
 1. Write or update tests first.
 2. Implement only enough code for the current phase.
 3. Run local validation:
-   - `npm run check`
-   - `npm test`
-   - `npm run test:coverage`
-   - for user-facing HTML/UI/component slices when the user opts in, add a bounded deterministic browser smoke harness (prefer fixture-backed Playwright WebKit plus screenshot capture), keep the covered UI states explicit and small, and wire it into CI once it becomes required validation for that slice
+   - `npm run verify`
+   - when a narrower local check is more honest for the touched slice, say so explicitly and run the narrowest justified subset instead of pretending the full verify path was unnecessary
+   - for user-facing HTML/UI/component slices when the user opts in, add a bounded deterministic browser smoke harness (prefer fixture-backed Playwright WebKit plus screenshot capture); use `npm run test:playwright:viewer` when that viewer/browser surface is part of the slice, and wire it into CI once it becomes required validation for that slice
 4. Review the implementation against the merged phase plan.
 5. Run the default pre-approval gate as a full review / fix loop on the branch before calling it review-complete, approval-ready, merge-ready, or ready for final handoff:
    - use DRY, KISS, and YAGNI as the default three focused review lenses

@@ -2,12 +2,15 @@
 
 ## Project contract
 
-This repository now uses `dev-loop` as the single public workflow entrypoint.
+This repository uses `dev-loop` as the single public workflow entrypoint.
 
-- Route `dev-loop` deterministically to the GitHub-first internal strategies when work should move through GitHub branches, pull requests, CI, and review.
-- Route `dev-loop` to the local implementation strategy only when the user explicitly wants a local phase-based path.
-- Treat `copilot-dev-loop` and `copilot-autopilot` as internal strategy seams behind `dev-loop`, not as equal public entrypoints and not as default compatibility commitments.
-- This is a greenfield, declutter-first repo: when workflow or agent guidance can be simplified safely, prefer removing or demoting extra surface area over preserving it just in case.
+For the canonical public routing and shorthand contract, see `docs/public-dev-loop-contract.md`.
+
+Repo-specific posture summary:
+- prefer the GitHub-first routed path when work should move through GitHub branches, pull requests, CI, and review
+- use the local implementation strategy only when the user explicitly wants a local phase-based path
+- treat `copilot-dev-loop` and `copilot-autopilot` as internal routed seams behind `dev-loop`, not equal public entrypoints
+- this is a greenfield, declutter-first repo: when workflow or agent guidance can be simplified safely, prefer removing or demoting extra surface area over preserving it just in case
 
 These skills may be provided repo-locally or globally; this contract does not assume a local skill path.
 
@@ -20,6 +23,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Default phase and issue refinement to multiple parallel variants before converging on a merged plan; do not rely on a single-plan synthesis when fan-out is practical.
 - Keep logs under `tmp/` in deterministic phase-scoped paths.
 - Use feature branches and small commits only after local verification.
+- Use `npm run verify` as the default repo-level local verification path when a full local validation pass is warranted.
 - For public-facing or release-bound changes, prefer GitHub issues/PRs/CI over direct local-main finalization.
 - Use detailed structured PR descriptions, not thin placeholder summaries. At minimum include: change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
 - In PR review/fix loops, do not stop at local code changes alone: after an accepted fix is pushed, reply to the addressed review comments with the resolving commit reference and resolve the corresponding threads when genuinely satisfied.

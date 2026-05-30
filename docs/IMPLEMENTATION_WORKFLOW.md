@@ -6,15 +6,13 @@ This repository supports both a local phased workflow and a GitHub-first remote 
 
 Use these defaults unless the user explicitly asks for something else:
 - use **`dev-loop`** as the single public workflow entrypoint
-- let `dev-loop` route deterministically from the canonical current state to the correct internal strategy
-- prefer the GitHub-first internal strategies for active implementation and release work
-- use the local implementation strategy for phase-bounded local planning/implementation when explicitly requested
+- prefer the GitHub-first routed path for active implementation and release work
+- use the local implementation strategy for phase-bounded local planning/implementation only when explicitly requested
 
-In practice:
-- start with `dev-loop` for user-intent requests such as start, continue, or inspect state
-- let routed issue-intake work land in `copilot-autopilot`
-- let routed Copilot-owned PR follow-up work land in `copilot-dev-loop`
-- let explicit local-start requests land in the local implementation strategy inside `dev-loop`
+Authority split:
+- `docs/public-dev-loop-contract.md` owns the public routing/shorthand contract
+- this file owns workflow layering, source-of-truth boundaries, and the local phase process
+- internal compatibility/routed strategy details stay behind that public contract rather than acting as peer public entrypoints
 
 ## Layers of truth
 

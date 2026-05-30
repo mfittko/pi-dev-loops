@@ -22,8 +22,8 @@ jobs:
       - name: Install workspace dependencies
         run: npm ci
 
-      - name: Run test suite
-        run: npm test
+      - name: Run canonical verify suite
+        run: npm run verify
 
       - name: Install Playwright WebKit runtime
         run: npx playwright install --with-deps webkit

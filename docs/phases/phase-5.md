@@ -70,7 +70,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 - `npm run test:core` passes
 - `git diff --check` passes
 - coverage is explicitly verified when tooling is available, or a bounded coverage-tooling gap is recorded under `tmp/phases/phase-5/`
-- `npm run test:dev-loop` is run when available, or the limitation is logged and root/core tests still pass
+- `npm run test:dev-loop` is run as the repo-level dev-loop script
 - no Phase 6+ work is half-implemented under the Phase 5 label
 
 ## Validation approach
@@ -80,7 +80,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 - run `npm test`
 - run `npm run test:core`
 - run `git diff --check`
-- run `npm run test:dev-loop` if available; otherwise record the limitation honestly under `tmp/phases/phase-5/`
+- run `npm run test:dev-loop`
 - probe for local coverage tooling and record a bounded gap if unavailable
 - do a focused read-through of the new root scripts, any shared helper added for them, and `scripts/README.md`
 

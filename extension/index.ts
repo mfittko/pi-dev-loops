@@ -53,7 +53,6 @@ export default function (pi: ExtensionAPI) {
         input: args,
         surface: "extension",
         runtime: createExtensionCoreRuntime(pi),
-        homeDirectory: os.homedir(),
       });
 
       switch (result.kind) {

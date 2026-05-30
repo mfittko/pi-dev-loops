@@ -62,12 +62,14 @@ Current Phase 3+ contract:
 - this phase does not yet claim a specific supported `gh` version; it only checks `gh` presence and authentication state
 - this phase does not require a separate compiled build or `dist/` pipeline
 
-Root tests and skill-local tests are intentionally separate:
+Root verification and test commands are intentionally explicit:
+- `npm run verify` is the canonical root verification path (`npm test` + `npm run test:dev-loop`)
 - `npm test` runs the current root test suite (`test:assets`, `test:extension`, `test:scripts`, and `test:core`)
 - `npm run test:extension`
 - `npm run test:extension` currently expands to one `node --import tsx --test ...` invocation in `package.json`; prefer the script entrypoint over copying the file list into downstream docs or runbooks
 - `npm run test:assets`
 - `npm run test:dev-loop`
+- `npm run test:playwright:viewer` remains an explicit viewer/browser smoke, not part of the default root verify path
 
 ## Design rule
 

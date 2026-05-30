@@ -4,18 +4,18 @@
 
 ## Workflow posture
 
-This repo supports both local and GitHub-first workflows, but the current repo contract is:
-- use **`dev-loop`** as the single public workflow entrypoint
-- let the canonical current state route that public entrypoint deterministically to the correct internal strategy
-- prefer the GitHub-first internal strategies by default for active implementation and release work when practical
+This repo supports both local and GitHub-first workflows, but the current repo contract is simple:
+- use **`dev-loop`** as the single public façade and workflow entrypoint
+- prefer the GitHub-first routed path for active implementation and release work when practical
 - use the local implementation strategy only when the user explicitly wants phase-bounded local planning/implementation
+- keep compatibility/internal strategy names behind that public façade rather than presenting them as peer workflow choices
 
-High-level shorthand examples for the unattended issue-based GitHub/Copilot path:
+High-level shorthand examples still map to the same public `dev-loop` intent:
 - `auto dev loop on issue 112`
 - `enter copilot auto dev loop on issue 112`
 - `run auto dev loop on 112 until approval gate`
 
-These all map to the same public `dev-loop` intent (not a second public workflow name) and continue through the normal GitHub/Copilot loop until the final human approval gate unless merge was explicitly authorized.
+For the canonical public routing and shorthand contract, see `docs/public-dev-loop-contract.md`.
 
 For the latest durable roadmap and status, start with:
 - `PLAN.md`
@@ -151,15 +151,17 @@ Current code and docs assume:
 
 ## Development and validation
 
-Root test commands from `package.json`:
+Root verification and test commands from `package.json`:
+- `npm run verify` — canonical root verification path (`npm test` + `npm run test:dev-loop`)
 - `npm test`
 - `npm run test:assets`
 - `npm run test:extension`
 - `npm run test:scripts`
 - `npm run test:core`
 - `npm run test:dev-loop`
+- `npm run test:playwright:viewer` — explicit viewer/browser smoke, not part of the default root verify path
 
-CI currently runs `npm ci` and `npm test` on Node 24 in `.github/workflows/ci.yml`.
+CI currently runs `npm ci`, `npm run verify`, and the explicit Playwright viewer smoke on Node 24 in `.github/workflows/ci.yml`.
 
 ## Where to read next
 

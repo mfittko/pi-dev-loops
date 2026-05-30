@@ -16,7 +16,6 @@ test("package metadata exposes the extension entrypoint and root extension test 
   assert.equal(typeof packageJson.scripts["test:extension"], "string");
   assert.match(packageJson.scripts["test:extension"], /--import tsx/);
   assert.match(packageJson.scripts["test:extension"], /extension-checks/);
-  assert.match(packageJson.scripts["test:extension"], /extension-installer/);
   assert.match(packageJson.scripts["test:extension"], /extension-command-contract/);
   assert.match(packageJson.scripts["test:extension"], /extension-package-contract/);
   assert.equal(packageJson.dependencies.mermaid, "11.15.0");
@@ -46,6 +45,8 @@ test("extension README documents the command surface and runtime/build/test cont
   assert.doesNotMatch(readme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i);
   assert.match(readme, /node --import tsx --test/i);
   assert.match(readme, /does not yet claim a specific supported `gh` version/i);
+  assert.match(readme, /npm run verify/i);
   assert.match(readme, /npm run test:extension/i);
   assert.match(readme, /npm run test:dev-loop/i);
+  assert.match(readme, /npm run test:playwright:viewer/i);
 });
