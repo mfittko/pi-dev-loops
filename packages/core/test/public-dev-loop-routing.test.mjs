@@ -7,7 +7,6 @@ import {
 } from "../src/loop/retrospective-checkpoint.mjs";
 
 import {
-  COMPATIBILITY_ENTRYPOINT,
   DEV_LOOP_ACTOR,
   DEV_LOOP_AUTHORIZATION,
   DEV_LOOP_ARTIFACT_STATE,
@@ -170,7 +169,6 @@ test("start_on_issue routes to issue_intake through the public dev-loop façade"
   assert.equal(result.selectedGate, DEV_LOOP_GATE.ISSUE_INTAKE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_AUTOPILOT);
   assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.ISSUE);
   assert.equal(result.canonicalState.nextActor, DEV_LOOP_ACTOR.USER);
   assert.equal(result.canonicalState.authorization, DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION);
@@ -211,7 +209,6 @@ test("start_on_issue with a linked PR routes directly to PR follow-up", () => {
   assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
   assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.PR);
   assert.equal(result.canonicalState.target.pr, 88);
 });
@@ -345,7 +342,6 @@ test("start_issue_locally_then_continue routes first to local implementation wit
   assert.equal(result.publicEntrypoint, PUBLIC_DEV_LOOP_ENTRYPOINT);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.DEV_LOOP);
   assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.LOCAL_PHASE);
   assert.match(result.nextAction, /re-enter the same public `dev-loop` entrypoint/i);
 });
@@ -398,7 +394,6 @@ test("continue_on_pr routes Copilot-owned PR follow-up to the compatibility copi
 
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
 });
 
 test("continue_on_pr with conflicting canonical PR state fails closed", () => {
@@ -433,7 +428,6 @@ test("continue_current routes external-human PR ownership to the external PR fol
   assert.equal(result.selectedGate, DEV_LOOP_GATE.EXTERNAL_PR_FOLLOWUP);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.EXTERNAL_PR_FOLLOWUP);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
 });
 
 test("blocked and not-authorized states stop instead of routing", () => {
@@ -468,7 +462,6 @@ test("blocked and not-authorized states stop instead of routing", () => {
     assert.equal(result.selectedGate, DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED);
     assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
     assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
-    assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
   }
 });
 
@@ -487,7 +480,6 @@ test("done states stop as terminal states", () => {
   assert.equal(result.selectedGate, DEV_LOOP_GATE.STOP_DONE_TERMINAL);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
 });
 
 test("approval-ready states route to final approval and keep merge authorization separate", () => {
@@ -506,7 +498,6 @@ test("approval-ready states route to final approval and keep merge authorization
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FINAL_APPROVAL);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
   assert.match(result.nextAction, /do not treat approval as merge authorization/i);
   assert.doesNotMatch(result.nextAction, /approval\/merge/i);
 });
@@ -566,7 +557,6 @@ test("waiting states remain deterministic wait/watch states", () => {
   assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
   assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.DEFAULT);
 });
@@ -607,7 +597,6 @@ test("waiting states with local ownership keep the dev-loop compatibility entryp
   assert.equal(result.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.DEV_LOOP);
 });
 
 test("auto_continue_current routes detected state with durable auto execution mode", () => {
@@ -812,7 +801,6 @@ test("invalid or incomplete inputs fail closed to needs_reconcile", () => {
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
-  assert.equal(result.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
 });
 
 test("authoritative status resolution uses the canonically linked PR identity", () => {
@@ -856,7 +844,6 @@ test("authoritative startup/resume bundle resolves routed state with authoritati
   assert.equal(bundle.activeArtifact.pr, 92);
   assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
-  assert.equal(bundle.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.COPILOT_DEV_LOOP);
   assert.equal(
     bundle.issueLinkageResolution,
     DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR,
@@ -879,7 +866,6 @@ test("authoritative startup/resume bundle fails closed when issue linkage is mis
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
   assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
-  assert.equal(bundle.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
   assert.equal(bundle.loopState, "unknown");
   assert.match(bundle.nextAction, /reconcile/i);
 });
@@ -901,7 +887,6 @@ test("authoritative startup/resume bundle fails closed on target identity confli
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
   assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.NONE);
-  assert.equal(bundle.compatibilityEntrypoint, COMPATIBILITY_ENTRYPOINT.NONE);
 });
 
 test("authoritative startup/resume bundle fails closed on malformed conflicting target identity fields", () => {
@@ -1377,7 +1362,6 @@ test("authoritative status resolution consumes the startup/resume bundle output"
   assert.equal(report.loopState, bundle.loopState);
   assert.equal(report.routeKind, bundle.routeKind);
   assert.equal(report.selectedStrategy, bundle.selectedStrategy);
-  assert.equal(report.compatibilityEntrypoint, bundle.compatibilityEntrypoint);
   assert.equal(report.executionMode, bundle.executionMode);
   assert.equal(report.waitSemantics, bundle.waitSemantics);
   assert.equal(report.asyncRun, bundle.asyncRun);

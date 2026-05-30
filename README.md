@@ -8,12 +8,10 @@ This repo supports both local and GitHub-first work, but the public workflow sur
 - use **`dev-loop`** as the single public façade and workflow entrypoint
 - prefer the GitHub-first routed path for active implementation and release work when practical
 - use the local implementation strategy only when the user explicitly wants phase-bounded local planning/implementation
-- keep compatibility/internal strategy names behind that public façade rather than presenting them as peer workflow choices
+- keep internal routed workflow logic behind that public façade rather than presenting it as peer workflow choices
 
-High-level shorthand examples still map to the same public `dev-loop` intent:
+A canonical shorthand example still maps to the same public `dev-loop` intent:
 - `auto dev loop on issue 112`
-- `enter copilot auto dev loop on issue 112`
-- `run auto dev loop on 112 until approval gate`
 
 The canonical public routing and shorthand contract lives in `docs/public-dev-loop-contract.md`.
 
@@ -25,7 +23,7 @@ Its main surfaces are:
 1. **Role agents** in `agents/`
    - reusable prompts such as coordinator, developer, docs, quality, review, fixer, and refiner
 2. **Workflow skills** in `skills/`
-   - `dev-loop` is the public façade; internal compatibility seams stay internal
+   - `dev-loop` is the public façade; internal routed logic stays internal
 3. **Extension and CLI UX** in `extension/` and `cli/`
    - `/dev-loops` readiness checks plus the `pi-dev-loops` shell command
 4. **Deterministic support code** in `packages/core/`, `scripts/`, and `lib/`

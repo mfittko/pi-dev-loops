@@ -10,6 +10,10 @@ conversation alone. A reviewer or maintainer can inspect which gate ran, which h
 commit was reviewed, whether it passed cleanly, and whether a result is current for
 the latest head — without relying on local or session-only artifacts.
 
+This document owns the visible gate-review comment evidence contract only. It does
+not restate the full PR follow-up procedure; that remains owned by the relevant
+workflow skill.
+
 ## Scope
 
 This contract covers exactly two gates:
@@ -94,6 +98,6 @@ required visible PR comment is confirmed posted for the current head SHA.
 
 | Contract | Relationship |
 |---|---|
-| `draft_gate` boundary | Governs the draft → ready-for-review transition in `copilot-dev-loop` Step 7 and `copilot-autopilot` Phase 6 |
-| `pre_approval_gate` boundary | Governs final-approval readiness in `copilot-dev-loop` Step 7 and `copilot-autopilot` Phase 7 |
+| `draft_gate` boundary | Governs the draft → ready-for-review transition in `copilot-dev-loop` Step 7, including the issue-intake/autonomy overlays now owned there |
+| `pre_approval_gate` boundary | Governs final-approval readiness in `copilot-dev-loop` Step 7, including the issue-intake/autonomy overlays now owned there |
 | Local/session artifacts | These remain complementary; the visible PR comment is the minimum required auditable surface, not a replacement for all local artifacts |

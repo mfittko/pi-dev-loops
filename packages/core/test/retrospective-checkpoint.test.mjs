@@ -250,7 +250,6 @@ test("evaluateRetrospectiveGate: MISSING checkpoint blocks a copilot_pr_followup
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.equal(result.selectedGate, "fail_closed_reconcile");
   assert.equal(result.selectedStrategy, null);
-  assert.equal(result.compatibilityEntrypoint, null);
   assert.match(result.nextAction, /retrospective/i);
   assert.match(result.reason, /missing/i);
 });

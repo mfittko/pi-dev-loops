@@ -49,11 +49,10 @@ Thin workflow entrypoint agents are still allowed, but they must stay thin, defe
 
 Reusable Pi workflow skills under `skills/`, especially:
 - `dev-loop` as the single public façade for start/continue/state requests
-- `copilot-dev-loop` as a compatibility/internal GitHub/Copilot PR execution strategy
-- `copilot-autopilot` as a compatibility/internal issue-first GitHub intake strategy
+- `copilot-dev-loop` as the canonical internal GitHub/Copilot routed strategy, including issue-first intake and PR follow-up behavior behind `dev-loop`
 
 Skills own sequencing, handoff rules, and operator-facing workflow policy.
-The public entrypoint should expose user intent; internal strategy names are compatibility shims, not the primary UX.
+The public entrypoint should expose user intent; internal strategy names should stay minimal and should not be preserved as compatibility shims without an explicit active contract.
 
 ### 3. Extension and CLI surface
 
@@ -81,6 +80,12 @@ Keep durable judgment and operator guidance in markdown, but move repeatable ope
 ### Thin wrappers over shared contracts
 
 Prefer thin entrypoint agents, thin skills, thin CLI wrappers, and thin extension surfaces over duplicated logic in many places.
+
+### Canonical-over-compatibility posture
+
+Prefer one concise canonical workflow/documentation surface over backwards-compatibility shims, legacy aliases, or duplicate prompt layers.
+
+Do not preserve legacy names or compatibility seams by default. Keep them only when an explicitly approved active contract still requires them.
 
 ### Package-first where it helps, source-loaded where it is practical
 

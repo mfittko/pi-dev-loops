@@ -121,7 +121,6 @@ export function evaluateRetrospectiveGate({ checkpointState, proposedRouting } =
       routeKind: "needs_reconcile",
       selectedGate: "fail_closed_reconcile",
       selectedStrategy: null,
-      compatibilityEntrypoint: null,
       executionMode: "bounded_handoff",
       waitSemantics: "default",
       canonicalState: null,
@@ -156,7 +155,6 @@ export function evaluateRetrospectiveGate({ checkpointState, proposedRouting } =
       routeKind: "needs_reconcile",
       selectedGate: "fail_closed_reconcile",
       selectedStrategy: null,
-      compatibilityEntrypoint: null,
       waitSemantics: proposedRouting.waitSemantics ?? "default",
       issueAssignmentSeam: proposedRouting.issueAssignmentSeam ?? "not_applicable",
       nextAction:
@@ -172,7 +170,6 @@ export function evaluateRetrospectiveGate({ checkpointState, proposedRouting } =
     routeKind: "needs_reconcile",
     selectedGate: "fail_closed_reconcile",
     selectedStrategy: null,
-    compatibilityEntrypoint: null,
     waitSemantics: proposedRouting.waitSemantics ?? "default",
     issueAssignmentSeam: proposedRouting.issueAssignmentSeam ?? "not_applicable",
     nextAction: "Reconcile the retrospective checkpoint state before routing.",
