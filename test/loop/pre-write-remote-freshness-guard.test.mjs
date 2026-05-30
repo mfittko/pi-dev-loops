@@ -43,7 +43,7 @@ async function writeGitStub(tempDir, { commits = [], logFile } = {}) {
     gitPath,
     [
       "#!/usr/bin/env node",
-      "const { appendFileSync } = await import('node:fs');",
+      "import { appendFileSync } from 'node:fs';",
       "const args = process.argv.slice(2);",
       "const joined = args.join(' ');",
       "if (process.env.FRESHNESS_GUARD_LOG_FILE) {",

@@ -41,7 +41,7 @@ async function writeGitStub(tempDir, { branch = "copilot/feature-branch", logFil
     gitPath,
     [
       "#!/usr/bin/env node",
-      "const { appendFileSync } = await import('node:fs');",
+      "import { appendFileSync } from 'node:fs';",
       "const args = process.argv.slice(2);",
       "const joined = args.join(' ');",
       "if (process.env.BRANCH_GUARD_LOG_FILE) {",
