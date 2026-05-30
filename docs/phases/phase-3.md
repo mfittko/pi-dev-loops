@@ -92,7 +92,7 @@ Phase 2 improved local phase refinement and clarified RFC boundaries. The next i
 - write the root extension tests first
 - run `node --test test/extension-checks.test.mjs test/extension-command-contract.test.mjs test/extension-package-contract.test.mjs`
 - run existing root tests via the updated root test script
-- run `npm run test:dev-loop`
+- run `npm run test:dev-loop` for the surviving script-level dev-loop tests, and use the relevant root smoke/contract tests when the touched surface is primarily template-driven
 - run `git diff --check`
 - do a focused read-through of `extension/index.ts`, `extension/checks.ts`, any new presentation helper, `extension/README.md`, and `package.json`
 

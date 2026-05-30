@@ -612,7 +612,8 @@ Strong defaults:
 - if the repo does not yet define CI-equivalent scripts, say so explicitly and run the narrowest honest validation available
 
 Useful examples in this repository:
-- changes under `skills/dev-loop/scripts/` or the remaining `skills/dev-loop/templates/` surface: `npm run test:dev-loop`
+- changes under `skills/dev-loop/scripts/`: `npm run test:dev-loop`
+- changes under `skills/dev-loop/templates/`: run the relevant root smoke/contract tests (for example `npm run test:assets`) because `test:dev-loop` currently covers the surviving script-level tests only
 - docs-only changes: `git diff --check` and targeted markdown review
 - frontmatter or skill-only changes: parse/inspect the updated `SKILL.md` files and note any remaining gaps
 

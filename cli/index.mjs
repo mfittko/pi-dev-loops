@@ -222,9 +222,17 @@ export async function runCli({
   }
 }
 
-const invokedAsScript = process.argv[1]
-  ? fileURLToPath(import.meta.url) === fileURLToPath(pathToFileURL(process.argv[1]))
-  : false;
+const invokedAsScript = (() => {
+  if (!process.argv[1]) {
+    return false;
+  }
+
+  try {
+    return fileURLToPath(import.meta.url) === fileURLToPath(pathToFileURL(path.resolve(process.argv[1])));
+  } catch {
+    return false;
+  }
+})();
 
 if (invokedAsScript) {
   process.exitCode = await runCli();
