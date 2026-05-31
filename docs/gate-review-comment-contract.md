@@ -80,6 +80,9 @@ Every gate-review PR comment must include:
   gate-review comment exists for the current head SHA.
 - A gate-review comment for an older head SHA does not satisfy this requirement for
   the current head.
+- If a PR is already non-draft but still lacks clean current-head `draft_gate`
+  evidence, automation must fail closed and reconcile that missing draft-boundary
+  evidence before continuing post-draft review/merge flow.
 
 ### Pre-approval gate (`pre_approval_gate`) comment requirements
 
