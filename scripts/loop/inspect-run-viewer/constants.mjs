@@ -9,7 +9,7 @@ export const USAGE = `Usage: inspect-run-viewer.mjs [--repo <owner/name>]
 
 Owned read-only local/operator inspection dashboard for inspect-run snapshots.
 inspect-run remains authoritative for inspection/status state; this viewer owns local inbox discovery plus read-only presentation/prioritization.
-Use ?pr=<number> and optionally ?repo=<owner/name> in the browser URL.
+Inbox-first mode works with no PR selected. Use ?pr=<number> to deep-link a selected PR and optionally ?repo=<owner/name> to scope the inbox.
 
 Optional:
   --repo <owner/name>                     Restrict the inbox to one repo
