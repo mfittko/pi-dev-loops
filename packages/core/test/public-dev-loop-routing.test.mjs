@@ -2613,6 +2613,9 @@ test("authoritative startup/resume bundle preserves the retrospective gate nextA
 
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
   assert.match(bundle.nextAction, /Complete or explicitly skip/i);
+  assert.equal(bundle.contractTrace.stateRefresh.loopState, "copilot_followup_active");
+  assert.equal(bundle.contractTrace.stateRefresh.artifactState, DEV_LOOP_ARTIFACT_STATE.OPEN);
+  assert.equal(bundle.contractTrace.stateRefresh.issueLinkageResolution, DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE);
 });
 
 test("authoritative status preserves the retrospective gate nextAction", () => {
@@ -2632,6 +2635,9 @@ test("authoritative status preserves the retrospective gate nextAction", () => {
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
   assert.match(report.nextAction, /Complete or explicitly skip/i);
+  assert.equal(report.contractTrace.stateRefresh.loopState, "copilot_followup_active");
+  assert.equal(report.contractTrace.stateRefresh.artifactState, DEV_LOOP_ARTIFACT_STATE.OPEN);
+  assert.equal(report.contractTrace.stateRefresh.issueLinkageResolution, DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE);
 });
 
 test("retrospective gate rewrites contract trace classification to reconcile", () => {

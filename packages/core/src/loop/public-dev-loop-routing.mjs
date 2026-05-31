@@ -1023,6 +1023,7 @@ function buildStatusReconcile(
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
   waitTimeoutPolicy = null,
   asyncRun = null,
+  { artifactState = null, loopState = null, issueLinkageResolution = null } = {},
 ) {
   const result = {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE,
@@ -1055,6 +1056,9 @@ function buildStatusReconcile(
         boundaryKind: "authoritative_status_refresh",
         refreshRequired: true,
         refreshReason: "Status answers are derived from refreshed authoritative state and must fail closed when that refresh cannot justify the stop classification.",
+        ...(loopState !== null ? { loopState } : {}),
+        ...(artifactState !== null ? { artifactState } : {}),
+        ...(issueLinkageResolution !== null ? { issueLinkageResolution } : {}),
       },
     }),
   };
@@ -1065,6 +1069,7 @@ function buildStartupResumeBundleReconcile({
   canonicalState = null,
   issueLinkageResolution = null,
   artifactState = null,
+  loopState = null,
   nextAction = "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
   executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
@@ -1103,6 +1108,9 @@ function buildStartupResumeBundleReconcile({
         boundaryKind: "startup_resume_refresh",
         refreshRequired: true,
         refreshReason: "Startup/resume routing must record the refreshed authoritative state boundary that justified this stop or reconcile decision.",
+        ...(loopState !== null ? { loopState } : {}),
+        ...(artifactState !== null ? { artifactState } : {}),
+        ...(issueLinkageResolution !== null ? { issueLinkageResolution } : {}),
       },
     }),
   };
@@ -1322,6 +1330,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState: normalizeArtifactState(input.artifactState),
+      loopState,
     });
   }
 
@@ -1336,6 +1345,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState: normalizeArtifactState(input.artifactState),
+      loopState,
     });
   }
   const canonicalStateForRouting = bootstrapRefresh.canonicalState;
@@ -1348,6 +1358,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       reason: "Issue targets require explicit authoritative issue↔PR linkage resolution before routing startup/resume state.",
       canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
+      loopState,
     });
   }
 
@@ -1356,6 +1367,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       reason: "Issue↔PR linkage resolution is incomplete or conflicts with canonical current state; reconcile before routing startup/resume state.",
       canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
+      loopState,
     });
   }
 
@@ -1369,6 +1381,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
         reason: "Copilot-first issue targets require explicit authoritative issue readiness before assignment/routing decisions.",
         canonicalState,
         issueLinkageResolution: normalizedIssueLinkageResolution,
+        loopState,
       });
     }
 
@@ -1377,6 +1390,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
         reason: "Copilot-first issue targets require explicit authoritative issue assignment state before assignment/routing decisions.",
         canonicalState,
         issueLinkageResolution: normalizedIssueLinkageResolution,
+        loopState,
       });
     }
   }
@@ -1394,6 +1408,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       issueLinkageResolution: normalizedIssueLinkageResolution,
       executionMode: routed.executionMode,
       waitSemantics: routed.waitSemantics,
+      loopState,
     });
   }
 
@@ -1404,6 +1419,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       canonicalState: routed.canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState: null,
+      loopState,
     });
   }
 
@@ -1413,6 +1429,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       canonicalState: routed.canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState,
+      loopState,
     });
   }
 
@@ -1441,6 +1458,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       waitSemantics: effectiveRouted.waitSemantics,
       waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
       asyncRun,
+      loopState,
     });
   }
 
@@ -1526,6 +1544,11 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
       bundle.waitSemantics,
       bundle.waitTimeoutPolicy,
       bundle.asyncRun,
+      {
+        artifactState: bundle.contractTrace?.stateRefresh?.artifactState ?? bundle.artifactState,
+        loopState: bundle.contractTrace?.stateRefresh?.loopState ?? bundle.loopState,
+        issueLinkageResolution: bundle.contractTrace?.stateRefresh?.issueLinkageResolution ?? bundle.issueLinkageResolution,
+      },
     );
   }
 
