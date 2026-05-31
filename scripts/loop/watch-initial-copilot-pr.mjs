@@ -41,6 +41,7 @@ import { spawn } from "node:child_process";
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { detectInitialCopilotPrState, LINKED_PR_STATE } from "./detect-initial-copilot-pr-state.mjs";
+import { enforcePersistentInternalWaitTimeout } from "../../packages/core/src/loop/timeout-policy.mjs";
 
 const USAGE = `Usage: watch-initial-copilot-pr.mjs --repo <owner/name> --issue <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
 
@@ -63,7 +64,9 @@ Required:
 
 Optional:
   --poll-interval-ms <ms>       Milliseconds between polls (default: 60000, i.e. 1 minute)
-  --timeout-ms <ms>             Total watch budget in ms; 0 = single check (default: 3600000, i.e. 1 hour)
+  --timeout-ms <ms>             Total watch budget in ms; 0 = explicit single-check status probe.
+                                Persistent unattended waits must be at least 3600000 (1 hour).
+                                Default: 3600000 (1 hour)
 
 Output (stdout, JSON):
   { "ok": true, "status": "ready_for_followup"|"timed_out"|"prior_linked_pr_closed_unmerged",
@@ -237,6 +240,17 @@ export function parseWatchInitialCopilotPrCliArgs(argv) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
 
+  try {
+    options.timeoutMs = options.timeoutMs === 0
+      ? 0
+      : enforcePersistentInternalWaitTimeout({
+        timeoutMs: options.timeoutMs,
+        contextLabel: "watch-initial-copilot-pr persistent wait",
+      });
+  } catch (error) {
+    throw parseError(error instanceof Error ? error.message : String(error));
+  }
+
   return options;
 }
 
@@ -271,7 +285,13 @@ export async function watchInitialCopilotPr(
     watchCopilotRunUntilCompleteImpl = watchCopilotRunUntilComplete,
   } = {},
 ) {
-  const { repo, issue, pollIntervalMs, timeoutMs } = options;
+  const effectiveTimeoutMs = options.timeoutMs === 0
+    ? 0
+    : enforcePersistentInternalWaitTimeout({
+      timeoutMs: options.timeoutMs,
+      contextLabel: "watch-initial-copilot-pr persistent wait",
+    });
+  const { repo, issue, pollIntervalMs } = options;
   const startMs = nowMs();
   let attempts = 0;
 
@@ -311,7 +331,7 @@ export async function watchInitialCopilotPr(
     // and `no_linked_pr` are healthy non-terminal wait states for this seam.
     // Only budget exhaustion terminates the loop.
 
-    if (timeoutMs === 0 || elapsedMs >= timeoutMs) {
+    if (effectiveTimeoutMs === 0 || elapsedMs >= effectiveTimeoutMs) {
       return {
         ok: true,
         status: "timed_out",
@@ -332,7 +352,7 @@ export async function watchInitialCopilotPr(
         {
           repo,
           runId: detection.sessionRunId,
-          timeoutMs: timeoutMs - elapsedMs,
+          timeoutMs: effectiveTimeoutMs - elapsedMs,
         },
         { env, ghCommand },
       );
@@ -351,7 +371,7 @@ export async function watchInitialCopilotPr(
       continue;
     }
 
-    const remaining = timeoutMs - (nowMs() - startMs);
+    const remaining = effectiveTimeoutMs - (nowMs() - startMs);
     if (remaining > 0) {
       await delayImpl(Math.min(pollIntervalMs, remaining));
     }

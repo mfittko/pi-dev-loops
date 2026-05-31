@@ -32,6 +32,10 @@ import {
   resolveAuthoritativeStartupResumeBundle,
   resolveAuthoritativeDevLoopStatus,
 } from "../src/loop/public-dev-loop-routing.mjs";
+import {
+  EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
+  PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY,
+} from "../src/loop/timeout-policy.mjs";
 
 const publicContractUrl = new URL("../../../skills/docs/public-dev-loop-contract.md", import.meta.url);
 
@@ -559,6 +563,7 @@ test("waiting states remain deterministic wait/watch states", () => {
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
   assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.DEFAULT);
+  assert.deepEqual(result.waitTimeoutPolicy, PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY);
 });
 
 test("waiting linked issue states route as the authoritative linked PR artifact", () => {
@@ -635,6 +640,7 @@ test("auto_continue_current keeps healthy watch states non-escalating", () => {
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.deepEqual(result.waitTimeoutPolicy, EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY);
   assert.match(result.nextAction, /do not escalate timeout\/no-activity alone as attention/i);
 });
 

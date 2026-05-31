@@ -2,6 +2,10 @@ import {
   evaluateRetrospectiveGate,
   normalizeRetrospectiveCheckpointState,
 } from "./retrospective-checkpoint.mjs";
+import {
+  EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
+  PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY,
+} from "./timeout-policy.mjs";
 
 /**
  * Public dev-loop façade routing contract.
@@ -506,6 +510,7 @@ function buildResult({
   reason,
   executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
+  waitTimeoutPolicy = null,
   issueAssignmentSeam = DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.NOT_APPLICABLE,
 }) {
   return {
@@ -515,6 +520,7 @@ function buildResult({
     selectedStrategy,
     executionMode,
     waitSemantics,
+    waitTimeoutPolicy,
     canonicalState,
     issueAssignmentSeam,
     nextAction,
@@ -774,6 +780,9 @@ function routeForState(
       waitSemantics: isDurableAuto
         ? DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT
         : DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
+      waitTimeoutPolicy: isDurableAuto
+        ? EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY
+        : PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY,
       canonicalState: routableCanonicalState,
       nextAction: isDurableAuto
         ? "Remain in durable auto ownership while waiting on the same canonical state; do not escalate timeout/no-activity alone as attention."

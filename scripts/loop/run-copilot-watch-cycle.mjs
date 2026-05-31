@@ -8,6 +8,10 @@ import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { watchCopilotReview } from "../github/watch-copilot-review.mjs";
 import { runHandoff } from "./copilot-pr-handoff.mjs";
 import { detectCopilotSessionActivity } from "./detect-copilot-session-activity.mjs";
+import {
+  EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
+  enforceExternalHealthyWaitTimeout,
+} from "../../packages/core/src/loop/timeout-policy.mjs";
 
 const USAGE = `Usage: run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number> [--force-rerequest-review] [--probe-only]
 
@@ -22,12 +26,13 @@ Optional:
                             same-head suppression is active
   --probe-only              Use a single immediate recheck (timeout 0) for
                             explicit status probes only; normal async waiting
-                            keeps the emitted non-zero watch timeout
+                            keeps the emitted long-lived persistent wait timeout
 
 Output (stdout, JSON):
   { "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...",
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
     "reviewRequestStatus"?: "...", "watchArgs"?: { ... },
+    "watchTimeoutPolicy"?: { "classification": "...", "minimumTimeoutMs": N, "defaultTimeoutMs": N },
     "sessionActivity"?: { ... },
     "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... },
     "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done",
@@ -124,12 +129,12 @@ async function watchWorkflowRun({ repo, runId, timeoutMs = null }, { env, ghComm
   });
 }
 
-function determineWatchTimeout({ probeOnly, defaultTimeoutMs, sessionActivity }) {
-  if (probeOnly || sessionActivity === "active") {
-    return 0;
-  }
-
-  return defaultTimeoutMs;
+function determineWatchTimeout({ probeOnly, defaultTimeoutMs }) {
+  return enforceExternalHealthyWaitTimeout({
+    timeoutMs: defaultTimeoutMs,
+    explicitProbe: probeOnly,
+    contextLabel: "Copilot review wait",
+  });
 }
 
 export function parseWatchCycleCliArgs(argv) {
@@ -220,9 +225,22 @@ export async function runWatchCycle(
     result.watchArgs = handoff.watchArgs;
   }
 
+  if (handoff.watchTimeoutPolicy !== undefined) {
+    result.watchTimeoutPolicy = handoff.watchTimeoutPolicy;
+  }
+
   if (handoff.action !== "watch") {
     return result;
   }
+
+  if (result.watchTimeoutPolicy === undefined) {
+    result.watchTimeoutPolicy = EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY;
+  }
+
+  const persistentWatchTimeoutMs = determineWatchTimeout({
+    probeOnly: false,
+    defaultTimeoutMs: handoff.watchArgs.timeoutMs,
+  });
 
   if (detectSessionActivity) {
     const headBranch = await fetchPrHeadBranchImpl({ repo: options.repo, pr: options.pr }, { env, ghCommand });
@@ -244,7 +262,7 @@ export async function runWatchCycle(
         {
           repo: options.repo,
           runId: session.runId,
-          timeoutMs: handoff.watchArgs.timeoutMs,
+          timeoutMs: persistentWatchTimeoutMs,
         },
         { env, ghCommand },
       );
@@ -255,8 +273,7 @@ export async function runWatchCycle(
     ...handoff.watchArgs,
     timeoutMs: determineWatchTimeout({
       probeOnly: options.probeOnly,
-      defaultTimeoutMs: handoff.watchArgs.timeoutMs,
-      sessionActivity: result.sessionActivity?.activity ?? null,
+      defaultTimeoutMs: persistentWatchTimeoutMs,
     }),
   };
   const watch = await watchCopilotReviewImpl(watchOptions, { env, ghCommand });
