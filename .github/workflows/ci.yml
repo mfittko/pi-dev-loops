@@ -23,6 +23,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install workspace dependencies
+        run: npm ci
+
       - name: Determine whether inspect-run viewer smoke is required
         id: inspect-run-viewer-scope
         env:
