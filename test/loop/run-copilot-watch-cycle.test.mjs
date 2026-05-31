@@ -101,6 +101,19 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
         snapshot: { repo: "owner/repo", pr: 17 },
         loopDisposition: "pending",
         terminal: false,
+        requestWatchContract: {
+          action: "watch",
+          nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+          requestStatus: "requested",
+          routingState: "copilot_request_confirmed_waiting",
+          watchEntryConfirmed: true,
+          watchArgs: {
+            repo: "owner/repo",
+            pr: 17,
+            pollIntervalMs: 60_000,
+            timeoutMs: 86_400_000,
+          },
+        },
         watchArgs: {
           repo: "owner/repo",
           pr: 17,
@@ -132,6 +145,7 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
   assert.equal(result.terminal, false);
   assert.equal(result.watchStatus, "timeout");
   assert.equal(result.state, "waiting_for_copilot_review");
+  assert.equal(result.requestWatchContract.routingState, "copilot_request_confirmed_waiting");
   assert.equal(result.contractTrace.waitStrategy.mode, "persistent_watch");
   assert.equal(result.contractTrace.waitStrategy.effectiveTimeoutMs, 86_400_000);
   assert.equal(result.contractTrace.waitStrategy.effectivePollIntervalMs, 60_000);

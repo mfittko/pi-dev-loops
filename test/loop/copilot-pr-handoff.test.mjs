@@ -242,6 +242,9 @@ test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_
     assert.equal(output.watchArgs.pr, 17);
     assert.equal(output.watchArgs.pollIntervalMs, 60_000);
     assert.equal(output.watchArgs.timeoutMs, 86_400_000);
+    assert.equal(output.requestWatchContract.requestStatus, "requested");
+    assert.equal(output.requestWatchContract.routingState, "copilot_request_confirmed_waiting");
+    assert.equal(output.requestWatchContract.watchEntryConfirmed, true);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -412,6 +415,45 @@ test("copilot-pr-handoff does not request review when statusCheckRollup is missi
   }
 });
 
+test("copilot-pr-handoff reports draft reset as ready-state reentry requirement", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-draft-reentry-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          ...JSON.parse(OPEN_PR),
+          isDraft: true,
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "pr_draft");
+    assert.equal(output.watchArgs, undefined);
+    assert.equal(output.requestWatchContract.routingState, "draft_reset_requires_ready_state_reentry");
+    assert.equal(output.requestWatchContract.stopState, "draft_requires_ready_state_reentry");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Handoff: unavailable → stop
 // ---------------------------------------------------------------------------
@@ -474,6 +516,8 @@ test("copilot-pr-handoff emits stop action when Copilot review is unavailable", 
     assert.equal(output.state, "review_request_unavailable");
     assert.equal(output.reviewRequestStatus, "unavailable");
     assert.equal(output.watchArgs, undefined);
+    assert.equal(output.requestWatchContract.requestStatus, "unavailable");
+    assert.equal(output.requestWatchContract.stopState, "unavailable");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1246,6 +1290,9 @@ test("copilot-pr-handoff keeps same-head suppression without --force-rerequest-r
     assert.equal(output.action, "stop");
     assert.equal(output.state, "ready_to_rerequest_review");
     assert.equal(output.reviewRequestStatus, undefined);
+    assert.equal(output.requestWatchContract.requestStatus, "none");
+    assert.equal(output.requestWatchContract.routingState, "non_ready_state");
+    assert.equal(output.requestWatchContract.stopState, "no_automatic_next_step");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

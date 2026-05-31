@@ -32,6 +32,7 @@ Optional:
 Output (stdout, JSON):
   { "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...",
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
+    "requestWatchContract"?: { ... },
     "reviewRequestStatus"?: "...", "watchArgs"?: { ... },
     "watchTimeoutPolicy"?: { "classification": "...", "minimumTimeoutMs": N, "defaultTimeoutMs": N },
     "contractTrace"?: { ... },
@@ -282,6 +283,10 @@ export async function runWatchCycle(
     cycleDisposition: handoff.action === "stop" ? "terminal" : "needs_followup",
     terminal: Boolean(handoff.terminal),
   };
+
+  if (handoff.requestWatchContract !== undefined) {
+    result.requestWatchContract = handoff.requestWatchContract;
+  }
 
   if (handoff.reviewRequestStatus !== undefined) {
     result.reviewRequestStatus = handoff.reviewRequestStatus;

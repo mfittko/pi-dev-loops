@@ -190,6 +190,16 @@ When a user explicitly asks to enter or continue the async Copilot dev loop, lan
 
 The same rule applies after a successful narrow follow-up fix / reply-resolve / re-request cycle. If the next deterministic state returns to `waiting_for_copilot_review`, resume watch mode again instead of treating the re-request handoff as the end of the async run. Handoff-only behavior is a separate, narrower contract and must be explicitly requested.
 
+## Normal request/watch routing contract
+
+The normal request/re-request/watch routing seam is helper-owned in `scripts/loop/copilot-pr-handoff.mjs` (not markdown-owned). Use its machine-readable output as the contract:
+
+- top-level `action`, `nextAction`, `reviewRequestStatus`, `watchArgs`, `loopDisposition`, `terminal`
+- `requestWatchContract.routingState` (`ready_state_needs_copilot_request`, `copilot_request_confirmed_waiting`, `draft_reset_requires_ready_state_reentry`, `non_ready_state`)
+- `requestWatchContract.stopState` for explicit stop/blocked routing (`unavailable`, `blocked`, `draft_requires_ready_state_reentry`, `no_automatic_next_step`)
+
+Skills and operational docs should reference this helper contract for deterministic branching and reserve markdown for policy/operator judgment.
+
 ## Related Scripts
 
 | Script | Purpose |
