@@ -961,6 +961,7 @@ test("copilot-dev-loop skill documents epic decomposition with GitHub sub-issue 
   assert.match(skillContent, /Do \*\*not\*\* re-implement sub-issue management ad hoc or bypass `manage-sub-issues\.mjs`/i);
   assert.match(skillContent, /Do \*\*not\*\* maintain a body checklist that duplicates the sub-issue tree/i);
   assert.match(skillContent, /sub-issue-tree-contract\.md/i);
+  assert.match(skillContent, /\.\.\/\.\.\/docs\/sub-issue-tree-contract\.md/i);
 });
 
 test("sub-issue tree contract documents the workflow, helper commands, and lean-body rule", async () => {

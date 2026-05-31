@@ -365,7 +365,7 @@ node <resolved-skill-scripts>/github/manage-sub-issues.mjs list \
 Do **not** re-implement sub-issue management ad hoc or bypass `manage-sub-issues.mjs`.
 Do **not** maintain a body checklist that duplicates the sub-issue tree.
 
-For the full `manage-sub-issues.mjs` contract, see `../docs/sub-issue-tree-contract.md`
+For the full `manage-sub-issues.mjs` contract, see `../../docs/sub-issue-tree-contract.md` when working in the source repository.
 in the resolved skill docs directory. In the `pi-dev-loops` source repository that file lives
 under `../../docs/` relative to this file.
 

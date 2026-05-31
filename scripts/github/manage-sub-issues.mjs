@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
-
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 
 const USAGE = `Usage: manage-sub-issues.mjs <command> --repo <owner/name> --issue <number> [options]
@@ -54,16 +53,6 @@ Error output (stderr, JSON):
 
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
-}
-
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-
-  return value;
 }
 
 function parseIssueNumber(value) {
@@ -134,27 +123,27 @@ export function parseManageSubIssuesCliArgs(argv) {
     }
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo").trim();
+      options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
 
     if (token === "--issue") {
-      options.issue = parseIssueNumber(requireOptionValue(args, "--issue"));
+      options.issue = parseIssueNumber(requireOptionValue(args, "--issue", parseError));
       continue;
     }
 
     if (token === "--child") {
-      options.child = parseIssueNumber(requireOptionValue(args, "--child"));
+      options.child = parseIssueNumber(requireOptionValue(args, "--child", parseError));
       continue;
     }
 
     if (token === "--order") {
-      options.order = parseIssueList(requireOptionValue(args, "--order"));
+      options.order = parseIssueList(requireOptionValue(args, "--order", parseError));
       continue;
     }
 
     if (token === "--expected") {
-      options.expected = parseIssueList(requireOptionValue(args, "--expected"));
+      options.expected = parseIssueList(requireOptionValue(args, "--expected", parseError));
       continue;
     }
 
@@ -189,31 +178,6 @@ export function parseManageSubIssuesCliArgs(argv) {
   }
 
   return options;
-}
-
-function runChild(command, args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
 }
 
 function buildSubIssuesListPath(owner, name, issue) {
