@@ -129,14 +129,16 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
 });
 
 
-test("CI caches the Playwright WebKit runtime in a deterministic workspace-local path", async () => {
+test("CI uses Node24-ready first-party actions and caches the Playwright WebKit runtime in a deterministic workspace-local path", async () => {
   const [ciWorkflow, readme] = await Promise.all([
     readRepo(".github/workflows/ci.yml"),
     readRepo("README.md"),
   ]);
 
   assert.match(ciWorkflow, /PLAYWRIGHT_BROWSERS_PATH:\s*\$\{\{\s*github\.workspace\s*\}\}\/\.cache\/ms-playwright/i);
-  assert.match(ciWorkflow, /actions\/cache@v4/i);
+  assert.match(ciWorkflow, /actions\/checkout@v5/i);
+  assert.match(ciWorkflow, /actions\/setup-node@v5/i);
+  assert.match(ciWorkflow, /actions\/cache@v5/i);
   assert.match(ciWorkflow, /path:\s*\$\{\{\s*env\.PLAYWRIGHT_BROWSERS_PATH\s*\}\}/i);
   assert.match(ciWorkflow, /key:\s*\$\{\{\s*runner\.os\s*\}\}-playwright-webkit-\$\{\{\s*hashFiles\('package-lock\.json'\)\s*\}\}/i);
   assert.match(ciWorkflow, /npx playwright install --with-deps webkit/i);
