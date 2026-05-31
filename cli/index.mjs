@@ -16,7 +16,7 @@ import {
 const CLI_SETUP_GUIDANCE = {
   "gh-installed": "Install GitHub CLI to enable remote GitHub/Copilot workflows.",
   "gh-auth": "Run `gh auth login` so remote GitHub/Copilot workflows can use your GitHub session.",
-  "subagent-tool": "Install or enable `pi-subagents`; the shared loop workflows assume subagent support.",
+  "subagent-command": "Install or enable subagent support so the `subagent` command is available.",
   "git-repo": "Run the command from a git repository checkout before using repo-scoped workflows.",
 };
 
@@ -153,11 +153,11 @@ export function createCliRuntime({
       return spawnResult("git", ["rev-parse", "--is-inside-work-tree"], { cwd }).ok;
     },
     async getSubagentAvailability() {
-      const ok = await commandExists("pi-subagents", { searchPath, platform, pathExt });
+      const ok = await commandExists("subagent", { searchPath, platform, pathExt });
       return {
         ok,
-        availableDetail: "`pi-subagents` is available on PATH.",
-        unavailableDetail: "Install or enable `pi-subagents`; current loops assume subagent support.",
+        availableDetail: "`subagent` command is available.",
+        unavailableDetail: "Install or enable subagent support so `subagent` is available.",
       };
     },
   };

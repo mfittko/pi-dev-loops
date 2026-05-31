@@ -68,9 +68,9 @@ function readyPi() {
     commandResults: new Map([
       ["command -v gh >/dev/null 2>&1", 0],
       ["gh auth status >/dev/null 2>&1", 0],
+      ["command -v subagent >/dev/null 2>&1", 0],
       ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 0],
     ]),
-    tools: [{ name: "subagent" }],
     commands: [{ name: "skill:dev-loop" }],
   });
 }

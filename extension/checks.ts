@@ -60,12 +60,11 @@ export function createExtensionCoreRuntime(pi: ExtensionAPI) {
     ghAuthOk: () => ghAuthOk(pi),
     insideGitRepo: () => insideGitRepo(pi),
     async getSubagentAvailability() {
-      const tools = pi.getAllTools();
-      const ok = tools.some((tool) => tool.name === "subagent");
+      const ok = await commandExists(pi, "subagent");
       return {
         ok,
-        availableDetail: "`subagent` tool is available.",
-        unavailableDetail: "Install/enable `pi-subagents`; current loops assume subagent support.",
+        availableDetail: "`subagent` command is available.",
+        unavailableDetail: "Install or enable subagent support so `subagent` is available.",
       };
     },
   };

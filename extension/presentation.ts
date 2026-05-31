@@ -7,7 +7,7 @@ export type DevLoopsAction = "doctor" | "help" | "status" | "hide";
 const SETUP_GUIDANCE: Record<(typeof DEV_LOOP_CHECK_IDS)[number], string> = {
   "gh-installed": "Install GitHub CLI to enable remote GitHub/Copilot workflows.",
   "gh-auth": "Run `gh auth login` so remote GitHub/Copilot workflows can use your GitHub session.",
-  "subagent-tool": "Install or enable `pi-subagents`; the shared loop workflows assume subagent support.",
+  "subagent-command": "Install or enable subagent support so the `subagent` command is available.",
   "git-repo": "Open Pi inside a git repository checkout before using the shared loops.",
 };
 
