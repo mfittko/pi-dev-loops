@@ -544,6 +544,47 @@ test("detect-initial-copilot-pr-state returns copilot_session_active while Copil
   }
 });
 
+test("detect-initial-copilot-pr-state keeps bootstrap wait for approval-gated action_required runs", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-action-required-bootstrap-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload(),
+      },
+      {
+        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
+        stdout: pullRequestFactsPayload(),
+      },
+      {
+        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
+        stdout: workflowRunsPayload([
+          {
+            databaseId: 555,
+            name: "Addressing comment on PR mfittko/pi-dev-loops#79",
+            status: "in_progress",
+            conclusion: "action_required",
+            createdAt: "2026-05-21T12:00:00Z",
+          },
+        ]),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.state, "waiting_for_initial_copilot_implementation");
+    assert.equal(payload.sessionActivity, "concluded");
+    assert.equal(payload.sessionRunId, 555);
+    assert.equal(payload.sessionRunConclusion, "action_required");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-initial-copilot-pr-state rejects malformed arguments deterministically", async () => {
   const missingIssue = await runNode(["--repo", "owner/repo"]);
   assert.equal(missingIssue.code, 1);

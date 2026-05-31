@@ -39,7 +39,7 @@ Success output (stdout, JSON):
     "sessionRunId": 123|null,
     "sessionRunName": "..."|null,
     "sessionRunStatus": "..."|null,
-    "sessionRunConclusion": "success"|null,
+    "sessionRunConclusion": string|null,
     "sessionRunCreatedAt": "..."|null,
     "sessionConfidence": "high"|null
   }

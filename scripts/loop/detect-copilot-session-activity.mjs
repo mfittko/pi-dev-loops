@@ -17,7 +17,9 @@ Optional:
 
 Activity values:
   active      Matching Copilot workflow run is currently in progress
-  concluded   Most recent matching Copilot workflow run completed
+  concluded   Most recent matching Copilot workflow run completed, or the latest
+              matching run is approval-gated in "action_required" and should be
+              treated as a non-blocking observational signal
   idle        No matching Copilot workflow run found on this branch
 
 Success output (stdout, JSON):
@@ -25,9 +27,9 @@ Success output (stdout, JSON):
     "ok": true,
     "activity": "active"|"concluded"|"idle",
     "runId": 123456|null,
-    "runName": "...",
-    "runStatus": "in_progress"|"completed"|null,
-    "runConclusion": "success"|null,
+    "runName": "..."|null,
+    "runStatus": "queued"|"in_progress"|"pending"|"requested"|"waiting"|"action_required"|"completed"|null,
+    "runConclusion": string|null,
     "runCreatedAt": "..."|null,
     "branch": "...",
     "confidence": "high"
@@ -195,6 +197,12 @@ function toActivityPayload(activity, branch, run = null) {
   };
 }
 
+function isApprovalGatedActionRequired(run) {
+  const status = String(run?.runStatus ?? "").trim().toLowerCase();
+  const conclusion = String(run?.runConclusion ?? "").trim().toLowerCase();
+  return status === "action_required" || conclusion === "action_required";
+}
+
 export async function detectCopilotSessionActivity({ repo, branch, limit = DEFAULT_LIMIT }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
@@ -227,6 +235,10 @@ export async function detectCopilotSessionActivity({ repo, branch, limit = DEFAU
   if (runs.length > 0) {
     const latest = runs[0];
     const latestStatus = String(latest.runStatus ?? "").toLowerCase();
+
+    if (isApprovalGatedActionRequired(latest)) {
+      return toActivityPayload("concluded", branch, latest);
+    }
 
     if (ACTIVE_RUN_STATUSES.has(latestStatus)) {
       return toActivityPayload("active", branch, latest);
