@@ -342,6 +342,41 @@ test("runWatchCycle preserves done loopDisposition for stop states without invok
   assert.equal(result.contractTrace.stopReason.classification, "terminal");
 });
 
+test("runWatchCycle preserves blocked classification for stop states without invoking the watcher", async () => {
+  let watcherCalled = false;
+
+  const result = await runWatchCycle(
+    {
+      repo: "owner/repo",
+      pr: 17,
+      forceRerequestReview: false,
+      probeOnly: false,
+    },
+    {
+      runHandoffImpl: async () => ({
+        ok: true,
+        action: "stop",
+        state: "blocked_needs_user_decision",
+        allowedTransitions: [],
+        nextAction: "Stop for a human decision",
+        snapshot: { repo: "owner/repo", pr: 17 },
+        loopDisposition: "blocked",
+        terminal: true,
+      }),
+      watchCopilotReviewImpl: async () => {
+        watcherCalled = true;
+        return { ok: true, status: "timeout", repo: "owner/repo", pr: 17, attempts: 1, newComments: [], newReviews: [], newIssueComments: [] };
+      },
+    },
+  );
+
+  assert.equal(watcherCalled, false);
+  assert.equal(result.loopDisposition, "blocked");
+  assert.equal(result.cycleDisposition, "terminal");
+  assert.equal(result.terminal, true);
+  assert.equal(result.contractTrace.stopReason.classification, "blocked");
+});
+
 test("runWatchCycle integration keeps initial request-review -> waiting_for_copilot_review non-terminal", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-cycle-initial-request-"));
   let watcherOptions;

@@ -150,9 +150,11 @@ function buildWatchCycleContractTrace({
   workflowRunWatch = null,
 }) {
   const boundaryClassification = handoff.action !== "watch"
-    ? (handoff.terminal
-      ? DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.TERMINAL
-      : DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.ROUTED_FOLLOWUP)
+    ? (handoff.loopDisposition === "blocked"
+      ? DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.BLOCKED
+      : handoff.terminal
+        ? DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.TERMINAL
+        : DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.ROUTED_FOLLOWUP)
     : watchStatus === "changed"
       ? DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.ROUTED_FOLLOWUP
       : DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.HEALTHY_WAIT;
