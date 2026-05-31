@@ -755,6 +755,48 @@ test("renderInspectRunViewerHtml does not headline waiting_for_ci when reviewer 
   assert.doesNotMatch(html, /<span class="assigned-pr-headline">Waiting for CI<\/span>/);
 });
 
+test("renderInspectRunViewerHtml uses a gate inbox signal when clean convergence still needs gate evidence", () => {
+  const gateSnapshot = makeSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    outerState: "continue_current_wait",
+    outerAction: "continue_wait",
+    activeFamilyState: "continue_wait",
+    statusClass: "waiting",
+    needsAttention: false,
+    layers: {
+      copilot: {
+        currentState: "ready_to_rerequest_review",
+        allowedTransitions: ["waiting_for_copilot_review", "review_request_unavailable", "done"],
+        sameHeadCleanConverged: true,
+        loopDisposition: "clean_converged",
+        terminal: true,
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        submittedReviewState: "APPROVED",
+        approvedOnCurrentHead: true,
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request", "waiting_for_review_request"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: gateSnapshot,
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 55 }, title: "fix: gate signal", updatedAt: "2026-05-22T00:00:00Z", snapshot: gateSnapshot },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row assigned-pr-row-gate is-selected/);
+  assert.match(html, /data-inbox-signal="gate"/);
+  assert.match(html, /<span class="assigned-pr-signal-emoji" aria-label="Gate review required">🛡️<\/span>/);
+  assert.match(html, /Gate review required/);
+});
+
 test("renderInspectRunViewerHtml keeps hard attention ahead of waiting layer inbox signals", () => {
   const attentionSnapshot = makeSnapshot({
     target: { repo: "owner/repo", pr: 3 },
@@ -1723,12 +1765,12 @@ test("createInspectRunViewerServer preserves cached authoritative inbox signals 
     const address = server.address();
     const firstResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=55`);
     assert.equal(firstResponse.statusCode, 200);
-    assert.match(firstResponse.body, /assigned-pr-row-pending/);
+    assert.match(firstResponse.body, /assigned-pr-row-gate/);
 
     const secondResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=77`);
     assert.equal(secondResponse.statusCode, 200);
     assert.match(secondResponse.body, /Ready PR/);
-    assert.match(secondResponse.body, /assigned-pr-row-pending/);
+    assert.match(secondResponse.body, /assigned-pr-row-gate/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

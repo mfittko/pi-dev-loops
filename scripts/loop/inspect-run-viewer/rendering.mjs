@@ -1244,6 +1244,13 @@ export function deriveInboxSignalFromSnapshot(snapshot) {
     return "attention";
   }
 
+  if ((copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead)
+    || sameHeadCleanConverged
+    || copilotLoopDisposition === "clean_converged"
+    || copilotTerminal) {
+    return "gate";
+  }
+
   // Layer states that represent genuine waiting take priority over outer routing signals
   // (e.g. waiting_for_copilot_review beats handoff_to_reviewer_loop so sidebar and banner agree).
   if (copilotState === "waiting_for_copilot_review"
@@ -1267,13 +1274,6 @@ export function deriveInboxSignalFromSnapshot(snapshot) {
     return "ready";
   }
 
-  if ((copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead)
-    || sameHeadCleanConverged
-    || copilotLoopDisposition === "clean_converged"
-    || copilotTerminal) {
-    return "pending";
-  }
-
   if (snapshot.sourceMode === "unavailable") {
     return "unknown";
   }
@@ -1281,7 +1281,7 @@ export function deriveInboxSignalFromSnapshot(snapshot) {
   return "waiting";
 }
 
-const VALID_INBOX_SIGNALS = new Set(["attention", "pending", "ready", "closed", "unknown", "waiting"]);
+const VALID_INBOX_SIGNALS = new Set(["attention", "pending", "gate", "ready", "closed", "unknown", "waiting"]);
 
 function inboxSignalEmoji(signal) {
   switch (signal) {
@@ -1289,6 +1289,7 @@ function inboxSignalEmoji(signal) {
     case "attention": return "🔴";
     case "waiting": return "⏳";
     case "pending": return "🔄";
+    case "gate": return "🛡️";
     case "closed": return "✖️";
     default: return "❓";
   }
@@ -1305,6 +1306,8 @@ function describeInboxSignal(signal) {
       return { label: "Needs attention", shortLabel: "Attention" };
     case "pending":
       return { label: "CI pending", shortLabel: "CI" };
+    case "gate":
+      return { label: "Gate review required", shortLabel: "Gate" };
     case "ready":
       return { label: "Ready", shortLabel: "Ready" };
     case "closed":
@@ -1659,6 +1662,7 @@ export function renderInspectRunViewerHtml({
       .assigned-pr-row { border: 1px solid #d6e0ea; border-left: 0.32rem solid #8ca3b8; border-radius: 0.5rem; background: #fff; }
       .assigned-pr-row.assigned-pr-row-attention { border-left-color: #c87400; }
       .assigned-pr-row.assigned-pr-row-pending { border-left-color: #b88900; }
+      .assigned-pr-row.assigned-pr-row-gate { border-left-color: #6f42c1; }
       .assigned-pr-row.assigned-pr-row-ready { border-left-color: #2e7d32; }
       .assigned-pr-row.assigned-pr-row-closed { border-left-color: #7a8694; }
       .assigned-pr-row.assigned-pr-row-unknown { border-left-color: #8ca3b8; }
