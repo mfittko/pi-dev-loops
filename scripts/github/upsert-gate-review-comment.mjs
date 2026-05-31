@@ -4,6 +4,8 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { truncateText } from "../../packages/core/src/bash-exit-one.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { detectGateReviewEvidence } from "./detect-gate-review-evidence.mjs";
+import { detectPrGateCoordinationState } from "../loop/detect-pr-gate-coordination-state.mjs";
+import { PR_GATE_ACTION } from "../../packages/core/src/loop/pr-gate-coordination.mjs";
 
 const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
 const GATE_VERDICTS = new Set(["clean", "findings_present", "blocked"]);
@@ -383,6 +385,13 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
 }
 
 export async function upsertGateReviewComment(options, { env = process.env, ghCommand = "gh" } = {}) {
+  if (options.gate === "pre_approval_gate") {
+    const coordination = await detectPrGateCoordinationState({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+    if (coordination.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE)) {
+      throw new Error(`Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`);
+    }
+  }
+
   const evidence = await detectGateReviewEvidence({ repo: options.repo, pr: options.pr }, { env, ghCommand });
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
   const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha });
