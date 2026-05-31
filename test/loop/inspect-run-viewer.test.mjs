@@ -985,6 +985,47 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; done; full authoritative state machine shown; no allowed transitions/);
 });
 
+test("renderInspectRunViewerHtml keeps stale approved snapshots on waiting until Copilot is re-requested", () => {
+  const staleApprovedSnapshot = makeSnapshot({
+    target: { repo: "owner/repo", pr: 57 },
+    outerState: "continue_current_wait",
+    outerAction: "continue_wait",
+    activeFamilyState: "continue_wait",
+    statusClass: "waiting",
+    needsAttention: false,
+    layers: {
+      copilot: {
+        currentState: "ready_to_rerequest_review",
+        allowedTransitions: ["waiting_for_copilot_review", "review_request_unavailable", "done"],
+        sameHeadCleanConverged: false,
+        loopDisposition: "pending",
+        terminal: false,
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        submittedReviewState: "APPROVED",
+        approvedOnCurrentHead: true,
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request", "waiting_for_review_request"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 57 },
+    snapshot: staleApprovedSnapshot,
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 57 }, title: "fix: stale approved signal", updatedAt: "2026-05-22T00:00:00Z", snapshot: staleApprovedSnapshot },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row assigned-pr-row-waiting is-selected/);
+  assert.match(html, /data-inbox-signal="waiting"/);
+  assert.doesNotMatch(html, /Gate review required/);
+});
+
 test("renderInspectRunViewerHtml keeps completed snapshots on the ready inbox signal", () => {
   const doneSnapshot = makeSnapshot({
     target: { repo: "owner/repo", pr: 56 },

@@ -1244,8 +1244,7 @@ export function deriveInboxSignalFromSnapshot(snapshot) {
     return "attention";
   }
 
-  if ((copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead)
-    || sameHeadCleanConverged
+  if (sameHeadCleanConverged
     || copilotLoopDisposition === "clean_converged") {
     return "gate";
   }
