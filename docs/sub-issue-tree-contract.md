@@ -38,7 +38,9 @@ When refining an umbrella issue into executable slices:
 4. **Attach children as real sub-issues** using `manage-sub-issues.mjs add`.
 5. **Set execution order** using `manage-sub-issues.mjs reorder` — first in the list is
    highest priority.
-6. **Keep the parent issue body lean** — sequencing and progress now live in the sub-issue tree.
+6. **Verify the resulting tree** using `manage-sub-issues.mjs verify` so attachment and order are
+   confirmed deterministically before the parent body stops carrying sequence details.
+7. **Keep the parent issue body lean** — sequencing and progress now live in the sub-issue tree.
    The parent body should carry scope/context/acceptance criteria but not duplicate the ordered
    child list.
 
