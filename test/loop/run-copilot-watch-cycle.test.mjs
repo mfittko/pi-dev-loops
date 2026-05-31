@@ -751,6 +751,7 @@ test("runWatchCycle integration bounds active Copilot workflow waits by the emit
   assert.equal(result.contractTrace.orchestration.workflowRunWatch.attempted, true);
   assert.equal(result.contractTrace.orchestration.workflowRunWatch.timeoutMs, 86_400_000);
   assert.equal(result.contractTrace.orchestration.workflowRunWatch.runId, 444);
+  assert.equal(result.contractTrace.orchestration.workflowRunWatch.status, "timed_out");
 });
 
 test("runWatchCycle integration keeps the full persistent watch timeout after active Copilot workflow waits", async () => {

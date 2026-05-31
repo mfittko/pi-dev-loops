@@ -1622,26 +1622,32 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     ?? (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT
       ? DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO
       : DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
+  const buildInputReconcile = (reason, canonicalState = null, executionMode = requestedExecutionMode) => buildReconcile(
+    reason,
+    canonicalState,
+    executionMode,
+    { watchRequested },
+  );
 
   // Fail closed on unrecognized variation parameter values
   if (input.mode !== undefined && variationMode === null) {
-    return buildReconcile(`Unrecognized \`mode\` parameter; allowed values: ${ALLOWED_MODE_VALUES_TEXT}.`, null, requestedExecutionMode);
+    return buildInputReconcile(`Unrecognized \`mode\` parameter; allowed values: ${ALLOWED_MODE_VALUES_TEXT}.`, null, requestedExecutionMode);
   }
   if (input.targetPreference !== undefined && targetPreference === null) {
-    return buildReconcile(`Unrecognized \`targetPreference\` parameter; allowed values: ${ALLOWED_TARGET_PREFERENCE_VALUES_TEXT}.`, null, requestedExecutionMode);
+    return buildInputReconcile(`Unrecognized \`targetPreference\` parameter; allowed values: ${ALLOWED_TARGET_PREFERENCE_VALUES_TEXT}.`, null, requestedExecutionMode);
   }
   if (watchProvided && typeof input.watch !== "boolean") {
-    return buildReconcile("Unrecognized `watch` parameter; allowed values: true or false.", null, requestedExecutionMode);
+    return buildInputReconcile("Unrecognized `watch` parameter; allowed values: true or false.", null, requestedExecutionMode);
   }
   if (acceptsIssueAssignmentFacts && input.issueReadiness !== undefined && issueReadiness === null) {
-    return buildReconcile(
+    return buildInputReconcile(
       `Unrecognized \`issueReadiness\` input; allowed values: ${Object.values(DEV_LOOP_ISSUE_READINESS).join(", ")}.`,
       null,
       requestedExecutionMode,
     );
   }
   if (acceptsIssueAssignmentFacts && input.issueAssignmentState !== undefined && issueAssignmentState === null) {
-    return buildReconcile(
+    return buildInputReconcile(
       `Unrecognized \`issueAssignmentState\` input; allowed values: ${Object.values(DEV_LOOP_ISSUE_ASSIGNMENT_STATE).join(", ")}.`,
       null,
       requestedExecutionMode,
@@ -1649,7 +1655,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   }
 
   if (retrospectiveCheckpointStateProvided && retrospectiveCheckpointState === null) {
-    return buildReconcile(
+    return buildInputReconcile(
       "Unrecognized `retrospectiveCheckpointState` input; allowed values: none, complete, skipped, missing.",
       null,
       requestedExecutionMode,
@@ -1677,7 +1683,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   };
 
   if (!intent) {
-    return buildReconcile("The public dev-loop intent is missing or unrecognized.", null, requestedExecutionMode);
+    return buildInputReconcile("The public dev-loop intent is missing or unrecognized.", null, requestedExecutionMode);
   }
 
   // ── Resolve effective execution mode ─────────────────────────────────────
@@ -1685,7 +1691,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   let effectiveMode;
   if (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT) {
     if (variationMode === DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF) {
-      return buildReconcile(
+      return buildInputReconcile(
         "`mode=bounded_handoff` conflicts with the `auto_continue_current` intent; `auto_continue_current` always uses durable auto execution mode.",
         explicitState,
         DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
@@ -1697,7 +1703,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   }
 
   if (variationMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO && !explicitState) {
-    return buildReconcile(
+    return buildInputReconcile(
       "`mode=durable_auto` requires a valid authoritative current state.",
       null,
       DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
@@ -1707,7 +1713,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE) {
     if (!explicitState) {
-      return buildReconcile("`inspect_state` requires a valid canonical current state.", null, effectiveMode);
+      return buildInputReconcile("`inspect_state` requires a valid canonical current state.", null, effectiveMode);
     }
 
     const routed = routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode });
@@ -1720,16 +1726,16 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE) {
     if (!explicitTarget || explicitTarget.kind !== DEV_LOOP_TARGET_KIND.ISSUE) {
-      return buildReconcile("`start_on_issue` requires an issue target.", null, effectiveMode);
+      return buildInputReconcile("`start_on_issue` requires an issue target.", null, effectiveMode);
     }
 
     if (input.currentState !== undefined && !explicitState) {
-      return buildReconcile("`start_on_issue` received an invalid canonical current state.", null, effectiveMode);
+      return buildInputReconcile("`start_on_issue` received an invalid canonical current state.", null, effectiveMode);
     }
 
     if (explicitState) {
       if (explicitState.target.issue !== explicitTarget.issue) {
-        return buildReconcile("`start_on_issue` target conflicts with the canonical current state.", explicitState, effectiveMode);
+        return buildInputReconcile("`start_on_issue` target conflicts with the canonical current state.", explicitState, effectiveMode);
       }
 
       // targetPreference=prefer_local must not override authoritative linked-PR or PR state
@@ -1738,7 +1744,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
           explicitState.target.kind === DEV_LOOP_TARGET_KIND.PR ||
           (explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && explicitState.target.linkedPr !== null);
         if (isLinkedPrState) {
-          return buildReconcile(
+          return buildInputReconcile(
             "`targetPreference=prefer_local` conflicts with authoritative PR/linked-PR active artifact state; reconcile before overriding the routed path.",
             explicitState,
             effectiveMode,
@@ -1790,11 +1796,11 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     intent === DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY_THEN_CONTINUE
   ) {
     if (!explicitTarget || explicitTarget.kind !== DEV_LOOP_TARGET_KIND.ISSUE) {
-      return buildReconcile("Local issue-start intents require an issue target.", null, effectiveMode);
+      return buildInputReconcile("Local issue-start intents require an issue target.", null, effectiveMode);
     }
 
     if (input.currentState !== undefined && !explicitState) {
-      return buildReconcile("Local issue-start intents received an invalid canonical current state.", null, effectiveMode);
+      return buildInputReconcile("Local issue-start intents received an invalid canonical current state.", null, effectiveMode);
     }
 
     if (explicitState) {
@@ -1802,7 +1808,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         explicitState.target.kind !== DEV_LOOP_TARGET_KIND.LOCAL_PHASE ||
         explicitState.target.issue !== explicitTarget.issue
       ) {
-        return buildReconcile("Local issue-start target conflicts with the canonical current state.", explicitState, effectiveMode);
+        return buildInputReconcile("Local issue-start target conflicts with the canonical current state.", explicitState, effectiveMode);
       }
       return finalizeRoutingResult(applyWatchValidation(
         routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
@@ -1838,18 +1844,18 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR) {
     if (!explicitTarget || explicitTarget.kind !== DEV_LOOP_TARGET_KIND.PR) {
-      return buildReconcile("`continue_on_pr` requires a PR target.", null, effectiveMode);
+      return buildInputReconcile("`continue_on_pr` requires a PR target.", null, effectiveMode);
     }
     if (!explicitState || explicitState.target.kind !== DEV_LOOP_TARGET_KIND.PR) {
-      return buildReconcile("`continue_on_pr` requires a valid canonical PR state.", explicitState, effectiveMode);
+      return buildInputReconcile("`continue_on_pr` requires a valid canonical PR state.", explicitState, effectiveMode);
     }
     if (explicitState.target.pr !== explicitTarget.pr) {
-      return buildReconcile("`continue_on_pr` target conflicts with the canonical current PR state.", explicitState, effectiveMode);
+      return buildInputReconcile("`continue_on_pr` target conflicts with the canonical current PR state.", explicitState, effectiveMode);
     }
 
     // targetPreference=prefer_local must not override an active PR artifact
     if (targetPreference === DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL) {
-      return buildReconcile(
+      return buildInputReconcile(
         "`targetPreference=prefer_local` conflicts with authoritative PR/linked-PR active artifact state; reconcile before overriding the routed path.",
         explicitState,
         effectiveMode,
@@ -1864,7 +1870,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT) {
     if (!explicitState) {
-      return buildReconcile("`continue_current` requires a valid canonical current state.", null, effectiveMode);
+      return buildInputReconcile("`continue_current` requires a valid canonical current state.", null, effectiveMode);
     }
 
     // targetPreference=prefer_local must not override an active PR artifact or linked-PR state
@@ -1873,7 +1879,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         explicitState.target.kind === DEV_LOOP_TARGET_KIND.PR ||
         (explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && explicitState.target.linkedPr !== null);
       if (isLinkedPrState) {
-        return buildReconcile(
+        return buildInputReconcile(
           "`targetPreference=prefer_local` conflicts with authoritative PR/linked-PR active artifact state; reconcile before overriding the routed path.",
           explicitState,
           effectiveMode,
@@ -1889,7 +1895,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT) {
     if (!explicitState) {
-      return buildReconcile(
+      return buildInputReconcile(
         "`auto_continue_current` requires a valid canonical current state.",
         null,
         DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
@@ -1901,5 +1907,5 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     ));
   }
 
-  return buildReconcile("The public dev-loop intent is recognized but not implemented in this first slice.", null, effectiveMode);
+  return buildInputReconcile("The public dev-loop intent is recognized but not implemented in this first slice.", null, effectiveMode);
 }

@@ -2038,6 +2038,24 @@ test("unrecognized mode value fails closed", () => {
   assert.match(result.reason, /unrecognized `mode` parameter/i);
 });
 
+test("watch-requested invalid mode preserves watchRequested in contract trace", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    mode: "some_unknown_mode",
+    watch: true,
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.contractTrace.decision.watchRequested, true);
+});
+
 test("auto_continue_current invalid mode preserves derived durable_auto execution mode", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
