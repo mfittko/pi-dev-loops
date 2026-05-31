@@ -19,7 +19,6 @@ import {
  */
 
 export const PUBLIC_DEV_LOOP_ENTRYPOINT = "dev-loop";
-const COPILOT_ISSUE_ASSIGNEE = "copilot-swe-agent";
 
 export const DEV_LOOP_PUBLIC_INTENT = Object.freeze({
   START_ON_ISSUE: "start_on_issue",
@@ -280,12 +279,3 @@ export const PUBLIC_DEV_LOOP_GATE_CONTRACT = Object.freeze([
   }),
 ]);
 
-const TARGET_KIND_SET = new Set(Object.values(DEV_LOOP_TARGET_KIND));
-const ACTOR_SET = new Set(Object.values(DEV_LOOP_ACTOR));
-const STATUS_SET = new Set(Object.values(DEV_LOOP_STATUS));
-const AUTHORIZATION_SET = new Set(Object.values(DEV_LOOP_AUTHORIZATION));
-const INTENT_SET = new Set(Object.values(DEV_LOOP_PUBLIC_INTENT));
-const ARTIFACT_STATE_SET = new Set(Object.values(DEV_LOOP_ARTIFACT_STATE));
-const ISSUE_LINKAGE_RESOLUTION_SET = new Set(Object.values(DEV_LOOP_ISSUE_LINKAGE_RESOLUTION));
-const ISSUE_READINESS_SET = new Set(Object.values(DEV_LOOP_ISSUE_READINESS));
-const ISSUE_ASSIGNMENT_STATE_SET = new Set(Object.values(DEV_LOOP_ISSUE_ASSIGNMENT_STATE));
