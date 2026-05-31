@@ -83,7 +83,7 @@ function jsonLine(value) {
   return `${JSON.stringify(value)}\n`;
 }
 
-test("detect-pr-gate-coordination-state forbids pre-approval before the post-draft review cycle settles", async () => {
+test("detect-pr-gate-coordination-state fails closed for non-draft PRs missing current-head clean draft-gate evidence", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-state-"));
 
   try {
@@ -118,11 +118,11 @@ test("detect-pr-gate-coordination-state forbids pre-approval before the post-dra
         }),
       },
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "headRefOid"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "headRefOid"],
         stdout: jsonLine({ headRefOid: "def56789abcdef" }),
       },
       {
-        assertArgs: ["api", "--paginate", "repos/owner/repo/issues/266/comments?per_page=100"],
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"],
         stdout: jsonLine([[
           {
             id: 11,
@@ -150,8 +150,8 @@ test("detect-pr-gate-coordination-state forbids pre-approval before the post-dra
       pr: 266,
       currentHeadSha: "def56789abcdef",
       lifecycleState: "pr_ready_no_feedback",
-      loopDisposition: "action_required",
-      gateBoundary: "post_draft_external_review",
+      loopDisposition: "blocked",
+      gateBoundary: "blocked",
       draftGate: {
         visible: true,
         currentHead: false,
@@ -172,10 +172,21 @@ test("detect-pr-gate-coordination-state forbids pre-approval before the post-dra
         contractComplete: false,
         currentHeadClean: false,
       },
-      allowedNextActions: ["request_copilot_review"],
-      forbiddenActions: ["run_draft_gate", "mark_ready_for_review", "run_pre_approval_gate", "declare_merge_ready"],
-      nextAction: "request_copilot_review",
-      reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
+      allowedNextActions: ["report_blocked"],
+      forbiddenActions: [
+        "run_draft_gate",
+        "mark_ready_for_review",
+        "request_copilot_review",
+        "wait_for_copilot_review",
+        "wait_for_ci",
+        "address_review_feedback",
+        "reply_resolve_review_threads",
+        "rerequest_copilot_review",
+        "run_pre_approval_gate",
+        "declare_merge_ready",
+      ],
+      nextAction: "report_blocked",
+      reason: "The PR is already non-draft but lacks current-head clean `draft_gate` evidence; fail closed and reconcile draft-gate evidence before continuing post-draft flow.",
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });

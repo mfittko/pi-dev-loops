@@ -314,7 +314,7 @@ test("upsert-gate-review-comment fails closed when pre-approval gate entry is st
     const payload = JSON.parse(result.stderr);
     assert.equal(payload.ok, false);
     assert.match(payload.error, /Cannot enter pre_approval_gate/i);
-    assert.match(payload.error, /post-draft external review cycle has not started yet/i);
+    assert.match(payload.error, /lacks current-head clean `draft_gate` evidence/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -343,7 +343,18 @@ test("upsert-gate-review-comment truncates verbose findings summary before comme
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
-        stdout: '[]\n',
+        stdout: `${JSON.stringify([[{
+          id: 91,
+          body: [
+            "Gate review: draft_gate",
+            "Reviewed head SHA: abc1234",
+            "Verdict: clean",
+            "Findings summary: no issues found",
+            "Next action: mark ready for review",
+          ].join("\n"),
+          html_url: "https://github.com/owner/repo/pull/17#issuecomment-91",
+          updated_at: "2026-05-31T20:10:00Z",
+        }]])}\n`,
       },
       {
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],

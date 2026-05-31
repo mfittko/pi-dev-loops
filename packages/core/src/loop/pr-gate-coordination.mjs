@@ -208,6 +208,36 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
+  if (!draftGate.currentHeadClean) {
+    pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
+    pushUnique(forbiddenActions, [
+      PR_GATE_ACTION.RUN_DRAFT_GATE,
+      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
+      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
+      PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
+      PR_GATE_ACTION.WAIT_FOR_CI,
+      PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK,
+      PR_GATE_ACTION.REPLY_RESOLVE_REVIEW_THREADS,
+      PR_GATE_ACTION.REREQUEST_COPILOT_REVIEW,
+      PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
+      PR_GATE_ACTION.DECLARE_MERGE_READY,
+    ]);
+    return buildResult({
+      repo: input.repo ?? null,
+      pr: Number.isInteger(input.pr) ? input.pr : null,
+      currentHeadSha,
+      lifecycleState,
+      loopDisposition: LOOP_DISPOSITION.BLOCKED,
+      gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
+      draftGate,
+      preApprovalGate,
+      allowedNextActions,
+      forbiddenActions,
+      nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
+      reason: "The PR is already non-draft but lacks current-head clean `draft_gate` evidence; fail closed and reconcile draft-gate evidence before continuing post-draft flow.",
+    });
+  }
+
   const postDraftForbidden = [
     PR_GATE_ACTION.RUN_DRAFT_GATE,
     PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
