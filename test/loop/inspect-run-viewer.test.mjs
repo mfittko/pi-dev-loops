@@ -435,6 +435,7 @@ test("renderInspectRunViewerHtml keeps the empty inbox copy generic across state
   assert.match(html, /No assigned PR in all repos matched the current view yet\./);
   assert.match(html, /widen the state or updated filters, or move to another inbox page\./);
   assert.match(html, /<title>all repos PR inspection dashboard<\/title>/);
+  assert.match(html, /aria-label="all repos PR inspection dashboard"/);
   assert.doesNotMatch(html, /assigned open PR/i);
   assert.doesNotMatch(html, /limit filters/i);
 });

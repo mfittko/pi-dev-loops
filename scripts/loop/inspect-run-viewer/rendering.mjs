@@ -1751,7 +1751,7 @@ export function renderInspectRunViewerHtml({
       ${renderInboxSidebar(inboxItems, target, { scopeFilter, scopeOptions, updatedWithinDays: inboxUpdatedWithinDays, state: inboxState, mode: inboxMode, page: inboxPage, totalPages: inboxTotalPages })}
       <main class="inspection-main">
         ${target === null
-          ? `<section class="current-pr-state-banner" aria-label="${escapeHtml(scopeLabel)} inbox state">
+          ? `<section class="current-pr-state-banner" aria-label="${escapeHtml(scopeLabel)} PR inspection dashboard">
               <h1>${escapeHtml(scopeLabel)} PR inspection dashboard</h1>
               <p class="current-pr-state-summary-headline">Choose a PR from the sidebar</p>
               <p class="current-pr-state-detail">This local/operator dashboard is read-only. inspect-run remains authoritative for inspection/status state while this UI owns inbox discovery plus read-only presentation/prioritization.</p>
