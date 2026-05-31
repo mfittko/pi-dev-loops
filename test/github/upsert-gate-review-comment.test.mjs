@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   parseUpsertGateReviewCommentCliArgs,
+  summarizeGateReviewText,
 } from "../../scripts/github/upsert-gate-review-comment.mjs";
 
 const scriptPath = path.resolve("scripts/github/upsert-gate-review-comment.mjs");
@@ -71,6 +72,14 @@ async function writeGhStub(tempDir, entries) {
       '    }',
       '  }',
       '}',
+      'if (entry.assertArgNotContains) {',
+      '  for (const unexpected of entry.assertArgNotContains) {',
+      '    if (actual.some((value) => value.includes(unexpected))) {',
+      '      process.stderr.write(`unexpected gh arg fragment: ${unexpected}\\n`);',
+      '      process.exit(96);',
+      '    }',
+      '  }',
+      '}',
       'if (entry.stderr) {',
       '  process.stderr.write(entry.stderr);',
       '}',
@@ -123,6 +132,36 @@ test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments determinis
   );
 });
 
+test("summarizeGateReviewText compacts verbose validation success logs deterministically", () => {
+  assert.equal(
+    summarizeGateReviewText([
+      "Validation: verbose local logs follow",
+      "> npm test",
+      "ℹ tests 46",
+      "ℹ pass 46",
+      "ℹ fail 0",
+      "GitHub CI test passed on the current head.",
+      "stdout: this raw passing output should not appear in the visible gate comment body.",
+    ].join("\n")),
+    "commands: npm test; tests: 46, pass: 46, fail: 0; ci: GitHub CI test passed on the current head.",
+  );
+});
+
+test("summarizeGateReviewText keeps failing validation to a concise excerpt", () => {
+  assert.equal(
+    summarizeGateReviewText([
+      "> npm test",
+      "ℹ tests 46",
+      "ℹ pass 45",
+      "ℹ fail 1",
+      "✖ test/github/upsert-gate-review-comment.test.mjs",
+      "AssertionError: Expected values to be strictly equal: 1 !== 2",
+      "at TestContext.<anonymous> (/tmp/workspace/mfittko/pi-dev-loops/test/github/upsert-gate-review-comment.test.mjs:42:10)",
+    ].join("\n")),
+    "commands: npm test; tests: 46, pass: 45, fail: 1; failure excerpt: test/github/upsert-gate-review-comment.test.mjs",
+  );
+});
+
 test("upsert-gate-review-comment creates a new comment when no same-head marker exists", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-create-"));
 
@@ -165,6 +204,66 @@ test("upsert-gate-review-comment creates a new comment when no same-head marker 
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+    });
+
+    test("upsert-gate-review-comment truncates verbose findings summary before comment creation", async () => {
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-verbose-"));
+
+      try {
+        const env = await writeGhStub(tempDir, [
+          {
+            assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+            stdout: '{"headRefOid":"abc1234"}\n',
+          },
+          {
+            assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+            stdout: '[]\n',
+          },
+          {
+            assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+            assertArgContains: [
+              "body=Gate review: pre_approval_gate",
+              "Findings summary: commands: npm test; tests: 46, pass: 46, fail: 0; ci: GitHub CI test passed on the current head.",
+            ],
+            assertArgNotContains: ["stdout: this raw passing output should not appear"],
+            stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
+          },
+        ]);
+
+        const result = await runNode([
+          "--repo", "owner/repo",
+          "--pr", "17",
+          "--gate", "pre_approval_gate",
+          "--head-sha", "abc1234",
+          "--verdict", "clean",
+          "--findings-summary", [
+            "Validation: verbose local logs follow",
+            "> npm test",
+            "ℹ tests 46",
+            "ℹ pass 46",
+            "ℹ fail 0",
+            "GitHub CI test passed on the current head.",
+            "stdout: this raw passing output should not appear in the visible gate comment body.",
+          ].join("\n"),
+          "--next-action", "await final human approval",
+        ], { env });
+
+        assert.equal(result.code, 0);
+        assert.equal(result.stderr, "");
+        assert.deepEqual(JSON.parse(result.stdout), {
+          ok: true,
+          action: "created",
+          repo: "owner/repo",
+          pr: 17,
+          gate: "pre_approval_gate",
+          headSha: "abc1234",
+          currentHeadSha: "abc1234",
+          commentId: 101,
+          commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+        });
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });

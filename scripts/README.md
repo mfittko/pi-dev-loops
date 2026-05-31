@@ -361,7 +361,7 @@ Creates or updates the visible gate-review PR comment for one `gate + headSha` p
 Use this at the `draft_gate` / `pre_approval_gate` boundaries so same-head reruns
 remain idempotent: the helper updates an existing same-head marker in place when
 correction is needed and suppresses duplicate reposts when the visible comment
-already matches the requested contract fields. The rendered visible comment uses compact readable labels (`Gate review`, `Reviewed head SHA`, `Verdict`, `Findings summary`, `Next action`). When a gate pass needed corrective changes before reaching `clean`, pass a truthful `--findings-summary` that briefly states the gap, the change, and why the current head is now acceptable instead of defaulting to `no issues found`.
+already matches the requested contract fields. The rendered visible comment uses compact readable labels (`Gate review`, `Reviewed head SHA`, `Verdict`, `Findings summary`, `Next action`). When a gate pass needed corrective changes before reaching `clean`, pass a truthful `--findings-summary` that briefly states the gap, the change, and why the current head is now acceptable instead of defaulting to `no issues found`. Verbose multiline `--findings-summary` input is compacted before posting so visible gate comments keep validation reporting bounded: raw passing output is omitted, command/count/CI signals are preferred, and any failure excerpt is truncated deterministically.
 
 Required:
 - `--repo <owner/name>`

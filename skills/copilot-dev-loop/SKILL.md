@@ -745,6 +745,9 @@ This is the draft-stage gate for the draft → ready-for-review boundary.
   - verdict: `clean`, `findings_present`, or `blocked`
   - short findings summary, or `no issues found`
   - next action
+  - keep validation reporting concise: include command names with pass/fail status, useful aggregate counts, and current-head CI/check status when available
+  - do **not** paste raw passing test output into the visible gate comment; store or reference detailed logs elsewhere when needed
+  - if you include a failing validation excerpt, keep it focused and truncate it to a deterministic bounded length before posting the comment
   - If the `draft_gate` finds issues, the comment must say that the PR stays draft and needs fixes before retrying.
   - Do not run `gh pr ready` unless a visible `clean` `draft_gate` gate-review comment exists for the current head SHA.
   - If the required comment cannot be posted (fail-closed), do not mark the PR ready for review.
@@ -772,6 +775,9 @@ This is the default pre-approval gate for this workflow boundary and owns the DR
   - verdict: `clean`, `findings_present`, or `blocked`
   - short findings summary, or `no issues found`
   - next action
+  - keep validation reporting concise: include command names with pass/fail status, useful aggregate counts, and current-head CI/check status when available
+  - do **not** paste raw passing test output into the visible gate comment; store or reference detailed logs elsewhere when needed
+  - if you include a failing validation excerpt, keep it focused and truncate it to a deterministic bounded length before posting the comment
   - If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval.
   - Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA.
   - Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence.
