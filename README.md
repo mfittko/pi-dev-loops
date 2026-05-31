@@ -88,6 +88,8 @@ CI currently splits into a deterministic changed-files gate plus parallel `verif
 
 ## Where to read next
 
+<!-- skip-proof: README-only change to validate viewer-smoke skip path -->
+
 - `docs/index.md` — start here for active docs and canonical-owner pointers
 - `extension/README.md` — `/dev-loops` command and package-install contract
 - `scripts/README.md` — deterministic script contracts
