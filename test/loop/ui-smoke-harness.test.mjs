@@ -123,6 +123,9 @@ test('captureNamedUiState accepts an explicit outputDir without testInfo metadat
     assert.equal(stateJson.testTitle, null);
     assert.equal(stateJson.testFile, null);
     assert.equal(stateJson.validationLevel, 'deterministic-smoke');
+    assert.equal(stateJson.metadata.fixture, null);
+    assert.equal(stateJson.metadata.route, null);
+    assert.equal(stateJson.metadata.reviewHint, null);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

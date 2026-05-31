@@ -89,6 +89,13 @@ export async function captureNamedUiState({ page, testInfo, sliceId, stateName, 
   await mkdir(paths.artifactDir, { recursive: true });
   await page.screenshot({ path: paths.screenshotPath, fullPage });
 
+  const normalizedMetadata = {
+    fixture: metadata.fixture ?? null,
+    route: metadata.route ?? null,
+    reviewHint: metadata.reviewHint ?? null,
+    ...metadata,
+  };
+
   const stateArtifact = {
     schemaVersion: 1,
     artifactType: 'named-ui-state',
@@ -113,7 +120,7 @@ export async function captureNamedUiState({ page, testInfo, sliceId, stateName, 
         path: paths.statePath,
       },
     },
-    metadata,
+    metadata: normalizedMetadata,
   };
 
   await writeFile(paths.statePath, `${JSON.stringify(stateArtifact, null, 2)}\n`, 'utf8');
