@@ -2,7 +2,7 @@
 /**
  * Mid-flight operator steering CLI for active dev loops.
  *
- * Supports two subcommands:
+ * Supports three subcommands:
  *
  * 1. submit — Submit a bounded steering directive to a specific active run.
  *    Operator-facing mode:
@@ -14,7 +14,12 @@
  *      steer-loop.mjs submit --run-id <id> --kind <kind> --directive <text>
  *        --seq <n> [--state-file <path>] [--loop-state <state>] [--apply-mode <mode>]
  *
- * 2. status — Inspect the steering state for a run.
+ * 2. promote — Explicitly promote queued steering for a run at a known loop state.
+ *    steer-loop.mjs promote --run-id <id> --loop-state <state> [--state-file <path>]
+ *    steer-loop.mjs promote --repo <owner/name> --pr <number>
+ *      --loop-state <state> [--state-file <path>]
+ *
+ * 3. status — Inspect the steering state for a run.
  *    steer-loop.mjs status --run-id <id> [--state-file <path>]
  *    steer-loop.mjs status --repo <owner/name> --pr <number> [--state-file <path>]
  *
@@ -31,6 +36,7 @@
  *
  * Success output shape:
  *   submit: { "ok": true, "acknowledgement": { ... }, "result": { ... }, "steeringState": { ... } }
+ *   promote: { "ok": true, "promotedCount": <n>, "promoted": [ ... ], "steeringState": { ... } }
  *   status: { "ok": true, "status": { ... } }
  *
  * Failure behavior:
@@ -50,6 +56,7 @@ import {
   normalizeSteeringEvent,
   normalizeSteeringState,
   createSteeringState,
+  promoteQueuedSteering,
   submitSteering,
   getSteeringStatus,
 } from "../../packages/core/src/loop/steering.mjs";
@@ -132,11 +139,37 @@ Output (stdout, JSON):
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }`.trim();
 
+const PROMOTE_USAGE = `Usage:
+  steer-loop.mjs promote --run-id <id> --loop-state <state> [--state-file <path>]
+  steer-loop.mjs promote --repo <owner/name> --pr <number>
+    --loop-state <state> [--state-file <path>]
+
+Explicitly promote queued steering to the effective stack when the caller knows
+the loop has reached a safe point.
+
+Choose exactly one target mode:
+  --run-id <id>           Target run identifier
+  --repo <owner/name>     Repository slug (required with --pr)
+  --pr <number>           Pull request number (required with --repo)
+
+Required:
+  --loop-state <state>    Current copilot loop state
+
+Optional:
+  --state-file <path>     Path to steering state JSON file (default: repo/pr mode => .pi/steering/<owner>/<repo>/pr-<n>.json; run-id mode => .pi/steering/<run-id>.json)
+
+Output (stdout, JSON):
+  { "ok": true, "promotedCount": <n>, "promoted": [ ... ], "steeringState": { ... } }
+
+Error output (stderr, JSON):
+  { "ok": false, "error": "...", "usage": "..." }`.trim();
+
 const TOP_USAGE = `Usage:
   steer-loop.mjs <subcommand> [options]
 
 Subcommands:
   submit   Submit a steering directive to an active dev loop run
+  promote  Explicitly promote queued steering at a known loop state
   status   Inspect the steering state for a run
 
 Run steer-loop.mjs <subcommand> --help for subcommand-specific help.`.trim();
@@ -360,6 +393,73 @@ export function parseStatusCliArgs(argv) {
     }
     if (!options.runId && options.repo === undefined) {
       throw parseError("--run-id is required, or both --repo and --pr must be provided together", STATUS_USAGE);
+    }
+  }
+
+  return options;
+}
+
+export function parsePromoteCliArgs(argv) {
+  const args = [...argv];
+  const options = {
+    help: false,
+    repo: undefined,
+    pr: undefined,
+    runId: undefined,
+    stateFile: undefined,
+    loopState: undefined,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
+
+    if (token === "--run-id") {
+      options.runId = requireOptionValue(args, "--run-id", PROMOTE_USAGE).trim();
+      validateSafeRunId(options.runId, PROMOTE_USAGE);
+      continue;
+    }
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo", PROMOTE_USAGE).trim();
+      parseRepoSlugOption(options.repo, PROMOTE_USAGE);
+      continue;
+    }
+    if (token === "--pr") {
+      options.pr = parsePositiveIntegerOption(requireOptionValue(args, "--pr", PROMOTE_USAGE), "--pr", PROMOTE_USAGE);
+      continue;
+    }
+    if (token === "--state-file") {
+      options.stateFile = requireOptionValue(args, "--state-file", PROMOTE_USAGE);
+      continue;
+    }
+    if (token === "--loop-state") {
+      const val = requireOptionValue(args, "--loop-state", PROMOTE_USAGE);
+      if (!VALID_LOOP_STATES.has(val)) {
+        throw parseError(`--loop-state must be one of: ${[...VALID_LOOP_STATES].join(", ")}`, PROMOTE_USAGE);
+      }
+      options.loopState = val;
+      continue;
+    }
+
+    throw parseError(`Unknown argument: ${token}`, PROMOTE_USAGE);
+  }
+
+  if (!options.help) {
+    if ((options.repo === undefined) !== (options.pr === undefined)) {
+      throw parseError("--repo and --pr must be provided together", PROMOTE_USAGE);
+    }
+    if (options.runId && options.repo !== undefined) {
+      throw parseError("Choose exactly one target mode: either --run-id or --repo/--pr", PROMOTE_USAGE);
+    }
+    if (!options.runId && options.repo === undefined) {
+      throw parseError("--run-id is required, or both --repo and --pr must be provided together", PROMOTE_USAGE);
+    }
+    if (options.loopState === undefined) {
+      throw parseError("--loop-state is required", PROMOTE_USAGE);
     }
   }
 
@@ -838,6 +938,39 @@ export async function runStatus(argv = [], { stdout = process.stdout, cwd = proc
   stdout.write(`${JSON.stringify({ ok: true, status })}\n`);
 }
 
+export async function runPromote(argv = [], { stdout = process.stdout, cwd = process.cwd() } = {}) {
+  const options = parsePromoteCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(`${PROMOTE_USAGE}\n`);
+    return;
+  }
+
+  const runId = resolveRequestedRunId(options, PROMOTE_USAGE);
+  const target = options.repo !== undefined && options.pr !== undefined
+    ? { repo: options.repo, pr: options.pr }
+    : null;
+  const stateFilePath = options.stateFile ?? (target ? defaultStateFilePathForTarget(target, cwd) : defaultStateFilePath(runId, cwd));
+
+  const promotedState = await withStateFileLock(stateFilePath, async () => {
+    const steeringState = await loadOrCreateSteeringState(stateFilePath, runId, target);
+    const nextState = promoteQueuedSteering(steeringState, options.loopState);
+
+    if (nextState.promoted.length > 0) {
+      await saveStateFile(stateFilePath, nextState.steeringState);
+    }
+
+    return nextState;
+  });
+
+  stdout.write(`${JSON.stringify({
+    ok: true,
+    promotedCount: promotedState.promoted.length,
+    promoted: promotedState.promoted,
+    steeringState: promotedState.steeringState,
+  })}\n`);
+}
+
 // ---------------------------------------------------------------------------
 // Top-level CLI dispatch
 // ---------------------------------------------------------------------------
@@ -855,6 +988,10 @@ export async function runCli(
 
   if (subcommand === "submit") {
     return runSubmit(rest, { stdout, cwd, env, ghCommand });
+  }
+
+  if (subcommand === "promote") {
+    return runPromote(rest, { stdout, cwd });
   }
 
   if (subcommand === "status") {

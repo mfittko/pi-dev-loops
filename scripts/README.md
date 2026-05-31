@@ -308,10 +308,11 @@ Two modes:
 
 Optional (auto-detect mode only):
 - `--steering-state-file <path>`
-  Resolve the detected state through the active steering contract. This is
-  available only in `--repo/--pr` mode; snapshot `--input` mode does not accept
-  steering files because repo/pr target identity cannot be proven from the
-  snapshot alone.
+  Overlay the detected state with the current persisted steering contract state.
+  The detector stays read-only: it does not promote queued steering or write the
+  steering file. This is available only in `--repo/--pr` mode; snapshot `--input`
+  mode does not accept steering files because repo/pr target identity cannot be
+  proven from the snapshot alone.
 - `--review-request-status <requested|already-requested|unavailable|none|failed>`
   Override the Copilot review-request status with a known prior result. Skips the
   `requested_reviewers` API call and injects the provided value directly into the snapshot.
@@ -351,6 +352,8 @@ Key behavioral guarantees:
 - When `agentFixStatus` is `"applied"` and unresolved threads exist, the state is `already_fixed_needs_reply_resolve`, and `allowedTransitions` includes only `ready_to_rerequest_review`
 - When the current head already has a clean submitted Copilot review, `sameHeadCleanConverged=true` and automatic same-head re-request is suppressed until a meaningful remediation event occurs
 - If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
+- When `--steering-state-file` is provided, steering is surfaced as a read-only overlay;
+  queued steering promotion/persistence is owned explicitly by `steer-loop.mjs promote`
 
 ### `scripts/github/upsert-gate-review-comment.mjs`
 
@@ -616,12 +619,14 @@ Mid-flight operator steering CLI for active dev loops.
 
 Subcommands:
 - `submit` — submit a steering directive to a specific run
+- `promote` — explicitly promote queued steering for a specific run at a known loop state
 - `status` — inspect the current steering state for a run
 
 Contract:
 - persists steering state to a JSON file (default: `.pi/steering/<owner>/<repo>/pr-<n>.json` for operator-facing `--repo/--pr` mode; `.pi/steering/<run-id>.json` for low-level `--run-id` mode)
 - operator-facing `submit` resolves one explicit `repo` + `pr` target through the read-only
   inspection surface and derives `runId: pr-<number>` from that target while persisting repo-qualified target metadata alongside the steering state
+- explicit queued-steering promotion/persistence belongs to `promote`; detector-shaped helpers stay read-only
 - operator-facing `submit` is intentionally limited to `stop_at_next_safe_gate`; other directive
   kinds remain low-level/internal and are rejected on the external submit path
 - operator-facing `submit` fails closed when inspection is partial, checkpoint-only, unavailable,
@@ -635,6 +640,7 @@ Contract:
 
 Success output shape:
 - `submit`: `{ "ok": true, "acknowledgement": { ... }, "result": { ... }, "steeringState": { ... } }`
+- `promote`: `{ "ok": true, "promotedCount": <n>, "promoted": [ ... ], "steeringState": { ... } }`
 - `status`: `{ "ok": true, "status": { ... } }`
 
 Failure behavior:

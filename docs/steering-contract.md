@@ -32,7 +32,7 @@ in subsequent work.
 | CLI entry-point | `scripts/loop/steer-loop.mjs` |
 | Core unit tests | `packages/core/test/steering.test.mjs` |
 | CLI integration tests | `test/loop/steer-loop.test.mjs` |
-| **Loop integration** | `scripts/loop/detect-copilot-loop-state.mjs` (via `--steering-state-file`) |
+| **Loop integration (read-only overlay)** | `scripts/loop/detect-copilot-loop-state.mjs` (via `--steering-state-file`) |
 | Loop integration tests | `test/loop/detect-copilot-loop-state.test.mjs` (steering section) |
 
 ---
@@ -339,32 +339,35 @@ node scripts/loop/steer-loop.mjs status \
 The async Copilot review/fix loop's existing state detector
 (`detect-copilot-loop-state.mjs`) is the first execution surface wired to the
 steering contract. Pass `--steering-state-file <path>` to make the detector
-resolve the loop state through any active steering directives.
+overlay the detected loop state with the current persisted steering state.
+This detector is read-only: steering persistence and queued-promotion ownership
+live under `scripts/loop/steer-loop.mjs`.
 
 ### How it changes behavior
 
 When `--steering-state-file` is provided:
 
-- The detector first interprets the base loop state, then runs
-  `promoteQueuedSteering(...)` on that state.
-- If queued steering reaches an IMMEDIATE safe point, the promoted steering state
-  is persisted back to the steering file before final readback.
 - The snapshot is interpreted through `resolveEffectiveLoopState` instead of
   `interpretLoopState` directly.
 - If a `stop_at_next_safe_gate` directive is on the effective stack **and** the
   loop is currently at an IMMEDIATE safe point, `nextAction` is overridden to
   direct the loop to stop instead of continuing to the next step.
-- The output includes `steeringApplied` and `effectiveConstraints` so downstream
+- The output includes `steeringApplied`, `pendingStopAtNextSafeGate`,
+  `terminalStopAtNextSafeGate`, and `effectiveConstraints` so downstream
   consumers can inject hard constraints into agent context or check the stop flag.
 - When the steering file does not exist (ENOENT), the detector treats it as an
   empty steering state — no error, no change to base behavior.
+- The detector does **not** promote queued steering or persist any steering-state
+  mutation. Call `node scripts/loop/steer-loop.mjs promote ... --loop-state <state>`
+  when the steering owner needs to reconcile queued steering at a known loop state.
 - Steering integration is currently available only on explicit `--repo/--pr`
   auto-detect targets; snapshot `--input` mode does not accept
   `--steering-state-file` because repo/pr identity cannot be proven from the
   snapshot alone.
 
 Without `--steering-state-file`, output is identical to the pre-steering behavior
-(no `steeringApplied` or `effectiveConstraints` fields).
+(no steering overlay fields such as `steeringApplied`, `pendingStopAtNextSafeGate`,
+`terminalStopAtNextSafeGate`, or `effectiveConstraints`).
 
 ### End-to-end workflow
 
@@ -378,7 +381,15 @@ node scripts/loop/steer-loop.mjs submit \
   --seq 1 \
   --state-file .pi/steering/owner/repo/pr-42.json
 
-# 2. On the next loop iteration, detect state with the steering file
+# 2. When the steering owner knows the loop is at a safe point, explicitly
+#    promote queued steering (if any)
+node scripts/loop/steer-loop.mjs promote \
+  --repo owner/repo \
+  --pr 42 \
+  --loop-state ready_to_rerequest_review \
+  --state-file .pi/steering/owner/repo/pr-42.json
+
+# 3. Detect state with the steering file (read-only overlay)
 node scripts/loop/detect-copilot-loop-state.mjs \
   --repo owner/repo \
   --pr 42 \
@@ -391,6 +402,8 @@ node scripts/loop/detect-copilot-loop-state.mjs \
 #   "state": "ready_to_rerequest_review",
 #   "nextAction": "Stop at this safe gate: a stop_at_next_safe_gate steering directive is active...",
 #   "steeringApplied": true,
+#   "pendingStopAtNextSafeGate": false,
+#   "terminalStopAtNextSafeGate": false,
 #   "effectiveConstraints": { "stopAtNextSafeGate": true, "hardConstraints": [], ... }
 # }
 ```
