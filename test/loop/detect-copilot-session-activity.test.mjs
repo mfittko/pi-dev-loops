@@ -217,6 +217,37 @@ test("detect-copilot-session-activity treats approval-gated action_required runs
   }
 });
 
+test("detect-copilot-session-activity treats status=action_required as concluded even without a conclusion", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-session-status-action-required-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [{
+      assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/topic"],
+      stdout: `${JSON.stringify([
+        {
+          databaseId: 112,
+          name: "Addressing comment on PR owner/repo#17",
+          status: "action_required",
+          conclusion: null,
+          createdAt: "2026-05-27T12:19:48Z",
+        },
+      ])}
+`,
+    }]);
+
+    const result = await runNode(["--repo", "owner/repo", "--branch", "copilot/topic"], { env });
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.activity, "concluded");
+    assert.equal(payload.runId, 112);
+    assert.equal(payload.runStatus, "action_required");
+    assert.equal(payload.runConclusion, null);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-session-activity reports idle when no matching run names exist", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-session-idle-"));
 
