@@ -943,7 +943,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; done; full authoritative state machine shown; no allowed transitions/);
 });
 
-test("renderInspectRunViewerHtml shows approved current head when clean convergence also has human approval", () => {
+test("renderInspectRunViewerHtml requires explicit gate evidence before framing clean convergence as approval-ready", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
@@ -971,14 +971,15 @@ test("renderInspectRunViewerHtml shows approved current head when clean converge
     }),
   });
 
-  assert.match(html, /Approved current head/);
-  assert.match(html, /clean submitted Copilot review and an approved human review/i);
-  assert.match(html, /Proceed to merge if authorized/i);
+  assert.match(html, /Clean reviews present; gate evidence still required/);
+  assert.match(html, /clean submitted Copilot review and an approved human review, but approval or merge suggestions still require explicit current-head pre_approval_gate evidence/i);
+  assert.match(html, /Confirm or rerun the current-head pre_approval_gate before any approval or merge recommendation/i);
   assert.match(html, /reviewer verdict[\s\S]*approved on current head/i);
-  assert.doesNotMatch(html, /Copilot pass complete/);
+  assert.doesNotMatch(html, /Approved current head/);
+  assert.doesNotMatch(html, /Proceed to merge if authorized/i);
 });
 
-test("renderInspectRunViewerHtml shows clean convergence instead of re-request language for same-head clean Copilot reviews", () => {
+test("renderInspectRunViewerHtml blocks approval-oriented language for same-head clean Copilot reviews without gate evidence", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
@@ -1004,9 +1005,10 @@ test("renderInspectRunViewerHtml shows clean convergence instead of re-request l
     }),
   });
 
-  assert.match(html, /Copilot pass complete/);
-  assert.match(html, /current head already has a clean submitted Copilot review with no unresolved feedback/i);
-  assert.match(html, /Proceed to final human review or approval, or wait for a meaningful remediation event before requesting another Copilot pass/i);
+  assert.match(html, /Copilot pass complete; gate evidence still required/);
+  assert.match(html, /current head already has a clean submitted Copilot review with no unresolved feedback, but that alone is not enough for an approval or merge suggestion/i);
+  assert.match(html, /Confirm or rerun the current-head pre_approval_gate before any approval or merge recommendation, or wait for a meaningful remediation event before requesting another Copilot pass/i);
+  assert.doesNotMatch(html, /Proceed to final human review or approval/i);
   assert.doesNotMatch(html, /Ready to re-request Copilot review/);
 });
 
@@ -1721,12 +1723,12 @@ test("createInspectRunViewerServer preserves cached authoritative inbox signals 
     const address = server.address();
     const firstResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=55`);
     assert.equal(firstResponse.statusCode, 200);
-    assert.match(firstResponse.body, /assigned-pr-row-ready/);
+    assert.match(firstResponse.body, /assigned-pr-row-pending/);
 
     const secondResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=77`);
     assert.equal(secondResponse.statusCode, 200);
     assert.match(secondResponse.body, /Ready PR/);
-    assert.match(secondResponse.body, /assigned-pr-row-ready/);
+    assert.match(secondResponse.body, /assigned-pr-row-pending/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

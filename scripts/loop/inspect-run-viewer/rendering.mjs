@@ -982,17 +982,17 @@ function summarizeCurrentPrStatus(snapshot) {
 
   if (copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead && (sameHeadCleanConverged || copilotLoopDisposition === "clean_converged" || copilotTerminal)) {
     return {
-      headline: "Approved current head",
-      detail: "The current head has both a clean submitted Copilot review and an approved human review.",
-      nextAction: "Proceed to merge if authorized, or wait for any additional required review/approval signal before merging.",
+      headline: "Clean reviews present; gate evidence still required",
+      detail: "The current head has both a clean submitted Copilot review and an approved human review, but approval or merge suggestions still require explicit current-head pre_approval_gate evidence.",
+      nextAction: "Confirm or rerun the current-head pre_approval_gate before any approval or merge recommendation.",
     };
   }
 
   if (copilotState === "ready_to_rerequest_review" && (sameHeadCleanConverged || copilotLoopDisposition === "clean_converged" || copilotTerminal)) {
     return {
-      headline: "Copilot pass complete",
-      detail: "The current head already has a clean submitted Copilot review with no unresolved feedback.",
-      nextAction: "Proceed to final human review or approval, or wait for a meaningful remediation event before requesting another Copilot pass.",
+      headline: "Copilot pass complete; gate evidence still required",
+      detail: "The current head already has a clean submitted Copilot review with no unresolved feedback, but that alone is not enough for an approval or merge suggestion.",
+      nextAction: "Confirm or rerun the current-head pre_approval_gate before any approval or merge recommendation, or wait for a meaningful remediation event before requesting another Copilot pass.",
     };
   }
 
@@ -1263,13 +1263,15 @@ export function deriveInboxSignalFromSnapshot(snapshot) {
     return "pending";
   }
 
-  if (outerState === OUTER_STATE.DONE_TERMINAL
-    || statusClass === "done"
-    || (copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead)
+  if (outerState === OUTER_STATE.DONE_TERMINAL || statusClass === "done") {
+    return "ready";
+  }
+
+  if ((copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead)
     || sameHeadCleanConverged
     || copilotLoopDisposition === "clean_converged"
     || copilotTerminal) {
-    return "ready";
+    return "pending";
   }
 
   if (snapshot.sourceMode === "unavailable") {
