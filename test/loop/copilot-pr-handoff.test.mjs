@@ -1290,6 +1290,9 @@ test("copilot-pr-handoff keeps same-head suppression without --force-rerequest-r
     assert.equal(output.action, "stop");
     assert.equal(output.state, "ready_to_rerequest_review");
     assert.equal(output.reviewRequestStatus, undefined);
+    assert.equal(output.requestWatchContract.requestStatus, "none");
+    assert.equal(output.requestWatchContract.routingState, "non_ready_state");
+    assert.equal(output.requestWatchContract.stopState, "no_automatic_next_step");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

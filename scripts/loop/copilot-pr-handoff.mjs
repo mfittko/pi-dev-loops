@@ -137,6 +137,7 @@ function summarizeRequestWatchContract({
   } else if (
     interpretation.state === STATE.PR_READY_NO_FEEDBACK
     || interpretation.state === STATE.READY_TO_REREQUEST_REVIEW
+    && interpretation.sameHeadCleanConverged !== true
   ) {
     routingState = "ready_state_needs_copilot_request";
   }
