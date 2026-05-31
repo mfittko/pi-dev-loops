@@ -2345,7 +2345,7 @@ test("detect-copilot-loop-state: durable reload — steering applied after steer
   }
 });
 
-test("detect-copilot-loop-state promotes queued stop_at_next_safe_gate at the next safe point and persists it", async () => {
+test("detect-copilot-loop-state leaves queued stop_at_next_safe_gate unchanged until the steering owner promotes it", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-detect-steer-promote-"));
 
   try {
@@ -2411,14 +2411,13 @@ test("detect-copilot-loop-state promotes queued stop_at_next_safe_gate at the ne
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
     assert.equal(output.state, "ready_to_rerequest_review");
-    assert.equal(output.steeringApplied, true);
-    assert.match(output.nextAction, /Stop at this safe gate/);
+    assert.equal(output.steeringApplied, false);
+    assert.doesNotMatch(output.nextAction, /Stop at this safe gate/);
 
     const persisted = JSON.parse(await readFile(steeringPath, "utf8"));
-    assert.equal(persisted.queuedEvents.length, 0);
-    assert.equal(persisted.effectiveStack.length, 1);
-    assert.equal(persisted.latestResult.result, "applied_now");
-    assert.match(persisted.latestResult.reason, /Promoted from queue/);
+    assert.equal(persisted.queuedEvents.length, 1);
+    assert.equal(persisted.effectiveStack.length, 0);
+    assert.equal(persisted.latestResult.result, "queued_for_safe_point");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

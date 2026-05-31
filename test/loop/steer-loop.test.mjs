@@ -6,8 +6,10 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 
 import {
+  parsePromoteCliArgs,
   parseSubmitCliArgs,
   parseStatusCliArgs,
+  runPromote,
   runSubmit,
   runStatus,
 } from "../../scripts/loop/steer-loop.mjs";
@@ -337,6 +339,20 @@ test("defaultStateFilePathForTarget rejects unsafe repo segments consistently", 
 
 test("parseStatusCliArgs throws on unknown argument", () => {
   assert.throws(() => parseStatusCliArgs(["--unknown"]), /Unknown argument/);
+});
+
+// ---------------------------------------------------------------------------
+// parsePromoteCliArgs
+// ---------------------------------------------------------------------------
+
+test("parsePromoteCliArgs parses --run-id and --loop-state", () => {
+  const opts = parsePromoteCliArgs(["--run-id", "run-xyz", "--loop-state", "ready_to_rerequest_review"]);
+  assert.equal(opts.runId, "run-xyz");
+  assert.equal(opts.loopState, "ready_to_rerequest_review");
+});
+
+test("parsePromoteCliArgs requires --loop-state", () => {
+  assert.throws(() => parsePromoteCliArgs(["--run-id", "run-xyz"]), /--loop-state is required/);
 });
 
 // ---------------------------------------------------------------------------
@@ -1137,6 +1153,73 @@ test("runSubmit rejects when --state-file contains a different run-id than --run
 });
 
 // ---------------------------------------------------------------------------
+// runPromote
+// ---------------------------------------------------------------------------
+
+test("runPromote explicitly promotes queued steering and persists it", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+    await writeJson(stateFile, {
+      runId: "run-promote-1",
+      schemaVersion: 1,
+      events: [{
+        eventId: "evt-001",
+        runId: "run-promote-1",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      effectiveStack: [],
+      queuedEvents: [{
+        eventId: "evt-001",
+        runId: "run-promote-1",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      resultHistory: [{
+        eventId: "evt-001",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
+        acknowledgedAt: "2026-05-19T12:00:01.000Z",
+      }],
+      latestResult: {
+        eventId: "evt-001",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
+        acknowledgedAt: "2026-05-19T12:00:01.000Z",
+      },
+      nextSeq: 2,
+    });
+
+    const { stream, read } = makeStdout();
+    await runPromote([
+      "--run-id", "run-promote-1",
+      "--loop-state", "ready_to_rerequest_review",
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir });
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.promotedCount, 1);
+    assert.equal(output.steeringState.queuedEvents.length, 0);
+    assert.equal(output.steeringState.effectiveStack.length, 1);
+    assert.equal(output.steeringState.latestResult.result, "applied_now");
+
+    const persisted = JSON.parse(await readFile(stateFile, "utf8"));
+    assert.equal(persisted.queuedEvents.length, 0);
+    assert.equal(persisted.effectiveStack.length, 1);
+    assert.equal(persisted.latestResult.result, "applied_now");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // runStatus
 // ---------------------------------------------------------------------------
 
@@ -1307,6 +1390,13 @@ test("steer-loop.mjs status --help prints usage", async () => {
   assert.match(result.stdout, /--run-id/);
   assert.match(result.stdout, /Choose exactly one target mode/);
   assert.doesNotMatch(result.stdout, /Required:\n  --run-id <id>[\s\S]*--repo <owner\/name>[\s\S]*--pr <number>/);
+});
+
+test("steer-loop.mjs promote --help prints usage", async () => {
+  const result = await runNode(["promote", "--help"]);
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /--loop-state/);
+  assert.match(result.stdout, /promotedCount/);
 });
 
 // ---------------------------------------------------------------------------
