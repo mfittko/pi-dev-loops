@@ -671,7 +671,7 @@ Local WebKit/Playwright smoke path:
    - `npm run playwright:install:safari`
 2. Run the viewer smoke suite:
    - `npm run test:playwright:viewer`
-3. Review screenshots/traces under `test-results/` and the HTML report under `playwright-report/inspect-run-viewer/`
+3. Review screenshots/traces under `test-results/` and the HTML report under `playwright-report/ui-smoke/inspect-run-viewer/`
 4. Optionally hit `/favicon.ico` or an unsupported path to confirm those paths stay deterministic and do not perform snapshot rendering
 5. For deterministic/local test mode, pass `--copilot-input` and `--reviewer-input` fixtures to viewer; these are forwarded to `inspect-run`
 

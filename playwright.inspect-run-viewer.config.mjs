@@ -1,25 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
-export default defineConfig({
-  testDir: "./test/playwright",
+import { createWebkitSmokeConfig } from "./test/playwright/harness/webkit-smoke-harness.mjs";
+
+export default defineConfig(createWebkitSmokeConfig({
+  sliceId: "inspect-run-viewer",
   testMatch: ["inspect-run-viewer.spec.mjs"],
-  timeout: 30_000,
-  fullyParallel: false,
-  retries: 0,
-  outputDir: "test-results/playwright",
-  reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report/inspect-run-viewer" }]],
-  use: {
-    headless: true,
-    screenshot: "only-on-failure",
-    trace: "retain-on-failure",
-    video: "off",
-  },
-  projects: [
-    {
-      name: "webkit",
-      use: {
-        browserName: "webkit",
-      },
-    },
-  ],
-});
+}));

@@ -1,15 +1,15 @@
-import { once } from "node:events";
-
 import { test, expect } from "@playwright/test";
 
 import { createInspectRunViewerServer } from "../../scripts/loop/inspect-run-viewer.mjs";
+import { captureNamedUiState, startFixtureServer, stopFixtureServer } from "./harness/webkit-smoke-harness.mjs";
 import { makeInspectionSnapshot } from "./fixtures/inspect-run-viewer-fixture.mjs";
 
 async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequests = []) {
   const normalizedAssignedPullRequests = assignedPullRequests.some((entry) => entry?.target?.repo === "owner/repo" && entry?.target?.pr === 55)
     ? assignedPullRequests
     : [{ target: { repo: "owner/repo", pr: 55 }, title: "Current PR" }, ...assignedPullRequests];
-  const server = createInspectRunViewerServer(
+
+  return startFixtureServer(() => createInspectRunViewerServer(
     { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
     {
       adapter: {
@@ -21,16 +21,7 @@ async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequ
         },
       },
     },
-  );
-
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-
-  const address = server.address();
-  return {
-    server,
-    url: `http://127.0.0.1:${address.port}`,
-  };
+  ));
 }
 
 async function waitForMermaidGraph(page) {
@@ -173,13 +164,19 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await page.locator(".inspection-details > summary").click();
     await expect(page.getByRole("link", { name: /\/snapshot\.json\?repo=owner%2Frepo&pr=55/ })).toBeVisible();
 
-    await page.screenshot({
-      path: testInfo.outputPath("inspect-run-viewer-webkit.png"),
-      fullPage: true,
+    await captureNamedUiState({
+      page,
+      testInfo,
+      sliceId: "inspect-run-viewer",
+      stateName: "Current PR dashboard",
+      metadata: {
+        fixture: "makeInspectionSnapshot",
+        route: "/",
+        reviewHint: "Use this state for the reusable dashboard smoke baseline.",
+      },
     });
   } finally {
-    server.closeAllConnections?.();
-    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await stopFixtureServer(server);
   }
 });
 
@@ -210,13 +207,19 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
     await expect(page.getByText(/copilot layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; transition data unavailable in this snapshot/i)).toBeVisible();
     await expect(page.getByText(/reviewer layer:\s*current\s*current state unavailable; current state unavailable; full authoritative state machine shown; transition data unavailable in this snapshot/i)).toBeVisible();
 
-    await page.screenshot({
-      path: testInfo.outputPath("inspect-run-viewer-checkpoint-webkit.png"),
-      fullPage: true,
+    await captureNamedUiState({
+      page,
+      testInfo,
+      sliceId: "inspect-run-viewer",
+      stateName: "Checkpoint only graph uncertainty",
+      metadata: {
+        fixture: "makeInspectionSnapshot",
+        route: "/",
+        reviewHint: "Confirms the harness can capture an uncertainty state without inferred transitions.",
+      },
     });
   } finally {
-    server.closeAllConnections?.();
-    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await stopFixtureServer(server);
   }
 });
 
@@ -232,13 +235,19 @@ test("webkit shows degraded graph messaging when snapshot trust is partial", asy
     await expect(page.locator(".state-graph-intro")).toHaveCount(0);
     await waitForMermaidGraph(page);
 
-    await page.screenshot({
-      path: testInfo.outputPath("inspect-run-viewer-degraded-webkit.png"),
-      fullPage: true,
+    await captureNamedUiState({
+      page,
+      testInfo,
+      sliceId: "inspect-run-viewer",
+      stateName: "Degraded graph messaging",
+      metadata: {
+        fixture: "makeInspectionSnapshot",
+        route: "/",
+        reviewHint: "Demonstrates the partial-trust path for reusable smoke coverage.",
+      },
     });
   } finally {
-    server.closeAllConnections?.();
-    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await stopFixtureServer(server);
   }
 });
 
@@ -276,13 +285,19 @@ test("webkit shows terminal merged states clearly in the Mermaid graph", async (
     await expect(graph).toContainText(/done/);
     await expect(page.getByText(/copilot layer:\s*current\s*done; done; full authoritative state machine shown; no allowed transitions/i)).toBeVisible();
 
-    await page.screenshot({
-      path: testInfo.outputPath("inspect-run-viewer-merged-webkit.png"),
-      fullPage: true,
+    await captureNamedUiState({
+      page,
+      testInfo,
+      sliceId: "inspect-run-viewer",
+      stateName: "Terminal merged state",
+      metadata: {
+        fixture: "makeInspectionSnapshot",
+        route: "/",
+        reviewHint: "Confirms the terminal merged state remains reviewable in WebKit.",
+      },
     });
   } finally {
-    server.closeAllConnections?.();
-    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await stopFixtureServer(server);
   }
 });
 
@@ -302,12 +317,18 @@ test("webkit shows the unavailable-state fallback for unavailable snapshots", as
     await expect(page.locator(".mermaid-state-graph")).toHaveCount(0);
     await expect(page.getByText(/Snapshot unavailable, so no state graph can be rendered yet/i)).toBeVisible();
 
-    await page.screenshot({
-      path: testInfo.outputPath("inspect-run-viewer-unavailable-webkit.png"),
-      fullPage: true,
+    await captureNamedUiState({
+      page,
+      testInfo,
+      sliceId: "inspect-run-viewer",
+      stateName: "Unavailable snapshot fallback",
+      metadata: {
+        fixture: "makeInspectionSnapshot",
+        route: "/",
+        reviewHint: "Captures the no-graph fallback for unavailable snapshots.",
+      },
     });
   } finally {
-    server.closeAllConnections?.();
-    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await stopFixtureServer(server);
   }
 });

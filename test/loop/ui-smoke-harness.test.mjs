@@ -1,0 +1,121 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+
+import {
+  buildNamedUiStateArtifactPaths,
+  captureNamedUiState,
+  createWebkitSmokeConfig,
+  normalizeUiStateSegment,
+} from '../playwright/harness/webkit-smoke-harness.mjs';
+
+test('normalizeUiStateSegment collapses UI state names into stable path segments', () => {
+  assert.equal(normalizeUiStateSegment(' Current PR / Dashboard '), 'current-pr-dashboard');
+  assert.equal(normalizeUiStateSegment('100% zoom'), '100-zoom');
+  assert.equal(normalizeUiStateSegment('a__b'), 'a-b');
+  assert.throws(() => normalizeUiStateSegment('!!!'), /must contain at least one/i);
+});
+
+test('createWebkitSmokeConfig returns the minimal reusable WebKit smoke baseline', () => {
+  const config = createWebkitSmokeConfig({
+    sliceId: 'inspect-run-viewer',
+    testMatch: ['inspect-run-viewer.spec.mjs'],
+  });
+
+  assert.equal(config.testDir, './test/playwright');
+  assert.deepEqual(config.testMatch, ['inspect-run-viewer.spec.mjs']);
+  assert.equal(config.outputDir, 'test-results/ui-smoke/inspect-run-viewer');
+  assert.deepEqual(config.reporter, [['list'], ['html', { open: 'never', outputFolder: 'playwright-report/ui-smoke/inspect-run-viewer' }]]);
+  assert.equal(config.use.headless, true);
+  assert.equal(config.use.screenshot, 'only-on-failure');
+  assert.equal(config.projects.length, 1);
+  assert.equal(config.projects[0].name, 'webkit');
+  assert.equal(config.projects[0].use.browserName, 'webkit');
+});
+
+test('createWebkitSmokeConfig rejects missing testMatch up front', () => {
+  assert.throws(() => createWebkitSmokeConfig({ sliceId: 'inspect-run-viewer' }), /testMatch must include at least one/i);
+  assert.throws(() => createWebkitSmokeConfig({ sliceId: 'inspect-run-viewer', testMatch: [] }), /testMatch must include at least one/i);
+});
+
+test('buildNamedUiStateArtifactPaths derives deterministic screenshot and state paths', () => {
+  const paths = buildNamedUiStateArtifactPaths({
+    outputDir: 'test-results/ui-smoke/inspect-run-viewer',
+    sliceId: 'inspect-run-viewer',
+    stateName: 'Current PR dashboard',
+  });
+
+  assert.equal(paths.stateSlug, 'current-pr-dashboard');
+  assert.equal(paths.artifactDir, path.join('test-results/ui-smoke/inspect-run-viewer', 'named-states', 'current-pr-dashboard'));
+  assert.equal(paths.screenshotPath, path.join(paths.artifactDir, 'screenshot.png'));
+  assert.equal(paths.statePath, path.join(paths.artifactDir, 'state.json'));
+});
+
+test('captureNamedUiState writes the deterministic screenshot and state artifact bundle', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ui-smoke-harness-'));
+  const screenshots = [];
+
+  try {
+    const artifact = await captureNamedUiState({
+      page: {
+        async screenshot(options) {
+          screenshots.push(options);
+        },
+      },
+      testInfo: {
+        config: { outputDir: tempDir },
+        project: { name: 'webkit', outputDir: tempDir },
+        title: 'viewer smoke generates named artifacts',
+        file: 'test/playwright/inspect-run-viewer.spec.mjs',
+      },
+      sliceId: 'inspect-run-viewer',
+      stateName: 'Current PR dashboard',
+      metadata: {
+        reviewHint: 'Use this state for the initial dashboard pass.',
+        fixture: 'makeInspectionSnapshot',
+      },
+    });
+
+    assert.equal(screenshots.length, 1);
+    assert.equal(screenshots[0].path, artifact.screenshotPath);
+    assert.equal(screenshots[0].fullPage, true);
+    await stat(artifact.artifactDir);
+
+    const stateJson = JSON.parse(await readFile(artifact.statePath, 'utf8'));
+    assert.equal(stateJson.schemaVersion, 1);
+    assert.equal(stateJson.sliceId, 'inspect-run-viewer');
+    assert.equal(stateJson.stateName, 'Current PR dashboard');
+    assert.equal(stateJson.stateSlug, 'current-pr-dashboard');
+    assert.equal(stateJson.projectName, 'webkit');
+    assert.equal(stateJson.artifacts.screenshot.fileName, 'screenshot.png');
+    assert.equal(stateJson.artifacts.state.fileName, 'state.json');
+    assert.equal(stateJson.metadata.fixture, 'makeInspectionSnapshot');
+    assert.match(stateJson.capturedAt, /^\d{4}-\d{2}-\d{2}T/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('captureNamedUiState accepts an explicit outputDir without testInfo metadata', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ui-smoke-harness-explicit-'));
+
+  try {
+    const artifact = await captureNamedUiState({
+      page: {
+        async screenshot() {},
+      },
+      outputDir: tempDir,
+      sliceId: 'inspect-run-viewer',
+      stateName: 'Fallback only',
+    });
+
+    const stateJson = JSON.parse(await readFile(artifact.statePath, 'utf8'));
+    assert.equal(stateJson.projectName, null);
+    assert.equal(stateJson.testTitle, null);
+    assert.equal(stateJson.testFile, null);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

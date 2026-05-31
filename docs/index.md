@@ -15,6 +15,7 @@ Start here for repository documentation.
 - `docs/gate-review-comment-contract.md`
 - `docs/steering-contract.md`
 - `docs/ui-validation-contract.md`
+- `docs/ui-smoke-harness.md`
 
 ## Active local phase doc
 
