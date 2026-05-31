@@ -220,7 +220,7 @@ Contract:
 - classifies activity as:
   - `active` when a matching run is currently in progress
   - `concluded` when the most recent matching run is completed
-  - `concluded` (non-blocking observational) when a matching run is approval-gated in `action_required`; the payload may still surface `runStatus`/`runConclusion` as `action_required` for debugging
+  - `concluded` (non-blocking observational) when a matching run is approval-gated in `action_required`; the payload still preserves the raw `runStatus` / `runConclusion` strings for debugging
   - `idle` when no matching runs are found
 
 Failure behavior:

@@ -29,7 +29,7 @@ Success output (stdout, JSON):
     "runId": 123456|null,
     "runName": "...",
     "runStatus": "queued"|"in_progress"|"pending"|"requested"|"waiting"|"action_required"|"completed"|null,
-    "runConclusion": "success"|"action_required"|null,
+    "runConclusion": string|null,
     "runCreatedAt": "..."|null,
     "branch": "...",
     "confidence": "high"
