@@ -300,7 +300,7 @@ Two modes:
 
 - **Auto-detect**: `--repo <owner/name> --pr <number>`
   Fetches PR state, Copilot review request status, review threads, and CI checks from GitHub,
-  builds a snapshot, and interprets it. Current-head CI/check normalization is owned by
+  builds a snapshot, and interprets it. PR CI/check normalization is owned by
   `docs/copilot-ci-status-contract.md`.
 
 - **Snapshot interpretation**: `--input <path>`

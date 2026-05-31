@@ -75,11 +75,11 @@ import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import {
   buildSnapshotFromPrFacts,
   interpretLoopState,
-  normalizeCiStatus,
   normalizeSnapshot,
   summarizeLoopInterpretation,
 } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
+  normalizeStatusCheckRollupContract,
   normalizeHeadScopedCheckRunsStatus,
   normalizeHeadScopedCommitStatus,
   normalizeHeadScopedCiContract,
@@ -423,7 +423,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     ? prData.headRefOid.trim()
     : null;
   const reviewSummary = summarizeCopilotReviews(prData.reviews, { headSha: prHeadSha });
-  const fallbackCiStatus = normalizeCiStatus(prData.statusCheckRollup);
+  const fallbackCiStatus = normalizeStatusCheckRollupContract(prData.statusCheckRollup).overallStatus;
 
   // Determine review request status
   let copilotReviewRequestStatus;

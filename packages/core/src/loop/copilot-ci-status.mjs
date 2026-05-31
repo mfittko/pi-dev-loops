@@ -4,6 +4,57 @@ function normalizeHeadScopedCiStatus(status) {
   return VALID_HEAD_SCOPED_CI_STATUSES.has(status) ? status : "none";
 }
 
+function buildCiContract(overallStatus) {
+  return {
+    overallStatus,
+    rollup: {
+      success: overallStatus === "success",
+      pending: overallStatus === "pending",
+      failure: overallStatus === "failure",
+      none: overallStatus === "none",
+    },
+    semantics: {
+      wait: overallStatus === "pending" || overallStatus === "none",
+      blocked: overallStatus === "failure",
+    },
+  };
+}
+
+/**
+ * Normalize the PR `statusCheckRollup` payload into a stable status.
+ *
+ * @param {Array<object>} rollup
+ * @returns {"success"|"failure"|"pending"|"none"}
+ */
+export function normalizeStatusCheckRollupStatus(rollup) {
+  if (!Array.isArray(rollup) || rollup.length === 0) {
+    return "none";
+  }
+
+  const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
+
+  let hasPending = false;
+  let hasFailure = false;
+
+  for (const check of rollup) {
+    const status = typeof check?.status === "string" ? check.status.toUpperCase() : "";
+    const conclusion = typeof check?.conclusion === "string" ? check.conclusion.toUpperCase() : "";
+
+    if (status === "COMPLETED" && FAILURE_CONCLUSIONS.has(conclusion)) {
+      hasFailure = true;
+      continue;
+    }
+
+    if (status !== "COMPLETED") {
+      hasPending = true;
+    }
+  }
+
+  if (hasFailure) return "failure";
+  if (hasPending) return "pending";
+  return "success";
+}
+
 /**
  * Normalize the GitHub check-runs API payload for one head SHA into a stable status.
  *
@@ -106,6 +157,20 @@ export function mergeHeadScopedCiStatuses(checkRunsStatus, commitStatus) {
 }
 
 /**
+ * Normalize the PR `statusCheckRollup` payload into the shared machine-readable contract output.
+ *
+ * @param {Array<object>} rollup
+ * @returns {{
+ *  overallStatus: "success"|"failure"|"pending"|"none",
+ *  rollup: { success: boolean, pending: boolean, failure: boolean, none: boolean },
+ *  semantics: { wait: boolean, blocked: boolean }
+ * }}
+ */
+export function normalizeStatusCheckRollupContract(rollup) {
+  return buildCiContract(normalizeStatusCheckRollupStatus(rollup));
+}
+
+/**
  * Normalize current-head CI inputs into one machine-readable contract output.
  *
  * @param {{
@@ -119,22 +184,8 @@ export function mergeHeadScopedCiStatuses(checkRunsStatus, commitStatus) {
  * }}
  */
 export function normalizeHeadScopedCiContract({ checkRunsStatus = "none", commitStatus = "none" } = {}) {
-  const overallStatus = mergeHeadScopedCiStatuses(
+  return buildCiContract(mergeHeadScopedCiStatuses(
     normalizeHeadScopedCiStatus(checkRunsStatus ?? "none"),
     normalizeHeadScopedCiStatus(commitStatus ?? "none"),
-  );
-
-  return {
-    overallStatus,
-    rollup: {
-      success: overallStatus === "success",
-      pending: overallStatus === "pending",
-      failure: overallStatus === "failure",
-      none: overallStatus === "none",
-    },
-    semantics: {
-      wait: overallStatus === "pending" || overallStatus === "none",
-      blocked: overallStatus === "failure",
-    },
-  };
+  ));
 }

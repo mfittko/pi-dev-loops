@@ -12,6 +12,8 @@
  * becomes an explicit bounded input (agentFixStatus) rather than hidden orchestration behavior.
  */
 
+import { normalizeStatusCheckRollupContract } from "./copilot-ci-status.mjs";
+
 /** Stable state name constants for the async Copilot review/fix loop. */
 export const STATE = Object.freeze({
   /** No open PR exists for the current work. */
@@ -118,32 +120,7 @@ const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
 const ACTIVE_REQUEST_STATUSES = new Set(["requested", "already-requested"]);
 
 export function normalizeCiStatus(rollup) {
-  if (!Array.isArray(rollup) || rollup.length === 0) {
-    return "none";
-  }
-
-  const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
-
-  let hasPending = false;
-  let hasFailure = false;
-
-  for (const check of rollup) {
-    const status = typeof check.status === "string" ? check.status.toUpperCase() : "";
-    const conclusion = typeof check.conclusion === "string" ? check.conclusion.toUpperCase() : "";
-
-    if (status === "COMPLETED" && FAILURE_CONCLUSIONS.has(conclusion)) {
-      hasFailure = true;
-      continue;
-    }
-
-    if (status !== "COMPLETED") {
-      hasPending = true;
-    }
-  }
-
-  if (hasFailure) return "failure";
-  if (hasPending) return "pending";
-  return "success";
+  return normalizeStatusCheckRollupContract(rollup).overallStatus;
 }
 
 export function buildSnapshotFromPrFacts({

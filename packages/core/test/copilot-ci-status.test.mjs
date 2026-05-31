@@ -3,10 +3,30 @@ import test from "node:test";
 
 import {
   mergeHeadScopedCiStatuses,
+  normalizeStatusCheckRollupStatus,
+  normalizeStatusCheckRollupContract,
   normalizeHeadScopedCheckRunsStatus,
   normalizeHeadScopedCommitStatus,
   normalizeHeadScopedCiContract,
 } from "../src/loop/copilot-ci-status.mjs";
+
+test("normalizeStatusCheckRollupStatus returns failure over pending for mixed rollup entries", () => {
+  const status = normalizeStatusCheckRollupStatus([
+    { status: "IN_PROGRESS", conclusion: null },
+    { status: "COMPLETED", conclusion: "FAILURE" },
+  ]);
+
+  assert.equal(status, "failure");
+});
+
+test("normalizeStatusCheckRollupContract emits shared wait semantics for missing rollup", () => {
+  const contract = normalizeStatusCheckRollupContract([]);
+
+  assert.equal(contract.overallStatus, "none");
+  assert.equal(contract.rollup.none, true);
+  assert.equal(contract.semantics.wait, true);
+  assert.equal(contract.semantics.blocked, false);
+});
 
 test("normalizeHeadScopedCheckRunsStatus returns failure over pending for mixed check runs", () => {
   const status = normalizeHeadScopedCheckRunsStatus({
