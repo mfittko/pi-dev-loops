@@ -25,7 +25,7 @@ import {
   createInspectionViewerAdapter,
   normalizeInspectionTarget,
 } from "../_inspect-run-viewer-adapter.mjs";
-import { dedupeRepoSlugOptions, repoSlugEquals } from "../../../packages/core/src/github/repo-slug.mjs";
+import { dedupeRepoSlugOptions, repoSlugEquals } from "@pi-dev-loops/core/github/repo-slug";
 
 const execFile = promisify(execFileCallback);
 

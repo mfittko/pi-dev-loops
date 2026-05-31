@@ -21,11 +21,11 @@ import { autoDetectReviewerSnapshot } from "./detect-reviewer-loop-state.mjs";
 import {
   interpretLoopState,
   normalizeSnapshot as normalizeCopilotSnapshot,
-} from "../../packages/core/src/loop/copilot-loop-state.mjs";
+} from "@pi-dev-loops/core/loop/copilot-loop-state";
 import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
-} from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+} from "@pi-dev-loops/core/loop/reviewer-loop-state";
 
 /**
  * Load the copilot inner-loop snapshot and compute its interpretation.

@@ -8,9 +8,9 @@ import {
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
-import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretation } from "../../packages/core/src/loop/copilot-loop-state.mjs";
-import { evaluatePrGateCoordination } from "../../packages/core/src/loop/pr-gate-coordination.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
+import { evaluatePrGateCoordination } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { detectGateReviewEvidence } from "../github/detect-gate-review-evidence.mjs";
 

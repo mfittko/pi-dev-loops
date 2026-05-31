@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 export const LINKED_ISSUE_PR_QUERY = [
   "query($owner:String!, $name:String!, $issue:Int!, $after:String) {",

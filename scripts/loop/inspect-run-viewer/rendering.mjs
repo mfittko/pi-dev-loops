@@ -11,21 +11,21 @@ import {
   MERMAID_BROWSER_ASSET_PATH,
   MERMAID_BROWSER_ASSET_ROUTE,
 } from "./constants.mjs";
-import { dedupeRepoSlugOptions, repoSlugEquals, tryNormalizeRepoSlug } from "../../../packages/core/src/github/repo-slug.mjs";
+import { dedupeRepoSlugOptions, repoSlugEquals, tryNormalizeRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
   STATE as COPILOT_STATE,
   TRANSITIONS as COPILOT_TRANSITIONS,
-} from "../../../packages/core/src/loop/copilot-loop-state.mjs";
+} from "@pi-dev-loops/core/loop/copilot-loop-state";
 import {
   OUTER_GRAPH,
   OUTER_STATE,
   OUTER_TERMINAL_STATES,
   OUTER_TRANSITIONS,
-} from "../../../packages/core/src/loop/outer-loop-state.mjs";
+} from "@pi-dev-loops/core/loop/outer-loop-state";
 import {
   REVIEWER_STATE,
   REVIEWER_TRANSITIONS,
-} from "../../../packages/core/src/loop/reviewer-loop-state.mjs";
+} from "@pi-dev-loops/core/loop/reviewer-loop-state";
 
 let mermaidBrowserScriptPromise = null;
 

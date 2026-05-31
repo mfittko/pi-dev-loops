@@ -31,7 +31,7 @@ Required installed runtime contract docs for this skill are the shared bundled c
 - `../docs/conductor-pr-projection-contract.md`
 
 For installed packaged copies of this skill, read those bundled `../docs/` files from the installed skill layout instead of assuming a source-repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
-When runtime package resolution is available, prefer the package export for executable logic. For conductor PR projection / closeout work, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; when operating from an installed skill copy that bundles `packages/core/src/...` support files, use that bundled `packages/core/src/loop/conductor-pr-projection.mjs` copy instead of assuming source-repo-relative paths.
+When runtime package resolution is available, prefer exported `@pi-dev-loops/core/*` subpaths for active runtime logic. Conductor PR projection is currently source-only rather than a published runtime export, so projection / closeout work should use `packages/core/src/loop/conductor-pr-projection.mjs` from the source repository or the bundled installed-skill copy instead of assuming an `@pi-dev-loops/core/...` subpath exists.
 
 Operational summary:
 - route from the canonical current state through the shared gate contract before choosing any internal strategy; prefer the exported `DEV_LOOP_GATE` / `PUBLIC_DEV_LOOP_GATE_CONTRACT` semantics over restating route families ad hoc

@@ -116,7 +116,7 @@ Required bundled runtime contract docs for installed copies of this skill:
 Read those bundled `../docs/` files from the installed skill layout instead of assuming the source repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
 Do not assume `scripts/...` is repo-local to the target codebase you are operating on.
 
-When a PR changes conductor-owned projection / closeout behavior, or when review comments ask how visible projection or durable closeout should work, read the resolved `../docs/conductor-pr-projection-contract.md` alongside the relevant issue/PR. When runtime package resolution is available, prefer `@pi-dev-loops/core/loop/conductor-pr-projection`; in installed skill copies that bundle `packages/core/src/...` support files, use the bundled `packages/core/src/loop/conductor-pr-projection.mjs` path from the resolved skill layout instead of assuming the source repository checkout is present.
+When a PR changes conductor-owned projection / closeout behavior, or when review comments ask how visible projection or durable closeout should work, read the resolved `../docs/conductor-pr-projection-contract.md` alongside the relevant issue/PR. Conductor PR projection is currently source-only rather than a published runtime export, so use `packages/core/src/loop/conductor-pr-projection.mjs` from the source repository or the bundled installed-skill copy from the resolved skill layout instead of assuming an `@pi-dev-loops/core/...` subpath exists.
 
 ## Authority and safety rules
 

@@ -10,11 +10,11 @@ import { readFile } from "node:fs/promises";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
-} from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+} from "@pi-dev-loops/core/loop/reviewer-loop-state";
 
 function parseBool(value, flag) {
   if (value === "true") return true;

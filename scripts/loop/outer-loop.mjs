@@ -38,7 +38,7 @@ import { fileURLToPath } from "node:url";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
   buildCheckpointFilePath,
   buildDefaultCheckpointDir,
@@ -51,12 +51,12 @@ import {
   LOOP_FAMILY,
   ROUTING_OUTCOME,
   SOURCE_MODE,
-} from "../../packages/core/src/loop/conductor-routing.mjs";
+} from "@pi-dev-loops/core/loop/conductor-routing";
 import {
   ASYNC_START_STATUS,
   buildAsyncStartRejection,
   validateAsyncStartContext,
-} from "../../packages/core/src/loop/async-start-contract.mjs";
+} from "@pi-dev-loops/core/loop/async-start-contract";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 

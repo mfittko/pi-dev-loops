@@ -4,39 +4,28 @@ import { readFile } from "node:fs/promises";
 
 const packageJsonUrl = new URL("../package.json", import.meta.url);
 
-test("packages/core exports public loop contract modules in package metadata", async () => {
+test("packages/core exports the sanctioned runtime boundary and de-exports unused weak-runtime surfaces", async () => {
   const packageJson = JSON.parse(await readFile(packageJsonUrl, "utf8"));
 
-  assert.equal(
-    packageJson.exports["./loop/conductor-ownership"],
-    "./src/loop/conductor-ownership.mjs",
-  );
-  assert.equal(
-    packageJson.exports["./loop/outer-loop-state"],
-    "./src/loop/outer-loop-state.mjs",
-  );
-  assert.equal(
-    packageJson.exports["./loop/public-dev-loop-routing"],
-    "./src/loop/public-dev-loop-routing.mjs",
-  );
-  assert.equal(
-    packageJson.exports["./loop/retrospective-checkpoint"],
-    "./src/loop/retrospective-checkpoint.mjs",
-  );
-  assert.equal(
-    packageJson.exports["./loop/tracker-pr-state"],
-    "./src/loop/tracker-pr-state.mjs",
-  );
-  assert.equal(
-    packageJson.exports["./loop/conductor-pr-projection"],
-    "./src/loop/conductor-pr-projection.mjs",
-  );
-  assert.equal(
-    packageJson.exports["./loop/copilot-ci-status"],
-    "./src/loop/copilot-ci-status.mjs",
-  );
-  assert.equal(
-    packageJson.exports["./github/copilot-helpers"],
-    "./src/github/copilot-helpers.mjs",
-  );
+  assert.equal(packageJson.exports["./github/copilot-helpers"], "./src/github/copilot-helpers.mjs");
+  assert.equal(packageJson.exports["./github/repo-slug"], "./src/github/repo-slug.mjs");
+  assert.equal(packageJson.exports["./github/review-threads"], "./src/github/review-threads.mjs");
+  assert.equal(packageJson.exports["./loop/async-start-contract"], "./src/loop/async-start-contract.mjs");
+  assert.equal(packageJson.exports["./loop/conductor-routing"], "./src/loop/conductor-routing.mjs");
+  assert.equal(packageJson.exports["./loop/copilot-ci-status"], "./src/loop/copilot-ci-status.mjs");
+  assert.equal(packageJson.exports["./loop/copilot-loop-iterations"], "./src/loop/copilot-loop-iterations.mjs");
+  assert.equal(packageJson.exports["./loop/copilot-loop-state"], "./src/loop/copilot-loop-state.mjs");
+  assert.equal(packageJson.exports["./loop/outer-loop-state"], "./src/loop/outer-loop-state.mjs");
+  assert.equal(packageJson.exports["./loop/phase-files"], "./src/loop/phase-files.mjs");
+  assert.equal(packageJson.exports["./loop/pr-gate-coordination"], "./src/loop/pr-gate-coordination.mjs");
+  assert.equal(packageJson.exports["./loop/public-dev-loop-routing"], "./src/loop/public-dev-loop-routing.mjs");
+  assert.equal(packageJson.exports["./loop/retrospective-checkpoint"], "./src/loop/retrospective-checkpoint.mjs");
+  assert.equal(packageJson.exports["./loop/reviewer-loop-state"], "./src/loop/reviewer-loop-state.mjs");
+  assert.equal(packageJson.exports["./loop/run-inspection"], "./src/loop/run-inspection.mjs");
+  assert.equal(packageJson.exports["./loop/steering"], "./src/loop/steering.mjs");
+  assert.equal(packageJson.exports["./loop/timeout-policy"], "./src/loop/timeout-policy.mjs");
+  assert.equal(packageJson.exports["./loop/tracker-pr-state"], "./src/loop/tracker-pr-state.mjs");
+
+  assert.equal(packageJson.exports["./loop/conductor-ownership"], undefined);
+  assert.equal(packageJson.exports["./loop/conductor-pr-projection"], undefined);
 });

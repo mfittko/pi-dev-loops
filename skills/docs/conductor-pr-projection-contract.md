@@ -34,7 +34,7 @@ This contract starts **after**:
 
 | Component | Location |
 |---|---|
-| Published package export | `@pi-dev-loops/core/loop/conductor-pr-projection` |
+| Runtime package export | _none; this remains a source-only internal module until it has an active runtime caller_ |
 | Core projection module (source repo) | `packages/core/src/loop/conductor-pr-projection.mjs` |
 | Core unit tests | `packages/core/test/conductor-pr-projection.test.mjs` |
 
