@@ -134,3 +134,4 @@ When a slice is CI-promoted:
 - `docs/ui-smoke-harness.md` defines how the local harness captures these artifacts
 - this document defines the reusable artifact contract and when CI should start requiring it
 - later review-loop work should consume this artifact bundle rather than redefine the artifact shape from scratch
+- the current designer-review-loop consumer contract lives in `docs/ui-designer-review-loop.md`

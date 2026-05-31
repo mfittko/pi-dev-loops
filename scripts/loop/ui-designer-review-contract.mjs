@@ -1,0 +1,68 @@
+export function validateUiDesignerReviewInput(input = {}) {
+  if (input.workType !== 'ui' || input.uiReviewRequested !== true) {
+    return {
+      ok: true,
+      status: 'skip_non_ui',
+      reason: 'non_ui_or_not_requested',
+      missing: [],
+    };
+  }
+
+  const missing = [];
+  const acceptanceCriteria = Array.isArray(input.acceptanceCriteria) ? input.acceptanceCriteria.filter((entry) => typeof entry === 'string' && entry.trim().length > 0) : [];
+  if (acceptanceCriteria.length === 0) {
+    missing.push('acceptanceCriteria');
+  }
+
+  if (typeof input.reviewBrief !== 'string' || input.reviewBrief.trim().length === 0) {
+    missing.push('reviewBrief');
+  }
+
+  const artifactBundle = input.artifactBundle ?? {};
+  if (typeof artifactBundle.sliceId !== 'string' || artifactBundle.sliceId.trim().length === 0) {
+    missing.push('artifactBundle.sliceId');
+  }
+
+  const namedStates = Array.isArray(artifactBundle.namedStates) ? artifactBundle.namedStates : [];
+  if (namedStates.length === 0) {
+    missing.push('artifactBundle.namedStates');
+  }
+
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      status: 'blocked_missing_required_inputs',
+      reason: 'required_inputs_missing',
+      missing,
+    };
+  }
+
+  const incompleteArtifacts = [];
+  namedStates.forEach((state, index) => {
+    if (typeof state.stateName !== 'string' || state.stateName.trim().length === 0) {
+      incompleteArtifacts.push(`artifactBundle.namedStates[${index}].stateName`);
+    }
+    if (typeof state.screenshotPath !== 'string' || state.screenshotPath.trim().length === 0) {
+      incompleteArtifacts.push(`artifactBundle.namedStates[${index}].screenshotPath`);
+    }
+    if (typeof state.statePath !== 'string' || state.statePath.trim().length === 0) {
+      incompleteArtifacts.push(`artifactBundle.namedStates[${index}].statePath`);
+    }
+  });
+
+  if (incompleteArtifacts.length > 0) {
+    return {
+      ok: false,
+      status: 'blocked_incomplete_artifact_bundle',
+      reason: 'artifact_bundle_incomplete',
+      missing: incompleteArtifacts,
+    };
+  }
+
+  return {
+    ok: true,
+    status: 'ready_for_designer_review',
+    reason: 'artifact_bundle_complete',
+    missing: [],
+  };
+}

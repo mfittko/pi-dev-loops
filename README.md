@@ -93,3 +93,4 @@ CI currently splits into a small changed-files gate plus parallel `verify` and c
 - `scripts/README.md` — deterministic script contracts
 - `docs/ui-smoke-harness.md` — reusable local Playwright/WebKit smoke baseline for opted-in UI slices
 - `docs/ui-artifact-contract.md` — screenshot/state artifact contract and bounded CI-promotion rules for UI slices
+- `docs/ui-designer-review-loop.md` — designer-persona review loop contract for UI slices
