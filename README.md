@@ -84,7 +84,7 @@ Root verification and test commands from `package.json`:
 - `npm run test:dev-loop`
 - `npm run test:playwright:viewer` — explicit viewer/browser smoke, not part of the default root verify path
 
-CI currently runs `npm ci`, `npm run verify`, and the explicit Playwright viewer smoke in `.github/workflows/ci.yml`.
+CI currently runs `npm ci`, `npm run verify`, restores a workspace-local Playwright WebKit runtime cache keyed by runner OS + `package-lock.json`, and runs the explicit Playwright viewer smoke in `.github/workflows/ci.yml`.
 
 ## Where to read next
 
