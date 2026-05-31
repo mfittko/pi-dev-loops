@@ -173,6 +173,31 @@ test("summarizeGateReviewText preserves long single-line narratives instead of i
   assert.match(summarized, /…\[truncated \d+ chars\]$/);
 });
 
+
+test("summarizeGateReviewText preserves multiline narrative text when no structured validation signals are present", () => {
+  const narrative = [
+    "Validation recap:",
+    "The operator passed through the flow carefully.",
+    "Nothing here is a command log or CI line.",
+  ].join("\n");
+
+  assert.equal(
+    summarizeGateReviewText(narrative),
+    "Validation recap: The operator passed through the flow carefully. Nothing here is a command log or CI line.",
+  );
+});
+
+test("summarizeGateReviewText captures Error-prefixed failure lines", () => {
+  assert.equal(
+    summarizeGateReviewText([
+      "> npm test",
+      "Error: Expected gate summary to stay bounded",
+      "detail: additional stack output that should not become the visible excerpt",
+    ].join("\n")),
+    "commands: npm test; failure excerpt: Error: Expected gate summary to stay bounded",
+  );
+});
+
 test("upsert-gate-review-comment creates a new comment when no same-head marker exists", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-create-"));
 

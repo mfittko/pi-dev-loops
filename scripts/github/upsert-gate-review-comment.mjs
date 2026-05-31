@@ -131,7 +131,7 @@ function buildVerboseValidationSummary(lines) {
 
     if (
       failureExcerpt === null
-      && (/^✖\s*/u.test(line) || /^FAIL\b/u.test(line) || /\b(?:AssertionError|TypeError|ReferenceError|SyntaxError|Error:)\b/u.test(line))
+      && (/^✖\s*/u.test(line) || /^FAIL\b/u.test(line) || /\b(?:AssertionError|TypeError|ReferenceError|SyntaxError)\b/u.test(line) || /\bError:/u.test(line))
     ) {
       failureExcerpt = truncateText(line.replace(/^✖\s*/u, ""), MAX_GATE_COMMENT_EXCERPT_LENGTH);
       continue;
@@ -156,11 +156,13 @@ function buildVerboseValidationSummary(lines) {
     parts.push(`ci: ${ciLine}`);
   }
 
+  const sawStructuredSignal = commands.length > 0 || countLine !== null || ciLine !== null || failureExcerpt !== null;
+
   if (failureExcerpt) {
     parts.push(`failure excerpt: ${failureExcerpt}`);
   } else if (Number.isInteger(counts.fail) && counts.fail > 0) {
     parts.push("validation: failed");
-  } else if (!countLine && sawPassedSignal) {
+  } else if (!countLine && sawPassedSignal && sawStructuredSignal) {
     parts.push("validation: passed");
   }
 
