@@ -7,6 +7,7 @@
     "./bash-exit-one": "./src/bash-exit-one.mjs",
     "./loop/phase-files": "./src/loop/phase-files.mjs",
     "./loop/copilot-loop-state": "./src/loop/copilot-loop-state.mjs",
+    "./loop/copilot-ci-status": "./src/loop/copilot-ci-status.mjs",
     "./loop/reviewer-loop-state": "./src/loop/reviewer-loop-state.mjs",
     "./loop/outer-loop-state": "./src/loop/outer-loop-state.mjs",
     "./loop/conductor-ownership": "./src/loop/conductor-ownership.mjs",

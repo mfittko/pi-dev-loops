@@ -80,6 +80,11 @@ import {
   summarizeLoopInterpretation,
 } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
+  normalizeHeadScopedCheckRunsStatus,
+  normalizeHeadScopedCommitStatus,
+  normalizeHeadScopedCiContract,
+} from "../../packages/core/src/loop/copilot-ci-status.mjs";
+import {
   createSteeringState,
   normalizeSteeringState,
   resolveEffectiveLoopState,
@@ -324,85 +329,6 @@ async function fetchLatestCopilotReviewRequestAt({ repo, pr }, { env, ghCommand 
   return latestAt;
 }
 
-function normalizeHeadScopedCheckRunsStatus(payload) {
-  const runs = Array.isArray(payload?.check_runs) ? payload.check_runs : [];
-  if (runs.length === 0) {
-    return "none";
-  }
-
-  const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
-  let hasPending = false;
-  let hasFailure = false;
-  let hasSuccess = false;
-
-  for (const run of runs) {
-    const status = typeof run?.status === "string" ? run.status.toUpperCase() : "";
-    const conclusion = typeof run?.conclusion === "string" ? run.conclusion.toUpperCase() : "";
-
-    if (status !== "COMPLETED") {
-      hasPending = true;
-      continue;
-    }
-
-    if (FAILURE_CONCLUSIONS.has(conclusion)) {
-      hasFailure = true;
-      continue;
-    }
-
-    hasSuccess = true;
-  }
-
-  if (hasFailure) return "failure";
-  if (hasPending) return "pending";
-  if (hasSuccess) return "success";
-  return "none";
-}
-
-function normalizeHeadScopedCommitStatus(payload) {
-  const statuses = Array.isArray(payload?.statuses) ? payload.statuses : [];
-  if (statuses.length === 0) {
-    return "none";
-  }
-
-  let hasPending = false;
-  let hasFailure = false;
-  let hasSuccess = false;
-
-  for (const statusItem of statuses) {
-    const state = typeof statusItem?.state === "string" ? statusItem.state.toLowerCase() : "";
-    if (state === "pending") {
-      hasPending = true;
-      continue;
-    }
-    if (state === "failure" || state === "error") {
-      hasFailure = true;
-      continue;
-    }
-    if (state === "success") {
-      hasSuccess = true;
-      continue;
-    }
-  }
-
-  if (hasFailure) return "failure";
-  if (hasPending) return "pending";
-  if (hasSuccess) return "success";
-  return "none";
-}
-
-function mergeHeadScopedCiStatuses(checkRunsStatus, commitStatus) {
-  if (checkRunsStatus === "failure" || commitStatus === "failure") {
-    return "failure";
-  }
-  if (checkRunsStatus === "pending" || commitStatus === "pending") {
-    return "pending";
-  }
-  if (checkRunsStatus === "success" || commitStatus === "success") {
-    return "success";
-  }
-  return "none";
-}
-
 async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
   const [checkRunsResult, statusesResult] = await Promise.all([
     runChild(
@@ -439,10 +365,10 @@ async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
     return null;
   }
 
-  return mergeHeadScopedCiStatuses(
-    checkRunsStatus ?? "none",
-    commitStatus ?? "none",
-  );
+  return normalizeHeadScopedCiContract({
+    checkRunsStatus: checkRunsStatus ?? "none",
+    commitStatus: commitStatus ?? "none",
+  }).overallStatus;
 }
 
 function hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, currentHeadSha) {
