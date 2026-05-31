@@ -75,6 +75,7 @@ test('captureNamedUiState writes the deterministic screenshot and state artifact
       metadata: {
         reviewHint: 'Use this state for the initial dashboard pass.',
         fixture: 'makeInspectionSnapshot',
+        route: '/',
       },
     });
 
@@ -85,13 +86,19 @@ test('captureNamedUiState writes the deterministic screenshot and state artifact
 
     const stateJson = JSON.parse(await readFile(artifact.statePath, 'utf8'));
     assert.equal(stateJson.schemaVersion, 1);
+    assert.equal(stateJson.artifactType, 'named-ui-state');
+    assert.equal(stateJson.validationLevel, 'deterministic-smoke');
     assert.equal(stateJson.sliceId, 'inspect-run-viewer');
     assert.equal(stateJson.stateName, 'Current PR dashboard');
     assert.equal(stateJson.stateSlug, 'current-pr-dashboard');
+    assert.equal(stateJson.runId, 'inspect-run-viewer-current-pr-dashboard-webkit');
     assert.equal(stateJson.projectName, 'webkit');
     assert.equal(stateJson.artifacts.screenshot.fileName, 'screenshot.png');
+    assert.equal(stateJson.artifacts.screenshot.relativePath, 'screenshot.png');
     assert.equal(stateJson.artifacts.state.fileName, 'state.json');
+    assert.equal(stateJson.artifacts.state.relativePath, 'state.json');
     assert.equal(stateJson.metadata.fixture, 'makeInspectionSnapshot');
+    assert.equal(stateJson.metadata.route, '/');
     assert.match(stateJson.capturedAt, /^\d{4}-\d{2}-\d{2}T/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -115,6 +122,7 @@ test('captureNamedUiState accepts an explicit outputDir without testInfo metadat
     assert.equal(stateJson.projectName, null);
     assert.equal(stateJson.testTitle, null);
     assert.equal(stateJson.testFile, null);
+    assert.equal(stateJson.validationLevel, 'deterministic-smoke');
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

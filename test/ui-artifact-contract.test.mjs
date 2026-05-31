@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
+const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), 'utf8');
+
+test('ui artifact contract doc defines named-state artifacts and CI promotion rules', async () => {
+  const [doc, readme, indexDoc, devLoopSkill, ciWorkflow] = await Promise.all([
+    readRepo('docs/ui-artifact-contract.md'),
+    readRepo('README.md'),
+    readRepo('docs/index.md'),
+    readRepo('skills/dev-loop/SKILL.md'),
+    readRepo('.github/workflows/ci.yml'),
+  ]);
+
+  assert.match(doc, /single public entrypoint/i);
+  assert.match(doc, /`dev-loop`/i);
+  assert.match(doc, /named UI state/i);
+  assert.match(doc, /screenshot\.png/i);
+  assert.match(doc, /state\.json/i);
+  assert.match(doc, /test-results\/ui-smoke\/<sliceId>\/named-states\/<state-slug>/i);
+  assert.match(doc, /screenshot alone is acceptable/i);
+  assert.match(doc, /paired state artifact is required/i);
+  assert.match(doc, /CI promotion/i);
+  assert.match(doc, /local-only validation is still acceptable/i);
+  assert.match(doc, /missing or malformed/i);
+  assert.match(doc, /viewer-smoke/i);
+
+  assert.match(readme, /docs\/ui-artifact-contract\.md/i);
+  assert.match(indexDoc, /docs\/ui-artifact-contract\.md/i);
+  assert.match(devLoopSkill, /docs\/ui-artifact-contract\.md/i);
+  assert.match(ciWorkflow, /viewer-smoke:/i);
+});

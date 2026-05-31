@@ -50,7 +50,7 @@ Each named-state directory currently contains:
 - `screenshot.png`
 - `state.json`
 
-These paths are the local proving ground for later #97 artifact-contract and CI-promotion slices.
+These paths are the local proving ground for the reusable artifact contract in `docs/ui-artifact-contract.md` and for later designer-review-loop work.
 
 ## Reference example
 

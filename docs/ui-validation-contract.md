@@ -56,4 +56,4 @@ The following are intentionally deferred:
 - whether first reusable toolkit helpers should be doc/skill-only or include deterministic helper scripts
 - WebKit-vs-Chromium default decision
 - whether screen recording remains manual or becomes first-class helper tooling
-- CI promotion/enforcement strategy for UI smoke validation
+- CI promotion/enforcement strategy for UI smoke validation (now defined in `docs/ui-artifact-contract.md`)
