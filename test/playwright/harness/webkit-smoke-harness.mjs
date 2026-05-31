@@ -90,10 +90,10 @@ export async function captureNamedUiState({ page, testInfo, sliceId, stateName, 
   await page.screenshot({ path: paths.screenshotPath, fullPage });
 
   const normalizedMetadata = {
+    ...metadata,
     fixture: metadata.fixture ?? null,
     route: metadata.route ?? null,
     reviewHint: metadata.reviewHint ?? null,
-    ...metadata,
   };
 
   const stateArtifact = {

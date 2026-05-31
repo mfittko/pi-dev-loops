@@ -105,6 +105,36 @@ test('captureNamedUiState writes the deterministic screenshot and state artifact
   }
 });
 
+test('captureNamedUiState normalizes undefined metadata contract keys to null', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ui-smoke-harness-metadata-'));
+
+  try {
+    const artifact = await captureNamedUiState({
+      page: {
+        async screenshot() {},
+      },
+      outputDir: tempDir,
+      sliceId: 'inspect-run-viewer',
+      stateName: 'Metadata defaults',
+      metadata: {
+        fixture: undefined,
+        route: undefined,
+        reviewHint: undefined,
+      },
+    });
+
+    const stateJson = JSON.parse(await readFile(artifact.statePath, 'utf8'));
+    assert.equal(Object.hasOwn(stateJson.metadata, 'fixture'), true);
+    assert.equal(Object.hasOwn(stateJson.metadata, 'route'), true);
+    assert.equal(Object.hasOwn(stateJson.metadata, 'reviewHint'), true);
+    assert.equal(stateJson.metadata.fixture, null);
+    assert.equal(stateJson.metadata.route, null);
+    assert.equal(stateJson.metadata.reviewHint, null);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('captureNamedUiState accepts an explicit outputDir without testInfo metadata', async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ui-smoke-harness-explicit-'));
 
