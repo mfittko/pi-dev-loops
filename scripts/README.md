@@ -470,7 +470,7 @@ Optional (auto-detect mode only):
 Success output shape:
 - `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "..." }`
 - reviewer snapshots preserve the latest submitted review metadata via `submittedReviewPresent`, `submittedReviewCommitSha`, and `submittedReviewState`
-- together those fields let read-only inspection UIs distinguish an approved current head from generic author-followup waiting
+- together those fields let read-only inspection UIs distinguish submitted-verdict handoff boundaries from active reviewer-pass states
 
 Failure behavior:
 - malformed arguments, unexpected `gh` failures, and invalid input/local-state JSON emit
@@ -502,8 +502,10 @@ Contract:
 - auto-detect mode calls both inner detectors, interprets their current states, and emits one
   outer action: `continue_wait`, `reenter_copilot_loop`, `reenter_reviewer_loop`, `stop`, or `done`
 - treats draft PRs as a re-entry point into owned draft-stage follow-up rather than a terminal stop
-- treats `waiting_for_copilot_review`, `waiting_for_ci`, reviewer `waiting_for_author_followup`,
-  and reviewer `waiting_for_re_request` as outer-loop-owned `continue_wait` states
+- treats `waiting_for_copilot_review`, `waiting_for_ci`, and reviewer `submitted_review`
+  as outer-loop-owned `continue_wait` states at explicit external/handoff boundaries
+- preserves compatibility for reviewer `waiting_for_author_followup` and `waiting_for_re_request`
+  as legacy named external-wait boundaries
 - when the next step needs local execution or mutation and the checkout is dirty or detached, preserves the loop-family handoff and marks `conductorRouting.handoffEnvelope.requiresLocalIsolation=true` so callers can continue from an isolated checkout/worktree instead of treating the boundary as terminal
 - for PR-local re-entry actions, verifies local branch/HEAD identity against the active PR head;
   when an isolation-managed handoff is already in effect, it enriches the handoff with `headRefName` / `headRefOid` for the target PR head instead of failing the handoff on the parent checkout's expected mismatch

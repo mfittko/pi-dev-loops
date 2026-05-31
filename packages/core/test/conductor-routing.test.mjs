@@ -138,6 +138,14 @@ test("outer wait: reviewer waiting_for_re_request → continue_current_wait", ()
   assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
 });
 
+test("outer wait: reviewer submitted_review → continue_current_wait", () => {
+  const result = evaluateConductorRouting(makeInput({
+    copilotState: "pr_ready_no_feedback",
+    reviewerState: "submitted_review",
+  }));
+  assert.equal(result.routingOutcome, ROUTING_OUTCOME.CONTINUE_CURRENT_WAIT);
+});
+
 // ---------------------------------------------------------------------------
 // Scenario 2: reviewer-active routes to reviewer-loop handoff
 // ---------------------------------------------------------------------------

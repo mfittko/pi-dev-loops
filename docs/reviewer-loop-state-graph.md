@@ -24,9 +24,9 @@ Implementation:
 | `draft_review_ready` | Merged review package is ready to stage |
 | `draft_review_posted` | Pending GitHub review exists for current head but link not yet surfaced |
 | `waiting_for_user_submit` | Pending review link is surfaced; wait for submission |
-| `submitted_review` | Review was submitted (Pi or GitHub) |
-| `waiting_for_author_followup` | Submitted review exists; waiting for author fixes or PR close |
-| `waiting_for_re_request` | Author pushed new commits after submission; waiting for explicit re-request |
+| `submitted_review` | Internal reviewer pass reached a submitted outcome/verdict; handoff boundary to remediation/fix follow-up |
+| `waiting_for_author_followup` | Legacy external-wait compatibility state (named actor boundary: author/Copilot follow-up), not an internal reviewer-pass completion target |
+| `waiting_for_re_request` | Legacy external-wait compatibility state (named actor boundary: author/Copilot re-request action), not an internal reviewer-pass completion target |
 | `review_invalidated` | Pending draft review is stale for current head SHA |
 | `blocked_needs_user_decision` | Failure state requiring explicit user decision |
 
@@ -84,6 +84,20 @@ artifact/verdict.
 - emits only bounded inline comments with `path`, `line`, `body`, and `side: "RIGHT"`
 - keeps draft-review creation separate from final review submission
 
+## Reviewer-Boundary Contract (Review vs Remediation)
+
+- A pure internal reviewer pass must end in a concrete review result boundary (`submitted_review`) rather than generic post-review waiting.
+- After submission, author/Copilot remediation belongs to a separate remediation/fix loop handoff boundary (see broader remediation-loop work in #26).
+- A new review request after fixes starts a new reviewer-pass context (`review_requested`) rather than extending the old pass indefinitely.
+- A newly opened or still-forming draft PR head is not automatically review-ready; while the intended initial slice is still being authored, treat that as external follow-up/remediation boundary work, not a formal reviewer-verdict moment.
+- If a wait state is used, it must be an explicit named external-participant boundary (for example author/Copilot follow-up, human approval wait, or external Copilot review wait), never a catch-all continuation state for internal reviewer logic.
+- Default forward-progress rule at this boundary: continue to the next relevant approval gate or explicit handoff boundary. Early stop is only valid for one of:
+  - `blocked_needs_user_decision`
+  - true external wait with named actor boundary
+  - missing authorization
+  - tooling failure
+  - explicit human stop
+
 ## Detector CLI Contract
 
 `node scripts/loop/detect-reviewer-loop-state.mjs` supports:
@@ -112,5 +126,7 @@ Failure output:
 - planning/running/merge-ready states are explicitly represented
 - draft-ready vs draft-posted vs waiting-for-submit vs submitted are distinct
 - pending draft reviews are invalidated when `draftReviewCommitSha !== prHeadSha`
-- waiting-for-author-followup vs waiting-for-re-request is determined from submitted review commit vs current head
+- submitted review is the internal reviewer-loop terminal/handoff boundary
+- review re-entry requires an explicit re-request in a new review pass context
+- `waiting_for_author_followup` / `waiting_for_re_request` are legacy external-wait compatibility states, not preferred internal loop terminals
 - unexpected failures fail closed into `blocked_needs_user_decision`

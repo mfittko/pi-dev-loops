@@ -50,16 +50,17 @@ export const REVIEWER_TRANSITIONS = Object.freeze({
     REVIEWER_STATE.REVIEW_INVALIDATED,
   ],
   [REVIEWER_STATE.SUBMITTED_REVIEW]: [
-    REVIEWER_STATE.WAITING_FOR_AUTHOR_FOLLOWUP,
-    REVIEWER_STATE.WAITING_FOR_RE_REQUEST,
+    REVIEWER_STATE.REVIEW_REQUESTED,
+    REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST,
   ],
   [REVIEWER_STATE.WAITING_FOR_AUTHOR_FOLLOWUP]: [
-    REVIEWER_STATE.WAITING_FOR_RE_REQUEST,
+    REVIEWER_STATE.SUBMITTED_REVIEW,
+    REVIEWER_STATE.REVIEW_REQUESTED,
     REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST,
   ],
   [REVIEWER_STATE.WAITING_FOR_RE_REQUEST]: [
     REVIEWER_STATE.REVIEW_REQUESTED,
-    REVIEWER_STATE.WAITING_FOR_AUTHOR_FOLLOWUP,
+    REVIEWER_STATE.SUBMITTED_REVIEW,
   ],
   [REVIEWER_STATE.REVIEW_INVALIDATED]: [REVIEWER_STATE.REVIEW_REQUESTED],
   [REVIEWER_STATE.BLOCKED_NEEDS_USER_DECISION]: [],
@@ -74,9 +75,9 @@ const REVIEWER_NEXT_ACTIONS = Object.freeze({
   [REVIEWER_STATE.DRAFT_REVIEW_READY]: "Create a pending GitHub draft review from merged findings",
   [REVIEWER_STATE.DRAFT_REVIEW_POSTED]: "Share the draft review URL and move to submit wait state",
   [REVIEWER_STATE.WAITING_FOR_USER_SUBMIT]: "Wait for review submission through Pi or directly on GitHub",
-  [REVIEWER_STATE.SUBMITTED_REVIEW]: "Record the submitted review and move to author follow-up waiting",
-  [REVIEWER_STATE.WAITING_FOR_AUTHOR_FOLLOWUP]: "Wait for author fixes or PR close/merge",
-  [REVIEWER_STATE.WAITING_FOR_RE_REQUEST]: "Wait for an explicit re-request after follow-up commits",
+  [REVIEWER_STATE.SUBMITTED_REVIEW]: "Review outcome submitted; hand off to remediation/fix follow-up until explicit re-request",
+  [REVIEWER_STATE.WAITING_FOR_AUTHOR_FOLLOWUP]: "Legacy external wait: author/Copilot follow-up boundary after submitted review",
+  [REVIEWER_STATE.WAITING_FOR_RE_REQUEST]: "Legacy external wait: explicit re-request boundary after submitted review",
   [REVIEWER_STATE.REVIEW_INVALIDATED]: "Discard stale pending draft review and restart at review_requested",
   [REVIEWER_STATE.BLOCKED_NEEDS_USER_DECISION]: "Stop and request explicit user direction",
 });
@@ -217,13 +218,9 @@ export function interpretReviewerLoopState(snapshot) {
       state = REVIEWER_STATE.DRAFT_REVIEW_POSTED;
     }
   } else if (s.submittedReviewPresent) {
-    if (authorPushedSinceSubmit) {
-      state = s.reviewRequested
-        ? REVIEWER_STATE.REVIEW_REQUESTED
-        : REVIEWER_STATE.WAITING_FOR_RE_REQUEST;
-    } else {
-      state = REVIEWER_STATE.WAITING_FOR_AUTHOR_FOLLOWUP;
-    }
+    state = authorPushedSinceSubmit && s.reviewRequested
+      ? REVIEWER_STATE.REVIEW_REQUESTED
+      : REVIEWER_STATE.SUBMITTED_REVIEW;
   } else if (s.reviewSubmissionStatus === "submitted") {
     state = REVIEWER_STATE.SUBMITTED_REVIEW;
   } else if (s.draftReviewPrepared || s.localMergeStatus === "ready") {

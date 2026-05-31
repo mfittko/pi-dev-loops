@@ -642,10 +642,10 @@ test("outer-loop: copilot pr_draft → reenter_copilot_loop", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// CLI: reviewer waiting_for_author_followup → continue_wait
+// CLI: reviewer submitted_review handoff boundary → continue_wait
 // ---------------------------------------------------------------------------
 
-test("outer-loop: reviewer waiting_for_author_followup → continue_wait", async () => {
+test("outer-loop: reviewer submitted_review (same head) → continue_wait", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-reviewer-followup-"));
 
   try {
@@ -666,7 +666,7 @@ test("outer-loop: reviewer waiting_for_author_followup → continue_wait", async
       ciStatus: "success",
     });
 
-    // Reviewer submitted review on head commit (waiting for author followup)
+    // Reviewer submitted review on current head (handoff boundary to remediation/follow-up)
     await writeJson(reviewerSnapshotPath, {
       prExists: true,
       prNumber: 47,
@@ -690,7 +690,7 @@ test("outer-loop: reviewer waiting_for_author_followup → continue_wait", async
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
     assert.equal(output.outerAction, "continue_wait");
-    assert.equal(output.reviewerState, "waiting_for_author_followup");
+    assert.equal(output.reviewerState, "submitted_review");
     assert.equal(output.reviewerScope.mode, "all_reviewers");
     assert.equal(output.reviewerScope.reviewerLogin, null);
     assert.equal(output.checkpoint.reviewerScope, "all_reviewers");
@@ -702,10 +702,10 @@ test("outer-loop: reviewer waiting_for_author_followup → continue_wait", async
 });
 
 // ---------------------------------------------------------------------------
-// CLI: reviewer waiting_for_re_request → continue_wait (same remediation family)
+// CLI: reviewer submitted_review after author push → continue_wait (same remediation family)
 // ---------------------------------------------------------------------------
 
-test("outer-loop: reviewer waiting_for_re_request → continue_wait", async () => {
+test("outer-loop: reviewer submitted_review (author pushed; no re-request) → continue_wait", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-reviewer-rerequest-"));
 
   try {
@@ -725,7 +725,7 @@ test("outer-loop: reviewer waiting_for_re_request → continue_wait", async () =
       ciStatus: "success",
     });
 
-    // Author pushed a new commit since review submission → waiting_for_re_request
+    // Author pushed a new commit since review submission; no explicit re-request yet.
     await writeJson(reviewerSnapshotPath, {
       prExists: true,
       prNumber: 47,
@@ -750,17 +750,17 @@ test("outer-loop: reviewer waiting_for_re_request → continue_wait", async () =
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
     assert.equal(output.outerAction, "continue_wait");
-    assert.equal(output.reviewerState, "waiting_for_re_request");
+    assert.equal(output.reviewerState, "submitted_review");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
 // ---------------------------------------------------------------------------
-// CLI: author/Copilot follow-up received → reviewer re-entry
+// CLI: explicit re-request after author/Copilot follow-up → reviewer re-entry
 // ---------------------------------------------------------------------------
 
-test("outer-loop: waiting_for_re_request → review_requested after re-detect → reenter_reviewer_loop", async () => {
+test("outer-loop: submitted_review → review_requested after explicit re-request → reenter_reviewer_loop", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-outer-reviewer-reentry-"));
 
   try {
