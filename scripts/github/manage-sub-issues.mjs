@@ -240,13 +240,17 @@ function normalizeSubIssue(raw) {
   const id = raw.id;
   const number = raw.number;
   const title = typeof raw.title === "string" ? raw.title : "";
-  const state = typeof raw.state === "string" ? raw.state.toLowerCase() : "unknown";
+  const state = typeof raw.state === "string" ? raw.state.toLowerCase() : null;
 
   if (!Number.isInteger(id) || id <= 0) {
     return null;
   }
 
   if (!Number.isInteger(number) || number <= 0) {
+    return null;
+  }
+
+  if (state !== "open" && state !== "closed") {
     return null;
   }
 

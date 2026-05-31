@@ -383,6 +383,33 @@ test("manage-sub-issues list returns sub-issues from API", async () => {
   }
 });
 
+test("manage-sub-issues list drops entries with unsupported states", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-manage-sub-issues-bad-state-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/42/sub_issues"],
+        stdout: subIssuePayload([
+          { id: 1001, number: 10, title: "Slice A", state: "open" },
+          { id: 1002, number: 11, title: "Slice B", state: "draft" },
+        ]),
+      },
+    ]);
+
+    const result = await runNode(["list", "--repo", "owner/repo", "--issue", "42"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.deepEqual(parsed.subIssues, [
+      { id: 1001, number: 10, title: "Slice A", state: "open" },
+    ]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("manage-sub-issues list returns empty array when no sub-issues", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-manage-sub-issues-empty-"));
 
