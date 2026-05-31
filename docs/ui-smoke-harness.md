@@ -72,4 +72,4 @@ This harness does not attempt to provide:
 - mandatory CI enforcement for every UI slice
 - a second public workflow entrypoint beside `dev-loop`
 
-CI promotion remains a later bounded decision: first prove the local harness honestly, then require it in CI only when the slice contract warrants that promotion.
+CI promotion policy is now defined in `docs/ui-artifact-contract.md`: keep the local harness honest first, then promote only the bounded UI slices whose settled contract warrants CI enforcement.
