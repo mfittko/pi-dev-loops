@@ -32,6 +32,10 @@ function requireOutputDir(outputDir) {
   return outputDir;
 }
 
+function buildRunId({ sliceId, stateSlug, projectName }) {
+  return [sliceId, stateSlug, projectName ?? 'unknown'].map((part) => normalizeUiStateSegment(part)).join('-');
+}
+
 export function createWebkitSmokeConfig({ sliceId, testMatch, testDir = './test/playwright' }) {
   const normalizedSliceId = normalizeUiStateSegment(sliceId);
   return {
@@ -80,30 +84,43 @@ export async function captureNamedUiState({ page, testInfo, sliceId, stateName, 
     sliceId,
     stateName,
   });
+  const projectName = testInfo?.project?.name ?? null;
 
   await mkdir(paths.artifactDir, { recursive: true });
   await page.screenshot({ path: paths.screenshotPath, fullPage });
 
+  const normalizedMetadata = {
+    ...metadata,
+    fixture: metadata.fixture ?? null,
+    route: metadata.route ?? null,
+    reviewHint: metadata.reviewHint ?? null,
+  };
+
   const stateArtifact = {
     schemaVersion: 1,
+    artifactType: 'named-ui-state',
+    validationLevel: 'deterministic-smoke',
     sliceId: paths.sliceId,
     stateName,
     stateSlug: paths.stateSlug,
+    runId: buildRunId({ sliceId: paths.sliceId, stateSlug: paths.stateSlug, projectName }),
     capturedAt: new Date().toISOString(),
-    projectName: testInfo?.project?.name ?? null,
+    projectName,
     testTitle: testInfo?.title ?? null,
     testFile: testInfo?.file ?? null,
     artifacts: {
       screenshot: {
         fileName: path.basename(paths.screenshotPath),
+        relativePath: path.basename(paths.screenshotPath),
         path: paths.screenshotPath,
       },
       state: {
         fileName: path.basename(paths.statePath),
+        relativePath: path.basename(paths.statePath),
         path: paths.statePath,
       },
     },
-    metadata,
+    metadata: normalizedMetadata,
   };
 
   await writeFile(paths.statePath, `${JSON.stringify(stateArtifact, null, 2)}\n`, 'utf8');

@@ -20,6 +20,8 @@ test('ui smoke harness doc defines the bounded reusable local Playwright/WebKit 
   assert.match(doc, /named screenshot\/state artifact capture/i);
   assert.match(doc, /test-results\/ui-smoke\/inspect-run-viewer/i);
   assert.match(doc, /playwright-report\/ui-smoke\/inspect-run-viewer/i);
+  assert.match(doc, /docs\/ui-artifact-contract\.md/i);
+  assert.doesNotMatch(doc, /later bounded decision/i);
   assert.match(doc, /not a general E2E framework/i);
   assert.match(doc, /does not make browser validation mandatory for non-UI slices/i);
 

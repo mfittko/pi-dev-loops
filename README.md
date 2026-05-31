@@ -84,7 +84,7 @@ Root verification and test commands from `package.json`:
 - `npm run test:dev-loop`
 - `npm run test:playwright:viewer` — explicit viewer/browser smoke, not part of the default root verify path
 
-CI currently splits into a small changed-files gate plus parallel `verify` and conditional `viewer-smoke` jobs: `npm ci` + `npm run verify` still run on every change, while the workspace-local Playwright WebKit cache restore/install and explicit viewer smoke run only when files in the bounded inspect-run viewer surface change.
+CI currently splits into a small changed-files gate plus parallel `verify` and conditional `viewer-smoke` jobs: `npm ci` + `npm run verify` still run on every change, while the workspace-local Playwright WebKit cache restore/install and explicit viewer smoke run only when files in the bounded inspect-run viewer surface or its smoke-path dependencies change.
 
 ## Where to read next
 
@@ -92,3 +92,4 @@ CI currently splits into a small changed-files gate plus parallel `verify` and c
 - `extension/README.md` — `/dev-loops` command and package-install contract
 - `scripts/README.md` — deterministic script contracts
 - `docs/ui-smoke-harness.md` — reusable local Playwright/WebKit smoke baseline for opted-in UI slices
+- `docs/ui-artifact-contract.md` — screenshot/state artifact contract and bounded CI-promotion rules for UI slices

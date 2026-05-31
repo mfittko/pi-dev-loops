@@ -16,6 +16,7 @@ Start here for repository documentation.
 - `docs/steering-contract.md`
 - `docs/ui-validation-contract.md`
 - `docs/ui-smoke-harness.md`
+- `docs/ui-artifact-contract.md`
 
 ## Active local phase doc
 
