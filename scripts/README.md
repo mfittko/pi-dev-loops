@@ -201,7 +201,7 @@ Contract:
 - fails closed with explicit error output when required PR facts cannot be fetched
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/name", "issue": 59, "state": "...", "prNumber": 79|null, "prUrl": "..."|null, "headBranch": "..."|null, "authorLogin": "Copilot"|null, "isDraft": true|false|null, "changedFiles": 0|null, "commitCount": 1|null, "soleCommitHeadline": "Initial plan"|null, "sessionActivity": "active"|"concluded"|"idle"|null, "sessionRunId": 123|null, "sessionRunName": "..."|null, "sessionRunStatus": "..."|null, "sessionRunConclusion": "success"|null, "sessionRunCreatedAt": "..."|null, "sessionConfidence": "high"|null }`
+- `{ "ok": true, "repo": "owner/name", "issue": 59, "state": "...", "prNumber": 79|null, "prUrl": "..."|null, "headBranch": "..."|null, "authorLogin": "Copilot"|null, "isDraft": true|false|null, "changedFiles": 0|null, "commitCount": 1|null, "soleCommitHeadline": "Initial plan"|null, "sessionActivity": "active"|"concluded"|"idle"|null, "sessionRunId": 123|null, "sessionRunName": "..."|null, "sessionRunStatus": "..."|null, "sessionRunConclusion": string|null, "sessionRunCreatedAt": "..."|null, "sessionConfidence": "high"|null }`
 
 ### `scripts/loop/detect-copilot-session-activity.mjs`
 
