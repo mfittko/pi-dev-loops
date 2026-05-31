@@ -132,6 +132,13 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
   assert.equal(result.terminal, false);
   assert.equal(result.watchStatus, "timeout");
   assert.equal(result.state, "waiting_for_copilot_review");
+  assert.equal(result.contractTrace.waitStrategy.mode, "persistent_watch");
+  assert.equal(result.contractTrace.waitStrategy.effectiveTimeoutMs, 86_400_000);
+  assert.equal(result.contractTrace.waitStrategy.effectivePollIntervalMs, 60_000);
+  assert.equal(result.contractTrace.orchestration.emittedWatchArgs.timeoutMs, 86_400_000);
+  assert.equal(result.contractTrace.orchestration.effectiveWatchArgs.timeoutMs, 86_400_000);
+  assert.equal(result.contractTrace.stateRefresh.boundaryKind, "post_watch_or_probe");
+  assert.equal(result.contractTrace.stopReason.classification, "healthy_wait");
 });
 
 test("runWatchCycle rejects persistent watch budgets below the unattended external minimum", async () => {
@@ -214,6 +221,9 @@ test("runWatchCycle uses zero-timeout idle probes only when explicitly requested
   assert.equal(result.cycleDisposition, "pending");
   assert.equal(result.terminal, false);
   assert.equal(result.watchStatus, "idle");
+  assert.equal(result.contractTrace.waitStrategy.mode, "one_shot_probe");
+  assert.equal(result.contractTrace.waitStrategy.effectiveTimeoutMs, 0);
+  assert.equal(result.contractTrace.stopReason.classification, "healthy_wait");
 });
 
 test("runWatchCycle keeps shared loopDisposition and reports needs_followup in cycleDisposition when fresh Copilot activity appears", async () => {
@@ -328,6 +338,7 @@ test("runWatchCycle preserves done loopDisposition for stop states without invok
   assert.equal(result.cycleDisposition, "terminal");
   assert.equal(result.terminal, true);
   assert.equal(result.watchStatus, undefined);
+  assert.equal(result.contractTrace.stopReason.classification, "terminal");
 });
 
 test("runWatchCycle integration keeps initial request-review -> waiting_for_copilot_review non-terminal", async () => {
@@ -701,6 +712,9 @@ test("runWatchCycle integration bounds active Copilot workflow waits by the emit
   assert.equal(receivedTimeoutMs, 86_400_000);
   assert.equal(result.sessionActivity.activity, "active");
   assert.equal(result.watchStatus, "idle");
+  assert.equal(result.contractTrace.orchestration.workflowRunWatch.attempted, true);
+  assert.equal(result.contractTrace.orchestration.workflowRunWatch.timeoutMs, 86_400_000);
+  assert.equal(result.contractTrace.orchestration.workflowRunWatch.runId, 444);
 });
 
 test("runWatchCycle integration keeps the full persistent watch timeout after active Copilot workflow waits", async () => {

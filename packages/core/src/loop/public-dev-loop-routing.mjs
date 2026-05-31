@@ -111,6 +111,16 @@ export const DEV_LOOP_STATUS_REPORT_KIND = Object.freeze({
   NEEDS_RECONCILE: "needs_reconcile",
 });
 
+export const DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION = Object.freeze({
+  ROUTED_FOLLOWUP: "routed_followup",
+  HEALTHY_WAIT: "healthy_wait",
+  TERMINAL: "terminal",
+  BLOCKED: "blocked",
+  AUTHORIZATION_GATED: "authorization_gated",
+  RECONCILE: "reconcile",
+  INSPECT: "inspect",
+});
+
 export const DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND = Object.freeze({
   RESOLVED: "resolved",
   NEEDS_RECONCILE: "needs_reconcile",
@@ -501,6 +511,89 @@ function applyRetrospectiveCheckpointGate(result, checkpointState, checkpointSta
   });
 }
 
+function resolveStopClassification({ selectedGate, routeKind, canonicalState = null }) {
+  if (routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE || selectedGate === DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.RECONCILE;
+  }
+
+  if (routeKind === DEV_LOOP_ROUTE_KIND.INSPECT) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.INSPECT;
+  }
+
+  if (routeKind === DEV_LOOP_ROUTE_KIND.WAIT) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.HEALTHY_WAIT;
+  }
+
+  if (selectedGate === DEV_LOOP_GATE.STOP_DONE_TERMINAL || canonicalState?.status === DEV_LOOP_STATUS.DONE) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.TERMINAL;
+  }
+
+  if (selectedGate === DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.AUTHORIZATION_GATED;
+  }
+
+  if (selectedGate === DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED) {
+    return canonicalState?.status === DEV_LOOP_STATUS.BLOCKED
+      ? DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.BLOCKED
+      : DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.AUTHORIZATION_GATED;
+  }
+
+  return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.ROUTED_FOLLOWUP;
+}
+
+function buildContractTrace({
+  publicEntrypoint = PUBLIC_DEV_LOOP_ENTRYPOINT,
+  selectedGate,
+  routeKind,
+  selectedStrategy,
+  executionMode,
+  waitSemantics,
+  waitTimeoutPolicy,
+  canonicalState,
+  reason,
+  watchRequested = false,
+  boundary = null,
+}) {
+  const effectiveTimeoutMs = waitTimeoutPolicy?.defaultTimeoutMs ?? null;
+  return {
+    publicEntrypoint,
+    decision: {
+      selectedGate,
+      routeKind,
+      selectedStrategy,
+      executionMode,
+      watchRequested,
+      contractClassification: resolveStopClassification({ selectedGate, routeKind, canonicalState }),
+      contractJustification: reason,
+    },
+    waitStrategy: {
+      selectedStrategy: routeKind === DEV_LOOP_ROUTE_KIND.WAIT ? selectedStrategy : null,
+      waitSemantics,
+      waitMode: routeKind === DEV_LOOP_ROUTE_KIND.WAIT ? "persistent_watch" : "not_applicable",
+      timeoutPolicyClassification: waitTimeoutPolicy?.classification ?? null,
+      effectiveTimeoutMs,
+      effectivePollIntervalMs: null,
+    },
+    stopReason: {
+      classification: resolveStopClassification({ selectedGate, routeKind, canonicalState }),
+      terminal: selectedGate === DEV_LOOP_GATE.STOP_DONE_TERMINAL || canonicalState?.status === DEV_LOOP_STATUS.DONE,
+      reason,
+    },
+    stateRefresh: boundary ?? null,
+  };
+}
+
+function withContractTrace(result, { watchRequested = false, boundary = null } = {}) {
+  return {
+    ...result,
+    contractTrace: buildContractTrace({
+      ...result,
+      watchRequested,
+      boundary,
+    }),
+  };
+}
+
 function buildResult({
   selectedGate,
   routeKind,
@@ -512,6 +605,8 @@ function buildResult({
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
   waitTimeoutPolicy = null,
   issueAssignmentSeam = DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.NOT_APPLICABLE,
+  watchRequested = false,
+  contractTraceBoundary = null,
 }) {
   return {
     publicEntrypoint: PUBLIC_DEV_LOOP_ENTRYPOINT,
@@ -525,6 +620,18 @@ function buildResult({
     issueAssignmentSeam,
     nextAction,
     reason,
+    contractTrace: buildContractTrace({
+      selectedGate,
+      routeKind,
+      selectedStrategy,
+      executionMode,
+      waitSemantics,
+      waitTimeoutPolicy,
+      canonicalState,
+      reason,
+      watchRequested,
+      boundary: contractTraceBoundary,
+    }),
   };
 }
 
@@ -548,13 +655,25 @@ function buildReconcile(reason, canonicalState = null, executionMode = DEV_LOOP_
  * non-wait routed results fail closed.
  */
 function applyWatchValidation(result, watchRequested) {
+  const refreshBoundary = watchRequested
+    ? {
+        boundaryKind: "post_watch_or_probe",
+        refreshRequired: true,
+        refreshReason: result.routeKind === DEV_LOOP_ROUTE_KIND.WAIT
+          ? "Wait/watch boundaries are observational only; refresh authoritative state before treating a healthy wait boundary as completion or exit."
+          : "Requested watch/probe boundaries still require an authoritative state refresh before classifying the outcome as completion or re-entry.",
+      }
+    : null;
+
   if (!watchRequested) return result;
-  if (result.routeKind === DEV_LOOP_ROUTE_KIND.WAIT) return result;
-  if (result.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) return result;
-  if (result.routeKind === DEV_LOOP_ROUTE_KIND.STOP) return result;
-  if (result.selectedGate === DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE) return result;
-  if (result.selectedGate === DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED) return result;
-  if (result.selectedGate === DEV_LOOP_GATE.STOP_DONE_TERMINAL) return result;
+  if (result.routeKind === DEV_LOOP_ROUTE_KIND.WAIT) {
+    return withContractTrace(result, { watchRequested, boundary: refreshBoundary });
+  }
+  if (result.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) return withContractTrace(result, { watchRequested });
+  if (result.routeKind === DEV_LOOP_ROUTE_KIND.STOP) return withContractTrace(result, { watchRequested });
+  if (result.selectedGate === DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE) return withContractTrace(result, { watchRequested });
+  if (result.selectedGate === DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED) return withContractTrace(result, { watchRequested });
+  if (result.selectedGate === DEV_LOOP_GATE.STOP_DONE_TERMINAL) return withContractTrace(result, { watchRequested });
   return buildReconcile(
     "watch requested but the routed result is not eligible for wait/watch semantics.",
     result.canonicalState,
@@ -893,7 +1012,7 @@ function buildStatusReconcile(
   waitTimeoutPolicy = null,
   asyncRun = null,
 ) {
-  return {
+  const result = {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE,
     reason,
     activeArtifact: canonicalState ? buildStatusArtifactIdentity(canonicalState) : null,
@@ -909,6 +1028,24 @@ function buildStatusReconcile(
     asyncRun,
     canonicalState,
   };
+  return {
+    ...result,
+    contractTrace: buildContractTrace({
+      selectedGate: result.selectedGate,
+      routeKind: result.routeKind,
+      selectedStrategy: result.selectedStrategy,
+      executionMode,
+      waitSemantics,
+      waitTimeoutPolicy,
+      canonicalState,
+      reason,
+      boundary: {
+        boundaryKind: "authoritative_status_refresh",
+        refreshRequired: true,
+        refreshReason: "Status answers are derived from refreshed authoritative state and must fail closed when that refresh cannot justify the stop classification.",
+      },
+    }),
+  };
 }
 
 function buildStartupResumeBundleReconcile({
@@ -922,7 +1059,7 @@ function buildStartupResumeBundleReconcile({
   waitTimeoutPolicy = null,
   asyncRun = null,
 }) {
-  return {
+  const result = {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE,
     reason,
     activeArtifact: canonicalState ? buildStatusArtifactIdentity(canonicalState) : null,
@@ -938,6 +1075,24 @@ function buildStartupResumeBundleReconcile({
     waitTimeoutPolicy,
     asyncRun,
     canonicalState,
+  };
+  return {
+    ...result,
+    contractTrace: buildContractTrace({
+      selectedGate: result.selectedGate,
+      routeKind: result.routeKind,
+      selectedStrategy: result.selectedStrategy,
+      executionMode,
+      waitSemantics,
+      waitTimeoutPolicy,
+      canonicalState,
+      reason,
+      boundary: {
+        boundaryKind: "startup_resume_refresh",
+        refreshRequired: true,
+        refreshReason: "Startup/resume routing must record the refreshed authoritative state boundary that justified this stop or reconcile decision.",
+      },
+    }),
   };
 }
 
@@ -1326,6 +1481,24 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     issueAssignmentSeam: effectiveRouted.issueAssignmentSeam,
     nextAction: buildAuthoritativeStatusNextAction(effectiveRouted),
     reason: effectiveRouted.reason,
+    contractTrace: buildContractTrace({
+      selectedGate: effectiveRouted.selectedGate,
+      routeKind: effectiveRouted.routeKind,
+      selectedStrategy: effectiveRouted.selectedStrategy,
+      executionMode: effectiveRouted.executionMode,
+      waitSemantics: effectiveRouted.waitSemantics,
+      waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
+      canonicalState: effectiveRouted.canonicalState,
+      reason: effectiveRouted.reason,
+      boundary: {
+        boundaryKind: "startup_resume_refresh",
+        refreshRequired: true,
+        refreshReason: "Startup/resume answers record the authoritative refreshed loop state that justified the routed path.",
+        loopState,
+        artifactState,
+        issueLinkageResolution: normalizedIssueLinkageResolution,
+      },
+    }),
   };
 }
 
@@ -1360,6 +1533,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     issueAssignmentSeam: bundle.issueAssignmentSeam,
     canonicalState: bundle.canonicalState,
     reason: bundle.reason,
+    contractTrace: bundle.contractTrace,
   };
 }
 

@@ -33,6 +33,7 @@ Output (stdout, JSON):
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
     "reviewRequestStatus"?: "...", "watchArgs"?: { ... },
     "watchTimeoutPolicy"?: { "classification": "...", "minimumTimeoutMs": N, "defaultTimeoutMs": N },
+    "contractTrace"?: { ... },
     "sessionActivity"?: { ... },
     "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... },
     "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done",
@@ -137,6 +138,66 @@ function determineWatchTimeout({ probeOnly, defaultTimeoutMs }) {
   });
 }
 
+function buildWatchCycleContractTrace({
+  handoff,
+  watchArgs = null,
+  watchTimeoutPolicy = null,
+  probeOnly,
+  watchStatus,
+  cycleDisposition,
+  sessionActivity = null,
+  workflowRunWatch = null,
+}) {
+  const boundaryClassification = handoff.action !== "watch"
+    ? (handoff.terminal ? "terminal" : "followup_required")
+    : watchStatus === "changed"
+      ? "followup_required"
+      : "healthy_wait";
+  return {
+    handoff: {
+      action: handoff.action,
+      state: handoff.state,
+      loopDisposition: handoff.loopDisposition,
+      terminal: Boolean(handoff.terminal),
+    },
+    waitStrategy: {
+      helper: handoff.action === "watch" ? "scripts/github/watch-copilot-review.mjs" : null,
+      mode: handoff.action === "watch"
+        ? (probeOnly ? "one_shot_probe" : "persistent_watch")
+        : "not_applicable",
+      effectiveTimeoutMs: watchArgs?.timeoutMs ?? null,
+      effectivePollIntervalMs: watchArgs?.pollIntervalMs ?? null,
+      timeoutPolicyClassification: watchTimeoutPolicy?.classification ?? null,
+    },
+    orchestration: {
+      emittedWatchArgs: handoff.watchArgs ?? null,
+      effectiveWatchArgs: watchArgs,
+      sessionActivity,
+      workflowRunWatch,
+    },
+    stateRefresh: handoff.action === "watch"
+      ? {
+          boundaryKind: "post_watch_or_probe",
+          observedStatus: watchStatus,
+          refreshRequired: true,
+          refreshReason: watchStatus === "changed"
+            ? "Watch boundaries with fresh activity require an authoritative state refresh before routing the follow-up path."
+            : "Healthy wait boundaries are observational only; refresh authoritative state before treating timeout/idle as stop or completion.",
+        }
+      : null,
+    stopReason: {
+      classification: boundaryClassification,
+      terminal: Boolean(handoff.terminal),
+      cycleDisposition,
+      contractJustification: handoff.action === "watch"
+        ? (watchStatus === "changed"
+          ? "Fresh watcher activity requires follow-up instead of staying in a healthy wait boundary."
+          : "Quiet watcher boundaries remain healthy waits and must not be treated as terminal completion by themselves.")
+        : handoff.nextAction,
+    },
+  };
+}
+
 export function parseWatchCycleCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -230,6 +291,14 @@ export async function runWatchCycle(
   }
 
   if (handoff.action !== "watch") {
+    result.contractTrace = buildWatchCycleContractTrace({
+      handoff,
+      watchArgs: result.watchArgs ?? null,
+      watchTimeoutPolicy: result.watchTimeoutPolicy ?? null,
+      probeOnly: options.probeOnly,
+      watchStatus: result.watchStatus,
+      cycleDisposition: result.cycleDisposition,
+    });
     return result;
   }
 
@@ -283,6 +352,22 @@ export async function runWatchCycle(
   result.watch = watch;
   result.cycleDisposition = watch.status === "changed" ? "needs_followup" : "pending";
   result.terminal = false;
+  result.contractTrace = buildWatchCycleContractTrace({
+    handoff,
+    watchArgs: watchOptions,
+    watchTimeoutPolicy: result.watchTimeoutPolicy,
+    probeOnly: options.probeOnly,
+    watchStatus: watch.status,
+    cycleDisposition: result.cycleDisposition,
+    sessionActivity: result.sessionActivity ?? null,
+    workflowRunWatch: detectSessionActivity && !options.probeOnly
+      ? {
+          attempted: result.sessionActivity?.activity === "active" && Number.isInteger(result.sessionActivity?.runId),
+          timeoutMs: persistentWatchTimeoutMs,
+          runId: result.sessionActivity?.runId ?? null,
+        }
+      : null,
+  });
   return result;
 }
 

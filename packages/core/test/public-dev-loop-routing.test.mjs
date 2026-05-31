@@ -10,6 +10,7 @@ import {
   DEV_LOOP_ACTOR,
   DEV_LOOP_AUTHORIZATION,
   DEV_LOOP_ARTIFACT_STATE,
+  DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION,
   DEV_LOOP_GATE,
   DEV_LOOP_PUBLIC_INTENT,
   DEV_LOOP_EXECUTION_MODE,
@@ -527,6 +528,24 @@ test("merge-ready states without merge authorization stop in waiting_for_merge_a
   assert.match(result.reason, /must stop and wait/i);
 });
 
+test("authorization-gated stops emit contract trace classification", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.MAINTAINER,
+      nextActor: DEV_LOOP_ACTOR.MAINTAINER,
+      status: DEV_LOOP_STATUS.MERGE_READY,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    gateReviewEvidence: buildCleanPreApprovalGateEvidence(),
+  });
+
+  assert.equal(result.contractTrace.stopReason.classification, DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.AUTHORIZATION_GATED);
+  assert.equal(result.contractTrace.stopReason.terminal, false);
+  assert.match(result.contractTrace.stopReason.reason, /must stop and wait/i);
+});
+
 test("merge-ready states with explicit merge authorization may proceed to final approval merge step", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
@@ -564,6 +583,29 @@ test("waiting states remain deterministic wait/watch states", () => {
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
   assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.DEFAULT);
   assert.deepEqual(result.waitTimeoutPolicy, PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY);
+});
+
+test("wait/watch routing emits deterministic contract trace instrumentation", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    watch: true,
+  });
+
+  assert.equal(result.contractTrace.decision.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
+  assert.equal(result.contractTrace.decision.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+  assert.equal(result.contractTrace.decision.contractClassification, DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.HEALTHY_WAIT);
+  assert.equal(result.contractTrace.waitStrategy.waitMode, "persistent_watch");
+  assert.equal(result.contractTrace.waitStrategy.timeoutPolicyClassification, PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY.classification);
+  assert.equal(result.contractTrace.waitStrategy.effectiveTimeoutMs, PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY.defaultTimeoutMs);
+  assert.equal(result.contractTrace.stateRefresh.boundaryKind, "post_watch_or_probe");
+  assert.equal(result.contractTrace.stateRefresh.refreshRequired, true);
 });
 
 test("waiting linked issue states route as the authoritative linked PR artifact", () => {
@@ -2576,4 +2618,45 @@ test("authoritative status preserves the retrospective gate nextAction", () => {
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
   assert.match(report.nextAction, /Complete or explicitly skip/i);
+});
+
+test("authoritative startup/resume bundle carries refreshed wait-state trace context", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "waiting_for_copilot_review",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.contractTrace.decision.contractClassification, DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.HEALTHY_WAIT);
+  assert.equal(bundle.contractTrace.stateRefresh.boundaryKind, "startup_resume_refresh");
+  assert.equal(bundle.contractTrace.stateRefresh.loopState, "waiting_for_copilot_review");
+  assert.equal(bundle.contractTrace.stateRefresh.artifactState, DEV_LOOP_ARTIFACT_STATE.OPEN);
+});
+
+test("authoritative status reconcile carries contract trace classification", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "copilot_followup_active",
+    retrospectiveCheckpointState: RETROSPECTIVE_CHECKPOINT_STATE.MISSING,
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.contractTrace.stopReason.classification, DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.RECONCILE);
+  assert.equal(report.contractTrace.stateRefresh.boundaryKind, "authoritative_status_refresh");
 });
