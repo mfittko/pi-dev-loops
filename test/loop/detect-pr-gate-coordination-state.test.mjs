@@ -183,6 +183,7 @@ test("detect-pr-gate-coordination-state fails closed for non-draft PRs missing c
         "reply_resolve_review_threads",
         "rerequest_copilot_review",
         "run_pre_approval_gate",
+        "await_final_human_approval",
         "declare_merge_ready",
       ],
       nextAction: "report_blocked",

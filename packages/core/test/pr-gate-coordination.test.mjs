@@ -87,6 +87,7 @@ test("non-draft PR without current-head clean draft gate evidence fails closed",
   assert(result.allowedNextActions.includes(PR_GATE_ACTION.REPORT_BLOCKED));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
   assert.equal(result.draftGate.visible, true);
   assert.equal(result.draftGate.currentHead, false);
 });
