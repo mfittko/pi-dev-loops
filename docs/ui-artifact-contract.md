@@ -119,7 +119,7 @@ CI promotion is warranted when one or more of the following become true:
 - a regression-prone UI surface has a stable fixture-backed smoke path
 - the repo already has a bounded changed-files gate that can keep CI promotion narrow
 
-In this repository, the current proving example is the conditional `viewer-smoke` job in `.github/workflows/ci.yml`, which promotes the inspect-run viewer smoke suite only when the bounded viewer surface changes.
+In this repository, the current proving example is the conditional `viewer-smoke` job in `.github/workflows/ci.yml`, which promotes the inspect-run viewer smoke suite only when the bounded viewer surface or its smoke-path dependencies change.
 
 ## Failure policy for CI-promoted slices
 

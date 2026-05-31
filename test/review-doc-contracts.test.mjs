@@ -129,5 +129,5 @@ test("CI gates the Playwright WebKit smoke behind inspect-run viewer change dete
 
   assert.match(readme, /workspace-local Playwright WebKit/i);
   assert.match(readme, /small changed-files gate plus parallel `verify` and conditional `viewer-smoke` jobs/i);
-  assert.match(readme, /run only when files in the bounded inspect-run viewer surface change/i);
+  assert.match(readme, /run only when files in the bounded inspect-run viewer surface or its smoke-path dependencies change/i);
 });
