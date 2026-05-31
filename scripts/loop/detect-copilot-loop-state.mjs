@@ -80,7 +80,7 @@ import {
 } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import {
   normalizeStatusCheckRollupContract,
-  normalizeHeadScopedCheckRunsStatus,
+  summarizeHeadScopedCheckRunsSignal,
   normalizeHeadScopedCommitStatus,
   normalizeHeadScopedCiContract,
 } from "../../packages/core/src/loop/copilot-ci-status.mjs";
@@ -343,12 +343,12 @@ async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
     ),
   ]);
 
-  let checkRunsStatus = null;
+  let checkRunsSignal = null;
   if (checkRunsResult.code === 0) {
     try {
-      checkRunsStatus = normalizeHeadScopedCheckRunsStatus(JSON.parse(checkRunsResult.stdout));
+      checkRunsSignal = summarizeHeadScopedCheckRunsSignal(JSON.parse(checkRunsResult.stdout));
     } catch {
-      checkRunsStatus = null;
+      checkRunsSignal = null;
     }
   }
 
@@ -361,13 +361,14 @@ async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
     }
   }
 
-  if (checkRunsStatus === null && commitStatus === null) {
+  if (checkRunsSignal === null && commitStatus === null) {
     return null;
   }
 
   return normalizeHeadScopedCiContract({
-    checkRunsStatus: checkRunsStatus ?? "none",
+    checkRunsStatus: checkRunsSignal?.status ?? "none",
     commitStatus: commitStatus ?? "none",
+    checkRunsUnsupportedCompleted: checkRunsSignal?.unsupportedCompleted ?? false,
   }).overallStatus;
 }
 

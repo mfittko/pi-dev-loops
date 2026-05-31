@@ -90,15 +90,15 @@ export function normalizeStatusCheckRollupStatus(rollup) {
 }
 
 /**
- * Normalize the GitHub check-runs API payload for one head SHA into a stable status.
+ * Summarize the GitHub check-runs API payload for one head SHA.
  *
  * @param {object} payload
- * @returns {"success"|"failure"|"pending"|"none"}
+ * @returns {{ status: "success"|"failure"|"pending"|"none", unsupportedCompleted: boolean }}
  */
-export function normalizeHeadScopedCheckRunsStatus(payload) {
+export function summarizeHeadScopedCheckRunsSignal(payload) {
   const runs = Array.isArray(payload?.check_runs) ? payload.check_runs : [];
   if (runs.length === 0) {
-    return "none";
+    return { status: "none", unsupportedCompleted: false };
   }
 
   let hasPending = false;
@@ -128,11 +128,21 @@ export function normalizeHeadScopedCheckRunsStatus(payload) {
     hasUnsupportedCompleted = true;
   }
 
-  if (hasFailure) return "failure";
-  if (hasPending) return "pending";
-  if (hasUnsupportedCompleted) return "none";
-  if (hasSuccess) return "success";
-  return "none";
+  if (hasFailure) return { status: "failure", unsupportedCompleted: hasUnsupportedCompleted };
+  if (hasPending) return { status: "pending", unsupportedCompleted: hasUnsupportedCompleted };
+  if (hasUnsupportedCompleted) return { status: "none", unsupportedCompleted: true };
+  if (hasSuccess) return { status: "success", unsupportedCompleted: false };
+  return { status: "none", unsupportedCompleted: false };
+}
+
+/**
+ * Normalize the GitHub check-runs API payload for one head SHA into a stable status.
+ *
+ * @param {object} payload
+ * @returns {"success"|"failure"|"pending"|"none"}
+ */
+export function normalizeHeadScopedCheckRunsStatus(payload) {
+  return summarizeHeadScopedCheckRunsSignal(payload).status;
 }
 
 /**
@@ -215,7 +225,8 @@ export function normalizeStatusCheckRollupContract(rollup) {
  *
  * @param {{
  *  checkRunsStatus?: "success"|"failure"|"pending"|"none"|null,
- *  commitStatus?: "success"|"failure"|"pending"|"none"|null
+ *  commitStatus?: "success"|"failure"|"pending"|"none"|null,
+ *  checkRunsUnsupportedCompleted?: boolean|null
  * }} input
  * @returns {{
  *  overallStatus: "success"|"failure"|"pending"|"none",
@@ -223,9 +234,19 @@ export function normalizeStatusCheckRollupContract(rollup) {
  *  semantics: { wait: boolean, blocked: boolean, timeoutDisposition: "remain_waiting"|"not_applicable" }
  * }}
  */
-export function normalizeHeadScopedCiContract({ checkRunsStatus = "none", commitStatus = "none" } = {}) {
-  return buildCiContract(mergeHeadScopedCiStatuses(
+export function normalizeHeadScopedCiContract({
+  checkRunsStatus = "none",
+  commitStatus = "none",
+  checkRunsUnsupportedCompleted = false,
+} = {}) {
+  const overallStatus = mergeHeadScopedCiStatuses(
     normalizeHeadScopedCiStatus(checkRunsStatus ?? "none"),
     normalizeHeadScopedCiStatus(commitStatus ?? "none"),
-  ));
+  );
+
+  if (checkRunsUnsupportedCompleted === true && overallStatus === "success") {
+    return buildCiContract("none");
+  }
+
+  return buildCiContract(overallStatus);
 }

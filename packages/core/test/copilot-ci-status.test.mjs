@@ -5,6 +5,7 @@ import {
   mergeHeadScopedCiStatuses,
   normalizeStatusCheckRollupStatus,
   normalizeStatusCheckRollupContract,
+  summarizeHeadScopedCheckRunsSignal,
   normalizeHeadScopedCheckRunsStatus,
   normalizeHeadScopedCommitStatus,
   normalizeHeadScopedCiContract,
@@ -44,6 +45,18 @@ test("normalizeStatusCheckRollupStatus keeps cancelled completed entries from be
   ]);
 
   assert.equal(status, "none");
+});
+
+test("summarizeHeadScopedCheckRunsSignal preserves unsupported completed conclusions", () => {
+  const summary = summarizeHeadScopedCheckRunsSignal({
+    check_runs: [
+      { status: "COMPLETED", conclusion: "SUCCESS" },
+      { status: "COMPLETED", conclusion: "CANCELLED" },
+    ],
+  });
+
+  assert.equal(summary.status, "none");
+  assert.equal(summary.unsupportedCompleted, true);
 });
 
 test("normalizeHeadScopedCheckRunsStatus returns failure over pending for mixed check runs", () => {
@@ -127,6 +140,17 @@ test("normalizeHeadScopedCiContract emits wait semantics for pending and none", 
   assert.equal(none.semantics.wait, true);
   assert.equal(none.semantics.blocked, false);
   assert.equal(none.semantics.timeoutDisposition, "remain_waiting");
+});
+
+test("normalizeHeadScopedCiContract keeps unsupported completed check-runs from being masked by commit-status success", () => {
+  const contract = normalizeHeadScopedCiContract({
+    checkRunsStatus: "none",
+    commitStatus: "success",
+    checkRunsUnsupportedCompleted: true,
+  });
+
+  assert.equal(contract.overallStatus, "none");
+  assert.equal(contract.semantics.wait, true);
 });
 
 test("normalizeHeadScopedCiContract emits blocked semantics for failure", () => {
