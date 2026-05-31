@@ -346,14 +346,6 @@ test("upsert-gate-review-comment truncates verbose findings summary before comme
         stdout: '[]\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
-        stdout: '{"headRefOid":"abc1234"}\n',
-      },
-      {
-        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
-        stdout: '[]\n',
-      },
-      {
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
         assertArgContains: [
           "body=Gate review: pre_approval_gate",

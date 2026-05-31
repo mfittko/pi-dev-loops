@@ -145,7 +145,7 @@ async function fetchPrFacts({ repo, pr }, { env = process.env, ghCommand = "gh" 
   return parseJsonText(result.stdout, { label: "gh pr view" });
 }
 
-export async function detectPrGateCoordinationState(options, runtime = {}) {
+export async function loadPrGateCoordinationContext(options, runtime = {}) {
   const prData = await fetchPrFacts(options, runtime);
   const requestedReviewers = await fetchRequestedReviewers(options, runtime);
   const threadsPayload = await fetchGithubReviewThreadsPayload(options, runtime);
@@ -157,6 +157,10 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     : null;
   if (!currentHeadSha) {
     throw new Error("Invalid gh pr view payload: missing headRefOid");
+  }
+
+  if (gateEvidence.currentHeadSha !== currentHeadSha) {
+    throw new Error(`PR head changed while loading gate coordination facts for ${options.repo}#${options.pr}; refuse to evaluate mixed-head gate state.`);
   }
 
   const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
@@ -177,20 +181,33 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   const interpretation = interpretLoopState(snapshot);
   const disposition = summarizeLoopInterpretation(interpretation);
 
-  return evaluatePrGateCoordination({
+  return {
     repo: options.repo,
     pr: options.pr,
     currentHeadSha,
-    prDraft: Boolean(prData?.isDraft),
-    prClosed: String(prData?.state || "").toUpperCase() === "CLOSED",
-    prMerged: String(prData?.state || "").toUpperCase() === "MERGED",
-    lifecycleState: interpretation.state,
-    loopDisposition: disposition.loopDisposition,
-    sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
-    draftGate: gateEvidence.draftGate,
-    draftGateMarker: gateEvidence.draftGateMarker,
-    preApprovalGate: gateEvidence.preApprovalGate,
-    preApprovalGateMarker: gateEvidence.preApprovalGateMarker,
+    prData,
+    gateEvidence,
+    interpretation,
+    disposition,
+  };
+}
+
+export async function detectPrGateCoordinationState(options, runtime = {}) {
+  const context = await loadPrGateCoordinationContext(options, runtime);
+  return evaluatePrGateCoordination({
+    repo: context.repo,
+    pr: context.pr,
+    currentHeadSha: context.currentHeadSha,
+    prDraft: Boolean(context.prData?.isDraft),
+    prClosed: String(context.prData?.state || "").toUpperCase() === "CLOSED",
+    prMerged: String(context.prData?.state || "").toUpperCase() === "MERGED",
+    lifecycleState: context.interpretation.state,
+    loopDisposition: context.disposition.loopDisposition,
+    sameHeadCleanConverged: context.interpretation.sameHeadCleanConverged,
+    draftGate: context.gateEvidence.draftGate,
+    draftGateMarker: context.gateEvidence.draftGateMarker,
+    preApprovalGate: context.gateEvidence.preApprovalGate,
+    preApprovalGateMarker: context.gateEvidence.preApprovalGateMarker,
   });
 }
 
