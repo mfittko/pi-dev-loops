@@ -174,8 +174,8 @@ export function summarizeGateReviewText(value, limit = MAX_GATE_COMMENT_TEXT_LEN
   }
 
   const flat = collapseWhitespace(normalized);
-  if (!/[\r\n]/u.test(normalized) && flat.length <= limit) {
-    return flat;
+  if (!/[\r\n]/u.test(normalized)) {
+    return truncateText(flat, limit);
   }
 
   const lines = normalized.split(/\r?\n/u);

@@ -162,6 +162,17 @@ test("summarizeGateReviewText keeps failing validation to a concise excerpt", ()
   );
 });
 
+
+test("summarizeGateReviewText preserves long single-line narratives instead of inventing a log summary", () => {
+  const narrative = "Passed reviewer note: keep the operator-facing summary readable even when Error and passed appear in the same explanatory sentence, because this is narrative text rather than a multiline validation log. ".repeat(3).trim();
+  const summarized = summarizeGateReviewText(narrative, 140);
+
+  assert.match(summarized, /^Passed reviewer note:/);
+  assert.match(summarized, /Error and passed appear/);
+  assert.doesNotMatch(summarized, /^validation: passed$/);
+  assert.match(summarized, /…\[truncated \d+ chars\]$/);
+});
+
 test("upsert-gate-review-comment creates a new comment when no same-head marker exists", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-create-"));
 

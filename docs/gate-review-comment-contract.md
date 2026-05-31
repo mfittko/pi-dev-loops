@@ -63,7 +63,7 @@ Every gate-review PR comment must include:
   include command names plus pass/fail status, aggregate counts when useful, and
   current-head CI/check status when available — not raw passing log streams.
 - Any command output included in the visible comment must be truncated to a
-  deterministic maximum length before comment creation.
+  deterministic retained-prefix length before comment creation; the rendered text may include a short truncation marker suffix.
 - When validation fails, include only a focused relevant excerpt rather than an
   unbounded raw log dump; detailed logs may live in local/session artifacts or
   linked GitHub logs instead of the visible audit comment.
