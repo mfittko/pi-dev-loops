@@ -107,6 +107,19 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
   assert.match(reviewerGraph, /do not replace the state machine's supported\s+review-angle taxonomy/i);
 });
 
+test("reviewer-loop contract documents submitted-review handoff and explicit external waits", async () => {
+  const [reviewerGraph, scriptsReadme] = await Promise.all([
+    readRepo("docs/reviewer-loop-state-graph.md"),
+    readRepo("scripts/README.md"),
+  ]);
+
+  assert.match(reviewerGraph, /A pure internal reviewer pass must end in a concrete review result boundary \(`submitted_review`\)/i);
+  assert.match(reviewerGraph, /If a wait state is used, it must be an explicit named external-participant boundary/i);
+  assert.match(reviewerGraph, /A new review request after fixes starts a new reviewer-pass context \(`review_requested`\)/i);
+  assert.match(scriptsReadme, /reviewer `submitted_review`\s+as outer-loop-owned `continue_wait` states at explicit external\/handoff boundaries/i);
+  assert.match(scriptsReadme, /preserves compatibility for reviewer `waiting_for_author_followup` and `waiting_for_re_request`\s+as legacy named external-wait boundaries/i);
+});
+
 test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices", async () => {
   const devLoopSkill = await readRepo("skills/dev-loop/SKILL.md");
 
