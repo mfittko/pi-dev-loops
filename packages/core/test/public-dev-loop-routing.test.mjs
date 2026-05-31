@@ -197,6 +197,18 @@ test("copilot-first unassigned issue stops for clarification when readiness is m
   assert.match(result.nextAction, /stop before assigning copilot-swe-agent/i);
 });
 
+test("clarification stops emit blocked contract trace classification", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 86 },
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.NEEDS_CLARIFICATION,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.UNASSIGNED,
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.STOP);
+  assert.equal(result.contractTrace.stopReason.classification, DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.BLOCKED);
+});
+
 test("start_on_issue with a linked PR routes directly to PR follow-up", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,

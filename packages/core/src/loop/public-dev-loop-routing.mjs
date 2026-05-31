@@ -538,6 +538,10 @@ function resolveStopClassification({ selectedGate, routeKind, canonicalState = n
       : DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.AUTHORIZATION_GATED;
   }
 
+  if (routeKind === DEV_LOOP_ROUTE_KIND.STOP) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.BLOCKED;
+  }
+
   return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.ROUTED_FOLLOWUP;
 }
 
