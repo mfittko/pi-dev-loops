@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+      PLAYWRIGHT_APT_CACHE_PATH: ${{ github.workspace }}/.cache/apt-archives
 
     steps:
       - name: Check out repository
@@ -38,18 +39,27 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Prepare APT cache paths
-        run: sudo mkdir -p /var/cache/apt/archives/partial
+        run: |
+          mkdir -p "$PLAYWRIGHT_APT_CACHE_PATH/partial"
+          sudo tee /etc/apt/apt.conf.d/99github-playwright-cache >/dev/null <<EOF
+          Dir::Cache::archives "${PLAYWRIGHT_APT_CACHE_PATH}";
+          EOF
 
       - name: Cache APT package archives for Playwright dependencies
         id: playwright-apt-cache
         uses: actions/cache@v4
         with:
           path: |
-            /var/cache/apt/archives/*.deb
+            ${{ env.PLAYWRIGHT_APT_CACHE_PATH }}
+            !${{ env.PLAYWRIGHT_APT_CACHE_PATH }}/partial
           key: playwright-apt-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright WebKit system dependencies
         run: npx playwright install-deps webkit
+
+      - name: Normalize APT cache permissions
+        if: always()
+        run: sudo chmod -R a+rX "$PLAYWRIGHT_APT_CACHE_PATH"
 
       - name: Install Playwright WebKit runtime (cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
