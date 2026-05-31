@@ -126,7 +126,8 @@ test("CI caches the Playwright WebKit runtime in a deterministic workspace-local
   assert.match(ciWorkflow, /actions\/cache@v4/i);
   assert.match(ciWorkflow, /path:\s*\$\{\{\s*env\.PLAYWRIGHT_BROWSERS_PATH\s*\}\}/i);
   assert.match(ciWorkflow, /key:\s*playwright-\$\{\{\s*runner\.os\s*\}\}-\$\{\{\s*steps\.playwright-version\.outputs\.version\s*\}\}/i);
-  assert.match(ciWorkflow, /npx playwright install --with-deps webkit/i);
+  assert.match(ciWorkflow, /npx playwright install-deps webkit/i);
+  assert.match(ciWorkflow, /if:\s*steps\.playwright-cache\.outputs\.cache-hit\s*!=\s*'true'[\s\S]*npx playwright install webkit/i);
 
   assert.match(readme, /workspace-local Playwright WebKit runtime cache keyed by runner OS \+ resolved `@playwright\/test` version/i);
 });

@@ -37,9 +37,12 @@ jobs:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
+      - name: Install Playwright WebKit system dependencies
+        run: npx playwright install-deps webkit
+
       - name: Install Playwright WebKit runtime (cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps webkit
+        run: npx playwright install webkit
 
       - name: Run canonical verify suite
         run: npm run verify
