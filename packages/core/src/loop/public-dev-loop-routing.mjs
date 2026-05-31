@@ -285,6 +285,7 @@ const GATE_REVIEW_VERDICT_SET = new Set(["clean", "findings_present", "blocked"]
 const ALLOWED_MODE_VALUES_TEXT = DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedModeValues.join(", ");
 const ALLOWED_TARGET_PREFERENCE_VALUES_TEXT = DEV_LOOP_VARIATION_PARAMETER_CONTRACT.allowedTargetPreferenceValues.join(", ");
 const LINKED_PR_READY_FOR_FOLLOWUP_LOOP_STATE = "linked_pr_ready_for_followup";
+const PRIOR_LINKED_PR_CLOSED_UNMERGED_LOOP_STATE = "prior_linked_pr_closed_unmerged";
 
 function normalizeIntent(intent) {
   const normalized = typeof intent === "string" ? intent.trim().toLowerCase() : "";
@@ -940,6 +941,27 @@ function normalizeIssueLinkageResolutionForBundle(canonicalState, issueLinkageRe
 }
 
 function applyInitialCopilotBootstrapRefreshSeam(canonicalState, issueLinkageResolution, loopState) {
+  if (loopState === PRIOR_LINKED_PR_CLOSED_UNMERGED_LOOP_STATE) {
+    if (
+      canonicalState.target.kind !== DEV_LOOP_TARGET_KIND.ISSUE
+      || canonicalState.target.linkedPr !== null
+      || issueLinkageResolution !== DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR
+      || canonicalState.ownership !== DEV_LOOP_ACTOR.COPILOT
+    ) {
+      return {
+        canonicalState,
+        reason:
+          "Refreshed `prior_linked_pr_closed_unmerged` state conflicts with authoritative no-open-linked-PR Copilot issue facts; reconcile before routing startup/resume state.",
+      };
+    }
+
+    return {
+      canonicalState,
+      reason:
+        "Refreshed bootstrap state reports a prior linked PR closed unmerged; reconcile the issue instead of treating it as a healthy bootstrap wait or fresh issue-intake path.",
+    };
+  }
+
   if (loopState !== LINKED_PR_READY_FOR_FOLLOWUP_LOOP_STATE) {
     return { canonicalState, reason: null };
   }

@@ -1136,6 +1136,30 @@ test("authoritative startup/resume bundle fails closed when linked-pr-ready refr
   assert.match(bundle.reason, /linked_pr_ready_for_followup.*conflicts/i);
 });
 
+
+test("authoritative startup/resume bundle fails closed when refreshed bootstrap state reports a prior linked PR closed unmerged", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    intent: DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 130 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.READY,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.ASSIGNED_TO_COPILOT,
+    loopState: "prior_linked_pr_closed_unmerged",
+    asyncRun: buildVisibleAsyncRun("run-149"),
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /prior linked PR.*closed unmerged/i);
+});
+
 test("authoritative startup/resume bundle preserves inspect routing in durable_auto mode", () => {
   const bundle = resolveAuthoritativeStartupResumeBundle({
     intent: DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE,
@@ -1676,6 +1700,31 @@ test("authoritative status resolution reroutes stale bootstrap wait states when 
   assert.equal(report.activeArtifact.pr, 179);
   assert.equal(report.loopState, "linked_pr_ready_for_followup");
   assert.match(report.nextAction, /Copilot PR follow-up/i);
+});
+
+
+test("authoritative status resolution fails closed when refreshed bootstrap state reports a prior linked PR closed unmerged", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    mode: DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 130 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.READY,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.ASSIGNED_TO_COPILOT,
+    loopState: "prior_linked_pr_closed_unmerged",
+    asyncRun: buildVisibleAsyncRun("run-149"),
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE);
+  assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.match(report.reason, /prior linked PR.*closed unmerged/i);
+  assert.match(report.nextAction, /reconcile/i);
 });
 
 test("authoritative status resolution fails closed instead of claiming durable auto started without a visible async run", () => {

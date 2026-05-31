@@ -152,6 +152,7 @@ Required authoritative inputs:
   - when `inspectionState` is provided as `hidden`, `stale`, or `uninspectable`, durable-auto must fail closed with that state surfaced in diagnostics
   - detached local processes are diagnostic-only evidence and must fail closed instead of being treated as a successful async start
 - when refreshed loop state is `linked_pr_ready_for_followup` for an issue target with a resolved linked PR, startup/resume and status resolution must promote stale bootstrap waiting to the linked PR follow-up path (or fail closed if the linked-PR facts are incomplete/contradictory) instead of preserving the old bootstrap wait route
+- when refreshed loop state is `prior_linked_pr_closed_unmerged` for a Copilot-owned issue target with `issueLinkageResolution=resolved_no_open_pr`, startup/resume and status resolution must fail closed to reconcile instead of treating the issue as a healthy bootstrap wait or fresh issue-intake path
 
 Resolved bundle output shape:
 
@@ -302,6 +303,7 @@ When the public intent is `auto dev loop`, the router must:
 In healthy waiting states, quiet watcher observations (for example `timeout` or `idle`) are observational only and must not be surfaced as attention by themselves. Escalation is still expected for true blocked/authorization/reconcile/action-required states.
 
 For the Copilot-first bootstrap seam (`waiting_for_initial_copilot_implementation`), durable-auto ownership must route to the dedicated `watch-initial-copilot-pr.mjs` watcher with its default 1-hour watch budget. Quiet/no-activity observations alone do not eject durable ownership while refreshed authoritative state still resolves `waiting_for_initial_copilot_implementation`; inspect/status intents may still summarize that state and exit normally. This seam has a bootstrap-only exception to the general action-required escalation rule: when the linked PR is still bootstrap-only, approval-gated Actions/Copilot runs in `action_required` are treated as non-blocking observational signals (surfacing as concluded session activity) and do not by themselves force stop/escalation.
+When refreshed authoritative bootstrap state instead resolves `prior_linked_pr_closed_unmerged`, that is not a healthy wait seam: the routed outcome must fail closed to reconcile so status/startup answers surface the prior closed-unmerged PR decision rather than implying normal watch continuity.
 
 When that refreshed seam state advances to `linked_pr_ready_for_followup`, durable-auto continuation must re-enter the same linked PR follow-up path. If the follow-up handoff carries `conductorRouting.handoffEnvelope.requiresLocalIsolation=true`, orchestration should continue through an isolated checkout/worktree transition instead of treating that boundary as final completion.
 
