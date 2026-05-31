@@ -7,27 +7,17 @@ on:
   pull_request:
 
 jobs:
-  test:
+  changes:
     runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+    outputs:
+      inspect_run_viewer: ${{ steps.inspect-run-viewer-scope.outputs.inspect_run_viewer }}
+      inspect_run_viewer_relevant_paths_json: ${{ steps.inspect-run-viewer-scope.outputs.inspect_run_viewer_relevant_paths_json }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Install workspace dependencies
-        run: npm ci
-
-      - name: Run canonical verify suite
-        run: npm run verify
 
       - name: Determine whether inspect-run viewer smoke is required
         id: inspect-run-viewer-scope
@@ -52,21 +42,57 @@ jobs:
           echo "inspect-run viewer smoke required: ${{ steps.inspect-run-viewer-scope.outputs.inspect_run_viewer }}"
           echo "matched paths: ${{ steps.inspect-run-viewer-scope.outputs.inspect_run_viewer_relevant_paths_json }}"
 
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Run canonical verify suite
+        run: npm run verify
+
+  viewer-smoke:
+    needs:
+      - changes
+    if: needs.changes.outputs.inspect_run_viewer == 'true'
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Report inspect-run viewer smoke scope
+        run: |
+          echo "inspect-run viewer smoke required: ${{ needs.changes.outputs.inspect_run_viewer }}"
+          echo "matched paths: ${{ needs.changes.outputs.inspect_run_viewer_relevant_paths_json }}"
+
       - name: Restore Playwright WebKit runtime cache
-        if: steps.inspect-run-viewer-scope.outputs.inspect_run_viewer == 'true'
         uses: actions/cache@v4
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: ${{ runner.os }}-playwright-webkit-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright WebKit runtime
-        if: steps.inspect-run-viewer-scope.outputs.inspect_run_viewer == 'true'
         run: npx playwright install --with-deps webkit
 
       - name: Run inspect-run viewer WebKit smoke
-        if: steps.inspect-run-viewer-scope.outputs.inspect_run_viewer == 'true'
         run: npm run test:playwright:viewer
-
-      - name: Skip inspect-run viewer WebKit smoke
-        if: steps.inspect-run-viewer-scope.outputs.inspect_run_viewer != 'true'
-        run: echo "No inspect-run viewer or Playwright-surface changes detected; skipping browser smoke."

@@ -129,24 +129,30 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
 });
 
 
-test("CI gates the Playwright WebKit smoke behind inspect-run viewer change detection", async () => {
+test("CI gates the Playwright WebKit smoke behind inspect-run viewer change detection and runs it in a separate job", async () => {
   const [ciWorkflow, readme] = await Promise.all([
     readRepo(".github/workflows/ci.yml"),
     readRepo("README.md"),
   ]);
 
+  assert.match(ciWorkflow, /^\s{2}changes:\s*$/m);
+  assert.match(ciWorkflow, /^\s{2}verify:\s*$/m);
+  assert.match(ciWorkflow, /^\s{2}viewer-smoke:\s*$/m);
   assert.match(ciWorkflow, /fetch-depth:\s*0/i);
   assert.match(ciWorkflow, /node scripts\/loop\/inspect-run-viewer-ci-changes\.mjs/i);
   assert.match(ciWorkflow, /inspect_run_viewer_relevant_paths_json/i);
-  assert.match(ciWorkflow, /if:\s*steps\.inspect-run-viewer-scope\.outputs\.inspect_run_viewer\s*==\s*'true'[\s\S]*actions\/cache@v4/i);
-  assert.match(ciWorkflow, /if:\s*steps\.inspect-run-viewer-scope\.outputs\.inspect_run_viewer\s*==\s*'true'[\s\S]*npx playwright install --with-deps webkit/i);
-  assert.match(ciWorkflow, /if:\s*steps\.inspect-run-viewer-scope\.outputs\.inspect_run_viewer\s*==\s*'true'[\s\S]*npm run test:playwright:viewer/i);
-  assert.match(ciWorkflow, /No inspect-run viewer or Playwright-surface changes detected; skipping browser smoke\./i);
+  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*needs:[\s\S]*- changes/i);
+  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*if:\s*needs\.changes\.outputs\.inspect_run_viewer\s*==\s*'true'/i);
+  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*actions\/cache@v4/i);
+  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*npx playwright install --with-deps webkit/i);
+  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*npm run test:playwright:viewer/i);
+  assert.match(ciWorkflow, /verify:[\s\S]*npm run verify/i);
   assert.match(ciWorkflow, /PLAYWRIGHT_BROWSERS_PATH:\s*\$\{\{\s*github\.workspace\s*\}\}\/\.cache\/ms-playwright/i);
   assert.match(ciWorkflow, /key:\s*\$\{\{\s*runner\.os\s*\}\}-playwright-webkit-\$\{\{\s*hashFiles\('package-lock\.json'\)\s*\}\}/i);
 
-  assert.match(readme, /workspace-local Playwright WebKit runtime cache keyed by runner OS \+ `package-lock\.json`/i);
-  assert.match(readme, /runs the explicit Playwright viewer smoke only when inspect-run viewer or Playwright-surface paths changed/i);
+  assert.match(readme, /workspace-local Playwright WebKit/i);
+  assert.match(readme, /parallel `verify` and conditional `viewer-smoke` jobs/i);
+  assert.match(readme, /run only when inspect-run viewer or Playwright-surface paths changed/i);
 });
 
 test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {

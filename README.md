@@ -84,7 +84,7 @@ Root verification and test commands from `package.json`:
 - `npm run test:dev-loop`
 - `npm run test:playwright:viewer` — explicit viewer/browser smoke, not part of the default root verify path
 
-CI currently runs `npm ci` and `npm run verify` on every change, then restores the workspace-local Playwright WebKit runtime cache keyed by runner OS + `package-lock.json` and runs the explicit Playwright viewer smoke only when inspect-run viewer or Playwright-surface paths changed in `.github/workflows/ci.yml`.
+CI currently splits into a deterministic changed-files gate plus parallel `verify` and conditional `viewer-smoke` jobs: `npm ci` + `npm run verify` still run on every change, while the workspace-local Playwright WebKit cache restore/install and explicit viewer smoke run only when inspect-run viewer or Playwright-surface paths changed in `.github/workflows/ci.yml`.
 
 ## Where to read next
 
