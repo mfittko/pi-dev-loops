@@ -16,6 +16,7 @@ test("isInspectRunViewerRelevantPath matches the bounded inspect-run viewer smok
   assert.equal(isInspectRunViewerRelevantPath("package-lock.json"), true);
   assert.equal(isInspectRunViewerRelevantPath("scripts/loop/inspect-run-viewer/rendering.mjs"), true);
   assert.equal(isInspectRunViewerRelevantPath("scripts/loop/inspect-run-viewer-ci-changes.mjs"), true);
+  assert.equal(isInspectRunViewerRelevantPath("test/playwright/harness/webkit-smoke-harness.mjs"), true);
   assert.equal(isInspectRunViewerRelevantPath("test/playwright/inspect-run-viewer.spec.mjs"), true);
   assert.equal(isInspectRunViewerRelevantPath("test/playwright/fixtures/inspect-run-viewer-fixture.mjs"), true);
   assert.equal(isInspectRunViewerRelevantPath("test/playwright/some-other-ui.spec.mjs"), false);
@@ -55,6 +56,7 @@ test("runCli emits github output entries for inspect-run viewer smoke gating", a
     await writeFile(pathsFile, [
       "README.md",
       "playwright.inspect-run-viewer.config.mjs",
+      "test/playwright/harness/webkit-smoke-harness.mjs",
     ].join("\n"), "utf8");
 
     const result = await runCli([
@@ -72,7 +74,7 @@ test("runCli emits github output entries for inspect-run viewer smoke gating", a
     });
 
     assert.equal(result.shouldRun, true);
-    assert.deepEqual(result.relevantPaths, ["playwright.inspect-run-viewer.config.mjs"]);
+    assert.deepEqual(result.relevantPaths, ["playwright.inspect-run-viewer.config.mjs", "test/playwright/harness/webkit-smoke-harness.mjs"]);
 
     const payload = JSON.parse(writes.join(""));
     assert.equal(payload.ok, true);
