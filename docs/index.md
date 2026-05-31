@@ -17,6 +17,7 @@ Start here for repository documentation.
 - `docs/ui-validation-contract.md`
 - `docs/ui-smoke-harness.md`
 - `docs/ui-artifact-contract.md`
+- `docs/ui-designer-review-loop.md`
 
 ## Active local phase doc
 
