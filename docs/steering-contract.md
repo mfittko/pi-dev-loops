@@ -352,7 +352,8 @@ When `--steering-state-file` is provided:
 - If a `stop_at_next_safe_gate` directive is on the effective stack **and** the
   loop is currently at an IMMEDIATE safe point, `nextAction` is overridden to
   direct the loop to stop instead of continuing to the next step.
-- The output includes `steeringApplied` and `effectiveConstraints` so downstream
+- The output includes `steeringApplied`, `pendingStopAtNextSafeGate`,
+  `terminalStopAtNextSafeGate`, and `effectiveConstraints` so downstream
   consumers can inject hard constraints into agent context or check the stop flag.
 - When the steering file does not exist (ENOENT), the detector treats it as an
   empty steering state — no error, no change to base behavior.
@@ -365,7 +366,8 @@ When `--steering-state-file` is provided:
   snapshot alone.
 
 Without `--steering-state-file`, output is identical to the pre-steering behavior
-(no `steeringApplied` or `effectiveConstraints` fields).
+(no steering overlay fields such as `steeringApplied`, `pendingStopAtNextSafeGate`,
+`terminalStopAtNextSafeGate`, or `effectiveConstraints`).
 
 ### End-to-end workflow
 
@@ -400,6 +402,8 @@ node scripts/loop/detect-copilot-loop-state.mjs \
 #   "state": "ready_to_rerequest_review",
 #   "nextAction": "Stop at this safe gate: a stop_at_next_safe_gate steering directive is active...",
 #   "steeringApplied": true,
+#   "pendingStopAtNextSafeGate": false,
+#   "terminalStopAtNextSafeGate": false,
 #   "effectiveConstraints": { "stopAtNextSafeGate": true, "hardConstraints": [], ... }
 # }
 ```
