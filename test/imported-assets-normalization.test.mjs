@@ -120,6 +120,22 @@ test("reviewer-loop contract documents submitted-review handoff and explicit ext
   assert.match(scriptsReadme, /preserves compatibility for reviewer `waiting_for_author_followup` and `waiting_for_re_request`\s+as legacy named external-wait boundaries/i);
 });
 
+test("public dev-loop contract keeps conflict reconciliation local and context-first", async () => {
+  const publicContract = await readRepo("skills/docs/public-dev-loop-contract.md");
+
+  assert.match(publicContract, /Conflict reconciliation path \(`CONFLICTING` \/ `DIRTY`\)/i);
+  assert.match(publicContract, /bounded local-agent reconciliation path/i);
+  assert.match(publicContract, /retrieve authoritative context at minimum:/i);
+  assert.match(publicContract, /latest `origin\/main`/i);
+  assert.match(publicContract, /current PR head SHA and effective PR diff/i);
+  assert.match(publicContract, /issue\/PR scope and acceptance criteria/i);
+  assert.match(publicContract, /current-head gate evidence and relevant unresolved review feedback/i);
+  assert.match(publicContract, /if required authoritative context is missing, stale for the current head, or contradictory, fail closed to reconcile/i);
+  assert.match(publicContract, /resolve the conflict locally on the PR branch/i);
+  assert.match(publicContract, /rerun required local validation, gate checks, and required CI checks for the new head before approval\/merge evaluation/i);
+  assert.doesNotMatch(publicContract, /resolve the conflict .*blind merge\/update step/i);
+});
+
 test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices", async () => {
   const devLoopSkill = await readRepo("skills/dev-loop/SKILL.md");
 

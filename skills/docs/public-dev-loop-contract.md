@@ -324,6 +324,21 @@ First-match-wins routing posture:
 11. PR owned by Copilot -> `copilot_pr_followup`
 12. anything else -> fail closed to `needs_reconcile`
 
+## Conflict reconciliation path (`CONFLICTING` / `DIRTY`)
+
+When an open linked PR reports merge conflict against `main`, treat this as an explicit bounded local-agent reconciliation path, not as a blind merge/update step:
+
+1. keep the route at `needs_reconcile` / `fail_closed_reconcile` until reconciliation is complete
+2. before any conflict edit, retrieve authoritative context at minimum:
+   - latest `origin/main`
+   - current PR head SHA and effective PR diff
+   - issue/PR scope and acceptance criteria
+   - current-head gate evidence and relevant unresolved review feedback
+   - local validation surface for the touched conflict slice
+3. if required authoritative context is missing, stale for the current head, or contradictory, fail closed to reconcile
+4. only when that context is complete for one current head, resolve the conflict locally on the PR branch
+5. after conflict resolution, rerun required local validation, gate checks, and required CI checks for the new head before approval/merge evaluation
+
 ## `auto dev loop` durable auto contract
 
 When the public intent is `auto dev loop`, the router must:
