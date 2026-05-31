@@ -83,6 +83,7 @@ Contract:
 - queries issue timeline linked-PR events (`CONNECTED_EVENT`, `CROSS_REFERENCED_EVENT`)
 - pages through timeline items until `hasNextPage=false`
 - keeps only open linked PRs in the same repository (`repository.nameWithOwner === <repo>`)
+- also tracks closed-unmerged (state=`CLOSED`) same-repo linked PRs separately
 - chooses deterministically when multiple candidates remain:
   1. prefer `CONNECTED_EVENT` candidates over `CROSS_REFERENCED_EVENT`
   2. then choose newest linked-event `createdAt`
@@ -90,7 +91,8 @@ Contract:
 - returns a machine-readable selection payload for skills/workflows; callers should not re-implement query/pagination/tie-break logic in markdown policy text
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/name", "issue": 85, "hasOpenLinkedPr": true|false, "prNumber": 90|null, "prUrl": "..."|null, "selection"?: { "eventType": "...", "eventCreatedAt": "..." } }`
+- when `hasOpenLinkedPr: true`: `{ "ok": true, "repo": "owner/name", "issue": 85, "hasOpenLinkedPr": true, "prNumber": 90, "prUrl": "...", "selection": { "eventType": "...", "eventCreatedAt": "..." } }`
+- when `hasOpenLinkedPr: false`: `{ "ok": true, "repo": "owner/name", "issue": 85, "hasOpenLinkedPr": false, "prNumber": null, "prUrl": null, "hasPriorClosedUnmergedPr": true|false, "priorClosedUnmergedPrNumber": 149|null, "priorClosedUnmergedPrUrl": "..."|null }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
@@ -183,6 +185,7 @@ Contract:
 - uses `scripts/github/detect-linked-issue-pr.mjs` as the authoritative linked-PR selector
 - returns exactly one deterministic state:
   - `no_linked_pr`
+  - `prior_linked_pr_closed_unmerged`
   - `copilot_session_active`
   - `waiting_for_initial_copilot_implementation`
   - `linked_pr_ready_for_followup`
@@ -191,6 +194,7 @@ Contract:
 - approval-gated `action_required` Copilot/Actions runs are treated as observational (non-active) for this bootstrap seam
 - for non-bootstrap linked PRs, falls back to the existing substantive PR heuristics when session activity is `idle` or `concluded`
 - if the session-activity check itself fails, the helper fails closed instead of pretending session state was unavailable
+- classifies `prior_linked_pr_closed_unmerged` when there is no open linked PR but a same-repo linked PR was previously closed without merging; this is a terminal non-wait state requiring human reconciliation
 - classifies `waiting_for_initial_copilot_implementation` only for the bounded bootstrap-only draft shape:
   - open same-repo linked PR
   - draft

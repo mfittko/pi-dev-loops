@@ -66,8 +66,15 @@ Success output (stdout, JSON):
     "selection"?: {
       "eventType": "CONNECTED_EVENT"|"CROSS_REFERENCED_EVENT",
       "eventCreatedAt": "..."
-    }
+    },
+    "hasPriorClosedUnmergedPr"?: true|false,
+    "priorClosedUnmergedPrNumber"?: 149|null,
+    "priorClosedUnmergedPrUrl"?: "..."|null
   }
+
+When hasOpenLinkedPr is false, the output also includes hasPriorClosedUnmergedPr,
+priorClosedUnmergedPrNumber, and priorClosedUnmergedPrUrl reflecting any same-repo
+linked PR that was closed without merging.
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -271,6 +278,40 @@ function normalizeOpenSameRepoCandidate(candidate, repo) {
   };
 }
 
+function normalizeClosedUnmergedSameRepoCandidate(candidate, repo) {
+  const pr = candidate?.pr;
+  const number = pr?.number;
+  const state = pr?.state;
+  const url = pr?.url;
+  const nameWithOwner = pr?.repository?.nameWithOwner;
+
+  if (!Number.isInteger(number) || number <= 0) {
+    return null;
+  }
+
+  // Only track CLOSED (unmerged) same-repo PRs; MERGED and OPEN are excluded.
+  if (
+    state !== "CLOSED"
+    || normalizeRepoSlugForComparison(nameWithOwner) !== normalizeRepoSlugForComparison(repo)
+  ) {
+    return null;
+  }
+
+  const createdAtMs = Date.parse(candidate.eventCreatedAt);
+
+  if (!Number.isFinite(createdAtMs)) {
+    return null;
+  }
+
+  return {
+    prNumber: number,
+    prUrl: typeof url === "string" ? url : null,
+    eventType: candidate.eventType,
+    eventCreatedAt: typeof candidate.eventCreatedAt === "string" ? candidate.eventCreatedAt : null,
+    createdAtMs,
+  };
+}
+
 export function selectLinkedIssuePr(candidates) {
   if (!Array.isArray(candidates) || candidates.length === 0) {
     return null;
@@ -302,6 +343,7 @@ export async function detectLinkedIssuePr({ repo, issue }, { env = process.env, 
   const { owner, name } = parseRepoSlug(repo);
 
   const candidates = [];
+  const closedUnmergedCandidates = [];
   let after = null;
 
   while (true) {
@@ -329,6 +371,11 @@ export async function detectLinkedIssuePr({ repo, issue }, { env = process.env, 
       if (normalizedCandidate) {
         candidates.push(normalizedCandidate);
       }
+
+      const closedUnmergedCandidate = normalizeClosedUnmergedSameRepoCandidate(normalizedNode, repo);
+      if (closedUnmergedCandidate) {
+        closedUnmergedCandidates.push(closedUnmergedCandidate);
+      }
     }
 
     if (!hasNextPage) {
@@ -343,6 +390,7 @@ export async function detectLinkedIssuePr({ repo, issue }, { env = process.env, 
   }
 
   const selected = selectLinkedIssuePr(candidates);
+  const selectedClosedUnmerged = selectLinkedIssuePr(closedUnmergedCandidates);
 
   if (!selected) {
     return {
@@ -352,6 +400,9 @@ export async function detectLinkedIssuePr({ repo, issue }, { env = process.env, 
       hasOpenLinkedPr: false,
       prNumber: null,
       prUrl: null,
+      hasPriorClosedUnmergedPr: selectedClosedUnmerged !== null,
+      priorClosedUnmergedPrNumber: selectedClosedUnmerged?.prNumber ?? null,
+      priorClosedUnmergedPrUrl: selectedClosedUnmerged?.prUrl ?? null,
     };
   }
 

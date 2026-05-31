@@ -125,6 +125,33 @@ function linkedPrPayload({ hasOpenLinkedPr = true, prNumber = 79, prUrl = "https
   })}\n`;
 }
 
+function linkedPrClosedPayload({ closedPrNumber = 149, closedPrUrl = "https://github.com/owner/repo/pull/149" } = {}) {
+  return `${JSON.stringify({
+    data: {
+      repository: {
+        issue: {
+          timelineItems: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [
+              {
+                __typename: "ConnectedEvent",
+                createdAt: "2026-05-01T09:49:32Z",
+                subject: {
+                  __typename: "PullRequest",
+                  number: closedPrNumber,
+                  state: "CLOSED",
+                  url: closedPrUrl,
+                  repository: { nameWithOwner: "owner/repo" },
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  })}\n`;
+}
+
 function pullRequestFactsPayload({
   number = 79,
   url = "https://github.com/owner/repo/pull/79",
@@ -609,9 +636,45 @@ test("watchInitialCopilotPr output shape includes all required fields", async ()
   assert.equal(typeof result.elapsedMs, "number");
 });
 
-// ---------------------------------------------------------------------------
-// CLI subprocess tests (with gh stubs)
-// ---------------------------------------------------------------------------
+test("watchInitialCopilotPr prior_linked_pr_closed_unmerged exits immediately without polling further", async () => {
+  // prior_linked_pr_closed_unmerged is a terminal non-wait state and must not
+  // be treated as a healthy bootstrap wait: the loop must exit on the first poll.
+  const detect = makeDetectMock([
+    { ok: true, state: "prior_linked_pr_closed_unmerged", prNumber: 149, prUrl: "https://github.com/owner/repo/pull/149" },
+    // A second entry that should never be reached:
+    { ok: true, state: "linked_pr_ready_for_followup", prNumber: 150, prUrl: "https://github.com/owner/repo/pull/150" },
+  ]);
+
+  let delayCount = 0;
+  const result = await watchInitialCopilotPr(
+    { repo: "owner/repo", issue: 130, pollIntervalMs: 60_000, timeoutMs: 3_600_000 },
+    { detectInitialCopilotPrStateImpl: detect, delayImpl: async () => { delayCount += 1; }, nowMs: makeFakeNow(0, 0) },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "prior_linked_pr_closed_unmerged");
+  assert.equal(result.prNumber, 149);
+  assert.equal(result.prUrl, "https://github.com/owner/repo/pull/149");
+  assert.equal(result.attempts, 1);
+  assert.equal(delayCount, 0); // no delay — immediate exit
+});
+
+test("watchInitialCopilotPr prior_linked_pr_closed_unmerged exits even when timeout is nonzero", async () => {
+  const detect = makeDetectMock([
+    { ok: true, state: "prior_linked_pr_closed_unmerged", prNumber: 149, prUrl: null },
+  ]);
+
+  const result = await watchInitialCopilotPr(
+    { repo: "owner/repo", issue: 130, pollIntervalMs: 60_000, timeoutMs: 3_600_000 },
+    { detectInitialCopilotPrStateImpl: detect, delayImpl: async () => {}, nowMs: makeFakeNow(0, 0) },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "prior_linked_pr_closed_unmerged");
+  assert.equal(result.attempts, 1);
+});
+
+
 
 test("watch-initial-copilot-pr returns ready_for_followup via CLI when PR is immediately substantive", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-initial-pr-ready-"));
@@ -720,6 +783,35 @@ test("watch-initial-copilot-pr returns timed_out via CLI for no_linked_pr (healt
   }
 });
 
+test("watch-initial-copilot-pr returns prior_linked_pr_closed_unmerged via CLI and exits 0", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-initial-pr-prior-closed-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=130", "owner=owner", "name=repo"],
+        stdout: linkedPrClosedPayload({ closedPrNumber: 149 }),
+      },
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--issue", "130", "--timeout-ms", "0"],
+      { env },
+    );
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.status, "prior_linked_pr_closed_unmerged");
+    assert.equal(payload.prNumber, 149);
+    assert.equal(payload.issue, 130);
+    assert.equal(payload.repo, "owner/repo");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // CLI error-handling tests
 // ---------------------------------------------------------------------------
@@ -772,6 +864,7 @@ test("watch-initial-copilot-pr --help prints usage and exits 0", async () => {
   assert.ok(helpLong.stdout.includes("--timeout-ms"), `expected --timeout-ms in help`);
   assert.ok(helpLong.stdout.includes("ready_for_followup"), `expected ready_for_followup status in help`);
   assert.ok(helpLong.stdout.includes("timed_out"), `expected timed_out status in help`);
+  assert.ok(helpLong.stdout.includes("prior_linked_pr_closed_unmerged"), `expected prior_linked_pr_closed_unmerged status in help`);
 
   const helpShort = await runNode(["-h"]);
   assert.equal(helpShort.code, 0);

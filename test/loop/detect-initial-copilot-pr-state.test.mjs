@@ -160,6 +160,33 @@ function workflowRunsPayload(runs = []) {
   return `${JSON.stringify(runs)}\n`;
 }
 
+function linkedPrClosedPayload({ closedPrNumber = 149, closedPrUrl = "https://github.com/owner/repo/pull/149" } = {}) {
+  return `${JSON.stringify({
+    data: {
+      repository: {
+        issue: {
+          timelineItems: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [
+              {
+                __typename: "ConnectedEvent",
+                createdAt: "2026-05-01T09:49:32Z",
+                subject: {
+                  __typename: "PullRequest",
+                  number: closedPrNumber,
+                  state: "CLOSED",
+                  url: closedPrUrl,
+                  repository: { nameWithOwner: "owner/repo" },
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  })}\n`;
+}
+
 test("detect-initial-copilot-pr-state returns no_linked_pr when no linked PR exists", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-none-"));
 
@@ -580,6 +607,93 @@ test("detect-initial-copilot-pr-state keeps bootstrap wait for approval-gated ac
     assert.equal(payload.sessionActivity, "concluded");
     assert.equal(payload.sessionRunId, 555);
     assert.equal(payload.sessionRunConclusion, "action_required");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-initial-copilot-pr-state returns prior_linked_pr_closed_unmerged when prior closed PR exists (regression: issue#130/PR#149 shape)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-prior-closed-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=130", "owner=owner", "name=repo"],
+        stdout: linkedPrClosedPayload({ closedPrNumber: 149, closedPrUrl: "https://github.com/owner/repo/pull/149" }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "130"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      repo: "owner/repo",
+      issue: 130,
+      state: "prior_linked_pr_closed_unmerged",
+      prNumber: 149,
+      prUrl: "https://github.com/owner/repo/pull/149",
+      headBranch: null,
+      authorLogin: null,
+      isDraft: null,
+      changedFiles: null,
+      commitCount: null,
+      soleCommitHeadline: null,
+      sessionActivity: null,
+      sessionRunId: null,
+      sessionRunName: null,
+      sessionRunStatus: null,
+      sessionRunConclusion: null,
+      sessionRunCreatedAt: null,
+      sessionConfidence: null,
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-initial-copilot-pr-state returns no_linked_pr (not prior_linked_pr_closed_unmerged) when only merged PRs exist", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-merged-only-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
+        stdout: linkedPrPayload({ hasOpenLinkedPr: false }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "59"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.equal(JSON.parse(result.stdout).state, "no_linked_pr");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-initial-copilot-pr-state returns prior_linked_pr_closed_unmerged state not a healthy wait seam", async () => {
+  // Verifies the prior_linked_pr_closed_unmerged state is distinct from no_linked_pr
+  // and carries the closed PR's number/url for caller reference.
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-initial-pr-prior-closed-distinct-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=130", "owner=owner", "name=repo"],
+        stdout: linkedPrClosedPayload({ closedPrNumber: 149 }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "130"], { env });
+    const payload = JSON.parse(result.stdout);
+
+    assert.equal(result.code, 0);
+    assert.notEqual(payload.state, "no_linked_pr");
+    assert.equal(payload.state, "prior_linked_pr_closed_unmerged");
+    assert.equal(payload.prNumber, 149);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

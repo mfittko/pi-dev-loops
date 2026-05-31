@@ -331,11 +331,150 @@ test("detect-linked-issue-pr returns no match when no open same-repo linked PR e
       hasOpenLinkedPr: false,
       prNumber: null,
       prUrl: null,
+      hasPriorClosedUnmergedPr: false,
+      priorClosedUnmergedPrNumber: null,
+      priorClosedUnmergedPrUrl: null,
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("detect-linked-issue-pr detects prior closed-unmerged same-repo PR when no open PR exists", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-closed-unmerged-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=130", "owner=owner", "name=repo"],
+        stdout: graphqlPayload({
+          hasNextPage: false,
+          endCursor: null,
+          nodes: [
+            connectedNode({ createdAt: "2026-05-01T10:00:00Z", number: 149, state: "CLOSED" }),
+          ],
+        }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "130"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      repo: "owner/repo",
+      issue: 130,
+      hasOpenLinkedPr: false,
+      prNumber: null,
+      prUrl: null,
+      hasPriorClosedUnmergedPr: true,
+      priorClosedUnmergedPrNumber: 149,
+      priorClosedUnmergedPrUrl: "https://github.com/owner/repo/pull/149",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-linked-issue-pr does not surface merged same-repo PR as prior closed-unmerged", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-merged-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=130", "owner=owner", "name=repo"],
+        stdout: graphqlPayload({
+          hasNextPage: false,
+          endCursor: null,
+          nodes: [
+            connectedNode({ createdAt: "2026-05-01T10:00:00Z", number: 149, state: "MERGED" }),
+          ],
+        }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "130"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      repo: "owner/repo",
+      issue: 130,
+      hasOpenLinkedPr: false,
+      prNumber: null,
+      prUrl: null,
+      hasPriorClosedUnmergedPr: false,
+      priorClosedUnmergedPrNumber: null,
+      priorClosedUnmergedPrUrl: null,
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-linked-issue-pr selects most recent closed-unmerged PR when multiple exist", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-multi-closed-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=130", "owner=owner", "name=repo"],
+        stdout: graphqlPayload({
+          hasNextPage: false,
+          endCursor: null,
+          nodes: [
+            connectedNode({ createdAt: "2026-04-01T10:00:00Z", number: 140, state: "CLOSED" }),
+            connectedNode({ createdAt: "2026-05-01T10:00:00Z", number: 149, state: "CLOSED" }),
+          ],
+        }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "130"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.hasPriorClosedUnmergedPr, true);
+    assert.equal(parsed.priorClosedUnmergedPrNumber, 149);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-linked-issue-pr open PR takes precedence and closed-unmerged fields are absent", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-linked-pr-open-wins-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "-F", "issue=130", "owner=owner", "name=repo"],
+        stdout: graphqlPayload({
+          hasNextPage: false,
+          endCursor: null,
+          nodes: [
+            connectedNode({ createdAt: "2026-04-01T10:00:00Z", number: 140, state: "CLOSED" }),
+            connectedNode({ createdAt: "2026-05-01T10:00:00Z", number: 150, state: "OPEN" }),
+          ],
+        }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--issue", "130"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.hasOpenLinkedPr, true);
+    assert.equal(parsed.prNumber, 150);
+    assert.equal("hasPriorClosedUnmergedPr" in parsed, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 
 test("selectLinkedIssuePr uses locale-independent url fallback ordering", () => {
   const winner = selectLinkedIssuePr([

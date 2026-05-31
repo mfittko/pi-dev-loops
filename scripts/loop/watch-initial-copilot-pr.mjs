@@ -17,6 +17,10 @@
  * healthy non-terminal wait states for this seam.  Quiet poll cycles (PR still
  * bootstrap-only) do not surface as errors.
  *
+ * `prior_linked_pr_closed_unmerged` is a terminal non-wait state: the loop
+ * exits immediately with status="prior_linked_pr_closed_unmerged" so callers
+ * can surface a reconcile/block reason rather than continuing to wait.
+ *
  * The default watch budget is 1 hour, matching the Copilot-first durable-wait
  * seam defined in the public dev-loop contract.
  *
@@ -50,6 +54,9 @@ no_linked_pr are healthy non-terminal wait states for this seam.  Quiet poll
 cycles do not surface as errors.  The 1-hour default watch budget matches the
 Copilot-first durable-wait seam from the public dev-loop contract.
 
+prior_linked_pr_closed_unmerged is a terminal non-wait state: the loop exits
+immediately so callers can surface a reconcile/block reason.
+
 Required:
   --repo <owner/name>           Repository slug (e.g. owner/repo)
   --issue <number>              Issue number
@@ -59,16 +66,18 @@ Optional:
   --timeout-ms <ms>             Total watch budget in ms; 0 = single check (default: 3600000, i.e. 1 hour)
 
 Output (stdout, JSON):
-  { "ok": true, "status": "ready_for_followup"|"timed_out",
+  { "ok": true, "status": "ready_for_followup"|"timed_out"|"prior_linked_pr_closed_unmerged",
     "repo": "...", "issue": N, "prNumber": N|null, "prUrl": "..."|null,
     "attempts": N, "elapsedMs": N }
 
 Status values:
-  ready_for_followup   Linked PR has left the bootstrap-only draft shape;
-                       proceed with PR follow-up using the returned prNumber
-  timed_out            Watch budget exhausted while linked PR was still
-                       bootstrap-only; this is an explicit still-waiting timeout
-                       outcome, not an implementation failure
+  ready_for_followup               Linked PR has left the bootstrap-only draft shape;
+                                   proceed with PR follow-up using the returned prNumber
+  timed_out                        Watch budget exhausted while linked PR was still
+                                   bootstrap-only; this is an explicit still-waiting timeout
+                                   outcome, not an implementation failure
+  prior_linked_pr_closed_unmerged  A prior linked PR was closed without merging; the issue
+                                   needs human reconciliation before the loop can continue
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -77,7 +86,7 @@ Error output (stderr, JSON):
     { "ok": false, "error": "..." }
 
 Exit codes:
-  0  Success (both ready_for_followup and timed_out are healthy outcomes)
+  0  Success (ready_for_followup, timed_out, and prior_linked_pr_closed_unmerged are all ok:true)
   1  Argument error or gh failure`.trim();
 
 /** Default poll interval: 1 minute */
@@ -240,10 +249,14 @@ export function parseWatchInitialCopilotPrCliArgs(argv) {
  * not implementation failures.  Only `linked_pr_ready_for_followup` triggers
  * early exit with a follow-up handoff result.
  *
+ * `prior_linked_pr_closed_unmerged` is a terminal non-wait state: the loop
+ * exits immediately with status="prior_linked_pr_closed_unmerged" so callers
+ * can surface a reconcile/block reason rather than continuing to wait.
+ *
  * @param {{ repo: string, issue: number, pollIntervalMs: number, timeoutMs: number }} options
  * @param {{ env?: object, ghCommand?: string, delayImpl?: function, nowMs?: function,
  *           detectInitialCopilotPrStateImpl?: function, watchCopilotRunUntilCompleteImpl?: function }} deps
- * @returns {Promise<{ ok: true, status: "ready_for_followup"|"timed_out",
+ * @returns {Promise<{ ok: true, status: "ready_for_followup"|"timed_out"|"prior_linked_pr_closed_unmerged",
  *                     repo: string, issue: number, prNumber: number|null,
  *                     prUrl: string|null, attempts: number, elapsedMs: number }>}
  */
@@ -272,6 +285,19 @@ export async function watchInitialCopilotPr(
       return {
         ok: true,
         status: "ready_for_followup",
+        repo,
+        issue,
+        prNumber: detection.prNumber,
+        prUrl: detection.prUrl,
+        attempts,
+        elapsedMs,
+      };
+    }
+
+    if (detection.state === LINKED_PR_STATE.PRIOR_LINKED_PR_CLOSED_UNMERGED) {
+      return {
+        ok: true,
+        status: "prior_linked_pr_closed_unmerged",
         repo,
         issue,
         prNumber: detection.prNumber,
