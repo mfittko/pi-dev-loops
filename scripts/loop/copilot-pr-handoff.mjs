@@ -40,14 +40,14 @@
  *   gh failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
-import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
 import {
   EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
   enforceExternalHealthyWaitTimeout,
-} from "../../packages/core/src/loop/timeout-policy.mjs";
+} from "@pi-dev-loops/core/loop/timeout-policy";
 
 const VALID_WATCH_STATUSES = new Set(["changed", "timeout", "idle"]);
 

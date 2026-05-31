@@ -4,8 +4,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
-import { buildDraftReviewPayload } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { buildDraftReviewPayload } from "@pi-dev-loops/core/loop/reviewer-loop-state";
 
 function requireOptionValue(args, flag) {
   const value = args.shift();

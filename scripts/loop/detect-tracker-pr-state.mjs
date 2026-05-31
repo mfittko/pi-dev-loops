@@ -40,7 +40,7 @@ import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
 import {
   interpretTrackerPrState,
   normalizeTrackerPrSnapshot,
-} from "../../packages/core/src/loop/tracker-pr-state.mjs";
+} from "@pi-dev-loops/core/loop/tracker-pr-state";
 
 const USAGE = `Usage:
   detect-tracker-pr-state.mjs --input <path>

@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun, parseReviewThreads } from "../_core-helpers.mjs";
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 const RESOLVE_REVIEW_THREAD_MUTATION = [
   "mutation($threadId: ID!) {",

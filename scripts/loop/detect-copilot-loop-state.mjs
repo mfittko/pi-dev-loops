@@ -71,24 +71,24 @@ import {
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
   buildSnapshotFromPrFacts,
   interpretLoopState,
   normalizeSnapshot,
   summarizeLoopInterpretation,
-} from "../../packages/core/src/loop/copilot-loop-state.mjs";
+} from "@pi-dev-loops/core/loop/copilot-loop-state";
 import {
   normalizeStatusCheckRollupContract,
   summarizeHeadScopedCheckRunsSignal,
   normalizeHeadScopedCommitStatus,
   normalizeHeadScopedCiContract,
-} from "../../packages/core/src/loop/copilot-ci-status.mjs";
+} from "@pi-dev-loops/core/loop/copilot-ci-status";
 import {
   createSteeringState,
   normalizeSteeringState,
   resolveEffectiveLoopState,
-} from "../../packages/core/src/loop/steering.mjs";
+} from "@pi-dev-loops/core/loop/steering";
 import {
   loadStateFile,
   validateSteeringStateTarget,

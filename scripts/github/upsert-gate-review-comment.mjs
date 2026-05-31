@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
-import { truncateText } from "../../packages/core/src/bash-exit-one.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { truncateText } from "@pi-dev-loops/core/bash-exit-one";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectGateReviewEvidence } from "./detect-gate-review-evidence.mjs";
 import { loadPrGateCoordinationContext } from "../loop/detect-pr-gate-coordination-state.mjs";
-import { evaluatePrGateCoordination, PR_GATE_ACTION } from "../../packages/core/src/loop/pr-gate-coordination.mjs";
+import { evaluatePrGateCoordination, PR_GATE_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 
 const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
 const GATE_VERDICTS = new Set(["clean", "findings_present", "blocked"]);

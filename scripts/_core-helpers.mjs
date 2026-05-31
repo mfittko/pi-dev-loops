@@ -6,12 +6,12 @@ export {
   parseJsonText,
   parseReviewThreads,
   readInput,
-} from "../packages/core/src/github/review-threads.mjs";
+} from "@pi-dev-loops/core/github/review-threads";
 
 export {
   buildPhasePaths,
   readJsonIfExists,
-} from "../packages/core/src/loop/phase-files.mjs";
+} from "@pi-dev-loops/core/loop/phase-files";
 
 export {
   extractReviewCommitSha,
@@ -22,7 +22,7 @@ export {
   summarizeCopilotReviews,
   summarizeGateReviewCommentMarkers,
   summarizeGateReviewComments,
-} from "../packages/core/src/github/copilot-helpers.mjs";
+} from "@pi-dev-loops/core/github/copilot-helpers";
 
 export function isDirectCliRun(importMetaUrl, argv1 = process.argv[1]) {
   if (typeof argv1 !== "string" || argv1.length === 0) {

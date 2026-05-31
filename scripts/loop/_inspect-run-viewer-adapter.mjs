@@ -1,4 +1,4 @@
-import { parseRepoSlugParts } from "../../packages/core/src/github/repo-slug.mjs";
+import { parseRepoSlugParts } from "@pi-dev-loops/core/github/repo-slug";
 import { inspectRun } from "./inspect-run.mjs";
 import { spawn } from "node:child_process";
 

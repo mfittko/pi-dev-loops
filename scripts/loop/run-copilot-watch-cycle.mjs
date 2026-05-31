@@ -4,15 +4,15 @@ import { spawn } from "node:child_process";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
-import { DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION } from "../../packages/core/src/loop/public-dev-loop-routing.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION } from "@pi-dev-loops/core/loop/public-dev-loop-routing";
 import { watchCopilotReview } from "../github/watch-copilot-review.mjs";
 import { runHandoff } from "./copilot-pr-handoff.mjs";
 import { detectCopilotSessionActivity } from "./detect-copilot-session-activity.mjs";
 import {
   EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
   enforceExternalHealthyWaitTimeout,
-} from "../../packages/core/src/loop/timeout-policy.mjs";
+} from "@pi-dev-loops/core/loop/timeout-policy";
 
 const USAGE = `Usage: run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number> [--force-rerequest-review] [--probe-only]
 

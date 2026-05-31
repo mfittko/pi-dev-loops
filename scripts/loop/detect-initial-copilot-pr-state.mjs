@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectLinkedIssuePr } from "../github/detect-linked-issue-pr.mjs";
 import { detectCopilotSessionActivity } from "./detect-copilot-session-activity.mjs";
 
