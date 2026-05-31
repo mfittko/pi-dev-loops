@@ -32,6 +32,10 @@ test("packages/core exports public loop contract modules in package metadata", a
     "./src/loop/conductor-pr-projection.mjs",
   );
   assert.equal(
+    packageJson.exports["./loop/copilot-ci-status"],
+    "./src/loop/copilot-ci-status.mjs",
+  );
+  assert.equal(
     packageJson.exports["./github/copilot-helpers"],
     "./src/github/copilot-helpers.mjs",
   );

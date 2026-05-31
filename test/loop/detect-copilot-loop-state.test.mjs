@@ -393,6 +393,50 @@ test("detect-copilot-loop-state auto-detect returns waiting_for_ci for open PR w
   }
 });
 
+test("detect-copilot-loop-state auto-detect accepts successful status-context rollup entries", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-status-context-success-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "abc123",
+          reviews: [],
+          statusCheckRollup: [
+            { state: "SUCCESS" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "pr_ready_no_feedback");
+    assert.equal(output.snapshot.ciStatus, "success");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-loop-state auto-detect returns waiting_for_ci when statusCheckRollup is missing", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-missing-rollup-"));
 
@@ -1128,8 +1172,66 @@ process.exit(97);
   }
 });
 
-test("detect-copilot-loop-state treats cancelled head-scoped check runs as success", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-head-cancelled-success-"));
+test("detect-copilot-loop-state keeps cancelled check-runs from being masked by commit-status success", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-cancelled-plus-status-success-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "CHANGES_REQUESTED",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"CANCELLED"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+        stdout: '{"statuses":[{"state":"success"}]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "waiting_for_ci");
+    assert.equal(output.snapshot.ciStatus, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state treats cancelled head-scoped check runs as none", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-head-cancelled-none-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -1179,8 +1281,8 @@ test("detect-copilot-loop-state treats cancelled head-scoped check runs as succe
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
 
     const output = JSON.parse(result.stdout);
-    assert.equal(output.state, "ready_to_rerequest_review");
-    assert.equal(output.snapshot.ciStatus, "success");
+    assert.equal(output.state, "waiting_for_ci");
+    assert.equal(output.snapshot.ciStatus, "none");
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });

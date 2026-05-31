@@ -679,13 +679,11 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - if yes, run the smallest honest local validation for the accepted fix scope
    - if that local validation is still known red, continue remediation instead of re-requesting Copilot
    - after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for any CI-dependent follow-up decision
-   - refresh or re-read the relevant GitHub CI/check state for the current head before advancing
-   - if the refreshed current-head CI/check state is `pending` or `none`, stay in wait/watch rather than advancing or re-requesting as though the gate were satisfied
+   - refresh/re-read current-head CI/check data before advancing and apply the contract in `../docs/copilot-ci-status-contract.md` (wait for `pending`/`none`, stop for `failure`, proceed only on `success`)
    - passing local validation alone does not satisfy a step that still requires GitHub CI/check readiness for the current head
    - only results for the current head SHA may satisfy a CI-dependent follow-up step; older-head results must not unblock the new head
    - if GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot
    - only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head rather than assuming it remains requested
-   - if waiting for current-head checks times out before they settle, remain waiting/blocked rather than crossing the CI-dependent boundary anyway
    - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
    - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
    - if the request command fails unexpectedly, stop and report the error rather than sleeping and hoping for a new review
