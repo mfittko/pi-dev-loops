@@ -37,6 +37,20 @@ jobs:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
+      - name: Prepare APT cache paths
+        run: |
+          sudo mkdir -p /var/cache/apt/archives/partial /var/lib/apt/lists/partial
+          sudo chown -R "$USER:$USER" /var/cache/apt/archives /var/lib/apt/lists
+
+      - name: Cache APT packages for Playwright dependencies
+        id: playwright-apt-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: playwright-apt-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - name: Install Playwright WebKit system dependencies
         run: npx playwright install-deps webkit
 
