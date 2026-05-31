@@ -498,7 +498,21 @@ function normalizeSubIssue(issue, index) {
 }
 
 function readInspectConnection(payload) {
-  const issue = readIssueNode(payload, "data.repository.issue");
+  const issue = payload?.data?.repository?.issue;
+
+  if (issue === null) {
+    return {
+      issue: null,
+      nodes: [],
+      hasNextPage: false,
+      endCursor: null,
+    };
+  }
+
+  if (!issue || typeof issue !== "object") {
+    throw new Error("Invalid sub-issue-tree GraphQL payload: missing data.repository.issue");
+  }
+
   const connection = issue?.subIssues;
 
   if (!connection || typeof connection !== "object") {

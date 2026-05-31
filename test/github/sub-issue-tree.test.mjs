@@ -310,6 +310,37 @@ test("sub-issue-tree inspect paginates and returns normalized tree output", asyn
   }
 });
 
+
+
+test("sub-issue-tree inspect reports a missing parent issue clearly", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-sub-issue-tree-missing-parent-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "owner=owner", "name=repo", "parent=97"],
+        stdout: `${JSON.stringify({
+          data: {
+            repository: {
+              issue: null,
+            },
+          },
+        })}\n`,
+      },
+    ]);
+
+    const result = await runNode(["inspect", "--repo", "owner/repo", "--issue", "97"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Could not resolve issue #97 in owner\/repo/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("sub-issue-tree add attaches an existing child and returns refreshed tree", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-sub-issue-tree-add-"));
 
