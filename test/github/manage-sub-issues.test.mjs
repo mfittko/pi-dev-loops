@@ -255,6 +255,24 @@ test("parseManageSubIssuesCliArgs rejects invalid repo slug", () => {
   );
 });
 
+
+test("parseManageSubIssuesCliArgs rejects irrelevant flags for the selected command", () => {
+  assert.throws(
+    () => parseManageSubIssuesCliArgs(["list", "--repo", "owner/repo", "--issue", "42", "--child", "10"]),
+    /does not accept --child/i,
+  );
+
+  assert.throws(
+    () => parseManageSubIssuesCliArgs(["add", "--repo", "owner/repo", "--issue", "42", "--child", "10", "--order", "10,11"]),
+    /does not accept --order/i,
+  );
+
+  assert.throws(
+    () => parseManageSubIssuesCliArgs(["verify", "--repo", "owner/repo", "--issue", "42", "--expected", "10,11", "--child", "10"]),
+    /does not accept --child/i,
+  );
+});
+
 // ─── computeVerifyResult unit tests ──────────────────────────────────────────
 
 test("computeVerifyResult returns verified:true when sets match (unordered)", () => {

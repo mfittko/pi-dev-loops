@@ -165,16 +165,61 @@ export function parseManageSubIssuesCliArgs(argv) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
 
-  if (command === "add" && options.child === undefined) {
-    throw parseError("The add command requires --child <number>");
+  if (command === "list") {
+    if (options.child !== undefined) {
+      throw parseError("The list command does not accept --child");
+    }
+    if (options.order !== undefined) {
+      throw parseError("The list command does not accept --order");
+    }
+    if (options.expected !== undefined) {
+      throw parseError("The list command does not accept --expected");
+    }
+    if (options.ordered) {
+      throw parseError("The list command does not accept --ordered");
+    }
   }
 
-  if (command === "reorder" && options.order === undefined) {
-    throw parseError("The reorder command requires --order <n1,n2,...>");
+  if (command === "add") {
+    if (options.child === undefined) {
+      throw parseError("The add command requires --child <number>");
+    }
+    if (options.order !== undefined) {
+      throw parseError("The add command does not accept --order");
+    }
+    if (options.expected !== undefined) {
+      throw parseError("The add command does not accept --expected");
+    }
+    if (options.ordered) {
+      throw parseError("The add command does not accept --ordered");
+    }
   }
 
-  if (command === "verify" && options.expected === undefined) {
-    throw parseError("The verify command requires --expected <n1,n2,...>");
+  if (command === "reorder") {
+    if (options.order === undefined) {
+      throw parseError("The reorder command requires --order <n1,n2,...>");
+    }
+    if (options.child !== undefined) {
+      throw parseError("The reorder command does not accept --child");
+    }
+    if (options.expected !== undefined) {
+      throw parseError("The reorder command does not accept --expected");
+    }
+    if (options.ordered) {
+      throw parseError("The reorder command does not accept --ordered");
+    }
+  }
+
+  if (command === "verify") {
+    if (options.expected === undefined) {
+      throw parseError("The verify command requires --expected <n1,n2,...>");
+    }
+    if (options.child !== undefined) {
+      throw parseError("The verify command does not accept --child");
+    }
+    if (options.order !== undefined) {
+      throw parseError("The verify command does not accept --order");
+    }
   }
 
   return options;

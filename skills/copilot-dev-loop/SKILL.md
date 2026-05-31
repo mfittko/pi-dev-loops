@@ -365,9 +365,8 @@ node <resolved-skill-scripts>/github/manage-sub-issues.mjs list \
 Do **not** re-implement sub-issue management ad hoc or bypass `manage-sub-issues.mjs`.
 Do **not** maintain a body checklist that duplicates the sub-issue tree.
 
-For the full `manage-sub-issues.mjs` contract, see `../../docs/sub-issue-tree-contract.md` when working in the source repository.
-in the resolved skill docs directory. In the `pi-dev-loops` source repository that file lives
-under `../../docs/` relative to this file.
+For the full `manage-sub-issues.mjs` contract, use `../../docs/sub-issue-tree-contract.md` when working in the `pi-dev-loops` source repository.
+For installed or normalized skill copies, read the same contract from the resolved skill docs directory instead of assuming the source checkout is present.
 
 ### Phase 4 — Copilot handoff and bootstrap wait
 
