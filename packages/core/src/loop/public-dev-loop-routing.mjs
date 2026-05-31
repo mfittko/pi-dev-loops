@@ -111,6 +111,16 @@ export const DEV_LOOP_STATUS_REPORT_KIND = Object.freeze({
   NEEDS_RECONCILE: "needs_reconcile",
 });
 
+export const DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION = Object.freeze({
+  ROUTED_FOLLOWUP: "routed_followup",
+  HEALTHY_WAIT: "healthy_wait",
+  TERMINAL: "terminal",
+  BLOCKED: "blocked",
+  AUTHORIZATION_GATED: "authorization_gated",
+  RECONCILE: "reconcile",
+  INSPECT: "inspect",
+});
+
 export const DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND = Object.freeze({
   RESOLVED: "resolved",
   NEEDS_RECONCILE: "needs_reconcile",
@@ -501,6 +511,93 @@ function applyRetrospectiveCheckpointGate(result, checkpointState, checkpointSta
   });
 }
 
+function resolveStopClassification({ selectedGate, routeKind, canonicalState = null }) {
+  if (routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE || selectedGate === DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.RECONCILE;
+  }
+
+  if (routeKind === DEV_LOOP_ROUTE_KIND.INSPECT) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.INSPECT;
+  }
+
+  if (routeKind === DEV_LOOP_ROUTE_KIND.WAIT) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.HEALTHY_WAIT;
+  }
+
+  if (selectedGate === DEV_LOOP_GATE.STOP_DONE_TERMINAL || canonicalState?.status === DEV_LOOP_STATUS.DONE) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.TERMINAL;
+  }
+
+  if (selectedGate === DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.AUTHORIZATION_GATED;
+  }
+
+  if (selectedGate === DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED) {
+    return canonicalState?.status === DEV_LOOP_STATUS.BLOCKED
+      ? DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.BLOCKED
+      : DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.AUTHORIZATION_GATED;
+  }
+
+  if (routeKind === DEV_LOOP_ROUTE_KIND.STOP) {
+    return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.BLOCKED;
+  }
+
+  return DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.ROUTED_FOLLOWUP;
+}
+
+function buildContractTrace({
+  publicEntrypoint = PUBLIC_DEV_LOOP_ENTRYPOINT,
+  selectedGate,
+  routeKind,
+  selectedStrategy,
+  executionMode,
+  waitSemantics,
+  waitTimeoutPolicy,
+  canonicalState,
+  reason,
+  watchRequested = false,
+  boundary = null,
+}) {
+  const effectiveTimeoutMs = waitTimeoutPolicy?.defaultTimeoutMs ?? null;
+  return {
+    publicEntrypoint,
+    decision: {
+      selectedGate,
+      routeKind,
+      selectedStrategy,
+      executionMode,
+      watchRequested,
+      contractClassification: resolveStopClassification({ selectedGate, routeKind, canonicalState }),
+      contractJustification: reason,
+    },
+    waitStrategy: {
+      selectedStrategy: routeKind === DEV_LOOP_ROUTE_KIND.WAIT ? selectedStrategy : null,
+      waitSemantics,
+      waitMode: routeKind === DEV_LOOP_ROUTE_KIND.WAIT ? "persistent_watch" : "not_applicable",
+      timeoutPolicyClassification: waitTimeoutPolicy?.classification ?? null,
+      effectiveTimeoutMs,
+      effectivePollIntervalMs: null,
+    },
+    stopReason: {
+      classification: resolveStopClassification({ selectedGate, routeKind, canonicalState }),
+      terminal: selectedGate === DEV_LOOP_GATE.STOP_DONE_TERMINAL || canonicalState?.status === DEV_LOOP_STATUS.DONE,
+      reason,
+    },
+    stateRefresh: boundary ?? null,
+  };
+}
+
+function withContractTrace(result, { watchRequested = false, boundary = null } = {}) {
+  return {
+    ...result,
+    contractTrace: buildContractTrace({
+      ...result,
+      watchRequested,
+      boundary,
+    }),
+  };
+}
+
 function buildResult({
   selectedGate,
   routeKind,
@@ -512,6 +609,8 @@ function buildResult({
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
   waitTimeoutPolicy = null,
   issueAssignmentSeam = DEV_LOOP_ISSUE_ASSIGNMENT_SEAM.NOT_APPLICABLE,
+  watchRequested = false,
+  contractTraceBoundary = null,
 }) {
   return {
     publicEntrypoint: PUBLIC_DEV_LOOP_ENTRYPOINT,
@@ -525,10 +624,27 @@ function buildResult({
     issueAssignmentSeam,
     nextAction,
     reason,
+    contractTrace: buildContractTrace({
+      selectedGate,
+      routeKind,
+      selectedStrategy,
+      executionMode,
+      waitSemantics,
+      waitTimeoutPolicy,
+      canonicalState,
+      reason,
+      watchRequested,
+      boundary: contractTraceBoundary,
+    }),
   };
 }
 
-function buildReconcile(reason, canonicalState = null, executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF) {
+function buildReconcile(
+  reason,
+  canonicalState = null,
+  executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+  { watchRequested = false, contractTraceBoundary = null } = {},
+) {
   return buildResult({
     selectedGate: DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE,
     routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
@@ -537,6 +653,8 @@ function buildReconcile(reason, canonicalState = null, executionMode = DEV_LOOP_
     canonicalState,
     nextAction: "Stop and reconcile the canonical current state before choosing an internal strategy.",
     reason,
+    watchRequested,
+    contractTraceBoundary,
   });
 }
 
@@ -548,17 +666,30 @@ function buildReconcile(reason, canonicalState = null, executionMode = DEV_LOOP_
  * non-wait routed results fail closed.
  */
 function applyWatchValidation(result, watchRequested) {
+  const refreshBoundary = watchRequested
+    ? {
+        boundaryKind: "post_watch_or_probe",
+        refreshRequired: true,
+        refreshReason: result.routeKind === DEV_LOOP_ROUTE_KIND.WAIT
+          ? "Wait/watch boundaries are observational only; refresh authoritative state before treating a healthy wait boundary as completion or exit."
+          : "Requested watch/probe boundaries still require an authoritative state refresh before classifying the outcome as completion or re-entry.",
+      }
+    : null;
+
   if (!watchRequested) return result;
-  if (result.routeKind === DEV_LOOP_ROUTE_KIND.WAIT) return result;
-  if (result.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) return result;
-  if (result.routeKind === DEV_LOOP_ROUTE_KIND.STOP) return result;
-  if (result.selectedGate === DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE) return result;
-  if (result.selectedGate === DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED) return result;
-  if (result.selectedGate === DEV_LOOP_GATE.STOP_DONE_TERMINAL) return result;
+  if (result.routeKind === DEV_LOOP_ROUTE_KIND.WAIT) {
+    return withContractTrace(result, { watchRequested, boundary: refreshBoundary });
+  }
+  if (result.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) return withContractTrace(result, { watchRequested });
+  if (result.routeKind === DEV_LOOP_ROUTE_KIND.STOP) return withContractTrace(result, { watchRequested });
+  if (result.selectedGate === DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE) return withContractTrace(result, { watchRequested });
+  if (result.selectedGate === DEV_LOOP_GATE.STOP_BLOCKED_OR_NOT_AUTHORIZED) return withContractTrace(result, { watchRequested });
+  if (result.selectedGate === DEV_LOOP_GATE.STOP_DONE_TERMINAL) return withContractTrace(result, { watchRequested });
   return buildReconcile(
     "watch requested but the routed result is not eligible for wait/watch semantics.",
     result.canonicalState,
     result.executionMode,
+    { watchRequested, contractTraceBoundary: refreshBoundary },
   );
 }
 
@@ -892,8 +1023,9 @@ function buildStatusReconcile(
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
   waitTimeoutPolicy = null,
   asyncRun = null,
+  { artifactState = null, loopState = null, issueLinkageResolution = null } = {},
 ) {
-  return {
+  const result = {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.NEEDS_RECONCILE,
     reason,
     activeArtifact: canonicalState ? buildStatusArtifactIdentity(canonicalState) : null,
@@ -909,6 +1041,27 @@ function buildStatusReconcile(
     asyncRun,
     canonicalState,
   };
+  return {
+    ...result,
+    contractTrace: buildContractTrace({
+      selectedGate: result.selectedGate,
+      routeKind: result.routeKind,
+      selectedStrategy: result.selectedStrategy,
+      executionMode,
+      waitSemantics,
+      waitTimeoutPolicy,
+      canonicalState,
+      reason,
+      boundary: {
+        boundaryKind: "authoritative_status_refresh",
+        refreshRequired: true,
+        refreshReason: "Status answers are derived from refreshed authoritative state and must fail closed when that refresh cannot justify the stop classification.",
+        ...(loopState !== null ? { loopState } : {}),
+        ...(artifactState !== null ? { artifactState } : {}),
+        ...(issueLinkageResolution !== null ? { issueLinkageResolution } : {}),
+      },
+    }),
+  };
 }
 
 function buildStartupResumeBundleReconcile({
@@ -916,13 +1069,14 @@ function buildStartupResumeBundleReconcile({
   canonicalState = null,
   issueLinkageResolution = null,
   artifactState = null,
+  loopState = null,
   nextAction = "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
   executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
   waitTimeoutPolicy = null,
   asyncRun = null,
 }) {
-  return {
+  const result = {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE,
     reason,
     activeArtifact: canonicalState ? buildStatusArtifactIdentity(canonicalState) : null,
@@ -938,6 +1092,27 @@ function buildStartupResumeBundleReconcile({
     waitTimeoutPolicy,
     asyncRun,
     canonicalState,
+  };
+  return {
+    ...result,
+    contractTrace: buildContractTrace({
+      selectedGate: result.selectedGate,
+      routeKind: result.routeKind,
+      selectedStrategy: result.selectedStrategy,
+      executionMode,
+      waitSemantics,
+      waitTimeoutPolicy,
+      canonicalState,
+      reason,
+      boundary: {
+        boundaryKind: "startup_resume_refresh",
+        refreshRequired: true,
+        refreshReason: "Startup/resume routing must record the refreshed authoritative state boundary that justified this stop or reconcile decision.",
+        ...(loopState !== null ? { loopState } : {}),
+        ...(artifactState !== null ? { artifactState } : {}),
+        ...(issueLinkageResolution !== null ? { issueLinkageResolution } : {}),
+      },
+    }),
   };
 }
 
@@ -1155,6 +1330,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState: normalizeArtifactState(input.artifactState),
+      loopState,
     });
   }
 
@@ -1169,6 +1345,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState: normalizeArtifactState(input.artifactState),
+      loopState,
     });
   }
   const canonicalStateForRouting = bootstrapRefresh.canonicalState;
@@ -1181,6 +1358,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       reason: "Issue targets require explicit authoritative issue↔PR linkage resolution before routing startup/resume state.",
       canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
+      loopState,
     });
   }
 
@@ -1189,6 +1367,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       reason: "Issue↔PR linkage resolution is incomplete or conflicts with canonical current state; reconcile before routing startup/resume state.",
       canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
+      loopState,
     });
   }
 
@@ -1202,6 +1381,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
         reason: "Copilot-first issue targets require explicit authoritative issue readiness before assignment/routing decisions.",
         canonicalState,
         issueLinkageResolution: normalizedIssueLinkageResolution,
+        loopState,
       });
     }
 
@@ -1210,6 +1390,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
         reason: "Copilot-first issue targets require explicit authoritative issue assignment state before assignment/routing decisions.",
         canonicalState,
         issueLinkageResolution: normalizedIssueLinkageResolution,
+        loopState,
       });
     }
   }
@@ -1227,6 +1408,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       issueLinkageResolution: normalizedIssueLinkageResolution,
       executionMode: routed.executionMode,
       waitSemantics: routed.waitSemantics,
+      loopState,
     });
   }
 
@@ -1237,6 +1419,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       canonicalState: routed.canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState: null,
+      loopState,
     });
   }
 
@@ -1246,6 +1429,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       canonicalState: routed.canonicalState,
       issueLinkageResolution: normalizedIssueLinkageResolution,
       artifactState,
+      loopState,
     });
   }
 
@@ -1274,6 +1458,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       waitSemantics: effectiveRouted.waitSemantics,
       waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
       asyncRun,
+      loopState,
     });
   }
 
@@ -1326,6 +1511,24 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     issueAssignmentSeam: effectiveRouted.issueAssignmentSeam,
     nextAction: buildAuthoritativeStatusNextAction(effectiveRouted),
     reason: effectiveRouted.reason,
+    contractTrace: buildContractTrace({
+      selectedGate: effectiveRouted.selectedGate,
+      routeKind: effectiveRouted.routeKind,
+      selectedStrategy: effectiveRouted.selectedStrategy,
+      executionMode: effectiveRouted.executionMode,
+      waitSemantics: effectiveRouted.waitSemantics,
+      waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
+      canonicalState: effectiveRouted.canonicalState,
+      reason: effectiveRouted.reason,
+      boundary: {
+        boundaryKind: "startup_resume_refresh",
+        refreshRequired: true,
+        refreshReason: "Startup/resume answers record the authoritative refreshed loop state that justified the routed path.",
+        loopState,
+        artifactState,
+        issueLinkageResolution: normalizedIssueLinkageResolution,
+      },
+    }),
   };
 }
 
@@ -1341,10 +1544,15 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
       bundle.waitSemantics,
       bundle.waitTimeoutPolicy,
       bundle.asyncRun,
+      {
+        artifactState: bundle.contractTrace?.stateRefresh?.artifactState ?? bundle.artifactState,
+        loopState: bundle.contractTrace?.stateRefresh?.loopState ?? bundle.loopState,
+        issueLinkageResolution: bundle.contractTrace?.stateRefresh?.issueLinkageResolution ?? bundle.issueLinkageResolution,
+      },
     );
   }
 
-  return {
+  const result = {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.RESOLVED,
     activeArtifact: bundle.activeArtifact,
     artifactState: bundle.artifactState,
@@ -1360,6 +1568,28 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     issueAssignmentSeam: bundle.issueAssignmentSeam,
     canonicalState: bundle.canonicalState,
     reason: bundle.reason,
+  };
+
+  return {
+    ...result,
+    contractTrace: buildContractTrace({
+      selectedGate: result.selectedGate,
+      routeKind: result.routeKind,
+      selectedStrategy: result.selectedStrategy,
+      executionMode: result.executionMode,
+      waitSemantics: result.waitSemantics,
+      waitTimeoutPolicy: result.waitTimeoutPolicy,
+      canonicalState: result.canonicalState,
+      reason: result.reason,
+      boundary: {
+        boundaryKind: "authoritative_status_refresh",
+        refreshRequired: true,
+        refreshReason: "Status answers record the authoritative refreshed loop state that justified the reported state.",
+        loopState: result.loopState,
+        artifactState: result.artifactState,
+        issueLinkageResolution: bundle.issueLinkageResolution,
+      },
+    }),
   };
 }
 
@@ -1392,26 +1622,32 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     ?? (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT
       ? DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO
       : DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
+  const buildInputReconcile = (reason, canonicalState = null, executionMode = requestedExecutionMode) => buildReconcile(
+    reason,
+    canonicalState,
+    executionMode,
+    { watchRequested },
+  );
 
   // Fail closed on unrecognized variation parameter values
   if (input.mode !== undefined && variationMode === null) {
-    return buildReconcile(`Unrecognized \`mode\` parameter; allowed values: ${ALLOWED_MODE_VALUES_TEXT}.`, null, requestedExecutionMode);
+    return buildInputReconcile(`Unrecognized \`mode\` parameter; allowed values: ${ALLOWED_MODE_VALUES_TEXT}.`, null, requestedExecutionMode);
   }
   if (input.targetPreference !== undefined && targetPreference === null) {
-    return buildReconcile(`Unrecognized \`targetPreference\` parameter; allowed values: ${ALLOWED_TARGET_PREFERENCE_VALUES_TEXT}.`, null, requestedExecutionMode);
+    return buildInputReconcile(`Unrecognized \`targetPreference\` parameter; allowed values: ${ALLOWED_TARGET_PREFERENCE_VALUES_TEXT}.`, null, requestedExecutionMode);
   }
   if (watchProvided && typeof input.watch !== "boolean") {
-    return buildReconcile("Unrecognized `watch` parameter; allowed values: true or false.", null, requestedExecutionMode);
+    return buildInputReconcile("Unrecognized `watch` parameter; allowed values: true or false.", null, requestedExecutionMode);
   }
   if (acceptsIssueAssignmentFacts && input.issueReadiness !== undefined && issueReadiness === null) {
-    return buildReconcile(
+    return buildInputReconcile(
       `Unrecognized \`issueReadiness\` input; allowed values: ${Object.values(DEV_LOOP_ISSUE_READINESS).join(", ")}.`,
       null,
       requestedExecutionMode,
     );
   }
   if (acceptsIssueAssignmentFacts && input.issueAssignmentState !== undefined && issueAssignmentState === null) {
-    return buildReconcile(
+    return buildInputReconcile(
       `Unrecognized \`issueAssignmentState\` input; allowed values: ${Object.values(DEV_LOOP_ISSUE_ASSIGNMENT_STATE).join(", ")}.`,
       null,
       requestedExecutionMode,
@@ -1419,7 +1655,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   }
 
   if (retrospectiveCheckpointStateProvided && retrospectiveCheckpointState === null) {
-    return buildReconcile(
+    return buildInputReconcile(
       "Unrecognized `retrospectiveCheckpointState` input; allowed values: none, complete, skipped, missing.",
       null,
       requestedExecutionMode,
@@ -1433,14 +1669,21 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     gateReviewEvidence,
   };
 
-  const finalizeRoutingResult = (result) => applyRetrospectiveCheckpointGate(
-    result,
-    retrospectiveCheckpointState,
-    retrospectiveCheckpointStateProvided,
-  );
+  const finalizeRoutingResult = (result) => {
+    const gated = applyRetrospectiveCheckpointGate(
+      result,
+      retrospectiveCheckpointState,
+      retrospectiveCheckpointStateProvided,
+    );
+
+    return withContractTrace(gated, {
+      watchRequested,
+      boundary: gated.contractTrace?.stateRefresh ?? result.contractTrace?.stateRefresh ?? null,
+    });
+  };
 
   if (!intent) {
-    return buildReconcile("The public dev-loop intent is missing or unrecognized.", null, requestedExecutionMode);
+    return buildInputReconcile("The public dev-loop intent is missing or unrecognized.", null, requestedExecutionMode);
   }
 
   // ── Resolve effective execution mode ─────────────────────────────────────
@@ -1448,7 +1691,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   let effectiveMode;
   if (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT) {
     if (variationMode === DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF) {
-      return buildReconcile(
+      return buildInputReconcile(
         "`mode=bounded_handoff` conflicts with the `auto_continue_current` intent; `auto_continue_current` always uses durable auto execution mode.",
         explicitState,
         DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
@@ -1460,7 +1703,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   }
 
   if (variationMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO && !explicitState) {
-    return buildReconcile(
+    return buildInputReconcile(
       "`mode=durable_auto` requires a valid authoritative current state.",
       null,
       DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
@@ -1470,7 +1713,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.INSPECT_STATE) {
     if (!explicitState) {
-      return buildReconcile("`inspect_state` requires a valid canonical current state.", null, effectiveMode);
+      return buildInputReconcile("`inspect_state` requires a valid canonical current state.", null, effectiveMode);
     }
 
     const routed = routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode });
@@ -1483,16 +1726,16 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE) {
     if (!explicitTarget || explicitTarget.kind !== DEV_LOOP_TARGET_KIND.ISSUE) {
-      return buildReconcile("`start_on_issue` requires an issue target.", null, effectiveMode);
+      return buildInputReconcile("`start_on_issue` requires an issue target.", null, effectiveMode);
     }
 
     if (input.currentState !== undefined && !explicitState) {
-      return buildReconcile("`start_on_issue` received an invalid canonical current state.", null, effectiveMode);
+      return buildInputReconcile("`start_on_issue` received an invalid canonical current state.", null, effectiveMode);
     }
 
     if (explicitState) {
       if (explicitState.target.issue !== explicitTarget.issue) {
-        return buildReconcile("`start_on_issue` target conflicts with the canonical current state.", explicitState, effectiveMode);
+        return buildInputReconcile("`start_on_issue` target conflicts with the canonical current state.", explicitState, effectiveMode);
       }
 
       // targetPreference=prefer_local must not override authoritative linked-PR or PR state
@@ -1501,7 +1744,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
           explicitState.target.kind === DEV_LOOP_TARGET_KIND.PR ||
           (explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && explicitState.target.linkedPr !== null);
         if (isLinkedPrState) {
-          return buildReconcile(
+          return buildInputReconcile(
             "`targetPreference=prefer_local` conflicts with authoritative PR/linked-PR active artifact state; reconcile before overriding the routed path.",
             explicitState,
             effectiveMode,
@@ -1553,11 +1796,11 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     intent === DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY_THEN_CONTINUE
   ) {
     if (!explicitTarget || explicitTarget.kind !== DEV_LOOP_TARGET_KIND.ISSUE) {
-      return buildReconcile("Local issue-start intents require an issue target.", null, effectiveMode);
+      return buildInputReconcile("Local issue-start intents require an issue target.", null, effectiveMode);
     }
 
     if (input.currentState !== undefined && !explicitState) {
-      return buildReconcile("Local issue-start intents received an invalid canonical current state.", null, effectiveMode);
+      return buildInputReconcile("Local issue-start intents received an invalid canonical current state.", null, effectiveMode);
     }
 
     if (explicitState) {
@@ -1565,7 +1808,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         explicitState.target.kind !== DEV_LOOP_TARGET_KIND.LOCAL_PHASE ||
         explicitState.target.issue !== explicitTarget.issue
       ) {
-        return buildReconcile("Local issue-start target conflicts with the canonical current state.", explicitState, effectiveMode);
+        return buildInputReconcile("Local issue-start target conflicts with the canonical current state.", explicitState, effectiveMode);
       }
       return finalizeRoutingResult(applyWatchValidation(
         routeForState(explicitState, { ...routingOptions, executionMode: effectiveMode }),
@@ -1601,18 +1844,18 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR) {
     if (!explicitTarget || explicitTarget.kind !== DEV_LOOP_TARGET_KIND.PR) {
-      return buildReconcile("`continue_on_pr` requires a PR target.", null, effectiveMode);
+      return buildInputReconcile("`continue_on_pr` requires a PR target.", null, effectiveMode);
     }
     if (!explicitState || explicitState.target.kind !== DEV_LOOP_TARGET_KIND.PR) {
-      return buildReconcile("`continue_on_pr` requires a valid canonical PR state.", explicitState, effectiveMode);
+      return buildInputReconcile("`continue_on_pr` requires a valid canonical PR state.", explicitState, effectiveMode);
     }
     if (explicitState.target.pr !== explicitTarget.pr) {
-      return buildReconcile("`continue_on_pr` target conflicts with the canonical current PR state.", explicitState, effectiveMode);
+      return buildInputReconcile("`continue_on_pr` target conflicts with the canonical current PR state.", explicitState, effectiveMode);
     }
 
     // targetPreference=prefer_local must not override an active PR artifact
     if (targetPreference === DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL) {
-      return buildReconcile(
+      return buildInputReconcile(
         "`targetPreference=prefer_local` conflicts with authoritative PR/linked-PR active artifact state; reconcile before overriding the routed path.",
         explicitState,
         effectiveMode,
@@ -1627,7 +1870,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT) {
     if (!explicitState) {
-      return buildReconcile("`continue_current` requires a valid canonical current state.", null, effectiveMode);
+      return buildInputReconcile("`continue_current` requires a valid canonical current state.", null, effectiveMode);
     }
 
     // targetPreference=prefer_local must not override an active PR artifact or linked-PR state
@@ -1636,7 +1879,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
         explicitState.target.kind === DEV_LOOP_TARGET_KIND.PR ||
         (explicitState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE && explicitState.target.linkedPr !== null);
       if (isLinkedPrState) {
-        return buildReconcile(
+        return buildInputReconcile(
           "`targetPreference=prefer_local` conflicts with authoritative PR/linked-PR active artifact state; reconcile before overriding the routed path.",
           explicitState,
           effectiveMode,
@@ -1652,7 +1895,7 @@ export function evaluatePublicDevLoopRouting(input = {}) {
 
   if (intent === DEV_LOOP_PUBLIC_INTENT.AUTO_CONTINUE_CURRENT) {
     if (!explicitState) {
-      return buildReconcile(
+      return buildInputReconcile(
         "`auto_continue_current` requires a valid canonical current state.",
         null,
         DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO,
@@ -1664,5 +1907,5 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     ));
   }
 
-  return buildReconcile("The public dev-loop intent is recognized but not implemented in this first slice.", null, effectiveMode);
+  return buildInputReconcile("The public dev-loop intent is recognized but not implemented in this first slice.", null, effectiveMode);
 }
