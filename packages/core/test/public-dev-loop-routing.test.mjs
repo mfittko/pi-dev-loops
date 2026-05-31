@@ -2641,6 +2641,27 @@ test("authoritative startup/resume bundle carries refreshed wait-state trace con
   assert.equal(bundle.contractTrace.stateRefresh.artifactState, DEV_LOOP_ARTIFACT_STATE.OPEN);
 });
 
+test("authoritative status carries resolved wait-state trace context", () => {
+  const report = resolveAuthoritativeDevLoopStatus({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.WAITING,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "waiting_for_copilot_review",
+  });
+
+  assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
+  assert.equal(report.contractTrace.decision.contractClassification, DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.HEALTHY_WAIT);
+  assert.equal(report.contractTrace.stateRefresh.boundaryKind, "startup_resume_refresh");
+  assert.equal(report.contractTrace.stateRefresh.loopState, "waiting_for_copilot_review");
+  assert.equal(report.contractTrace.stateRefresh.artifactState, DEV_LOOP_ARTIFACT_STATE.OPEN);
+});
+
 test("authoritative status reconcile carries contract trace classification", () => {
   const report = resolveAuthoritativeDevLoopStatus({
     currentState: {
