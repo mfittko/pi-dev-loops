@@ -19,7 +19,7 @@ Both entry points return the same machine-readable contract shape.
 
 ### `normalizeStatusCheckRollupContract(statusCheckRollup)`
 
-- `statusCheckRollup` — the raw PR `statusCheckRollup` array from `gh pr view`
+- `statusCheckRollup` — the raw PR `statusCheckRollup` array from `gh pr view`; entries may be CheckRun-like (`status` + `conclusion`) or legacy StatusContext-like (`state`)
 
 ### `normalizeHeadScopedCiContract({ checkRunsStatus, commitStatus })`
 
@@ -44,4 +44,4 @@ The rollup precedence is fixed and policy-agnostic:
 3. `success`
 4. `none`
 
-A completed cancelled check does not count as a successful readiness signal by itself; cancelled-only snapshots normalize to `none` so CI-dependent gates do not advance on cancelled work.
+Completed `SKIPPED` and `NEUTRAL` check-run conclusions count as non-blocking success-like signals. A completed `CANCELLED` check does not count as a successful readiness signal by itself; cancelled-only snapshots normalize to `none` so CI-dependent gates do not advance on cancelled work. Legacy successful `StatusContext` rollup entries also normalize to `success` instead of being mistaken for pending work.

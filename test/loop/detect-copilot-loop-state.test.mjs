@@ -393,6 +393,50 @@ test("detect-copilot-loop-state auto-detect returns waiting_for_ci for open PR w
   }
 });
 
+test("detect-copilot-loop-state auto-detect accepts successful status-context rollup entries", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-status-context-success-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "abc123",
+          reviews: [],
+          statusCheckRollup: [
+            { state: "SUCCESS" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "pr_ready_no_feedback");
+    assert.equal(output.snapshot.ciStatus, "success");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-loop-state auto-detect returns waiting_for_ci when statusCheckRollup is missing", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-missing-rollup-"));
 

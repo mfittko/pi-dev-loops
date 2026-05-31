@@ -58,6 +58,24 @@ test("normalizeHeadScopedCheckRunsStatus treats cancelled completed check runs a
   assert.equal(status, "none");
 });
 
+test("normalizeStatusCheckRollupStatus treats successful status-context rollup entries as success", () => {
+  const status = normalizeStatusCheckRollupStatus([
+    { state: "SUCCESS" },
+  ]);
+
+  assert.equal(status, "success");
+});
+
+test("normalizeHeadScopedCheckRunsStatus treats skipped completed check runs as success", () => {
+  const status = normalizeHeadScopedCheckRunsStatus({
+    check_runs: [
+      { status: "COMPLETED", conclusion: "SKIPPED" },
+    ],
+  });
+
+  assert.equal(status, "success");
+});
+
 test("normalizeHeadScopedCommitStatus returns failure when statuses include error", () => {
   const status = normalizeHeadScopedCommitStatus({
     statuses: [

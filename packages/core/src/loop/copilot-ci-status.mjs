@@ -1,6 +1,9 @@
 const VALID_HEAD_SCOPED_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
 const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
-const SUCCESS_CONCLUSIONS = new Set(["SUCCESS"]);
+const SUCCESS_CONCLUSIONS = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
+const STATUS_CONTEXT_FAILURE_STATES = new Set(["FAILURE", "ERROR"]);
+const STATUS_CONTEXT_PENDING_STATES = new Set(["PENDING", "EXPECTED"]);
+const STATUS_CONTEXT_SUCCESS_STATES = new Set(["SUCCESS"]);
 
 function normalizeHeadScopedCiStatus(status) {
   return VALID_HEAD_SCOPED_CI_STATUSES.has(status) ? status : "none";
@@ -27,6 +30,8 @@ function buildCiContract(overallStatus) {
 
 /**
  * Normalize the PR `statusCheckRollup` payload into a stable status.
+ * Supports both CheckRun-style entries (`status` + `conclusion`) and legacy
+ * StatusContext-style entries (`state`).
  *
  * @param {Array<object>} rollup
  * @returns {"success"|"failure"|"pending"|"none"}
@@ -41,6 +46,20 @@ export function normalizeStatusCheckRollupStatus(rollup) {
   let hasSuccess = false;
 
   for (const check of rollup) {
+    const state = typeof check?.state === "string" ? check.state.toUpperCase() : "";
+    if (STATUS_CONTEXT_FAILURE_STATES.has(state)) {
+      hasFailure = true;
+      continue;
+    }
+    if (STATUS_CONTEXT_PENDING_STATES.has(state)) {
+      hasPending = true;
+      continue;
+    }
+    if (STATUS_CONTEXT_SUCCESS_STATES.has(state)) {
+      hasSuccess = true;
+      continue;
+    }
+
     const status = typeof check?.status === "string" ? check.status.toUpperCase() : "";
     const conclusion = typeof check?.conclusion === "string" ? check.conclusion.toUpperCase() : "";
 
