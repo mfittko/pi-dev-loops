@@ -973,6 +973,7 @@ test("sub-issue tree contract documents the workflow, helper commands, and lean-
   assert.match(contractContent, /reorder/i);
   assert.match(contractContent, /verify/i);
   assert.match(contractContent, /Default decomposition flow[\s\S]*verify/i);
+  assert.match(contractContent, /verify.*mismatch-only.*exit 0|exits 0 for mismatch-only results/i);
   assert.match(contractContent, /lean/i);
   assert.match(contractContent, /do not maintain.*checklist.*duplicates|not.*maintain.*ordered checklist.*duplicates/i);
   assert.match(contractContent, /When to use sub-issues vs plain related-issue references/i);
