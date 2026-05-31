@@ -13,9 +13,11 @@ import {
 test("isInspectRunViewerRelevantPath matches the bounded inspect-run viewer smoke surface", () => {
   assert.equal(isInspectRunViewerRelevantPath(".github/workflows/ci.yml"), true);
   assert.equal(isInspectRunViewerRelevantPath("package.json"), true);
+  assert.equal(isInspectRunViewerRelevantPath("package-lock.json"), true);
   assert.equal(isInspectRunViewerRelevantPath("scripts/loop/inspect-run-viewer/rendering.mjs"), true);
   assert.equal(isInspectRunViewerRelevantPath("scripts/loop/inspect-run-viewer-ci-changes.mjs"), true);
   assert.equal(isInspectRunViewerRelevantPath("test/playwright/inspect-run-viewer.spec.mjs"), true);
+  assert.equal(isInspectRunViewerRelevantPath("test/playwright/fixtures/inspect-run-viewer-fixture.mjs"), true);
   assert.equal(isInspectRunViewerRelevantPath("test/playwright/some-other-ui.spec.mjs"), false);
 
   assert.equal(isInspectRunViewerRelevantPath("README.md"), false);
@@ -27,10 +29,14 @@ test("classifyInspectRunViewerCiChanges only requests browser smoke when relevan
   const relevant = classifyInspectRunViewerCiChanges([
     "README.md",
     "scripts/loop/inspect-run-viewer/server.mjs",
+    "test/playwright/fixtures/inspect-run-viewer-fixture.mjs",
     "docs/index.md",
   ]);
   assert.equal(relevant.shouldRun, true);
-  assert.deepEqual(relevant.relevantPaths, ["scripts/loop/inspect-run-viewer/server.mjs"]);
+  assert.deepEqual(relevant.relevantPaths, [
+    "scripts/loop/inspect-run-viewer/server.mjs",
+    "test/playwright/fixtures/inspect-run-viewer-fixture.mjs",
+  ]);
   const irrelevant = classifyInspectRunViewerCiChanges([
     "README.md",
     "docs/IMPLEMENTATION_WORKFLOW.md",

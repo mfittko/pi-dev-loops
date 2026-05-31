@@ -6,6 +6,7 @@ import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 export const INSPECT_RUN_VIEWER_RELEVANT_EXACT_PATHS = Object.freeze([
   ".github/workflows/ci.yml",
   "package.json",
+  "package-lock.json",
   "playwright.inspect-run-viewer.config.mjs",
   "scripts/loop/_inspect-run-viewer-adapter.mjs",
   "scripts/loop/inspect-run-viewer.mjs",
@@ -15,6 +16,7 @@ export const INSPECT_RUN_VIEWER_RELEVANT_EXACT_PATHS = Object.freeze([
 
 export const INSPECT_RUN_VIEWER_RELEVANT_PREFIXES = Object.freeze([
   "scripts/loop/inspect-run-viewer/",
+  "test/playwright/fixtures/",
 ]);
 
 const USAGE = "Usage: inspect-run-viewer-ci-changes.mjs <changed-files-path>";
