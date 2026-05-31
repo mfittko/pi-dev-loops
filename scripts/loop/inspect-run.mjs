@@ -59,21 +59,8 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
-import { autoDetectSnapshot as autoDetectCopilotSnapshot } from "./detect-copilot-loop-state.mjs";
-import {
-  buildCheckpointFilePath,
-  buildDefaultCheckpointDir,
-  buildLegacyDefaultCheckpointDir,
-} from "./_checkpoint-paths.mjs";
-import { autoDetectReviewerSnapshot } from "./detect-reviewer-loop-state.mjs";
-import {
-  interpretLoopState,
-  normalizeSnapshot as normalizeCopilotSnapshot,
-} from "../../packages/core/src/loop/copilot-loop-state.mjs";
-import {
-  interpretReviewerLoopState,
-  normalizeReviewerSnapshot,
-} from "../../packages/core/src/loop/reviewer-loop-state.mjs";
+import { readExistingCheckpoint } from "./_checkpoint-io.mjs";
+import { loadCopilotEvidence, loadReviewerEvidence } from "./_loop-evidence.mjs";
 import { interpretOuterLoopState } from "../../packages/core/src/loop/outer-loop-state.mjs";
 import {
   composeRunInspectionSnapshot,
@@ -339,49 +326,6 @@ async function fetchCopilotLoopIterations({ repo, pr, snapshot }, { env, ghComma
 }
 
 // ---------------------------------------------------------------------------
-// Checkpoint read (read-only; no writes)
-// ---------------------------------------------------------------------------
-
-function defaultCheckpointDir(repo, pr) {
-  return buildDefaultCheckpointDir(repo, pr);
-}
-
-/**
- * Read the existing checkpoint if it exists. Returns null if not found.
- * This is a read-only operation; the checkpoint is never written here.
- *
- * @param {string} repo
- * @param {number} pr
- * @returns {Promise<{ checkpoint: object|null, filePath: string|null }>}
- */
-async function readExistingCheckpoint(repo, pr) {
-  const normalizedRepo = repo.trim().toLowerCase();
-  const preferredDir = defaultCheckpointDir(normalizedRepo, pr);
-  const preferredPath = buildCheckpointFilePath(preferredDir);
-
-  try {
-    const text = await readFile(preferredPath, "utf8");
-    return { checkpoint: parseJsonText(text), filePath: preferredPath };
-  } catch (error) {
-    if (!error || error.code !== "ENOENT") {
-      return { checkpoint: null, filePath: null };
-    }
-  }
-
-  const legacyPath = buildCheckpointFilePath(buildLegacyDefaultCheckpointDir(pr));
-  try {
-    const text = await readFile(legacyPath, "utf8");
-    const checkpoint = parseJsonText(text);
-    if (checkpoint?.repo === normalizedRepo && checkpoint?.pr === pr) {
-      return { checkpoint, filePath: legacyPath };
-    }
-    return { checkpoint: null, filePath: null };
-  } catch {
-    return { checkpoint: null, filePath: null };
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Steering state load (read-only)
 // ---------------------------------------------------------------------------
 
@@ -440,15 +384,7 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   let copilotLiveStatus = "failed";
 
   try {
-    let copilotSnapshot;
-    if (copilotInputPath !== undefined) {
-      const text = await readFile(copilotInputPath, "utf8");
-      copilotSnapshot = normalizeCopilotSnapshot(parseJsonText(text));
-    } else {
-      copilotSnapshot = await autoDetectCopilotSnapshot({ repo, pr }, { env, ghCommand });
-    }
-    const interpretation = interpretLoopState(copilotSnapshot);
-    copilotEvidence = { snapshot: copilotSnapshot, interpretation };
+    copilotEvidence = await loadCopilotEvidence({ repo, pr, copilotInputPath }, { env, ghCommand });
     copilotLiveStatus = "ok";
   } catch {
     // Detection failure; copilotEvidence stays null, status stays "failed"
@@ -462,18 +398,7 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   let reviewerLiveStatus = "failed";
 
   try {
-    let reviewerSnapshot;
-    if (reviewerInputPath !== undefined) {
-      const text = await readFile(reviewerInputPath, "utf8");
-      reviewerSnapshot = normalizeReviewerSnapshot(parseJsonText(text));
-    } else {
-      reviewerSnapshot = await autoDetectReviewerSnapshot(
-        { repo, pr, reviewerLogin },
-        { env, ghCommand },
-      );
-    }
-    const interpretation = interpretReviewerLoopState(reviewerSnapshot);
-    reviewerEvidence = { snapshot: reviewerSnapshot, interpretation };
+    reviewerEvidence = await loadReviewerEvidence({ repo, pr, reviewerLogin, reviewerInputPath }, { env, ghCommand });
     reviewerLiveStatus = "ok";
   } catch {
     // Detection failure; reviewerEvidence stays null, status stays "failed"
@@ -510,7 +435,7 @@ export async function inspectRun(options, { env = process.env, ghCommand = "gh" 
   // Read existing checkpoint (read-only)
   // -------------------------------------------------------------------------
 
-  const { checkpoint: existingCheckpoint, filePath: checkpointEvidencePath } = await readExistingCheckpoint(repo, pr);
+  const { checkpoint: existingCheckpoint, filePath: checkpointEvidencePath } = await readExistingCheckpoint(repo, pr, { failSilently: true });
 
   // -------------------------------------------------------------------------
   // Derive authoritative outer state, allowed transitions, and compatibility
