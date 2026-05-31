@@ -1,0 +1,459 @@
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+
+import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+
+const USAGE = `Usage: manage-sub-issues.mjs <command> --repo <owner/name> --issue <number> [options]
+
+Deterministic helper for reading, linking, ordering, and verifying GitHub sub-issue trees.
+
+Commands:
+  list    List sub-issues of a parent issue
+  add     Add a child issue as a sub-issue of a parent
+  reorder Set the execution order of sub-issues
+  verify  Verify the sub-issue tree state matches expectations
+
+Common required options:
+  --repo <owner/name>      Repository slug (e.g. owner/repo)
+  --issue <number>         Parent issue number
+
+add options:
+  --child <number>         Child issue number to add as sub-issue
+
+reorder options:
+  --order <n1,n2,...>      Comma-separated issue numbers in the desired execution order (highest priority first)
+
+verify options:
+  --expected <n1,n2,...>   Comma-separated expected sub-issue numbers
+  --ordered                Also verify that order matches exactly (optional)
+
+Success output (stdout, JSON):
+
+  list:
+    { "ok": true, "repo": "owner/name", "issue": N, "command": "list",
+      "subIssues": [{ "number": M, "title": "...", "state": "open"|"closed", "id": ID }, ...] }
+
+  add:
+    { "ok": true, "repo": "owner/name", "issue": N, "command": "add", "child": M }
+
+  reorder:
+    { "ok": true, "repo": "owner/name", "issue": N, "command": "reorder", "order": [n1, n2, ...] }
+
+  verify:
+    { "ok": true, "repo": "owner/name", "issue": N, "command": "verify",
+      "verified": true|false, "expected": [...], "actual": [...],
+      "missing": [...], "unexpected": [...] }
+    When --ordered is set and sets match but order differs, also includes "orderMismatch": true
+
+Error output (stderr, JSON):
+  Argument/usage errors:
+    { "ok": false, "error": "...", "usage": "..." }
+  gh/runtime failures:
+    { "ok": false, "error": "..." }`.trim();
+
+function parseError(message) {
+  return Object.assign(new Error(message), { usage: USAGE });
+}
+
+function requireOptionValue(args, flag) {
+  const value = args.shift();
+
+  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
+    throw parseError(`Missing value for ${flag}`);
+  }
+
+  return value;
+}
+
+function parseIssueNumber(value) {
+  if (!/^\d+$/.test(value) || Number(value) === 0) {
+    throw parseError("Issue number must be a positive integer");
+  }
+
+  return Number(value);
+}
+
+function parseIssueList(value) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw parseError("Issue list must be a non-empty comma-separated list of positive integers");
+  }
+
+  const parts = value.split(",").map((s) => s.trim());
+
+  if (parts.some((p) => !/^\d+$/.test(p) || Number(p) === 0)) {
+    throw parseError("Issue list must contain only positive integers");
+  }
+
+  const numbers = parts.map(Number);
+  const seen = new Set();
+
+  for (const n of numbers) {
+    if (seen.has(n)) {
+      throw parseError(`Duplicate issue number in list: ${n}`);
+    }
+
+    seen.add(n);
+  }
+
+  return numbers;
+}
+
+const VALID_COMMANDS = ["list", "add", "reorder", "verify"];
+
+export function parseManageSubIssuesCliArgs(argv) {
+  const args = [...argv];
+
+  if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
+    return { help: true };
+  }
+
+  const command = args.shift();
+
+  if (!VALID_COMMANDS.includes(command)) {
+    throw parseError(`Unknown command: ${command}. Valid commands: ${VALID_COMMANDS.join(", ")}`);
+  }
+
+  const options = {
+    help: false,
+    command,
+    repo: undefined,
+    issue: undefined,
+    child: undefined,
+    order: undefined,
+    expected: undefined,
+    ordered: false,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
+
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo").trim();
+      continue;
+    }
+
+    if (token === "--issue") {
+      options.issue = parseIssueNumber(requireOptionValue(args, "--issue"));
+      continue;
+    }
+
+    if (token === "--child") {
+      options.child = parseIssueNumber(requireOptionValue(args, "--child"));
+      continue;
+    }
+
+    if (token === "--order") {
+      options.order = parseIssueList(requireOptionValue(args, "--order"));
+      continue;
+    }
+
+    if (token === "--expected") {
+      options.expected = parseIssueList(requireOptionValue(args, "--expected"));
+      continue;
+    }
+
+    if (token === "--ordered") {
+      options.ordered = true;
+      continue;
+    }
+
+    throw parseError(`Unknown argument: ${token}`);
+  }
+
+  if (options.repo === undefined || options.issue === undefined) {
+    throw parseError("Both --repo <owner/name> and --issue <number> are required");
+  }
+
+  try {
+    parseRepoSlug(options.repo);
+  } catch (error) {
+    throw parseError(error instanceof Error ? error.message : String(error));
+  }
+
+  if (command === "add" && options.child === undefined) {
+    throw parseError("The add command requires --child <number>");
+  }
+
+  if (command === "reorder" && options.order === undefined) {
+    throw parseError("The reorder command requires --order <n1,n2,...>");
+  }
+
+  if (command === "verify" && options.expected === undefined) {
+    throw parseError("The verify command requires --expected <n1,n2,...>");
+  }
+
+  return options;
+}
+
+function runChild(command, args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+function buildSubIssuesListPath(owner, name, issue) {
+  return `repos/${owner}/${name}/issues/${issue}/sub_issues`;
+}
+
+function buildIssueGetPath(owner, name, issue) {
+  return `repos/${owner}/${name}/issues/${issue}`;
+}
+
+function buildSubIssueAddPath(owner, name, issue) {
+  return `repos/${owner}/${name}/issues/${issue}/sub_issues`;
+}
+
+function buildSubIssueReorderPath(owner, name, issue) {
+  return `repos/${owner}/${name}/issues/${issue}/sub_issues/priority`;
+}
+
+function normalizeSubIssue(raw) {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const id = raw.id;
+  const number = raw.number;
+  const title = typeof raw.title === "string" ? raw.title : "";
+  const state = typeof raw.state === "string" ? raw.state.toLowerCase() : "unknown";
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
+
+  if (!Number.isInteger(number) || number <= 0) {
+    return null;
+  }
+
+  return { id, number, title, state };
+}
+
+async function ghApi(ghCommand, args, env) {
+  const result = await runChild(ghCommand, ["api", ...args], env);
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh api command failed: ${detail}`);
+  }
+
+  return parseJsonText(result.stdout);
+}
+
+async function listSubIssues(owner, name, issue, { env, ghCommand }) {
+  const path = buildSubIssuesListPath(owner, name, issue);
+  const payload = await ghApi(ghCommand, [path], env);
+
+  if (!Array.isArray(payload)) {
+    throw new Error("Invalid sub-issues payload: expected an array");
+  }
+
+  const subIssues = [];
+
+  for (const raw of payload) {
+    const normalized = normalizeSubIssue(raw);
+
+    if (normalized) {
+      subIssues.push(normalized);
+    }
+  }
+
+  return subIssues;
+}
+
+async function getIssueId(owner, name, issueNumber, { env, ghCommand }) {
+  const path = buildIssueGetPath(owner, name, issueNumber);
+  const payload = await ghApi(ghCommand, [path], env);
+
+  const id = payload?.id;
+
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`Could not resolve id for issue #${issueNumber}`);
+  }
+
+  return id;
+}
+
+export async function runList({ repo, issue }, { env = process.env, ghCommand = "gh" } = {}) {
+  const { owner, name } = parseRepoSlug(repo);
+  const subIssues = await listSubIssues(owner, name, issue, { env, ghCommand });
+
+  return {
+    ok: true,
+    repo,
+    issue,
+    command: "list",
+    subIssues: subIssues.map(({ number, title, state, id }) => ({ number, title, state, id })),
+  };
+}
+
+export async function runAdd({ repo, issue, child }, { env = process.env, ghCommand = "gh" } = {}) {
+  const { owner, name } = parseRepoSlug(repo);
+
+  const childId = await getIssueId(owner, name, child, { env, ghCommand });
+
+  const path = buildSubIssueAddPath(owner, name, issue);
+  await ghApi(ghCommand, ["-X", "POST", path, "-F", `sub_issue_id=${childId}`], env);
+
+  return {
+    ok: true,
+    repo,
+    issue,
+    command: "add",
+    child,
+  };
+}
+
+export async function runReorder({ repo, issue, order }, { env = process.env, ghCommand = "gh" } = {}) {
+  const { owner, name } = parseRepoSlug(repo);
+
+  const subIssues = await listSubIssues(owner, name, issue, { env, ghCommand });
+  const idByNumber = new Map(subIssues.map((si) => [si.number, si.id]));
+
+  for (const n of order) {
+    if (!idByNumber.has(n)) {
+      throw new Error(`Issue #${n} is not a sub-issue of #${issue}`);
+    }
+  }
+
+  const reorderPath = buildSubIssueReorderPath(owner, name, issue);
+  let afterId = 0;
+
+  for (const n of order) {
+    const subIssueId = idByNumber.get(n);
+    const fieldArgs = ["-F", `sub_issue_id=${subIssueId}`, "-F", `after_id=${afterId}`];
+    await ghApi(ghCommand, ["-X", "PATCH", reorderPath, ...fieldArgs], env);
+    afterId = subIssueId;
+  }
+
+  return {
+    ok: true,
+    repo,
+    issue,
+    command: "reorder",
+    order,
+  };
+}
+
+export function computeVerifyResult({ repo, issue, expected, ordered, subIssues }) {
+  const actualNumbers = subIssues.map((si) => si.number);
+  const expectedSet = new Set(expected);
+  const actualSet = new Set(actualNumbers);
+
+  const missing = expected.filter((n) => !actualSet.has(n));
+  const unexpected = actualNumbers.filter((n) => !expectedSet.has(n));
+
+  if (missing.length > 0 || unexpected.length > 0) {
+    return {
+      ok: true,
+      repo,
+      issue,
+      command: "verify",
+      verified: false,
+      expected,
+      actual: actualNumbers,
+      missing,
+      unexpected,
+    };
+  }
+
+  if (ordered) {
+    const expectedInActualOrder = actualNumbers.filter((n) => expectedSet.has(n));
+    const orderMismatch = !expected.every((n, i) => expectedInActualOrder[i] === n);
+
+    if (orderMismatch) {
+      return {
+        ok: true,
+        repo,
+        issue,
+        command: "verify",
+        verified: false,
+        expected,
+        actual: actualNumbers,
+        missing: [],
+        unexpected: [],
+        orderMismatch: true,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    repo,
+    issue,
+    command: "verify",
+    verified: true,
+    expected,
+    actual: actualNumbers,
+    missing: [],
+    unexpected: [],
+  };
+}
+
+export async function runVerify(
+  { repo, issue, expected, ordered },
+  { env = process.env, ghCommand = "gh" } = {},
+) {
+  const { owner, name } = parseRepoSlug(repo);
+  const subIssues = await listSubIssues(owner, name, issue, { env, ghCommand });
+
+  return computeVerifyResult({ repo, issue, expected, ordered, subIssues });
+}
+
+export async function runCli(
+  argv = process.argv.slice(2),
+  { stdout = process.stdout, env = process.env, ghCommand = "gh" } = {},
+) {
+  const options = parseManageSubIssuesCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(`${USAGE}\n`);
+    return;
+  }
+
+  const { command, repo, issue, child, order, expected, ordered } = options;
+  let result;
+
+  if (command === "list") {
+    result = await runList({ repo, issue }, { env, ghCommand });
+  } else if (command === "add") {
+    result = await runAdd({ repo, issue, child }, { env, ghCommand });
+  } else if (command === "reorder") {
+    result = await runReorder({ repo, issue, order }, { env, ghCommand });
+  } else if (command === "verify") {
+    result = await runVerify({ repo, issue, expected, ordered }, { env, ghCommand });
+  }
+
+  stdout.write(`${JSON.stringify(result)}\n`);
+}
+
+if (isDirectCliRun(import.meta.url)) {
+  runCli().catch((error) => {
+    process.stderr.write(`${formatCliError(error)}\n`);
+    process.exitCode = 1;
+  });
+}

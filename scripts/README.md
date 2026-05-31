@@ -97,6 +97,41 @@ Success output shape:
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/github/manage-sub-issues.mjs`
+
+Deterministic helper for reading, linking, ordering, and verifying GitHub sub-issue trees.
+Use this for epic/umbrella issue decomposition. See `docs/sub-issue-tree-contract.md` for the full workflow.
+
+Commands:
+- `list` — list sub-issues of a parent issue in tree order
+- `add` — attach a child issue to a parent as a real GitHub sub-issue
+- `reorder` — set the execution order of sub-issues (highest priority first)
+- `verify` — verify that the current sub-issue tree matches an expected set (and optionally order)
+
+Required for all commands:
+- `--repo <owner/name>`
+- `--issue <number>` (parent issue)
+
+`add` adds: `--child <number>`
+`reorder` adds: `--order <n1,n2,...>` (comma-separated issue numbers in desired execution order)
+`verify` adds: `--expected <n1,n2,...>` and optional `--ordered` flag
+
+Contract:
+- `add` resolves the child issue's internal GitHub id before calling the sub-issues REST endpoint
+- `reorder` first lists current sub-issues to validate all specified numbers are already in the tree, then issues sequential priority-update API calls
+- `verify` is read-only and always exits 0; `"verified": false` is a machine-readable signal, not a process failure
+- do not re-implement sub-issue management ad hoc or bypass this helper
+
+Success output shapes:
+- `list`: `{ "ok": true, "repo": "owner/name", "issue": N, "command": "list", "subIssues": [{ "number": M, "title": "...", "state": "...", "id": ID }, ...] }`
+- `add`: `{ "ok": true, "repo": "owner/name", "issue": N, "command": "add", "child": M }`
+- `reorder`: `{ "ok": true, "repo": "owner/name", "issue": N, "command": "reorder", "order": [n1, n2, ...] }`
+- `verify`: `{ "ok": true, ..., "command": "verify", "verified": true|false, "expected": [...], "actual": [...], "missing": [...], "unexpected": [...] }` (plus `"orderMismatch": true` when `--ordered` and only the order differs)
+
+Failure behavior:
+- malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+- argument errors also include `"usage"` in the error payload
+
 ### `scripts/github/stage-reviewer-draft.mjs`
 
 Stage a pending reviewer-side draft review from a merged deterministic review package.

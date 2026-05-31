@@ -8,6 +8,7 @@ Start here for repository documentation.
 - `docs/IMPLEMENTATION_WORKFLOW.md` — workflow/process authority boundaries
 - `docs/conductor-routing-contract.md` — canonical outer-loop routing contract
 - `docs/tracker-story-pr-contract.md` — canonical tracker-first story/PR contract
+- `docs/sub-issue-tree-contract.md` — deterministic pattern for epic decomposition with GitHub sub-issue trees
 - `docs/conductor-ownership-contract.md`
 - `docs/copilot-loop-state-graph.md`
 - `docs/reviewer-loop-state-graph.md`
