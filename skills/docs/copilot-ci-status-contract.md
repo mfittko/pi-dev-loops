@@ -25,6 +25,7 @@ Both entry points return the same machine-readable contract shape.
 
 - `checkRunsStatus` — normalized head-scoped check-runs status (`success` | `failure` | `pending` | `none`)
 - `commitStatus` — normalized head-scoped commit-status status (`success` | `failure` | `pending` | `none`)
+- optional `checkRunsUnsupportedCompleted` — `true` when the current-head check-runs probe observed an unsupported/non-success completed conclusion (for example `CANCELLED`) that must keep the merged result non-green even if commit status separately reports success
 
 ## Output
 
@@ -38,10 +39,14 @@ The returned object always includes:
 
 ## Deterministic precedence
 
-The rollup precedence is fixed and policy-agnostic:
+The rollup precedence is fixed and policy-agnostic for ordinary normalized status values:
 1. `failure`
 2. `pending`
 3. `success`
 4. `none`
 
 Completed `SKIPPED` and `NEUTRAL` check-run conclusions count as non-blocking success-like signals. A completed `CANCELLED` check does not count as a successful readiness signal by itself; cancelled-only snapshots normalize to `none` so CI-dependent gates do not advance on cancelled work. Legacy successful `StatusContext` rollup entries also normalize to `success` instead of being mistaken for pending work.
+
+Merged current-head exception:
+- when `checkRunsUnsupportedCompleted=true`, a `checkRunsStatus: "none"` result caused by unsupported/non-success completed check-runs must remain non-green even if `commitStatus` is `success`
+- in that specific case, the merged `overallStatus` stays `none` rather than letting `success` mask the unsupported completed check-run signal
