@@ -305,6 +305,7 @@ For issue targets, authoritative issue↔PR linkage resolution remains part of s
 
 - when canonical issue state includes `linkedPr`, route selection first uses that linked PR as the authoritative routable artifact
 - when canonical issue state does **not** include `linkedPr`, status/reporting consumers must still require explicit authoritative linkage resolution before asserting there is no open linked PR
+- when authoritative linkage resolves an already-open linked PR, that PR is the only canonical active artifact for the issue during follow-up; startup/status/follow-up must reuse it and fail closed against opening another PR until the prior state is explicitly reconciled
 
 ## Deterministic routing order
 

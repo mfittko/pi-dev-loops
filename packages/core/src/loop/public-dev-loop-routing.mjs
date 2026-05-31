@@ -274,7 +274,7 @@ export const PUBLIC_DEV_LOOP_GATE_CONTRACT = Object.freeze([
     gate: DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP,
     routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP,
-    summary: "Copilot-owned PR state routes to Copilot PR follow-up",
+    summary: "Copilot-owned PR state routes to Copilot PR follow-up; an already-linked open PR stays the canonical artifact for that issue until reconciled",
   }),
   Object.freeze({
     gate: DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE,
@@ -985,8 +985,8 @@ function routeForState(
       selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP,
       executionMode,
       canonicalState: routableCanonicalState,
-      nextAction: "Run the Copilot PR follow-up strategy for the current PR.",
-      reason: "Copilot-owned PR states route to the Copilot PR follow-up strategy.",
+      nextAction: "Run the Copilot PR follow-up strategy for the current PR; treat it as the canonical artifact for the issue and do not open a second PR.",
+      reason: "Copilot-owned PR states route to the Copilot PR follow-up strategy; an already-open linked PR must stay canonical until reconciled.",
     });
   }
 

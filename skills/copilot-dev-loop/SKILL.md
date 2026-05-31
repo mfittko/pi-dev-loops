@@ -280,6 +280,7 @@ Preflight verdicts:
 - do not re-implement linked-event query behavior, pagination, repo filtering, or tie-break logic
 - do not rely only on PR title/body containing a literal issue number
 - treat an open linked PR as the active implementation for this issue
+- once an open linked PR exists, that PR is the only canonical follow-up artifact for the issue; attach follow-up work to it and do not open another PR unless the prior PR was explicitly superseded and reconciled first
 - if a PR already exists, classify bootstrap-wait versus follow-up:
   ```sh
   node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
@@ -571,6 +572,8 @@ When creating the PR from the CLI, prefer:
 ```sh
 gh pr create --draft --repo <owner/name> --base <base> --head <head> --title "..." --body-file <body-file>
 ```
+
+Only use `gh pr create` when authoritative issue↔PR resolution says there is no already-open linked PR/current PR artifact for this scope. If linked-PR detection or startup/status routing says a PR already exists, reuse/update that canonical PR instead of opening another one.
 
 Keep verdict status, pass/fail assessments, evidence tables, and changelog-style release notes out of the PR description; those belong in review output, validation logs, or release notes instead.
 
