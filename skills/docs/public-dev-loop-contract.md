@@ -258,7 +258,7 @@ The shared machine-checkable gate contract is exported from `packages/core/src/l
 |---|---|---|---|
 | `stop_blocked_or_not_authorized` | `stop` | none | blocked or not-authorized canonical state stops for a human decision |
 | `stop_done_terminal` | `stop` | none | done canonical state stops as terminal work |
-| `final_approval` | `route` | `final_approval` | approval-ready canonical state routes to the final approval gate; merge-ready routes here only when merge authorization is explicit |
+| `final_approval` | `route` | `final_approval` | approval-ready canonical state routes to the final approval gate; merge-ready routes here only when merge authorization is explicit; requires explicit current-head `pre_approval_gate` gate-review evidence — CI green + resolved threads + clean rereview are not sufficient substitutes |
 | `waiting_for_merge_authorization` | `stop` | none | merge-ready canonical state without explicit merge authorization stops and waits for explicit merge authorization |
 | `wait_watch` | `wait` | `wait_watch` | waiting canonical state routes to the shared wait/watch strategy |
 | `local_implementation` | `route` | `local_implementation` | local branch or local phase canonical state stays on local implementation |
@@ -280,7 +280,7 @@ First-match-wins routing posture:
 1. blocked or not-authorized state -> stop and ask for a human decision
 2. done -> terminal stop
 3. merge-ready + `authorization=needs_confirmation` -> `waiting_for_merge_authorization`
-4. approval-ready, or merge-ready + `authorization=authorized` -> `final_approval`
+4. approval-ready with explicit current-head `pre_approval_gate` evidence, or merge-ready + `authorization=authorized` with the same evidence -> `final_approval`
 5. waiting -> `wait_watch`
 6. local branch / local phase -> `local_implementation`
 7. issue target with `linkedPr` -> route as the linked PR with the same ownership/actor state

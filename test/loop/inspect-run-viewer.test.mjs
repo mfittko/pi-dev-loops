@@ -755,6 +755,48 @@ test("renderInspectRunViewerHtml does not headline waiting_for_ci when reviewer 
   assert.doesNotMatch(html, /<span class="assigned-pr-headline">Waiting for CI<\/span>/);
 });
 
+test("renderInspectRunViewerHtml uses a gate inbox signal when clean convergence still needs gate evidence", () => {
+  const gateSnapshot = makeSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    outerState: "continue_current_wait",
+    outerAction: "continue_wait",
+    activeFamilyState: "continue_wait",
+    statusClass: "waiting",
+    needsAttention: false,
+    layers: {
+      copilot: {
+        currentState: "ready_to_rerequest_review",
+        allowedTransitions: ["waiting_for_copilot_review", "review_request_unavailable", "done"],
+        sameHeadCleanConverged: true,
+        loopDisposition: "clean_converged",
+        terminal: true,
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        submittedReviewState: "APPROVED",
+        approvedOnCurrentHead: true,
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request", "waiting_for_review_request"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: gateSnapshot,
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 55 }, title: "fix: gate signal", updatedAt: "2026-05-22T00:00:00Z", snapshot: gateSnapshot },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row assigned-pr-row-gate is-selected/);
+  assert.match(html, /data-inbox-signal="gate"/);
+  assert.match(html, /<span class="assigned-pr-signal-emoji" aria-label="Gate review required">🛡️<\/span>/);
+  assert.match(html, /Gate review required/);
+});
+
 test("renderInspectRunViewerHtml keeps hard attention ahead of waiting layer inbox signals", () => {
   const attentionSnapshot = makeSnapshot({
     target: { repo: "owner/repo", pr: 3 },
@@ -943,7 +985,87 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; done; full authoritative state machine shown; no allowed transitions/);
 });
 
-test("renderInspectRunViewerHtml shows approved current head when clean convergence also has human approval", () => {
+test("renderInspectRunViewerHtml keeps stale approved snapshots on waiting until Copilot is re-requested", () => {
+  const staleApprovedSnapshot = makeSnapshot({
+    target: { repo: "owner/repo", pr: 57 },
+    outerState: "continue_current_wait",
+    outerAction: "continue_wait",
+    activeFamilyState: "continue_wait",
+    statusClass: "waiting",
+    needsAttention: false,
+    layers: {
+      copilot: {
+        currentState: "ready_to_rerequest_review",
+        allowedTransitions: ["waiting_for_copilot_review", "review_request_unavailable", "done"],
+        sameHeadCleanConverged: false,
+        loopDisposition: "pending",
+        terminal: false,
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        submittedReviewState: "APPROVED",
+        approvedOnCurrentHead: true,
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request", "waiting_for_review_request"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 57 },
+    snapshot: staleApprovedSnapshot,
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 57 }, title: "fix: stale approved signal", updatedAt: "2026-05-22T00:00:00Z", snapshot: staleApprovedSnapshot },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row assigned-pr-row-waiting is-selected/);
+  assert.match(html, /data-inbox-signal="waiting"/);
+  assert.doesNotMatch(html, /Gate review required/);
+});
+
+test("renderInspectRunViewerHtml keeps completed snapshots on the ready inbox signal", () => {
+  const doneSnapshot = makeSnapshot({
+    target: { repo: "owner/repo", pr: 56 },
+    outerState: "done_terminal",
+    outerAction: "done",
+    activeFamilyState: "done",
+    statusClass: "done",
+    needsAttention: false,
+    layers: {
+      copilot: {
+        currentState: "done",
+        allowedTransitions: [],
+        sameHeadCleanConverged: false,
+        loopDisposition: "done",
+        terminal: true,
+      },
+      reviewer: {
+        currentState: "waiting_for_review_request",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: [],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 56 },
+    snapshot: doneSnapshot,
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 56 }, title: "fix: done signal", updatedAt: "2026-05-22T00:00:00Z", snapshot: doneSnapshot },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row assigned-pr-row-ready is-selected/);
+  assert.match(html, /data-inbox-signal="ready"/);
+  assert.doesNotMatch(html, /data-inbox-signal="gate"/);
+});
+
+test("renderInspectRunViewerHtml requires explicit gate evidence before framing clean convergence as approval-ready", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
@@ -971,14 +1093,15 @@ test("renderInspectRunViewerHtml shows approved current head when clean converge
     }),
   });
 
-  assert.match(html, /Approved current head/);
-  assert.match(html, /clean submitted Copilot review and an approved human review/i);
-  assert.match(html, /Proceed to merge if authorized/i);
+  assert.match(html, /Clean reviews present; gate evidence still required/);
+  assert.match(html, /clean submitted Copilot review and an approved human review, but approval or merge suggestions still require explicit current-head pre_approval_gate evidence/i);
+  assert.match(html, /Confirm or rerun the current-head pre_approval_gate before any approval or merge recommendation/i);
   assert.match(html, /reviewer verdict[\s\S]*approved on current head/i);
-  assert.doesNotMatch(html, /Copilot pass complete/);
+  assert.doesNotMatch(html, /Approved current head/);
+  assert.doesNotMatch(html, /Proceed to merge if authorized/i);
 });
 
-test("renderInspectRunViewerHtml shows clean convergence instead of re-request language for same-head clean Copilot reviews", () => {
+test("renderInspectRunViewerHtml blocks approval-oriented language for same-head clean Copilot reviews without gate evidence", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
@@ -1004,9 +1127,10 @@ test("renderInspectRunViewerHtml shows clean convergence instead of re-request l
     }),
   });
 
-  assert.match(html, /Copilot pass complete/);
-  assert.match(html, /current head already has a clean submitted Copilot review with no unresolved feedback/i);
-  assert.match(html, /Proceed to final human review or approval, or wait for a meaningful remediation event before requesting another Copilot pass/i);
+  assert.match(html, /Copilot pass complete; gate evidence still required/);
+  assert.match(html, /current head already has a clean submitted Copilot review with no unresolved feedback, but that alone is not enough for an approval or merge suggestion/i);
+  assert.match(html, /Confirm or rerun the current-head pre_approval_gate before any approval or merge recommendation, or wait for a meaningful remediation event before requesting another Copilot pass/i);
+  assert.doesNotMatch(html, /Proceed to final human review or approval/i);
   assert.doesNotMatch(html, /Ready to re-request Copilot review/);
 });
 
@@ -1721,12 +1845,12 @@ test("createInspectRunViewerServer preserves cached authoritative inbox signals 
     const address = server.address();
     const firstResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=55`);
     assert.equal(firstResponse.statusCode, 200);
-    assert.match(firstResponse.body, /assigned-pr-row-ready/);
+    assert.match(firstResponse.body, /assigned-pr-row-gate/);
 
     const secondResponse = await requestOnce(`http://127.0.0.1:${address.port}/?repo=owner/repo&pr=77`);
     assert.equal(secondResponse.statusCode, 200);
     assert.match(secondResponse.body, /Ready PR/);
-    assert.match(secondResponse.body, /assigned-pr-row-ready/);
+    assert.match(secondResponse.body, /assigned-pr-row-gate/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

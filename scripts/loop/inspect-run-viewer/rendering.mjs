@@ -982,17 +982,17 @@ function summarizeCurrentPrStatus(snapshot) {
 
   if (copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead && (sameHeadCleanConverged || copilotLoopDisposition === "clean_converged" || copilotTerminal)) {
     return {
-      headline: "Approved current head",
-      detail: "The current head has both a clean submitted Copilot review and an approved human review.",
-      nextAction: "Proceed to merge if authorized, or wait for any additional required review/approval signal before merging.",
+      headline: "Clean reviews present; gate evidence still required",
+      detail: "The current head has both a clean submitted Copilot review and an approved human review, but approval or merge suggestions still require explicit current-head pre_approval_gate evidence.",
+      nextAction: "Confirm or rerun the current-head pre_approval_gate before any approval or merge recommendation.",
     };
   }
 
   if (copilotState === "ready_to_rerequest_review" && (sameHeadCleanConverged || copilotLoopDisposition === "clean_converged" || copilotTerminal)) {
     return {
-      headline: "Copilot pass complete",
-      detail: "The current head already has a clean submitted Copilot review with no unresolved feedback.",
-      nextAction: "Proceed to final human review or approval, or wait for a meaningful remediation event before requesting another Copilot pass.",
+      headline: "Copilot pass complete; gate evidence still required",
+      detail: "The current head already has a clean submitted Copilot review with no unresolved feedback, but that alone is not enough for an approval or merge suggestion.",
+      nextAction: "Confirm or rerun the current-head pre_approval_gate before any approval or merge recommendation, or wait for a meaningful remediation event before requesting another Copilot pass.",
     };
   }
 
@@ -1244,6 +1244,11 @@ export function deriveInboxSignalFromSnapshot(snapshot) {
     return "attention";
   }
 
+  if (sameHeadCleanConverged
+    || copilotLoopDisposition === "clean_converged") {
+    return "gate";
+  }
+
   // Layer states that represent genuine waiting take priority over outer routing signals
   // (e.g. waiting_for_copilot_review beats handoff_to_reviewer_loop so sidebar and banner agree).
   if (copilotState === "waiting_for_copilot_review"
@@ -1263,12 +1268,7 @@ export function deriveInboxSignalFromSnapshot(snapshot) {
     return "pending";
   }
 
-  if (outerState === OUTER_STATE.DONE_TERMINAL
-    || statusClass === "done"
-    || (copilotState === "ready_to_rerequest_review" && reviewerApprovedOnCurrentHead)
-    || sameHeadCleanConverged
-    || copilotLoopDisposition === "clean_converged"
-    || copilotTerminal) {
+  if (outerState === OUTER_STATE.DONE_TERMINAL || statusClass === "done") {
     return "ready";
   }
 
@@ -1279,7 +1279,7 @@ export function deriveInboxSignalFromSnapshot(snapshot) {
   return "waiting";
 }
 
-const VALID_INBOX_SIGNALS = new Set(["attention", "pending", "ready", "closed", "unknown", "waiting"]);
+const VALID_INBOX_SIGNALS = new Set(["attention", "pending", "gate", "ready", "closed", "unknown", "waiting"]);
 
 function inboxSignalEmoji(signal) {
   switch (signal) {
@@ -1287,6 +1287,7 @@ function inboxSignalEmoji(signal) {
     case "attention": return "🔴";
     case "waiting": return "⏳";
     case "pending": return "🔄";
+    case "gate": return "🛡️";
     case "closed": return "✖️";
     default: return "❓";
   }
@@ -1303,6 +1304,8 @@ function describeInboxSignal(signal) {
       return { label: "Needs attention", shortLabel: "Attention" };
     case "pending":
       return { label: "CI pending", shortLabel: "CI" };
+    case "gate":
+      return { label: "Gate review required", shortLabel: "Gate" };
     case "ready":
       return { label: "Ready", shortLabel: "Ready" };
     case "closed":
@@ -1657,6 +1660,7 @@ export function renderInspectRunViewerHtml({
       .assigned-pr-row { border: 1px solid #d6e0ea; border-left: 0.32rem solid #8ca3b8; border-radius: 0.5rem; background: #fff; }
       .assigned-pr-row.assigned-pr-row-attention { border-left-color: #c87400; }
       .assigned-pr-row.assigned-pr-row-pending { border-left-color: #b88900; }
+      .assigned-pr-row.assigned-pr-row-gate { border-left-color: #6f42c1; }
       .assigned-pr-row.assigned-pr-row-ready { border-left-color: #2e7d32; }
       .assigned-pr-row.assigned-pr-row-closed { border-left-color: #7a8694; }
       .assigned-pr-row.assigned-pr-row-unknown { border-left-color: #8ca3b8; }

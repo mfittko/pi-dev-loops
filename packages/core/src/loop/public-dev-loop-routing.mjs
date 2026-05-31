@@ -218,7 +218,7 @@ export const PUBLIC_DEV_LOOP_GATE_CONTRACT = Object.freeze([
     gate: DEV_LOOP_GATE.FINAL_APPROVAL,
     routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL,
-    summary: "approval-ready canonical state routes to final approval; merge-ready routes here only when merge authorization is explicit",
+    summary: "approval-ready canonical state routes to final approval; merge-ready routes here only when merge authorization is explicit; requires explicit current-head pre_approval_gate evidence — clean-looking signals are not substitutes",
   }),
   Object.freeze({
     gate: DEV_LOOP_GATE.WAITING_FOR_MERGE_AUTHORIZATION,
@@ -703,7 +703,7 @@ function routeForState(
     && !hasCleanVisibleCurrentHeadPreApprovalGate(gateReviewEvidence)
   ) {
     return buildReconcile(
-      "Final-approval routing requires a visible clean `pre_approval_gate` gate-review comment for the current head SHA; reconcile authoritative gate evidence before continuing.",
+      "Final-approval routing requires explicit current-head `pre_approval_gate` evidence: (1) current head SHA identified, (2) a visible clean `pre_approval_gate` gate-review comment for that exact head SHA. CI green + resolved review threads + clean Copilot rereview are not sufficient substitutes. Do not suggest approval or merge without this proof; rerun the pre_approval_gate and confirm the gate-review comment before continuing.",
       routableCanonicalState,
       executionMode,
     );
