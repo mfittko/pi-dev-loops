@@ -324,6 +324,12 @@ Preflight verdicts:
 
 Before updating or assigning the issue, refine it asynchronously when practical. Keep issue refinement separate from the phase-scoped refiner used by the local implementation workflow.
 
+When refinement produces multiple bounded child slices for an umbrella/mini-epic, prefer a real GitHub sub-issue tree as the durable execution structure:
+- keep the parent issue body focused on umbrella framing, scope, acceptance criteria, and non-goals
+- create explicit child issues with standard GitHub tooling
+- attach / order / verify them with `scripts/github/sub-issue-tree.mjs`
+- prefer plain related-issue references instead when no parent/child execution tree is actually needed
+
 ### Phase 4 — Copilot handoff and bootstrap wait
 
 Before updating the GitHub issue body, show the diff and get explicit confirmation.
@@ -467,6 +473,12 @@ If the work item is phase-like, ambiguous, or likely to shape more than one down
 - compare the variants explicitly
 - merge them into one bounded execution plan
 - only then proceed with GitHub execution
+
+When that refinement turns an umbrella issue into multiple bounded child slices, prefer real GitHub sub-issue linkage over a parent-body execution checklist:
+- keep the parent issue body lean once the tree exists
+- use `gh issue create` for child issue creation
+- use `scripts/github/sub-issue-tree.mjs` to attach, order, and verify the tree
+- use plain related-issue references when the relationship is informative rather than a real parent/child execution boundary
 
 If the issue text is too vague, stop and ask a short clarification question rather than guessing.
 

@@ -97,6 +97,35 @@ Success output shape:
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/github/sub-issue-tree.mjs`
+
+Inspect, attach, reprioritize, and verify GitHub sub-issue trees.
+
+Required:
+- `--repo <owner/name>`
+- subcommand-specific issue numbers
+
+Commands:
+- `inspect --issue <parent>` — read the current tree
+- `add --parent <parent> --child <child> [--replace-parent]` — attach an existing child issue
+- `reprioritize --parent <parent> --child <child> (--after <sibling> | --before <sibling>)` — reorder an attached child
+- `verify --parent <parent> --expect-children <n1,n2,...>` — compare the current exact order to an expected order
+
+Contract:
+- pages through the parent issue's `subIssues` connection until `hasNextPage=false`
+- keeps child issue creation on ordinary `gh issue create` instead of wrapping it in a broader planner
+- uses GitHub GraphQL sub-issue mutations (`addSubIssue`, `reprioritizeSubIssue`) as the deterministic write boundary
+- returns machine-readable tree state so refinement/dev-loop guidance can treat the GitHub tree as the authoritative execution structure
+- prefers lean parent issue bodies once a real tree exists; use plain related-issue references when no parent/child execution tree is warranted
+
+Success output shape:
+- `inspect`: `{ "ok": true, "repo": "owner/name", "parent": { ... }, "subIssues": [ ... ], "summary": { ... } }`
+- `add` / `reprioritize`: same tree payload plus `"action": "add"|"reprioritize"`
+- `verify`: `{ "ok": true, "action": "verify", "repo": "owner/name", "parent": { ... }, "matches": true|false, "expectedOrder": [...], "actualOrder": [...], "missing": [...], "unexpected": [...], "misordered": [...] }`
+
+Failure behavior:
+- malformed arguments, missing parent/child issues, conflicting parent replacement, and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/github/stage-reviewer-draft.mjs`
 
 Stage a pending reviewer-side draft review from a merged deterministic review package.
