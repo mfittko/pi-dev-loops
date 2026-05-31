@@ -1021,7 +1021,7 @@ test("renderInspectRunViewerHtml keeps completed snapshots on the ready inbox si
 
   assert.match(html, /assigned-pr-row assigned-pr-row-ready is-selected/);
   assert.match(html, /data-inbox-signal="ready"/);
-  assert.doesNotMatch(html, /assigned-pr-row-gate/);
+  assert.doesNotMatch(html, /data-inbox-signal="gate"/);
 });
 
 test("renderInspectRunViewerHtml requires explicit gate evidence before framing clean convergence as approval-ready", () => {
