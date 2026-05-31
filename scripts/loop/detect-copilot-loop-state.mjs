@@ -18,8 +18,10 @@
  *   --steering-state-file <path>
  *     Path to a durable steering state JSON file (as written by steer-loop.mjs).
  *     When provided, the detector overlays the detected state with the current
- *     persisted steering state and reports steeringApplied/effectiveConstraints.
- *     This detector is read-only: it does not promote queued steering or write
+ *     persisted steering state and reports steeringApplied,
+ *     pendingStopAtNextSafeGate, terminalStopAtNextSafeGate, and
+ *     effectiveConstraints. This detector is read-only: it does not promote
+ *     queued steering or write
  *     the steering file. Snapshot mode does not accept this flag because repo/pr
  *     target identity cannot be proven from --input alone.
  *
@@ -46,7 +48,10 @@
  *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...",
  *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
  *     "loopDisposition": "...", "terminal": true|false,
- *     "steeringApplied": true|false, "effectiveConstraints": { ... } }
+ *     "steeringApplied": true|false,
+ *     "pendingStopAtNextSafeGate": true|false,
+ *     "terminalStopAtNextSafeGate": true|false,
+ *     "effectiveConstraints": { ... } }
  *
  * Failure behavior:
  *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
@@ -109,7 +114,9 @@ Optional (auto-detect mode only):
                                              the current persisted steering contract state.
                                              This detector stays read-only: it never
                                              promotes queued steering or writes the file.
-                                             Output includes steeringApplied and
+                                             Output includes steeringApplied,
+                                             pendingStopAtNextSafeGate,
+                                             terminalStopAtNextSafeGate, and
                                              effectiveConstraints. Cannot be combined with
                                              --input because snapshot mode cannot prove
                                              repo/pr identity.
@@ -124,7 +131,10 @@ Output (stdout, JSON):
     "loopDisposition": "...", "terminal": true|false }
 
   When --steering-state-file is provided, also includes:
-  "steeringApplied": true|false, "effectiveConstraints": { ... }
+  "steeringApplied": true|false,
+  "pendingStopAtNextSafeGate": true|false,
+  "terminalStopAtNextSafeGate": true|false,
+  "effectiveConstraints": { ... }
 
 Error output (stderr, JSON):
   Argument/usage errors:
