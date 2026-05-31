@@ -31,20 +31,21 @@ export function normalizeInspectRunViewerPath(filePath) {
     .replace(/^\.\/+/u, "");
 }
 
-export function isInspectRunViewerRelevantPath(filePath) {
-  const normalizedPath = normalizeInspectRunViewerPath(filePath);
-  if (!normalizedPath) {
-    return false;
-  }
+function isInspectRunViewerRelevantNormalizedPath(normalizedPath) {
+  return normalizedPath.length > 0 && (
+    INSPECT_RUN_VIEWER_RELEVANT_EXACT_PATHS.includes(normalizedPath)
+    || INSPECT_RUN_VIEWER_RELEVANT_PREFIXES.some((prefix) => normalizedPath.startsWith(prefix))
+  );
+}
 
-  return INSPECT_RUN_VIEWER_RELEVANT_EXACT_PATHS.includes(normalizedPath)
-    || INSPECT_RUN_VIEWER_RELEVANT_PREFIXES.some((prefix) => normalizedPath.startsWith(prefix));
+export function isInspectRunViewerRelevantPath(filePath) {
+  return isInspectRunViewerRelevantNormalizedPath(normalizeInspectRunViewerPath(filePath));
 }
 
 export function classifyInspectRunViewerCiChanges(changedPaths = []) {
   const relevantPaths = [...new Set(changedPaths
     .map((entry) => normalizeInspectRunViewerPath(entry))
-    .filter((entry) => isInspectRunViewerRelevantPath(entry)))].sort();
+    .filter((entry) => isInspectRunViewerRelevantNormalizedPath(entry)))].sort();
 
   return {
     shouldRun: relevantPaths.length > 0,

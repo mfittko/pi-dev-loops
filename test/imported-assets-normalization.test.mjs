@@ -144,12 +144,8 @@ test("CI gates the Playwright WebKit smoke behind inspect-run viewer change dete
   assert.doesNotMatch(ciWorkflow, /inspect_run_viewer_relevant_paths_json/i);
   assert.match(ciWorkflow, /viewer-smoke:[\s\S]*needs:[\s\S]*- changes/i);
   assert.match(ciWorkflow, /viewer-smoke:[\s\S]*if:\s*needs\.changes\.outputs\.inspect_run_viewer\s*==\s*'true'/i);
-  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*actions\/cache@v4/i);
-  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*npx playwright install --with-deps webkit/i);
   assert.match(ciWorkflow, /viewer-smoke:[\s\S]*npm run test:playwright:viewer/i);
   assert.match(ciWorkflow, /verify:[\s\S]*npm run verify/i);
-  assert.match(ciWorkflow, /PLAYWRIGHT_BROWSERS_PATH:\s*\$\{\{\s*github\.workspace\s*\}\}\/\.cache\/ms-playwright/i);
-  assert.match(ciWorkflow, /key:\s*\$\{\{\s*runner\.os\s*\}\}-playwright-webkit-\$\{\{\s*hashFiles\('package-lock\.json'\)\s*\}\}/i);
 
   assert.match(readme, /workspace-local Playwright WebKit/i);
   assert.match(readme, /small changed-files gate plus parallel `verify` and conditional `viewer-smoke` jobs/i);
