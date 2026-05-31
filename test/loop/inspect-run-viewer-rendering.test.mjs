@@ -237,6 +237,18 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.doesNotMatch(html, /"ok": true/);
 });
 
+test("renderInspectRunViewerHtml escapes selected titles before inserting the banner heading", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    selectedTitle: '<img src=x onerror="alert(1)">',
+  });
+
+  assert.match(html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
+  assert.doesNotMatch(html, /<h1><img src=x onerror="alert\(1\)"><\/h1>/);
+});
+
 test("renderInspectRunViewerHtml keeps selected handoff-to-copilot rows on the attention border", () => {
   const html = renderInspectRunViewerHtml({
     repo: null,

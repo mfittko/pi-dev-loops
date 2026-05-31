@@ -2,10 +2,10 @@ import { OUTER_STATE } from "@pi-dev-loops/core/loop/outer-loop-state";
 
 import { renderStateVisualizationSection } from "./graph.mjs";
 import {
+  escapeHtml,
   formatStateToken,
   humanizeStateToken,
   renderCompactSection,
-  renderSnapshotStateLabel,
   titleCaseWords,
 } from "./shared.mjs";
 
@@ -381,31 +381,31 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, graph, se
   const heading = typeof selectedTitle === "string" && selectedTitle.trim().length > 0
     ? selectedTitle.trim()
     : `PR #${target.pr}`;
-  return `<section class="current-pr-state-banner" aria-label="PR #${target.pr}">
+  return `<section class="current-pr-state-banner" aria-label="PR #${escapeHtml(target.pr)}">
     <div class="current-pr-state-heading-row">
       <div class="current-pr-state-heading-copy">
         <p class="current-pr-state-kicker">${pullRequestHref
-          ? `<a href="${pullRequestHref}">PR #${target.pr}</a>`
-          : `PR #${target.pr}`}</p>
-        <h1>${heading}</h1>
+          ? `<a href="${escapeHtml(pullRequestHref)}">PR #${escapeHtml(target.pr)}</a>`
+          : `PR #${escapeHtml(target.pr)}`}</p>
+        <h1>${escapeHtml(heading)}</h1>
       </div>
-      ${mode ? `<span class="current-pr-state-mode-indicator" title="${mode.label}" aria-label="${mode.label}">${mode.emoji}</span>` : ""}
+      ${mode ? `<span class="current-pr-state-mode-indicator" title="${escapeHtml(mode.label)}" aria-label="${escapeHtml(mode.label)}">${escapeHtml(mode.emoji)}</span>` : ""}
     </div>
-    <p class="current-pr-state-summary-headline">${summary.headline}</p>
-    <p class="current-pr-state-detail">${summary.detail}</p>
-    <p class="current-pr-state-detail">${renderCurrentStateNote(snapshot)}</p>
+    <p class="current-pr-state-summary-headline">${escapeHtml(summary.headline)}</p>
+    <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
+    <p class="current-pr-state-detail">${escapeHtml(renderCurrentStateNote(snapshot))}</p>
     <dl class="current-pr-state-grid">
-      <dt>target</dt><dd><code>${target.repo}#${target.pr}</code></dd>
-      <dt>snapshot trust</dt><dd><span class="badge">${stateLabel}</span></dd>
-      <dt>status class</dt><dd><code>${formatStateToken(snapshot?.statusClass)}</code></dd>
-      <dt>outer state</dt><dd><code>${formatStateToken(snapshot?.outerState)}</code></dd>
-      <dt>outerAction (compatibility)</dt><dd><code>${formatStateToken(snapshot?.outerAction)}</code></dd>
-      <dt>current Copilot state</dt><dd><code>${formatStateToken(snapshot?.layers?.copilot?.currentState)}</code></dd>
-      <dt>current reviewer state</dt><dd><code>${formatStateToken(snapshot?.layers?.reviewer?.currentState)}</code></dd>
-      <dt>reviewer verdict</dt><dd>${renderReviewerVerdict(snapshot)}</dd>
-      <dt>needs attention</dt><dd>${String(snapshot?.needsAttention ?? "not present")}</dd>
-      <dt>next action</dt><dd>${summary.nextAction}</dd>
-      <dt>trust</dt><dd>${snapshot?.evidence?.summary ?? "not present"}</dd>
+      <dt>target</dt><dd><code>${escapeHtml(target.repo)}#${escapeHtml(target.pr)}</code></dd>
+      <dt>snapshot trust</dt><dd><span class="badge">${escapeHtml(stateLabel)}</span></dd>
+      <dt>status class</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.statusClass))}</code></dd>
+      <dt>outer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerState))}</code></dd>
+      <dt>outerAction (compatibility)</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
+      <dt>current Copilot state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.copilot?.currentState))}</code></dd>
+      <dt>current reviewer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.reviewer?.currentState))}</code></dd>
+      <dt>reviewer verdict</dt><dd>${escapeHtml(renderReviewerVerdict(snapshot))}</dd>
+      <dt>needs attention</dt><dd>${escapeHtml(String(snapshot?.needsAttention ?? "not present"))}</dd>
+      <dt>next action</dt><dd>${escapeHtml(summary.nextAction)}</dd>
+      <dt>trust</dt><dd>${escapeHtml(snapshot?.evidence?.summary ?? "not present")}</dd>
     </dl>
     <div class="current-pr-state-visualization">
       ${renderStateVisualizationSection(snapshot, graph)}
