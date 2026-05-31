@@ -1,0 +1,295 @@
+import {
+  assert,
+  fromRepoRoot,
+  parseFrontmatter,
+  readRepo,
+  readdir,
+  stat,
+  test,
+  USER_FACING_AGENT_SURFACE,
+} from "./imported-assets-helpers.mjs";
+
+test("copilot skill still contains its core workflow guidance", async () => {
+  const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(content, /Before planning, review, or automation:/);
+  assert.match(content, /Skill asset path resolution/);
+  assert.match(content, /Do not assume `scripts\/\.\.\.` is repo-local to the target codebase/i);
+  assert.match(content, /source-repo helper scripts live two levels up at `\.\.\/\.\.\/scripts\/`/i);
+  assert.match(content, /Before any GitHub mutation/);
+  assert.match(content, /Preferred defaults for this repo:/);
+  assert.match(content, /Default validation should match or approximate/);
+  assert.match(content, /start each reviewer in fresh context/i);
+  assert.match(content, /concise focus-specific briefing summary/i);
+  assert.match(content, /do not fork the parent session/i);
+});
+
+test("copilot skill requires github reply/resolve follow-up and gates waiting on confirmed review-request state", async () => {
+  const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(content, /reply\/resolve work is done for the addressed threads/);
+  assert.match(content, /if that local validation is still known red, continue remediation instead of re-requesting Copilot/);
+  assert.match(content, /if GitHub CI\/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot/);
+  assert.match(content, /only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head/);
+  assert.match(content, /wait\/watch loop if the request result is confirmed as `requested` or `already-requested`/);
+  assert.match(content, /`requested`: if another Copilot pass is actually desired/);
+  assert.match(content, /`already-requested`: if another Copilot pass is actually desired/);
+  assert.match(content, /`unavailable`: report the limitation and stop/);
+  assert.match(content, /stop and report the error rather than (?:entering a sleep\/watch loop|sleeping and hoping for a new review)/);
+  assert.match(content, /keep commit SHAs and issue\/PR refs as plain text/i);
+  assert.match(content, /do not wrap them in backticks/i);
+  assert.match(content, /backticks for actual code\/path\/CLI literals only/i);
+});
+
+test("fixer agent documentation includes GitHub autolink guidance", async () => {
+  const content = await readRepo("agents/fixer.agent.md");
+
+  assert.match(content, /keep commit SHAs and issue\/PR refs unwrapped/i);
+  assert.match(content, /intent is GitHub autolinks/i);
+  assert.match(content, /reserve backticks for actual code\/path\/CLI literals/i);
+});
+
+test("copilot skill forbids detached bash watcher loops for async follow-up", async () => {
+  const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(content, /Pi async subagent|designated async follow-up skill/);
+  assert.match(content, /do not use `nohup`, detached shell jobs, tmux\/screen sessions, or ad hoc `while`\/`sleep` bash loops/);
+  assert.match(content, /stop and report rather than improvising a shell watcher/);
+});
+
+test("copilot-dev-loop issue-intake overlay requires unattended resume-from-state behavior when authorized", async () => {
+  const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(content, /unattended execution/i);
+  assert.match(content, /automatically detect the current lifecycle entrypoint/i);
+  assert.match(content, /deterministic helper\/state-machine surface/i);
+  assert.match(content, /If a PR already exists, classify the post-assignment seam before follow-up/i);
+  assert.match(content, /waiting_for_initial_copilot_implementation.*keep waiting/i);
+  assert.match(content, /linked_pr_ready_for_followup.*route to the existing PR follow-up path immediately/i);
+  assert.match(content, /linked_pr_ready_for_followup[\s\S]*do not stop only because local isolation is required/i);
+  assert.match(content, /safe isolated checkout\/worktree/i);
+  assert.match(content, /When the draft PR appears, classify whether it is still the bootstrap-only Copilot draft/i);
+  assert.match(content, /child async run exits[\s\S]*non-terminal[\s\S]*waiting_for_copilot_review/i);
+  assert.match(content, /automatically resume\/restart follow-up when continuation is feasible/i);
+  assert.match(content, /New PRs in this workflow must be opened as \*\*draft\*\* PRs first/i);
+  assert.match(content, /Do not create a fresh PR directly in ready-for-review state/i);
+  assert.match(content, /gh pr create --draft --repo <owner\/name> --base <base> --head <head> --title/i);
+  assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
+  assert.match(content, /continue unattended until the final approval gate/i);
+  assert.match(content, /stop for a human approval decision by default/i);
+  assert.match(content, /waiting_for_merge_authorization/i);
+  assert.match(content, /does \*\*not\*\* imply unattended merge by default/i);
+  assert.match(content, /materially unclear, contradictory, off-trail/i);
+  assert.match(content, /stop and ask for human direction rather than guessing/i);
+  assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
+});
+
+test("issue-intake/autonomy behavior remains internal and resumable behind dev-loop", async () => {
+  const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
+  const agentFiles = (await readdir(fromRepoRoot("agents")))
+    .filter((name) => name.endsWith(".agent.md"))
+    .sort();
+
+  assert.equal(agentFiles.includes("copilot-autopilot.agent.md"), false);
+  assert.match(content, /unattended execution/i);
+  assert.match(content, /automatically detect the current lifecycle entrypoint/i);
+  assert.match(content, /deterministic helper\/state-machine surface/i);
+  assert.match(content, /stop for a human approval decision by default/i);
+  assert.match(content, /waiting_for_merge_authorization/i);
+  assert.match(content, /materially unclear, contradictory, off-trail/i);
+  assert.match(content, /stop and ask for human direction rather than guessing/i);
+  assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
+});
+
+test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the final approval gate", async () => {
+  const [readme, publicContract, devLoopSkill, copilotSkill, devLoopAgent] = await Promise.all([
+    readRepo("README.md"),
+    readRepo("skills/docs/public-dev-loop-contract.md"),
+    readRepo("skills/dev-loop/SKILL.md"),
+    readRepo("skills/copilot-dev-loop/SKILL.md"),
+    readRepo("agents/dev-loop.agent.md"),
+  ]);
+
+  for (const content of [readme, publicContract, devLoopSkill, copilotSkill, devLoopAgent]) {
+    assert.match(content, /auto dev loop on issue/i);
+  }
+
+  assert.match(readme, /canonical shorthand example/i);
+
+  assert.match(publicContract, /Issue-based shorthand auto trigger contract/i);
+  assert.match(publicContract, /resolves to the same bounded public `dev-loop` intent/i);
+  assert.match(publicContract, /`dev-loop --intent auto_continue_current`/i);
+  assert.match(publicContract, /stop at the final human approval decision by default/i);
+  assert.match(publicContract, /waiting_for_merge_authorization/i);
+  assert.match(publicContract, /Copilot-first bootstrap seam.*waiting_for_initial_copilot_implementation/i);
+  assert.match(publicContract, /watch-initial-copilot-pr\.mjs.*default 1-hour watch budget/i);
+  assert.match(publicContract, /Quiet\/no-activity observations alone do not eject durable ownership/i);
+  assert.match(publicContract, /inspect\/status intents may still summarize that state and exit normally/i);
+  assert.match(publicContract, /linked_pr_ready_for_followup[\s\S]*isolated checkout\/worktree transition instead of treating that boundary as final completion/i);
+  assert.match(publicContract, /non-terminal follow-up\/wait states[\s\S]*waiting_for_copilot_review[\s\S]*continuation boundaries/i);
+  assert.match(publicContract, /async child exits before the requested stop boundary[\s\S]*automatically resume\/restart/i);
+  assert.match(publicContract, /R --> A\[Final approval gate\]/i);
+  assert.match(publicContract, /R --> M\[Wait for merge authorization\]/i);
+
+  assert.match(devLoopSkill, /Shorthand issue-based auto trigger contract/i);
+  assert.match(devLoopSkill, /public `dev-loop` intent `auto_continue_current`/i);
+  assert.match(devLoopSkill, /stop at the final human approval gate by default/i);
+
+  assert.match(copilotSkill, /Issue-first shorthand such as `auto dev loop on issue <n>`/i);
+  assert.match(copilotSkill, /preserve this same stop boundary and final human approval gate default/i);
+  assert.match(copilotSkill, /waiting_for_merge_authorization/i);
+  assert.match(copilotSkill, /after approval, report `waiting_for_merge_authorization` and stop again/i);
+  assert.doesNotMatch(copilotSkill, /Only when merge has been explicitly authorized for this issue\/PR scope:/i);
+
+  assert.match(devLoopAgent, /Interpret issue-based shorthand triggers/i);
+  assert.match(devLoopAgent, /not a second public workflow entrypoint/i);
+});
+
+test("copilot-dev-loop issue-intake overlay keeps issue refinement separate from the phase-scoped refiner and explains thin entrypoint agents", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+  const planContent = await readRepo("PLAN.md");
+  const agentFiles = (await readdir(fromRepoRoot("agents")))
+    .filter((name) => name.endsWith(".agent.md"))
+    .sort();
+
+  assert.doesNotMatch(skillContent, /ask the refiner to emit/i);
+  assert.equal(agentFiles.includes("copilot-autopilot.agent.md"), false);
+  assert.match(skillContent, /issue-refinement specialist/i);
+  assert.match(planContent, /Thin workflow entrypoint agents are still allowed/i);
+  assert.match(planContent, /must stay thin, defer sequencing and workflow policy to the skill/i);
+});
+
+test("issue-intake normalization docs require issue state checks and avoid the stale top-level-workflow roadmap question", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+  const planContent = await readRepo("PLAN.md");
+
+  assert.match(skillContent, /gh issue view <number> --repo <(?:owner\/name|resolved-repo)> --json number,title,body,state,labels,assignees,milestone/);
+  assert.match(skillContent, /If a matching issue exists:[\s\S]*if the matching issue is closed, stop for a user decision[\s\S]*if a PR already exists, classify bootstrap-wait versus follow-up/i);
+  assert.doesNotMatch(planContent, /remain a mode of `copilot-dev-loop`, or become a separate top-level workflow/i);
+});
+
+test("issue-intake docs cover issue URLs, state-all issue search, and abstract ideas without plan docs", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(skillContent, /if the input is a full GitHub issue URL, parse `<owner\/name>` and `<number>`/i);
+  assert.match(skillContent, /gh issue view <number> --repo <owner\/name> --json number,title,body,state,labels,assignees,milestone/);
+  assert.match(skillContent, /gh issue list --repo <resolved-repo> --state all --search/);
+  assert.match(skillContent, /if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above/i);
+  assert.match(skillContent, /otherwise search existing issues directly/i);
+  assert.match(skillContent, /if a matching issue exists, follow the issue-number\/URL normalization path/i);
+});
+
+test("issue-intake flow carries the resolved repo slug through later GitHub issue and PR commands", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(skillContent, /Carry that resolved repo slug through every later GitHub issue\/PR command/i);
+  assert.match(skillContent, /gh issue edit <number> --repo <resolved-repo> --body-file <updated-body-file>/);
+  assert.match(skillContent, /gh issue edit <number> --repo <resolved-repo> --add-assignee copilot-swe-agent/);
+  assert.match(skillContent, /gh pr edit <pr-number> --repo <resolved-repo> --title/);
+  assert.match(skillContent, /gh pr ready <pr-number> --repo <resolved-repo>/);
+  assert.match(skillContent, /gh pr review <pr-number> --repo <resolved-repo> --approve/);
+  assert.match(skillContent, /gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch/);
+});
+
+test("issue-intake docs define closed-match handling and keep the handoff helper on the resolved repo", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(skillContent, /if the matching issue is closed, stop for a user decision before proceeding/i);
+  assert.match(skillContent, /if that matching issue turns out to be closed, stop for a user decision/i);
+  assert.match(skillContent, /copilot-pr-handoff\.mjs --repo <resolved-repo> --pr <number>/);
+});
+
+test("issue-intake docs define the closed direct-issue branch and keep searches/discovery scoped to the target issue repo", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(skillContent, /If the issue is closed, stop for a user decision before proceeding/i);
+  assert.match(skillContent, /gh issue list --repo <resolved-repo> --state all --search/);
+  assert.match(skillContent, /detect-linked-issue-pr\.mjs --repo <resolved-repo> --issue <number>/);
+  assert.match(skillContent, /treat the helper output as authoritative for linked-PR detection\/selection/i);
+  assert.match(skillContent, /detect-initial-copilot-pr-state\.mjs --repo <resolved-repo> --issue <number>/i);
+  assert.match(skillContent, /waiting_for_initial_copilot_implementation.*keep waiting/i);
+  assert.match(skillContent, /linked_pr_ready_for_followup.*resume from that PR/i);
+  assert.doesNotMatch(skillContent, /gh pr list --repo <resolved-repo> --state open --search "copilot\/ <issue-number>"/);
+});
+
+test("issue-intake overlay wires waiting_for_initial_copilot_implementation to durable watch seam", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(skillContent, /watch-initial-copilot-pr\.mjs --repo <resolved-repo> --issue <number>/i);
+  assert.match(skillContent, /must use the dedicated `watch-initial-copilot-pr\.mjs` watcher and its default 1-hour watch budget/i);
+  assert.match(skillContent, /ready_for_followup.*linked PR has.*substantive/i);
+  assert.match(skillContent, /timed_out.*observational first; refresh authoritative state/i);
+  assert.match(skillContent, /if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached/i);
+  assert.match(skillContent, /if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention/i);
+  assert.match(skillContent, /when the refreshed state is `linked_pr_ready_for_followup`, re-enter normal PR follow-up/i);
+  assert.match(skillContent, /follow-up handoff carries `conductorRouting\.handoffEnvelope\.requiresLocalIsolation=true`[\s\S]*isolated-checkout\/worktree handoff and continue/i);
+  assert.match(skillContent, /only surface timeout attention when the seam's durable watch budget is actually exhausted/i);
+  assert.match(skillContent, /quiet\/no-activity watch observations alone are non-terminal/i);
+  assert.match(skillContent, /inspect\/status requests.*still-waiting state and exit normally/i);
+  assert.doesNotMatch(skillContent, /timed_out.*still-waiting timeout outcome.*implementation failure/i);
+  assert.match(skillContent, /Phase 4 — Copilot handoff[\s\S]*timed_out.*observational first; refresh authoritative state/i);
+  assert.match(skillContent, /From a plan-doc path[\s\S]*timed_out.*observational first; refresh authoritative state/i);
+  assert.match(skillContent, /1.hour.*watch budget|1-hour.*Copilot-first wait/i);
+});
+
+test("issue-intake overlay delegates linked-PR detection mechanics to deterministic helper tooling", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(skillContent, /deterministic linked-PR helper/i);
+  assert.match(skillContent, /do not re-implement linked-event query behavior, pagination, repo filtering, or tie-break logic/i);
+  assert.match(skillContent, /<resolved-skill-scripts>\/github\/detect-linked-issue-pr\.mjs/i);
+  assert.match(skillContent, /do not rely only on PR title\/body containing a literal issue number/i);
+  assert.match(skillContent, /treat an open linked PR(?: reported by the helper)? as the active implementation for this issue/i);
+});
+
+test("issue-intake overlay resolves the target repo for non-issue inputs and README documents thin entrypoint agents", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+  const readmeContent = await readRepo("README.md");
+
+  assert.match(skillContent, /Resolve the target repository slug for this work item before any GitHub search or mutation/i);
+  assert.match(skillContent, /default to the current repository slug/i);
+  assert.match(skillContent, /if the plan-doc reference explicitly points at another GitHub repository/i);
+  assert.match(skillContent, /resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path/i);
+  assert.match(readmeContent, /generic role agents plus thin workflow entrypoint agents where needed/i);
+  assert.match(readmeContent, /thin workflow entrypoint agents are allowed when they only load a skill and defer policy to it/i);
+});
+
+test("issue-intake safety layer contract is documented", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+  const planContent = await readRepo("PLAN.md");
+
+  assert.match(skillContent, /New-idea safety layer \(default contract in this repo\)/);
+  assert.match(skillContent, /coordinator owns classification and mutation gating decisions/i);
+  assert.match(skillContent, /run classification in fresh context by default/i);
+  assert.match(skillContent, /emit a proposal artifact before any GitHub state-changing mutation, including create\/edit\/retitle\/collapse\/link operations/i);
+  assert.match(skillContent, /async fan-out \/ fan-in proposal generation by default when practical/i);
+  assert.match(skillContent, /default to create-new over overwrite\/update/i);
+  assert.match(skillContent, /Deterministic intake \+ mutation-gate state machine/i);
+
+  const stopStatesMarkdownBlock = skillContent.match(/stop states:\s*\n((?:-\s+.+\n)+)/i)?.[1] ?? "";
+  const stopStates = stopStatesMarkdownBlock
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.replace(/^-\s+/, "").trim())
+    .sort();
+  assert.deepEqual(stopStates, [
+    "stopped_explicit_reject",
+    "stopped_low_confidence",
+    "stopped_overlap_needs_decision",
+  ]);
+
+  assert.match(skillContent, /If the Phase 1 preflight verdict is `pause_for_clarification`, stop and ask\./i);
+  assert.match(skillContent, /If the intake state machine stops at `stopped_overlap_needs_decision` or `stopped_low_confidence`, stop and ask\./i);
+  assert.match(skillContent, /If the intake state machine stops at `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub\./i);
+  assert.match(skillContent, /start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact/i);
+  assert.match(skillContent, /record what the mutation pass actually changed and verify the resulting issue\/artifact state/i);
+  assert.match(skillContent, /tmp\/new-idea-intake\/<run-id>\/proposal\.md/i);
+  assert.match(skillContent, /tmp\/new-idea-intake\/<run-id>\/proposal\.json/i);
+  assert.match(skillContent, /human-readable Markdown proposal/i);
+  assert.match(skillContent, /machine-readable JSON snapshot/i);
+  assert.match(skillContent, /run a second async coordinator mutation pass/i);
+  assert.match(skillContent, /emit a concise post-mutation verification artifact/i);
+  assert.match(planContent, /Proposal-first new-idea safety layer/i);
+  assert.match(planContent, /stopped_overlap_needs_decision`, `stopped_low_confidence`, `stopped_explicit_reject`/i);
+});
