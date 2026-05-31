@@ -301,7 +301,7 @@ Two modes:
 - **Auto-detect**: `--repo <owner/name> --pr <number>`
   Fetches PR state, Copilot review request status, review threads, and CI checks from GitHub,
   builds a snapshot, and interprets it. PR CI/check normalization is owned by
-  `docs/copilot-ci-status-contract.md`.
+  `skills/docs/copilot-ci-status-contract.md`.
 
 - **Snapshot interpretation**: `--input <path>`
   Reads a pre-built snapshot JSON and interprets it without any `gh` calls. Use this mode when
@@ -334,7 +334,7 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `unresolvedThreadCount` {number} — total unresolved review-thread count
 - `actionableThreadCount` {number} — unresolved threads with non-bot actionable comments
 - `ciStatus` {"success"|"failure"|"pending"|"none"} — contract-owned current-head CI/check rollup
-  from `docs/copilot-ci-status-contract.md`; `none` means no usable readiness signal yet
+  from `skills/docs/copilot-ci-status-contract.md`; `none` means no usable readiness signal yet
 - `agentFixStatus` {"applied"|null} — agent-provided: "applied" when code has been fixed
 
 Success output shape:

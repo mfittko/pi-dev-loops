@@ -19,6 +19,14 @@ test("normalizeStatusCheckRollupStatus returns failure over pending for mixed ro
   assert.equal(status, "failure");
 });
 
+test("normalizeStatusCheckRollupStatus treats cancelled-only rollup entries as none", () => {
+  const status = normalizeStatusCheckRollupStatus([
+    { status: "COMPLETED", conclusion: "CANCELLED" },
+  ]);
+
+  assert.equal(status, "none");
+});
+
 test("normalizeStatusCheckRollupContract emits shared wait semantics for missing rollup", () => {
   const contract = normalizeStatusCheckRollupContract([]);
 
