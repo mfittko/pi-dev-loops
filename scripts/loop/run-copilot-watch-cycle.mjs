@@ -194,7 +194,7 @@ function buildWatchCycleContractTrace({
       classification: boundaryClassification,
       terminal: Boolean(handoff.terminal),
       cycleDisposition,
-      contractJustification: handoff.action === "watch"
+      reason: handoff.action === "watch"
         ? (watchStatus === "changed"
           ? "Fresh watcher activity requires follow-up instead of staying in a healthy wait boundary."
           : "Quiet watcher boundaries remain healthy waits and must not be treated as terminal completion by themselves.")
