@@ -7,8 +7,9 @@ export const USAGE = `Usage: inspect-run-viewer.mjs [--repo <owner/name>]
   [--steering-state-file <path>] [--reviewer-login <login>]
   [--copilot-input <path>] [--reviewer-input <path>]
 
-Single-run local browser viewer for the inspect-run read-only snapshot.
-Use ?pr=<number> and optionally ?repo=<owner/name> in the browser URL.
+Owned read-only local/operator inspection dashboard for inspect-run snapshots.
+inspect-run remains authoritative for inspection/status state; this viewer owns local inbox discovery plus read-only presentation/prioritization.
+Inbox-first mode works with no PR selected. Use ?pr=<number> to deep-link a selected PR and optionally ?repo=<owner/name> to scope the inbox.
 
 Optional:
   --repo <owner/name>                     Restrict the inbox to one repo

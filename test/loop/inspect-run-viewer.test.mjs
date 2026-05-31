@@ -431,8 +431,11 @@ test("renderInspectRunViewerHtml keeps the empty inbox copy generic across state
   });
 
   assert.match(html, /No PR selected/);
+  assert.match(html, /inspect-run remains authoritative for inspection\/status state while this UI owns inbox discovery plus read-only presentation\/prioritization/i);
   assert.match(html, /No assigned PR in all repos matched the current view yet\./);
   assert.match(html, /widen the state or updated filters, or move to another inbox page\./);
+  assert.match(html, /<title>all repos PR inspection dashboard<\/title>/);
+  assert.match(html, /aria-label="all repos PR inspection dashboard"/);
   assert.doesNotMatch(html, /assigned open PR/i);
   assert.doesNotMatch(html, /limit filters/i);
 });
@@ -552,7 +555,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
     inboxTotalPages: 2,
   });
 
-  assert.match(html, /PR inbox/);
+  assert.match(html, /PR inspection dashboard/);
   assert.match(html, /Search PRs/);
   assert.match(html, /id="assigned-pr-mode-select"[^>]*aria-label="Assignment mode"/);
   assert.match(html, /<label class="assigned-pr-filter-label" for="assigned-pr-state-select">State<\/label>/);
