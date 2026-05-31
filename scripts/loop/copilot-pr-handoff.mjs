@@ -22,6 +22,7 @@
  *     "reviewRequestStatus"?: "...", "watchStatus"?: "...",
  *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
  *     "loopDisposition": "...", "terminal": true|false,
+ *     "watchTimeoutPolicy"?: { "classification": "...", "minimumTimeoutMs": N, "defaultTimeoutMs": N },
  *     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
  *
  * Failure behavior:
@@ -34,6 +35,10 @@ import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
 import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "../../packages/core/src/loop/copilot-loop-state.mjs";
+import {
+  EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
+  enforceExternalHealthyWaitTimeout,
+} from "../../packages/core/src/loop/timeout-policy.mjs";
 
 const VALID_WATCH_STATUSES = new Set(["changed", "timeout", "idle"]);
 
@@ -60,6 +65,7 @@ Output (stdout, JSON):
     "reviewRequestStatus"?: "...", "watchStatus"?: "...",
     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
     "loopDisposition": "...", "terminal": true|false,
+    "watchTimeoutPolicy"?: { "classification": "...", "minimumTimeoutMs": N, "defaultTimeoutMs": N },
     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
 
 Actions:
@@ -254,11 +260,15 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   }
 
   if (action === "watch") {
+    result.watchTimeoutPolicy = EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY;
     result.watchArgs = {
       repo: options.repo,
       pr: options.pr,
       pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
-      timeoutMs: DEFAULT_TIMEOUT_MS,
+      timeoutMs: enforceExternalHealthyWaitTimeout({
+        timeoutMs: DEFAULT_TIMEOUT_MS,
+        contextLabel: "Copilot review wait",
+      }),
     };
   }
 

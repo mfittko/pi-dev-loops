@@ -32,6 +32,10 @@ import {
   resolveAuthoritativeStartupResumeBundle,
   resolveAuthoritativeDevLoopStatus,
 } from "../src/loop/public-dev-loop-routing.mjs";
+import {
+  EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
+  PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY,
+} from "../src/loop/timeout-policy.mjs";
 
 const publicContractUrl = new URL("../../../skills/docs/public-dev-loop-contract.md", import.meta.url);
 
@@ -559,6 +563,7 @@ test("waiting states remain deterministic wait/watch states", () => {
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
   assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.DEFAULT);
+  assert.deepEqual(result.waitTimeoutPolicy, PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY);
 });
 
 test("waiting linked issue states route as the authoritative linked PR artifact", () => {
@@ -635,6 +640,7 @@ test("auto_continue_current keeps healthy watch states non-escalating", () => {
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
   assert.equal(result.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.equal(result.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.deepEqual(result.waitTimeoutPolicy, EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY);
   assert.match(result.nextAction, /do not escalate timeout\/no-activity alone as attention/i);
 });
 
@@ -1068,6 +1074,7 @@ test("authoritative startup/resume bundle keeps durable wait semantics for linke
   assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(bundle.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.equal(bundle.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.deepEqual(bundle.waitTimeoutPolicy, EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY);
   assert.equal(bundle.asyncRun?.runId, "run-179");
   assert.equal(bundle.activeArtifact.kind, DEV_LOOP_TARGET_KIND.PR);
   assert.equal(bundle.activeArtifact.issue, 177);
@@ -1182,6 +1189,7 @@ test("authoritative startup/resume bundle preserves inspect routing in durable_a
   assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.INSPECT);
   assert.equal(bundle.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.equal(bundle.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.deepEqual(bundle.waitTimeoutPolicy, EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY);
   assert.equal(bundle.asyncRun?.runId, "run-180");
   assert.match(bundle.nextAction, /Describe the canonical state/i);
 });
@@ -1613,6 +1621,7 @@ test("authoritative status resolution keeps waiting nextAction for waiting issue
   assert.equal(report.selectedGate, DEV_LOOP_GATE.WAIT_WATCH);
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(report.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH);
+  assert.deepEqual(report.waitTimeoutPolicy, PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY);
   assert.equal(
     report.nextAction,
     "Keep waiting or watching against the same canonical state instead of switching public loop names.",
@@ -1668,6 +1677,7 @@ test("authoritative status resolution preserves durable healthy-wait semantics f
   assert.equal(report.routeKind, DEV_LOOP_ROUTE_KIND.WAIT);
   assert.equal(report.executionMode, DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO);
   assert.equal(report.waitSemantics, DEV_LOOP_WAIT_SEMANTICS.AUTO_HEALTHY_WAIT);
+  assert.deepEqual(report.waitTimeoutPolicy, EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY);
   assert.equal(report.asyncRun?.runId, "run-181");
   assert.match(report.nextAction, /remain in durable auto ownership/i);
 });

@@ -226,20 +226,27 @@ test("parseWatchInitialCopilotPrCliArgs parses required args", () => {
   assert.equal(opts.timeoutMs, 3_600_000);
 });
 
-test("parseWatchInitialCopilotPrCliArgs accepts --poll-interval-ms and --timeout-ms overrides", () => {
+test("parseWatchInitialCopilotPrCliArgs accepts long-lived --poll-interval-ms and --timeout-ms overrides", () => {
   const opts = parseWatchInitialCopilotPrCliArgs([
     "--repo", "owner/repo",
     "--issue", "59",
     "--poll-interval-ms", "5000",
-    "--timeout-ms", "30000",
+    "--timeout-ms", "7200000",
   ]);
   assert.equal(opts.pollIntervalMs, 5000);
-  assert.equal(opts.timeoutMs, 30000);
+  assert.equal(opts.timeoutMs, 7_200_000);
 });
 
 test("parseWatchInitialCopilotPrCliArgs accepts --timeout-ms 0 (single-check mode)", () => {
   const opts = parseWatchInitialCopilotPrCliArgs(["--repo", "owner/repo", "--issue", "59", "--timeout-ms", "0"]);
   assert.equal(opts.timeoutMs, 0);
+});
+
+test("parseWatchInitialCopilotPrCliArgs rejects short non-zero persistent timeouts", () => {
+  assert.throws(
+    () => parseWatchInitialCopilotPrCliArgs(["--repo", "owner/repo", "--issue", "59", "--timeout-ms", "30000"]),
+    /requires at least 3600000 ms/i,
+  );
 });
 
 test("parseWatchInitialCopilotPrCliArgs trims whitespace from --repo", () => {
@@ -360,6 +367,20 @@ test("watchInitialCopilotPr no_linked_pr is a healthy wait state (not a failure)
   assert.equal(result.attempts, 1);
 });
 
+test("watchInitialCopilotPr rejects short non-zero persistent budgets for direct callers", async () => {
+  await assert.rejects(
+    () => watchInitialCopilotPr(
+      { repo: "owner/repo", issue: 59, pollIntervalMs: 60_000, timeoutMs: 30_000 },
+      {
+        detectInitialCopilotPrStateImpl: makeDetectMock([
+          { ok: true, state: "no_linked_pr", prNumber: null, prUrl: null },
+        ]),
+      },
+    ),
+    /requires at least 3600000 ms/i,
+  );
+});
+
 test("watchInitialCopilotPr transitions to ready_for_followup when PR becomes substantive", async () => {
   // Simulates the durable-auto path: first poll = still bootstrap-only,
   // second poll = substantive.  This is the core handoff scenario.
@@ -380,7 +401,7 @@ test("watchInitialCopilotPr transitions to ready_for_followup when PR becomes su
 
   let delayCount = 0;
   const result = await watchInitialCopilotPr(
-    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 60_000 },
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 3_600_000 },
     {
       detectInitialCopilotPrStateImpl: detect,
       delayImpl: async () => { delayCount += 1; },
@@ -415,7 +436,7 @@ test("watchInitialCopilotPr blocks on active Copilot session run before continui
   let watchCalls = 0;
   let delayCount = 0;
   const result = await watchInitialCopilotPr(
-    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 60_000 },
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 3_600_000 },
     {
       detectInitialCopilotPrStateImpl: detect,
       watchCopilotRunUntilCompleteImpl: async ({ runId }) => {
@@ -476,7 +497,7 @@ test("watchInitialCopilotPr returns timed_out when the active-session watch exha
 
   let receivedTimeoutMs = null;
   const result = await watchInitialCopilotPr(
-    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 5_000 },
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 100, timeoutMs: 3_600_000 },
     {
       detectInitialCopilotPrStateImpl: detect,
       watchCopilotRunUntilCompleteImpl: async ({ timeoutMs }) => {
@@ -487,7 +508,7 @@ test("watchInitialCopilotPr returns timed_out when the active-session watch exha
     },
   );
 
-  assert.equal(receivedTimeoutMs, 5_000);
+  assert.equal(receivedTimeoutMs, 3_600_000);
   assert.equal(result.ok, true);
   assert.equal(result.status, "timed_out");
   assert.equal(result.attempts, 1);

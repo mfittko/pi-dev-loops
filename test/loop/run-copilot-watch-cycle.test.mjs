@@ -126,11 +126,44 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
 
   assert.equal(watcherOptions.timeoutMs, 86_400_000);
   assert.notEqual(watcherOptions.timeoutMs, 0);
+  assert.equal(result.watchTimeoutPolicy.minimumTimeoutMs, 86_400_000);
   assert.equal(result.loopDisposition, "pending");
   assert.equal(result.cycleDisposition, "pending");
   assert.equal(result.terminal, false);
   assert.equal(result.watchStatus, "timeout");
   assert.equal(result.state, "waiting_for_copilot_review");
+});
+
+test("runWatchCycle rejects persistent watch budgets below the unattended external minimum", async () => {
+  await assert.rejects(
+    () => runWatchCycle(
+      {
+        repo: "owner/repo",
+        pr: 17,
+        forceRerequestReview: false,
+        probeOnly: false,
+      },
+      {
+        runHandoffImpl: async () => ({
+          ok: true,
+          action: "watch",
+          state: "waiting_for_copilot_review",
+          allowedTransitions: ["unresolved_feedback_present"],
+          nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+          snapshot: { repo: "owner/repo", pr: 17 },
+          loopDisposition: "pending",
+          terminal: false,
+          watchArgs: {
+            repo: "owner/repo",
+            pr: 17,
+            pollIntervalMs: 60_000,
+            timeoutMs: 60_000,
+          },
+        }),
+      },
+    ),
+    /requires at least 86400000 ms/i,
+  );
 });
 
 test("runWatchCycle uses zero-timeout idle probes only when explicitly requested", async () => {
@@ -670,7 +703,7 @@ test("runWatchCycle integration bounds active Copilot workflow waits by the emit
   assert.equal(result.watchStatus, "idle");
 });
 
-test("runWatchCycle integration waits on active Copilot workflow run before idle probe", async () => {
+test("runWatchCycle integration keeps the full persistent watch timeout after active Copilot workflow waits", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-cycle-session-active-"));
   let watcherOptions;
 
@@ -745,7 +778,7 @@ test("runWatchCycle integration waits on active Copilot workflow run before idle
 
     assert.equal(result.handoffAction, "watch");
     assert.equal(result.sessionActivity.activity, "active");
-    assert.equal(watcherOptions.timeoutMs, 0);
+    assert.equal(watcherOptions.timeoutMs, 86_400_000);
     assert.equal(result.watchStatus, "idle");
   } finally {
     await rm(tempDir, { recursive: true, force: true });

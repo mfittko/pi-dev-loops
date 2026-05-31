@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 
 import { parseHandoffCliArgs } from "../../scripts/loop/copilot-pr-handoff.mjs";
+import { EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY } from "../../packages/core/src/loop/timeout-policy.mjs";
 
 const scriptPath = path.resolve("scripts/loop/copilot-pr-handoff.mjs");
 
@@ -231,6 +232,7 @@ test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_
     assert.equal(output.action, "watch");
     assert.equal(output.state, "waiting_for_copilot_review");
     assert.equal(output.reviewRequestStatus, "requested");
+    assert.deepEqual(output.watchTimeoutPolicy, EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY);
     assert.ok(Array.isArray(output.allowedTransitions));
     assert.ok(typeof output.nextAction === "string");
     assert.ok(output.snapshot && typeof output.snapshot === "object");
@@ -280,6 +282,7 @@ test("copilot-pr-handoff emits watch action when Copilot is already requested", 
     assert.equal(output.ok, true);
     assert.equal(output.action, "watch");
     assert.equal(output.state, "waiting_for_copilot_review");
+    assert.deepEqual(output.watchTimeoutPolicy, EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY);
     assert.ok(output.watchArgs, "expected watchArgs");
     assert.equal(output.watchArgs.pollIntervalMs, 60_000);
     assert.equal(output.watchArgs.timeoutMs, 86_400_000);
