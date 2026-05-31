@@ -230,6 +230,28 @@ test("start_on_issue with a linked PR routes directly to PR follow-up", () => {
   assert.equal(result.canonicalState.target.pr, 88);
 });
 
+test("start_on_issue with a linked PR keeps that PR canonical instead of opening another PR", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 126 },
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 126, linkedPr: 260 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+  });
+
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
+  assert.equal(result.canonicalState.target.kind, DEV_LOOP_TARGET_KIND.PR);
+  assert.equal(result.canonicalState.target.pr, 260);
+  assert.match(result.nextAction, /canonical artifact/i);
+  assert.match(result.nextAction, /do not open a second PR/i);
+  assert.match(result.reason, /already-open linked PR must stay canonical/i);
+});
+
+
 test("start_on_issue with valid canonical PR state for the same issue routes from that state", () => {
   const result = evaluatePublicDevLoopRouting({
     intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,

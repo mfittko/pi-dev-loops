@@ -365,6 +365,10 @@ test("status reporting contract requires authoritative state-first resolution an
   assert.match(copilotSkill, /status\/progress\/readiness\/merge-state\/next-step/i);
   assert.match(copilotSkill, /reconcile\/unknown instead of guessing from chat context/i);
   assert.match(copilotSkill, /do not assert "no open PR" until authoritative issue↔PR linkage is resolved/i);
+  assert.match(publicContract, /only canonical active artifact for the issue during follow-up/i);
+  assert.match(devLoopSkill, /single canonical artifact for the issue and reuse it instead of opening another PR/i);
+  assert.match(copilotSkill, /do not open another PR unless the prior PR was explicitly superseded and reconciled first/i);
+  assert.match(copilotSkill, /reuse\/update that canonical PR instead of opening another one/i);
 });
 
 test("copilot skill still contains its core workflow guidance", async () => {
