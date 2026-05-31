@@ -198,6 +198,21 @@ test("summarizeGateReviewText captures Error-prefixed failure lines", () => {
   );
 });
 
+
+test("summarizeGateReviewText does not treat markdown headings as shell commands", () => {
+  const narrative = [
+    "# Summary",
+    "Validation recap passed through manual review.",
+    "## Notes",
+    "This is prose, not a shell transcript.",
+  ].join("\n");
+
+  assert.equal(
+    summarizeGateReviewText(narrative),
+    "# Summary Validation recap passed through manual review. ## Notes This is prose, not a shell transcript.",
+  );
+});
+
 test("upsert-gate-review-comment creates a new comment when no same-head marker exists", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-create-"));
 

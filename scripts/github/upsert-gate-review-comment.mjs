@@ -108,7 +108,7 @@ function buildVerboseValidationSummary(lines) {
       continue;
     }
 
-    const commandMatch = line.match(/^(?:>|[$#])\s*(.+)$/u);
+    const commandMatch = line.match(/^(?:>|\$)\s*(.+)$/u);
     if (commandMatch) {
       pushUnique(commands, collapseWhitespace(commandMatch[1]));
       continue;
