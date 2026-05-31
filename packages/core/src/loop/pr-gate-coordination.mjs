@@ -15,6 +15,7 @@ export const PR_GATE_ACTION = Object.freeze({
   MARK_READY_FOR_REVIEW: "mark_ready_for_review",
   REQUEST_COPILOT_REVIEW: "request_copilot_review",
   WAIT_FOR_COPILOT_REVIEW: "wait_for_copilot_review",
+  WAIT_FOR_CI: "wait_for_ci",
   ADDRESS_REVIEW_FEEDBACK: "address_review_feedback",
   REPLY_RESOLVE_REVIEW_THREADS: "reply_resolve_review_threads",
   REREQUEST_COPILOT_REVIEW: "rerequest_copilot_review",
@@ -234,7 +235,11 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (lifecycleState === STATE.WAITING_FOR_COPILOT_REVIEW || lifecycleState === STATE.WAITING_FOR_CI) {
-    pushUnique(allowedNextActions, [PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW]);
+    const waitAction = lifecycleState === STATE.WAITING_FOR_CI
+      ? PR_GATE_ACTION.WAIT_FOR_CI
+      : PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW;
+
+    pushUnique(allowedNextActions, [waitAction]);
     pushUnique(forbiddenActions, postDraftForbidden);
     return buildResult({
       repo: input.repo ?? null,
@@ -247,8 +252,10 @@ export function evaluatePrGateCoordination(input = {}) {
       preApprovalGate,
       allowedNextActions,
       forbiddenActions,
-      nextAction: PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
-      reason: "The post-draft review cycle is still pending, so `pre_approval_gate` remains illegal until the current-head review cycle settles.",
+      nextAction: waitAction,
+      reason: lifecycleState === STATE.WAITING_FOR_CI
+        ? "The post-draft review cycle is waiting on current-head CI, so `pre_approval_gate` remains illegal until CI settles cleanly."
+        : "The post-draft review cycle is still pending on Copilot review, so `pre_approval_gate` remains illegal until the current-head review cycle settles.",
     });
   }
 

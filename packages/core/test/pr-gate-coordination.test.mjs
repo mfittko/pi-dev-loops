@@ -89,6 +89,20 @@ test("ready PR with no review yet forbids pre-approval gate and requests Copilot
   assert.equal(result.draftGate.currentHead, false);
 });
 
+test("waiting_for_ci recommends a dedicated wait-for-ci action", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "def56789abcdef",
+    prDraft: false,
+    lifecycleState: STATE.WAITING_FOR_CI,
+    loopDisposition: LOOP_DISPOSITION.PENDING,
+  });
+
+  assert.equal(result.nextAction, PR_GATE_ACTION.WAIT_FOR_CI);
+  assert(result.allowedNextActions.includes(PR_GATE_ACTION.WAIT_FOR_CI));
+  assert.match(result.reason, /waiting on current-head CI/i);
+});
+
 test("clean settled current-head review opens the pre-approval gate window", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
