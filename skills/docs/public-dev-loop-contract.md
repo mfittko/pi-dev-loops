@@ -223,7 +223,7 @@ Resolved bundle output shape:
 Dev-mode observability requirement:
 
 - saved artifacts must preserve the `contractTrace` decision, wait strategy, state-refresh boundary, and stop classification so a fresh session can explain why a healthy wait re-attached, stopped, or failed closed without replaying the whole run
-- wait/watch artifacts must record the effective timeout budget in force; when a surface does not own a poll interval directly it may record `effectivePollIntervalMs=null` rather than inventing a value
+- wait/watch artifacts must record the effective timeout budget in force and whether the seam ran as `persistent_watch` or `one_shot_probe`; when a surface does not own a poll interval directly it may record `effectivePollIntervalMs=null` rather than inventing a value
 
 Fail-closed semantics:
 

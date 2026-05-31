@@ -316,6 +316,7 @@ export async function runWatchCycle(
     defaultTimeoutMs: handoff.watchArgs.timeoutMs,
   });
 
+  let workflowRunWatch = null;
   if (detectSessionActivity) {
     const headBranch = await fetchPrHeadBranchImpl({ repo: options.repo, pr: options.pr }, { env, ghCommand });
     const session = await detectCopilotSessionActivityImpl(
@@ -332,7 +333,7 @@ export async function runWatchCycle(
       && session.activity === "active"
       && Number.isInteger(session.runId)
     ) {
-      await watchWorkflowRunImpl(
+      const workflowWatchResult = await watchWorkflowRunImpl(
         {
           repo: options.repo,
           runId: session.runId,
@@ -340,6 +341,12 @@ export async function runWatchCycle(
         },
         { env, ghCommand },
       );
+      workflowRunWatch = {
+        attempted: true,
+        timeoutMs: persistentWatchTimeoutMs,
+        runId: session.runId,
+        status: workflowWatchResult?.status ?? "unknown",
+      };
     }
   }
 
@@ -366,11 +373,12 @@ export async function runWatchCycle(
     cycleDisposition: result.cycleDisposition,
     sessionActivity: result.sessionActivity ?? null,
     workflowRunWatch: detectSessionActivity && !options.probeOnly
-      ? {
-          attempted: result.sessionActivity?.activity === "active" && Number.isInteger(result.sessionActivity?.runId),
+      ? (workflowRunWatch ?? {
+          attempted: false,
           timeoutMs: persistentWatchTimeoutMs,
           runId: result.sessionActivity?.runId ?? null,
-        }
+          status: null,
+        })
       : null,
   });
   return result;
