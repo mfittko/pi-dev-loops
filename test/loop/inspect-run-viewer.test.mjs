@@ -31,6 +31,7 @@ import {
   REVIEWER_TRANSITIONS,
 } from "../../packages/core/src/loop/reviewer-loop-state.mjs";
 import { createInspectionViewerAdapter, parseGhJsonOutput } from "../../scripts/loop/_inspect-run-viewer-adapter.mjs";
+import { resolveMermaidBrowserAssetPath } from "../../scripts/loop/inspect-run-viewer/constants.mjs";
 
 function makeSnapshot(overrides = {}) {
   return {
@@ -1660,6 +1661,27 @@ test("createInspectRunViewerServer supports selecting another PR from query para
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("resolveMermaidBrowserAssetPath prefers module resolution when available", () => {
+  const resolvedPath = resolveMermaidBrowserAssetPath({
+    resolveImpl: (specifier) => {
+      assert.equal(specifier, "mermaid/dist/mermaid.min.js");
+      return "/tmp/custom-mermaid/mermaid.min.js";
+    },
+  });
+
+  assert.equal(resolvedPath, "/tmp/custom-mermaid/mermaid.min.js");
+});
+
+test("resolveMermaidBrowserAssetPath falls back to the repo-relative mermaid asset path", () => {
+  const resolvedPath = resolveMermaidBrowserAssetPath({
+    resolveImpl: () => {
+      throw new Error("module resolution unavailable");
+    },
+  });
+
+  assert.match(resolvedPath, /node_modules[\\/]mermaid[\\/]dist[\\/]mermaid\.min\.js$/);
 });
 
 test("createInspectRunViewerServer serves the Mermaid browser asset without loading a snapshot", async () => {

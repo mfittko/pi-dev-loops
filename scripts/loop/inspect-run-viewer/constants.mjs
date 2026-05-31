@@ -32,13 +32,23 @@ export const DEFAULT_PORT = 4311;
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 export const MERMAID_BROWSER_ASSET_ROUTE = "/assets/mermaid.min.js";
 const require = createRequire(import.meta.url);
-export const MERMAID_BROWSER_ASSET_PATH = (() => {
+const DEFAULT_MERMAID_BROWSER_ASSET_FALLBACK_PATH = path.join(
+  REPO_ROOT,
+  "node_modules",
+  "mermaid",
+  "dist",
+  "mermaid.min.js",
+);
+
+export function resolveMermaidBrowserAssetPath({ resolveImpl = require.resolve.bind(require) } = {}) {
   try {
-    return require.resolve("mermaid/dist/mermaid.min.js");
+    return resolveImpl("mermaid/dist/mermaid.min.js");
   } catch {
-    return path.join(REPO_ROOT, "node_modules", "mermaid", "dist", "mermaid.min.js");
+    return DEFAULT_MERMAID_BROWSER_ASSET_FALLBACK_PATH;
   }
-})();
+}
+
+export const MERMAID_BROWSER_ASSET_PATH = resolveMermaidBrowserAssetPath();
 export const DEFAULT_INBOX_UPDATED_WITHIN_DAYS = 7;
 export const DEFAULT_INBOX_PAGE_SIZE = 25;
 export const MAX_INBOX_RESULT_LIMIT = 100;
