@@ -35,8 +35,15 @@ function parseFrontmatter(content) {
   return frontmatter;
 }
 
+function assertMatchesAll(content, patterns, label = "content") {
+  for (const pattern of patterns) {
+    assert.match(content, pattern, `${label} should match ${pattern}`);
+  }
+}
+
 export {
   assert,
+  assertMatchesAll,
   fromRepoRoot,
   parseFrontmatter,
   readRepo,
