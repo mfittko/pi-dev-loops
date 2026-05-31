@@ -1219,6 +1219,86 @@ test("runPromote explicitly promotes queued steering and persists it", async () 
   });
 });
 
+
+test("runPromote reloads state under the steering lock before persisting promotion", async () => {
+  await withTempDir(async (dir) => {
+    const stateFile = path.join(dir, "state.json");
+    const lockDir = `${stateFile}.lock`;
+    await writeJson(stateFile, {
+      runId: "run-promote-2",
+      schemaVersion: 1,
+      events: [],
+      effectiveStack: [],
+      queuedEvents: [],
+      resultHistory: [],
+      latestResult: null,
+      nextSeq: 1,
+    });
+    await mkdir(lockDir, { recursive: true });
+    await writeJson(path.join(lockDir, "owner.json"), { pid: process.pid, acquiredAt: "2026-05-31T00:00:00.000Z" });
+
+    const { stream, read } = makeStdout();
+    const promotePromise = runPromote([
+      "--run-id", "run-promote-2",
+      "--loop-state", "ready_to_rerequest_review",
+      "--state-file", stateFile,
+    ], { stdout: stream, cwd: dir });
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await writeJson(stateFile, {
+      runId: "run-promote-2",
+      schemaVersion: 1,
+      events: [{
+        eventId: "evt-002",
+        runId: "run-promote-2",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      effectiveStack: [],
+      queuedEvents: [{
+        eventId: "evt-002",
+        runId: "run-promote-2",
+        kind: "stop_at_next_safe_gate",
+        directive: "Stop before next review pass",
+        seq: 1,
+        applyMode: "immediate",
+        submittedAt: "2026-05-19T12:00:00.000Z",
+      }],
+      resultHistory: [{
+        eventId: "evt-002",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
+        acknowledgedAt: "2026-05-19T12:00:01.000Z",
+      }],
+      latestResult: {
+        eventId: "evt-002",
+        seq: 1,
+        result: "queued_for_safe_point",
+        reason: "Loop is in 'pr_draft' (not a safe point for immediate application); steering queued for next safe point",
+        acknowledgedAt: "2026-05-19T12:00:01.000Z",
+      },
+      nextSeq: 2,
+    });
+    await rm(lockDir, { recursive: true, force: true });
+
+    await promotePromise;
+
+    const output = read();
+    assert.equal(output.ok, true);
+    assert.equal(output.promotedCount, 1);
+    assert.equal(output.steeringState.effectiveStack.length, 1);
+
+    const persisted = JSON.parse(await readFile(stateFile, "utf8"));
+    assert.equal(persisted.queuedEvents.length, 0);
+    assert.equal(persisted.effectiveStack.length, 1);
+    assert.equal(persisted.latestResult.result, "applied_now");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // runStatus
 // ---------------------------------------------------------------------------

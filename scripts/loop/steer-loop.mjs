@@ -952,12 +952,16 @@ export async function runPromote(argv = [], { stdout = process.stdout, cwd = pro
     : null;
   const stateFilePath = options.stateFile ?? (target ? defaultStateFilePathForTarget(target, cwd) : defaultStateFilePath(runId, cwd));
 
-  const steeringState = await loadOrCreateSteeringState(stateFilePath, runId, target);
-  const promotedState = promoteQueuedSteering(steeringState, options.loopState);
+  const promotedState = await withStateFileLock(stateFilePath, async () => {
+    const steeringState = await loadOrCreateSteeringState(stateFilePath, runId, target);
+    const nextState = promoteQueuedSteering(steeringState, options.loopState);
 
-  if (promotedState.promoted.length > 0) {
-    await saveStateFile(stateFilePath, promotedState.steeringState);
-  }
+    if (nextState.promoted.length > 0) {
+      await saveStateFile(stateFilePath, nextState.steeringState);
+    }
+
+    return nextState;
+  });
 
   stdout.write(`${JSON.stringify({
     ok: true,
