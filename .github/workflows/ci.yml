@@ -18,6 +18,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - name: Determine whether inspect-run viewer smoke is required
         id: inspect-run-viewer-scope
         env:

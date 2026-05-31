@@ -139,6 +139,7 @@ test("CI gates the Playwright WebKit smoke behind inspect-run viewer change dete
   assert.match(ciWorkflow, /^\s{2}verify:\s*$/m);
   assert.match(ciWorkflow, /^\s{2}viewer-smoke:\s*$/m);
   assert.match(ciWorkflow, /fetch-depth:\s*0/i);
+  assert.match(ciWorkflow, /changes:[\s\S]*Set up Node\.js[\s\S]*node-version:\s*24/i);
   assert.match(ciWorkflow, /GITHUB_OUTPUT="\$GITHUB_OUTPUT" node scripts\/loop\/inspect-run-viewer-ci-changes\.mjs \.inspect-run-viewer-changed-files\.txt/i);
   assert.doesNotMatch(ciWorkflow, /inspect_run_viewer_relevant_paths_json/i);
   assert.match(ciWorkflow, /viewer-smoke:[\s\S]*needs:[\s\S]*- changes/i);
