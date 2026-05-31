@@ -73,7 +73,7 @@ export async function runCli(
   stdout.write(
     `${JSON.stringify({
       ok: true,
-      message: "read-only inspect-run inspection dashboard started",
+      message: "read-only inspect-run dashboard started",
       scope: { repo: options.repo },
       url: formatInspectRunViewerUrl(options.host, options.port),
       reload: "manual",

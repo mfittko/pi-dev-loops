@@ -1590,7 +1590,7 @@ export function renderInspectRunViewerHtml({
   const scopeLabel = scopeFilter ?? "all repos";
   const title = target
     ? `${target.repo}#${target.pr} inspection snapshot`
-    : `${scopeLabel} PR inbox`;
+    : `${scopeLabel} PR inspection dashboard`;
   const runId = normalizedSnapshot?.runId ?? "not present";
   const rawSnapshotHref = buildSnapshotHref(target, scopeFilter);
   const topSummary = target === null
