@@ -251,10 +251,10 @@ Contract:
 - when a review request is successfully issued or confirmed (including the explicit force path), re-interprets from the shared post-request wait-cycle snapshot and emits `action: "watch"` with exact `watchArgs`
 - when `--watch-status` is provided, treats the watcher result as observational only, refreshes GitHub state, and emits `loopDisposition` plus `terminal` so timeout/idle cannot be mistaken for clean completion
 - emits one machine-readable action: `watch`, `fix`, or `stop` (`stop` means no automatic next step; terminal, blocked, or operator-decision-required states all use this action)
-- when the action is `watch`, emits exact `watchArgs` for `watch-copilot-review.mjs`
+- when the action is `watch`, emits exact `watchArgs` for `watch-copilot-review.mjs` plus `watchTimeoutPolicy` describing the enforced external healthy-wait contract
 
 Success output shape:
-- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchStatus"?: "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false, "watchArgs"?: { ... } }`
+- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchStatus"?: "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false, "watchTimeoutPolicy"?: { "classification": "external_healthy_wait", "minimumTimeoutMs": 86400000, "defaultTimeoutMs": 86400000 }, "watchArgs"?: { ... } }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
@@ -274,8 +274,8 @@ Optional:
 Contract:
 - runs `copilot-pr-handoff.mjs` first and preserves its current state / next action / watch args
 - when handoff stays in watch mode, checks Copilot session activity on the PR head branch via `detect-copilot-session-activity.mjs`
-- when activity is `active`, blocks on `gh run watch <run-id>` and then switches to a zero-timeout probe (`timeoutMs: 0`) instead of long polling
-- when handoff returns `action: "watch"`, runs `watch-copilot-review.mjs` with the emitted `watchArgs` (or zero-timeout probe after active session watch)
+- when activity is `active`, blocks on `gh run watch <run-id>` and then continues with the same emitted persistent watch budget instead of silently degrading to a zero-timeout probe
+- when handoff returns `action: "watch"`, runs `watch-copilot-review.mjs` with the emitted `watchArgs`; zero-timeout probes are reserved for explicit `--probe-only` status checks
 - treats `waiting_for_copilot_review` as a persistence boundary, not a completion boundary
 - for explicit async loop entry/continuation, `cycleDisposition: "pending"` with `terminal: false` means stay attached and run another watch boundary rather than exiting as clean success
 - after a follow-up fix / reply-resolve / re-request path returns to `waiting_for_copilot_review`, resume this helper again instead of treating the re-request handoff as completion
@@ -288,7 +288,7 @@ Contract:
 - returns `cycleDisposition: "terminal"` only when handoff routed to `stop`
 
 Success output shape:
-- `{ "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... }, "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... }, "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done", "cycleDisposition": "pending"|"needs_followup"|"terminal", "terminal": true|false }`
+- `{ "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... }, "watchTimeoutPolicy"?: { "classification": "external_healthy_wait", "minimumTimeoutMs": 86400000, "defaultTimeoutMs": 86400000 }, "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... }, "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done", "cycleDisposition": "pending"|"needs_followup"|"terminal", "terminal": true|false }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
