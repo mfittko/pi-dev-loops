@@ -1,0 +1,75 @@
+import { request } from "node:http";
+
+export function makeSnapshot(overrides = {}) {
+  return {
+    ok: true,
+    schemaVersion: 1,
+    target: { repo: "owner/repo", pr: 55 },
+    runId: "pr-55",
+    inspectedAt: "2026-05-21T00:00:00.000Z",
+    activeStateFamily: "copilot-pr-outer-loop",
+    outerState: "continue_current_wait",
+    allowedTransitions: [
+      "continue_current_wait",
+      "handoff_to_copilot_loop",
+      "handoff_to_reviewer_loop",
+      "stay_with_current_live_owner",
+      "stop_needs_human",
+      "done_terminal",
+      "needs_reconcile",
+    ],
+    outerAction: "continue_wait",
+    activeFamilyState: "continue_wait",
+    statusClass: "waiting",
+    needsAttention: false,
+    sourceMode: "live-detector-backed",
+    trust: "authoritative",
+    evidence: { summary: "Live detectors agree.", authoritative: ["live"], checkpoint: [] },
+    markers: { missing: [], stale: [], conflicts: [] },
+    loopIterations: {
+      available: true,
+      source: "github_pr_timeline",
+      completedCopilotReviewRounds: 4,
+      pendingCopilotReviewRounds: 1,
+      copilotReviewRequests: 5,
+      copilotReviewComments: 8,
+      resolvedReviewThreads: 8,
+      unresolvedReviewThreads: 0,
+      fixCommitsAfterFeedback: 3,
+    },
+    layers: {
+      copilot: {
+        currentState: "waiting_for_copilot_review",
+        allowedTransitions: ["unresolved_feedback_present", "ready_to_rerequest_review", "waiting_for_ci"],
+      },
+      reviewer: {
+        currentState: "waiting_for_author_followup",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: ["waiting_for_re_request", "waiting_for_review_request"],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+    ...overrides,
+  };
+}
+
+export function requestOnce(url, { method = "GET" } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = request(url, { method }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => {
+        resolve({
+          statusCode: response.statusCode,
+          headers: response.headers,
+          body,
+        });
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
