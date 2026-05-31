@@ -53,6 +53,22 @@ test("draft PR forbids mark-ready until current-head clean draft gate evidence e
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.MARK_READY_FOR_REVIEW));
 });
 
+test("stale gate markers do not report current-head contract completeness", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "def56789abcdef",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: true, headSha: "c94679e", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "c94679e", verdict: "clean", contractComplete: true }),
+  });
+
+  assert.equal(result.draftGate.currentHead, false);
+  assert.equal(result.draftGate.contractComplete, false);
+  assert.equal(result.draftGate.currentHeadClean, false);
+});
+
 test("ready PR with no review yet forbids pre-approval gate and requests Copilot review next", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,

@@ -65,7 +65,7 @@ function toGateStatus(comment, marker, currentHeadSha) {
     verdict: normalizedComment.verdict,
     findingsSummary: normalizedComment.findingsSummary,
     nextAction: normalizedComment.nextAction,
-    contractComplete: normalizedMarker.contractComplete,
+    contractComplete: normalizedMarker.visible && markerHeadMatches && normalizedMarker.contractComplete,
     currentHeadClean: normalizedMarker.visible && markerHeadMatches && normalizedMarker.verdict === "clean" && normalizedMarker.contractComplete,
   };
 }
