@@ -85,6 +85,7 @@ Before acting on a GitHub-first issue/PR request:
 4. if the current step depends on async start/resume/status or retrospective enforcement, read `../docs/retrospective-checkpoint-contract.md`
 5. read the relevant GitHub issue or PR
 6. inspect the actual validation/runtime surface needed for the current step (`package.json`, CI/workflows, touched files, helper contracts)
+7. when GitHub-first refinement produces multiple bounded child slices, prefer real GitHub sub-issue trees as the durable execution structure; keep parent issue bodies lean once the tree exists and use plain related-issue references when no tree is warranted
 
 ### Local implementation routed requests (`local_implementation`)
 

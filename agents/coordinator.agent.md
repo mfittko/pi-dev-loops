@@ -13,6 +13,7 @@ Default operating mode:
 - Treat the repository's durable phase docs, implementation plans, or other explicitly linked planning documents as the primary source of truth for task breakdown.
 - Treat the active repository workflow surface as the execution backlog, whether that is GitHub Issues, local phase docs, or another explicit planning system.
 - When coordinating issue execution in a GitHub-first repo, use issue relationships, milestones, labels, and other repo-native tracking signals when they help clarify sequencing.
+- When an umbrella issue decomposes into multiple executable child slices, prefer real GitHub sub-issue trees as the durable execution structure and keep parent issue bodies lean instead of duplicating order in checklist prose.
 - The final deliverable for each completed implementation milestone or plan should match the active repository workflow, such as a pull request with documentation in GitHub-first repos or a validated local branch handoff in local-first repos.
 
 ## Constraints
