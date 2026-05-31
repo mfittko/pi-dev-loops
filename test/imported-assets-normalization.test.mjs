@@ -129,19 +129,27 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
 });
 
 
-test("CI caches the Playwright WebKit runtime in a deterministic workspace-local path", async () => {
+test("CI gates the Playwright WebKit smoke behind inspect-run viewer change detection and runs it in a separate job", async () => {
   const [ciWorkflow, readme] = await Promise.all([
     readRepo(".github/workflows/ci.yml"),
     readRepo("README.md"),
   ]);
 
-  assert.match(ciWorkflow, /PLAYWRIGHT_BROWSERS_PATH:\s*\$\{\{\s*github\.workspace\s*\}\}\/\.cache\/ms-playwright/i);
-  assert.match(ciWorkflow, /actions\/cache@v4/i);
-  assert.match(ciWorkflow, /path:\s*\$\{\{\s*env\.PLAYWRIGHT_BROWSERS_PATH\s*\}\}/i);
-  assert.match(ciWorkflow, /key:\s*\$\{\{\s*runner\.os\s*\}\}-playwright-webkit-\$\{\{\s*hashFiles\('package-lock\.json'\)\s*\}\}/i);
-  assert.match(ciWorkflow, /npx playwright install --with-deps webkit/i);
+  assert.match(ciWorkflow, /^\s{2}changes:\s*$/m);
+  assert.match(ciWorkflow, /^\s{2}verify:\s*$/m);
+  assert.match(ciWorkflow, /^\s{2}viewer-smoke:\s*$/m);
+  assert.match(ciWorkflow, /fetch-depth:\s*0/i);
+  assert.match(ciWorkflow, /changes:[\s\S]*Set up Node\.js[\s\S]*node-version:\s*24/i);
+  assert.match(ciWorkflow, /GITHUB_OUTPUT="\$GITHUB_OUTPUT" node scripts\/loop\/inspect-run-viewer-ci-changes\.mjs \.inspect-run-viewer-changed-files\.txt/i);
+  assert.doesNotMatch(ciWorkflow, /inspect_run_viewer_relevant_paths_json/i);
+  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*needs:[\s\S]*- changes/i);
+  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*if:\s*needs\.changes\.outputs\.inspect_run_viewer\s*==\s*'true'/i);
+  assert.match(ciWorkflow, /viewer-smoke:[\s\S]*npm run test:playwright:viewer/i);
+  assert.match(ciWorkflow, /verify:[\s\S]*npm run verify/i);
 
-  assert.match(readme, /workspace-local Playwright WebKit runtime cache keyed by runner OS \+ `package-lock\.json`/i);
+  assert.match(readme, /workspace-local Playwright WebKit/i);
+  assert.match(readme, /small changed-files gate plus parallel `verify` and conditional `viewer-smoke` jobs/i);
+  assert.match(readme, /run only when files in the bounded inspect-run viewer surface change/i);
 });
 
 test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
