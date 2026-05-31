@@ -164,7 +164,7 @@ test("detect-reviewer-loop-state --input distinguishes draft lifecycle and inval
   }
 });
 
-test("detect-reviewer-loop-state --input distinguishes author-followup vs waiting-for-rerequest", async () => {
+test("detect-reviewer-loop-state --input treats submitted review as handoff and re-request as new pass", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reviewer-rerequest-"));
 
   try {
@@ -178,7 +178,7 @@ test("detect-reviewer-loop-state --input distinguishes author-followup vs waitin
       submittedReviewCommitSha: "abc",
     });
     const followup = await runNode(["--input", snapshotPath]);
-    assert.equal(JSON.parse(followup.stdout).state, "waiting_for_author_followup");
+    assert.equal(JSON.parse(followup.stdout).state, "submitted_review");
 
     await writeJson(snapshotPath, {
       prExists: true,
@@ -189,7 +189,7 @@ test("detect-reviewer-loop-state --input distinguishes author-followup vs waitin
       reviewRequested: false,
     });
     const waitingRerequest = await runNode(["--input", snapshotPath]);
-    assert.equal(JSON.parse(waitingRerequest.stdout).state, "waiting_for_re_request");
+    assert.equal(JSON.parse(waitingRerequest.stdout).state, "submitted_review");
 
     await writeJson(snapshotPath, {
       prExists: true,

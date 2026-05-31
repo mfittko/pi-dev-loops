@@ -295,7 +295,7 @@ test("buildInspectionMermaidGraph renders full authoritative Mermaid state machi
       reviewer: {
         currentState: "waiting_for_author_followup",
         scope: { mode: "all_reviewers", reviewerLogin: null },
-        allowedTransitions: ["waiting_for_re_request"],
+        allowedTransitions: ["review_requested"],
       },
       steering: { status: "unavailable", reason: "no_steering_locator" },
     },
@@ -317,7 +317,7 @@ test("buildInspectionMermaidGraph renders full authoritative Mermaid state machi
   assert.match(graph.definition, /next evaluation may resolve to any shown state/);
   assert.match(graph.definition, /class outer_loop_family_continue_current_wait,reviewer_layer_waiting_for_author_followup current;/);
   assert.match(graph.definition, /class copilot_layer_done currentTerminal;/);
-  assert.match(graph.definition, /class [^\n]*reviewer_layer_waiting_for_re_request next;/);
+  assert.match(graph.definition, /class [^\n]*reviewer_layer_review_requested next;/);
 });
 
 test("buildInspectionMermaidGraph covers every exported outer, Copilot, and reviewer state and edge", () => {

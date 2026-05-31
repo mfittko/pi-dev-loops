@@ -182,20 +182,20 @@ test("interpretReviewerLoopState lets current PR closure outrank stale local rev
     draftReviewPrepared: true,
     reviewRequested: false,
   });
-  assert.equal(submittedWinsOverPrepared.state, REVIEWER_STATE.WAITING_FOR_RE_REQUEST);
+  assert.equal(submittedWinsOverPrepared.state, REVIEWER_STATE.SUBMITTED_REVIEW);
 });
 
-test("interpretReviewerLoopState distinguishes waiting_for_author_followup and waiting_for_re_request", () => {
-  const waitingFollowup = interpretReviewerLoopState({
+test("interpretReviewerLoopState treats submitted review as handoff and starts new pass on explicit re-request", () => {
+  const submittedAtSameHead = interpretReviewerLoopState({
     prExists: true,
     prNumber: 17,
     prHeadSha: "abc",
     submittedReviewPresent: true,
     submittedReviewCommitSha: "abc",
   });
-  assert.equal(waitingFollowup.state, REVIEWER_STATE.WAITING_FOR_AUTHOR_FOLLOWUP);
+  assert.equal(submittedAtSameHead.state, REVIEWER_STATE.SUBMITTED_REVIEW);
 
-  const waitingReRequest = interpretReviewerLoopState({
+  const submittedAfterAuthorPush = interpretReviewerLoopState({
     prExists: true,
     prNumber: 17,
     prHeadSha: "def",
@@ -203,7 +203,7 @@ test("interpretReviewerLoopState distinguishes waiting_for_author_followup and w
     submittedReviewCommitSha: "abc",
     reviewRequested: false,
   });
-  assert.equal(waitingReRequest.state, REVIEWER_STATE.WAITING_FOR_RE_REQUEST);
+  assert.equal(submittedAfterAuthorPush.state, REVIEWER_STATE.SUBMITTED_REVIEW);
 
   const rerequested = interpretReviewerLoopState({
     prExists: true,

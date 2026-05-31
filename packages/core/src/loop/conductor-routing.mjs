@@ -141,12 +141,12 @@ const REVIEWER_ACTIVE = new Set([
   "draft_review_ready",
   "draft_review_posted",
   "waiting_for_user_submit",
-  "submitted_review",
   "review_invalidated",
 ]);
 
 // Reviewer wait states owned by the outer loop
 const REVIEWER_WAIT = new Set([
+  "submitted_review",
   "waiting_for_author_followup",
   "waiting_for_re_request",
 ]);

@@ -1538,7 +1538,7 @@ process.exit(1);
     });
     assert.equal(aggregate.code, 0, `stderr: ${aggregate.stderr}`);
     const aggregateOutput = JSON.parse(aggregate.stdout);
-    assert.equal(aggregateOutput.layers.reviewer.currentState, "waiting_for_author_followup");
+    assert.equal(aggregateOutput.layers.reviewer.currentState, "submitted_review");
     assert.equal(aggregateOutput.layers.reviewer.scope.mode, "all_reviewers");
     assert.equal(aggregateOutput.layers.reviewer.scope.reviewerLogin, null);
 
