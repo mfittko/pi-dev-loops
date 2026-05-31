@@ -129,19 +129,24 @@ test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices",
 });
 
 
-test("CI caches the Playwright WebKit runtime in a deterministic workspace-local path", async () => {
+test("CI gates the Playwright WebKit smoke behind inspect-run viewer change detection", async () => {
   const [ciWorkflow, readme] = await Promise.all([
     readRepo(".github/workflows/ci.yml"),
     readRepo("README.md"),
   ]);
 
+  assert.match(ciWorkflow, /fetch-depth:\s*0/i);
+  assert.match(ciWorkflow, /node scripts\/loop\/inspect-run-viewer-ci-changes\.mjs/i);
+  assert.match(ciWorkflow, /inspect_run_viewer_relevant_paths_json/i);
+  assert.match(ciWorkflow, /if:\s*steps\.inspect-run-viewer-scope\.outputs\.inspect_run_viewer\s*==\s*'true'[\s\S]*actions\/cache@v4/i);
+  assert.match(ciWorkflow, /if:\s*steps\.inspect-run-viewer-scope\.outputs\.inspect_run_viewer\s*==\s*'true'[\s\S]*npx playwright install --with-deps webkit/i);
+  assert.match(ciWorkflow, /if:\s*steps\.inspect-run-viewer-scope\.outputs\.inspect_run_viewer\s*==\s*'true'[\s\S]*npm run test:playwright:viewer/i);
+  assert.match(ciWorkflow, /No inspect-run viewer or Playwright-surface changes detected; skipping browser smoke\./i);
   assert.match(ciWorkflow, /PLAYWRIGHT_BROWSERS_PATH:\s*\$\{\{\s*github\.workspace\s*\}\}\/\.cache\/ms-playwright/i);
-  assert.match(ciWorkflow, /actions\/cache@v4/i);
-  assert.match(ciWorkflow, /path:\s*\$\{\{\s*env\.PLAYWRIGHT_BROWSERS_PATH\s*\}\}/i);
   assert.match(ciWorkflow, /key:\s*\$\{\{\s*runner\.os\s*\}\}-playwright-webkit-\$\{\{\s*hashFiles\('package-lock\.json'\)\s*\}\}/i);
-  assert.match(ciWorkflow, /npx playwright install --with-deps webkit/i);
 
   assert.match(readme, /workspace-local Playwright WebKit runtime cache keyed by runner OS \+ `package-lock\.json`/i);
+  assert.match(readme, /runs the explicit Playwright viewer smoke only when inspect-run viewer or Playwright-surface paths changed/i);
 });
 
 test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
