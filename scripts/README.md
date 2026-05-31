@@ -188,6 +188,7 @@ Contract:
   - `linked_pr_ready_for_followup`
 - uses `scripts/loop/detect-copilot-session-activity.mjs` on the linked PR head branch for Copilot-authored draft PRs
 - while `activity=active`, emits `copilot_session_active` regardless of commit/file-count heuristics
+- approval-gated `action_required` Copilot/Actions runs are treated as observational (non-active) for this bootstrap seam
 - for non-bootstrap linked PRs, falls back to the existing substantive PR heuristics when session activity is `idle` or `concluded`
 - if the session-activity check itself fails, the helper fails closed instead of pretending session state was unavailable
 - classifies `waiting_for_initial_copilot_implementation` only for the bounded bootstrap-only draft shape:
@@ -219,6 +220,7 @@ Contract:
 - classifies activity as:
   - `active` when a matching run is currently in progress
   - `concluded` when the most recent matching run is completed
+  - `concluded` (non-blocking observational) when a matching run is approval-gated in `action_required`
   - `idle` when no matching runs are found
 
 Failure behavior:
