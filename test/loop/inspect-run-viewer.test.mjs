@@ -985,6 +985,45 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
   assert.match(html, /copilot layer:[\s\S]*current <code>done<\/code>; done; full authoritative state machine shown; no allowed transitions/);
 });
 
+test("renderInspectRunViewerHtml keeps completed snapshots on the ready inbox signal", () => {
+  const doneSnapshot = makeSnapshot({
+    target: { repo: "owner/repo", pr: 56 },
+    outerState: "done_terminal",
+    outerAction: "done",
+    activeFamilyState: "done",
+    statusClass: "done",
+    needsAttention: false,
+    layers: {
+      copilot: {
+        currentState: "done",
+        allowedTransitions: [],
+        sameHeadCleanConverged: false,
+        loopDisposition: "done",
+        terminal: true,
+      },
+      reviewer: {
+        currentState: "waiting_for_review_request",
+        scope: { mode: "all_reviewers", reviewerLogin: null },
+        allowedTransitions: [],
+      },
+      steering: { status: "unavailable", reason: "no_steering_locator" },
+    },
+  });
+
+  const html = renderInspectRunViewerHtml({
+    repo: null,
+    target: { repo: "owner/repo", pr: 56 },
+    snapshot: doneSnapshot,
+    inboxItems: [
+      { target: { repo: "owner/repo", pr: 56 }, title: "fix: done signal", updatedAt: "2026-05-22T00:00:00Z", snapshot: doneSnapshot },
+    ],
+  });
+
+  assert.match(html, /assigned-pr-row assigned-pr-row-ready is-selected/);
+  assert.match(html, /data-inbox-signal="ready"/);
+  assert.doesNotMatch(html, /assigned-pr-row-gate/);
+});
+
 test("renderInspectRunViewerHtml requires explicit gate evidence before framing clean convergence as approval-ready", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",
