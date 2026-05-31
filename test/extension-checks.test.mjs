@@ -30,9 +30,9 @@ test("collectDevLoopChecks returns stable ordering and pass/fail detail", async 
       commandResults: new Map([
         ["command -v gh >/dev/null 2>&1", 0],
         ["gh auth status >/dev/null 2>&1", 0],
+        ["command -v subagent >/dev/null 2>&1", 0],
         ["git rev-parse --is-inside-work-tree >/dev/null 2>&1", 0],
       ]),
-      tools: [{ name: "subagent" }],
     }),
   );
 
@@ -41,7 +41,7 @@ test("collectDevLoopChecks returns stable ordering and pass/fail detail", async 
     [
       "gh-installed",
       "gh-auth",
-      "subagent-tool",
+      "subagent-command",
       "git-repo",
     ],
   );
@@ -69,15 +69,15 @@ test("collectDevLoopChecks distinguishes missing gh from missing gh auth", async
   assert.match(missingAuthChecks[1].detail, /gh auth login/);
 });
 
-test("collectDevLoopChecks uses Pi-discovered tools for discoverability checks", async () => {
+test("collectDevLoopChecks uses subagent command availability for discoverability checks", async () => {
   const checks = await collectDevLoopChecks(
     createFakePi({
-      tools: [{ name: "subagent" }],
+      commandResults: new Map([["command -v subagent >/dev/null 2>&1", 0]]),
     }),
   );
 
   const byId = Object.fromEntries(checks.map((check) => [check.id, check]));
-  assert.equal(byId["subagent-tool"].ok, true);
+  assert.equal(byId["subagent-command"].ok, true);
   assert.equal(checks.length, 4);
 });
 
@@ -95,4 +95,3 @@ test("summarizeChecks and renderCheckLines return stable human-readable output",
     "   Do the thing.",
   ]);
 });
-

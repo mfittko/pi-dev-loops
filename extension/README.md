@@ -34,7 +34,7 @@ Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exp
 The extension currently reports on:
 - `gh` installed
 - `gh` authenticated
-- `pi-subagents` available
+- `subagent` command available
 - inside a git repository
 
 Readiness and help messaging should lead with `dev-loop` as the single public workflow entrypoint. Internal compatibility seams may still exist for runtime/routing purposes, but the readiness surface should not present them as separate user-facing checks or workflow choices.

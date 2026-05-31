@@ -40,7 +40,7 @@ function createRuntime(overrides = {}) {
     async getSubagentAvailability() {
       return {
         ok: true,
-        availableDetail: "`pi-subagents` is available on PATH.",
+        availableDetail: "`subagent` command is available.",
         unavailableDetail: "missing subagent",
       };
     },
@@ -180,11 +180,11 @@ test("createCliRuntime probes PATH commands and git repositories without a login
   await writeFile(path.join(binDir, "gh"), `#!/bin/sh
 exit 0
 `);
-  await writeFile(path.join(binDir, "pi-subagents"), `#!/bin/sh
+  await writeFile(path.join(binDir, "subagent"), `#!/bin/sh
 exit 0
 `);
   await chmod(path.join(binDir, "gh"), 0o755);
-  await chmod(path.join(binDir, "pi-subagents"), 0o755);
+  await chmod(path.join(binDir, "subagent"), 0o755);
 
   const init = spawnSync("git", ["init", "-q"], {
     cwd: repoDir,
@@ -198,7 +198,7 @@ exit 0
     process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
 
     const runtime = createCliRuntime({ cwd: repoDir });
-    assert.equal(await runtime.commandExists("pi-subagents"), true);
+    assert.equal(await runtime.commandExists("subagent"), true);
     assert.equal(await runtime.ghAuthOk(), true);
     assert.equal(await runtime.insideGitRepo(), true);
   } finally {
@@ -218,7 +218,7 @@ test("createCliRuntime honors PATHEXT lookups when simulating Windows PATH resol
   const binDir = path.join(tempRoot, "bin");
   await mkdir(binDir, { recursive: true });
   await writeFile(path.join(binDir, "gh.EXE"), "");
-  await writeFile(path.join(binDir, "pi-subagents.CMD"), "");
+  await writeFile(path.join(binDir, "subagent.CMD"), "");
   await writeFile(path.join(binDir, "git"), "");
 
   try {
@@ -230,7 +230,7 @@ test("createCliRuntime honors PATHEXT lookups when simulating Windows PATH resol
     });
 
     assert.equal(await runtime.commandExists("gh"), true);
-    assert.equal(await runtime.commandExists("pi-subagents"), true);
+    assert.equal(await runtime.commandExists("subagent"), true);
     assert.equal(await runtime.commandExists("git"), false);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
@@ -258,4 +258,3 @@ test("CLI rejects removed update command", async () => {
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
-

@@ -17,7 +17,7 @@ function createRuntime(overrides = {}) {
     async getSubagentAvailability() {
       return {
         ok: true,
-        availableDetail: "`subagent` tool is available.",
+        availableDetail: "`subagent` command is available.",
         unavailableDetail: "missing subagent",
       };
     },
