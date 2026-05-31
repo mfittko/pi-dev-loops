@@ -27,7 +27,7 @@ Success output (stdout, JSON):
     "ok": true,
     "activity": "active"|"concluded"|"idle",
     "runId": 123456|null,
-    "runName": "...",
+    "runName": "..."|null,
     "runStatus": "queued"|"in_progress"|"pending"|"requested"|"waiting"|"action_required"|"completed"|null,
     "runConclusion": string|null,
     "runCreatedAt": "..."|null,
