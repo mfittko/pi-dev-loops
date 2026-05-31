@@ -17,7 +17,9 @@ Optional:
 
 Activity values:
   active      Matching Copilot workflow run is currently in progress
-  concluded   Most recent matching Copilot workflow run completed
+  concluded   Most recent matching Copilot workflow run completed, or the latest
+              matching run is approval-gated in "action_required" and should be
+              treated as a non-blocking observational signal
   idle        No matching Copilot workflow run found on this branch
 
 Success output (stdout, JSON):
@@ -26,8 +28,8 @@ Success output (stdout, JSON):
     "activity": "active"|"concluded"|"idle",
     "runId": 123456|null,
     "runName": "...",
-    "runStatus": "in_progress"|"completed"|null,
-    "runConclusion": "success"|null,
+    "runStatus": "queued"|"in_progress"|"pending"|"requested"|"waiting"|"action_required"|"completed"|null,
+    "runConclusion": "success"|"action_required"|null,
     "runCreatedAt": "..."|null,
     "branch": "...",
     "confidence": "high"
