@@ -1,8 +1,3 @@
-import {
-  EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
-  PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY,
-} from "./timeout-policy.mjs";
-
 /**
  * Public dev-loop façade routing contract.
  *
