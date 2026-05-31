@@ -88,6 +88,10 @@ CI currently runs `npm ci`, `npm run verify`, and the explicit Playwright viewer
 
 ## Where to read next
 
-- `docs/index.md` — start here for active docs and canonical-owner pointers
+- `docs/index.md` — docs start-here index for active docs, history, and presentations
+- `docs/IMPLEMENTATION_STATE.md` — current implementation snapshot and next local phase
+- `PLAN.md` — durable repo intent and roadmap
+- `docs/IMPLEMENTATION_WORKFLOW.md` — repo workflow contract and docs-sync rules
+- `skills/docs/public-dev-loop-contract.md` — public façade and routing contract
 - `extension/README.md` — `/dev-loops` command and package-install contract
 - `scripts/README.md` — deterministic script contracts

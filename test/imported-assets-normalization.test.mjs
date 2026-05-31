@@ -187,13 +187,12 @@ test("workflow docs keep helper/runtime authority code-owned and dev-loop scope 
   assert.match(devLoopSkill, /it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands/i);
 });
 
-test("README stays a landing page and lets docs/index own deeper doc navigation", async () => {
+test("README stays a landing page and defers live execution status to docs", async () => {
   const readme = await readRepo("README.md");
 
   assert.doesNotMatch(readme, /^## Current status$/im, "README should not become a second owner for the live execution snapshot");
   assert.match(readme, /docs\/index\.md/i, "README should point readers to the docs index");
-  assert.doesNotMatch(readme, /docs\/IMPLEMENTATION_STATE\.md/i, "README should not duplicate docs/index deep links for the implementation snapshot");
-  assert.doesNotMatch(readme, /docs\/IMPLEMENTATION_WORKFLOW\.md/i, "README should not duplicate docs/index deep links for workflow docs");
+  assert.match(readme, /docs\/IMPLEMENTATION_STATE\.md/i, "README should point readers to the implementation snapshot");
   assert.match(readme, /private, source-loaded workspace/i, "README should keep the repo posture concise without a separate status section");
 });
 
