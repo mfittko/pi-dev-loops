@@ -12,10 +12,11 @@ import {
 
 test("isInspectRunViewerRelevantPath matches the bounded inspect-run viewer smoke surface", () => {
   assert.equal(isInspectRunViewerRelevantPath(".github/workflows/ci.yml"), true);
-  assert.equal(isInspectRunViewerRelevantPath("package-lock.json"), true);
+  assert.equal(isInspectRunViewerRelevantPath("package.json"), true);
   assert.equal(isInspectRunViewerRelevantPath("scripts/loop/inspect-run-viewer/rendering.mjs"), true);
   assert.equal(isInspectRunViewerRelevantPath("scripts/loop/inspect-run-viewer-ci-changes.mjs"), true);
   assert.equal(isInspectRunViewerRelevantPath("test/playwright/inspect-run-viewer.spec.mjs"), true);
+  assert.equal(isInspectRunViewerRelevantPath("test/playwright/some-other-ui.spec.mjs"), false);
 
   assert.equal(isInspectRunViewerRelevantPath("README.md"), false);
   assert.equal(isInspectRunViewerRelevantPath("docs/index.md"), false);
@@ -30,8 +31,6 @@ test("classifyInspectRunViewerCiChanges only requests browser smoke when relevan
   ]);
   assert.equal(relevant.shouldRun, true);
   assert.deepEqual(relevant.relevantPaths, ["scripts/loop/inspect-run-viewer/server.mjs"]);
-  assert.deepEqual(relevant.ignoredPaths, ["README.md", "docs/index.md"]);
-
   const irrelevant = classifyInspectRunViewerCiChanges([
     "README.md",
     "docs/IMPLEMENTATION_WORKFLOW.md",
@@ -53,11 +52,12 @@ test("runCli emits github output entries for inspect-run viewer smoke gating", a
     ].join("\n"), "utf8");
 
     const result = await runCli([
-      "--paths-file",
       pathsFile,
-      "--github-output",
-      githubOutputFile,
     ], {
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: githubOutputFile,
+      },
       stdout: {
         write(chunk) {
           writes.push(String(chunk));
@@ -74,7 +74,6 @@ test("runCli emits github output entries for inspect-run viewer smoke gating", a
 
     const githubOutput = await readFile(githubOutputFile, "utf8");
     assert.match(githubOutput, /^inspect_run_viewer=true$/m);
-    assert.match(githubOutput, /^inspect_run_viewer_relevant_paths_json=\["playwright\.inspect-run-viewer\.config\.mjs"\]$/m);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       inspect_run_viewer: ${{ steps.inspect-run-viewer-scope.outputs.inspect_run_viewer }}
-      inspect_run_viewer_relevant_paths_json: ${{ steps.inspect-run-viewer-scope.outputs.inspect_run_viewer_relevant_paths_json }}
 
     steps:
       - name: Check out repository
@@ -27,20 +26,12 @@ jobs:
         run: |
           if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
             echo 'inspect_run_viewer=true' >> "$GITHUB_OUTPUT"
-            echo 'inspect_run_viewer_relevant_paths_json=[".github/workflows/ci.yml"]' >> "$GITHUB_OUTPUT"
             echo "No usable diff base detected; forcing inspect-run viewer smoke."
             exit 0
           fi
 
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > .inspect-run-viewer-changed-files.txt
-          node scripts/loop/inspect-run-viewer-ci-changes.mjs \
-            --paths-file .inspect-run-viewer-changed-files.txt \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Report inspect-run viewer smoke decision
-        run: |
-          echo "inspect-run viewer smoke required: ${{ steps.inspect-run-viewer-scope.outputs.inspect_run_viewer }}"
-          echo "matched paths: ${{ steps.inspect-run-viewer-scope.outputs.inspect_run_viewer_relevant_paths_json }}"
+          GITHUB_OUTPUT="$GITHUB_OUTPUT" node scripts/loop/inspect-run-viewer-ci-changes.mjs .inspect-run-viewer-changed-files.txt
 
   verify:
     runs-on: ubuntu-latest
@@ -79,11 +70,6 @@ jobs:
 
       - name: Install workspace dependencies
         run: npm ci
-
-      - name: Report inspect-run viewer smoke scope
-        run: |
-          echo "inspect-run viewer smoke required: ${{ needs.changes.outputs.inspect_run_viewer }}"
-          echo "matched paths: ${{ needs.changes.outputs.inspect_run_viewer_relevant_paths_json }}"
 
       - name: Restore Playwright WebKit runtime cache
         uses: actions/cache@v4
