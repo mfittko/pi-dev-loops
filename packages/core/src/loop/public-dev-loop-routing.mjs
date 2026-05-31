@@ -890,6 +890,7 @@ function buildStatusReconcile(
   nextAction = "Stop and reconcile the authoritative active artifact and current loop state before answering status.",
   executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
+  waitTimeoutPolicy = null,
   asyncRun = null,
 ) {
   return {
@@ -904,6 +905,7 @@ function buildStatusReconcile(
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
     executionMode,
     waitSemantics,
+    waitTimeoutPolicy,
     asyncRun,
     canonicalState,
   };
@@ -917,6 +919,7 @@ function buildStartupResumeBundleReconcile({
   nextAction = "Stop and reconcile the authoritative startup/resume state before routing or answering status.",
   executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
   waitSemantics = DEV_LOOP_WAIT_SEMANTICS.DEFAULT,
+  waitTimeoutPolicy = null,
   asyncRun = null,
 }) {
   return {
@@ -932,6 +935,7 @@ function buildStartupResumeBundleReconcile({
     selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.NONE,
     executionMode,
     waitSemantics,
+    waitTimeoutPolicy,
     asyncRun,
     canonicalState,
   };
@@ -1268,6 +1272,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       nextAction: effectiveRouted.nextAction,
       executionMode: effectiveRouted.executionMode,
       waitSemantics: effectiveRouted.waitSemantics,
+      waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
       asyncRun,
     });
   }
@@ -1298,6 +1303,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
         artifactState,
         executionMode: effectiveRouted.executionMode,
         waitSemantics: effectiveRouted.waitSemantics,
+        waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
         asyncRun,
       });
     }
@@ -1315,6 +1321,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     selectedStrategy: effectiveRouted.selectedStrategy,
     executionMode: effectiveRouted.executionMode,
     waitSemantics: effectiveRouted.waitSemantics,
+    waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
     asyncRun: effectiveRouted.executionMode === DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO ? asyncRun : null,
     issueAssignmentSeam: effectiveRouted.issueAssignmentSeam,
     nextAction: buildAuthoritativeStatusNextAction(effectiveRouted),
@@ -1332,6 +1339,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
       bundle.nextAction,
       bundle.executionMode,
       bundle.waitSemantics,
+      bundle.waitTimeoutPolicy,
       bundle.asyncRun,
     );
   }
@@ -1347,6 +1355,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     selectedStrategy: bundle.selectedStrategy,
     executionMode: bundle.executionMode,
     waitSemantics: bundle.waitSemantics,
+    waitTimeoutPolicy: bundle.waitTimeoutPolicy,
     asyncRun: bundle.asyncRun,
     issueAssignmentSeam: bundle.issueAssignmentSeam,
     canonicalState: bundle.canonicalState,
