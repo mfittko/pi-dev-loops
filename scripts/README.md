@@ -119,7 +119,7 @@ Required for all commands:
 Contract:
 - `add` resolves the child issue's internal GitHub id before calling the sub-issues REST endpoint
 - `reorder` first lists current sub-issues to validate all specified numbers are already in the tree, then issues sequential priority-update API calls
-- `verify` is read-only and always exits 0; `"verified": false` is a machine-readable signal, not a process failure
+- `verify` is read-only and exits 0 for mismatch-only results; `"verified": false` is a machine-readable signal, not a process failure. Argument errors and unexpected `gh`/runtime failures still exit non-zero
 - do not re-implement sub-issue management ad hoc or bypass this helper
 
 Success output shapes:
