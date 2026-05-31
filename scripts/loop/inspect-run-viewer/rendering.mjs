@@ -1441,7 +1441,7 @@ function renderInboxSidebar(items, selectedTarget, { scopeFilter = null, scopeOp
   });
   return `<aside class="assigned-pr-inbox" data-sidebar-collapsed="false">
     <div class="assigned-pr-inbox-header">
-      <h2>PR inbox</h2>
+      <h2>PR inspection dashboard</h2>
       <button type="button" class="inbox-collapse-toggle" data-inbox-toggle aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar">◀</button>
     </div>
     <div class="assigned-pr-controls">
@@ -1752,9 +1752,10 @@ export function renderInspectRunViewerHtml({
       <main class="inspection-main">
         ${target === null
           ? `<section class="current-pr-state-banner" aria-label="${escapeHtml(scopeLabel)} inbox state">
-              <h1>${escapeHtml(scopeLabel)} PR inbox</h1>
+              <h1>${escapeHtml(scopeLabel)} PR inspection dashboard</h1>
               <p class="current-pr-state-summary-headline">Choose a PR from the sidebar</p>
-              <p class="current-pr-state-detail">This viewer can span all assigned repos or be narrowed to one repo. The sidebar defaults to open PRs from the last 7 days and paginates through the result set.</p>
+              <p class="current-pr-state-detail">This local/operator dashboard is read-only. inspect-run remains authoritative for inspection/status state while this UI owns inbox discovery and presentation.</p>
+              <p class="current-pr-state-detail">The dashboard can span all assigned repos or be narrowed to one repo. The sidebar defaults to open PRs from the last 7 days and paginates through the result set.</p>
             </section>`
           : renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
         ${renderCollapsedDetailsPanel(`

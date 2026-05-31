@@ -7,7 +7,8 @@ export const USAGE = `Usage: inspect-run-viewer.mjs [--repo <owner/name>]
   [--steering-state-file <path>] [--reviewer-login <login>]
   [--copilot-input <path>] [--reviewer-input <path>]
 
-Single-run local browser viewer for the inspect-run read-only snapshot.
+Owned read-only local/operator inspection dashboard for inspect-run snapshots.
+inspect-run remains authoritative for inspection/status state; this viewer owns local inbox discovery and presentation only.
 Use ?pr=<number> and optionally ?repo=<owner/name> in the browser URL.
 
 Optional:

@@ -571,8 +571,8 @@ Failure behavior:
 
 ### `scripts/loop/inspect-run-viewer.mjs`
 
-Read-only single-run local browser viewer for the `inspect-run` outer-loop snapshot.
-This viewer is a downstream consumer of `inspect-run` and does not invent a second status model.
+Owned read-only local/operator inspection dashboard layered on `inspect-run`.
+`inspect-run` remains authoritative for inspection/status state; the viewer owns local inbox discovery and read-only presentation/prioritization.
 
 Optional:
 - `--repo <owner/name>` (repo-scope the inbox; otherwise the viewer starts in inbox-first mode)
@@ -586,10 +586,12 @@ Optional:
 - `--reviewer-input <path>` (pass-through to `inspect-run`; cannot be combined with `--reviewer-login`)
 
 Contract:
+- current-slice posture: kept/promoted as an explicitly owned local/operator inspection dashboard (not a second public workflow entrypoint)
 - read-only: no GitHub mutations, no checkpoint writes, no steering writes, no worker attachment
+- ownership boundary: `inspect-run` owns authoritative inspection/status state; viewer owns local inbox discovery plus read-only operator presentation/prioritization
 - local-viewer safety: default host remains loopback-only; non-loopback binds require explicit `--allow-non-localhost` because they may expose local inspection state on the network
 - GitHub-first launch boundary: repo scope is optional and PR selection happens through the viewer URL/query state, not a CLI `--pr` flag
-- uses one thin adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
+- uses one adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace
 - serves two explicit read-only endpoints:
   - `/` → operator-facing HTML with an assigned-PR inbox shell and, when a PR is selected via URL or sidebar, the Mermaid-first graph plus current-PR-state banner and supporting textual summary/evidence
