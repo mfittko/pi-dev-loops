@@ -1,18 +1,7 @@
+import { isCopilotLogin, normalizeTimestamp } from "../github/copilot-helpers.mjs";
+
 const ACTIVE_COPILOT_REVIEW_REQUEST_STATUSES = new Set(["requested", "already-requested"]);
 const SUBMITTED_REVIEW_STATES = new Set(["APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"]);
-
-function isCopilotLogin(login) {
-  return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
-}
-
-function normalizeTimestamp(value) {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    return null;
-  }
-
-  const time = Date.parse(value);
-  return Number.isFinite(time) ? time : null;
-}
 
 function normalizeReviewRequestEvents(events) {
   if (!Array.isArray(events)) {

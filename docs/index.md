@@ -32,5 +32,6 @@ Start here for repository documentation.
 
 ## Canonical-owner pointers
 
+- `docs/lib-vs-packages-core-boundary.md` — ownership boundary between `lib/`, `packages/core/`, and `scripts/_core-helpers.mjs`
 - `docs/outer-loop-state-graph.md` points to `docs/conductor-routing-contract.md`
 - `docs/tracker-first-mvp-state-graph.md` points to `docs/tracker-story-pr-contract.md`

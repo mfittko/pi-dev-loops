@@ -75,4 +75,4 @@ Root verification and test commands are intentionally explicit:
 
 ## Design rule
 
-Both wrappers should stay thin. Shared workflow mechanics should live in deterministic `lib/` modules and `scripts/`, not in extension-only or CLI-only command logic.
+Both wrappers should stay thin. Shared workflow mechanics should live in deterministic `packages/core/` modules and `scripts/`, not in extension-only or CLI-only command logic. Runtime command support that bridges both surfaces belongs in `lib/dev-loops-core.mjs`. See `docs/lib-vs-packages-core-boundary.md` for the full ownership rule.
