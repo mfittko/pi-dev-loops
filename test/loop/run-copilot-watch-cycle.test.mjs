@@ -268,6 +268,7 @@ test("runWatchCycle keeps shared loopDisposition and reports needs_followup in c
   assert.equal(result.cycleDisposition, "needs_followup");
   assert.equal(result.terminal, false);
   assert.equal(result.watchStatus, "changed");
+  assert.equal(result.contractTrace.stopReason.classification, "routed_followup");
 });
 
 test("runWatchCycle preserves unresolved_feedback loopDisposition for fix states without invoking the watcher", async () => {

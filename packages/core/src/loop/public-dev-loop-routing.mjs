@@ -635,7 +635,12 @@ function buildResult({
   };
 }
 
-function buildReconcile(reason, canonicalState = null, executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF) {
+function buildReconcile(
+  reason,
+  canonicalState = null,
+  executionMode = DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+  { watchRequested = false, contractTraceBoundary = null } = {},
+) {
   return buildResult({
     selectedGate: DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE,
     routeKind: DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE,
@@ -644,6 +649,8 @@ function buildReconcile(reason, canonicalState = null, executionMode = DEV_LOOP_
     canonicalState,
     nextAction: "Stop and reconcile the canonical current state before choosing an internal strategy.",
     reason,
+    watchRequested,
+    contractTraceBoundary,
   });
 }
 
@@ -678,6 +685,7 @@ function applyWatchValidation(result, watchRequested) {
     "watch requested but the routed result is not eligible for wait/watch semantics.",
     result.canonicalState,
     result.executionMode,
+    { watchRequested, contractTraceBoundary: refreshBoundary },
   );
 }
 
@@ -1517,7 +1525,7 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     );
   }
 
-  return {
+  const result = {
     statusKind: DEV_LOOP_STATUS_REPORT_KIND.RESOLVED,
     activeArtifact: bundle.activeArtifact,
     artifactState: bundle.artifactState,
@@ -1533,7 +1541,28 @@ export function resolveAuthoritativeDevLoopStatus(input = {}) {
     issueAssignmentSeam: bundle.issueAssignmentSeam,
     canonicalState: bundle.canonicalState,
     reason: bundle.reason,
-    contractTrace: bundle.contractTrace,
+  };
+
+  return {
+    ...result,
+    contractTrace: buildContractTrace({
+      selectedGate: result.selectedGate,
+      routeKind: result.routeKind,
+      selectedStrategy: result.selectedStrategy,
+      executionMode: result.executionMode,
+      waitSemantics: result.waitSemantics,
+      waitTimeoutPolicy: result.waitTimeoutPolicy,
+      canonicalState: result.canonicalState,
+      reason: result.reason,
+      boundary: {
+        boundaryKind: "authoritative_status_refresh",
+        refreshRequired: true,
+        refreshReason: "Status answers record the authoritative refreshed loop state that justified the reported state.",
+        loopState: result.loopState,
+        artifactState: result.artifactState,
+        issueLinkageResolution: bundle.issueLinkageResolution,
+      },
+    }),
   };
 }
 
@@ -1607,11 +1636,18 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     gateReviewEvidence,
   };
 
-  const finalizeRoutingResult = (result) => applyRetrospectiveCheckpointGate(
-    result,
-    retrospectiveCheckpointState,
-    retrospectiveCheckpointStateProvided,
-  );
+  const finalizeRoutingResult = (result) => {
+    const gated = applyRetrospectiveCheckpointGate(
+      result,
+      retrospectiveCheckpointState,
+      retrospectiveCheckpointStateProvided,
+    );
+
+    return withContractTrace(gated, {
+      watchRequested,
+      boundary: gated.contractTrace?.stateRefresh ?? result.contractTrace?.stateRefresh ?? null,
+    });
+  };
 
   if (!intent) {
     return buildReconcile("The public dev-loop intent is missing or unrecognized.", null, requestedExecutionMode);

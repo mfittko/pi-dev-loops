@@ -2120,6 +2120,8 @@ test("watch=true on inspect_state fails closed even when the underlying state is
   assert.equal(result.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
   assert.match(result.reason, /watch requested but the routed result is not eligible for wait\/watch semantics/i);
+  assert.equal(result.contractTrace.decision.watchRequested, true);
+  assert.equal(result.contractTrace.stateRefresh.boundaryKind, "post_watch_or_probe");
 });
 
 test("watch=true on a non-wait route fails closed", () => {
@@ -2620,6 +2622,24 @@ test("authoritative status preserves the retrospective gate nextAction", () => {
   assert.match(report.nextAction, /Complete or explicitly skip/i);
 });
 
+test("retrospective gate rewrites contract trace classification to reconcile", () => {
+  const result = evaluatePublicDevLoopRouting({
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_CURRENT,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 88 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    retrospectiveCheckpointState: RETROSPECTIVE_CHECKPOINT_STATE.MISSING,
+  });
+
+  assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+  assert.equal(result.contractTrace.stopReason.classification, DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.RECONCILE);
+  assert.equal(result.contractTrace.decision.selectedGate, DEV_LOOP_GATE.FAIL_CLOSED_RECONCILE);
+});
+
 test("authoritative startup/resume bundle carries refreshed wait-state trace context", () => {
   const bundle = resolveAuthoritativeStartupResumeBundle({
     currentState: {
@@ -2657,7 +2677,7 @@ test("authoritative status carries resolved wait-state trace context", () => {
 
   assert.equal(report.statusKind, DEV_LOOP_STATUS_REPORT_KIND.RESOLVED);
   assert.equal(report.contractTrace.decision.contractClassification, DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.HEALTHY_WAIT);
-  assert.equal(report.contractTrace.stateRefresh.boundaryKind, "startup_resume_refresh");
+  assert.equal(report.contractTrace.stateRefresh.boundaryKind, "authoritative_status_refresh");
   assert.equal(report.contractTrace.stateRefresh.loopState, "waiting_for_copilot_review");
   assert.equal(report.contractTrace.stateRefresh.artifactState, DEV_LOOP_ARTIFACT_STATE.OPEN);
 });

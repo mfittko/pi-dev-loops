@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION } from "../../packages/core/src/loop/public-dev-loop-routing.mjs";
 import { watchCopilotReview } from "../github/watch-copilot-review.mjs";
 import { runHandoff } from "./copilot-pr-handoff.mjs";
 import { detectCopilotSessionActivity } from "./detect-copilot-session-activity.mjs";
@@ -149,10 +150,12 @@ function buildWatchCycleContractTrace({
   workflowRunWatch = null,
 }) {
   const boundaryClassification = handoff.action !== "watch"
-    ? (handoff.terminal ? "terminal" : "followup_required")
+    ? (handoff.terminal
+      ? DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.TERMINAL
+      : DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.ROUTED_FOLLOWUP)
     : watchStatus === "changed"
-      ? "followup_required"
-      : "healthy_wait";
+      ? DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.ROUTED_FOLLOWUP
+      : DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION.HEALTHY_WAIT;
   return {
     handoff: {
       action: handoff.action,
