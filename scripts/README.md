@@ -417,6 +417,24 @@ Success output shape:
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
 - contradictory head-SHA requests or unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+- `pre_approval_gate` upserts fail closed when `detect-pr-gate-coordination-state.mjs` reports that `run_pre_approval_gate` is still illegal for the current head
+
+### `scripts/loop/detect-pr-gate-coordination-state.mjs`
+
+Fetches the live PR facts needed to answer which gate/transition is legal next for a pull request. It combines the shared Copilot loop-state machine with visible `draft_gate` / `pre_approval_gate` evidence, then emits one explicit gate boundary, allowed/forbidden next actions, and a single recommended next step. Use this before entering `pre_approval_gate` and when deciding whether a ready PR should request Copilot review, keep waiting, or stay in feedback resolution.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/repo", "pr": 266, "currentHeadSha": "...", "lifecycleState": "pr_ready_no_feedback", "loopDisposition": "action_required", "gateBoundary": "post_draft_external_review", "draftGate": { ... }, "preApprovalGate": { ... }, "allowedNextActions": [ ... ], "forbiddenActions": [ ... ], "nextAction": "request_copilot_review", "reason": "..." }`
+- `draftGate` / `preApprovalGate` report both latest visible evidence (`visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`) and whether the evidence is current-head + contract-complete (`currentHead`, `contractComplete`, `currentHeadClean`)
+- `forbiddenActions` includes `run_pre_approval_gate` whenever the post-draft review cycle has not yet settled for the current head
+
+Failure behavior:
+- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- `gh` failures and malformed `gh` JSON emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/github/detect-gate-review-evidence.mjs`
 
