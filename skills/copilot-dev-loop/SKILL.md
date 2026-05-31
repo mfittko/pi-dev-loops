@@ -324,6 +324,50 @@ Preflight verdicts:
 
 Before updating or assigning the issue, refine it asynchronously when practical. Keep issue refinement separate from the phase-scoped refiner used by the local implementation workflow.
 
+### Phase 3b — Epic decomposition with GitHub sub-issue trees
+
+When the work item is an umbrella/epic issue that must be decomposed into bounded child slices,
+use **real GitHub sub-issue trees** as the default durable output — not body checklists, not
+a manual follow-up linking step.
+
+Prefer real sub-issue linkage over parent-body checklists when a work tree is intended.
+A parent issue body should stay lean once the tree exists: keep scope, acceptance criteria, and
+non-goals there, but do **not** duplicate the ordered child list in the body.
+
+Full decomposition flow:
+
+1. refine umbrella issue framing (scope, acceptance criteria, non-goals)
+2. define bounded child slices — each slice must be independently closable
+3. create child issues with `gh issue create --repo <resolved-repo>`
+4. attach each child as a real sub-issue:
+   ```sh
+   node <resolved-skill-scripts>/github/manage-sub-issues.mjs add \
+     --repo <resolved-repo> --issue <parent-number> --child <child-number>
+   ```
+5. set execution order (highest priority first):
+   ```sh
+   node <resolved-skill-scripts>/github/manage-sub-issues.mjs reorder \
+     --repo <resolved-repo> --issue <parent-number> --order <n1,n2,...>
+   ```
+6. verify the resulting tree:
+   ```sh
+   node <resolved-skill-scripts>/github/manage-sub-issues.mjs verify \
+     --repo <resolved-repo> --issue <parent-number> --expected <n1,n2,...> [--ordered]
+   ```
+7. keep the parent issue body lean — sequencing and progress now live in the sub-issue tree
+
+To inspect the current tree at any time:
+```sh
+node <resolved-skill-scripts>/github/manage-sub-issues.mjs list \
+  --repo <resolved-repo> --issue <parent-number>
+```
+
+Do **not** re-implement sub-issue management ad hoc or bypass `manage-sub-issues.mjs`.
+Do **not** maintain a body checklist that duplicates the sub-issue tree.
+
+For the full `manage-sub-issues.mjs` contract, use `../../docs/sub-issue-tree-contract.md` when working in the `pi-dev-loops` source repository.
+For installed or normalized skill copies, read the same contract from the resolved skill docs directory instead of assuming the source checkout is present.
+
 ### Phase 4 — Copilot handoff and bootstrap wait
 
 Before updating the GitHub issue body, show the diff and get explicit confirmation.

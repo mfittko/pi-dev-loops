@@ -947,3 +947,41 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopPreApprovalGate, /raw passing test output/i);
   assert.match(devLoopPreApprovalGate, /truncate it to a deterministic retained-prefix length/i);
 });
+
+test("copilot-dev-loop skill documents epic decomposition with GitHub sub-issue trees", async () => {
+  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+
+  assert.match(skillContent, /GitHub sub-issue trees/i);
+  assert.match(skillContent, /Prefer real sub-issue linkage over parent-body checklists/i);
+  assert.match(skillContent, /parent issue body should stay lean/i);
+  assert.match(skillContent, /manage-sub-issues\.mjs add/i);
+  assert.match(skillContent, /manage-sub-issues\.mjs reorder/i);
+  assert.match(skillContent, /manage-sub-issues\.mjs verify/i);
+  assert.match(skillContent, /manage-sub-issues\.mjs list/i);
+  assert.match(skillContent, /Do \*\*not\*\* re-implement sub-issue management ad hoc or bypass `manage-sub-issues\.mjs`/i);
+  assert.match(skillContent, /Do \*\*not\*\* maintain a body checklist that duplicates the sub-issue tree/i);
+  assert.match(skillContent, /sub-issue-tree-contract\.md/i);
+  assert.match(skillContent, /\.\.\/\.\.\/docs\/sub-issue-tree-contract\.md/i);
+});
+
+test("sub-issue tree contract documents the workflow, helper commands, and lean-body rule", async () => {
+  const contractContent = await readRepo("docs/sub-issue-tree-contract.md");
+
+  assert.match(contractContent, /manage-sub-issues\.mjs/i);
+  assert.match(contractContent, /list/i);
+  assert.match(contractContent, /add/i);
+  assert.match(contractContent, /reorder/i);
+  assert.match(contractContent, /verify/i);
+  assert.match(contractContent, /Default decomposition flow[\s\S]*verify/i);
+  assert.match(contractContent, /verify.*mismatch-only.*exit 0|exits 0 for mismatch-only results/i);
+  assert.match(contractContent, /lean/i);
+  assert.match(contractContent, /do not maintain.*checklist.*duplicates|not.*maintain.*ordered checklist.*duplicates/i);
+  assert.match(contractContent, /When to use sub-issues vs plain related-issue references/i);
+  assert.match(contractContent, /dev-loop/i);
+});
+
+test("docs index references sub-issue-tree-contract.md", async () => {
+  const indexContent = await readRepo("docs/index.md");
+
+  assert.match(indexContent, /sub-issue-tree-contract\.md/i);
+});
