@@ -17,6 +17,7 @@ Required:
 
 States:
   no_linked_pr
+  prior_linked_pr_closed_unmerged
   copilot_session_active
   waiting_for_initial_copilot_implementation
   linked_pr_ready_for_followup
@@ -26,7 +27,7 @@ Success output (stdout, JSON):
     "ok": true,
     "repo": "owner/name",
     "issue": 59,
-    "state": "no_linked_pr"|"copilot_session_active"|"waiting_for_initial_copilot_implementation"|"linked_pr_ready_for_followup",
+    "state": "no_linked_pr"|"prior_linked_pr_closed_unmerged"|"copilot_session_active"|"waiting_for_initial_copilot_implementation"|"linked_pr_ready_for_followup",
     "prNumber": 79|null,
     "prUrl": "..."|null,
     "headBranch": "..."|null,
@@ -52,6 +53,7 @@ Error output (stderr, JSON):
 
 export const LINKED_PR_STATE = Object.freeze({
   NO_LINKED_PR: "no_linked_pr",
+  PRIOR_LINKED_PR_CLOSED_UNMERGED: "prior_linked_pr_closed_unmerged",
   COPILOT_SESSION_ACTIVE: "copilot_session_active",
   WAITING_FOR_INITIAL_COPILOT_IMPLEMENTATION: "waiting_for_initial_copilot_implementation",
   LINKED_PR_READY_FOR_FOLLOWUP: "linked_pr_ready_for_followup",
@@ -296,6 +298,30 @@ export async function detectInitialCopilotPrState({ repo, issue }, { env = proce
   const linked = await detectLinkedIssuePr({ repo, issue }, { env, ghCommand });
 
   if (!linked.hasOpenLinkedPr || linked.prNumber === null) {
+    if (linked.hasPriorClosedUnmergedPr) {
+      return {
+        ok: true,
+        repo,
+        issue,
+        state: LINKED_PR_STATE.PRIOR_LINKED_PR_CLOSED_UNMERGED,
+        prNumber: linked.priorClosedUnmergedPrNumber ?? null,
+        prUrl: linked.priorClosedUnmergedPrUrl ?? null,
+        headBranch: null,
+        authorLogin: null,
+        isDraft: null,
+        changedFiles: null,
+        commitCount: null,
+        soleCommitHeadline: null,
+        sessionActivity: null,
+        sessionRunId: null,
+        sessionRunName: null,
+        sessionRunStatus: null,
+        sessionRunConclusion: null,
+        sessionRunCreatedAt: null,
+        sessionConfidence: null,
+      };
+    }
+
     return {
       ok: true,
       repo,
