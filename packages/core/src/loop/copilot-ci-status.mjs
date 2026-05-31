@@ -1,10 +1,14 @@
 const VALID_HEAD_SCOPED_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
+const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
+const SUCCESS_CONCLUSIONS = new Set(["SUCCESS"]);
 
 function normalizeHeadScopedCiStatus(status) {
   return VALID_HEAD_SCOPED_CI_STATUSES.has(status) ? status : "none";
 }
 
 function buildCiContract(overallStatus) {
+  const isWaiting = overallStatus === "pending" || overallStatus === "none";
+
   return {
     overallStatus,
     rollup: {
@@ -14,8 +18,9 @@ function buildCiContract(overallStatus) {
       none: overallStatus === "none",
     },
     semantics: {
-      wait: overallStatus === "pending" || overallStatus === "none",
+      wait: isWaiting,
       blocked: overallStatus === "failure",
+      timeoutDisposition: isWaiting ? "remain_waiting" : "not_applicable",
     },
   };
 }
@@ -31,10 +36,9 @@ export function normalizeStatusCheckRollupStatus(rollup) {
     return "none";
   }
 
-  const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
-
   let hasPending = false;
   let hasFailure = false;
+  let hasSuccess = false;
 
   for (const check of rollup) {
     const status = typeof check?.status === "string" ? check.status.toUpperCase() : "";
@@ -47,12 +51,18 @@ export function normalizeStatusCheckRollupStatus(rollup) {
 
     if (status !== "COMPLETED") {
       hasPending = true;
+      continue;
+    }
+
+    if (SUCCESS_CONCLUSIONS.has(conclusion)) {
+      hasSuccess = true;
     }
   }
 
   if (hasFailure) return "failure";
   if (hasPending) return "pending";
-  return "success";
+  if (hasSuccess) return "success";
+  return "none";
 }
 
 /**
@@ -67,7 +77,6 @@ export function normalizeHeadScopedCheckRunsStatus(payload) {
     return "none";
   }
 
-  const FAILURE_CONCLUSIONS = new Set(["FAILURE", "ACTION_REQUIRED", "TIMED_OUT", "STARTUP_FAILURE"]);
   let hasPending = false;
   let hasFailure = false;
   let hasSuccess = false;
@@ -86,7 +95,9 @@ export function normalizeHeadScopedCheckRunsStatus(payload) {
       continue;
     }
 
-    hasSuccess = true;
+    if (SUCCESS_CONCLUSIONS.has(conclusion)) {
+      hasSuccess = true;
+    }
   }
 
   if (hasFailure) return "failure";
@@ -163,7 +174,7 @@ export function mergeHeadScopedCiStatuses(checkRunsStatus, commitStatus) {
  * @returns {{
  *  overallStatus: "success"|"failure"|"pending"|"none",
  *  rollup: { success: boolean, pending: boolean, failure: boolean, none: boolean },
- *  semantics: { wait: boolean, blocked: boolean }
+ *  semantics: { wait: boolean, blocked: boolean, timeoutDisposition: "remain_waiting"|"not_applicable" }
  * }}
  */
 export function normalizeStatusCheckRollupContract(rollup) {
@@ -180,7 +191,7 @@ export function normalizeStatusCheckRollupContract(rollup) {
  * @returns {{
  *  overallStatus: "success"|"failure"|"pending"|"none",
  *  rollup: { success: boolean, pending: boolean, failure: boolean, none: boolean },
- *  semantics: { wait: boolean, blocked: boolean }
+ *  semantics: { wait: boolean, blocked: boolean, timeoutDisposition: "remain_waiting"|"not_applicable" }
  * }}
  */
 export function normalizeHeadScopedCiContract({ checkRunsStatus = "none", commitStatus = "none" } = {}) {

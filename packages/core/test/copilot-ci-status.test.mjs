@@ -26,6 +26,7 @@ test("normalizeStatusCheckRollupContract emits shared wait semantics for missing
   assert.equal(contract.rollup.none, true);
   assert.equal(contract.semantics.wait, true);
   assert.equal(contract.semantics.blocked, false);
+  assert.equal(contract.semantics.timeoutDisposition, "remain_waiting");
 });
 
 test("normalizeHeadScopedCheckRunsStatus returns failure over pending for mixed check runs", () => {
@@ -39,14 +40,14 @@ test("normalizeHeadScopedCheckRunsStatus returns failure over pending for mixed 
   assert.equal(status, "failure");
 });
 
-test("normalizeHeadScopedCheckRunsStatus treats cancelled completed check runs as success", () => {
+test("normalizeHeadScopedCheckRunsStatus treats cancelled completed check runs as none", () => {
   const status = normalizeHeadScopedCheckRunsStatus({
     check_runs: [
       { status: "COMPLETED", conclusion: "CANCELLED" },
     ],
   });
 
-  assert.equal(status, "success");
+  assert.equal(status, "none");
 });
 
 test("normalizeHeadScopedCommitStatus returns failure when statuses include error", () => {
@@ -72,12 +73,14 @@ test("normalizeHeadScopedCiContract emits wait semantics for pending and none", 
   assert.equal(pending.rollup.pending, true);
   assert.equal(pending.semantics.wait, true);
   assert.equal(pending.semantics.blocked, false);
+  assert.equal(pending.semantics.timeoutDisposition, "remain_waiting");
 
   const none = normalizeHeadScopedCiContract({ checkRunsStatus: "none", commitStatus: "none" });
   assert.equal(none.overallStatus, "none");
   assert.equal(none.rollup.none, true);
   assert.equal(none.semantics.wait, true);
   assert.equal(none.semantics.blocked, false);
+  assert.equal(none.semantics.timeoutDisposition, "remain_waiting");
 });
 
 test("normalizeHeadScopedCiContract emits blocked semantics for failure", () => {
@@ -87,4 +90,5 @@ test("normalizeHeadScopedCiContract emits blocked semantics for failure", () => 
   assert.equal(blocked.rollup.failure, true);
   assert.equal(blocked.semantics.wait, false);
   assert.equal(blocked.semantics.blocked, true);
+  assert.equal(blocked.semantics.timeoutDisposition, "not_applicable");
 });

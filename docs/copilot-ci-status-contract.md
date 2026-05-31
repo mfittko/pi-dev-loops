@@ -32,6 +32,7 @@ The returned object always includes:
 - `rollup` (`success`/`failure`/`pending`/`none` booleans; exactly one true)
 - `semantics.wait` (`true` when `overallStatus` is `pending` or `none`)
 - `semantics.blocked` (`true` when `overallStatus` is `failure`)
+- `semantics.timeoutDisposition` (`remain_waiting` for `pending`/`none`; otherwise `not_applicable`)
 
 ## Deterministic precedence
 
@@ -40,5 +41,7 @@ The rollup precedence is fixed and policy-agnostic:
 2. `pending`
 3. `success`
 4. `none`
+
+A completed cancelled check does not count as a successful readiness signal by itself; cancelled-only snapshots normalize to `none` so CI-dependent gates do not advance on cancelled work.
 
 This keeps stale prose logic out of loop skills/docs; markdown should reference this contract instead of re-implementing CI/check interpretation rules.
