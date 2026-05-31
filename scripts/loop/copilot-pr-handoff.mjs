@@ -22,6 +22,15 @@
  *     "reviewRequestStatus"?: "...", "watchStatus"?: "...",
  *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
  *     "loopDisposition": "...", "terminal": true|false,
+ *     "requestWatchContract": {
+ *       "action": "watch"|"fix"|"stop",
+ *       "nextAction": "...",
+ *       "requestStatus": "requested"|"already-requested"|"unavailable"|"failed"|"none",
+ *       "routingState": "copilot_request_confirmed_waiting"|"ready_state_needs_copilot_request"|"draft_reset_requires_ready_state_reentry"|"non_ready_state",
+ *       "watchEntryConfirmed": true|false,
+ *       "watchArgs": { ... }|null,
+ *       "stopState"?: "unavailable"|"blocked"|"draft_requires_ready_state_reentry"|"no_automatic_next_step"
+ *     },
  *     "watchTimeoutPolicy"?: { "classification": "...", "minimumTimeoutMs": N, "defaultTimeoutMs": N },
  *     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
  *
@@ -65,6 +74,15 @@ Output (stdout, JSON):
     "reviewRequestStatus"?: "...", "watchStatus"?: "...",
     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
     "loopDisposition": "...", "terminal": true|false,
+    "requestWatchContract": {
+      "action": "watch"|"fix"|"stop",
+      "nextAction": "...",
+      "requestStatus": "requested"|"already-requested"|"unavailable"|"failed"|"none",
+      "routingState": "copilot_request_confirmed_waiting"|"ready_state_needs_copilot_request"|"draft_reset_requires_ready_state_reentry"|"non_ready_state",
+      "watchEntryConfirmed": true|false,
+      "watchArgs": { ... }|null,
+      "stopState"?: "unavailable"|"blocked"|"draft_requires_ready_state_reentry"|"no_automatic_next_step"
+    },
     "watchTimeoutPolicy"?: { "classification": "...", "minimumTimeoutMs": N, "defaultTimeoutMs": N },
     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
 
@@ -103,6 +121,49 @@ const FIX_STATES = new Set([
   STATE.UNRESOLVED_FEEDBACK_PRESENT,
   STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE,
 ]);
+
+function summarizeRequestWatchContract({
+  interpretation,
+  action,
+  requestStatus,
+  watchArgs,
+}) {
+  let routingState = "non_ready_state";
+
+  if (action === "watch" && (requestStatus === "requested" || requestStatus === "already-requested")) {
+    routingState = "copilot_request_confirmed_waiting";
+  } else if (interpretation.state === STATE.PR_DRAFT) {
+    routingState = "draft_reset_requires_ready_state_reentry";
+  } else if (
+    interpretation.state === STATE.PR_READY_NO_FEEDBACK
+    || interpretation.state === STATE.READY_TO_REREQUEST_REVIEW
+  ) {
+    routingState = "ready_state_needs_copilot_request";
+  }
+
+  let stopState;
+  if (action === "stop") {
+    if (interpretation.state === STATE.REVIEW_REQUEST_UNAVAILABLE) {
+      stopState = "unavailable";
+    } else if (interpretation.state === STATE.BLOCKED_NEEDS_USER_DECISION) {
+      stopState = "blocked";
+    } else if (interpretation.state === STATE.PR_DRAFT) {
+      stopState = "draft_requires_ready_state_reentry";
+    } else {
+      stopState = "no_automatic_next_step";
+    }
+  }
+
+  return {
+    action,
+    nextAction: interpretation.nextAction,
+    requestStatus,
+    routingState,
+    watchEntryConfirmed: action === "watch" && watchArgs !== undefined,
+    watchArgs: watchArgs ?? null,
+    stopState,
+  };
+}
 
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
@@ -271,6 +332,19 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       }),
     };
   }
+
+  const normalizedRequestStatus = effectiveReviewRequestStatus
+    ?? (snapshot.copilotReviewRequestStatus === "unavailable"
+      || snapshot.copilotReviewRequestStatus === "failed"
+      ? snapshot.copilotReviewRequestStatus
+      : "none");
+
+  result.requestWatchContract = summarizeRequestWatchContract({
+    interpretation,
+    action,
+    requestStatus: normalizedRequestStatus,
+    watchArgs: result.watchArgs,
+  });
 
   return result;
 }

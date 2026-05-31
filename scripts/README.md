@@ -243,18 +243,14 @@ Optional:
 - `--watch-status <changed|timeout|idle>` — refresh deterministic state after a prior watcher observation; this readback mode never requests review again
 
 Contract:
-- detects the current Copilot-loop state for the PR
-- requests Copilot review automatically for `pr_ready_no_feedback`
-- requests Copilot review automatically for `ready_to_rerequest_review` only when `autoRerequestEligible=true`
-- does not request or re-request Copilot review when `ciStatus` is `none`; that path remains gated as `waiting_for_ci`
-- suppresses automatic same-head clean re-request when `sameHeadCleanConverged=true`, unless `--force-rerequest-review` is used
-- when a review request is successfully issued or confirmed (including the explicit force path), re-interprets from the shared post-request wait-cycle snapshot and emits `action: "watch"` with exact `watchArgs`
-- when `--watch-status` is provided, treats the watcher result as observational only, refreshes GitHub state, and emits `loopDisposition` plus `terminal` so timeout/idle cannot be mistaken for clean completion
-- emits one machine-readable action: `watch`, `fix`, or `stop` (`stop` means no automatic next step; terminal, blocked, or operator-decision-required states all use this action)
-- when the action is `watch`, emits exact `watchArgs` for `watch-copilot-review.mjs` plus `watchTimeoutPolicy` describing the enforced external healthy-wait contract
+- this helper is the source of truth for normal request/re-request/watch routing on Copilot PR follow-up
+- emits deterministic `action` + `nextAction` + `reviewRequestStatus` and a helper-owned `requestWatchContract` envelope for status interpretation
+- enters watch only when request state is confirmed (`requested` or `already-requested`) and emits exact `watchArgs` + `watchTimeoutPolicy`
+- watch refresh (`--watch-status`) is observational-only; rely on refreshed `loopDisposition` + `terminal` to decide whether to continue or stop
+- explicit stop/blocked routing is machine-readable via `action: "stop"` plus `requestWatchContract.stopState`
 
 Success output shape:
-- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchStatus"?: "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false, "watchTimeoutPolicy"?: { "classification": "external_healthy_wait", "minimumTimeoutMs": 86400000, "defaultTimeoutMs": 86400000 }, "watchArgs"?: { ... } }`
+- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchStatus"?: "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false, "requestWatchContract": { "action": "...", "nextAction": "...", "requestStatus": "requested"|"already-requested"|"unavailable"|"failed"|"none", "routingState": "copilot_request_confirmed_waiting"|"ready_state_needs_copilot_request"|"draft_reset_requires_ready_state_reentry"|"non_ready_state", "watchEntryConfirmed": true|false, "watchArgs": { ... }|null, "stopState"?: "unavailable"|"blocked"|"draft_requires_ready_state_reentry"|"no_automatic_next_step" }, "watchTimeoutPolicy"?: { "classification": "external_healthy_wait", "minimumTimeoutMs": 86400000, "defaultTimeoutMs": 86400000 }, "watchArgs"?: { ... } }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
