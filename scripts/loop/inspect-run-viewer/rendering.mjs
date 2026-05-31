@@ -1754,7 +1754,7 @@ export function renderInspectRunViewerHtml({
           ? `<section class="current-pr-state-banner" aria-label="${escapeHtml(scopeLabel)} inbox state">
               <h1>${escapeHtml(scopeLabel)} PR inspection dashboard</h1>
               <p class="current-pr-state-summary-headline">Choose a PR from the sidebar</p>
-              <p class="current-pr-state-detail">This local/operator dashboard is read-only. inspect-run remains authoritative for inspection/status state while this UI owns inbox discovery and presentation.</p>
+              <p class="current-pr-state-detail">This local/operator dashboard is read-only. inspect-run remains authoritative for inspection/status state while this UI owns inbox discovery plus read-only presentation/prioritization.</p>
               <p class="current-pr-state-detail">The dashboard can span all assigned repos or be narrowed to one repo. The sidebar defaults to open PRs from the last 7 days and paginates through the result set.</p>
             </section>`
           : renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
