@@ -128,7 +128,7 @@ test("CI caches the Playwright WebKit runtime in a deterministic workspace-local
   assert.match(ciWorkflow, /key:\s*\$\{\{\s*runner\.os\s*\}\}-playwright-webkit-\$\{\{\s*hashFiles\('package-lock\.json'\)\s*\}\}/i);
   assert.match(ciWorkflow, /npx playwright install --with-deps webkit/i);
 
-  assert.match(readme, /workspace-local Playwright WebKit runtime cache keyed by `package-lock\.json`/i);
+  assert.match(readme, /workspace-local Playwright WebKit runtime cache keyed by runner OS \+ `package-lock\.json`/i);
 });
 
 test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
