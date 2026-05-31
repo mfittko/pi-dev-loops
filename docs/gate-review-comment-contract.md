@@ -59,6 +59,14 @@ Every gate-review PR comment must include:
   prefer labels like `Gate review`, `Reviewed head SHA`, `Verdict`, `Findings summary`, and `Next action`.
 - Preserve parser stability for gate name and reviewed head SHA; minor label wording is fine as long as those fields remain easy to extract deterministically.
 - When a gate pass reached `clean` only after corrective changes on the reviewed head, the findings summary should briefly say what gap was found, what changed, and why the current head now satisfies the gate.
+- Validation reporting in visible gate comments must stay concise by default:
+  include command names plus pass/fail status, aggregate counts when useful, and
+  current-head CI/check status when available — not raw passing log streams.
+- Any command output included in the visible comment must be truncated to a
+  deterministic retained-prefix length before comment creation; the rendered text may include a short truncation marker suffix.
+- When validation fails, include only a focused relevant excerpt rather than an
+  unbounded raw log dump; detailed logs may live in local/session artifacts or
+  linked GitHub logs instead of the visible audit comment.
 
 
 ## Behavior requirements

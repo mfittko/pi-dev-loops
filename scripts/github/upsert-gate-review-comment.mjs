@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
+import { truncateText } from "../../packages/core/src/bash-exit-one.mjs";
 import { parseRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { detectGateReviewEvidence } from "./detect-gate-review-evidence.mjs";
 
 const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
 const GATE_VERDICTS = new Set(["clean", "findings_present", "blocked"]);
+const MAX_GATE_COMMENT_TEXT_LENGTH = 280;
+const MAX_GATE_COMMENT_EXCERPT_LENGTH = 120;
 
 const USAGE = `Usage: upsert-gate-review-comment.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text>
 
@@ -68,7 +71,118 @@ function normalizeRequiredText(value, flag) {
   if (normalized.length === 0) {
     throw parseError(`${flag} must be a non-empty string`);
   }
-  return normalized;
+  if (flag === "--findings-summary") {
+    return summarizeGateReviewText(normalized);
+  }
+  return truncateText(collapseWhitespace(normalized), MAX_GATE_COMMENT_TEXT_LENGTH);
+}
+
+function collapseWhitespace(value) {
+  return String(value).replace(/\s+/gu, " ").trim();
+}
+
+function pushUnique(values, value) {
+  if (value.length > 0 && !values.includes(value)) {
+    values.push(value);
+  }
+}
+
+function formatValidationCounts(counts) {
+  const orderedKeys = ["tests", "pass", "fail", "skipped", "todo", "cancelled", "suites"];
+  const parts = orderedKeys
+    .filter((key) => Number.isInteger(counts[key]))
+    .map((key) => `${key}: ${counts[key]}`);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
+function buildVerboseValidationSummary(lines) {
+  const commands = [];
+  const counts = {};
+  let ciLine = null;
+  let failureExcerpt = null;
+  let sawPassedSignal = false;
+
+  for (const rawLine of lines) {
+    const line = collapseWhitespace(rawLine.replace(/^[*-]\s*/u, ""));
+    if (line.length === 0) {
+      continue;
+    }
+
+    const commandMatch = line.match(/^(?:>|\$)\s*(.+)$/u);
+    if (commandMatch) {
+      pushUnique(commands, collapseWhitespace(commandMatch[1]));
+      continue;
+    }
+
+    const countMatch = line.match(/^(?:ℹ\s*)?(tests|suites|pass|fail|cancelled|skipped|todo)\s*:?\s*(\d+)$/iu);
+    if (countMatch) {
+      counts[countMatch[1].toLowerCase()] = Number.parseInt(countMatch[2], 10);
+      continue;
+    }
+
+    if (
+      ciLine === null
+      && /\b(?:github\s+ci|ci|checks?|workflow)\b/i.test(line)
+      && /\b(?:pass(?:ed)?|green|success(?:ful)?|fail(?:ed)?|red|pending|blocked)\b/i.test(line)
+    ) {
+      ciLine = truncateText(line, MAX_GATE_COMMENT_EXCERPT_LENGTH);
+      continue;
+    }
+
+    if (
+      failureExcerpt === null
+      && (/^✖\s*/u.test(line) || /^FAIL\b/u.test(line) || /\b(?:AssertionError|TypeError|ReferenceError|SyntaxError)\b/u.test(line) || /\bError:/u.test(line))
+    ) {
+      failureExcerpt = truncateText(line.replace(/^✖\s*/u, ""), MAX_GATE_COMMENT_EXCERPT_LENGTH);
+      continue;
+    }
+
+    if (/\bpass(?:ed)?\b/i.test(line)) {
+      sawPassedSignal = true;
+    }
+  }
+
+  const parts = [];
+  if (commands.length > 0) {
+    parts.push(`commands: ${commands.join(", ")}`);
+  }
+
+  const countLine = formatValidationCounts(counts);
+  if (countLine) {
+    parts.push(countLine);
+  }
+
+  if (ciLine) {
+    parts.push(`ci: ${ciLine}`);
+  }
+
+  const sawStructuredSignal = commands.length > 0 || countLine !== null || ciLine !== null || failureExcerpt !== null;
+
+  if (failureExcerpt) {
+    parts.push(`failure excerpt: ${failureExcerpt}`);
+  } else if (Number.isInteger(counts.fail) && counts.fail > 0) {
+    parts.push("validation: failed");
+  } else if (!countLine && sawPassedSignal && sawStructuredSignal) {
+    parts.push("validation: passed");
+  }
+
+  return parts.length > 0 ? parts.join("; ") : null;
+}
+
+export function summarizeGateReviewText(value, limit = MAX_GATE_COMMENT_TEXT_LENGTH) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (normalized.length === 0) {
+    return "";
+  }
+
+  const flat = collapseWhitespace(normalized);
+  if (!/[\r\n]/u.test(normalized)) {
+    return truncateText(flat, limit);
+  }
+
+  const lines = normalized.split(/\r?\n/u);
+  const verboseSummary = buildVerboseValidationSummary(lines);
+  return truncateText(verboseSummary ?? flat, limit);
 }
 
 export function parseUpsertGateReviewCommentCliArgs(argv) {
@@ -157,7 +271,7 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
   return options;
 }
 
-function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction }) {
+export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction }) {
   return [
     `Gate review: ${gate}`,
     `Reviewed head SHA: ${headSha}`,

@@ -854,6 +854,12 @@ test("gate-review comment contract documents required fields, verdict values, re
   assert.match(contractContent, /idempotent/i);
   assert.match(contractContent, /new.head/i);
   assert.match(contractContent, /new.*comment|comment.*new/i);
+  assert.match(contractContent, /command names.*pass.fail status|pass.fail status.*command names/i);
+  assert.match(contractContent, /aggregate counts/i);
+  assert.match(contractContent, /CI\/check status|current.head CI/i);
+  assert.match(contractContent, /raw passing log streams|raw passing test output/i);
+  assert.match(contractContent, /deterministic retained-prefix length/i);
+  assert.match(contractContent, /focused relevant excerpt/i);
 
   // Findings-specific and fail-closed behavior
   assert.match(contractContent, /stays draft and fixes are required before retrying/i);
@@ -882,6 +888,9 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopDraftGate, /visible `clean` `draft_gate` gate-review comment exists for the current head SHA/i);
   assert.match(devLoopDraftGate, /post a new gate-review comment for the new head/i);
   assert.match(devLoopDraftGate, /does \*\*not\*\* satisfy `pre_approval_gate`|does not satisfy `pre_approval_gate`/i);
+  assert.match(devLoopDraftGate, /command names with pass.fail status/i);
+  assert.match(devLoopDraftGate, /raw passing test output/i);
+  assert.match(devLoopDraftGate, /truncate it to a deterministic retained-prefix length/i);
 
   const devLoopPreApprovalGateMatch = copilotDevLoopSkill.match(/### Pre-approval gate contract[\s\S]*?(?=\n### |\n## |$)/);
   const devLoopPreApprovalGate = devLoopPreApprovalGateMatch ? devLoopPreApprovalGateMatch[0] : "";
@@ -896,4 +905,7 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopPreApprovalGate, /must not rely only on local or hidden artifacts/i);
   assert.match(devLoopPreApprovalGate, /post a new gate-review comment for the new head/i);
   assert.match(devLoopPreApprovalGate, /does \*\*not\*\* replace the required `draft_gate` evidence|does not replace the required `draft_gate` evidence/i);
+  assert.match(devLoopPreApprovalGate, /command names with pass.fail status/i);
+  assert.match(devLoopPreApprovalGate, /raw passing test output/i);
+  assert.match(devLoopPreApprovalGate, /truncate it to a deterministic retained-prefix length/i);
 });
