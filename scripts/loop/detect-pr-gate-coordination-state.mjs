@@ -236,5 +236,5 @@ async function main() {
 }
 
 if (isDirectCliRun(import.meta.url)) {
-  main();
+  await main();
 }

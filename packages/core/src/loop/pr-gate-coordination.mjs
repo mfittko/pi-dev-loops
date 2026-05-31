@@ -182,6 +182,7 @@ export function evaluatePrGateCoordination(input = {}) {
       pushUnique(allowedNextActions, [PR_GATE_ACTION.MARK_READY_FOR_REVIEW]);
     }
     pushUnique(forbiddenActions, [
+      ...(draftGate.currentHeadClean ? [] : [PR_GATE_ACTION.MARK_READY_FOR_REVIEW]),
       PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
       PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
       PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,

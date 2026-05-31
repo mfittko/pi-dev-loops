@@ -32,9 +32,25 @@ test("draft PR only allows mark-ready after current-head clean draft gate eviden
   assert.equal(result.nextAction, PR_GATE_ACTION.MARK_READY_FOR_REVIEW);
   assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
   assert(result.allowedNextActions.includes(PR_GATE_ACTION.MARK_READY_FOR_REVIEW));
+  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.MARK_READY_FOR_REVIEW));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
   assert.equal(result.draftGate.currentHead, true);
   assert.equal(result.draftGate.currentHeadClean, true);
+});
+
+test("draft PR forbids mark-ready until current-head clean draft gate evidence exists", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 10,
+    currentHeadSha: "abc123456789",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: true, headSha: "old1111", verdict: "clean" }),
+    draftGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_DRAFT_GATE);
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.MARK_READY_FOR_REVIEW));
 });
 
 test("ready PR with no review yet forbids pre-approval gate and requests Copilot review next", () => {
