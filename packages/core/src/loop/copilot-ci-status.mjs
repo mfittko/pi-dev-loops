@@ -44,6 +44,7 @@ export function normalizeStatusCheckRollupStatus(rollup) {
   let hasPending = false;
   let hasFailure = false;
   let hasSuccess = false;
+  let hasUnsupportedCompleted = false;
 
   for (const check of rollup) {
     const state = typeof check?.state === "string" ? check.state.toUpperCase() : "";
@@ -75,11 +76,15 @@ export function normalizeStatusCheckRollupStatus(rollup) {
 
     if (SUCCESS_CONCLUSIONS.has(conclusion)) {
       hasSuccess = true;
+      continue;
     }
+
+    hasUnsupportedCompleted = true;
   }
 
   if (hasFailure) return "failure";
   if (hasPending) return "pending";
+  if (hasUnsupportedCompleted) return "none";
   if (hasSuccess) return "success";
   return "none";
 }
@@ -99,6 +104,7 @@ export function normalizeHeadScopedCheckRunsStatus(payload) {
   let hasPending = false;
   let hasFailure = false;
   let hasSuccess = false;
+  let hasUnsupportedCompleted = false;
 
   for (const run of runs) {
     const status = typeof run?.status === "string" ? run.status.toUpperCase() : "";
@@ -116,11 +122,15 @@ export function normalizeHeadScopedCheckRunsStatus(payload) {
 
     if (SUCCESS_CONCLUSIONS.has(conclusion)) {
       hasSuccess = true;
+      continue;
     }
+
+    hasUnsupportedCompleted = true;
   }
 
   if (hasFailure) return "failure";
   if (hasPending) return "pending";
+  if (hasUnsupportedCompleted) return "none";
   if (hasSuccess) return "success";
   return "none";
 }

@@ -37,6 +37,15 @@ test("normalizeStatusCheckRollupContract emits shared wait semantics for missing
   assert.equal(contract.semantics.timeoutDisposition, "remain_waiting");
 });
 
+test("normalizeStatusCheckRollupStatus keeps cancelled completed entries from being masked by success", () => {
+  const status = normalizeStatusCheckRollupStatus([
+    { status: "COMPLETED", conclusion: "SUCCESS" },
+    { status: "COMPLETED", conclusion: "CANCELLED" },
+  ]);
+
+  assert.equal(status, "none");
+});
+
 test("normalizeHeadScopedCheckRunsStatus returns failure over pending for mixed check runs", () => {
   const status = normalizeHeadScopedCheckRunsStatus({
     check_runs: [
@@ -74,6 +83,17 @@ test("normalizeHeadScopedCheckRunsStatus treats skipped completed check runs as 
   });
 
   assert.equal(status, "success");
+});
+
+test("normalizeHeadScopedCheckRunsStatus keeps cancelled completed runs from being masked by success", () => {
+  const status = normalizeHeadScopedCheckRunsStatus({
+    check_runs: [
+      { status: "COMPLETED", conclusion: "SUCCESS" },
+      { status: "COMPLETED", conclusion: "CANCELLED" },
+    ],
+  });
+
+  assert.equal(status, "none");
 });
 
 test("normalizeHeadScopedCommitStatus returns failure when statuses include error", () => {
