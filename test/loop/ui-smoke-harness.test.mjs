@@ -35,6 +35,11 @@ test('createWebkitSmokeConfig returns the minimal reusable WebKit smoke baseline
   assert.equal(config.projects[0].use.browserName, 'webkit');
 });
 
+test('createWebkitSmokeConfig rejects missing testMatch up front', () => {
+  assert.throws(() => createWebkitSmokeConfig({ sliceId: 'inspect-run-viewer' }), /testMatch must include at least one/i);
+  assert.throws(() => createWebkitSmokeConfig({ sliceId: 'inspect-run-viewer', testMatch: [] }), /testMatch must include at least one/i);
+});
+
 test('buildNamedUiStateArtifactPaths derives deterministic screenshot and state paths', () => {
   const paths = buildNamedUiStateArtifactPaths({
     outputDir: 'test-results/ui-smoke/inspect-run-viewer',
@@ -88,6 +93,28 @@ test('captureNamedUiState writes the deterministic screenshot and state artifact
     assert.equal(stateJson.artifacts.state.fileName, 'state.json');
     assert.equal(stateJson.metadata.fixture, 'makeInspectionSnapshot');
     assert.match(stateJson.capturedAt, /^\d{4}-\d{2}-\d{2}T/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('captureNamedUiState accepts an explicit outputDir without testInfo metadata', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ui-smoke-harness-explicit-'));
+
+  try {
+    const artifact = await captureNamedUiState({
+      page: {
+        async screenshot() {},
+      },
+      outputDir: tempDir,
+      sliceId: 'inspect-run-viewer',
+      stateName: 'Fallback only',
+    });
+
+    const stateJson = JSON.parse(await readFile(artifact.statePath, 'utf8'));
+    assert.equal(stateJson.projectName, null);
+    assert.equal(stateJson.testTitle, null);
+    assert.equal(stateJson.testFile, null);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

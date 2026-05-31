@@ -17,11 +17,26 @@ export function normalizeUiStateSegment(value) {
   return normalized;
 }
 
+function normalizeTestMatch(testMatch) {
+  const normalized = (Array.isArray(testMatch) ? testMatch : [testMatch]).filter((entry) => typeof entry === 'string' && entry.trim().length > 0);
+  if (normalized.length === 0) {
+    throw new Error('testMatch must include at least one non-empty spec pattern');
+  }
+  return normalized;
+}
+
+function requireOutputDir(outputDir) {
+  if (typeof outputDir !== 'string' || outputDir.trim().length === 0) {
+    throw new Error('A deterministic outputDir is required for named UI state artifacts');
+  }
+  return outputDir;
+}
+
 export function createWebkitSmokeConfig({ sliceId, testMatch, testDir = './test/playwright' }) {
   const normalizedSliceId = normalizeUiStateSegment(sliceId);
   return {
     testDir,
-    testMatch: Array.isArray(testMatch) ? testMatch : [testMatch],
+    testMatch: normalizeTestMatch(testMatch),
     timeout: 30_000,
     fullyParallel: false,
     retries: 0,
@@ -47,7 +62,7 @@ export function createWebkitSmokeConfig({ sliceId, testMatch, testDir = './test/
 export function buildNamedUiStateArtifactPaths({ outputDir, sliceId, stateName }) {
   const normalizedSliceId = normalizeUiStateSegment(sliceId);
   const stateSlug = normalizeUiStateSegment(stateName);
-  const artifactDir = path.join(outputDir, 'named-states', stateSlug);
+  const artifactDir = path.join(requireOutputDir(outputDir), 'named-states', stateSlug);
 
   return {
     sliceId: normalizedSliceId,
@@ -75,9 +90,9 @@ export async function captureNamedUiState({ page, testInfo, sliceId, stateName, 
     stateName,
     stateSlug: paths.stateSlug,
     capturedAt: new Date().toISOString(),
-    projectName: testInfo.project?.name ?? null,
-    testTitle: testInfo.title ?? null,
-    testFile: testInfo.file ?? null,
+    projectName: testInfo?.project?.name ?? null,
+    testTitle: testInfo?.title ?? null,
+    testFile: testInfo?.file ?? null,
     artifacts: {
       screenshot: {
         fileName: path.basename(paths.screenshotPath),
