@@ -329,6 +329,25 @@ test("computeVerifyResult returns verified:false when an unexpected sub-issue is
   assert.deepEqual(result.unexpected, [99]);
 });
 
+
+test("computeVerifyResult reports duplicate actual sub-issues as unexpected", () => {
+  const result = computeVerifyResult({
+    repo: "owner/repo",
+    issue: 42,
+    expected: [10, 11],
+    ordered: false,
+    subIssues: [
+      { number: 10, title: "A", state: "open", id: 1001 },
+      { number: 11, title: "B", state: "open", id: 1002 },
+      { number: 11, title: "B duplicate", state: "open", id: 1003 },
+    ],
+  });
+
+  assert.equal(result.verified, false);
+  assert.deepEqual(result.missing, []);
+  assert.deepEqual(result.unexpected, [11]);
+});
+
 test("computeVerifyResult with --ordered: verified:false when order is wrong", () => {
   const result = computeVerifyResult({
     repo: "owner/repo",

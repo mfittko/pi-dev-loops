@@ -374,11 +374,33 @@ export async function runReorder({ repo, issue, order }, { env = process.env, gh
 
 export function computeVerifyResult({ repo, issue, expected, ordered, subIssues }) {
   const actualNumbers = subIssues.map((si) => si.number);
-  const expectedSet = new Set(expected);
-  const actualSet = new Set(actualNumbers);
+  const expectedCounts = new Map();
+  const actualCounts = new Map();
 
-  const missing = expected.filter((n) => !actualSet.has(n));
-  const unexpected = actualNumbers.filter((n) => !expectedSet.has(n));
+  for (const number of expected) {
+    expectedCounts.set(number, (expectedCounts.get(number) ?? 0) + 1);
+  }
+
+  for (const number of actualNumbers) {
+    actualCounts.set(number, (actualCounts.get(number) ?? 0) + 1);
+  }
+
+  const allNumbers = new Set([...expectedCounts.keys(), ...actualCounts.keys()]);
+  const missing = [];
+  const unexpected = [];
+
+  for (const number of allNumbers) {
+    const expectedCount = expectedCounts.get(number) ?? 0;
+    const actualCount = actualCounts.get(number) ?? 0;
+
+    if (actualCount < expectedCount) {
+      missing.push(...Array(expectedCount - actualCount).fill(number));
+    }
+
+    if (actualCount > expectedCount) {
+      unexpected.push(...Array(actualCount - expectedCount).fill(number));
+    }
+  }
 
   if (missing.length > 0 || unexpected.length > 0) {
     return {
@@ -395,8 +417,7 @@ export function computeVerifyResult({ repo, issue, expected, ordered, subIssues 
   }
 
   if (ordered) {
-    const expectedInActualOrder = actualNumbers.filter((n) => expectedSet.has(n));
-    const orderMismatch = !expected.every((n, i) => expectedInActualOrder[i] === n);
+    const orderMismatch = !expected.every((number, index) => actualNumbers[index] === number);
 
     if (orderMismatch) {
       return {
