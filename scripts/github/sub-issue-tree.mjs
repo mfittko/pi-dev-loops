@@ -242,7 +242,17 @@ function parseCommaSeparatedIssueNumbers(value) {
     throw parseError("--expect-children must include at least one issue number");
   }
 
-  return tokens.map((token) => parsePositiveInt("--expect-children", token));
+  const numbers = tokens.map((token) => parsePositiveInt("--expect-children", token));
+  const seen = new Set();
+
+  for (const number of numbers) {
+    if (seen.has(number)) {
+      throw parseError(`--expect-children must not include duplicate issue number ${number}`);
+    }
+    seen.add(number);
+  }
+
+  return numbers;
 }
 
 export function parseSubIssueTreeCliArgs(argv) {
@@ -447,7 +457,8 @@ async function runGhJson(args, env) {
 
   if (result.code !== 0) {
     const stderr = result.stderr.trim();
-    throw new Error(stderr.length > 0 ? stderr : `gh exited with code ${result.code}`);
+    const detail = stderr.length > 0 ? stderr : `gh exited with code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
   }
 
   return parseJsonText(result.stdout);

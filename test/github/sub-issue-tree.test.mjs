@@ -217,6 +217,19 @@ test("parseSubIssueTreeCliArgs rejects malformed reprioritize arguments", () => 
     ]),
     /requires exactly one of --after <number> or --before <number>/i,
   );
+
+  assert.throws(
+    () => parseSubIssueTreeCliArgs([
+      "verify",
+      "--repo",
+      "owner/repo",
+      "--parent",
+      "97",
+      "--expect-children",
+      "123,123",
+    ]),
+    /duplicate issue number/i,
+  );
 });
 
 test("compareExpectedSubIssueTree reports exact-order mismatches", () => {
@@ -311,6 +324,32 @@ test("sub-issue-tree inspect paginates and returns normalized tree output", asyn
 });
 
 
+
+
+
+test("sub-issue-tree wraps gh failures with a stable prefix", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-sub-issue-tree-gh-failure-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "graphql", "owner=owner", "name=repo", "parent=97"],
+        stderr: "api down\n",
+        exitCode: 42,
+      },
+    ]);
+
+    const result = await runNode(["inspect", "--repo", "owner/repo", "--issue", "97"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /gh command failed: api down/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 
 test("sub-issue-tree inspect reports a missing parent issue clearly", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-sub-issue-tree-missing-parent-"));
