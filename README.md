@@ -91,3 +91,4 @@ CI currently splits into a small changed-files gate plus parallel `verify` and c
 - `docs/index.md` — start here for active docs and canonical-owner pointers
 - `extension/README.md` — `/dev-loops` command and package-install contract
 - `scripts/README.md` — deterministic script contracts
+- `docs/ui-smoke-harness.md` — reusable local Playwright/WebKit smoke baseline for opted-in UI slices
