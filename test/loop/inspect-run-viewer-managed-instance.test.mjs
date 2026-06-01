@@ -444,3 +444,18 @@ test('status treats a record with a non-integer pid as stale_record', async () =
   assert.equal(status.state, 'stale_record');
   assert.match(status.detail, /delete/i);
 });
+
+test('open fails with a clear error when the launch seam does not return a positive integer pid', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-invalid-launch-pid-'));
+  const manager = createInspectRunViewerLifecycleManager({
+    async listListeningPidsImpl() {
+      return [];
+    },
+    async launchManagedServerImpl() {
+      return { pid: undefined };
+    },
+    async openBrowserImpl() {},
+  });
+
+  await assert.rejects(manager.open({ repoRoot }), /positive integer pid/i);
+});

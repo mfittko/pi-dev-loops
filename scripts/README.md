@@ -640,6 +640,7 @@ The extension-managed seam stores one narrow repo-local managed-instance record 
 
 Ownership split for this slice:
 - extension owns lifecycle UX, URL discovery, liveness checks, reattach logic, stop/restart, and best-effort browser opening
+- when a repo-scoped command reuses an inbox-first managed viewer, the surfaced URL may include `?scope=<owner/name>` to pre-scope the inbox without replacing the managed instance
 - viewer script still owns HTTP server behavior, rendering, inbox/query behavior, and snapshot loading
 
 Optional:

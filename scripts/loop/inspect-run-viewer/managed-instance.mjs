@@ -128,14 +128,19 @@ async function defaultLaunchManagedServer({ repoRoot, repo, host, port }) {
   if (repo !== null) {
     args.push('--repo', repo);
   }
-  const child = spawn(process.execPath, args, {
-    cwd: repoRoot,
-    detached: true,
-    stdio: 'ignore',
-    env: process.env,
+  return await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      cwd: repoRoot,
+      detached: true,
+      stdio: 'ignore',
+      env: process.env,
+    });
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve({ pid: child.pid });
+    });
   });
-  child.unref();
-  return { pid: child.pid };
 }
 
 async function defaultStopManagedProcess(pid) {
@@ -335,6 +340,9 @@ export function createInspectRunViewerLifecycleManager({
       port: launchArgs.port,
       url: baseUrl,
     });
+    if (!Number.isInteger(pid) || pid <= 0) {
+      throw new Error('inspect-run viewer launch must return a positive integer pid');
+    }
     const record = buildRecordPayload({ repoRoot, launchArgs, pid, startedAt: nowImpl() });
 
     try {
