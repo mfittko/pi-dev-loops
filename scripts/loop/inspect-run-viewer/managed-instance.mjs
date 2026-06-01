@@ -227,7 +227,7 @@ async function stopManagedProcessSafely(pid, { stopManagedProcessImpl }) {
 
 async function waitForManagedExit(record, { isProcessAliveImpl, listListeningPidsImpl: listListeningPids, waitImpl, nowMsImpl, timeoutMs = 3000, pollIntervalMs = 100 }) {
   if (!record?.pid) {
-    return;
+    return true;
   }
   const deadline = nowMsImpl() + timeoutMs;
   while (nowMsImpl() < deadline) {
@@ -236,10 +236,27 @@ async function waitForManagedExit(record, { isProcessAliveImpl, listListeningPid
       listListeningPids(record.port ?? DEFAULT_PORT),
     ]);
     if (!alive && !listeners.includes(record.pid)) {
-      return;
+      return true;
     }
     await waitImpl(pollIntervalMs);
   }
+
+  const [alive, listeners] = await Promise.all([
+    isProcessAliveImpl(record.pid),
+    listListeningPids(record.port ?? DEFAULT_PORT),
+  ]);
+  return !alive && !listeners.includes(record.pid);
+}
+
+function buildFailedStopResult({ record, recordPath, detail }) {
+  return {
+    state: 'stale_record',
+    url: baseUrlForRecord(record),
+    detail,
+    warning: null,
+    recordPath,
+    record,
+  };
 }
 
 function summarizeRunning(record, requestedRepo) {
@@ -433,24 +450,48 @@ export function createInspectRunViewerLifecycleManager({
 
       if (snapshot.state === 'running' && snapshot.record) {
         await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
-        await waitForManagedExit(snapshot.record, {
+        const exited = await waitForManagedExit(snapshot.record, {
           isProcessAliveImpl,
           listListeningPidsImpl: listListeningPids,
           waitImpl,
           nowMsImpl,
         });
+        if (!exited) {
+          return {
+            ...buildFailedStopResult({
+              record: snapshot.record,
+              recordPath: snapshot.recordPath,
+              detail: 'Managed inspect-run viewer did not stop after SIGTERM; keeping the managed record instead of replacing it.',
+            }),
+            startedFresh: false,
+            reusedExisting: false,
+            resumedExisting: false,
+          };
+        }
         await removeManagedRecord(snapshot.recordPath);
       } else if (snapshot.state === 'stale_record') {
         if (snapshot.record?.pid
           && snapshot.listeners.includes(snapshot.record.pid)
           && await isProcessAliveImpl(snapshot.record.pid)) {
           await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
-          await waitForManagedExit(snapshot.record, {
+          const exited = await waitForManagedExit(snapshot.record, {
             isProcessAliveImpl,
             listListeningPidsImpl: listListeningPids,
             waitImpl,
             nowMsImpl,
           });
+          if (!exited) {
+            return {
+              ...buildFailedStopResult({
+                record: snapshot.record,
+                recordPath: snapshot.recordPath,
+                detail: 'Managed inspect-run viewer stayed bound to the port after SIGTERM; keeping the stale record for manual cleanup.',
+              }),
+              startedFresh: false,
+              reusedExisting: false,
+              resumedExisting: false,
+            };
+          }
         }
         await removeManagedRecord(snapshot.recordPath);
       }
@@ -521,12 +562,19 @@ export function createInspectRunViewerLifecycleManager({
       const snapshot = await inspectRecord({ repoRoot });
       if (snapshot.state === 'running' && snapshot.record && canServeRequestedRepo(snapshot.record, requestedRepo)) {
         await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
-        await waitForManagedExit(snapshot.record, {
+        const exited = await waitForManagedExit(snapshot.record, {
           isProcessAliveImpl,
           listListeningPidsImpl: listListeningPids,
           waitImpl,
           nowMsImpl,
         });
+        if (!exited) {
+          return buildFailedStopResult({
+            record: snapshot.record,
+            recordPath: snapshot.recordPath,
+            detail: 'Managed inspect-run viewer did not stop after SIGTERM; keeping the managed record.',
+          });
+        }
         await removeManagedRecord(snapshot.recordPath);
         const listeners = await listListeningPids(snapshot.record.port ?? DEFAULT_PORT);
         if (listeners.length > 0) {
@@ -561,6 +609,24 @@ export function createInspectRunViewerLifecycleManager({
       }
 
       if (snapshot.state === 'stale_record') {
+        if (snapshot.record?.pid
+          && snapshot.listeners.includes(snapshot.record.pid)
+          && await isProcessAliveImpl(snapshot.record.pid)) {
+          await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
+          const exited = await waitForManagedExit(snapshot.record, {
+            isProcessAliveImpl,
+            listListeningPidsImpl: listListeningPids,
+            waitImpl,
+            nowMsImpl,
+          });
+          if (!exited) {
+            return buildFailedStopResult({
+              record: snapshot.record,
+              recordPath: snapshot.recordPath,
+              detail: 'Managed inspect-run viewer stayed bound to the port after SIGTERM; keeping the stale record for manual cleanup.',
+            });
+          }
+        }
         await removeManagedRecord(snapshot.recordPath);
         const listeners = await listListeningPids(snapshot.record?.port ?? DEFAULT_PORT);
         return {
@@ -602,14 +668,39 @@ export function createInspectRunViewerLifecycleManager({
           };
         }
         await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
-        await waitForManagedExit(snapshot.record, {
+        const exited = await waitForManagedExit(snapshot.record, {
           isProcessAliveImpl,
           listListeningPidsImpl: listListeningPids,
           waitImpl,
           nowMsImpl,
         });
+        if (!exited) {
+          return buildFailedStopResult({
+            record: snapshot.record,
+            recordPath: snapshot.recordPath,
+            detail: 'Managed inspect-run viewer did not stop after SIGTERM; keeping the managed record instead of restarting it.',
+          });
+        }
         await removeManagedRecord(snapshot.recordPath);
       } else if (snapshot.state === 'stale_record') {
+        if (snapshot.record?.pid
+          && snapshot.listeners.includes(snapshot.record.pid)
+          && await isProcessAliveImpl(snapshot.record.pid)) {
+          await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
+          const exited = await waitForManagedExit(snapshot.record, {
+            isProcessAliveImpl,
+            listListeningPidsImpl: listListeningPids,
+            waitImpl,
+            nowMsImpl,
+          });
+          if (!exited) {
+            return buildFailedStopResult({
+              record: snapshot.record,
+              recordPath: snapshot.recordPath,
+              detail: 'Managed inspect-run viewer stayed bound to the port after SIGTERM; keeping the stale record for manual cleanup.',
+            });
+          }
+        }
         await removeManagedRecord(snapshot.recordPath);
       } else if (snapshot.state === 'conflict_unmanaged_listener') {
         return {

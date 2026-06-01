@@ -659,6 +659,7 @@ Contract:
 - read-only: no GitHub mutations, no checkpoint writes, no steering writes, no worker attachment
 - ownership boundary: `inspect-run` owns authoritative inspection/status state; viewer owns local inbox discovery plus read-only operator presentation/prioritization
 - extension-managed lifecycle remains loopback-first and local-only; no remote/public hosting support
+- the script fallback still requires explicit `--allow-non-localhost` opt-in for non-loopback binds; do not expose inspection state on the network by default
 - GitHub-first launch boundary: repo scope is optional and PR selection happens through the viewer URL/query state, not a CLI `--pr` flag
 - uses one adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace

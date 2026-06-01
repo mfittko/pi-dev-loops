@@ -19,6 +19,7 @@ function createManager(overrides = {}) {
   let nextPid = 4000;
 
   const manager = createInspectRunViewerLifecycleManager({
+  // standard happy-path manager used by the bounded lifecycle tests
     nowImpl: () => '2026-06-01T12:00:00.000Z',
     async listListeningPidsImpl(port) {
       return [...(listenersByPort.get(port) ?? [])];
@@ -58,6 +59,58 @@ function createManager(overrides = {}) {
     browserOpens,
     launches,
     stopped,
+  };
+}
+
+
+function createStubbornManagedProcessManager() {
+  let nextPid = 7000;
+  let listenerPid = null;
+  let nowMs = 0;
+  const alive = new Set();
+  const healthy = new Set();
+  const launches = [];
+  const stopCalls = [];
+
+  const manager = createInspectRunViewerLifecycleManager({
+    nowImpl: () => '2026-06-01T12:00:00.000Z',
+    nowMsImpl: () => nowMs,
+    async waitImpl(ms = 0) {
+      nowMs += ms || 100;
+    },
+    async listListeningPidsImpl() {
+      return listenerPid === null ? [] : [listenerPid];
+    },
+    async isProcessAliveImpl(pid) {
+      return alive.has(pid);
+    },
+    async healthcheckUrlImpl() {
+      return listenerPid !== null && alive.has(listenerPid) && healthy.has(listenerPid);
+    },
+    async launchManagedServerImpl({ repoRoot, repo, host, port, url }) {
+      const pid = nextPid++;
+      listenerPid = pid;
+      alive.add(pid);
+      healthy.add(pid);
+      launches.push({ repoRoot, repo, host, port, url, pid });
+      return { pid };
+    },
+    async stopManagedProcessImpl(pid) {
+      stopCalls.push(pid);
+    },
+    async openBrowserImpl() {},
+  });
+
+  return {
+    manager,
+    launches,
+    stopCalls,
+    markUnhealthy(pid) {
+      healthy.delete(pid);
+    },
+    currentPid() {
+      return listenerPid;
+    },
   };
 }
 
@@ -125,6 +178,22 @@ test('open reuses a matching live managed instance instead of relaunching', asyn
   assert.equal(browserOpens.length, 2);
 });
 
+test('open keeps the managed record when a running viewer ignores SIGTERM during replacement', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-open-running-stubborn-'));
+  const { manager, launches, stopCalls, currentPid } = createStubbornManagedProcessManager();
+
+  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const result = await manager.open({ repoRoot, repo: 'other/repo' });
+
+  assert.equal(result.state, 'stale_record');
+  assert.match(result.detail, /keeping the managed record instead of replacing it/i);
+  assert.deepEqual(stopCalls, [currentPid()]);
+  assert.equal(launches.length, 1);
+
+  const record = JSON.parse(await readFile(path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH), 'utf8'));
+  assert.equal(record.pid, currentPid());
+});
+
 test('resume fails closed and does not auto-start when nothing live is managed', async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-resume-'));
   const { manager, launches, browserOpens } = createManager();
@@ -150,6 +219,22 @@ test('stop only terminates the recorded managed pid', async () => {
   assert.equal(stoppedResult.state, 'conflict_unmanaged_listener');
   assert.deepEqual(stopped, [launches[0].pid]);
   assert.equal(processes.get(9002).alive, true);
+});
+
+test('restart keeps the managed record when a running viewer ignores SIGTERM', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-restart-running-stubborn-'));
+  const { manager, launches, stopCalls, currentPid } = createStubbornManagedProcessManager();
+
+  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const result = await manager.restart({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+
+  assert.equal(result.state, 'stale_record');
+  assert.match(result.detail, /keeping the managed record instead of restarting it/i);
+  assert.deepEqual(stopCalls, [currentPid()]);
+  assert.equal(launches.length, 1);
+
+  const record = JSON.parse(await readFile(path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH), 'utf8'));
+  assert.equal(record.pid, currentPid());
 });
 
 test('restart only replaces managed ownership and fails closed on an unknown listener conflict', async () => {
@@ -197,6 +282,22 @@ test('open reports a warning instead of failing when browser auto-open errors', 
   const opened = await manager.open({ repoRoot });
   assert.equal(opened.state, 'running');
   assert.equal(opened.warning, 'browser unavailable');
+});
+
+test('stop keeps a stale managed record when the recorded pid stays alive on the viewer port', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-stop-stale-stubborn-'));
+  const { manager, stopCalls, markUnhealthy, currentPid } = createStubbornManagedProcessManager();
+
+  await manager.open({ repoRoot });
+  markUnhealthy(currentPid());
+
+  const result = await manager.stop({ repoRoot });
+  assert.equal(result.state, 'stale_record');
+  assert.match(result.detail, /keeping the stale record for manual cleanup/i);
+  assert.deepEqual(stopCalls, [currentPid()]);
+
+  const record = JSON.parse(await readFile(path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH), 'utf8'));
+  assert.equal(record.pid, currentPid());
 });
 
 test('status treats an unreadable managed record as stale_record with delete guidance', async () => {
