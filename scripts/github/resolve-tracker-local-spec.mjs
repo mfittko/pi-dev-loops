@@ -79,14 +79,18 @@ export function parseGitHubIssueUrl(value) {
 
   const repo = `${owner ?? ""}/${name ?? ""}`;
   try {
-    parseRepoSlug(repo);
+    parseRepoSlug(repo, { errorMessage: "--issue-url must be a valid GitHub issue URL" });
   } catch (error) {
-    throw parseError(error instanceof Error ? error.message : String(error));
+    throw parseError("--issue-url must be a valid GitHub issue URL");
+  }
+
+  if (!/^\d+$/.test(issueNumber ?? "") || Number(issueNumber) === 0) {
+    throw parseError("--issue-url must be a valid GitHub issue URL");
   }
 
   return {
     repo,
-    issue: parseIssueNumber(issueNumber ?? ""),
+    issue: Number(issueNumber),
   };
 }
 
