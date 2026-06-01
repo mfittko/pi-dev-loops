@@ -231,3 +231,67 @@ test('open does not attempt to auto-open a browser for conflict_unmanaged_listen
   assert.equal(result.state, 'conflict_unmanaged_listener');
   assert.deepEqual(browserOpens, []);
 });
+
+test('status treats a record with the wrong surface identity as stale_record', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-wrong-surface-'));
+  await mkdir(path.join(repoRoot, '.pi', 'ui-servers'), { recursive: true });
+  await writeFile(path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH), `${JSON.stringify({
+    schemaVersion: 99,
+    surfaceId: 'something-else',
+    pid: 123,
+    host: '127.0.0.1',
+    port: 4311,
+    url: 'http://127.0.0.1:4311',
+    launchArgs: { repo: null, host: '127.0.0.1', port: 4311 },
+  })}\n`);
+  const { manager } = createManager();
+
+  const status = await manager.status({ repoRoot });
+  assert.equal(status.state, 'stale_record');
+  assert.match(status.detail, /delete/i);
+});
+
+test('open does not kill a stale recorded pid when it is alive but not listening on the viewer port', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-stale-pid-reuse-'));
+  const { manager, processes, launches, stopped, listenersByPort } = createManager();
+
+  await manager.open({ repoRoot });
+  const stalePid = launches[0].pid;
+  processes.get(stalePid).healthy = false;
+  processes.get(stalePid).port = 9999;
+  listenersByPort.set(4311, []);
+
+  const reopened = await manager.open({ repoRoot });
+  assert.equal(reopened.state, 'running');
+  assert.deepEqual(stopped, []);
+});
+
+test('open cleans up the spawned process when startup never becomes healthy', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-launch-timeout-'));
+  const stopped = [];
+  const manager = createInspectRunViewerLifecycleManager({
+    async listListeningPidsImpl() {
+      return [];
+    },
+    async isProcessAliveImpl(pid) {
+      return pid === 7123;
+    },
+    async healthcheckUrlImpl() {
+      return false;
+    },
+    async launchManagedServerImpl() {
+      return { pid: 7123 };
+    },
+    async stopManagedProcessImpl(pid) {
+      stopped.push(pid);
+    },
+    async waitImpl() {
+      // keep the timeout loop fast
+    },
+    nowImpl: () => '2026-06-01T12:00:00.000Z',
+    async openBrowserImpl() {},
+  });
+
+  await assert.rejects(manager.open({ repoRoot }), /startup timeout/i);
+  assert.deepEqual(stopped, [7123]);
+});

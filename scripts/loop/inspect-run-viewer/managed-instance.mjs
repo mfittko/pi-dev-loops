@@ -49,6 +49,19 @@ function buildRecordPayload({ repoRoot, launchArgs, pid, startedAt }) {
   };
 }
 
+function isManagedRecordShape(record) {
+  return Boolean(record)
+    && record.surfaceId === INSPECT_RUN_VIEWER_SURFACE_ID
+    && record.schemaVersion === 1
+    && typeof record.pid === 'number'
+    && typeof record.host === 'string'
+    && Number.isInteger(record.port)
+    && record.port > 0
+    && record.launchArgs
+    && record.launchArgs.host === record.host
+    && record.launchArgs.port === record.port;
+}
+
 function baseUrlForRecord(record) {
   const host = record?.host ?? DEFAULT_HOST;
   const port = record?.port ?? DEFAULT_PORT;
@@ -208,7 +221,7 @@ export function createInspectRunViewerLifecycleManager({
   async function inspectRecord({ repoRoot }) {
     const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
     const record = await readManagedRecord(recordPath);
-    if (record?.invalidRecord === true) {
+    if (record?.invalidRecord === true || (record !== null && !isManagedRecordShape(record))) {
       return {
         recordPath,
         record: null,
@@ -292,33 +305,50 @@ export function createInspectRunViewerLifecycleManager({
     });
     const record = buildRecordPayload({ repoRoot, launchArgs, pid, startedAt: nowImpl() });
 
-    const deadline = Date.now() + 8000;
-    while (Date.now() < deadline) {
-      const [alive, healthy] = await Promise.all([
-        isProcessAliveImpl(pid),
-        healthcheckUrlImpl(baseUrl),
-      ]);
-      if (!alive) {
-        throw new Error('inspect-run viewer exited before becoming healthy');
+    try {
+      const deadline = Date.now() + 8000;
+      while (Date.now() < deadline) {
+        const [alive, healthy] = await Promise.all([
+          isProcessAliveImpl(pid),
+          healthcheckUrlImpl(baseUrl),
+        ]);
+        if (!alive) {
+          throw new Error('inspect-run viewer exited before becoming healthy');
+        }
+        if (healthy) {
+          await writeManagedRecord(recordPath, record);
+          return {
+            state: 'running',
+            url: buildOperatorUrl(record, requestedRepo),
+            detail: 'Started a managed inspect-run viewer.',
+            warning: null,
+            recordPath,
+            record,
+            startedFresh: true,
+            reusedExisting: false,
+            resumedExisting: false,
+          };
+        }
+        await waitImpl(100);
       }
-      if (healthy) {
-        await writeManagedRecord(recordPath, record);
-        return {
-          state: 'running',
-          url: buildOperatorUrl(record, requestedRepo),
-          detail: 'Started a managed inspect-run viewer.',
-          warning: null,
-          recordPath,
-          record,
-          startedFresh: true,
-          reusedExisting: false,
-          resumedExisting: false,
-        };
+      throw new Error('inspect-run viewer did not become healthy before the startup timeout');
+    } catch (error) {
+      if (await isProcessAliveImpl(pid)) {
+        try {
+          await stopManagedProcessImpl(pid);
+        } catch (stopError) {
+          if (stopError?.code !== 'ESRCH') {
+            throw stopError;
+          }
+        }
       }
-      await waitImpl(100);
+      await waitForManagedExit(record, {
+        isProcessAliveImpl,
+        listListeningPidsImpl,
+        waitImpl,
+      });
+      throw error;
     }
-
-    throw new Error('inspect-run viewer did not become healthy before the startup timeout');
   }
 
   async function maybeOpenBrowser(result) {
@@ -361,7 +391,9 @@ export function createInspectRunViewerLifecycleManager({
         });
         await removeManagedRecord(snapshot.recordPath);
       } else if (snapshot.state === 'stale_record') {
-        if (snapshot.record?.pid && await isProcessAliveImpl(snapshot.record.pid)) {
+        if (snapshot.record?.pid
+          && snapshot.listeners.includes(snapshot.record.pid)
+          && await isProcessAliveImpl(snapshot.record.pid)) {
           await stopManagedProcessImpl(snapshot.record.pid);
           await waitForManagedExit(snapshot.record, {
             isProcessAliveImpl,
