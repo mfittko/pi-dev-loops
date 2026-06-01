@@ -608,15 +608,60 @@ test('open fails with a clear error when the launch seam does not return a posit
   await assert.rejects(manager.open({ repoRoot }), /positive integer pid/i);
 });
 
-test('healthcheck does not use AbortSignal so Node v24 fetch can reach localhost', async () => {
-  // Regression: Node v24.15.0 fetch with AbortSignal breaks localhost connections.
-  // The defaultHealthcheck uses plain fetch without a signal to avoid this.
-  const { createInspectRunViewerLifecycleManager } = await import('../../scripts/loop/inspect-run-viewer/managed-instance.mjs');
-  // Sanity: creating the manager with defaults should not throw
-  const manager = createInspectRunViewerLifecycleManager();
-  assert.ok(manager, 'lifecycle manager should be created');
-  // The manager's internal healthcheck does not use AbortSignal — validated by
-  // the fact that the managed-instance lifecycle tests pass on Node v24.
+test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', async () => {
+  const { createServer } = await import('node:http');
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-healthcheck-signal-'));
+  const DEFAULT_PORT = 4311;
+
+  // Start a real HTTP server on the default port so the record shape check passes
+  const healthServer = createServer((_req, res) => { res.writeHead(200); res.end('ok'); });
+  await new Promise((resolve) => healthServer.listen(DEFAULT_PORT, '127.0.0.1', resolve));
+
+  // Spy on global fetch to capture the options passed
+  const originalFetch = globalThis.fetch;
+  const fetchCalls = [];
+  globalThis.fetch = async (url, options) => {
+    fetchCalls.push({ url, options });
+    return originalFetch(url, options);
+  };
+
+  try {
+    // Manager with real defaultHealthcheck but stubbed lifecycle seams
+    const manager = createInspectRunViewerLifecycleManager({
+      listListeningPidsImpl: async () => [42],
+      isProcessAliveImpl: async () => true,
+      healthcheckUrlImpl: undefined,
+      async launchManagedServerImpl() { return { pid: 42 }; },
+      async stopManagedProcessImpl() {},
+      async openBrowserImpl() {},
+    });
+
+    const healthUrl = 'http://127.0.0.1:4311';
+    const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
+    await mkdir(path.dirname(recordPath), { recursive: true });
+    await writeFile(recordPath, `${JSON.stringify({
+      schemaVersion: 1,
+      surfaceId: 'inspect-run-viewer',
+      pid: 42,
+      host: '127.0.0.1',
+      port: DEFAULT_PORT,
+      url: healthUrl,
+      launchArgs: { repo: null, host: '127.0.0.1', port: DEFAULT_PORT },
+      argsFingerprint: JSON.stringify({ repo: null, host: '127.0.0.1', port: DEFAULT_PORT }),
+      startedAt: new Date().toISOString(),
+      cwd: repoRoot,
+    })}\n`);
+
+    const status = await manager.status({ repoRoot });
+    assert.equal(status.state, 'running');
+
+    const healthcheckCall = fetchCalls.find((c) => String(c.url).includes('4311'));
+    assert.ok(healthcheckCall, 'healthcheck should call fetch');
+    assert.ok(!healthcheckCall.options?.signal, 'fetch must not receive an AbortSignal');
+  } finally {
+    globalThis.fetch = originalFetch;
+    healthServer.close();
+  }
 });
 
 
