@@ -600,3 +600,48 @@ test("authoritative startup/resume bundle fails closed on invalid explicit inten
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
   assert.match(bundle.reason, /invalid public dev-loop intent/i);
 });
+
+test("targetPreference: PREFER_LOCAL with issue target produces LOCAL_IMPLEMENTATION bundle", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 99 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.READY,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.ASSIGNED_TO_COPILOT,
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
+  assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION);
+  assert.match(bundle.nextAction, /local implementation strategy/i);
+});
+
+test("invalid targetPreference produces NEEDS_RECONCILE whose reason references allowed values text", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    targetPreference: "bogus",
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 99 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    },
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.READY,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.ASSIGNED_TO_COPILOT,
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /invalid targetPreference/i);
+  assert.match(bundle.reason, /allowed values/i);
+});
