@@ -6,6 +6,12 @@ This repository uses `dev-loop` as the single public workflow entrypoint.
 
 For the canonical public routing and shorthand contract, see `skills/docs/public-dev-loop-contract.md`.
 
+Canonical skill-required docs rule:
+- any contract doc that is required by skills, read by skills, or intended to ship as part of the installed skill/runtime surface must live canonically under `skills/docs/`
+- do not create a second canonical copy of a skill-required contract under `docs/`
+- `docs/` may link to canonical skill docs for index/discovery purposes, but must not become a parallel source of truth for those contracts
+- when adding or moving a skill-required contract, update skill references to the `skills/docs/` path and keep any `docs/` reference as a thin pointer only if needed
+
 Repo-specific posture summary:
 - prefer the GitHub-first routed path when work should move through GitHub branches, pull requests, CI, and review
 - use the local implementation strategy only when the user explicitly wants a local phase-based path

@@ -22,7 +22,7 @@ any point in time. This contract makes that invariant deterministic and testable
 | [#28 — conductor umbrella](https://github.com/mfittko/pi-dev-loops/issues/28) | Parent umbrella |
 | [#27 — ownership bug/example](https://github.com/mfittko/pi-dev-loops/issues/27) | Motivating example |
 | [#34 — request/watch helper contract](https://github.com/mfittko/pi-dev-loops/issues/34) | Downstream: consumers of this policy |
-| [#26 — remediation choreography](https://github.com/mfittko/pi-dev-loops/issues/26) | Downstream: uses ownership outcomes |
+| [#26 — remediation choreography](https://github.com/mfittko/pi-dev-loops/issues/26) / `skills/docs/pr-lifecycle-contract.md` | Downstream: uses ownership outcomes |
 | [#48 — visible PR projection](https://github.com/mfittko/pi-dev-loops/issues/48) | Downstream: uses ownership outcomes |
 
 ## Implementation
@@ -303,7 +303,7 @@ This contract intentionally does **not** cover:
 - distributed locking, leases, or production shared-coordination infrastructure
 - registry/storage redesign or persistence migration
 - request/watch helper routing mechanics (see issue #34)
-- review/remediation/re-review choreography, CI wait policy, or merge gating (see issue #26)
+- review/remediation/re-review choreography, CI wait policy, or merge gating (see `skills/docs/pr-lifecycle-contract.md`)
 - PR-visible lifecycle projection, comments, status rendering, or closeout artifacts (see issue #48)
 - broad reconcile CLI/tooling beyond classification rules
 - backend discovery/transport semantics for authoritative live state

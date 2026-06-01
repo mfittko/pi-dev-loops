@@ -90,8 +90,33 @@ test("reviewer-loop contract documents submitted-review handoff and explicit ext
   assert.match(reviewerGraph, /A pure internal reviewer pass must end in a concrete review result boundary \(`submitted_review`\)/i);
   assert.match(reviewerGraph, /If a wait state is used, it must be an explicit named external-participant boundary/i);
   assert.match(reviewerGraph, /A new review request after fixes starts a new reviewer-pass context \(`review_requested`\)/i);
+  assert.match(reviewerGraph, /skills\/docs\/pr-lifecycle-contract\.md/i);
   assert.match(scriptsReadme, /reviewer `submitted_review`\s+as outer-loop-owned `continue_wait` states at explicit external\/handoff boundaries/i);
   assert.match(scriptsReadme, /preserves compatibility for reviewer `waiting_for_author_followup` and `waiting_for_re_request`\s+as legacy named external-wait boundaries/i);
+});
+
+test("consolidated PR lifecycle contract freezes the family-local lifecycle boundary", async () => {
+  const [lifecycleContract, docsIndex, copilotGraph, gateContract, conductorRouting] = await Promise.all([
+    readRepo("skills/docs/pr-lifecycle-contract.md"),
+    readRepo("docs/index.md"),
+    readRepo("docs/copilot-loop-state-graph.md"),
+    readRepo("docs/gate-review-comment-contract.md"),
+    readRepo("docs/conductor-routing-contract.md"),
+  ]);
+
+  assert.match(docsIndex, /skills\/docs\/pr-lifecycle-contract\.md/i);
+  assert.match(lifecycleContract, /^# PR lifecycle contract$/m);
+  assert.match(lifecycleContract, /draft-stage local gate -> draft remediation -> ready-for-review/i);
+  assert.match(lifecycleContract, /Exactly \*\*one current lifecycle state\*\* must apply at a time/i);
+  assert.match(lifecycleContract, /draft_local_review_gate/i);
+  assert.match(lifecycleContract, /copilot_reply_resolve_pending/i);
+  assert.match(lifecycleContract, /final_gate_remediation/i);
+  assert.match(lifecycleContract, /waiting_for_human_pr_approval/i);
+  assert.match(lifecycleContract, /required visible gate evidence beats local-only gate records/i);
+
+  assert.match(copilotGraph, /skills\/docs\/pr-lifecycle-contract\.md/i);
+  assert.match(gateContract, /skills\/docs\/pr-lifecycle-contract\.md/i);
+  assert.match(conductorRouting, /skills\/docs\/pr-lifecycle-contract\.md/i);
 });
 
 test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices", async () => {
