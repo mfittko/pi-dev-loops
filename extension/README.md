@@ -18,15 +18,15 @@ Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exp
   - full diagnostic report with explicit pass/fail detail
 - `/dev-loops hide`
   - removes the readiness widget cleanly
-- `/dev-loops ui inspect-run open [--repo <owner/name>]`
+- `/dev-loops inspect open [--repo <owner/name>]`
   - start or reuse the managed local inspect-run viewer and best-effort open it in the browser
-- `/dev-loops ui inspect-run resume [--repo <owner/name>]`
+- `/dev-loops inspect resume [--repo <owner/name>]`
   - reattach only to a confirmed live managed inspect-run viewer; fails closed when nothing live is managed
-- `/dev-loops ui inspect-run status [--repo <owner/name>]`
+- `/dev-loops inspect status [--repo <owner/name>]`
   - report one bounded local lifecycle state plus the current URL when known
-- `/dev-loops ui inspect-run stop [--repo <owner/name>]`
+- `/dev-loops inspect stop [--repo <owner/name>]`
   - stop only the recorded managed inspect-run viewer process
-- `/dev-loops ui inspect-run restart [--repo <owner/name>]`
+- `/dev-loops inspect restart [--repo <owner/name>]`
   - explicitly restart the recorded managed inspect-run viewer; never kill an unknown listener
 - `pi-dev-loops`
   - defaults to help output for the available subcommands
@@ -39,12 +39,12 @@ Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exp
 - `pi-dev-loops hide`
   - is intentionally unsupported and exits non-zero with a shell-friendly stderr message because `hide` is session-local Pi UI behavior
 
-## Inspect-run local UI lifecycle ownership
+## Inspect local UI lifecycle ownership
 
 This slice is intentionally narrow.
 
 Extension-owned behavior:
-- operator-facing lifecycle UX under `/dev-loops ui inspect-run ...`
+- operator-facing lifecycle UX under `/dev-loops inspect ...`
 - repo-local managed-instance record at `.pi/ui-servers/inspect-run-viewer.json`
 - safe URL discovery, liveness checks, resume/reattach, stop, and explicit restart handling
 - best-effort browser open

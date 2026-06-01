@@ -462,7 +462,7 @@ export function createInspectRunViewerLifecycleManager({
       return {
         state: snapshot.state === 'conflict_unmanaged_listener' ? 'conflict_unmanaged_listener' : 'stopped',
         url: snapshot.state === 'conflict_unmanaged_listener' ? snapshot.url : null,
-        detail: 'No managed inspect-run viewer is running; use `/dev-loops ui inspect-run open`.',
+        detail: 'No managed inspect-run viewer is running; use `/dev-loops inspect open`.',
         warning: null,
         recordPath: snapshot.recordPath,
         record: snapshot.record,

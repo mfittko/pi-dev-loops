@@ -59,11 +59,11 @@ async function getRepoRoot(pi: ExtensionAPI): Promise<string> {
     timeout: 10_000,
   });
   if (result.code !== 0) {
-    throw new Error('Open Pi inside a git repository before using `/dev-loops ui inspect-run`.');
+    throw new Error('Open Pi inside a git repository before using `/dev-loops inspect`.');
   }
   const repoRoot = `${result.stdout ?? ''}`.trim();
   if (!repoRoot) {
-    throw new Error('Could not determine the repository root for `/dev-loops ui inspect-run`.');
+    throw new Error('Could not determine the repository root for `/dev-loops inspect`.');
   }
   return repoRoot;
 }

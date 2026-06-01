@@ -149,32 +149,32 @@ test("collectDevLoopChecks no longer reports a dev-loop skill readiness check", 
   assert.equal(checks.some((check) => check.id === "local-dev-loop-skill"), false);
 });
 
-test("parser accepts the bounded inspect-run UI lifecycle command family only on the extension surface", () => {
+test("parser accepts the bounded inspect lifecycle command family only on the extension surface", () => {
   for (const action of ["open", "resume", "status", "stop", "restart"]) {
-    const parsed = parseDevLoopsCommand(["ui", "inspect-run", action, "--repo", "mfittko/pi-dev-loops"], { surface: "extension" });
-    assert.equal(parsed.kind, "ui_inspect_run_action");
+    const parsed = parseDevLoopsCommand(["inspect", action, "--repo", "mfittko/pi-dev-loops"], { surface: "extension" });
+    assert.equal(parsed.kind, "inspect_action");
     assert.equal(parsed.action, action);
     assert.equal(parsed.repo, "mfittko/pi-dev-loops");
   }
 
-  assert.deepEqual(parseDevLoopsCommand(["ui", "inspect-run", "launch"], { surface: "extension" }), {
+  assert.deepEqual(parseDevLoopsCommand(["inspect", "launch"], { surface: "extension" }), {
     kind: "malformed",
-    message: "`/dev-loops ui inspect-run` only supports: open, resume, status, stop, restart.",
-    usageAction: "ui inspect-run",
-    tokens: ["ui", "inspect-run", "launch"],
+    message: "`/dev-loops inspect` only supports: open, resume, status, stop, restart.",
+    usageAction: "inspect",
+    tokens: ["inspect", "launch"],
   });
 
-  assert.deepEqual(parseDevLoopsCommand(["ui", "inspect-run", "open"], { surface: "cli" }), {
+  assert.deepEqual(parseDevLoopsCommand(["inspect", "open"], { surface: "cli" }), {
     kind: "malformed",
-    message: "Unrecognized command: ui.",
+    message: "Unrecognized command: inspect.",
     usageAction: undefined,
-    tokens: ["ui", "inspect-run", "open"],
+    tokens: ["inspect", "open"],
   });
 });
 
 test('executor returns a structured inspect-run UI result when repo-root lookup or lifecycle execution throws', async () => {
   const repoRootFailure = await executeDevLoopsCommand({
-    input: ['ui', 'inspect-run', 'open'],
+    input: ['inspect', 'open'],
     surface: 'extension',
     runtime: {
       async getRepoRoot() {
@@ -189,7 +189,7 @@ test('executor returns a structured inspect-run UI result when repo-root lookup 
   });
 
   assert.deepEqual(repoRootFailure, {
-    kind: 'ui_inspect_run_result',
+    kind: 'inspect_result',
     action: 'open',
     repo: null,
     repoRoot: null,
@@ -202,7 +202,7 @@ test('executor returns a structured inspect-run UI result when repo-root lookup 
 
 test('executor preserves repoRoot when the inspect-run lifecycle action throws after repo-root lookup succeeds', async () => {
   const result = await executeDevLoopsCommand({
-    input: ['ui', 'inspect-run', 'open'],
+    input: ['inspect', 'open'],
     surface: 'extension',
     runtime: {
       async getRepoRoot() {
@@ -217,7 +217,7 @@ test('executor preserves repoRoot when the inspect-run lifecycle action throws a
   });
 
   assert.deepEqual(result, {
-    kind: 'ui_inspect_run_result',
+    kind: 'inspect_result',
     action: 'open',
     repo: null,
     repoRoot: '/repo/root',

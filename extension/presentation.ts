@@ -3,7 +3,7 @@ import { DEV_LOOP_CHECK_IDS, summarizeChecks, renderCheckLines } from './checks.
 import { describeReadiness } from '../lib/dev-loops-core.mjs';
 
 export type DevLoopsAction = 'doctor' | 'help' | 'status' | 'hide';
-export type InspectRunUiAction = 'open' | 'resume' | 'status' | 'stop' | 'restart';
+export type InspectAction = 'open' | 'resume' | 'status' | 'stop' | 'restart';
 
 const SETUP_GUIDANCE: Record<(typeof DEV_LOOP_CHECK_IDS)[number], string> = {
   'gh-installed': 'Install GitHub CLI to enable remote GitHub/Copilot workflows.',
@@ -45,11 +45,11 @@ export function buildHelpLines(): string[] {
     '- /dev-loops status',
     '- /dev-loops doctor',
     '- /dev-loops hide',
-    '- /dev-loops ui inspect-run open [--repo <owner/name>]',
-    '- /dev-loops ui inspect-run resume [--repo <owner/name>]',
-    '- /dev-loops ui inspect-run status [--repo <owner/name>]',
-    '- /dev-loops ui inspect-run stop [--repo <owner/name>]',
-    '- /dev-loops ui inspect-run restart [--repo <owner/name>]',
+    '- /dev-loops inspect open [--repo <owner/name>]',
+    '- /dev-loops inspect resume [--repo <owner/name>]',
+    '- /dev-loops inspect status [--repo <owner/name>]',
+    '- /dev-loops inspect stop [--repo <owner/name>]',
+    '- /dev-loops inspect restart [--repo <owner/name>]',
     'Use `pi install git:github.com/mfittko/pi-dev-loops` to install skills and agents; packaged agents sync into `~/.agents/` on session start.',
   ];
 }
@@ -78,9 +78,9 @@ export function buildWidgetLines(action: Extract<DevLoopsAction, 'doctor' | 'sta
   ];
 }
 
-export function buildInspectRunUiLines(action: InspectRunUiAction, result: { state: string; url?: string | null; detail?: string | null; warning?: string | null; repo?: string | null }): string[] {
+export function buildInspectLines(action: InspectAction, result: { state: string; url?: string | null; detail?: string | null; warning?: string | null; repo?: string | null }): string[] {
   const lines = [
-    `inspect-run ${action}`,
+    `inspect ${action}`,
     `State: ${result.state}`,
   ];
   if (result.repo) {
@@ -103,6 +103,6 @@ export function buildNotificationMessage(action: Extract<DevLoopsAction, 'doctor
   return `pi-dev-loops ${action}: ${summary.ok}/${summary.total} checks passed`;
 }
 
-export function buildInspectRunNotification(action: InspectRunUiAction, state: string): string {
-  return `inspect-run viewer ${action}: ${state}`;
+export function buildInspectNotification(action: InspectAction, state: string): string {
+  return `inspect viewer ${action}: ${state}`;
 }

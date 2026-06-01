@@ -629,11 +629,11 @@ Owned read-only local/operator inspection dashboard layered on `inspect-run`.
 `inspect-run` remains authoritative for inspection/status state; the viewer owns local inbox discovery and read-only presentation/prioritization.
 
 Primary local lifecycle UX now lives in the Pi extension under:
-- `/dev-loops ui inspect-run open [--repo <owner/name>]`
-- `/dev-loops ui inspect-run resume [--repo <owner/name>]`
-- `/dev-loops ui inspect-run status [--repo <owner/name>]`
-- `/dev-loops ui inspect-run stop [--repo <owner/name>]`
-- `/dev-loops ui inspect-run restart [--repo <owner/name>]`
+- `/dev-loops inspect open [--repo <owner/name>]`
+- `/dev-loops inspect resume [--repo <owner/name>]`
+- `/dev-loops inspect status [--repo <owner/name>]`
+- `/dev-loops inspect stop [--repo <owner/name>]`
+- `/dev-loops inspect restart [--repo <owner/name>]`
 
 The extension-managed seam stores one narrow repo-local managed-instance record at:
 - `.pi/ui-servers/inspect-run-viewer.json`
@@ -674,10 +674,10 @@ Contract:
 
 Local manual verification path:
 1. Preferred extension-managed path:
-   - `/dev-loops ui inspect-run open`
-   - `/dev-loops ui inspect-run status`
-   - `/dev-loops ui inspect-run resume`
-   - `/dev-loops ui inspect-run stop`
+   - `/dev-loops inspect open`
+   - `/dev-loops inspect status`
+   - `/dev-loops inspect resume`
+   - `/dev-loops inspect stop`
 2. Script fallback for manual/debug verification:
    - `node scripts/loop/inspect-run-viewer.mjs`
    - `node scripts/loop/inspect-run-viewer.mjs --repo <owner/name>`

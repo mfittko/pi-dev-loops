@@ -236,15 +236,15 @@ test("extension dispatches inspect-run open and surfaces browser warnings withou
   });
 
   const { ctx, calls } = createCommandContext();
-  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run open --repo mfittko/pi-dev-loops', ctx);
+  await pi.registeredCommands.get('dev-loops').handler('inspect open --repo mfittko/pi-dev-loops', ctx);
 
   const widget = calls.widgets.at(-1);
   assert.equal(widget.key, 'pi-dev-loops.setup');
-  assert(widget.lines.some((line) => /inspect-run open/i.test(line)));
+  assert(widget.lines.some((line) => /inspect open/i.test(line)));
   assert(widget.lines.some((line) => /running/i.test(line)));
   assert(widget.lines.some((line) => /http:\/\/127\.0\.0\.1:4311/i.test(line)));
   assert(widget.lines.some((line) => /browser unavailable/i.test(line)));
-  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer open: running');
+  assert.equal(calls.notifications.at(-1).message, 'inspect viewer open: running');
   assert.equal(calls.notifications.at(-1).level, 'info');
 });
 
@@ -256,7 +256,7 @@ test("extension surfaces fail-closed resume guidance when no managed viewer is l
         return {
           state: 'stopped',
           url: null,
-          detail: 'No managed inspect-run viewer is running; use `/dev-loops ui inspect-run open`.',
+          detail: 'No managed inspect-run viewer is running; use `/dev-loops inspect open`.',
           warning: null,
         };
       },
@@ -265,13 +265,13 @@ test("extension surfaces fail-closed resume guidance when no managed viewer is l
   });
 
   const { ctx, calls } = createCommandContext();
-  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run resume', ctx);
+  await pi.registeredCommands.get('dev-loops').handler('inspect resume', ctx);
 
   const widget = calls.widgets.at(-1);
-  assert(widget.lines.some((line) => /inspect-run resume/i.test(line)));
+  assert(widget.lines.some((line) => /inspect resume/i.test(line)));
   assert(widget.lines.some((line) => /stopped/i.test(line)));
-  assert(widget.lines.some((line) => /use `\/dev-loops ui inspect-run open`/i.test(line)));
-  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer resume: stopped');
+  assert(widget.lines.some((line) => /use `\/dev-loops inspect open`/i.test(line)));
+  assert.equal(calls.notifications.at(-1).message, 'inspect viewer resume: stopped');
   assert.equal(calls.notifications.at(-1).level, 'error');
 });
 
@@ -292,9 +292,9 @@ test('extension treats successful inspect-run stop as an info notification', asy
   });
 
   const { ctx, calls } = createCommandContext();
-  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run stop', ctx);
+  await pi.registeredCommands.get('dev-loops').handler('inspect stop', ctx);
 
-  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer stop: stopped');
+  assert.equal(calls.notifications.at(-1).message, 'inspect viewer stop: stopped');
   assert.equal(calls.notifications.at(-1).level, 'info');
 });
 
@@ -315,9 +315,9 @@ test('extension keeps fail-closed stopped inspect-run results on error severity'
   });
 
   const { ctx, calls } = createCommandContext();
-  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run stop --repo other/repo', ctx);
+  await pi.registeredCommands.get('dev-loops').handler('inspect stop --repo other/repo', ctx);
 
-  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer stop: stopped');
+  assert.equal(calls.notifications.at(-1).message, 'inspect viewer stop: stopped');
   assert.equal(calls.notifications.at(-1).level, 'error');
 });
 
@@ -339,9 +339,9 @@ test('extension renders inspect-run status as an info notification when the mana
   });
 
   const { ctx, calls } = createCommandContext();
-  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run status', ctx);
+  await pi.registeredCommands.get('dev-loops').handler('inspect status', ctx);
 
-  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer status: running');
+  assert.equal(calls.notifications.at(-1).message, 'inspect viewer status: running');
   assert.equal(calls.notifications.at(-1).level, 'info');
   assert(calls.widgets.at(-1).lines.some((line) => /Managed inspect-run viewer is running/i.test(line)));
 });
@@ -364,8 +364,8 @@ test('extension keeps inspect-run restart conflicts on error severity', async ()
   });
 
   const { ctx, calls } = createCommandContext();
-  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run restart', ctx);
+  await pi.registeredCommands.get('dev-loops').handler('inspect restart', ctx);
 
-  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer restart: conflict_unmanaged_listener');
+  assert.equal(calls.notifications.at(-1).message, 'inspect viewer restart: conflict_unmanaged_listener');
   assert.equal(calls.notifications.at(-1).level, 'error');
 });

@@ -8,12 +8,12 @@ import { executeDevLoopsCommand } from '../lib/dev-loops-core.mjs';
 import { createExtensionCoreRuntime } from './checks.ts';
 import {
   buildHelpLines,
-  buildInspectRunNotification,
-  buildInspectRunUiLines,
+  buildInspectLines,
+  buildInspectNotification,
   buildNotificationMessage,
   buildWidgetLines,
   type DevLoopsAction,
-  type InspectRunUiAction,
+  type InspectAction,
 } from './presentation.ts';
 
 const STATUS_KEY = 'pi-dev-loops';
@@ -50,7 +50,7 @@ export default function (pi: ExtensionAPI, runtimeOverrides = {}) {
   });
 
   pi.registerCommand('dev-loops', {
-    description: 'Manage pi-dev-loops readiness and inspect-run local UI lifecycle: /dev-loops [help|status|doctor|hide|ui inspect-run ...]',
+    description: 'Manage pi-dev-loops readiness and inspect-run local UI lifecycle: /dev-loops [help|status|doctor|hide|inspect ...]',
     handler: async (args, ctx) => {
       const result = await executeDevLoopsCommand({
         input: args,
@@ -73,7 +73,7 @@ export default function (pi: ExtensionAPI, runtimeOverrides = {}) {
           });
           ctx.ui.notify(buildNotificationMessage(result.action as Extract<DevLoopsAction, 'doctor' | 'status'>, result.checks), 'info');
           return;
-        case 'ui_inspect_run_result': {
+        case 'inspect_result': {
           const structuredStoppedSuccess = result.state === 'stopped'
             && result.record === null
             && (result.action === 'stop' || result.action === 'status');
@@ -82,10 +82,10 @@ export default function (pi: ExtensionAPI, runtimeOverrides = {}) {
               || (result.action === 'status' && /no managed inspect-run viewer is recorded/i.test(result.detail ?? '')));
           const informationalStopped = structuredStoppedSuccess || fallbackStoppedSuccess;
           const notificationLevel = informationalStopped || result.state === 'running' ? 'info' : 'error';
-          ctx.ui.setWidget(WIDGET_KEY, buildInspectRunUiLines(result.action as InspectRunUiAction, result), {
+          ctx.ui.setWidget(WIDGET_KEY, buildInspectLines(result.action as InspectAction, result), {
             placement: 'belowEditor',
           });
-          ctx.ui.notify(buildInspectRunNotification(result.action as InspectRunUiAction, result.state), notificationLevel);
+          ctx.ui.notify(buildInspectNotification(result.action as InspectAction, result.state), notificationLevel);
           return;
         }
         case 'malformed':
