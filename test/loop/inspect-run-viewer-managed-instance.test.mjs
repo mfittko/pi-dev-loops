@@ -392,3 +392,17 @@ test('status returns the raw conflict URL instead of appending a scoped query to
   assert.equal(status.state, 'conflict_unmanaged_listener');
   assert.equal(status.url, 'http://127.0.0.1:4311');
 });
+
+test('status surfaces a friendly lsof guidance error when listener discovery support is unavailable', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-lsof-guidance-'));
+  const manager = createInspectRunViewerLifecycleManager({
+    async listListeningPidsImpl() {
+      const error = new Error('spawn lsof ENOENT');
+      error.code = 'ENOENT';
+      error.path = 'lsof';
+      throw error;
+    },
+  });
+
+  await assert.rejects(manager.status({ repoRoot }), /lsof\/POSIX support/i);
+});

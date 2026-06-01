@@ -15,6 +15,15 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function normalizeListenerDiscoveryError(error) {
+  const missingLsof = error?.code === 'ENOENT'
+    && (error?.path === 'lsof' || /(^|\b)lsof(\b|$)/i.test(String(error?.message ?? '')));
+  if (!missingLsof) {
+    return error;
+  }
+  return new Error('inspect-run viewer lifecycle requires lsof/POSIX support to inspect local listeners; install lsof or use the script fallback.');
+}
+
 function normalizeRequestedRepo(repo) {
   if (repo === undefined || repo === null || `${repo}`.trim() === '') {
     return null;
@@ -198,7 +207,7 @@ async function stopManagedProcessSafely(pid, { stopManagedProcessImpl }) {
   }
 }
 
-async function waitForManagedExit(record, { isProcessAliveImpl, listListeningPidsImpl, waitImpl, timeoutMs = 3000, pollIntervalMs = 100 }) {
+async function waitForManagedExit(record, { isProcessAliveImpl, listListeningPidsImpl: listListeningPids, waitImpl, timeoutMs = 3000, pollIntervalMs = 100 }) {
   if (!record?.pid) {
     return;
   }
@@ -206,7 +215,7 @@ async function waitForManagedExit(record, { isProcessAliveImpl, listListeningPid
   while (Date.now() < deadline) {
     const [alive, listeners] = await Promise.all([
       isProcessAliveImpl(record.pid),
-      listListeningPidsImpl(record.port ?? DEFAULT_PORT),
+      listListeningPids(record.port ?? DEFAULT_PORT),
     ]);
     if (!alive && !listeners.includes(record.pid)) {
       return;
@@ -233,6 +242,14 @@ export function createInspectRunViewerLifecycleManager({
   nowImpl = () => new Date().toISOString(),
   waitImpl = sleep,
 } = {}) {
+  async function listListeningPids(port) {
+    try {
+      return await listListeningPidsImpl(port);
+    } catch (error) {
+      throw normalizeListenerDiscoveryError(error);
+    }
+  }
+
   async function inspectRecord({ repoRoot }) {
     const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
     const record = await readManagedRecord(recordPath);
@@ -243,11 +260,11 @@ export function createInspectRunViewerLifecycleManager({
         state: 'stale_record',
         url: formatInspectRunViewerUrl(DEFAULT_HOST, DEFAULT_PORT),
         detail: 'The managed inspect-run viewer record is unreadable; delete `.pi/ui-servers/inspect-run-viewer.json` and reopen the viewer.',
-        listeners: await listListeningPidsImpl(DEFAULT_PORT),
+        listeners: await listListeningPids(DEFAULT_PORT),
       };
     }
     if (!record) {
-      const listeners = await listListeningPidsImpl(DEFAULT_PORT);
+      const listeners = await listListeningPids(DEFAULT_PORT);
       if (listeners.length > 0) {
         return {
           recordPath,
@@ -268,7 +285,7 @@ export function createInspectRunViewerLifecycleManager({
       };
     }
 
-    const listeners = await listListeningPidsImpl(record.port ?? DEFAULT_PORT);
+    const listeners = await listListeningPids(record.port ?? DEFAULT_PORT);
     const alive = typeof record.pid === 'number' && record.pid > 0
       ? await isProcessAliveImpl(record.pid)
       : false;
@@ -300,7 +317,7 @@ export function createInspectRunViewerLifecycleManager({
     const launchArgs = buildLaunchArgs(requestedRepo);
     const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
     const baseUrl = formatInspectRunViewerUrl(launchArgs.host, launchArgs.port);
-    const listeners = await listListeningPidsImpl(launchArgs.port);
+    const listeners = await listListeningPids(launchArgs.port);
     if (listeners.length > 0) {
       return {
         state: 'conflict_unmanaged_listener',
@@ -353,7 +370,7 @@ export function createInspectRunViewerLifecycleManager({
       }
       await waitForManagedExit(record, {
         isProcessAliveImpl,
-        listListeningPidsImpl,
+        listListeningPidsImpl: listListeningPids,
         waitImpl,
       });
       throw error;
@@ -395,7 +412,7 @@ export function createInspectRunViewerLifecycleManager({
         await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
         await waitForManagedExit(snapshot.record, {
           isProcessAliveImpl,
-          listListeningPidsImpl,
+          listListeningPidsImpl: listListeningPids,
           waitImpl,
         });
         await removeManagedRecord(snapshot.recordPath);
@@ -406,7 +423,7 @@ export function createInspectRunViewerLifecycleManager({
           await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
           await waitForManagedExit(snapshot.record, {
             isProcessAliveImpl,
-            listListeningPidsImpl,
+            listListeningPidsImpl: listListeningPids,
             waitImpl,
           });
         }
@@ -466,7 +483,7 @@ export function createInspectRunViewerLifecycleManager({
       }
       return {
         state: snapshot.state,
-        url: snapshot.state === 'running' ? buildOperatorUrl(snapshot.record ?? undefined, requestedRepo) : snapshot.url,
+        url: snapshot.url,
         detail: snapshot.detail,
         warning: null,
         recordPath: snapshot.recordPath,
@@ -481,11 +498,11 @@ export function createInspectRunViewerLifecycleManager({
         await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
         await waitForManagedExit(snapshot.record, {
           isProcessAliveImpl,
-          listListeningPidsImpl,
+          listListeningPidsImpl: listListeningPids,
           waitImpl,
         });
         await removeManagedRecord(snapshot.recordPath);
-        const listeners = await listListeningPidsImpl(snapshot.record.port ?? DEFAULT_PORT);
+        const listeners = await listListeningPids(snapshot.record.port ?? DEFAULT_PORT);
         if (listeners.length > 0) {
           return {
             state: 'conflict_unmanaged_listener',
@@ -519,7 +536,7 @@ export function createInspectRunViewerLifecycleManager({
 
       if (snapshot.state === 'stale_record') {
         await removeManagedRecord(snapshot.recordPath);
-        const listeners = await listListeningPidsImpl(snapshot.record?.port ?? DEFAULT_PORT);
+        const listeners = await listListeningPids(snapshot.record?.port ?? DEFAULT_PORT);
         return {
           state: listeners.length > 0 ? 'conflict_unmanaged_listener' : 'stopped',
           url: listeners.length > 0 ? baseUrlForRecord(snapshot.record) : null,
@@ -561,7 +578,7 @@ export function createInspectRunViewerLifecycleManager({
         await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
         await waitForManagedExit(snapshot.record, {
           isProcessAliveImpl,
-          listListeningPidsImpl,
+          listListeningPidsImpl: listListeningPids,
           waitImpl,
         });
         await removeManagedRecord(snapshot.recordPath);
