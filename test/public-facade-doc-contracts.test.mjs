@@ -243,6 +243,8 @@ test("copilot-pr-followup mandates upsert helper command for gate comments", asy
 
   assert.match(copilotFollowupSkill, /For every `draft_gate` or `pre_approval_gate` comment, you MUST run:/);
   assert.match(copilotFollowupSkill, /node\s+<resolved-skill-scripts>\/github\/upsert-gate-review-comment\.mjs/i);
+  assert.match(copilotFollowupSkill, /--head-sha\s+<current_head_sha>/);
+  assert.match(copilotFollowupSkill, /--verdict\s+<clean\|findings_present\|blocked>/);
   assert.match(copilotFollowupSkill, /Do NOT use `gh pr comment` or `gh api` for gate comments\./);
   assert.match(copilotFollowupSkill, /posting gate review comments with gh pr comment instead of upsert-gate-review-comment\.mjs/i);
 });
