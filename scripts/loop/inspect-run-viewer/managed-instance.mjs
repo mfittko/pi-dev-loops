@@ -31,6 +31,13 @@ function normalizeRequestedRepo(repo) {
   return normalizeCliRepoOption(`${repo}`);
 }
 
+function requireRepoRoot(repoRoot) {
+  if (typeof repoRoot !== 'string' || repoRoot.trim() === '') {
+    throw new Error('inspect-run viewer lifecycle requires a repoRoot.');
+  }
+  return repoRoot;
+}
+
 function buildLaunchArgs(repo) {
   return {
     repo,
@@ -257,7 +264,7 @@ export function createInspectRunViewerLifecycleManager({
   }
 
   async function inspectRecord({ repoRoot }) {
-    const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
+    const recordPath = path.join(requireRepoRoot(repoRoot), INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
     const record = await readManagedRecord(recordPath);
     if (record?.invalidRecord === true || (record !== null && !isManagedRecordShape(record))) {
       return {

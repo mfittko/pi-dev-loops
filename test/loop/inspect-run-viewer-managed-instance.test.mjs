@@ -431,6 +431,12 @@ test('status surfaces a friendly lsof guidance error when listener discovery sup
   await assert.rejects(manager.status({ repoRoot }), /lsof\/POSIX support/i);
 });
 
+test('status rejects a missing repoRoot with a clear lifecycle error', async () => {
+  const { manager } = createManager();
+
+  await assert.rejects(manager.status(), /requires a repoRoot/i);
+});
+
 test('status treats a record with a non-default host or port as stale_record', async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-wrong-host-port-'));
   await mkdir(path.join(repoRoot, '.pi', 'ui-servers'), { recursive: true });
