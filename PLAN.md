@@ -49,7 +49,7 @@ Thin workflow entrypoint agents are still allowed, but they must stay thin, defe
 
 Reusable Pi workflow skills under `skills/`, especially:
 - `dev-loop` as the single public façade for start/continue/state requests
-- `copilot-dev-loop` as the canonical internal GitHub/Copilot routed strategy, including issue-first intake and PR follow-up behavior behind `dev-loop`
+- split internal route packs behind `dev-loop`: `issue-intake`, `copilot-pr-followup`, `local-implementation`, and `final-approval`
 
 Skills own sequencing, handoff rules, and operator-facing workflow policy.
 The public entrypoint should expose user intent; internal strategy names should stay minimal and should not be preserved as compatibility shims without an explicit active contract.

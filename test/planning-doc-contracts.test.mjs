@@ -49,7 +49,7 @@ test("refiner agent defines the approved phase-refinement contract", async () =>
 });
 
 test("dev-loop skill uses the refiner for phase planning without replacing the coordinator", async () => {
-  const content = await readRepo("skills/dev-loop/SKILL.md");
+  const content = await readRepo("skills/local-implementation/SKILL.md");
 
   assertMatchesAll(content, [
     /refiner/i,
@@ -62,7 +62,7 @@ test("dev-loop skill uses the refiner for phase planning without replacing the c
     /RFC-worthy technical decisions/i,
     /through the coordinator/i,
     /keeps? the coordinator as the escalation\/decision owner|coordinator as the escalation and decision owner/i,
-  ], "skills/dev-loop/SKILL.md");
+  ], "skills/local-implementation/SKILL.md");
 });
 
 test("coordinator agent remains the RFC receiving boundary and decision owner", async () => {
@@ -80,7 +80,7 @@ test("coordinator agent remains the RFC receiving boundary and decision owner", 
 
 test("planning guidance keeps sub-issue trees as the durable decomposition owner", async () => {
   const [devLoopSkill, coordinatorAgent, subIssueTreeContract, docsIndex] = await Promise.all([
-    readRepo("skills/dev-loop/SKILL.md"),
+    readRepo("skills/local-implementation/SKILL.md"),
     readRepo("agents/coordinator.agent.md"),
     readRepo("docs/sub-issue-tree-contract.md"),
     readRepo("docs/index.md"),
@@ -89,7 +89,7 @@ test("planning guidance keeps sub-issue trees as the durable decomposition owner
   assertMatchesAll(devLoopSkill, [
     ...SUB_ISSUE_TREE_GUIDANCE,
     /plain related-issue references/i,
-  ], "skills/dev-loop/SKILL.md");
+  ], "skills/local-implementation/SKILL.md");
   assertMatchesAll(coordinatorAgent, [
     ...SUB_ISSUE_TREE_GUIDANCE,
     /duplicating order in checklist prose/i,

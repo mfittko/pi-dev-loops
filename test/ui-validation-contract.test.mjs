@@ -33,10 +33,10 @@ test("ui validation contract lists required non-goals and guardrails", async () 
 });
 
 test("dev-loop skill points to the ui validation contract and keeps opt-in and CI framing", async () => {
-  const devLoopSkill = await readRepo("skills/dev-loop/SKILL.md");
+  const localImplementationSkill = await readRepo("skills/local-implementation/SKILL.md");
 
-  assert.match(devLoopSkill, /docs\/ui-validation-contract\.md/i);
-  assert.match(devLoopSkill, /when the user opts in/i);
-  assert.match(devLoopSkill, /wire it into CI once it becomes required validation for that slice/i);
-  assert.doesNotMatch(devLoopSkill, /visual regression[^.\n]*(default|always-on)/i);
+  assert.match(localImplementationSkill, /docs\/ui-validation-contract\.md/i);
+  assert.match(localImplementationSkill, /when the user opts in/i);
+  assert.match(localImplementationSkill, /wire it into CI once it becomes required validation for that slice/i);
+  assert.doesNotMatch(localImplementationSkill, /visual regression[^.\n]*(default|always-on)/i);
 });

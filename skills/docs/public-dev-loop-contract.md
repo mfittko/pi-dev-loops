@@ -71,7 +71,7 @@ Use this taxonomy consistently across docs, discovery surfaces, and tests:
 | Surface class | Entrypoints | Guardrail |
 |---|---|---|
 | Public workflow entrypoint | `dev-loop` | treat as the default and converging public workflow surface |
-| Internal routed strategy modules | `copilot-dev-loop` logic | keep internal-only behind `dev-loop`; do not expose as executable peer workflow entrypoints |
+| Internal routed strategy modules | `issue-intake`, `copilot-pr-followup`, `local-implementation`, `final-approval` | keep internal-only behind `dev-loop`; do not expose as executable peer workflow entrypoints |
 | Reusable role agents | `coordinator`, `developer`, `docs`, `review`, `fixer`, `quality`, `refiner` | keep framed as reusable building blocks, not peer public workflow entrypoints |
 
 Any remaining specialized Copilot behavior stays internal-only behind `dev-loop`.
@@ -387,7 +387,7 @@ flowchart TD
 ## Single-entrypoint convergence posture
 
 - `dev-loop` is the only intended public workflow entrypoint.
-- any remaining specialized Copilot behavior is internal-only and non-user-invocable under the canonical `copilot-dev-loop` routed surface.
+- any remaining specialized Copilot behavior is internal-only and non-user-invocable behind the canonical internal route-pack surface (`issue-intake`, `copilot-pr-followup`, `local-implementation`, `final-approval`).
 - Documentation and examples should lead with `dev-loop` and explain routed behavior.
 - Almost all workflow branching should converge into deterministic state-machine/tooling surfaces behind `dev-loop`.
 - User-visible variation should be expressed through the external `dev-loop` API / bounded parameters or settings, not by preserving multiple public workflow names or legacy compatibility seams.
@@ -422,7 +422,7 @@ The bounded allow-list is exported from `packages/core/src/loop/public-dev-loop-
 
 These must **not** become public variation knobs:
 - arbitrary ownership override for an already-resolved canonical state
-- arbitrary strategy override (e.g. "force copilot-dev-loop")
+- arbitrary strategy override (e.g. "force copilot-pr-followup")
 - arbitrary gate override (e.g. "skip approval gate")
 - issue↔PR linkage bypass
 - free-form "expert mode" flags that bypass deterministic routing

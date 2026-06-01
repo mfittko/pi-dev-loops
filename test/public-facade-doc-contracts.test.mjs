@@ -10,9 +10,9 @@ import {
 } from "./imported-assets-helpers.mjs";
 
 test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
-  const [devLoopSkill, copilotSkill, publicContract, retrospectiveContract, projectionContract] = await Promise.all([
+  const [devLoopSkill, copilotFollowupSkill, publicContract, retrospectiveContract, projectionContract] = await Promise.all([
     readRepo(".pi/skills/dev-loop/SKILL.md"),
-    readRepo(".pi/skills/copilot-dev-loop/SKILL.md"),
+    readRepo(".pi/skills/copilot-pr-followup/SKILL.md"),
     readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/docs/retrospective-checkpoint-contract.md"),
     readRepo("skills/docs/conductor-pr-projection-contract.md"),
@@ -23,11 +23,11 @@ test("installed skill guidance owns packaging guarantees and contract docs stay 
   assert.match(devLoopSkill, /read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
   assert.match(devLoopSkill, /packaging\/installer bug/i);
 
-  assert.match(copilotSkill, /Required bundled runtime contract docs for installed copies of this skill/i);
-  assert.match(copilotSkill, /required bundled contract docs live under the shared `\.\.\/docs\/` directory next to the installed skill directories/i);
-  assert.match(copilotSkill, /do not assume helper scripts are bundled unless that installed layout actually contains them/i);
-  assert.match(copilotSkill, /Read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
-  assert.match(copilotSkill, /packaging\/installer bug/i);
+  assert.match(copilotFollowupSkill, /Required bundled runtime contract docs for installed copies of this skill/i);
+  assert.match(copilotFollowupSkill, /required bundled contract docs live under the shared `\.\.\/docs\/` directory next to the installed skill directories/i);
+  assert.match(copilotFollowupSkill, /do not assume helper scripts are bundled unless that installed layout actually contains them/i);
+  assert.match(copilotFollowupSkill, /Read those bundled `\.\.\/docs\/` files from the installed skill layout/i);
+  assert.match(copilotFollowupSkill, /packaging\/installer bug/i);
   assert.match(publicContract, /canonical owner lives in the shipped `skills\/docs\/` surface/i);
   assert.match(publicContract, /installed skill\/runtime consumers reliably own the skills subtree/i);
   assert.match(publicContract, /read the same contract via `\.\.\/docs\/public-dev-loop-contract\.md` from the installed skill directory/i);
@@ -62,10 +62,10 @@ test("root docs path does not become a second semantic owner for the public dev-
 });
 
 test("workflow docs keep helper/runtime authority code-owned and dev-loop scope procedure-owned", async () => {
-  const [workflowDoc, scriptsReadme, devLoopSkill] = await Promise.all([
+  const [workflowDoc, scriptsReadme, localImplementationSkill] = await Promise.all([
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),
     readRepo("scripts/README.md"),
-    readRepo("skills/dev-loop/SKILL.md"),
+    readRepo("skills/local-implementation/SKILL.md"),
   ]);
 
   assert.match(workflowDoc, /shipped helper\/runtime semantics stay owned by code, tests, and the relevant contract docs/i);
@@ -76,8 +76,8 @@ test("workflow docs keep helper/runtime authority code-owned and dev-loop scope 
   assert.match(scriptsReadme, /code, tests, and the helper entrypoints themselves are authoritative for shipped runtime behavior/i);
   assert.match(scriptsReadme, /this README summarizes those contracts for operators and maintainers; if behavior changes, update the code\/tests and then sync this document/i);
 
-  assert.match(devLoopSkill, /this skill owns the local phase procedure and artifact discipline/i);
-  assert.match(devLoopSkill, /it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands/i);
+  assert.match(localImplementationSkill, /this skill owns the local phase procedure and artifact discipline/i);
+  assert.match(localImplementationSkill, /it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands/i);
 });
 
 test("README stays a landing page and lets docs/index own deeper doc navigation", async () => {
@@ -91,7 +91,7 @@ test("README stays a landing page and lets docs/index own deeper doc navigation"
 });
 
 test("repo docs define dev-loop as the public façade and keep internal routed logic behind it", async () => {
-  const [readme, plan, agents, workflowDoc, publicContract, extensionReadme, devLoopSkill, copilotSkill] = await Promise.all([
+  const [readme, plan, agents, workflowDoc, publicContract, extensionReadme, devLoopSkill, copilotFollowupSkill] = await Promise.all([
     readRepo("README.md"),
     readRepo("PLAN.md"),
     readRepo("AGENTS.md"),
@@ -99,7 +99,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
     readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("extension/README.md"),
     readRepo("skills/dev-loop/SKILL.md"),
-    readRepo("skills/copilot-dev-loop/SKILL.md"),
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
   ]);
 
   assert.match(publicContract, /single public entrypoint/i);
@@ -133,8 +133,8 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
   assert.match(devLoopSkill, /@pi-dev-loops\/core\/loop\/public-dev-loop-routing/i);
   assert.match(devLoopSkill, /summary/i);
 
-  assert.match(copilotSkill, /canonical internal/i, "skills/copilot-dev-loop/SKILL.md should preserve canonical-internal framing");
-  assert.match(copilotSkill, /public `dev-loop`/i, "skills/copilot-dev-loop/SKILL.md should point back to the public dev-loop façade");
+  assert.match(copilotFollowupSkill, /canonical internal/i, "skills/copilot-pr-followup/SKILL.md should preserve canonical-internal framing");
+  assert.match(copilotFollowupSkill, /public `dev-loop`/i, "skills/copilot-pr-followup/SKILL.md should point back to the public dev-loop façade");
 });
 
 test("workflow-surface taxonomy stays explicit and guards the entrypoint asset surface", async () => {
@@ -205,15 +205,17 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
     }
   }
   assert.deepEqual(userInvocableSkillEntrypoints, ["dev-loop"]);
-  assert.match(await readRepo("skills/copilot-dev-loop/SKILL.md"), /^user-invocable:\s*false\s*$/m);
+  for (const internalSkillPath of ["skills/copilot-pr-followup/SKILL.md", "skills/issue-intake/SKILL.md", "skills/local-implementation/SKILL.md", "skills/final-approval/SKILL.md"]) {
+    assert.match(await readRepo(internalSkillPath), /^user-invocable:\s*false\s*$/m);
+  }
   assert.equal((await readdir(fromRepoRoot("skills"))).includes("copilot-autopilot"), false);
 });
 
 test("status reporting contract requires authoritative state-first resolution and fail-closed reconcile behavior", async () => {
-  const [publicContract, devLoopSkill, copilotSkill] = await Promise.all([
+  const [publicContract, devLoopSkill, copilotFollowupSkill] = await Promise.all([
     readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
-    readRepo("skills/copilot-dev-loop/SKILL.md"),
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
   ]);
 
   assert.match(publicContract, /Authoritative-state-first status reporting contract/i);
@@ -227,13 +229,13 @@ test("status reporting contract requires authoritative state-first resolution an
   assert.match(devLoopSkill, /issue↔PR linkage resolution/i);
   assert.match(devLoopSkill, /detect-linked-issue-pr\.mjs/i);
 
-  assert.match(copilotSkill, /status\/progress\/readiness\/merge-state\/next-step/i);
-  assert.match(copilotSkill, /reconcile\/unknown instead of guessing from chat context/i);
-  assert.match(copilotSkill, /do not assert "no open PR" until authoritative issue↔PR linkage is resolved/i);
+  assert.match(copilotFollowupSkill, /status\/progress\/readiness\/merge-state\/next-step/i);
+  assert.match(copilotFollowupSkill, /reconcile\/unknown instead of guessing from chat context/i);
+  assert.match(copilotFollowupSkill, /do not assert "no open PR" until authoritative issue↔PR linkage is resolved/i);
   assert.match(publicContract, /only canonical active artifact for the issue during follow-up/i);
   assert.match(devLoopSkill, /single canonical artifact for the issue and reuse it instead of opening another PR/i);
-  assert.match(copilotSkill, /do not open another PR unless the prior PR was explicitly superseded and reconciled first/i);
-  assert.match(copilotSkill, /reuse\/update that canonical PR instead of opening another one/i);
+  assert.match(copilotFollowupSkill, /do not open another PR unless the prior PR was explicitly superseded and reconciled first/i);
+  assert.match(copilotFollowupSkill, /reuse\/update that canonical PR instead of opening another one/i);
 });
 
 test("public dev-loop contract keeps conflict reconciliation local and context-first", async () => {

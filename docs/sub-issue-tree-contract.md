@@ -125,7 +125,7 @@ machine-readable.
 
 ## Compatibility with `dev-loop`
 
-This pattern is used inside the `copilot-dev-loop` skill and is always accessed through the
+This pattern is used inside the routed `issue-intake` and local-implementation skills and is always accessed through the
 `dev-loop` public entrypoint. The helper is a thin, deterministic tool; it does not replace
 issue writing, refinement, or the normal PR-based execution loop.
 
