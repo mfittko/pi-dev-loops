@@ -484,6 +484,81 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
   }
 });
 
+test("upsert-gate-review-comment noop still warns when a stale comment exists on a different head", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-noop-warn-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc1234","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: `${JSON.stringify([
+          {
+            id: 101,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: abc1234",
+              "Verdict: clean",
+              "Findings summary: no issues found",
+              "Next action: mark ready for review",
+            ].join("\n"),
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
+            updated_at: "2026-05-30T17:00:00Z",
+          },
+          {
+            id: 202,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: def5678",
+              "Verdict: clean",
+              "Findings summary: older review",
+              "Next action: mark ready for review",
+            ].join("\n"),
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-202",
+            updated_at: "2026-05-30T18:00:00Z",
+          },
+        ])}\n`,
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.action, "noop");
+    assert.equal(parsed.headSha, "abc1234");
+    assert.match(parsed.warning, /different head SHA/i);
+    assert.match(parsed.warning, /def5678/);
+    assert.match(parsed.warning, /comment 202/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("upsert-gate-review-comment updates an incomplete same-head marker in place", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-update-"));
 
@@ -632,6 +707,7 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      warning: "A gate comment for \`draft_gate\` already exists on a different head SHA \`def5678\` (comment 202). The old comment is stale for the current head.",
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -829,6 +905,73 @@ test("upsert-gate-review-comment fails closed when the requested head SHA is sta
 
     assert.equal(result.code, 1);
     assert.match(result.stderr, /does not match the current PR head SHA/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment warns when a gate comment exists on a different head SHA", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-warn-stale-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"def5678","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"def5678"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: `${JSON.stringify([
+          {
+            id: 99,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: abc1234",
+              "Verdict: clean",
+              "Findings summary: previous review",
+              "Next action: mark ready for review",
+            ].join("\n"),
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-99",
+            updated_at: "2026-05-30T17:00:00Z",
+          },
+        ])}\n`,
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+        stdout: '{"id":102,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-102"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "def5678",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.action, "created");
+    assert.equal(parsed.gate, "draft_gate");
+    assert.equal(parsed.headSha, "def5678");
+    assert.match(parsed.warning, /different head SHA/i);
+    assert.match(parsed.warning, /abc1234/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
