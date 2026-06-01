@@ -161,7 +161,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
         nextAction: "mark ready for review",
         contractComplete: false,
         currentHeadClean: false,
-        draftGateSatisfied: true,
+        cleanEvidenceExists: true,
       },
       preApprovalGate: {
         visible: false,
@@ -172,7 +172,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
         nextAction: null,
         contractComplete: false,
         currentHeadClean: false,
-        draftGateSatisfied: false,
+        cleanEvidenceExists: false,
       },
       allowedNextActions: ["request_copilot_review"],
       forbiddenActions: [

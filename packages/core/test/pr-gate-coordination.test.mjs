@@ -86,7 +86,7 @@ test("non-draft PR with clean draft gate on a different head proceeds to post-dr
   assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
   assert.equal(result.draftGate.visible, true);
   assert.equal(result.draftGate.currentHead, false);
-  assert.equal(result.draftGate.draftGateSatisfied, true);
+  assert.equal(result.draftGate.cleanEvidenceExists, true);
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
 });
@@ -183,7 +183,7 @@ test("non-draft PR with clean draft_gate on a different head still allows post-d
   assert.notEqual(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
   assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
   assert.equal(result.draftGate.currentHead, false);
-  assert.equal(result.draftGate.draftGateSatisfied, true);
+  assert.equal(result.draftGate.cleanEvidenceExists, true);
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
   assert.equal(
     result.reason,
@@ -206,7 +206,7 @@ test("non-draft PR without any clean draft_gate evidence fails closed", () => {
 
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
   assert.equal(result.nextAction, PR_GATE_ACTION.REPORT_BLOCKED);
-  assert.equal(result.draftGate.draftGateSatisfied, false);
+  assert.equal(result.draftGate.cleanEvidenceExists, false);
   assert(result.allowedNextActions.includes(PR_GATE_ACTION.REPORT_BLOCKED));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
@@ -228,12 +228,12 @@ test("non-draft PR with findings_present draft_gate fails closed because no clea
   });
 
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
-  assert.equal(result.draftGate.draftGateSatisfied, false);
+  assert.equal(result.draftGate.cleanEvidenceExists, false);
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
   assert.match(result.reason, /no clean `draft_gate` evidence exists at all/i);
 });
 
-test("draft PR with clean current-head draft_gate sets draftGateSatisfied", () => {
+test("draft PR with clean current-head draft_gate sets cleanEvidenceExists", () => {
   const result = evaluatePrGateCoordination({
     pr: 10,
     currentHeadSha: "abc123456789",
@@ -244,6 +244,6 @@ test("draft PR with clean current-head draft_gate sets draftGateSatisfied", () =
     draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
   });
 
-  assert.equal(result.draftGate.draftGateSatisfied, true);
+  assert.equal(result.draftGate.cleanEvidenceExists, true);
   assert.equal(result.draftGate.currentHeadClean, true);
 });

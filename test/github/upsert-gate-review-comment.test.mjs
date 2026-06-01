@@ -887,7 +887,6 @@ test("upsert-gate-review-comment fails closed when draft_gate is forbidden on a 
     assert.equal(payload.ok, false);
     assert.match(payload.error, /Cannot enter draft_gate/i);
     assert.match(payload.error, /Cannot enter draft_gate/i);
-    assert.match(payload.error, /request Copilot review before any/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

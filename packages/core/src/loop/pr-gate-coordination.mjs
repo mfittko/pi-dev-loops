@@ -59,7 +59,7 @@ function toGateStatus(comment, marker, currentHeadSha) {
     && typeof currentHeadSha === "string"
     && currentHeadSha.startsWith(normalizedMarker.headSha);
 
-  const draftGateSatisfied = normalizedComment.visible && normalizedComment.verdict === "clean";
+  const cleanEvidenceExists = normalizedComment.visible && normalizedComment.verdict === "clean" && normalizedComment.headSha !== null;
 
   return {
     visible: normalizedComment.visible,
@@ -70,7 +70,7 @@ function toGateStatus(comment, marker, currentHeadSha) {
     nextAction: normalizedComment.nextAction,
     contractComplete: normalizedMarker.visible && markerHeadMatches && normalizedMarker.contractComplete,
     currentHeadClean: normalizedMarker.visible && markerHeadMatches && normalizedMarker.verdict === "clean" && normalizedMarker.contractComplete,
-    draftGateSatisfied,
+    cleanEvidenceExists,
   };
 }
 
@@ -211,7 +211,7 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (!draftGate.draftGateSatisfied) {
+  if (!draftGate.cleanEvidenceExists) {
     pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
     pushUnique(forbiddenActions, [
       PR_GATE_ACTION.RUN_DRAFT_GATE,
