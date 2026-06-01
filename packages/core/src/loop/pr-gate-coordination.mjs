@@ -277,7 +277,7 @@ export function evaluatePrGateCoordination(input = {}) {
           allowedNextActions,
           forbiddenActions,
           nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
-          reason: "This is an explicitly local-first PR with clean draft_gate and pre_approval_gate evidence on the current head, so it is ready for final human approval.",
+          reason: "This is an explicitly local-first PR with clean draft_gate evidence and current-head clean pre_approval_gate, so it is ready for final human approval.",
         });
       }
 
