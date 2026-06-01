@@ -34,9 +34,10 @@ test("coordinator agent does not contain stale docs/plans path and requires fres
 });
 
 test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with explicit fallback requirement", async () => {
-  const [localImplementationSkill, copilotFollowupSkill, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph] = await Promise.all([
+  const [localImplementationSkill, copilotFollowupSkill, subLoopContract, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph] = await Promise.all([
     readRepo("skills/local-implementation/SKILL.md"),
     readRepo("skills/copilot-pr-followup/SKILL.md"),
+    readRepo("docs/gate-review-sub-loop-contract.md"),
     readRepo("agents/review.agent.md"),
     readRepo("agents/coordinator.agent.md"),
     readRepo("skills/dev-loop/templates/review.md"),
@@ -72,7 +73,9 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
 
   assert.match(reviewTemplate, /fallback note:[^\n]*if parallel execution of the three review lenses is impractical/i);
   assert.match(localImplementationSkill, /if parallel execution is impractical[\s\S]*run all three lenses sequentially and explicitly record why parallel execution was impractical/i);
-  assert.match(copilotFollowupSkill, /fresh context and in parallel when practical/i);
+  assert.match(copilotFollowupSkill, /gate-review-sub-loop-contract\.md.*pre-approval/i);
+  assert.match(subLoopContract, /fresh context/i);
+  assert.match(subLoopContract, /in parallel when practical/i);
   assert.match(copilotFollowupSkill, /if parallel execution is impractical[\s\S]*still run all three lenses and explicitly record the limitation/i);
   assert.match(reviewAgent, /if parallel execution is impractical[\s\S]*still cover all three lenses and explicitly record the limitation/i);
   assert.match(coordinatorAgent, /default to three focused lenses \(DRY, KISS, YAGNI\) and run them in parallel when practical/i);
