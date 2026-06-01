@@ -622,10 +622,13 @@ export function createInspectRunViewerLifecycleManager({
         };
       }
 
-      return {
-        ...(await startFresh({ repoRoot, requestedRepo: restartRepo })),
-        detail: 'Restarted the managed inspect-run viewer.',
-      };
+      const restarted = await startFresh({ repoRoot, requestedRepo: restartRepo });
+      return restarted.state === 'running'
+        ? {
+            ...restarted,
+            detail: 'Restarted the managed inspect-run viewer.',
+          }
+        : restarted;
     },
   };
 }

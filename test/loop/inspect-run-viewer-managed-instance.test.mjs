@@ -165,6 +165,8 @@ test('restart only replaces managed ownership and fails closed on an unknown lis
 
   const restarted = await manager.restart({ repoRoot, repo: 'mfittko/pi-dev-loops' });
   assert.equal(restarted.state, 'conflict_unmanaged_listener');
+  assert.match(restarted.detail, /port 4311 is occupied/i);
+  assert.doesNotMatch(restarted.detail, /restarted the managed inspect-run viewer/i);
   assert.deepEqual(stopped, []);
   assert.equal(launches.length, 1);
 });
