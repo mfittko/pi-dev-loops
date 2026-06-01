@@ -100,6 +100,28 @@ Before local phase planning or coding:
 
 Treat missing optional files as normal bootstrap conditions, not as errors.
 
+### Tracker-backed local implementation (`local_implementation` with tracker issue input)
+
+When a `local_implementation` session targets a tracker issue (GitHub `owner/repo#N`, Shortcut `sc#N`, Jira `PROJ-N`) whose body carries a spec, the tracker issue is the canonical spec source. This is an input-source variant, not a new routing mode.
+
+Before local phase planning or coding:
+
+1. read this skill
+2. if `AGENTS.md` exists, read it
+3. resolve the tracker spec — use `scripts/loop/resolve-tracker-spec.mjs --issue <N> [--repo <owner/repo>]` for GitHub issues, or the equivalent tracker adapter for Shortcut/Jira
+4. if the resolved spec is not spec-bearing (no summary, scope, or acceptance criteria), fall back to full local mode or ask for clarification
+5. if `docs/phases/phase-x.md` exists for the active phase, read it **as a thin pointer only** — the tracker issue body is the authoritative spec; do not treat the phase doc as the source of truth
+6. optionally read `docs/IMPLEMENTATION_STATE.md` and `docs/IMPLEMENTATION_WORKFLOW.md` for repo context
+
+Key differences from full local mode:
+- the tracker issue body replaces `docs/phases/phase-x.md` as the canonical spec
+- `docs/phases/phase-x.md` is a thin pointer (optional); use `scripts/loop/resolve-tracker-spec.mjs` or the `generateThinPhaseDoc()` helper to create it
+- `PLAN.md` is not required reading for tracker-backed sessions
+- state sync: update the issue with a comment when the phase advances
+- the bootstrap-files rule does not apply — do not create a full phase doc from templates when a tracker spec already exists
+
+Authoritative contract: `../docs/tracker-backed-local-contract.md`
+
 ## Primary execution rules
 
 - Implement **one phase at a time**.
@@ -123,13 +145,15 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 
 Treat the workflow as three layers:
 - `PLAN.md` = strategic product and architecture truth
-- `docs/phases/phase-x.md` = durable per-phase plan and acceptance criteria
+- `docs/phases/phase-x.md` = durable per-phase plan and acceptance criteria **(full local mode)** or thin tracker pointer **(tracker-backed)**
 - `tmp/` = temporary local execution audit trail and machine-friendly continuation state
+
+In tracker-backed mode, the tracker issue body is the canonical spec; `docs/phases/phase-x.md` is a thin pointer and does not duplicate the issue body.
 
 Maintain the core paths below while the phase is active locally, and create optional artifacts only when they are actually used:
 
 Core paths:
-- `docs/phases/phase-x.md`
+- `docs/phases/phase-x.md` (full plan in full local mode; thin pointer in tracker-backed mode)
 - `tmp/phases/index.json`
 - `tmp/phases/phase-x/manifest.json`
 - `tmp/phases/phase-x/variant-a.md`
@@ -164,12 +188,16 @@ If these files are missing, create them from `templates/` before continuing:
 - missing `docs/phases/phase-x.md` for the active phase -> create from `templates/phase-doc.md`
 - missing `tmp/phases/index.json` -> create or reinitialize it
 
-The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase's plan and acceptance boundary.
+The bootstrap files are support infrastructure. In full local mode, `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase's plan and acceptance boundary. In tracker-backed mode, the tracker issue body is the canonical spec and `docs/phases/phase-x.md` is a thin pointer; do not create a full phase doc from templates when a tracker spec is already resolved.
 
 For bootstrap/setup phases, do not mark the phase `completed` or `awaiting-finalization` until the expected durable support files for the chosen workflow contract actually exist in the repository. Temporary `tmp/` execution artifacts do not need to be committed.
 ## Plan sufficiency check
 
-Before phase planning, check whether `PLAN.md` contains enough information to proceed safely.
+Before phase planning, check whether the canonical spec contains enough information to proceed safely.
+
+**Full local mode:** check `PLAN.md` and `docs/phases/phase-x.md`.
+
+**Tracker-backed mode:** check the resolved tracker issue body. If `specBearing` is `false` from the resolver, treat the body as insufficient.
 
 At minimum, the current phase needs enough information to infer:
 - the goal of the phase
@@ -207,8 +235,9 @@ Do not begin fan-out planning until the current phase is sufficiently specified,
 
 ## Determine where to resume
 
-Read `docs/IMPLEMENTATION_STATE.md` and identify the next unfinished phase.
-Read `docs/phases/phase-x.md` for that phase if it exists.
+**Full local mode:** Read `docs/IMPLEMENTATION_STATE.md` and identify the next unfinished phase. Read `docs/phases/phase-x.md` for that phase if it exists.
+
+**Tracker-backed mode:** The active phase is determined by the tracker issue reference. If no phase doc exists yet, assign the next available phase number and create a thin pointer via `scripts/loop/resolve-tracker-spec.mjs` or the `generateThinPhaseDoc()` helper.
 
 If `tmp/phases/index.json` exists locally, use it as a fast index for prior artifacts.
 If the durable phase doc, the state file, and the tmp index disagree, trust docs first and note the mismatch in the phase review log.

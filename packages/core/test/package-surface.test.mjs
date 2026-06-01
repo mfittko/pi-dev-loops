@@ -30,6 +30,7 @@ test("packages/core exports the sanctioned runtime boundary and de-exports unuse
   assert.equal(packageJson.exports["./loop/steering"], "./src/loop/steering.mjs");
   assert.equal(packageJson.exports["./loop/timeout-policy"], "./src/loop/timeout-policy.mjs");
   assert.equal(packageJson.exports["./loop/tracker-pr-state"], "./src/loop/tracker-pr-state.mjs");
+  assert.equal(packageJson.exports["./loop/tracker-spec-resolution"], "./src/loop/tracker-spec-resolution.mjs");
 
   assert.equal(packageJson.exports["./loop/conductor-ownership"], undefined);
   assert.equal(packageJson.exports["./loop/conductor-pr-projection"], undefined);

@@ -492,6 +492,26 @@ Failure behavior:
 - unreadable input files, invalid JSON, and invalid snapshot objects emit
   `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/loop/resolve-tracker-spec.mjs`
+
+Resolves a GitHub issue into a deterministic spec snapshot for tracker-backed
+local implementation. Fetches the issue via `gh issue view` and normalizes the
+body into a structured spec shape (objective, summary, scope, non-goals,
+acceptance criteria) suitable for phase planning.
+
+Required:
+- `--issue <number>`
+
+Optional:
+- `--repo <owner/repo>` — defaults to the current repo if omitted
+
+Success output shape:
+- `{ "ok": true, "spec": { "objective": "...", "summary": "...", "scope": "...", "nonGoals": "...", "acceptanceCriteria": "...", "trackerRef": { ... }, "specBearing": true } }`
+
+Failure behavior:
+- malformed arguments emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+- `gh` CLI unavailable or issue not found emits `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/loop/detect-reviewer-loop-state.mjs`
 
 Deterministic reviewer-loop state detector. Captures reviewer-side PR loop state from observable

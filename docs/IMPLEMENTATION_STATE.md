@@ -15,6 +15,7 @@ Current `main` also includes the current conductor-adjacent ownership/routing co
 - Repo contract: `AGENTS.md`
 - Workflow explainer: `docs/IMPLEMENTATION_WORKFLOW.md`
 - Durable local phase plan: `docs/phases/phase-7.md`
+- Tracker-backed local implementation contract: `skills/docs/tracker-backed-local-contract.md`
 - tmp index for fresh-context inspection if present locally: `tmp/phases/index.json`
 
 ## Supporting context
@@ -23,9 +24,9 @@ Current `main` also includes the current conductor-adjacent ownership/routing co
 
 ## Current phase
 
-- Active phase: `phase-7`
-- Durable phase plan: `docs/phases/phase-7.md`
-- Status: `planning`
+- Active phase: `phase-7` (`planning`)
+- Recently active: `phase-9` — tracker-backed, GitHub issue [#294](https://github.com/mfittko/pi-dev-loops/issues/294)
+- Phase 9 plan: `docs/phases/phase-9.md` (thin pointer)
 
 ## Next action for a fresh session
 

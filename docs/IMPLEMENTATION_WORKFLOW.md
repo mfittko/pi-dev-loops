@@ -40,7 +40,7 @@ Use for the current repo execution snapshot:
 
 ### 4. `docs/phases/phase-<n>.md`
 
-Use for the durable plan for one local phase:
+Use for the durable plan for one local phase **(full local mode)**:
 - why the phase exists now
 - in-scope work
 - explicit non-goals
@@ -48,6 +48,10 @@ Use for the durable plan for one local phase:
 - definition of done
 - validation approach
 - durable decisions and open questions
+
+In **tracker-backed mode**, this file is a thin pointer referencing the tracker
+issue. The tracker issue body is the canonical spec. Do not duplicate the spec
+into the phase doc. See `skills/docs/tracker-backed-local-contract.md`.
 
 A fresh human or agent should be able to read the active phase doc first and understand the current local-phase intent without replaying `tmp/` artifacts.
 
