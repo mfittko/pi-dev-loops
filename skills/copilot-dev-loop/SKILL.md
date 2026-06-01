@@ -718,17 +718,10 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - when the intent is GitHub linkability, keep commit SHAs and issue/PR refs as plain text (for example 3ee82fc and owner/repo#70) and do not wrap them in backticks
    - keep backticks for actual code/path/CLI literals only
    - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
-
-**Copilot review comment resolution contract:** every resolution must satisfy at least one of:
-
-- **Applied**: the requested change was implemented; the reply MUST name the resolving commit SHA (e.g. "Fixed in abc1234.")
-- **Dismissed with reasoning**: the change is not applied, but the reply MUST include an explicit, well-grounded reason at least 30 characters after trimming (e.g. "Intentionally kept for downstream consumers", "Out of scope for this phase — tracked in issue #N")
-
-Invalid resolutions (must not resolve the thread):
-- Bare "Acknowledged." without reasoning
-- "Looks good", "OK", "+1", or other thin acknowledgments on actionable feedback
-- Batch-resolving without reading or without per-thread replies
-- Any reply that is too short to contain either a commit SHA reference or a dismissal reason (at least 30 characters after trimming)
+   - **resolution contract:** every resolution must satisfy at least one of:
+     - **Applied**: the requested change was implemented; the reply MUST name the resolving commit SHA (e.g. "Fixed in abc1234.")
+     - **Dismissed with reasoning**: the change is not applied, but the reply MUST include an explicit, well-grounded reason at least 30 characters after trimming (e.g. "Intentionally kept for downstream consumers", "Out of scope for this phase — tracked in issue #N")
+   - invalid resolutions (must not resolve the thread): bare "Acknowledged." without reasoning; "Looks good", "OK", "+1", or other thin acknowledgments on actionable feedback; batch-resolving without reading or without per-thread replies; any reply too short to contain either a commit SHA reference or a dismissal reason (at least 30 characters after trimming)
 9. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
    - do not stop at a local fix if GitHub-side reply/resolve is authorized
 10. after completing reply/resolve for a pass, verify `unresolvedThreadCount === 0` via `capture-review-threads.mjs` before proceeding
