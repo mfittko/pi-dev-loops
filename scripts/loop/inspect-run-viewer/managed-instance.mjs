@@ -122,7 +122,6 @@ async function defaultHealthcheck(url) {
   try {
     const response = await fetch(url, {
       method: 'GET',
-      signal: AbortSignal.timeout(1500),
     });
     return response.status === 200;
   } catch {
