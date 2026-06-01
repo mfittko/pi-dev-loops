@@ -742,7 +742,7 @@ The canonical gate-review comment contract is `docs/gate-review-comment-contract
 - **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
 - **Execution directive:** run the gate-review sub-loop defined in `docs/gate-review-sub-loop-contract.md` with the draft-gate review angles below.
 - **Review angles (owned by this gate):** correctness vs acceptance criteria, scope compliance, test coverage adequacy, CI/check status, no unrelated files.
-- **Pass criteria:** all five draft-gate angles pass; all must-fix findings are addressed or explicitly deferred with rationale; validation passes; no unrelated files are included.
+- **Pass criteria:** all five draft-gate angles pass; all must-fix findings are addressed; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review.
 - **Non-substitution rule:** a clean `draft_gate` comment only authorizes the draft → ready-for-review transition for that head SHA. It does **not** satisfy `pre_approval_gate`, final-approval readiness, or merge-ready requirements.
 - **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper (see Mandatory gate-comment command contract above). Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See `docs/gate-review-comment-contract.md` for required fields, verdict definitions, and fail-closed behavior.

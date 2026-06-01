@@ -65,8 +65,8 @@ Merge the parallel reviewer findings into one synthesis:
 - collate findings from all review angles
 - classify each finding: `must-fix`, `worth-fixing-now`, `defer`
 - produce a merged findings artifact
-- determine the overall gate verdict: `clean` (no must-fix findings) or
-  `findings_present` (must-fix findings remain)
+- determine the overall gate verdict: `clean` (no must-fix findings),
+  `findings_present` (must-fix findings remain), or `blocked` (the gate could not complete or a hard blocker prevented a verdict)
 
 ### Phase 4 — Fix
 
