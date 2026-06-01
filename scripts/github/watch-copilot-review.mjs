@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { formatCliError, isDirectCliRun, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
+import { formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 const USAGE = `Usage: watch-copilot-review.mjs --repo <owner/name> --pr <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
@@ -163,10 +163,6 @@ export function parseWatchCliArgs(argv) {
   }
 
   return options;
-}
-
-function isCopilotLogin(login) {
-  return typeof login === "string" && /^copilot(?:[^a-z]|$)/i.test(login);
 }
 
 function runChild(command, args, env) {
