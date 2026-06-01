@@ -6,6 +6,8 @@ This document defines the deterministic reviewer-side PR loop state machine.
 
 The reviewer loop captures observable PR/GitHub facts plus explicit local reviewer-loop metadata (planning/run/merge status) into one snapshot and deterministically maps that snapshot to exactly one current state.
 
+This document defines the reviewer-side review production/submission boundary. The broader family-local PR lifecycle that consumes this boundary is defined in `skills/docs/pr-lifecycle-contract.md`.
+
 Implementation:
 
 - Pure logic: `packages/core/src/loop/reviewer-loop-state.mjs`

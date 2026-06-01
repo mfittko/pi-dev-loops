@@ -7,6 +7,7 @@ Start here for repository documentation.
 - `docs/IMPLEMENTATION_STATE.md` — current execution snapshot and fresh-session read order
 - `docs/IMPLEMENTATION_WORKFLOW.md` — workflow/process authority boundaries
 - `docs/conductor-routing-contract.md` — canonical outer-loop routing contract
+- `skills/docs/pr-lifecycle-contract.md` — canonical family-local PR lifecycle contract
 - `docs/tracker-story-pr-contract.md` — canonical tracker-first story/PR contract
 - `docs/sub-issue-tree-contract.md` — deterministic pattern for epic decomposition with GitHub sub-issue trees
 - `docs/conductor-ownership-contract.md`
