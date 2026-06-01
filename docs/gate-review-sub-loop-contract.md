@@ -95,7 +95,7 @@ The sub-loop execution shape can be referenced programmatically via these fields
 | `subLoopPhases` | `[preamble, fanout, fanin, fix, repeat]` | Ordered sub-loop phases |
 | `contextBuilderRequired` | `true` | Preamble phase must include fresh-context context-builder |
 | `worktreeRecommended` | `true` | Worktree isolation recommended but not hard-required |
-| `fixRetryUntilClean` | `true` | Findings trigger fix → retry until synthesis is clean |
+| `fixRetryUntilClean` | `true` | Must-fix findings trigger fix → retry until synthesis is clean |
 
 ## Gate-specific configuration
 
