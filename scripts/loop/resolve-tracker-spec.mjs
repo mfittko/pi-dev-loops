@@ -23,6 +23,9 @@
  *     }
  *   }
  *
+ *   When --repo is omitted, trackerRef includes format and number only
+ *   (owner/repo fields are absent).
+ *
  * Exit codes:
  *   0  Success
  *   1  Argument error or runtime failure

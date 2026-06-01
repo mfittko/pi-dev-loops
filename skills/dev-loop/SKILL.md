@@ -216,7 +216,7 @@ When the plan is insufficient, use one of these modes:
 - ask only the missing high-value questions needed to safely refine the current phase
 - prefer a short interview or wizard-style sequence over one giant question dump
 - record the answers in `tmp/phases/phase-x/clarification.md`
-- update `docs/phases/phase-x.md` with clarified durable phase intent, scope, or acceptance criteria
+- update `docs/phases/phase-x.md` with clarified durable phase intent, scope, or acceptance criteria (full local mode only; in tracker-backed mode, update the tracker issue body or add a clarification comment instead — never create or edit a phase doc)
 - update `PLAN.md` only if the clarified information is durable product/project truth beyond the current phase
 - update `docs/IMPLEMENTATION_STATE.md` if the clarification changes the next phase boundary
 
