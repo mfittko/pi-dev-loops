@@ -381,3 +381,14 @@ test('stop and restart treat ESRCH as already-stopped', async () => {
   assert.equal(restarted.state, 'running');
   assert.equal(stopCalls, 2);
 });
+
+test('status returns the raw conflict URL instead of appending a scoped query to an unmanaged listener', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-conflict-raw-url-'));
+  const { manager, listenersByPort, processes } = createManager();
+  listenersByPort.set(4311, [9444]);
+  processes.set(9444, { alive: true, healthy: true, port: 4311, url: 'http://127.0.0.1:4311' });
+
+  const status = await manager.status({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  assert.equal(status.state, 'conflict_unmanaged_listener');
+  assert.equal(status.url, 'http://127.0.0.1:4311');
+});

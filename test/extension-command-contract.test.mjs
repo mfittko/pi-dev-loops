@@ -274,3 +274,26 @@ test("extension surfaces fail-closed resume guidance when no managed viewer is l
   assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer resume: stopped');
   assert.equal(calls.notifications.at(-1).level, 'error');
 });
+
+test('extension treats successful inspect-run stop as an info notification', async () => {
+  const pi = readyPi();
+  registerExtension(pi, {
+    uiLifecycle: {
+      async stop() {
+        return {
+          state: 'stopped',
+          url: null,
+          detail: 'Stopped the managed inspect-run viewer.',
+          warning: null,
+        };
+      },
+    },
+    getRepoRoot: async () => '/repo/root',
+  });
+
+  const { ctx, calls } = createCommandContext();
+  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run stop', ctx);
+
+  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer stop: stopped');
+  assert.equal(calls.notifications.at(-1).level, 'info');
+});

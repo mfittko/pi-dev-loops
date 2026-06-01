@@ -152,9 +152,14 @@ async function defaultOpenBrowser(url) {
       args = [url];
       break;
   }
-  const child = spawn(command, args, options);
-  child.on('error', () => {});
-  child.unref();
+  await new Promise((resolve, reject) => {
+    const child = spawn(command, args, options);
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve(undefined);
+    });
+  });
 }
 
 async function readManagedRecord(recordPath) {
@@ -461,7 +466,7 @@ export function createInspectRunViewerLifecycleManager({
       }
       return {
         state: snapshot.state,
-        url: snapshot.state === 'stopped' ? null : buildOperatorUrl(snapshot.record ?? undefined, requestedRepo),
+        url: snapshot.state === 'running' ? buildOperatorUrl(snapshot.record ?? undefined, requestedRepo) : snapshot.url,
         detail: snapshot.detail,
         warning: null,
         recordPath: snapshot.recordPath,

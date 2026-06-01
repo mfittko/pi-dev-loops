@@ -199,3 +199,31 @@ test('executor returns a structured inspect-run UI result when repo-root lookup 
     warning: null,
   });
 });
+
+test('executor preserves repoRoot when the inspect-run lifecycle action throws after repo-root lookup succeeds', async () => {
+  const result = await executeDevLoopsCommand({
+    input: ['ui', 'inspect-run', 'open'],
+    surface: 'extension',
+    runtime: {
+      async getRepoRoot() {
+        return '/repo/root';
+      },
+      uiLifecycle: {
+        async open() {
+          throw new Error('launch failed');
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(result, {
+    kind: 'ui_inspect_run_result',
+    action: 'open',
+    repo: null,
+    repoRoot: '/repo/root',
+    state: 'stopped',
+    url: null,
+    detail: 'launch failed',
+    warning: null,
+  });
+});
