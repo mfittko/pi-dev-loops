@@ -199,6 +199,9 @@ function extractSection(body, headingPattern) {
  * Unlike full local mode (6 files minimum), tracker-backed sessions need only
  * the issue body as the canonical spec. Other files are optional context.
  *
+ * Note: tracker-backed sessions do not use docs/phases/phase-x.md.
+ * The tracker issue and a phase doc are mutually exclusive.
+ *
  * @returns {{ required: string[], optional: string[] }}
  */
 export function trackerBackedStartupReads() {
@@ -209,63 +212,9 @@ export function trackerBackedStartupReads() {
     ],
     optional: [
       "AGENTS.md",
-      "docs/phases/phase-x.md (thin pointer only)",
       "PLAN.md",
       "docs/IMPLEMENTATION_STATE.md",
       "docs/IMPLEMENTATION_WORKFLOW.md",
     ],
   };
-}
-
-/**
- * Generate a thin phase doc pointer for a tracker-backed session.
- *
- * @param {object} params
- * @param {string} params.phase - phase name, e.g. "phase-9"
- * @param {{ format: string, owner?: string, repo?: string, number?: string, url?: string }} params.trackerRef
- * @param {string} params.title - issue title
- * @returns {string}
- */
-export function generateThinPhaseDoc({ phase, trackerRef, title }) {
-  const issueUrl =
-    trackerRef.url ||
-    (trackerRef.owner && trackerRef.repo && trackerRef.number
-      ? `https://github.com/${trackerRef.owner}/${trackerRef.repo}/issues/${trackerRef.number}`
-      : "");
-
-  const statusLine = "planning";
-
-  let refLine = "";
-  if (trackerRef.format === TRACKER_SPEC_FORMAT.GITHUB_ISSUE ||
-      trackerRef.format === TRACKER_SPEC_FORMAT.GITHUB_URL) {
-    const id = trackerRef.number || "?";
-    if (issueUrl) {
-      refLine = `GitHub issue [#${id}](${issueUrl}) — ${title}`;
-    } else {
-      refLine = `GitHub issue #${id} — ${title}`;
-    }
-  } else if (trackerRef.number) {
-    refLine = `${trackerRef.number} — ${title}`;
-  } else {
-    refLine = title;
-  }
-
-  return [
-    `# ${phase} durable plan`,
-    "",
-    "## Status",
-    "",
-    statusLine,
-    "",
-    "## Tracker reference",
-    "",
-    refLine,
-    "",
-    "The issue body is the canonical spec. This file is a thin pointer.",
-    "",
-    "## Links to execution artifacts",
-    "",
-    `- local execution artifacts under \`tmp/phases/${phase}/\``,
-    "",
-  ].join("\n");
 }

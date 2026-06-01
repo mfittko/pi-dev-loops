@@ -45,24 +45,13 @@ same plan-sufficiency check as full local mode and run clarification if needed.
 | Layer | Home | Content |
 |---|---|---|
 | Spec | Tracker issue body | Full spec: summary, problem, desired behavior, scope, acceptance criteria |
-| Phase pointer | `docs/phases/phase-x.md` (optional) | Thin pointer: issue reference + brief objective summary only. Must not duplicate the issue body. |
 | Execution artifacts | `tmp/phases/phase-x/` | Same as full local mode: variants, merged plan, review, summary, retrospective |
 
-**Rule:** `docs/phases/phase-x.md` is a thin pointer, not a copy of the issue.
-If the phase pointer is absent, the tracker reference alone is sufficient for
-a fresh session to resolve the spec.
-
-Maximum thin-pointer content:
-```markdown
-# phase-N durable plan
-## Status
-planning | in-progress | completed | awaiting-finalization
-## Tracker reference
-GitHub issue [#N](https://github.com/owner/repo/issues/N) — {title}
-The issue body is the canonical spec. This file is a thin pointer.
-## Links to execution artifacts
-- local execution artifacts under `tmp/phases/phase-N/`
-```
+**Rule:** the tracker issue and a `docs/phases/phase-x.md` are mutually
+exclusive. If a tracker issue exists as the canonical spec, do NOT create a
+phase doc — not even a thin pointer. The phase index at
+`tmp/phases/index.json` still records the phase entry and references the
+tracker issue as its spec source.
 
 ## 4. State sync
 
@@ -106,8 +95,7 @@ Before a tracker-backed local implementation session:
 2. Read the tracker issue body → canonical spec
 3. Read previous phase learnings (`summary.md`, `retrospective.md`) if a
    prior phase exists
-4. Read `docs/phases/phase-x.md` only as a thin pointer — resolve the real
-   spec from the tracker issue, not the pointer file
+4. Read `docs/phases/phase-x.md` only if a full-local-mode phase doc exists — do NOT create one for tracker-backed sessions
 
 Do **not** require `PLAN.md`, `docs/IMPLEMENTATION_STATE.md`, or
 `docs/IMPLEMENTATION_WORKFLOW.md` for tracker-backed sessions. The issue body
@@ -143,8 +131,10 @@ The thin `docs/phases/phase-x.md` pointer is updated to reflect status only.
 
 ## 9. Non-duplication enforcement
 
-- The spec MUST NOT be copied from the issue body into `docs/phases/phase-x.md`
+- The spec MUST NOT be copied from the issue body into a `docs/phases/phase-x.md`
 - The merged plan MUST NOT reproduce the full issue body
+- `docs/phases/phase-x.md` MUST NOT be created for tracker-backed sessions;
+  the phase index (`tmp/phases/index.json`) is the only index artifact needed
 - `PLAN.md` is only updated if the phase changes durable product truth (same
   rule as full local mode)
 - Issue-specific execution plans remain in the GitHub issue, not in repo-level
@@ -164,7 +154,7 @@ The thin `docs/phases/phase-x.md` pointer is updated to reflect status only.
 | Aspect | Full local mode | Tracker-backed |
 |---|---|---|
 | Spec source | `docs/phases/phase-x.md` | Tracker issue body |
-| Phase doc | Full plan document | Thin pointer (optional) |
+| Phase doc | Required | Must NOT exist |
 | Startup reads | 6 files minimum | Issue body + previous learnings |
 | `PLAN.md` requirement | Required | Optional context only |
 | State sync | Durable docs only | Issue comments + durable docs |

@@ -7,7 +7,6 @@ import {
   isSpecBearingIssueBody,
   normalizeTrackerSpec,
   trackerBackedStartupReads,
-  generateThinPhaseDoc,
 } from "../src/loop/tracker-spec-resolution.mjs";
 
 const SPEC_BEARING_BODY = `## Summary
@@ -252,75 +251,12 @@ describe("trackerBackedStartupReads", () => {
     const hasAgents = reads.optional.some((r) => r.includes("AGENTS.md"));
     assert.equal(hasAgents, true);
   });
-});
 
-describe("generateThinPhaseDoc", () => {
-  it("generates a thin pointer for GitHub issues", () => {
-    const doc = generateThinPhaseDoc({
-      phase: "phase-9",
-      trackerRef: {
-        format: TRACKER_SPEC_FORMAT.GITHUB_ISSUE,
-        owner: "mfittko",
-        repo: "pi-dev-loops",
-        number: "294",
-      },
-      title: "Tracker-backed local implementation",
-    });
-
-    assert.ok(doc.includes("# phase-9 durable plan"));
-    assert.ok(doc.includes("## Status"));
-    assert.ok(doc.includes("planning"));
-    assert.ok(doc.includes("## Tracker reference"));
-    assert.ok(doc.includes("GitHub issue [#294]"));
-    assert.ok(doc.includes("Tracker-backed local implementation"));
-    assert.ok(doc.includes("The issue body is the canonical spec. This file is a thin pointer."));
-    assert.ok(doc.includes("tmp/phases/phase-9/"));
-  });
-
-  it("generates a thin pointer for GitHub URLs", () => {
-    const doc = generateThinPhaseDoc({
-      phase: "phase-10",
-      trackerRef: {
-        format: TRACKER_SPEC_FORMAT.GITHUB_URL,
-        owner: "mfittko",
-        repo: "pi-dev-loops",
-        number: "301",
-        url: "https://github.com/mfittko/pi-dev-loops/issues/301",
-      },
-      title: "Hand-off contract",
-    });
-
-    assert.ok(doc.includes("GitHub issue [#301]"));
-    assert.ok(doc.includes("Hand-off contract"));
-  });
-
-  it("generates a thin pointer for non-GitHub trackers", () => {
-    const doc = generateThinPhaseDoc({
-      phase: "phase-11",
-      trackerRef: {
-        format: TRACKER_SPEC_FORMAT.SHORTCUT_STORY,
-        number: "1234",
-      },
-      title: "Shortcut story",
-    });
-
-    assert.ok(doc.includes("phase-11"));
-    assert.ok(doc.includes("1234 — Shortcut story"));
-  });
-
-  it("does not include a URL when trackerRef has no owner/repo", () => {
-    const doc = generateThinPhaseDoc({
-      phase: "phase-12",
-      trackerRef: {
-        format: TRACKER_SPEC_FORMAT.GITHUB_ISSUE,
-        number: "500",
-      },
-      title: "Bare issue",
-    });
-
-    // Without owner/repo, renders as plain text (no link, no brackets)
-    assert.ok(doc.includes("GitHub issue #500"));
-    // Should not include a malformed URL
-    assert.ok(!doc.includes("github.com/undefined"));
+  it("does NOT include docs/phases/phase-x.md (mutually exclusive with tracker)", () => {
+    const reads = trackerBackedStartupReads();
+    const hasPhaseDoc = reads.required.concat(reads.optional).some((r) =>
+      r.includes("phase-x.md") || r.includes("phase-")
+    );
+    assert.equal(hasPhaseDoc, false);
   });
 });

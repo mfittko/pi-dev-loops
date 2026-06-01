@@ -110,15 +110,15 @@ Before local phase planning or coding:
 2. if `AGENTS.md` exists, read it
 3. resolve the tracker spec — use `scripts/loop/resolve-tracker-spec.mjs --issue <N> [--repo <owner/repo>]` for GitHub issues, or the equivalent tracker adapter for Shortcut/Jira
 4. if the resolved spec is not spec-bearing (no summary, scope, or acceptance criteria), fall back to full local mode or ask for clarification
-5. if `docs/phases/phase-x.md` exists for the active phase, read it **as a thin pointer only** — the tracker issue body is the authoritative spec; do not treat the phase doc as the source of truth
+5. do NOT create a `docs/phases/phase-x.md` — the tracker issue and a phase doc are mutually exclusive
 6. optionally read `docs/IMPLEMENTATION_STATE.md` and `docs/IMPLEMENTATION_WORKFLOW.md` for repo context
 
 Key differences from full local mode:
 - the tracker issue body replaces `docs/phases/phase-x.md` as the canonical spec
-- `docs/phases/phase-x.md` is a thin pointer (optional); use `scripts/loop/resolve-tracker-spec.mjs` or the `generateThinPhaseDoc()` helper to create it
+- do NOT create a `docs/phases/phase-x.md`; the tracker issue is the only durable spec artifact
 - `PLAN.md` is not required reading for tracker-backed sessions
 - state sync: update the issue with a comment when the phase advances
-- the bootstrap-files rule does not apply — do not create a full phase doc from templates when a tracker spec already exists
+- the bootstrap-files rule does not apply — do not create a phase doc from templates when a tracker spec already exists
 
 Authoritative contract: `../docs/tracker-backed-local-contract.md`
 
@@ -145,15 +145,15 @@ Authoritative contract: `../docs/tracker-backed-local-contract.md`
 
 Treat the workflow as three layers:
 - `PLAN.md` = strategic product and architecture truth
-- `docs/phases/phase-x.md` = durable per-phase plan and acceptance criteria **(full local mode)** or thin tracker pointer **(tracker-backed)**
+- `docs/phases/phase-x.md` = durable per-phase plan and acceptance criteria **(full local mode only)**
 - `tmp/` = temporary local execution audit trail and machine-friendly continuation state
 
-In tracker-backed mode, the tracker issue body is the canonical spec; `docs/phases/phase-x.md` is a thin pointer and does not duplicate the issue body.
+In tracker-backed mode, the tracker issue body is the canonical spec. Do NOT create a `docs/phases/phase-x.md`; the tracker issue and a phase doc are mutually exclusive.
 
 Maintain the core paths below while the phase is active locally, and create optional artifacts only when they are actually used:
 
 Core paths:
-- `docs/phases/phase-x.md` (full plan in full local mode; thin pointer in tracker-backed mode)
+- `docs/phases/phase-x.md` (full local mode only; must NOT exist in tracker-backed mode)
 - `tmp/phases/index.json`
 - `tmp/phases/phase-x/manifest.json`
 - `tmp/phases/phase-x/variant-a.md`
@@ -237,7 +237,7 @@ Do not begin fan-out planning until the current phase is sufficiently specified,
 
 **Full local mode:** Read `docs/IMPLEMENTATION_STATE.md` and identify the next unfinished phase. Read `docs/phases/phase-x.md` for that phase if it exists.
 
-**Tracker-backed mode:** The active phase is determined by the tracker issue reference. If no phase doc exists yet, assign the next available phase number and create a thin pointer via `scripts/loop/resolve-tracker-spec.mjs` or the `generateThinPhaseDoc()` helper.
+**Tracker-backed mode:** The active phase is determined by the tracker issue reference. If the issue resolves to a spec, assign the next available phase number in `tmp/phases/index.json` only — do NOT create a `docs/phases/phase-x.md`.
 
 If `tmp/phases/index.json` exists locally, use it as a fast index for prior artifacts.
 If the durable phase doc, the state file, and the tmp index disagree, trust docs first and note the mismatch in the phase review log.

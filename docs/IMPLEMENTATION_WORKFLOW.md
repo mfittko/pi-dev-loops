@@ -49,9 +49,9 @@ Use for the durable plan for one local phase **(full local mode)**:
 - validation approach
 - durable decisions and open questions
 
-In **tracker-backed mode**, this file is a thin pointer referencing the tracker
-issue. The tracker issue body is the canonical spec. Do not duplicate the spec
-into the phase doc. See `skills/docs/tracker-backed-local-contract.md`.
+In **tracker-backed mode**, this file must NOT exist. The tracker issue body is
+the canonical spec and the two are mutually exclusive. See
+`skills/docs/tracker-backed-local-contract.md`.
 
 A fresh human or agent should be able to read the active phase doc first and understand the current local-phase intent without replaying `tmp/` artifacts.
 
