@@ -247,7 +247,7 @@ export async function runCli(
   const hasSentenceReason = trimmedBody.length >= MIN_DISMISSAL_REASON_LENGTH;
   if (!hasCommitSha && !hasSentenceReason) {
     throw new Error(
-      `Reply body (${trimmedBody.length} characters after trimming) must contain either a commit SHA reference or a sentence-length reason (at least ${MIN_DISMISSAL_REASON_LENGTH} characters after trimming). ` +
+      `Reply body (${trimmedBody.length} characters after trimming) must contain either a commit SHA reference or a dismissal reason (at least ${MIN_DISMISSAL_REASON_LENGTH} characters after trimming). ` +
       "Bare acknowledgments like \"Acknowledged.\" are not valid resolutions.",
     );
   }
