@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { resolveAuthoritativeStartupResumeBundle } from "../../packages/core/src/loop/public-dev-loop-routing.mjs";
+import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 
 const USAGE = `Usage:
   resolve-dev-loop-startup.mjs --input <path>
@@ -94,27 +94,6 @@ function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
 }
 
-function parseJsonText(text) {
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    throw new Error(`Invalid JSON input: ${error.message}`);
-  }
-}
-
-function formatCliError(error) {
-  const payload = {
-    ok: false,
-    error: error instanceof Error ? error.message : String(error),
-  };
-
-  if (error && typeof error === "object" && "usage" in error && typeof error.usage === "string") {
-    payload.usage = error.usage;
-  }
-
-  return JSON.stringify(payload);
-}
-
 function requireOptionValue(args, flag) {
   const value = args.shift();
   if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
@@ -198,9 +177,7 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
   stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-
-if (isDirectRun) {
+if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);
     process.exitCode = 1;

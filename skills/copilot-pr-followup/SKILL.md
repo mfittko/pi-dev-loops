@@ -221,7 +221,7 @@ states for this narrower MVP slice.
    `node <resolved-skill-scripts>/github/stage-reviewer-draft.mjs --repo <owner/name> --pr <number> --review-file <merged-review.json> --local-state-output <state.json>`,
    then re-run the detector with `--local-state <state.json>`.
 
-   In the `pi-dev-loops` source repository, `<resolved-skill-scripts>` is `../scripts` relative to this file.
+   In the `pi-dev-loops` source repository, `<resolved-skill-scripts>` is `../../scripts` relative to this file.
    In normalized installed skill copies, it may instead be `scripts` inside the installed skill directory.
 
 5. Follow the `nextAction` from the machine output. For stop states (`review_request_unavailable`,

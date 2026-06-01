@@ -127,21 +127,21 @@ Optional when used:
 - in dev mode: `tmp/phases/phase-x/dev-mode-retrospective.md`
 - in dev mode: `tmp/phases/phase-x/dev-mode-skill-changes.md`
 
-Use the templates in `templates/` relative to the skill directory.
+Use the templates in `../dev-loop/templates/` (the sibling `skills/dev-loop/templates/` directory in this repo).
 
-Use deterministic helper scripts from `scripts/` for repeatable support tasks such as phase initialization, phase-file updates, template materialization, bash-exit logging, and dev-mode context collection. Paths referenced from this skill are relative to the skill directory so the workflow works from project-local `.pi/skills/`, packaged Pi installs, or other supported Pi skill locations.
+Use deterministic helper scripts from `../dev-loop/scripts/` (the sibling `skills/dev-loop/scripts/` directory in this repo, or the equivalent `scripts/` inside the installed skill directory) for repeatable support tasks such as phase initialization, phase-file updates, template materialization, bash-exit logging, and dev-mode context collection.
 
 ## Bootstrap missing support files
 
-If these files are missing, create them from `templates/` before continuing:
+If these files are missing, create them from the `../dev-loop/templates/` directory before continuing:
 
-- missing `AGENTS.md` -> create from `templates/bootstrap-agents.md`
-- missing `docs/IMPLEMENTATION_STATE.md` -> create from `templates/bootstrap-implementation-state.md`
-- missing `docs/IMPLEMENTATION_WORKFLOW.md` -> create from `templates/bootstrap-implementation-workflow.md`
-- missing `docs/phases/phase-x.md` for the active phase -> create from `templates/phase-doc.md`
+- missing `AGENTS.md` -> create from `../dev-loop/templates/bootstrap-agents.md`
+- missing `docs/IMPLEMENTATION_STATE.md` -> create from `../dev-loop/templates/bootstrap-implementation-state.md`
+- missing `docs/IMPLEMENTATION_WORKFLOW.md` -> create from `../dev-loop/templates/bootstrap-implementation-workflow.md`
+- missing `docs/phases/phase-x.md` for the active phase -> create from `../dev-loop/templates/phase-doc.md`
 - missing `tmp/phases/index.json` -> create or reinitialize it
 
-The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase's plan and acceptance boundary.
+The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth. For phase-doc-backed local sessions, `docs/phases/phase-x.md` is the durable source of truth for the current phase's plan and acceptance boundary. For tracker-backed local sessions, the tracker issue is that durable source of truth, and no duplicate local phase doc should be bootstrapped.
 
 For bootstrap/setup phases, do not mark the phase `completed` or `awaiting-finalization` until the expected durable support files for the chosen workflow contract actually exist in the repository. Temporary `tmp/` execution artifacts do not need to be committed.
 ## Plan sufficiency check
@@ -214,9 +214,9 @@ Create or update:
 - `tmp/phases/index.json`
 
 Prefer the deterministic helper:
-- `scripts/init-phase.mjs`
+- `../dev-loop/scripts/init-phase.mjs`
 
-Use `scripts/phase-files.mjs` only when you need a narrower manifest/index update without regenerating the standard phase-planning scaffold.
+Use `../dev-loop/scripts/phase-files.mjs` only when you need a narrower manifest/index update without regenerating the standard phase-planning scaffold.
 
 ### 2. Read the previous phase's learning before planning the next one
 
@@ -246,7 +246,7 @@ Each refiner variant should make room for:
 - RFC escalation notes when technical decisions should go through the coordinator
 - for watcher/predicate-heavy phases: explicit negative-case tests and timeout semantics, including any zero-timeout or single-check contract
 
-Use the template in `templates/phase-variant.md`.
+Use the template in `../dev-loop/templates/phase-variant.md`.
 
 Each variant should cover only:
 - scope for this phase
@@ -278,7 +278,7 @@ Write:
 - `tmp/phases/phase-x/merged-plan.md`
 - update `docs/phases/phase-x.md` with the selected durable phase plan
 
-Use the templates in `templates/merged-phase-plan.md` and `templates/phase-doc.md`.
+Use the templates in `../dev-loop/templates/merged-phase-plan.md` and `../dev-loop/templates/phase-doc.md`.
 
 The merged plan must include:
 - exact scope for this phase
@@ -300,7 +300,7 @@ The durable phase doc should capture the subset that a fresh human or agent shou
 Write:
 - `tmp/phases/phase-x/review.md`
 
-Use the template in `templates/review.md`.
+Use the template in `../dev-loop/templates/review.md`.
 Ensure the durable phase doc still matches the reviewed plan; update `docs/phases/phase-x.md` if the review changes accepted scope or criteria.
 
 The review must check for:
@@ -391,8 +391,8 @@ After the phase plan passes review:
    - log review artifacts and subagent summaries under `tmp/`
 6. Update `docs/phases/phase-x.md` so it reflects the phase as actually implemented, including any accepted scope or validation changes.
 7. Update `PLAN.md` when the phase changed durable product truth, resolved an open question, or made the shipped command/behavior surface more concrete.
-8. Write `tmp/phases/phase-x/summary.md` using `templates/phase-summary.md`.
-9. Write `tmp/phases/phase-x/retrospective.md` using `templates/retrospective.md`.
+8. Write `tmp/phases/phase-x/summary.md` using `../dev-loop/templates/phase-summary.md`.
+9. Write `tmp/phases/phase-x/retrospective.md` using `../dev-loop/templates/retrospective.md`.
 10. Update `tmp/phases/phase-x/manifest.json` and `tmp/phases/index.json`.
 11. Update `docs/IMPLEMENTATION_STATE.md`.
 12. Make sure the phase branch history is captured with atomic commits once the phase is review-ready and authorized for commit.
@@ -419,7 +419,7 @@ Trigger it when the user explicitly asks for dev mode, self-improvement mode, or
 In dev mode, after the normal phase summary and retrospective are written, run one extra bounded self-improvement pass before moving on:
 
 1. collect a deterministic context bundle for the phase using:
-   - `scripts/dev-mode-context.mjs`
+   - `../dev-loop/scripts/dev-mode-context.mjs`
    - output to `tmp/phases/phase-x/dev-mode-context.json`
 2. review the phase artifacts and logs with emphasis on the workflow itself:
    - planning quality
@@ -473,7 +473,7 @@ Additionally, append every bash call that exits with code `1` to:
 - `tmp/phases/phase-x/bash-exit-1.jsonl`
 
 Use the deterministic helper:
-- `scripts/log-bash-exit-1.mjs`
+- `../dev-loop/scripts/log-bash-exit-1.mjs`
 
 Each line should be one JSON object with at least:
 - `timestamp`
