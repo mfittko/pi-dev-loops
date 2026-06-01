@@ -74,11 +74,15 @@ export function parseArgs(argv) {
     if (token === "--issue") {
       const val = args.shift();
       if (!val || val.startsWith("--")) throw new Error("Missing value for --issue");
-      options.issue = val;
+      const trimmed = val.trim();
+      if (!/^\d+$/.test(trimmed)) throw new Error(`--issue must be a positive integer, got: ${trimmed}`);
+      options.issue = trimmed;
     } else if (token === "--repo") {
       const val = args.shift();
       if (!val || val.startsWith("--")) throw new Error("Missing value for --repo");
-      options.repo = val;
+      const trimmed = val.trim();
+      if (!/^[^/]+\/[^/]+$/.test(trimmed)) throw new Error(`--repo must be owner/name, got: ${trimmed}`);
+      options.repo = trimmed;
     } else {
       throw new Error(`Unknown argument: ${token}`);
     }

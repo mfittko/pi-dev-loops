@@ -34,14 +34,14 @@ const SPEC_SECTION_PATTERNS = [
   /\b(?:summary|problem|objective|goal)\b/i,
   /\b(?:desired\s+behavior|expected\s+behavior|proposal)\b/i,
   /\b(?:scope|in\s+scope|what)\b/i,
-  /\b(?:acceptance\s+criteria|acceptance|ac)\b/i,
+  /\b(?:acceptance\s+criteria|acceptance)\b/i,
 ];
 
 /**
  * Classify a raw tracker reference string.
  *
  * @param {string} raw - raw reference string, e.g. "mfittko/pi-dev-loops#294", "sc#1234", "PROJ-567"
- * @returns {{ format: string, owner?: string, repo?: string, number?: string, url?: string }}
+ * @returns {{ format: string, owner?: string, repo?: string, number?: string, url?: string, raw?: string }}
  */
 export function detectTrackerSpecFormat(raw) {
   if (typeof raw !== "string" || raw.trim().length === 0) {
@@ -128,16 +128,18 @@ export function isSpecBearingIssueBody(body) {
  * @returns {{ objective: string, summary: string, scope: string, nonGoals: string, acceptanceCriteria: string, rawBody: string, trackerRef: object, specBearing: boolean }}
  */
 export function normalizeTrackerSpec({ title, body, trackerRef }) {
-  const specBearing = isSpecBearingIssueBody(body);
+  const safeTitle = typeof title === "string" ? title : "";
+  const safeBody = typeof body === "string" ? body : "";
+  const specBearing = isSpecBearingIssueBody(safeBody);
 
   return {
-    objective: title || "Untitled",
-    summary: extractSection(body, /(?:summary|problem|objective|goal)/i) || body.slice(0, 500).trim(),
-    scope: extractSection(body, /(?:scope|in\s+scope)/i) || "Not specified",
-    nonGoals: extractSection(body, /(?:non[-\s]goals|out\s+of\s+scope)/i) || "Not specified",
+    objective: safeTitle || "Untitled",
+    summary: extractSection(safeBody, /(?:summary|problem|objective|goal)/i) || safeBody.slice(0, 500).trim(),
+    scope: extractSection(safeBody, /(?:scope|in\s+scope)/i) || "Not specified",
+    nonGoals: extractSection(safeBody, /(?:non[-\s]goals|out\s+of\s+scope)/i) || "Not specified",
     acceptanceCriteria:
-      extractSection(body, /(?:acceptance\s+criteria|acceptance|ac)/i) || "Not specified",
-    rawBody: body,
+      extractSection(safeBody, /(?:acceptance\s+criteria|acceptance)\b/i) || "Not specified",
+    rawBody: safeBody,
     trackerRef,
     specBearing,
   };

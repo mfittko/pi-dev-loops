@@ -96,7 +96,7 @@ Before local phase planning or coding:
 3. read `PLAN.md`
 4. if `docs/IMPLEMENTATION_WORKFLOW.md` exists, read it
 5. if `docs/IMPLEMENTATION_STATE.md` exists, read it
-6. if `docs/phases/phase-x.md` exists for the active phase, read it
+4. if `docs/phases/phase-x.md` exists for the active phase, treat it as a conflict — tracker-backed sessions and phase docs are mutually exclusive; stop and reconcile before proceeding
 
 Treat missing optional files as normal bootstrap conditions, not as errors.
 
@@ -130,7 +130,7 @@ Authoritative contract: `../docs/tracker-backed-local-contract.md`
 - Work **test-first** for all non-trivial logic.
 - Maintain **90% coverage** thresholds.
 - Log detailed iteration artifacts under `tmp/` using the required structure below.
-- Keep durable phase intent and acceptance criteria in `docs/phases/phase-x.md`, but keep detailed execution artifacts in `tmp/`.
+- Keep durable phase intent and acceptance criteria in `docs/phases/phase-x.md` **(full local mode only)**, but keep detailed execution artifacts in `tmp/`.
 - Treat `tmp/` as temporary local execution state. Do not rely on it as durable repo history and do not force-add it to git unless the user explicitly wants checked-in examples or fixtures.
 - When a phase changes durable product truth in ways `PLAN.md` should express (for example command surface, accepted product decisions, resolved open questions, or scope changes), update `PLAN.md` before closing the phase.
 - Do implementation work on a dedicated local branch, not directly on `main`.
