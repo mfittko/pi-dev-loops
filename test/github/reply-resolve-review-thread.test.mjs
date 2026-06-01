@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { hasCommitShaReference } from "../../scripts/github/reply-resolve-review-thread.mjs";
 
 const scriptPath = path.resolve("scripts/github/reply-resolve-review-thread.mjs");
 
@@ -173,6 +174,75 @@ test("reply-resolve-review-thread posts a reply then resolves the thread", async
   }
 });
 
+test("reply-resolve-review-thread rejects thin replies without commit SHA or dismissal reason", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-thin-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "Acknowledged.\n", "utf8");
+
+  try {
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: { ...process.env, PATH: process.env.PATH } },
+    );
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const parsed = JSON.parse(result.stderr);
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.error, /Reply body \(13 characters after trimming\) must contain either a commit SHA reference or a dismissal reason/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reply-resolve-review-thread rejects pure-numeric tokens that are not commit SHAs", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-numeric-sha-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  // "1234567" matches the 7-40 hex-char regex but contains no hex letters; must not bypass the check
+  await writeFile(bodyFile, "1234567\n", "utf8");
+
+  try {
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: { ...process.env, PATH: process.env.PATH } },
+    );
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const parsed = JSON.parse(result.stderr);
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.error, /Reply body \(7 characters after trimming\) must contain either a commit SHA reference/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("hasCommitShaReference unit — hex-with-letters accepted, bare numeric rejected, contextualized numeric accepted", () => {
+  // Bare hex tokens with at least one hex letter — the common case
+  assert.equal(hasCommitShaReference("Fixed in abc1234."), true);
+  assert.equal(hasCommitShaReference("39add8d"), true);
+  assert.equal(hasCommitShaReference("0350a214"), true);
+
+  // Bare pure-numeric token — no hex letters, no keyword context: rejected
+  assert.equal(hasCommitShaReference("1234567"), false);
+  assert.equal(hasCommitShaReference("12345678"), false);
+
+  // Numeric token in explicit commit-reference context — rare-but-valid all-digit SHA form
+  assert.equal(hasCommitShaReference("Fixed in 1234567"), true);
+  assert.equal(hasCommitShaReference("Commit 1234567"), true);
+  assert.equal(hasCommitShaReference("SHA 1234567"), true);
+  assert.equal(hasCommitShaReference("https://github.com/owner/repo/commit/1234567"), true);
+  assert.equal(hasCommitShaReference("See /commit/1234567 for details"), true);
+
+  // Too short (6 chars) or too long (41 chars) — rejected
+  assert.equal(hasCommitShaReference("abc123"), false);
+  assert.equal(hasCommitShaReference("a".repeat(41)), false);
+
+  // Empty / whitespace only
+  assert.equal(hasCommitShaReference(""), false);
+  assert.equal(hasCommitShaReference("   "), false);
+});
+
 test("reply-resolve-review-thread rejects malformed arguments and empty body files deterministically", async () => {
   const missing = await runNode(["--repo", "owner/repo"]);
   assert.equal(missing.code, 1);
@@ -221,7 +291,7 @@ test("reply-resolve-review-thread rejects malformed arguments and empty body fil
 test("reply-resolve-review-thread preserves leading whitespace in the reply body payload", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-whitespace-"));
   const bodyFile = path.join(tempDir, "reply.md");
-  await writeFile(bodyFile, "  indented line\n", "utf8");
+  await writeFile(bodyFile, "  indented line with enough text to pass resolution contract\n", "utf8");
 
   try {
     const gh = await writeGhStub(tempDir, [
@@ -240,7 +310,7 @@ test("reply-resolve-review-thread preserves leading whitespace in the reply body
       },
       {
         assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies", "--input", "-"],
-        assertStdinIncludes: ['"body":"  indented line\\n"'],
+        assertStdinIncludes: ['"body":"  indented line with enough text to pass resolution contract\\n"'],
         stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
       },
       {

@@ -6,6 +6,24 @@ import { formatCliError, isDirectCliRun, parseReviewThreads } from "../_core-hel
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
+const MIN_DISMISSAL_REASON_LENGTH = 30;
+
+// Exported for unit testing
+export function hasCommitShaReference(text) {
+  const trimmed = text.trim();
+  // Accept a hex token (7-40 chars) that contains at least one hex letter (a-f) — the common case.
+  // Also accept a pure-numeric hex token when it is explicitly contextualized as a commit reference:
+  //   - via keyword + whitespace: "Fixed in 1234567", "Commit 1234567", "SHA 1234567"
+  //   - via commit URL path:      ".../commit/1234567"
+  // This handles the rare-but-valid all-digit SHA without reopening the bare-numeric bypass vector.
+  const hexTokens = trimmed.match(/\b[0-9a-f]{7,40}\b/gi) ?? [];
+  const hasHexLetterToken = hexTokens.some((t) => /[a-f]/i.test(t));
+  const hasContextualNumericRef =
+    /\b(?:fixed\s+in|commit|sha|rev(?:ision)?)\s+[0-9a-f]{7,40}\b/i.test(trimmed) ||
+    /\/commit\/[0-9a-f]{7,40}\b/i.test(trimmed);
+  return hasHexLetterToken || hasContextualNumericRef;
+}
+
 const RESOLVE_REVIEW_THREAD_MUTATION = [
   "mutation($threadId: ID!) {",
   "  resolveReviewThread(input: { threadId: $threadId }) {",
@@ -222,6 +240,16 @@ export async function runCli(
 
   if (rawBody.trim().length === 0) {
     throw new Error("--body-file must contain non-empty text");
+  }
+
+  const trimmedBody = rawBody.trim();
+  const hasCommitSha = hasCommitShaReference(trimmedBody);
+  const hasDismissalReason = trimmedBody.length >= MIN_DISMISSAL_REASON_LENGTH;
+  if (!hasCommitSha && !hasDismissalReason) {
+    throw new Error(
+      `Reply body (${trimmedBody.length} characters after trimming) must contain either a commit SHA reference or a dismissal reason (at least ${MIN_DISMISSAL_REASON_LENGTH} characters after trimming). ` +
+      "Bare acknowledgments like \"Acknowledged.\" are not valid resolutions.",
+    );
   }
 
   await validateReplyTarget(
