@@ -76,6 +76,7 @@ When the local spec already lives in a tracker issue:
 - do not create or read `docs/phases/phase-x.md` for that same tracker-backed session
 - sync durable scope / acceptance / status changes back to the tracker issue rather than maintaining a duplicate local phase doc
 - keep `tmp/` as temporary local execution state only; it does not become a second durable spec surface
+- the handoff path for tracker-backed sessions is always: push the working branch → open a PR → merge via GitHub; never suggest a direct local-main merge and do not merge the working branch into local `main` at phase completion
 
 ## Primary execution rules
 
@@ -503,6 +504,7 @@ Stop after the current phase when:
 - Before merging, run a full parallel review / fix loop and resolve accepted findings on the same branch.
 - Rerun validation after review-driven fixes.
 - A phase is not operationally closed until its branch state is captured in commit history and the reviewed branch has been merged back into local `main`, unless authorization for that finalization is still pending.
+- For tracker-backed sessions, the handoff path is always: push the working branch → open a PR → merge via GitHub; never merge the working branch into local `main`.
 - When authorization is pending, record the phase as `awaiting-finalization` and describe the exact missing step.
 - Merge the fully reviewed, locally validated branch back into local `main` when authorized.
 
