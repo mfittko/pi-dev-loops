@@ -18,7 +18,7 @@ This skill is the canonical internal `local_implementation` route behind the pub
 Use it only after the public dispatcher has already resolved `selectedStrategy: local_implementation`. This skill owns the local phase procedure and artifact discipline for that route; it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands.
 
 Read the authoritative public routing contract at `../docs/public-dev-loop-contract.md` and keep any repository-specific decisions grounded in `PLAN.md`, durable phase docs, source, tests, config, and actual validation commands.
-For UI validation under `dev-loop`, see `docs/ui-validation-contract.md`, `docs/ui-smoke-harness.md`, `docs/ui-artifact-contract.md`, and `docs/ui-designer-review-loop.md`.
+For UI validation under `dev-loop`, see `docs/ui-validation-contract.md`, `docs/ui-smoke-harness.md`, `docs/ui-artifact-contract.md`, and `docs/ui-designer-review-loop.md` (these are repo-level docs present in the source checkout; they are not part of the bundled `../docs/` runtime contract surface for installed skill copies).
 
 ## Minimal required project inputs
 
@@ -358,7 +358,7 @@ When handing off a full workflow run to a subagent (draft PR → gates → Copil
 use the canonical hand-off template. Do not rely on abbreviated task summaries or operator
 memory.
 
-The canonical template is `skills/docs/workflow-handoff-template.md`. It includes:
+The canonical template is `../docs/workflow-handoff-template.md` (source-tree path: `skills/docs/workflow-handoff-template.md`). It includes:
 - direct contract-doc references the subagent must read before executing
 - a mandatory 8-step checklist (draft PR → draft_gate → ready → Copilot → resolve → pre_approval_gate → merge)
 - non-negotiable invariants (Copilot review loop between gates, `unresolvedThreadCount === 0`, visible gate comments)
