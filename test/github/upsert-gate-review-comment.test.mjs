@@ -219,6 +219,18 @@ test("upsert-gate-review-comment creates a new comment when no same-head marker 
   try {
     const env = await writeGhStub(tempDir, [
       {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc1234","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
         stdout: '{"headRefOid":"abc1234"}\n',
       },
@@ -314,7 +326,7 @@ test("upsert-gate-review-comment fails closed when pre-approval gate entry is st
     const payload = JSON.parse(result.stderr);
     assert.equal(payload.ok, false);
     assert.match(payload.error, /Cannot enter pre_approval_gate/i);
-    assert.match(payload.error, /lacks current-head clean `draft_gate` evidence/i);
+    assert.match(payload.error, /request Copilot review before any/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -408,6 +420,18 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
   try {
     const env = await writeGhStub(tempDir, [
       {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc1234","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
         stdout: '{"headRefOid":"abc1234"}\n',
       },
@@ -453,7 +477,8 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
     });
-    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 2);
+    // 5 gh calls: pr facts + requested_reviewers + review threads + headRefOid + issue comments
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -464,6 +489,18 @@ test("upsert-gate-review-comment updates an incomplete same-head marker in place
 
   try {
     const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc1234","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
         stdout: '{"headRefOid":"abc1234"}\n',
@@ -523,6 +560,18 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
 
   try {
     const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc1234","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
         stdout: '{"headRefOid":"abc1234"}\n',
@@ -595,6 +644,18 @@ test("upsert-gate-review-comment prefers the latest same-head marker when it dif
   try {
     const env = await writeGhStub(tempDir, [
       {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc1234","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
         stdout: '{"headRefOid":"abc1234"}\n',
       },
@@ -666,6 +727,18 @@ test("upsert-gate-review-comment expands an abbreviated current-head SHA before 
   try {
     const env = await writeGhStub(tempDir, [
       {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abcdef1234567890abcdef1234567890abcdef12","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
         stdout: '{"headRefOid":"abcdef1234567890abcdef1234567890abcdef12"}\n',
       },
@@ -711,7 +784,7 @@ test("upsert-gate-review-comment expands an abbreviated current-head SHA before 
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
     });
-    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 2);
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -722,6 +795,18 @@ test("upsert-gate-review-comment fails closed when the requested head SHA is sta
 
   try {
     const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"def5678","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
         stdout: '{"headRefOid":"def5678"}\n',
@@ -748,3 +833,62 @@ test("upsert-gate-review-comment fails closed when the requested head SHA is sta
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("upsert-gate-review-comment fails closed when draft_gate is forbidden on a non-draft PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-draft-forbidden-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: '{"number":266,"state":"OPEN","isDraft":false,"headRefOid":"def56789abcdef","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/266/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=266"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"def56789abcdef"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"],
+        stdout: `${JSON.stringify([[{
+          id: 11,
+          body: [
+            "Gate review: draft_gate",
+            "Reviewed head SHA: c94679e",
+            "Verdict: clean",
+            "Findings summary: no issues found",
+            "Next action: mark ready for review",
+          ].join("\n"),
+          html_url: "https://github.com/owner/repo/pull/266#issuecomment-11",
+          updated_at: "2026-05-31T20:00:00Z",
+        }]])}\n`,
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "266",
+      "--gate", "draft_gate",
+      "--head-sha", "def56789",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Cannot enter draft_gate/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+

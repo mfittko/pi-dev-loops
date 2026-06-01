@@ -59,6 +59,8 @@ function toGateStatus(comment, marker, currentHeadSha) {
     && typeof currentHeadSha === "string"
     && currentHeadSha.startsWith(normalizedMarker.headSha);
 
+  const cleanEvidenceExists = normalizedComment.visible && normalizedComment.verdict === "clean" && normalizedComment.headSha !== null;
+
   return {
     visible: normalizedComment.visible,
     currentHead: normalizedMarker.visible && markerHeadMatches,
@@ -68,6 +70,7 @@ function toGateStatus(comment, marker, currentHeadSha) {
     nextAction: normalizedComment.nextAction,
     contractComplete: normalizedMarker.visible && markerHeadMatches && normalizedMarker.contractComplete,
     currentHeadClean: normalizedMarker.visible && markerHeadMatches && normalizedMarker.verdict === "clean" && normalizedMarker.contractComplete,
+    cleanEvidenceExists,
   };
 }
 
@@ -208,7 +211,7 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (!draftGate.currentHeadClean) {
+  if (!draftGate.cleanEvidenceExists) {
     pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
     pushUnique(forbiddenActions, [
       PR_GATE_ACTION.RUN_DRAFT_GATE,
@@ -235,7 +238,7 @@ export function evaluatePrGateCoordination(input = {}) {
       allowedNextActions,
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
-      reason: "The PR is already non-draft but lacks current-head clean `draft_gate` evidence; fail closed and reconcile draft-gate evidence before continuing post-draft flow.",
+      reason: "The PR is already non-draft and no clean `draft_gate` evidence exists at all, so no draft-gate transition was ever recorded; fail closed and reconcile draft-stage evidence before continuing.",
     });
   }
 

@@ -353,6 +353,7 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
         commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-43",
         updatedAt: "2026-05-29T22:00:00Z",
       },
+      draftGateSatisfied: true,
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -402,6 +403,7 @@ test("detect-gate-review-evidence flattens paginated issue-comment payloads befo
     assert.equal(JSON.parse(result.stdout).draftGate.commentId, 52);
     assert.equal(JSON.parse(result.stdout).draftGate.visible, true);
     assert.equal(JSON.parse(result.stdout).draftGateMarker.commentId, 52);
+    assert.equal(JSON.parse(result.stdout).draftGateSatisfied, true);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -444,6 +446,7 @@ test("detect-gate-review-evidence exposes same-head markers even when latest gat
     assert.equal(payload.draftGateMarker.nextAction, null);
     assert.equal(payload.draftGateMarker.contractComplete, false);
     assert.equal(payload.draftGateMarker.commentId, 61);
+    assert.equal(payload.draftGateSatisfied, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

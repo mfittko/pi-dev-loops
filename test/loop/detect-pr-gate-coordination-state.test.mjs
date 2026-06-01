@@ -83,7 +83,7 @@ function jsonLine(value) {
   return `${JSON.stringify(value)}\n`;
 }
 
-test("detect-pr-gate-coordination-state fails closed for non-draft PRs missing current-head clean draft-gate evidence", async () => {
+test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs with clean draft_gate on a different head (one-time boundary)", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-state-"));
 
   try {
@@ -150,8 +150,8 @@ test("detect-pr-gate-coordination-state fails closed for non-draft PRs missing c
       pr: 266,
       currentHeadSha: "def56789abcdef",
       lifecycleState: "pr_ready_no_feedback",
-      loopDisposition: "blocked",
-      gateBoundary: "blocked",
+      loopDisposition: "action_required",
+      gateBoundary: "post_draft_external_review",
       draftGate: {
         visible: true,
         currentHead: false,
@@ -161,6 +161,7 @@ test("detect-pr-gate-coordination-state fails closed for non-draft PRs missing c
         nextAction: "mark ready for review",
         contractComplete: false,
         currentHeadClean: false,
+        cleanEvidenceExists: true,
       },
       preApprovalGate: {
         visible: false,
@@ -171,23 +172,17 @@ test("detect-pr-gate-coordination-state fails closed for non-draft PRs missing c
         nextAction: null,
         contractComplete: false,
         currentHeadClean: false,
+        cleanEvidenceExists: false,
       },
-      allowedNextActions: ["report_blocked"],
+      allowedNextActions: ["request_copilot_review"],
       forbiddenActions: [
         "run_draft_gate",
         "mark_ready_for_review",
-        "request_copilot_review",
-        "wait_for_copilot_review",
-        "wait_for_ci",
-        "address_review_feedback",
-        "reply_resolve_review_threads",
-        "rerequest_copilot_review",
         "run_pre_approval_gate",
-        "await_final_human_approval",
         "declare_merge_ready",
       ],
-      nextAction: "report_blocked",
-      reason: "The PR is already non-draft but lacks current-head clean `draft_gate` evidence; fail closed and reconcile draft-gate evidence before continuing post-draft flow.",
+      nextAction: "request_copilot_review",
+      reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });

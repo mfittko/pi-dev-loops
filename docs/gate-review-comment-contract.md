@@ -17,10 +17,14 @@ is defined in `skills/docs/pr-lifecycle-contract.md`.
 
 ## Scope
 
-This contract covers exactly two gates:
+This contract covers exactly two gates with distinct lifecycle semantics:
 
-- `draft_gate` — runs right before `gh pr ready` (draft → ready-for-review boundary)
-- `pre_approval_gate` — runs right before final approval / merge readiness
+- `draft_gate` — **one-time transition boundary.** Runs right before `gh pr ready`
+  (draft → ready-for-review boundary). Once a clean comment exists and the PR leaves
+  draft, the gate is permanently satisfied; later head changes must not re-trigger it.
+- `pre_approval_gate` — **recurring per-head gate.** Runs right before final approval /
+  merge readiness on the current head SHA. A new pass is required for each new head
+  after post-draft changes.
 
 ## Review-angle ownership and non-substitution rules
 
@@ -74,16 +78,26 @@ Every gate-review PR comment must include:
 
 ### Draft gate (`draft_gate`) comment requirements
 
-- When the `draft_gate` runs, the PR must receive a visible gate-review comment.
+**One-time transition boundary.** `draft_gate` is not a recurring per-head gate — it
+records exactly one decision point: the draft → ready-for-review transition. Once a
+clean `draft_gate` comment exists on the PR and the PR leaves draft, later head
+changes must not trigger new `draft_gate` comments. Post-draft follow-up relies on
+normal review/fix loops and the recurring per-head `pre_approval_gate`.
+
+- When the `draft_gate` runs (while the PR is still draft), the PR must receive a
+  visible gate-review comment.
 - If the `draft_gate` verdict is `findings_present` or `blocked`, the comment must
   state that the PR stays draft and fixes are required before retrying.
 - The PR must not leave draft (`gh pr ready`) unless a visible `clean` `draft_gate`
   gate-review comment exists for the current head SHA.
 - A gate-review comment for an older head SHA does not satisfy this requirement for
-  the current head.
-- If a PR is already non-draft but still lacks clean current-head `draft_gate`
-  evidence, automation must fail closed and reconcile that missing draft-boundary
-  evidence before continuing post-draft review/merge flow.
+  the current head while the PR is still draft.
+- After the PR leaves draft, existing clean `draft_gate` evidence remains valid as a
+  one-time transition record — it records that the draft → ready boundary was properly
+  crossed. Later head changes do not invalidate this record.
+- If a PR is already non-draft and no clean `draft_gate` evidence exists at all (no
+  valid gate-review comment was ever posted), automation must fail closed and reconcile
+  that missing draft-stage evidence before continuing.
 
 ### Pre-approval gate (`pre_approval_gate`) comment requirements
 

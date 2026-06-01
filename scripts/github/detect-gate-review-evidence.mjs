@@ -45,6 +45,7 @@ Output (stdout, JSON):
       "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101",
       "updatedAt": "2026-05-29T22:00:00Z"
     },
+    "draftGateSatisfied": true,
     "preApprovalGate": {
       "visible": false,
       "headSha": null,
@@ -218,6 +219,7 @@ export async function detectGateReviewEvidence(options, { env = process.env, ghC
     preApprovalGate: normalizeGateSummary(commentSummary.pre_approval_gate),
     draftGateMarker: normalizeGateMarkerSummary(markerSummary.draft_gate),
     preApprovalGateMarker: normalizeGateMarkerSummary(markerSummary.pre_approval_gate),
+    draftGateSatisfied: commentSummary.draft_gate?.verdict === "clean" && typeof commentSummary.draft_gate?.headSha === "string",
   };
 }
 
