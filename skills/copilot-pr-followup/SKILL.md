@@ -53,8 +53,8 @@ For explicit async loop entry or continuation, this is a persistent async watch/
 - follow Step 6 and Step 7 below for the fuller wait/watch and fixer-loop policy details
 
 For direct low-level diagnostics only:
-- `scripts/github/request-copilot-review.mjs`
-- `scripts/github/watch-copilot-review.mjs`
+- `<resolved-skill-scripts>/github/request-copilot-review.mjs`
+- `<resolved-skill-scripts>/github/watch-copilot-review.mjs`
 
 **Pass `--help` to any helper for full usage:**
 ```sh

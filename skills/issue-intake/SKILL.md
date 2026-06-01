@@ -172,7 +172,7 @@ Goal:
 
 This skill is the canonical internal owner of the routed `issue_intake` behavior.
 
-Use it when the routed work is issue-first rather than already in active PR follow-up. In that mode, this skill acts as an issue-refinement specialist before the shared post-PR loop takes over in `skills/copilot-pr-followup/SKILL.md`.
+Use it when the routed work is issue-first rather than already in active PR follow-up. In that mode, this skill acts as an issue-refinement specialist before the shared post-PR loop takes over in `../copilot-pr-followup/SKILL.md`.
 
 ### New-idea safety layer (default contract in this repo)
 
