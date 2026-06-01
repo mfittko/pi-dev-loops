@@ -632,6 +632,7 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      warning: "A gate comment for \`draft_gate\` already exists on a different head SHA \`def5678\` (comment 202). The old comment is stale for the current head and a new comment will be created.",
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
