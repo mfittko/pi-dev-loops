@@ -189,6 +189,7 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     gateEvidence,
     interpretation,
     disposition,
+    reviewRequestStatus,
   };
 }
 
@@ -204,6 +205,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     lifecycleState: context.interpretation.state,
     loopDisposition: context.disposition.loopDisposition,
     sameHeadCleanConverged: context.interpretation.sameHeadCleanConverged,
+    copilotReviewRequestStatus: context.reviewRequestStatus,
     draftGate: context.gateEvidence.draftGate,
     draftGateMarker: context.gateEvidence.draftGateMarker,
     preApprovalGate: context.gateEvidence.preApprovalGate,
