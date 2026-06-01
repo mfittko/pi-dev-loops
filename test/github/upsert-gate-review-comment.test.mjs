@@ -873,7 +873,7 @@ test("upsert-gate-review-comment warns when a gate comment exists on a different
         ])}\n`,
       },
       {
-        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f", "body=..."],
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
         stdout: '{"id":102,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-102"}\n',
       },
     ]);

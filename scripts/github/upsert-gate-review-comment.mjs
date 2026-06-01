@@ -41,7 +41,7 @@ Output (stdout, JSON):
     "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101"
   }
 
-A `warning` field is included when a gate comment for the same gate already
+A \`warning\` field is included when a gate comment for the same gate already
 exists on a different head SHA (the old comment is stale for the current head).
 
 Error output (stderr, JSON):
