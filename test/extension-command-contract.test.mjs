@@ -216,3 +216,61 @@ test("hide still clears the widget and unknown commands fall back to help", asyn
   assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
   assert.equal(fallbackContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 });
+
+test("extension dispatches inspect-run open and surfaces browser warnings without failing the launch", async () => {
+  const pi = readyPi();
+  registerExtension(pi, {
+    uiLifecycle: {
+      async open({ repoRoot, repo }) {
+        assert.equal(repoRoot, '/repo/root');
+        assert.equal(repo, 'mfittko/pi-dev-loops');
+        return {
+          state: 'running',
+          url: 'http://127.0.0.1:4311/?scope=mfittko%2Fpi-dev-loops',
+          detail: 'Reused the managed inspect-run viewer.',
+          warning: 'browser unavailable',
+        };
+      },
+    },
+    getRepoRoot: async () => '/repo/root',
+  });
+
+  const { ctx, calls } = createCommandContext();
+  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run open --repo mfittko/pi-dev-loops', ctx);
+
+  const widget = calls.widgets.at(-1);
+  assert.equal(widget.key, 'pi-dev-loops.setup');
+  assert(widget.lines.some((line) => /inspect-run open/i.test(line)));
+  assert(widget.lines.some((line) => /running/i.test(line)));
+  assert(widget.lines.some((line) => /http:\/\/127\.0\.0\.1:4311/i.test(line)));
+  assert(widget.lines.some((line) => /browser unavailable/i.test(line)));
+  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer open: running');
+  assert.equal(calls.notifications.at(-1).level, 'info');
+});
+
+test("extension surfaces fail-closed resume guidance when no managed viewer is live", async () => {
+  const pi = readyPi();
+  registerExtension(pi, {
+    uiLifecycle: {
+      async resume() {
+        return {
+          state: 'stopped',
+          url: null,
+          detail: 'No managed inspect-run viewer is running; use `/dev-loops ui inspect-run open`.',
+          warning: null,
+        };
+      },
+    },
+    getRepoRoot: async () => '/repo/root',
+  });
+
+  const { ctx, calls } = createCommandContext();
+  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run resume', ctx);
+
+  const widget = calls.widgets.at(-1);
+  assert(widget.lines.some((line) => /inspect-run resume/i.test(line)));
+  assert(widget.lines.some((line) => /stopped/i.test(line)));
+  assert(widget.lines.some((line) => /use `\/dev-loops ui inspect-run open`/i.test(line)));
+  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer resume: stopped');
+  assert.equal(calls.notifications.at(-1).level, 'error');
+});

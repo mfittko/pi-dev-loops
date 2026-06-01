@@ -148,3 +148,26 @@ test("collectDevLoopChecks no longer reports a dev-loop skill readiness check", 
   const checks = await collectDevLoopChecks(createRuntime());
   assert.equal(checks.some((check) => check.id === "local-dev-loop-skill"), false);
 });
+
+test("parser accepts the bounded inspect-run UI lifecycle command family only on the extension surface", () => {
+  for (const action of ["open", "resume", "status", "stop", "restart"]) {
+    const parsed = parseDevLoopsCommand(["ui", "inspect-run", action, "--repo", "mfittko/pi-dev-loops"], { surface: "extension" });
+    assert.equal(parsed.kind, "ui_inspect_run_action");
+    assert.equal(parsed.action, action);
+    assert.equal(parsed.repo, "mfittko/pi-dev-loops");
+  }
+
+  assert.deepEqual(parseDevLoopsCommand(["ui", "inspect-run", "launch"], { surface: "extension" }), {
+    kind: "malformed",
+    message: "`/dev-loops ui inspect-run` only supports: open, resume, status, stop, restart.",
+    usageAction: "ui inspect-run",
+    tokens: ["ui", "inspect-run", "launch"],
+  });
+
+  assert.deepEqual(parseDevLoopsCommand(["ui", "inspect-run", "open"], { surface: "cli" }), {
+    kind: "malformed",
+    message: "Unrecognized command: ui.",
+    usageAction: undefined,
+    tokens: ["ui", "inspect-run", "open"],
+  });
+});

@@ -1,6 +1,6 @@
 # Extension scaffold
 
-`pi-dev-loops` ships a lightweight package extension for readiness UX.
+`pi-dev-loops` ships a lightweight package extension for readiness UX plus one bounded local UI lifecycle seam.
 
 Installing the package exposes two thin wrappers over one shared deterministic core:
 - the Pi extension command family rooted at `/dev-loops`
@@ -18,6 +18,16 @@ Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exp
   - full diagnostic report with explicit pass/fail detail
 - `/dev-loops hide`
   - removes the readiness widget cleanly
+- `/dev-loops ui inspect-run open [--repo <owner/name>]`
+  - start or reuse the managed local inspect-run viewer and best-effort open it in the browser
+- `/dev-loops ui inspect-run resume [--repo <owner/name>]`
+  - reattach only to a confirmed live managed inspect-run viewer; fails closed when nothing live is managed
+- `/dev-loops ui inspect-run status [--repo <owner/name>]`
+  - report one bounded local lifecycle state plus the current URL when known
+- `/dev-loops ui inspect-run stop [--repo <owner/name>]`
+  - stop only the recorded managed inspect-run viewer process
+- `/dev-loops ui inspect-run restart [--repo <owner/name>]`
+  - explicitly restart the recorded managed inspect-run viewer; never kill an unknown listener
 - `pi-dev-loops`
   - defaults to help output for the available subcommands
 - `pi-dev-loops help`
@@ -28,6 +38,37 @@ Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exp
   - prints the full diagnostic report in shell-friendly output
 - `pi-dev-loops hide`
   - is intentionally unsupported and exits non-zero with a shell-friendly stderr message because `hide` is session-local Pi UI behavior
+
+## Inspect-run local UI lifecycle ownership
+
+This slice is intentionally narrow.
+
+Extension-owned behavior:
+- operator-facing lifecycle UX under `/dev-loops ui inspect-run ...`
+- repo-local managed-instance record at `.pi/ui-servers/inspect-run-viewer.json`
+- safe URL discovery, liveness checks, resume/reattach, stop, and explicit restart handling
+- best-effort browser open
+- fail-closed handling for stale ownership and unknown listeners
+
+Viewer-script-owned behavior:
+- HTTP server implementation
+- viewer HTML/JS rendering
+- inbox and query-state behavior
+- snapshot loading through the existing adapter
+- read-only route behavior and localhost safety rules
+
+Lifecycle states reported by the extension-managed seam are intentionally bounded to:
+- `running`
+- `stopped`
+- `stale_record`
+- `conflict_unmanaged_listener`
+
+Guard rails for this seam:
+- loopback-first local-only posture
+- no remote/public hosting
+- no generic local app platform
+- no background watcher/supervisor behavior
+- no inspect-run viewer redesign
 
 ## Current readiness checks
 
@@ -69,6 +110,7 @@ Root verification and test commands are intentionally explicit:
 - `npm test` runs the current root test suite (`test:assets`, `test:extension`, `test:scripts`, and `test:core`)
 - `npm run test:extension`
 - `npm run test:extension` currently expands to one `node --import tsx --test ...` invocation in `package.json`; prefer the script entrypoint over copying the file list into downstream docs or runbooks
+- `npm run test:scripts`
 - `npm run test:assets`
 - `npm run test:dev-loop`
 - `npm run test:playwright:viewer` remains an explicit viewer/browser smoke, not part of the default root verify path
