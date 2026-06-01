@@ -32,9 +32,8 @@
  */
 
 import { execFileSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { isDirectCliRun } from "../_core-helpers.mjs";
+import { isDirectCliRun, formatCliError } from "../_core-helpers.mjs";
+import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 export async function resolveTrackerSpec({ issue, repo }) {
   const args = ["issue", "view", String(issue), "--json", "title,body,state,number"];
@@ -45,18 +44,11 @@ export async function resolveTrackerSpec({ issue, repo }) {
   const raw = execFileSync("gh", args, { encoding: "utf8", timeout: 30_000 });
   const parsed = JSON.parse(raw);
 
-  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const packagesRoot = path.resolve(scriptDir, "..", "..", "packages", "core");
-  const modulePath = pathToFileURL(
-    path.join(packagesRoot, "src", "loop", "tracker-spec-resolution.mjs")
-  ).href;
-
   const { normalizeTrackerSpec, detectTrackerSpecFormat, TRACKER_SPEC_FORMAT } =
-    await import(modulePath);
+    await import("@pi-dev-loops/core/loop/tracker-spec-resolution");
 
-  const repoSlug = repo || "";
-  const trackerRef = repoSlug
-    ? detectTrackerSpecFormat(`${repoSlug}#${parsed.number}`)
+  const trackerRef = repo
+    ? detectTrackerSpecFormat(`${repo}#${parsed.number}`)
     : { format: TRACKER_SPEC_FORMAT.GITHUB_ISSUE, number: String(parsed.number) };
 
   const spec = normalizeTrackerSpec({
@@ -85,6 +77,7 @@ export function parseArgs(argv) {
       if (!val || val.startsWith("--")) throw new Error("Missing value for --repo");
       const trimmed = val.trim();
       if (!/^[^/]+\/[^/]+$/.test(trimmed)) throw new Error(`--repo must be owner/name, got: ${trimmed}`);
+      try { parseRepoSlug(trimmed); } catch (e) { throw new Error(`--repo validation failed: ${e.message}`); }
       options.repo = trimmed;
     } else {
       throw new Error(`Unknown argument: ${token}`);

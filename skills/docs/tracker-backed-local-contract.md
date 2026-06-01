@@ -95,7 +95,7 @@ Before a tracker-backed local implementation session:
 2. Read the tracker issue body → canonical spec
 3. Read previous phase learnings (`summary.md`, `retrospective.md`) if a
    prior phase exists
-4. Read `docs/phases/phase-x.md` only if a full-local-mode phase doc exists — do NOT create one for tracker-backed sessions
+4. if `docs/phases/phase-x.md` exists for the active phase, treat it as a conflict — tracker-backed sessions and phase docs are mutually exclusive; stop and reconcile (fail closed) before proceeding
 
 Do **not** require `PLAN.md`, `docs/IMPLEMENTATION_STATE.md`, or
 `docs/IMPLEMENTATION_WORKFLOW.md` for tracker-backed sessions. The issue body

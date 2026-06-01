@@ -215,6 +215,15 @@ describe("normalizeTrackerSpec", () => {
     assert.ok(result.acceptanceCriteria.includes("named, durable contract"));
   });
 
+  it("extracts non-goals section", () => {
+    const result = normalizeTrackerSpec({
+      title: "Test",
+      body: "## Non-goals\n- No new routing mode\n- No bidirectional sync",
+      trackerRef,
+    });
+    assert.ok(result.nonGoals.includes("No new routing mode"));
+  });
+
   it("handles body with no sections gracefully", () => {
     const result = normalizeTrackerSpec({
       title: "Test",

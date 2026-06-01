@@ -28,7 +28,8 @@ const SHORTCUT_RE = /^sc[#-]?\d+$/i;
 
 /**
  * Section headings that indicate a spec-bearing issue body.
- * Match is case-insensitive and accepts `## heading` or `**heading**` prefixes.
+ * Match is case-insensitive against the full body text (applied to body
+ * text, not just headings).
  */
 const SPEC_SECTION_PATTERNS = [
   /\b(?:summary|problem|objective|goal)\b/i,
