@@ -10,7 +10,7 @@ import { BUILT_IN_DEFAULTS, DevLoopConfigSchema, FileConfigSchema } from "./sche
  * @typedef {object} ConfigLoadError
  * @property {string} path - Human-readable file path or layer name
  * @property {string} message - Error description
- * @property {"defaults"|"overrides"} layer - Which config layer failed
+ * @property {"defaults"|"overrides"|"merged"} layer - Which config layer failed
  */
 
 // ============================================================================
@@ -179,7 +179,7 @@ export async function loadDevLoopConfig(options = {}) {
     errors.push({
       path: "<merged>",
       message: `Config validation failed: ${result.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
-      layer: "defaults",
+      layer: "merged",
     });
     // Return merged as-is — caller gets validation errors but still has config with all layers applied
     return { config: /** @type {*} */ (merged), warnings, errors };

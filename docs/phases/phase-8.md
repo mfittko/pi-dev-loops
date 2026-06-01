@@ -2,7 +2,7 @@
 
 ## Status
 
-implemented (slice 1 of 5 complete)
+slice-1-implemented (schema, loader, roles, tests — no workflow wiring)
 
 ## Objective
 

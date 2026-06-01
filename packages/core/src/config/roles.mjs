@@ -1,9 +1,10 @@
 // ============================================================================
 // Built-in persona registry
 //
-// Initially empty. Add entries as dedicated reviewer agent personas are
-// created. The resolution algorithm handles unknown angles by falling
-// back to the default reviewer with the angle as a focus lens.
+// Initially empty — no dedicated reviewer agent personas exist yet.
+// Resolution falls back to default-reviewer for all angles.
+// Add entries when persona agents are created:
+//   { "security": { persona: "security-reviewer", defaultModel: null } }
 // ============================================================================
 
 const BUILTIN_PERSONAS = Object.freeze({});
