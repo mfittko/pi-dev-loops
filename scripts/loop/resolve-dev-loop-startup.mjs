@@ -151,18 +151,17 @@ export function summarizeCanonicalState(bundle) {
 
 export function buildResolveDevLoopStartupResult(input) {
   const bundle = resolveAuthoritativeStartupResumeBundle(input);
-  const selectedStrategy = bundle.selectedStrategy ?? "none";
-  const normalizedBundle = selectedStrategy !== bundle.selectedStrategy
-    ? { ...bundle, selectedStrategy }
-    : bundle;
+  // Preserve the raw bundle.selectedStrategy (may be null per the core contract).
+  // Use a derived key only for required-reads lookup and the top-level selectedStrategy field.
+  const strategyKey = bundle.selectedStrategy ?? "none";
   return {
     ok: true,
     bundleKind: bundle.bundleKind,
-    selectedStrategy,
-    requiredReads: STRATEGY_REQUIRED_READS[selectedStrategy] ?? STRATEGY_REQUIRED_READS.none,
+    selectedStrategy: strategyKey,
+    requiredReads: STRATEGY_REQUIRED_READS[strategyKey] ?? STRATEGY_REQUIRED_READS.none,
     nextAction: bundle.nextAction,
     canonicalStateSummary: summarizeCanonicalState(bundle),
-    bundle: normalizedBundle,
+    bundle,
   };
 }
 

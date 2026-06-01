@@ -55,7 +55,7 @@ test("workflow-handoff-template references required contract docs by path", asyn
 
   const requiredRefs = [
     "docs/gate-review-comment-contract.md",
-    "skills/copilot-dev-loop/SKILL.md",
+    "skills/copilot-pr-followup/SKILL.md",
     "scripts/README.md",
   ];
 
