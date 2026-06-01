@@ -20,7 +20,6 @@ export function hasCommitShaReference(text) {
   return hasHexLetterToken || hasContextualNumericRef;
 }
 
-
 const RESOLVE_REVIEW_THREAD_MUTATION = [
   "mutation($threadId: ID!) {",
   "  resolveReviewThread(input: { threadId: $threadId }) {",
