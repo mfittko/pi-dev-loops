@@ -36,6 +36,7 @@
  *   1  Argument error or runtime failure
  */
 
+import { execFileSync } from "node:child_process";
 import { isDirectCliRun, formatCliError } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
@@ -98,7 +99,7 @@ export function parseArgs(argv) {
     }
   }
 
-  if (!options.issue) throw new Error("Missing required --issue <number>");
+  if (!options.issue) throw parseError("Missing required --issue <number>");
   return options;
 }
 
