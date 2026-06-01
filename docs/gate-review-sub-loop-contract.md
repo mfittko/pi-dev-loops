@@ -34,7 +34,7 @@ Before fanning out reviewers, run a preamble pass that produces review handoff c
 on an isolated checkout:
 
 - fresh context (do not fork the parent session just to share chat history)
-- `worktree: true` recommended per branch for filesystem isolation; prescribe it but
+- `worktree: true` recommended per reviewer/subagent for filesystem isolation; prescribe it but
   do not fail closed if worktrees are unavailable in the current environment
 - the preamble produces one or more review handoff artifacts (branch, head SHA, PR/issue
   scope, acceptance criteria, touched files, validation posture)
@@ -70,7 +70,7 @@ Merge the parallel reviewer findings into one synthesis:
 
 ### Phase 4 — Fix
 
-If findings are present:
+If must-fix findings are present:
 
 - apply only the accepted narrow fixes on the same branch
 - do not broaden scope or touch unrelated files

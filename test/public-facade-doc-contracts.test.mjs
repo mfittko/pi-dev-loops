@@ -310,7 +310,7 @@ test("gate-review sub-loop contract exists and is referenced by both gates", asy
   assert.match(subLoopContract, /fixRetryUntilClean/i);
 
   // Draft gate references the sub-loop contract
-  assert.match(copilotFollowupSkill, /gate-review-sub-loop-contract\.md.*draft-gate/i);
+  assert.match(copilotFollowupSkill, /gate-review-sub-loop-contract\.md.*draft.gate/i);
 
   // Pre-approval gate references the sub-loop contract
   assert.match(copilotFollowupSkill, /gate-review-sub-loop-contract\.md.*pre-approval/i);
