@@ -147,6 +147,8 @@ Goal:
 ### 2. PR follow-up mode
 Use when a Copilot PR already exists.
 
+**Dispatch rule:** When entering this mode, dispatch the entire dev loop as a single async coordinator subagent (the `dev-loop` agent) rather than running steps inline in the parent session. The coordinator owns parallel review fan-out, fixer passes, gate comments, and state transitions internally.
+
 Goal:
 - inspect current PR state
 - check CI, unresolved comments, and review status
@@ -525,7 +527,7 @@ node <resolved-skill-scripts>/github/upsert-gate-review-comment.mjs \
   --next-action "<next action>"
 ```
 
-Do NOT use `gh pr comment` or `gh api` for gate comments.
+Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.
 
 ### Draft gate contract (before marking PR ready for review)
 
@@ -539,6 +541,7 @@ This is the draft-stage gate for the draft → ready-for-review boundary.
   - Test coverage adequacy
   - CI and check status
   - No unrelated files
+- **Execution:** Run all five review angles in parallel via subagents, each in fresh context with a focus-specific briefing. Create a handoff artifact under `tmp/copilot-loop/pr-<n>/` with PR context, then dispatch one review subagent per angle. Follow the parallel review briefing contract (see Merge-ready preconditions). Do not run gate angles sequentially inline.
 - **Pass criteria:** all five draft-gate angles pass; all must-fix findings are addressed or explicitly deferred with rationale; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review.
 - **Non-substitution rule:** a clean `draft_gate` comment only authorizes the draft → ready-for-review transition for that head SHA. It does **not** satisfy `pre_approval_gate`, final-approval readiness, or merge-ready requirements.
@@ -706,7 +709,7 @@ Do not:
 - suggest approval, approve and merge, or any approval-ready statement without explicit current-head `pre_approval_gate` gate-review evidence
 - treat CI green + resolved review threads + clean Copilot rereview as sufficient for approval or merge without an explicit current-head `pre_approval_gate` gate-review comment
 - dispatch an async dev-loop task that omits the pre-approval gate requirement
-- posting gate review comments with gh pr comment instead of upsert-gate-review-comment.mjs
+- post gate review comments with gh pr comment or gh pr review instead of upsert-gate-review-comment.mjs
 - bypass Pi async notifications with detached automation when the user wants in-session async behavior
 - assume the generated wiki is authoritative over code or CI
 
