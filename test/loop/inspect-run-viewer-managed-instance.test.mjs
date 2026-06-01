@@ -269,6 +269,7 @@ test('open does not kill a stale recorded pid when it is alive but not listening
 test('open cleans up the spawned process when startup never becomes healthy', async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-launch-timeout-'));
   const stopped = [];
+  let nowMs = 0;
   const manager = createInspectRunViewerLifecycleManager({
     async listListeningPidsImpl() {
       return [];
@@ -285,10 +286,11 @@ test('open cleans up the spawned process when startup never becomes healthy', as
     async stopManagedProcessImpl(pid) {
       stopped.push(pid);
     },
-    async waitImpl() {
-      // keep the timeout loop fast
+    async waitImpl(ms = 0) {
+      nowMs += ms || 100;
     },
     nowImpl: () => '2026-06-01T12:00:00.000Z',
+    nowMsImpl: () => nowMs,
     async openBrowserImpl() {},
   });
 
@@ -302,6 +304,7 @@ test('open tolerates ESRCH while replacing a managed instance', async () => {
   let listenerPid = null;
   const alive = new Set();
   const stopCalls = [];
+  let nowMs = 0;
   const manager = createInspectRunViewerLifecycleManager({
     async listListeningPidsImpl() {
       return listenerPid === null ? [] : [listenerPid];
@@ -326,7 +329,10 @@ test('open tolerates ESRCH while replacing a managed instance', async () => {
       error.code = 'ESRCH';
       throw error;
     },
-    async waitImpl() {},
+    async waitImpl(ms = 0) {
+      nowMs += ms || 100;
+    },
+    nowMsImpl: () => nowMs,
     nowImpl: () => '2026-06-01T12:00:00.000Z',
     async openBrowserImpl() {},
   });
@@ -343,6 +349,7 @@ test('stop and restart treat ESRCH as already-stopped', async () => {
   let listenerPid = null;
   const alive = new Set();
   let stopCalls = 0;
+  let nowMs = 0;
   const manager = createInspectRunViewerLifecycleManager({
     async listListeningPidsImpl() {
       return listenerPid === null ? [] : [listenerPid];
@@ -367,7 +374,10 @@ test('stop and restart treat ESRCH as already-stopped', async () => {
       error.code = 'ESRCH';
       throw error;
     },
-    async waitImpl() {},
+    async waitImpl(ms = 0) {
+      nowMs += ms || 100;
+    },
+    nowMsImpl: () => nowMs,
     nowImpl: () => '2026-06-01T12:00:00.000Z',
     async openBrowserImpl() {},
   });
