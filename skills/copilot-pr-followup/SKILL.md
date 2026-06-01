@@ -469,7 +469,7 @@ This step covers three responsibilities: the draft gate right before `gh pr read
 When actionable review feedback exists, use a narrow follow-up loop:
 
 1. inspect unresolved comments/threads and failing checks
-2. before the first local file write in each fixer pass on a Copilot-assigned PR, run `node scripts/loop/pre-write-remote-freshness-guard.mjs --branch <headRefName>` as a required fail-closed guard
+2. before the first local file write in each fixer pass on a Copilot-assigned PR, run `node <resolved-skill-scripts>/loop/pre-write-remote-freshness-guard.mjs --branch <headRefName>` as a required fail-closed guard
    - source `<headRefName>` from authoritative PR state (`headRefName`), not from a local branch guess
    - if the guard exits non-zero (`remote_ahead`), stop writing locally, reconcile to the refreshed remote head, then restart the fixer pass
 3. classify findings:
@@ -478,7 +478,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - defer / non-blocking / disagree
 4. apply only the accepted narrow fixes
 5. run the smallest validation that honestly proves the fix
-6. if files changed, run `node scripts/loop/pre-commit-branch-guard.mjs --expected-branch <headRefName>` immediately before every `git add && git commit` sequence as a required fail-closed guard
+6. if files changed, run `node <resolved-skill-scripts>/loop/pre-commit-branch-guard.mjs --expected-branch <headRefName>` immediately before every `git add && git commit` sequence as a required fail-closed guard
    - source `<headRefName>` from authoritative PR state (`headRefName`), not from a local branch guess
    - if the guard exits non-zero (`branch_mismatch`), stop and realign to the expected branch before staging or committing
 7. if files changed, push the resolving commit before any thread reply claims the fix is present
