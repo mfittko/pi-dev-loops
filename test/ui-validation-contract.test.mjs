@@ -32,7 +32,7 @@ test("ui validation contract lists required non-goals and guardrails", async () 
   assert.match(contract, /Deferred follow-up work/i);
 });
 
-test("dev-loop skill points to the ui validation contract and keeps opt-in and CI framing", async () => {
+test("local-implementation skill points to the ui validation contract and keeps opt-in and CI framing", async () => {
   const localImplementationSkill = await readRepo("skills/local-implementation/SKILL.md");
 
   assert.match(localImplementationSkill, /docs\/ui-validation-contract\.md/i);

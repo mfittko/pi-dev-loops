@@ -48,7 +48,7 @@ test("refiner agent defines the approved phase-refinement contract", async () =>
   assert.doesNotMatch(content, /execute RFC work itself|run the RFC team|implement the RFC team/i);
 });
 
-test("dev-loop skill uses the refiner for phase planning without replacing the coordinator", async () => {
+test("local-implementation skill uses the refiner for phase planning without replacing the coordinator", async () => {
   const content = await readRepo("skills/local-implementation/SKILL.md");
 
   assertMatchesAll(content, [

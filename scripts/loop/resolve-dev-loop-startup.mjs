@@ -152,6 +152,9 @@ export function summarizeCanonicalState(bundle) {
 export function buildResolveDevLoopStartupResult(input) {
   const bundle = resolveAuthoritativeStartupResumeBundle(input);
   const selectedStrategy = bundle.selectedStrategy ?? "none";
+  const normalizedBundle = selectedStrategy !== bundle.selectedStrategy
+    ? { ...bundle, selectedStrategy }
+    : bundle;
   return {
     ok: true,
     bundleKind: bundle.bundleKind,
@@ -159,7 +162,7 @@ export function buildResolveDevLoopStartupResult(input) {
     requiredReads: STRATEGY_REQUIRED_READS[selectedStrategy] ?? STRATEGY_REQUIRED_READS.none,
     nextAction: bundle.nextAction,
     canonicalStateSummary: summarizeCanonicalState(bundle),
-    bundle,
+    bundle: normalizedBundle,
   };
 }
 
