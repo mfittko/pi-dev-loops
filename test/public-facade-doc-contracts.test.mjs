@@ -238,6 +238,15 @@ test("status reporting contract requires authoritative state-first resolution an
   assert.match(copilotFollowupSkill, /reuse\/update that canonical PR instead of opening another one/i);
 });
 
+test("copilot-pr-followup mandates upsert helper command for gate comments", async () => {
+  const copilotFollowupSkill = await readRepo("skills/copilot-pr-followup/SKILL.md");
+
+  assert.match(copilotFollowupSkill, /For every `draft_gate` or `pre_approval_gate` comment, you MUST run:/);
+  assert.match(copilotFollowupSkill, /node\s+<resolved-skill-scripts>\/github\/upsert-gate-review-comment\.mjs/i);
+  assert.match(copilotFollowupSkill, /Do NOT use `gh pr comment` or `gh api` for gate comments\./);
+  assert.match(copilotFollowupSkill, /posting gate review comments with gh pr comment instead of upsert-gate-review-comment\.mjs/i);
+});
+
 test("public dev-loop contract keeps conflict reconciliation local and context-first", async () => {
   const publicContract = await readRepo("skills/docs/public-dev-loop-contract.md");
 

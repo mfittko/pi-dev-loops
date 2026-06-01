@@ -510,6 +510,23 @@ When actionable review feedback exists, use a narrow follow-up loop:
 
 Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 
+### Mandatory gate-comment command contract
+
+For every `draft_gate` or `pre_approval_gate` comment, you MUST run:
+
+```sh
+node <resolved-skill-scripts>/github/upsert-gate-review-comment.mjs \
+  --repo <owner/name> \
+  --pr <number> \
+  --gate <draft_gate|pre_approval_gate> \
+  --head-sha <current_head_sha> \
+  --verdict <clean|findings_present|blocked> \
+  --findings-summary "<summary>" \
+  --next-action "<next action>"
+```
+
+Do NOT use `gh pr comment` or `gh api` for gate comments.
+
 ### Draft gate contract (before marking PR ready for review)
 
 This is the draft-stage gate for the draft → ready-for-review boundary.
@@ -689,6 +706,7 @@ Do not:
 - suggest approval, approve and merge, or any approval-ready statement without explicit current-head `pre_approval_gate` gate-review evidence
 - treat CI green + resolved review threads + clean Copilot rereview as sufficient for approval or merge without an explicit current-head `pre_approval_gate` gate-review comment
 - dispatch an async dev-loop task that omits the pre-approval gate requirement
+- posting gate review comments with gh pr comment instead of upsert-gate-review-comment.mjs
 - bypass Pi async notifications with detached automation when the user wants in-session async behavior
 - assume the generated wiki is authoritative over code or CI
 
