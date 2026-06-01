@@ -81,7 +81,7 @@ A clean `pre_approval_gate` result does **not** authorize:
 
 ## Lifecycle states
 
-The family-local lifecycle should be modeled in this vocabulary (exact spelling may evolve, but the semantics are stable):
+The family-local lifecycle should be modeled in this vocabulary. These state identifiers are part of the stable contract surface for this lifecycle, even if adjacent helper implementations evolve around them:
 
 | State | Meaning |
 |---|---|

@@ -96,12 +96,13 @@ test("reviewer-loop contract documents submitted-review handoff and explicit ext
 });
 
 test("consolidated PR lifecycle contract freezes the family-local lifecycle boundary", async () => {
-  const [lifecycleContract, docsIndex, copilotGraph, gateContract, conductorRouting] = await Promise.all([
+  const [lifecycleContract, docsIndex, copilotGraph, gateContract, conductorRouting, conductorOwnership] = await Promise.all([
     readRepo("skills/docs/pr-lifecycle-contract.md"),
     readRepo("docs/index.md"),
     readRepo("docs/copilot-loop-state-graph.md"),
     readRepo("docs/gate-review-comment-contract.md"),
     readRepo("docs/conductor-routing-contract.md"),
+    readRepo("docs/conductor-ownership-contract.md"),
   ]);
 
   assert.match(docsIndex, /skills\/docs\/pr-lifecycle-contract\.md/i);
@@ -117,6 +118,7 @@ test("consolidated PR lifecycle contract freezes the family-local lifecycle boun
   assert.match(copilotGraph, /skills\/docs\/pr-lifecycle-contract\.md/i);
   assert.match(gateContract, /skills\/docs\/pr-lifecycle-contract\.md/i);
   assert.match(conductorRouting, /skills\/docs\/pr-lifecycle-contract\.md/i);
+  assert.match(conductorOwnership, /skills\/docs\/pr-lifecycle-contract\.md/i);
 });
 
 test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices", async () => {
