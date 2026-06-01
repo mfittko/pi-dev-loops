@@ -73,6 +73,7 @@ async function loadDefaultTargetPreference() {
       emitConfigWarning(
         `public-dev-loop-routing: ${errors.map(({ layer, message }) => `${layer}: ${message}`).join("; ")}. Falling back to built-in target preference when needed.`,
       );
+      return BUILT_IN_DEFAULT_TARGET_PREFERENCE;
     }
 
     return resolveConfiguredTargetPreference(config?.strategy?.default);
