@@ -24,7 +24,7 @@ pre-computed outer-loop action. It is the routing authority, not a remapper.
 | Contract / Issue | Relationship |
 |---|---|
 | [#28 — conductor umbrella](https://github.com/mfittko/pi-dev-loops/issues/28) | Parent umbrella |
-| [#32 — ownership/idempotency](https://github.com/mfittko/pi-dev-loops/issues/32) | **Upstream**: provides optional `ownershipState` input; this contract starts after ownership is settled |
+| [#32 — ownership/idempotency](https://github.com/mfittko/pi-dev-loops/issues/32) | **Historical**: designed the ownership model; the `conductor-ownership.mjs` module was retired during deslop cleanup (issue #319). `ownershipState` remains as an optional external input. |
 | [#26 — family-local PR lifecycle contract](https://github.com/mfittko/pi-dev-loops/issues/26) / `skills/docs/pr-lifecycle-contract.md` | **Upstream**: provides family-local PR lifecycle semantics; the concrete `copilotState` and `reviewerState` inputs still come from the existing copilot/reviewer state machines, and this contract consumes them without redefining their semantics |
 | [#34 — request/watch helper contract](https://github.com/mfittko/pi-dev-loops/issues/34) | **Adjacent**: defines Copilot request/watch semantics inside the copilot loop family; this contract decides _which family_ gets control |
 | [#48 — visible PR projection](https://github.com/mfittko/pi-dev-loops/issues/48) | **Downstream**: routing decisions may drive PR projection artifacts |
@@ -35,7 +35,7 @@ pre-computed outer-loop action. It is the routing authority, not a remapper.
 This contract owns **conductor routing and handoff decisions after ownership and family-local state are already known**.
 
 It does **not** define:
-- which run is active (ownership/idempotency rules from #32)
+- which run is active (ownership/idempotency rules; the conductor implementation was retired, see issue #319)
 - PR lifecycle state semantics, gate order, or draft/ready transitions (from `skills/docs/pr-lifecycle-contract.md`)
 - Copilot request/re-request/watch helper semantics (from #34)
 - PR-visible projection artifacts (from #48)
@@ -284,7 +284,7 @@ required and optional fields listed above affect routing decisions.
 ### 6. Live owner suppresses handoff (ownership-aware path)
 
 **Note**: this path is exercised by unit tests only. The `outer-loop.mjs` integration seam does not supply
-`ownershipState` yet; ownership wiring from #32 is a follow-up slice.
+`ownershipState` yet; the conductor-ownership module has been retired (issue #319).
 
 | Field | Value |
 |---|---|
@@ -311,8 +311,8 @@ required and optional fields listed above affect routing decisions.
 
 This contract intentionally does **not** cover:
 
-- ownership-key design, duplicate-owner handling, or start/attach/resume idempotency rules (→ #32)
-- wiring `ownershipState` into `outer-loop.mjs` or any other caller (deferred to a follow-up slice)
+- ownership-key design, duplicate-owner handling, or start/attach/resume idempotency rules (→ #32, conductor implementation retired, see issue #319)
+- wiring `ownershipState` into `outer-loop.mjs` or any other caller (deferred; conductor implementation retired)
 - PR lifecycle states, draft/ready gate order, remediation ownership classes, or approval-gate semantics (→ `skills/docs/pr-lifecycle-contract.md`)
 - Copilot request / re-request / watch helper semantics (→ #34)
 - inspection, viewer, or steering surface design (→ #57/#58/#59)

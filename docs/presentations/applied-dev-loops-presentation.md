@@ -213,8 +213,8 @@ stateDiagram-v2
 <div class="glass-card">
 <p><strong>Wait time ↓</strong></p>
 <ul class="mini-list">
-  <li>Ownership always explicit</li>
-  <li>PR phase projected live</li>
+  <li>Gate-review comments required at key boundaries</li>
+  <li>CI and thread states drive lifecycle transitions</li>
 </ul>
 </div>
 <div class="glass-card">
