@@ -385,32 +385,30 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
 }
 
 export async function upsertGateReviewComment(options, { env = process.env, ghCommand = "gh" } = {}) {
-  const coordinationContext = options.gate === "pre_approval_gate"
-    ? await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr }, { env, ghCommand })
-    : null;
-
-  if (coordinationContext) {
-    const coordination = evaluatePrGateCoordination({
-      repo: coordinationContext.repo,
-      pr: coordinationContext.pr,
-      currentHeadSha: coordinationContext.currentHeadSha,
-      prDraft: Boolean(coordinationContext.prData?.isDraft),
-      prClosed: String(coordinationContext.prData?.state || "").toUpperCase() === "CLOSED",
-      prMerged: String(coordinationContext.prData?.state || "").toUpperCase() === "MERGED",
-      lifecycleState: coordinationContext.interpretation.state,
-      loopDisposition: coordinationContext.disposition.loopDisposition,
-      sameHeadCleanConverged: coordinationContext.interpretation.sameHeadCleanConverged,
-      draftGate: coordinationContext.gateEvidence.draftGate,
-      draftGateMarker: coordinationContext.gateEvidence.draftGateMarker,
-      preApprovalGate: coordinationContext.gateEvidence.preApprovalGate,
-      preApprovalGateMarker: coordinationContext.gateEvidence.preApprovalGateMarker,
-    });
-    if (coordination.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE)) {
-      throw new Error(`Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`);
-    }
+  const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+  const coordination = evaluatePrGateCoordination({
+    repo: coordinationContext.repo,
+    pr: coordinationContext.pr,
+    currentHeadSha: coordinationContext.currentHeadSha,
+    prDraft: Boolean(coordinationContext.prData?.isDraft),
+    prClosed: String(coordinationContext.prData?.state || "").toUpperCase() === "CLOSED",
+    prMerged: String(coordinationContext.prData?.state || "").toUpperCase() === "MERGED",
+    lifecycleState: coordinationContext.interpretation.state,
+    loopDisposition: coordinationContext.disposition.loopDisposition,
+    sameHeadCleanConverged: coordinationContext.interpretation.sameHeadCleanConverged,
+    draftGate: coordinationContext.gateEvidence.draftGate,
+    draftGateMarker: coordinationContext.gateEvidence.draftGateMarker,
+    preApprovalGate: coordinationContext.gateEvidence.preApprovalGate,
+    preApprovalGateMarker: coordinationContext.gateEvidence.preApprovalGateMarker,
+  });
+  if (options.gate === "draft_gate" && coordination.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE)) {
+    throw new Error(`Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`);
+  }
+  if (options.gate === "pre_approval_gate" && coordination.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE)) {
+    throw new Error(`Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`);
   }
 
-  const evidence = coordinationContext?.gateEvidence ?? await detectGateReviewEvidence({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+  const evidence = coordinationContext.gateEvidence;
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
   const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha });
 

@@ -69,7 +69,7 @@ test("stale gate markers do not report current-head contract completeness", () =
   assert.equal(result.draftGate.currentHeadClean, false);
 });
 
-test("non-draft PR without current-head clean draft gate evidence fails closed", () => {
+test("non-draft PR with clean draft gate on a different head proceeds to post-draft flow (one-time boundary)", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
     currentHeadSha: "def56789",
@@ -82,14 +82,13 @@ test("non-draft PR without current-head clean draft gate evidence fails closed",
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
-  assert.equal(result.nextAction, PR_GATE_ACTION.REPORT_BLOCKED);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.REPORT_BLOCKED));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
   assert.equal(result.draftGate.visible, true);
   assert.equal(result.draftGate.currentHead, false);
+  assert.equal(result.draftGate.draftGateSatisfied, true);
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
 test("ready non-draft PR with current-head clean draft gate evidence requests Copilot review next", () => {
@@ -166,4 +165,85 @@ test("current-head clean pre-approval evidence advances to final approval bounda
   assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
   assert.equal(result.preApprovalGate.currentHead, true);
   assert.equal(result.preApprovalGate.currentHeadClean, true);
+});
+
+test("non-draft PR with clean draft_gate on a different head still allows post-draft flow (one-time boundary)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "newhead999999",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: true, headSha: "oldhead111", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "oldhead111", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  assert.notEqual(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
+  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
+  assert.equal(result.draftGate.currentHead, false);
+  assert.equal(result.draftGate.draftGateSatisfied, true);
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert.equal(
+    result.reason,
+    "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
+  );
+});
+
+test("non-draft PR without any clean draft_gate evidence fails closed", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
+  assert.equal(result.nextAction, PR_GATE_ACTION.REPORT_BLOCKED);
+  assert.equal(result.draftGate.draftGateSatisfied, false);
+  assert(result.allowedNextActions.includes(PR_GATE_ACTION.REPORT_BLOCKED));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert.match(result.reason, /no clean `draft_gate` evidence exists at all/i);
+});
+
+test("non-draft PR with findings_present draft_gate fails closed because no clean transition was recorded", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: true, headSha: "abc1234", verdict: "findings_present" }),
+    draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "findings_present", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
+  assert.equal(result.draftGate.draftGateSatisfied, false);
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert.match(result.reason, /no clean `draft_gate` evidence exists at all/i);
+});
+
+test("draft PR with clean current-head draft_gate sets draftGateSatisfied", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 10,
+    currentHeadSha: "abc123456789",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+  });
+
+  assert.equal(result.draftGate.draftGateSatisfied, true);
+  assert.equal(result.draftGate.currentHeadClean, true);
 });

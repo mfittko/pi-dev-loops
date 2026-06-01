@@ -767,8 +767,8 @@ This is the draft-stage gate for the draft → ready-for-review boundary.
   - Do not run `gh pr ready` unless a visible `clean` `draft_gate` gate-review comment exists for the current head SHA.
   - Before any `pre_approval_gate` entry, confirm legality with `node <resolved-skill-scripts>/loop/detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number>` and fail closed if `run_pre_approval_gate` is currently forbidden.
   - If the required comment cannot be posted (fail-closed), do not mark the PR ready for review.
-  - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
-  - If fixes advance the head SHA, post a new gate-review comment for the new head.
+  - While the PR is still draft, a gate-review comment for an older head SHA does not satisfy this requirement for the current head.
+  - If fixes advance the head SHA **while the PR is still draft**, post a new gate-review comment for the new head. Once the PR leaves draft, later head changes use `pre_approval_gate` instead — do not post new `draft_gate` comments after the draft boundary is crossed.
 
 Do **not** apply DRY, KISS, or YAGNI here; those belong exclusively to the pre-approval gate below.
 

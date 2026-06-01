@@ -218,6 +218,7 @@ export async function detectGateReviewEvidence(options, { env = process.env, ghC
     preApprovalGate: normalizeGateSummary(commentSummary.pre_approval_gate),
     draftGateMarker: normalizeGateMarkerSummary(markerSummary.draft_gate),
     preApprovalGateMarker: normalizeGateMarkerSummary(markerSummary.pre_approval_gate),
+    draftGateSatisfied: commentSummary.draft_gate?.verdict === "clean" && typeof commentSummary.draft_gate?.headSha === "string",
   };
 }
 
