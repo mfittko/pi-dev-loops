@@ -183,7 +183,7 @@ async function readManagedRecord(recordPath) {
     if (error?.code === 'ENOENT') {
       return null;
     }
-    if (error instanceof SyntaxError) {
+    if (error instanceof SyntaxError || error?.code === 'EISDIR') {
       return {
         invalidRecord: true,
         parseError: error.message,
@@ -199,7 +199,7 @@ async function writeManagedRecord(recordPath, payload) {
 }
 
 async function removeManagedRecord(recordPath) {
-  await rm(recordPath, { force: true });
+  await rm(recordPath, { force: true, recursive: true });
 }
 
 async function stopManagedProcessSafely(pid, { stopManagedProcessImpl }) {

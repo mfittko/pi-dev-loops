@@ -207,6 +207,20 @@ test('status treats an unreadable managed record as stale_record with delete gui
   assert.match(status.detail, /delete/i);
 });
 
+test('open clears a directory-shaped managed record path and starts fresh', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-record-directory-'));
+  await mkdir(path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH), { recursive: true });
+  const { manager, launches } = createManager();
+
+  const opened = await manager.open({ repoRoot });
+  assert.equal(opened.state, 'running');
+  assert.equal(launches.length, 1);
+
+  const record = JSON.parse(await readFile(path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH), 'utf8'));
+  assert.equal(record.surfaceId, 'inspect-run-viewer');
+  assert.equal(record.pid, launches[0].pid);
+});
+
 test('stop fails closed with explicit guidance when --repo does not match the managed instance', async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-stop-mismatch-'));
   const { manager, launches, stopped } = createManager();
