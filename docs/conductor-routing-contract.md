@@ -83,7 +83,7 @@ In that fail-closed result, `handoffEnvelope.targetIdentity` is stable:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `ownershipState` | `string` | `undefined` | Settled ownership/idempotency classification from `conductor-ownership.mjs`. `"live_owner"` → `stay_with_current_live_owner` for active states. `"duplicate_local_owners"` → `needs_reconcile`. Other values or omission → routing continues purely from states. **See ownership availability note below.** |
+| `ownershipState` | `string` | `undefined` | Settled ownership/idempotency classification (conductor-ownership module retired; see git history and issue #319). `"live_owner"` → `stay_with_current_live_owner` for active states. `"duplicate_local_owners"` → `needs_reconcile`. Other values or omission → routing continues purely from states. **See ownership availability note below.** |
 | `sourceMode` | `string` | `"local"` | Source/confidence mode: `"authoritative"` \| `"local"` \| `"snapshot"` |
 | `requiresLocalIsolation` | `boolean` | `false` | Whether the checkout is dirty or detached; callers must continue local-execution handoffs from an isolated checkout/worktree when this is true |
 
