@@ -183,6 +183,16 @@ async function removeManagedRecord(recordPath) {
   await rm(recordPath, { force: true });
 }
 
+async function stopManagedProcessSafely(pid, { stopManagedProcessImpl }) {
+  try {
+    await stopManagedProcessImpl(pid);
+  } catch (error) {
+    if (error?.code !== 'ESRCH') {
+      throw error;
+    }
+  }
+}
+
 async function waitForManagedExit(record, { isProcessAliveImpl, listListeningPidsImpl, waitImpl, timeoutMs = 3000, pollIntervalMs = 100 }) {
   if (!record?.pid) {
     return;
@@ -334,13 +344,7 @@ export function createInspectRunViewerLifecycleManager({
       throw new Error('inspect-run viewer did not become healthy before the startup timeout');
     } catch (error) {
       if (await isProcessAliveImpl(pid)) {
-        try {
-          await stopManagedProcessImpl(pid);
-        } catch (stopError) {
-          if (stopError?.code !== 'ESRCH') {
-            throw stopError;
-          }
-        }
+        await stopManagedProcessSafely(pid, { stopManagedProcessImpl });
       }
       await waitForManagedExit(record, {
         isProcessAliveImpl,
@@ -383,7 +387,7 @@ export function createInspectRunViewerLifecycleManager({
       }
 
       if (snapshot.state === 'running' && snapshot.record) {
-        await stopManagedProcessImpl(snapshot.record.pid);
+        await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
         await waitForManagedExit(snapshot.record, {
           isProcessAliveImpl,
           listListeningPidsImpl,
@@ -394,7 +398,7 @@ export function createInspectRunViewerLifecycleManager({
         if (snapshot.record?.pid
           && snapshot.listeners.includes(snapshot.record.pid)
           && await isProcessAliveImpl(snapshot.record.pid)) {
-          await stopManagedProcessImpl(snapshot.record.pid);
+          await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
           await waitForManagedExit(snapshot.record, {
             isProcessAliveImpl,
             listListeningPidsImpl,
@@ -469,7 +473,7 @@ export function createInspectRunViewerLifecycleManager({
       const requestedRepo = normalizeRequestedRepo(repo);
       const snapshot = await inspectRecord({ repoRoot });
       if (snapshot.state === 'running' && snapshot.record && canServeRequestedRepo(snapshot.record, requestedRepo)) {
-        await stopManagedProcessImpl(snapshot.record.pid);
+        await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
         await waitForManagedExit(snapshot.record, {
           isProcessAliveImpl,
           listListeningPidsImpl,
@@ -549,7 +553,7 @@ export function createInspectRunViewerLifecycleManager({
             record: snapshot.record,
           };
         }
-        await stopManagedProcessImpl(snapshot.record.pid);
+        await stopManagedProcessSafely(snapshot.record.pid, { stopManagedProcessImpl });
         await waitForManagedExit(snapshot.record, {
           isProcessAliveImpl,
           listListeningPidsImpl,

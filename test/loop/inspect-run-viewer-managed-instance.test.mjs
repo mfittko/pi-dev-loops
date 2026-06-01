@@ -295,3 +295,89 @@ test('open cleans up the spawned process when startup never becomes healthy', as
   await assert.rejects(manager.open({ repoRoot }), /startup timeout/i);
   assert.deepEqual(stopped, [7123]);
 });
+
+test('open tolerates ESRCH while replacing a managed instance', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-open-esrch-'));
+  let nextPid = 5000;
+  let listenerPid = null;
+  const alive = new Set();
+  const stopCalls = [];
+  const manager = createInspectRunViewerLifecycleManager({
+    async listListeningPidsImpl() {
+      return listenerPid === null ? [] : [listenerPid];
+    },
+    async isProcessAliveImpl(pid) {
+      return alive.has(pid);
+    },
+    async healthcheckUrlImpl() {
+      return listenerPid !== null && alive.has(listenerPid);
+    },
+    async launchManagedServerImpl() {
+      const pid = nextPid++;
+      listenerPid = pid;
+      alive.add(pid);
+      return { pid };
+    },
+    async stopManagedProcessImpl(pid) {
+      stopCalls.push(pid);
+      alive.delete(pid);
+      listenerPid = null;
+      const error = new Error('gone');
+      error.code = 'ESRCH';
+      throw error;
+    },
+    async waitImpl() {},
+    nowImpl: () => '2026-06-01T12:00:00.000Z',
+    async openBrowserImpl() {},
+  });
+
+  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const reopened = await manager.open({ repoRoot, repo: 'other/repo' });
+  assert.equal(reopened.state, 'running');
+  assert.deepEqual(stopCalls, [5000]);
+});
+
+test('stop and restart treat ESRCH as already-stopped', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-stop-restart-esrch-'));
+  let nextPid = 6000;
+  let listenerPid = null;
+  const alive = new Set();
+  let stopCalls = 0;
+  const manager = createInspectRunViewerLifecycleManager({
+    async listListeningPidsImpl() {
+      return listenerPid === null ? [] : [listenerPid];
+    },
+    async isProcessAliveImpl(pid) {
+      return alive.has(pid);
+    },
+    async healthcheckUrlImpl() {
+      return listenerPid !== null && alive.has(listenerPid);
+    },
+    async launchManagedServerImpl() {
+      const pid = nextPid++;
+      listenerPid = pid;
+      alive.add(pid);
+      return { pid };
+    },
+    async stopManagedProcessImpl(pid) {
+      stopCalls += 1;
+      alive.delete(pid);
+      listenerPid = null;
+      const error = new Error('gone');
+      error.code = 'ESRCH';
+      throw error;
+    },
+    async waitImpl() {},
+    nowImpl: () => '2026-06-01T12:00:00.000Z',
+    async openBrowserImpl() {},
+  });
+
+  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const stopped = await manager.stop({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  assert.equal(stopped.state, 'stopped');
+
+  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const restarted = await manager.restart({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  assert.equal(restarted.state, 'running');
+  assert.equal(stopCalls, 2);
+});
