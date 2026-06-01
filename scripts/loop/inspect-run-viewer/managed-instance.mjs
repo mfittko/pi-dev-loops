@@ -436,6 +436,7 @@ export function createInspectRunViewerLifecycleManager({
             isProcessAliveImpl,
             listListeningPidsImpl: listListeningPids,
             waitImpl,
+            nowMsImpl,
           });
         }
         await removeManagedRecord(snapshot.recordPath);
