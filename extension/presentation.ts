@@ -104,5 +104,5 @@ export function buildNotificationMessage(action: Extract<DevLoopsAction, 'doctor
 }
 
 export function buildInspectNotification(action: InspectAction, state: string): string {
-  return `inspect viewer ${action}: ${state}`;
+  return `inspect ${action}: ${state}`;
 }

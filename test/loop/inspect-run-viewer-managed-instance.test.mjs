@@ -607,3 +607,58 @@ test('open fails with a clear error when the launch seam does not return a posit
 
   await assert.rejects(manager.open({ repoRoot }), /positive integer pid/i);
 });
+
+test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', async () => {
+  const { createServer } = await import('node:http');
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-healthcheck-signal-'));
+
+  // Start a real HTTP server on the default port so isManagedRecordShape passes
+  const healthServer = createServer((_req, res) => { res.writeHead(200); res.end('ok'); });
+  await new Promise((resolve) => healthServer.listen(4311, '127.0.0.1', resolve));
+
+  // Spy on global fetch to capture the options passed
+  const originalFetch = globalThis.fetch;
+  const fetchCalls = [];
+  globalThis.fetch = async (url, options) => {
+    fetchCalls.push({ url, options });
+    return originalFetch(url, options);
+  };
+
+  try {
+    // Manager with real defaultHealthcheck (healthcheckUrlImpl defaults)
+    // but stubbed lifecycle seams
+    const manager = createInspectRunViewerLifecycleManager({
+      listListeningPidsImpl: async () => [42],
+      isProcessAliveImpl: async () => true,
+      async launchManagedServerImpl() { return { pid: 42 }; },
+      async stopManagedProcessImpl() {},
+      async openBrowserImpl() {},
+    });
+
+    const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
+    await mkdir(path.dirname(recordPath), { recursive: true });
+    await writeFile(recordPath, `${JSON.stringify({
+      schemaVersion: 1,
+      surfaceId: 'inspect-run-viewer',
+      pid: 42,
+      host: '127.0.0.1',
+      port: 4311,
+      url: 'http://127.0.0.1:4311',
+      launchArgs: { repo: null, host: '127.0.0.1', port: 4311 },
+      argsFingerprint: JSON.stringify({ repo: null, host: '127.0.0.1', port: 4311 }),
+      startedAt: new Date().toISOString(),
+      cwd: repoRoot,
+    })}\n`);
+
+    const status = await manager.status({ repoRoot });
+    assert.equal(status.state, 'running');
+
+    const healthcheckCall = fetchCalls.find((c) => String(c.url).includes('4311'));
+    assert.ok(healthcheckCall, 'healthcheck should call fetch');
+    assert.ok(!healthcheckCall.options?.signal, 'fetch must not receive an AbortSignal');
+  } finally {
+    globalThis.fetch = originalFetch;
+    await new Promise((resolve) => healthServer.close(resolve));
+  }
+});
+

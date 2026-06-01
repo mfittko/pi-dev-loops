@@ -118,14 +118,19 @@ async function defaultIsProcessAlive(pid) {
   }
 }
 
-async function defaultHealthcheck(url) {
+async function defaultHealthcheck(url, timeoutMs = 3000) {
+  let timer;
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      signal: AbortSignal.timeout(1500),
-    });
+    const response = await Promise.race([
+      fetch(url, { method: 'GET' }),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('healthcheck timeout')), timeoutMs);
+      }),
+    ]);
+    clearTimeout(timer);
     return response.status === 200;
   } catch {
+    clearTimeout(timer);
     return false;
   }
 }
