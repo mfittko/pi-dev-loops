@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is complete, merged, and synced back to local `main`. Phase 7 second-repo pilot refinement remains the next durable roadmap phase and is still in planning.
+Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is complete, merged, and synced back to local `main`. Phase 7 second-repo pilot refinement shipped ahead of schedule (the code landed before the formal Phase 7 doc was started). Phase 8 (current) is the post-pilot stabilization and cleanup pass.
 
 Separately, issue #70 tracks a bounded workflow-remediation preparation chain. Those chunks harden the current workflow foundation before later improvements continue. They do **not** replace Phase 7 or the existing roadmap.
 

@@ -65,13 +65,12 @@ test("required installed runtime contract docs are bundled once in the shared in
   assert.match(extensionReadme, /required installed runtime contract docs/i);
   assert.match(extensionReadme, /public-dev-loop-contract\.md/i);
   assert.match(extensionReadme, /retrospective-checkpoint-contract\.md/i);
-  assert.match(extensionReadme, /conductor-pr-projection-contract\.md/i);
+
   assert.match(extensionReadme, /packaging\/installer bug/i);
 
   const requiredDocs = [
     "public-dev-loop-contract.md",
     "retrospective-checkpoint-contract.md",
-    "conductor-pr-projection-contract.md",
   ];
 
   for (const doc of requiredDocs) {

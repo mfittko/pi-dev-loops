@@ -13,7 +13,7 @@ already known:
 
 This contract starts **after**:
 - the active run has been identified (scope/target resolved)
-- ownership/idempotency has been classified (from `conductor-ownership.mjs`, issue #32)
+- ownership/idempotency has been classified (the `conductor-ownership.mjs` module and its issue #32 have been retired; designs archived in git history)
 - the copilot/reviewer inner-loop state-machine outputs have been detected (from `copilot-loop-state.mjs` and `reviewer-loop-state.mjs`) and are interpreted under the broader family-local PR lifecycle semantics frozen in `skills/docs/pr-lifecycle-contract.md`
 
 The routing outcome is derived **directly from normalized state inputs** — the evaluator does not accept a
@@ -90,7 +90,7 @@ In that fail-closed result, `handoffEnvelope.targetIdentity` is stable:
 ### Ownership availability note
 
 `ownershipState` is an optional caller-supplied input. **The current `outer-loop.mjs` integration seam does not
-supply it** — the outer loop does not yet resolve ownership from `conductor-ownership.mjs` (#32).
+supply it** — the outer loop does not yet resolve ownership (the conductor-ownership module has been retired; see git history and audit for its design).
 The ownership-aware routing branches (`stay_with_current_live_owner`, duplicate-owner reconcile) are fully
 implemented and unit-tested; they become active when a caller that has already resolved ownership (e.g., a future
 #32-wired seam) supplies `ownershipState`. Wiring ownership resolution into `outer-loop.mjs` is deferred to a

@@ -30,7 +30,6 @@ It does not redefine helper transport mechanics, reviewer-loop internals, conduc
 | `docs/reviewer-loop-state-graph.md` | Reviewer-side review production / submission boundary consumed by this lifecycle |
 | `docs/gate-review-comment-contract.md` | Visible evidence contract for `draft_gate` and `pre_approval_gate` |
 | `docs/conductor-routing-contract.md` | Downstream consumer of family-local lifecycle outcomes |
-| `docs/conductor-ownership-contract.md` | Downstream owner/arbitration contract; not lifecycle authority |
 | issue #29 | Reviewer-loop boundary semantics |
 | issue #34 | Copilot request / re-request / watch helper mechanics |
 | issue #43 | DRY/KISS/YAGNI policy for the final local pre-approval gate |

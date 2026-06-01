@@ -11,3 +11,4 @@ test-results/
 .pi/dev-loop/overrides.json
 
 .pi/ui-servers/
+worktrees/

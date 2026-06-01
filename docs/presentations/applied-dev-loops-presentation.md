@@ -180,7 +180,6 @@ stateDiagram-v2
 <div class="grid grid-cols-2 gap-5 items-start">
 <div class="glass-card">
 <ul class="tight-list">
-  <li><code>conductor-pr-projection</code> can mirror meaningful transitions to PR when visible projection is enabled</li>
   <li>Phase derived from routing outcome + ownership signal</li>
   <li>Idempotency keys prevent duplicates across restarts</li>
   <li>Mentions opt-in with cooldown and allow-list</li>

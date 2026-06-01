@@ -111,12 +111,12 @@ Use this rule:
 Required bundled runtime contract docs for installed copies of this skill:
 - `../docs/public-dev-loop-contract.md`
 - `../docs/retrospective-checkpoint-contract.md`
-- `../docs/conductor-pr-projection-contract.md`
+
 
 Read those bundled `../docs/` files from the installed skill layout instead of assuming the source repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
 Do not assume `scripts/...` is repo-local to the target codebase you are operating on.
 
-When a PR changes conductor-owned projection / closeout behavior, or when review comments ask how visible projection or durable closeout should work, read the resolved `../docs/conductor-pr-projection-contract.md` alongside the relevant issue/PR. Conductor PR projection is currently source-only rather than a published runtime export, so use `packages/core/src/loop/conductor-pr-projection.mjs` from the source repository or the bundled installed-skill copy from the resolved skill layout instead of assuming an `@pi-dev-loops/core/...` subpath exists.
+The conductor-ownership and conductor-pr-projection modules have been retired. Their designs are archived in git history and in the audit at `tmp/slop-audit/final/full-audit.md`.
 
 ## Authority and safety rules
 
