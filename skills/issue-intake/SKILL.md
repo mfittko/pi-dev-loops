@@ -136,6 +136,8 @@ When a PR changes conductor-owned projection / closeout behavior, or when review
 
 This skill supports four common modes.
 
+**Dispatch rule:** When routed here by `dev-loop`, every primary mode dispatches the full loop as a single async coordinator subagent (the `dev-loop` agent). Do not run issue intake steps inline in the parent session. See the dev-loop skill's async dispatch rule.
+
 ### 1. Issue handoff mode
 Use when the user wants to start new work from the backlog.
 

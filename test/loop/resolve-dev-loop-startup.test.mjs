@@ -155,6 +155,7 @@ test("summarizeCanonicalState keeps the public status summary fields stable", ()
     selectedGate: "final_approval",
     executionMode: "bounded_handoff",
     waitSemantics: "default",
+    requiresAsyncDispatch: false,
   });
 });
 

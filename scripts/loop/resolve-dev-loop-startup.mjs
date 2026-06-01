@@ -90,6 +90,17 @@ const STRATEGY_REQUIRED_READS = {
   none: [SHARED_PUBLIC_CONTRACT],
 };
 
+const STRATEGY_ASYNC_DISPATCH = {
+  local_implementation: false,
+  issue_intake: true,
+  copilot_pr_followup: true,
+  external_pr_followup: true,
+  reviewer_fixer: true,
+  wait_watch: true,
+  final_approval: false,
+  none: false,
+};
+
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
 }
@@ -146,6 +157,9 @@ export function summarizeCanonicalState(bundle) {
     selectedGate: bundle.selectedGate ?? null,
     executionMode: bundle.executionMode ?? null,
     waitSemantics: bundle.waitSemantics ?? null,
+    requiresAsyncDispatch: bundle.selectedStrategy !== null
+      ? (STRATEGY_ASYNC_DISPATCH[bundle.selectedStrategy] ?? false)
+      : false,
   };
 }
 

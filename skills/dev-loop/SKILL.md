@@ -62,6 +62,14 @@ Load only the route-specific internal skill required by `selectedStrategy`:
 
 Do not preload local implementation, issue intake, PR follow-up, or final approval procedure before the resolver selects that route.
 
+## After routing: execution directive
+
+After the resolver selects a strategy and the route pack is loaded, the routed strategy's procedure is the execution plan — not reference material. Follow it.
+
+**Async dispatch rule:** For any routed strategy where the resolver's `canonicalStateSummary.requiresAsyncDispatch` is `true`, dispatch the strategy as a single async coordinator subagent (the `dev-loop` agent) rather than executing steps inline in the parent session. The dispatched agent owns parallel review fan-out, fixer passes, gate comments, state transitions, and sub-delegation internally.
+
+Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline — local phases are often interactive, and final approval requires explicit human confirmation before GitHub mutations.
+
 ## Shorthand issue-based auto trigger contract
 
 - treat `auto dev loop on issue 112` as the public `dev-loop` intent `auto_continue_current` after authoritative current-state resolution
