@@ -231,6 +231,8 @@ test("hasCommitShaReference unit — hex-with-letters accepted, bare numeric rej
   assert.equal(hasCommitShaReference("Fixed in 1234567"), true);
   assert.equal(hasCommitShaReference("Commit 1234567"), true);
   assert.equal(hasCommitShaReference("SHA 1234567"), true);
+  assert.equal(hasCommitShaReference("https://github.com/owner/repo/commit/1234567"), true);
+  assert.equal(hasCommitShaReference("See /commit/1234567 for details"), true);
 
   // Too short (6 chars) or too long (41 chars) — rejected
   assert.equal(hasCommitShaReference("abc123"), false);

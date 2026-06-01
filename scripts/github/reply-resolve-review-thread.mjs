@@ -12,11 +12,15 @@ const MIN_DISMISSAL_REASON_LENGTH = 30;
 export function hasCommitShaReference(text) {
   const trimmed = text.trim();
   // Accept a hex token (7-40 chars) that contains at least one hex letter (a-f) — the common case.
-  // Also accept a pure-numeric hex token when it is explicitly contextualized with a
-  // commit-reference keyword (e.g. "Fixed in 1234567"), covering the rare-but-valid all-digit SHA.
+  // Also accept a pure-numeric hex token when it is explicitly contextualized as a commit reference:
+  //   - via keyword + whitespace: "Fixed in 1234567", "Commit 1234567", "SHA 1234567"
+  //   - via commit URL path:      ".../commit/1234567"
+  // This handles the rare-but-valid all-digit SHA without reopening the bare-numeric bypass vector.
   const hexTokens = trimmed.match(/\b[0-9a-f]{7,40}\b/gi) ?? [];
   const hasHexLetterToken = hexTokens.some((t) => /[a-f]/i.test(t));
-  const hasContextualNumericRef = /\b(?:fixed\s+in|commit|sha|rev(?:ision)?)\s+[0-9a-f]{7,40}\b/i.test(trimmed);
+  const hasContextualNumericRef =
+    /\b(?:fixed\s+in|commit|sha|rev(?:ision)?)\s+[0-9a-f]{7,40}\b/i.test(trimmed) ||
+    /\/commit\/[0-9a-f]{7,40}\b/i.test(trimmed);
   return hasHexLetterToken || hasContextualNumericRef;
 }
 
