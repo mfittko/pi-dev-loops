@@ -306,7 +306,7 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
 });
 
 test("issue-intake skill documents epic decomposition with GitHub sub-issue trees", async () => {
-  const skillContent = await readRepo("skills/issue-intake/SKILL.md");
+  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
   assert.match(skillContent, /GitHub sub-issue trees/i);
   assert.match(skillContent, /Prefer real sub-issue linkage over parent-body checklists/i);
