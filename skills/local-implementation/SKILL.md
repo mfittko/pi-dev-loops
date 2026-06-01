@@ -54,9 +54,28 @@ Before local phase planning or coding:
 3. read `PLAN.md`
 4. if `docs/IMPLEMENTATION_WORKFLOW.md` exists, read it
 5. if `docs/IMPLEMENTATION_STATE.md` exists, read it
-6. if `docs/phases/phase-x.md` exists for the active phase, read it
+6. if the active local session is phase-doc-backed and `docs/phases/phase-x.md` exists for the active phase, read it
+7. if the active local session is tracker-backed, deterministically resolve the tracker issue spec first via `scripts/github/resolve-tracker-local-spec.mjs` (or the equivalent `gh issue view <number> --repo <owner/name> --json number,title,body,url,state` call), then treat that tracker issue as canonical for the rest of the local session
 
 Treat missing optional files as normal bootstrap conditions, not as errors.
+
+### Tracker-backed local implementation
+
+Local implementation supports two durable spec inputs:
+
+- phase-doc-backed local sessions (`docs/phases/phase-x.md` is canonical)
+- tracker-backed local sessions (the tracker issue is canonical)
+
+Tracker-backed local implementation stays inside the existing `local_implementation` path. It does not introduce a new routing mode.
+
+When the local spec already lives in a tracker issue:
+
+- resolve the tracker reference deterministically from a GitHub issue URL or explicit `<owner/name>` + issue number
+- use the bounded GitHub helper `scripts/github/resolve-tracker-local-spec.mjs` when you need a machine-readable spec bundle
+- treat the tracker issue title/body/url/state as the durable local spec bundle
+- do not create or read `docs/phases/phase-x.md` for that same tracker-backed session
+- sync durable scope / acceptance / status changes back to the tracker issue rather than maintaining a duplicate local phase doc
+- keep `tmp/` as temporary local execution state only; it does not become a second durable spec surface
 
 ## Primary execution rules
 
@@ -66,7 +85,7 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 - Work **test-first** for all non-trivial logic.
 - Maintain **90% coverage** thresholds.
 - Log detailed iteration artifacts under `tmp/` using the required structure below.
-- Keep durable phase intent and acceptance criteria in `docs/phases/phase-x.md`, but keep detailed execution artifacts in `tmp/`.
+- For phase-doc-backed local sessions, keep durable phase intent and acceptance criteria in `docs/phases/phase-x.md`; for tracker-backed local sessions, keep that durable intent in the tracker issue and do not duplicate it into `docs/phases/phase-x.md`. Keep detailed execution artifacts in `tmp/`.
 - Treat `tmp/` as temporary local execution state. Do not rely on it as durable repo history and do not force-add it to git unless the user explicitly wants checked-in examples or fixtures.
 - When a phase changes durable product truth in ways `PLAN.md` should express (for example command surface, accepted product decisions, resolved open questions, or scope changes), update `PLAN.md` before closing the phase.
 - Do implementation work on a dedicated local branch, not directly on `main`.
@@ -81,13 +100,13 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 
 Treat the workflow as three layers:
 - `PLAN.md` = strategic product and architecture truth
-- `docs/phases/phase-x.md` = durable per-phase plan and acceptance criteria
+- `docs/phases/phase-x.md` or the canonical tracker issue = durable per-phase plan and acceptance criteria for the active local session
 - `tmp/` = temporary local execution audit trail and machine-friendly continuation state
 
 Maintain the core paths below while the phase is active locally, and create optional artifacts only when they are actually used:
 
 Core paths:
-- `docs/phases/phase-x.md`
+- for phase-doc-backed local sessions: `docs/phases/phase-x.md`
 - `tmp/phases/index.json`
 - `tmp/phases/phase-x/manifest.json`
 - `tmp/phases/phase-x/variant-a.md`
@@ -332,6 +351,21 @@ Each summary should record:
 - raw output path if output was saved separately
 
 If the subagent ran asynchronously, update its summary when results arrive so fresh sessions can understand what happened without replaying the whole conversation.
+
+## Workflow-run subagent hand-off contract
+
+When handing off a full workflow run to a subagent (draft PR → gates → Copilot → merge),
+use the canonical hand-off template. Do not rely on abbreviated task summaries or operator
+memory.
+
+The canonical template is `skills/docs/workflow-handoff-template.md`. It includes:
+- direct contract-doc references the subagent must read before executing
+- a mandatory 8-step checklist (draft PR → draft_gate → ready → Copilot → resolve → pre_approval_gate → merge)
+- non-negotiable invariants (Copilot review loop between gates, `unresolvedThreadCount === 0`, visible gate comments)
+
+For all GitHub-first routed follow-up (`copilot_pr_followup`, `issue_intake`), the
+coordinator must use this template when delegating the full run to a subagent.
+Reference it by path, not by memory.
 
 ## Implementation loop for the phase
 

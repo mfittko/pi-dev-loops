@@ -267,6 +267,31 @@ The public router currently maps to these deterministic internal strategies:
 
 Internal strategy naming is implementation detail; normal orchestration always starts from `dev-loop`.
 
+## Tracker-backed local implementation input-source contract
+
+Tracker-backed local implementation is an input-source addition to the existing `local_implementation` strategy. It does **not** create a new routing mode, strategy family, or public workflow entrypoint.
+
+For tracker-backed local sessions, the tracker issue is canonical. `docs/phases/phase-<n>.md` must not exist for that same session, and local execution must not maintain a second durable phase-doc copy of the same spec.
+
+Deterministic GitHub-backed spec resolution:
+
+1. accept either a full GitHub issue URL or an explicit `<owner/name>` + `<number>` tracker reference
+2. parse that reference into one deterministic repo slug + issue number pair
+3. resolve the issue through the bounded GitHub helper path (`scripts/github/resolve-tracker-local-spec.mjs`) or the equivalent `gh issue view <number> --repo <owner/name> --json number,title,body,url,state` call
+4. treat the returned issue `title`, `body`, `url`, and `state` as the usable local spec bundle
+5. if the tracker reference cannot be resolved into one valid issue payload, fail closed instead of guessing or falling back to a duplicate phase doc
+
+State-sync expectations for this slice:
+
+- local branch state and `tmp/` artifacts remain local execution state
+- durable scope / acceptance / status changes discovered during local execution should sync back to the tracker issue, because the tracker issue remains the canonical spec source for tracker-backed sessions
+- this slice does **not** introduce full bidirectional tracker sync or tracker-provider adapters beyond the bounded GitHub-backed helper path above
+
+Non-duplication rule:
+
+- do not create, read, or update `docs/phases/phase-<n>.md` for the same tracker-backed session
+- if a duplicate local phase doc already exists for the same tracker-backed session, reconcile that conflict explicitly before continuing; do not silently keep two durable spec surfaces alive
+
 ## Copilot-first issue-assignment seam (unassigned issues)
 
 For Copilot-first issue flows (`currentState.target.kind=issue`, `ownership=copilot`, and no linked PR), orchestration must resolve this seam from authoritative issue facts before follow-up routing:

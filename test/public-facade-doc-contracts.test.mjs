@@ -253,3 +253,22 @@ test("public dev-loop contract keeps conflict reconciliation local and context-f
   assert.match(publicContract, /rerun required local validation, gate checks, and required CI checks for the new head before approval\/merge evaluation/i);
   assert.doesNotMatch(publicContract, /resolve the conflict .*blind merge\/update step/i);
 });
+
+test("public dev-loop contract keeps tracker-backed local work inside local_implementation", async () => {
+  const [publicContract, localImplSkill] = await Promise.all([
+    readRepo("skills/docs/public-dev-loop-contract.md"),
+    readRepo("skills/local-implementation/SKILL.md"),
+  ]);
+
+  assert.match(publicContract, /Tracker-backed local implementation input-source contract/i);
+  assert.match(publicContract, /input-source addition to the existing `local_implementation` strategy/i);
+  assert.match(publicContract, /does \*\*not\*\* create a new routing mode/i);
+  assert.match(publicContract, /tracker issue is canonical/i);
+  assert.match(publicContract, /`docs\/phases\/phase-<n>\.md` must not exist for that same session/i);
+  assert.match(publicContract, /resolve-tracker-local-spec\.mjs/i);
+
+  assert.match(localImplSkill, /Tracker-backed local implementation/i);
+  assert.match(localImplSkill, /stays inside the existing `local_implementation` path/i);
+  assert.match(localImplSkill, /do not create or read `docs\/phases\/phase-x\.md` for that same tracker-backed session/i);
+  assert.match(localImplSkill, /sync durable scope \/ acceptance \/ status changes back to the tracker issue/i);
+});
