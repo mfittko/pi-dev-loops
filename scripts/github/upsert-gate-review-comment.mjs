@@ -368,7 +368,7 @@ function detectStaleGateCommentWarning({ strict, marker, headSha, gate }) {
   }
 
   const stale = staleStrict ?? staleMarker;
-  return `A gate comment for \`${gate}\` already exists on a different head SHA \`${stale.headSha}\` (comment ${stale.commentId}). The old comment is stale for the current head and a new comment will be created.`;
+  return `A gate comment for \`${gate}\` already exists on a different head SHA \`${stale.headSha}\` (comment ${stale.commentId}). The old comment is stale for the current head.`;
 }
 
 async function runGhJson(args, { env, ghCommand }) {
