@@ -75,7 +75,7 @@ export function parseArgs(argv) {
       const val = args.shift();
       if (!val || val.startsWith("--")) throw new Error("Missing value for --issue");
       const trimmed = val.trim();
-      if (!/^\d+$/.test(trimmed)) throw new Error(`--issue must be a positive integer, got: ${trimmed}`);
+      if (!/^[1-9]\d*$/.test(trimmed)) throw new Error(`--issue must be a positive integer, got: ${trimmed}`);
       options.issue = trimmed;
     } else if (token === "--repo") {
       const val = args.shift();

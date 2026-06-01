@@ -33,7 +33,7 @@ const SHORTCUT_RE = /^sc[#-]?\d+$/i;
 const SPEC_SECTION_PATTERNS = [
   /\b(?:summary|problem|objective|goal)\b/i,
   /\b(?:desired\s+behavior|expected\s+behavior|proposal)\b/i,
-  /\b(?:scope|in\s+scope|what)\b/i,
+  /\b(?:scope|in\s+scope)\b/i,
   /\b(?:acceptance\s+criteria|acceptance)\b/i,
 ];
 

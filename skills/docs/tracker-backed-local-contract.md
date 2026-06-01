@@ -164,5 +164,5 @@ After the merged plan is produced, update the tracker issue with a comment summa
 ## 12. Related
 
 - Public dev-loop contract: `skills/docs/public-dev-loop-contract.md`
-- Dev-loop skill: `.pi/skills/dev-loop/SKILL.md`
+- Dev-loop skill: `skills/dev-loop/SKILL.md` (source checkout) or `.pi/skills/dev-loop/SKILL.md` (installed)
 - Implementation workflow: `docs/IMPLEMENTATION_WORKFLOW.md`

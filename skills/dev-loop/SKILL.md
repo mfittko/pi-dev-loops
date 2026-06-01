@@ -96,7 +96,7 @@ Before local phase planning or coding:
 3. read `PLAN.md`
 4. if `docs/IMPLEMENTATION_WORKFLOW.md` exists, read it
 5. if `docs/IMPLEMENTATION_STATE.md` exists, read it
-4. if `docs/phases/phase-x.md` exists for the active phase, treat it as a conflict — tracker-backed sessions and phase docs are mutually exclusive; stop and reconcile before proceeding
+6. if `docs/phases/phase-x.md` exists for the active phase, read it
 
 Treat missing optional files as normal bootstrap conditions, not as errors.
 
@@ -110,7 +110,7 @@ Before local phase planning or coding:
 2. if `AGENTS.md` exists, read it
 3. resolve the tracker spec — use `scripts/loop/resolve-tracker-spec.mjs --issue <N> [--repo <owner/repo>]` for GitHub issues, or the equivalent tracker adapter for Shortcut/Jira
 4. if the resolved spec is not spec-bearing (no summary, scope, or acceptance criteria), fall back to full local mode or ask for clarification
-5. do NOT create a `docs/phases/phase-x.md` — the tracker issue and a phase doc are mutually exclusive
+5. do NOT create a `docs/phases/phase-x.md` — the tracker issue and a phase doc are mutually exclusive; if one already exists, stop and reconcile (fail closed)
 6. optionally read `docs/IMPLEMENTATION_STATE.md` and `docs/IMPLEMENTATION_WORKFLOW.md` for repo context
 
 Key differences from full local mode:
