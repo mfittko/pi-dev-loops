@@ -477,6 +477,7 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
     });
+    // 5 gh calls: pr facts + requested_reviewers + review threads + headRefOid + issue comments
     assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
