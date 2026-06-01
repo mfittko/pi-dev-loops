@@ -1,3 +1,4 @@
+import { loadDevLoopConfig } from "../config/index.mjs";
 import { normalizeRetrospectiveCheckpointState } from "./retrospective-checkpoint.mjs";
 import {
   DEV_LOOP_ACTOR,
@@ -40,6 +41,50 @@ import { resolveAuthoritativeStartupResumeBundle } from "./public-dev-loop-routi
 
 export * from "./public-dev-loop-routing-contract.mjs";
 export { resolveAuthoritativeStartupResumeBundle } from "./public-dev-loop-routing-startup.mjs";
+
+const BUILT_IN_DEFAULT_TARGET_PREFERENCE = DEV_LOOP_TARGET_PREFERENCE.PREFER_GITHUB_FIRST;
+
+function resolveConfiguredTargetPreference(strategyDefault) {
+  if (strategyDefault === "local-first") {
+    return DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL;
+  }
+  if (strategyDefault === "github-first") {
+    return DEV_LOOP_TARGET_PREFERENCE.PREFER_GITHUB_FIRST;
+  }
+  return BUILT_IN_DEFAULT_TARGET_PREFERENCE;
+}
+
+function emitConfigWarning(note) {
+  process.emitWarning(note, {
+    code: "DEV_LOOP_ROUTING_CONFIG_FALLBACK",
+    type: "DevLoopRoutingConfigWarning",
+  });
+}
+
+async function loadDefaultTargetPreference() {
+  try {
+    const { config, warnings, errors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+
+    if (warnings.length > 0) {
+      emitConfigWarning(`public-dev-loop-routing: ${warnings.join("; ")}. Falling back to built-in target preference when needed.`);
+    }
+
+    if (errors.length > 0) {
+      emitConfigWarning(
+        `public-dev-loop-routing: ${errors.map(({ layer, message }) => `${layer}: ${message}`).join("; ")}. Falling back to built-in target preference when needed.`,
+      );
+    }
+
+    return resolveConfiguredTargetPreference(config?.strategy?.default);
+  } catch (error) {
+    emitConfigWarning(
+      `public-dev-loop-routing: unable to load dev-loop config (${error?.message ?? String(error)}). Falling back to built-in target preference when needed.`,
+    );
+    return BUILT_IN_DEFAULT_TARGET_PREFERENCE;
+  }
+}
+
+const DEFAULT_TARGET_PREFERENCE = await loadDefaultTargetPreference();
 
 function buildStatusReconcile(
   reason,
@@ -160,7 +205,9 @@ export function evaluatePublicDevLoopRouting(input = {}) {
   const variationMode = input.mode !== undefined ? normalizeVariationMode(input.mode) : null;
   const watchProvided = input.watch !== undefined;
   const watchRequested = input.watch === true;
-  const targetPreference = input.targetPreference !== undefined ? normalizeTargetPreference(input.targetPreference) : null;
+  const targetPreference = input.targetPreference !== undefined
+    ? normalizeTargetPreference(input.targetPreference)
+    : DEFAULT_TARGET_PREFERENCE;
 
   // These are authoritative issue-state facts for the Copilot-first
   // unassigned-issue seam, not bounded public variation parameters.
