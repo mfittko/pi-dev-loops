@@ -17,7 +17,7 @@ For the script surfaces documented here:
 - this README summarizes those contracts for operators and maintainers; if behavior changes, update the code/tests and then sync this document
 - use the more specific state-graph and contract docs under `docs/` when a helper family has a narrower machine-readable contract that this README is summarizing
 
-## Phase 5 scripts
+## Scripts
 
 ### `scripts/github/capture-review-threads.mjs`
 
@@ -753,18 +753,3 @@ Success output shape:
 Failure behavior:
 - argument/usage errors emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
 - runtime failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
-
-### `scripts/loop/summarize-loop-state.mjs`
-
-Summarize stored loop state from `tmp/phases/index.json` and per-phase manifests.
-
-Optional:
-- `--project-root <path>` (defaults to the current working directory)
-
-Success output shape:
-- `{ "ok": true, "projectRoot": "...", "index": { ... }, "phases": [...] }`
-- each phase entry reports status, manifest presence, validation state, and deterministic artifact-presence/count fields
-
-Failure behavior:
-- malformed arguments emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
-- missing index or manifest files are reported in success JSON instead of causing mutation or cleanup
