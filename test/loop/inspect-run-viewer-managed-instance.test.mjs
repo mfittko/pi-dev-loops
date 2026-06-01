@@ -611,11 +611,10 @@ test('open fails with a clear error when the launch seam does not return a posit
 test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', async () => {
   const { createServer } = await import('node:http');
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-healthcheck-signal-'));
-  const DEFAULT_PORT = 4311;
 
-  // Start a real HTTP server on the default port so the record shape check passes
+  // Start a real HTTP server on the default port so isManagedRecordShape passes
   const healthServer = createServer((_req, res) => { res.writeHead(200); res.end('ok'); });
-  await new Promise((resolve) => healthServer.listen(DEFAULT_PORT, '127.0.0.1', resolve));
+  await new Promise((resolve) => healthServer.listen(4311, '127.0.0.1', resolve));
 
   // Spy on global fetch to capture the options passed
   const originalFetch = globalThis.fetch;
@@ -626,17 +625,16 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
   };
 
   try {
-    // Manager with real defaultHealthcheck but stubbed lifecycle seams
+    // Manager with real defaultHealthcheck (healthcheckUrlImpl defaults)
+    // but stubbed lifecycle seams
     const manager = createInspectRunViewerLifecycleManager({
       listListeningPidsImpl: async () => [42],
       isProcessAliveImpl: async () => true,
-      healthcheckUrlImpl: undefined,
       async launchManagedServerImpl() { return { pid: 42 }; },
       async stopManagedProcessImpl() {},
       async openBrowserImpl() {},
     });
 
-    const healthUrl = 'http://127.0.0.1:4311';
     const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
     await mkdir(path.dirname(recordPath), { recursive: true });
     await writeFile(recordPath, `${JSON.stringify({
@@ -644,10 +642,10 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
       surfaceId: 'inspect-run-viewer',
       pid: 42,
       host: '127.0.0.1',
-      port: DEFAULT_PORT,
-      url: healthUrl,
-      launchArgs: { repo: null, host: '127.0.0.1', port: DEFAULT_PORT },
-      argsFingerprint: JSON.stringify({ repo: null, host: '127.0.0.1', port: DEFAULT_PORT }),
+      port: 4311,
+      url: 'http://127.0.0.1:4311',
+      launchArgs: { repo: null, host: '127.0.0.1', port: 4311 },
+      argsFingerprint: JSON.stringify({ repo: null, host: '127.0.0.1', port: 4311 }),
       startedAt: new Date().toISOString(),
       cwd: repoRoot,
     })}\n`);
@@ -660,8 +658,7 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
     assert.ok(!healthcheckCall.options?.signal, 'fetch must not receive an AbortSignal');
   } finally {
     globalThis.fetch = originalFetch;
-    healthServer.close();
+    await new Promise((resolve) => healthServer.close(resolve));
   }
 });
-
 
