@@ -25,15 +25,29 @@
  *
  *   When --repo is omitted, trackerRef includes format and number only
  *   (owner/repo fields are absent).
+ *   The spec also includes `rawBody` (the full issue body text).
+ *
+ * Error output (stderr, JSON):
+ *   { "ok": false, "error": "..." }
+ *   On argument errors, a `usage` field is also included.
  *
  * Exit codes:
  *   0  Success
  *   1  Argument error or runtime failure
  */
 
-import { execFileSync } from "node:child_process";
 import { isDirectCliRun, formatCliError } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+
+const USAGE = [
+  "Usage: resolve-tracker-spec.mjs --issue <number> [--repo <owner/name>]",
+  "",
+  "Resolve a GitHub tracker issue into a deterministic spec snapshot.",
+].join("\n");
+
+function parseError(message) {
+  return Object.assign(new Error(message), { usage: USAGE });
+}
 
 export async function resolveTrackerSpec({ issue, repo }) {
   const args = ["issue", "view", String(issue), "--json", "title,body,state,number"];
@@ -68,19 +82,19 @@ export function parseArgs(argv) {
     const token = args.shift();
     if (token === "--issue") {
       const val = args.shift();
-      if (!val || val.startsWith("--")) throw new Error("Missing value for --issue");
+      if (!val || val.startsWith("--")) throw parseError("Missing value for --issue");
       const trimmed = val.trim();
-      if (!/^[1-9]\d*$/.test(trimmed)) throw new Error(`--issue must be a positive integer, got: ${trimmed}`);
+      if (!/^[1-9]\d*$/.test(trimmed)) throw parseError(`--issue must be a positive integer, got: ${trimmed}`);
       options.issue = trimmed;
     } else if (token === "--repo") {
       const val = args.shift();
-      if (!val || val.startsWith("--")) throw new Error("Missing value for --repo");
+      if (!val || val.startsWith("--")) throw parseError("Missing value for --repo");
       const trimmed = val.trim();
-      if (!/^[^/]+\/[^/]+$/.test(trimmed)) throw new Error(`--repo must be owner/name, got: ${trimmed}`);
-      try { parseRepoSlug(trimmed); } catch (e) { throw new Error(`--repo validation failed: ${e.message}`); }
+      if (!/^[^/]+\/[^/]+$/.test(trimmed)) throw parseError(`--repo must be owner/name, got: ${trimmed}`);
+      try { parseRepoSlug(trimmed); } catch (e) { throw parseError(`--repo validation failed: ${e.message}`); }
       options.repo = trimmed;
     } else {
-      throw new Error(`Unknown argument: ${token}`);
+      throw parseError(`Unknown argument: ${token}`);
     }
   }
 
