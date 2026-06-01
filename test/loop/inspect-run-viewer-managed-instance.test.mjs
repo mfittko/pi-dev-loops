@@ -425,3 +425,22 @@ test('status treats a record with a non-default host or port as stale_record', a
   assert.equal(status.state, 'stale_record');
   assert.match(status.detail, /delete/i);
 });
+
+test('status treats a record with a non-integer pid as stale_record', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-bad-pid-'));
+  await mkdir(path.join(repoRoot, '.pi', 'ui-servers'), { recursive: true });
+  await writeFile(path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH), `${JSON.stringify({
+    schemaVersion: 1,
+    surfaceId: 'inspect-run-viewer',
+    pid: 12.5,
+    host: '127.0.0.1',
+    port: 4311,
+    url: 'http://127.0.0.1:4311',
+    launchArgs: { repo: null, host: '127.0.0.1', port: 4311 },
+  })}\n`);
+  const { manager } = createManager();
+
+  const status = await manager.status({ repoRoot });
+  assert.equal(status.state, 'stale_record');
+  assert.match(status.detail, /delete/i);
+});

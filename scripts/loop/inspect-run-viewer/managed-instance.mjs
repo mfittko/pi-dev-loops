@@ -62,7 +62,8 @@ function isManagedRecordShape(record) {
   return Boolean(record)
     && record.surfaceId === INSPECT_RUN_VIEWER_SURFACE_ID
     && record.schemaVersion === 1
-    && typeof record.pid === 'number'
+    && Number.isInteger(record.pid)
+    && record.pid > 0
     && record.host === DEFAULT_HOST
     && record.port === DEFAULT_PORT
     && record.launchArgs
