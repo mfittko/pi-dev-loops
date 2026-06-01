@@ -185,10 +185,11 @@ If these files are missing, create them from `templates/` before continuing:
 - missing `AGENTS.md` -> create from `templates/bootstrap-agents.md`
 - missing `docs/IMPLEMENTATION_STATE.md` -> create from `templates/bootstrap-implementation-state.md`
 - missing `docs/IMPLEMENTATION_WORKFLOW.md` -> create from `templates/bootstrap-implementation-workflow.md`
-- missing `docs/phases/phase-x.md` for the active phase -> create from `templates/phase-doc.md`
+- missing `docs/phases/phase-x.md` for the active phase in full local mode -> create from `templates/phase-doc.md`
+- in tracker-backed mode, skip this step — do NOT create any phase doc
 - missing `tmp/phases/index.json` -> create or reinitialize it
 
-The bootstrap files are support infrastructure. In full local mode, `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase's plan and acceptance boundary. In tracker-backed mode, the tracker issue body is the canonical spec and `docs/phases/phase-x.md` is a thin pointer; do not create a full phase doc from templates when a tracker spec is already resolved.
+The bootstrap files are support infrastructure. In full local mode, `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase's plan and acceptance boundary. In tracker-backed mode, the tracker issue body is the canonical spec; do NOT create a `docs/phases/phase-x.md` — not even a thin pointer.
 
 For bootstrap/setup phases, do not mark the phase `completed` or `awaiting-finalization` until the expected durable support files for the chosen workflow contract actually exist in the repository. Temporary `tmp/` execution artifacts do not need to be committed.
 ## Plan sufficiency check

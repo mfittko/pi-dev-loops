@@ -31,6 +31,7 @@
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isDirectCliRun } from "../_core-helpers.mjs";
 
 export async function resolveTrackerSpec({ issue, repo }) {
   const args = ["issue", "view", String(issue), "--json", "title,body,state,number"];
@@ -93,10 +94,7 @@ export async function runCli(argv = process.argv.slice(2), stdout = process.stdo
   stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-const invokedAsScript =
-  import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (invokedAsScript) {
+if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(
       `${JSON.stringify({ ok: false, error: error.message })}\n`

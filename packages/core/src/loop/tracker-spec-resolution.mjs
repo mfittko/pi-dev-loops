@@ -64,7 +64,6 @@ export function detectTrackerSpecFormat(raw) {
     const inlineOwnerRepo = ghMatch[3] || undefined;
     const inlineNumber = ghMatch[4] || undefined;
 
-    const ownerRepo = urlOwnerRepo || inlineOwnerRepo || undefined;
     const number = urlNumber || inlineNumber || undefined;
 
     if (urlOwnerRepo) {

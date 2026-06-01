@@ -127,7 +127,7 @@ difference: the spec is the issue body, not a standalone phase doc.
 4. Review the merged plan adversarially
 5. Update the issue body with the merged plan summary (state sync)
 
-The thin `docs/phases/phase-x.md` pointer is updated to reflect status only.
+After the merged plan is produced, update the tracker issue with a comment summarizing the merged plan (state sync). Do NOT create or update any `docs/phases/phase-x.md`.
 
 ## 9. Non-duplication enforcement
 

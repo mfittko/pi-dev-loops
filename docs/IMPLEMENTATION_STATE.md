@@ -25,8 +25,7 @@ Current `main` also includes the current conductor-adjacent ownership/routing co
 ## Current phase
 
 - Active phase: `phase-7` (`planning`)
-- Recently active: `phase-9` — tracker-backed, GitHub issue [#294](https://github.com/mfittko/pi-dev-loops/issues/294)
-- Phase 9 plan: `docs/phases/phase-9.md` (thin pointer)
+- Recently active: `phase-9` — tracker-backed, GitHub issue [#294](https://github.com/mfittko/pi-dev-loops/issues/294) (no phase doc — tracker issue is canonical spec)
 
 ## Next action for a fresh session
 
