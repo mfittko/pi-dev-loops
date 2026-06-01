@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { BUILT_IN_DEFAULTS, validateConfig, validatePartialConfig } from "./schema.mjs";
+import { BUILT_IN_DEFAULTS, DevLoopConfigSchema, FileConfigSchema } from "./schema.mjs";
 
 // ============================================================================
 // Error types
@@ -18,13 +18,13 @@ import { BUILT_IN_DEFAULTS, validateConfig, validatePartialConfig } from "./sche
 // ============================================================================
 
 /**
- * Shallow-merge two objects. Keys in `source` override keys in `target`.
- * Nested objects are replaced wholesale, not deep-merged.
+ * Shallow-merge two config objects. Keys in `source` override keys in `target`.
+ * Nested family objects are merged at one level, not deep-merged.
  * @param {Record<string, unknown>} target
  * @param {Record<string, unknown>} source
  * @returns {Record<string, unknown>}
  */
-function shallowMerge(target, source) {
+function mergeConfigLayers(target, source) {
   const result = { ...target };
   for (const key of Object.keys(source)) {
     if (
@@ -36,7 +36,6 @@ function shallowMerge(target, source) {
       result[key] !== null &&
       !Array.isArray(result[key])
     ) {
-      // Shallow-merge nested objects (strategy, models, refinement, gates, autonomy)
       result[key] = { ...(result[key] || {}), ...(source[key] || {}) };
     } else {
       result[key] = source[key];
@@ -58,38 +57,75 @@ async function readJsonFile(filePath) {
     raw = await readFile(filePath, "utf8");
   } catch (err) {
     if (err.code === "ENOENT") return null;
-    // EACCES, EISDIR, etc. — rethrow as a structured error
-    throw Object.assign(
-      new Error(`Cannot read config file: ${err.message}`),
-      { code: err.code, path: filePath },
-    );
+    throw configError(`Cannot read config file: ${err.message}`, err.code, filePath);
   }
 
   if (raw.trim() === "") {
-    throw Object.assign(
-      new Error("Config file is empty"),
-      { code: "EMPTY_FILE", path: filePath },
-    );
+    throw configError("Config file is empty", "EMPTY_FILE", filePath);
   }
 
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    throw Object.assign(
-      new Error(`Invalid JSON in config file: ${err.message}`),
-      { code: "INVALID_JSON", path: filePath },
-    );
+    throw configError(`Invalid JSON in config file: ${err.message}`, "INVALID_JSON", filePath);
   }
 
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw Object.assign(
-      new Error("Config file must be a JSON object"),
-      { code: "NOT_AN_OBJECT", path: filePath },
-    );
+    throw configError("Config file must be a JSON object", "NOT_AN_OBJECT", filePath);
   }
 
   return parsed;
+}
+
+/**
+ * @param {string} message
+ * @param {string} code
+ * @param {string} filePath
+ * @returns {Error & { code: string, path: string }}
+ */
+function configError(message, code, filePath) {
+  return Object.assign(new Error(message), { code, path: filePath });
+}
+
+/**
+ * Try to load and merge one config layer (defaults or overrides).
+ * @param {Record<string, unknown>} merged - Current merged config
+ * @param {string} filePath - Path to the config file
+ * @param {"defaults"|"overrides"} layer - Layer name
+ * @param {string[]} warnings
+ * @param {ConfigLoadError[]} errors
+ * @param {{ warnOnMissing?: boolean }} [options]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+async function applyLayer(merged, filePath, layer, warnings, errors, options = {}) {
+  let data = null;
+  try {
+    data = await readJsonFile(filePath);
+  } catch (err) {
+    errors.push({ path: filePath, message: err.message, layer });
+    return merged;
+  }
+
+  if (data === null) {
+    if (options.warnOnMissing) {
+      warnings.push(`Committed ${layer}.json not found, using built-in defaults`);
+    }
+    return merged;
+  }
+
+  // Validate the file's structure before merging
+  const validation = FileConfigSchema.safeParse(data);
+  if (!validation.success) {
+    errors.push({
+      path: filePath,
+      message: `Schema validation failed: ${validation.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      layer,
+    });
+    return merged;
+  }
+
+  return mergeConfigLayers(merged, data);
 }
 
 // ============================================================================
@@ -98,7 +134,7 @@ async function readJsonFile(filePath) {
 
 /**
  * @typedef {object} LoadResult
- * @property {import("zod").infer<import("./schema.mjs").DevLoopConfigSchema>} config
+ * @property {import("./schema.mjs").DevLoopConfig} config
  * @property {string[]} warnings
  * @property {ConfigLoadError[]} errors
  */
@@ -129,77 +165,25 @@ export async function loadDevLoopConfig(options = {}) {
   /** @type {ConfigLoadError[]} */
   const errors = [];
 
-  // Start with built-in defaults
   let merged = { ...BUILT_IN_DEFAULTS };
 
-  // Layer 1: repo defaults
-  let repoDefaults = null;
-  try {
-    repoDefaults = await readJsonFile(defaultsPath);
-  } catch (err) {
-    errors.push({
-      path: defaultsPath,
-      message: err.message,
-      layer: "defaults",
-    });
-  }
+  merged = await applyLayer(merged, defaultsPath, "defaults", warnings, errors, {
+    warnOnMissing: true,
+  });
 
-  if (repoDefaults === null && errors.length === 0) {
-    // File doesn't exist — warn because defaults.json should be committed
-    warnings.push("Committed defaults.json not found, using built-in defaults");
-  }
+  merged = await applyLayer(merged, overridesPath, "overrides", warnings, errors);
 
-  if (repoDefaults !== null) {
-    const validation = validatePartialConfig(repoDefaults);
-    if (validation.success) {
-      // Merge raw data (not zod-filled) so inner defaults don't overwrite lower layers
-      merged = shallowMerge(merged, repoDefaults);
-    } else {
-      errors.push({
-        path: defaultsPath,
-        message: `Schema validation failed: ${validation.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
-        layer: "defaults",
-      });
-    }
-  }
-
-  // Layer 2: session overrides
-  let sessionOverrides = null;
-  try {
-    sessionOverrides = await readJsonFile(overridesPath);
-  } catch (err) {
-    errors.push({
-      path: overridesPath,
-      message: err.message,
-      layer: "overrides",
-    });
-  }
-
-  if (sessionOverrides !== null) {
-    const validation = validatePartialConfig(sessionOverrides);
-    if (validation.success) {
-      // Merge raw data (not zod-filled) so inner defaults don't overwrite lower layers
-      merged = shallowMerge(merged, sessionOverrides);
-    } else {
-      errors.push({
-        path: overridesPath,
-        message: `Schema validation failed: ${validation.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
-        layer: "overrides",
-      });
-    }
-  }
-
-  // Final validation of merged config (defensive — should never fail if layers were valid)
-  const finalCheck = validateConfig(merged);
-  if (!finalCheck.success) {
-    // This shouldn't happen if layers validated individually, but catch it defensively
+  // Validate final merged config
+  const result = DevLoopConfigSchema.safeParse(merged);
+  if (!result.success) {
     errors.push({
       path: "<merged>",
-      message: `Merged config validation failed: ${finalCheck.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      message: `Config validation failed: ${result.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
       layer: "defaults",
     });
-    return { config: { ...BUILT_IN_DEFAULTS }, warnings, errors };
+    // Return merged as-is — caller gets validation errors but still has config with all layers applied
+    return { config: /** @type {*} */ (merged), warnings, errors };
   }
 
-  return { config: finalCheck.data, warnings, errors };
+  return { config: result.data, warnings, errors };
 }

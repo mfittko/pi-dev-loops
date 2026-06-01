@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile, chmod } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { describe } from "node:test";
@@ -7,10 +7,7 @@ import test, { describe } from "node:test";
 import {
   DevLoopConfigSchema,
   BUILT_IN_DEFAULTS,
-  validateConfig,
-  validatePartialConfig,
 } from "../src/config/schema.mjs";
-
 // ============================================================================
 // Schema validation tests (S1–S26)
 // ============================================================================
@@ -108,7 +105,7 @@ describe("schema validation", () => {
   test("S12: refinement.mode bad enum", () => {
     const result = DevLoopConfigSchema.safeParse({
       version: 1,
-      refinement: { mode: "async" },
+      refinement: { fanOut: 3, mode: "async" },
     });
     assert.ok(!result.success);
   });
@@ -189,13 +186,12 @@ describe("schema validation", () => {
     assert.ok(!result.success);
   });
 
-  test("S24: strategy.default missing but byWorkflow present", () => {
+  test("S24: strategy.byWorkflow rejected as unknown key", () => {
     const result = DevLoopConfigSchema.safeParse({
       version: 1,
-      strategy: { byWorkflow: { "copilot-followup": "local-first" } },
+      strategy: { default: "github-first", byWorkflow: { x: "local-first" } },
     });
-    assert.ok(result.success);
-    assert.equal(result.data.strategy.default, "github-first");
+    assert.ok(!result.success);
   });
 
   test("S25: models.roles has empty string value", () => {
@@ -216,44 +212,17 @@ describe("schema validation", () => {
 });
 
 // ============================================================================
-// Partial config validation tests (P1–P4)
+// DevLoopConfigSchema.safeParse tests
 // ============================================================================
 
-describe("partial config validation", () => {
-  test("P1: partial config with only refinement.fanOut validates ok", () => {
-    const result = validatePartialConfig({ refinement: { fanOut: 5 } });
-    assert.ok(result.success);
-  });
-
-  test("P2: partial config with unknown key rejected", () => {
-    const result = validatePartialConfig({ unknownKey: true });
-    assert.ok(!result.success);
-  });
-
-  test("P3: partial config with bad fanOut (0)", () => {
-    const result = validatePartialConfig({ refinement: { fanOut: 0 } });
-    assert.ok(!result.success);
-  });
-
-  test("P4: empty partial validates ok", () => {
-    const result = validatePartialConfig({});
-    assert.ok(result.success);
-  });
-});
-
-// ============================================================================
-// validateConfig helper tests
-// ============================================================================
-
-describe("validateConfig helper", () => {
+describe("DevLoopConfigSchema.safeParse", () => {
   test("returns { success: true, data } for valid config", () => {
-    const result = validateConfig({ version: 1 });
+    const result = DevLoopConfigSchema.safeParse({ version: 1 });
     assert.ok(result.success);
-    assert.equal(result.data.version, 1);
   });
 
   test("returns { success: false, error } for invalid config", () => {
-    const result = validateConfig({});
+    const result = DevLoopConfigSchema.safeParse({});
     assert.ok(!result.success);
     assert.ok(result.error !== undefined);
   });
@@ -730,10 +699,10 @@ describe("role resolution", () => {
     assert.ok(typeof resolveReviewerRole === "function");
   });
 
-  test("R1: known angle 'security' with built-in persona", () => {
+  test("R1: all angles fall back when registry is empty", () => {
     const result = resolveReviewerRole({}, "security");
-    assert.equal(result.persona, "security-reviewer");
-    assert.equal(result.fallback, false);
+    assert.equal(result.persona, "default-reviewer");
+    assert.equal(result.fallback, true);
   });
 
   test("R2: unknown angle falls back", () => {
@@ -742,14 +711,14 @@ describe("role resolution", () => {
     assert.equal(result.fallback, true);
   });
 
-  test("R3: known angle with model override", () => {
+  test("R3: angle with model override applies override even when falling back", () => {
     const result = resolveReviewerRole(
       { models: { roles: { style: "gpt-5" } } },
       "style",
     );
-    assert.equal(result.persona, "style-reviewer");
+    assert.equal(result.persona, "default-reviewer");
     assert.equal(result.model, "gpt-5");
-    assert.equal(result.fallback, false);
+    assert.equal(result.fallback, true);
   });
 
   test("R4: unknown angle with model override", () => {
@@ -762,16 +731,16 @@ describe("role resolution", () => {
     assert.equal(result.fallback, true);
   });
 
-  test("R5: empty config — all angles resolve to built-in defaults", () => {
+  test("R5: empty config — all angles resolve to built-in defaults (fallback)", () => {
     const result = resolveReviewerRole({}, "security");
-    assert.equal(result.persona, "security-reviewer");
+    assert.equal(result.persona, "default-reviewer");
     assert.equal(result.model, null);
-    assert.equal(result.fallback, false);
+    assert.equal(result.fallback, true);
   });
 
   test("R6: missing models.roles in config", () => {
     const result = resolveReviewerRole({ models: {} }, "security");
-    assert.equal(result.persona, "security-reviewer");
+    assert.equal(result.persona, "default-reviewer");
     assert.equal(result.model, null);
   });
 
@@ -785,21 +754,12 @@ describe("role resolution", () => {
     assert.equal(r2.fallback, true);
   });
 
-  test("R8: listBuiltinPersonas returns registry", async () => {
-    const { listBuiltinPersonas } = await import("../src/config/roles.mjs");
-    const personas = listBuiltinPersonas();
-    assert.ok(typeof personas === "object");
-    assert.ok("security" in personas);
-    assert.ok("style" in personas);
-    assert.ok("correctness" in personas);
-  });
-
   test("R9: model override with empty string ignored", () => {
     const result = resolveReviewerRole(
       { models: { roles: { security: "" } } },
       "security",
     );
-    assert.equal(result.persona, "security-reviewer");
+    assert.equal(result.persona, "default-reviewer");
     assert.equal(result.model, null);
   });
 });

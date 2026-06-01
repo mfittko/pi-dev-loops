@@ -1,15 +1,12 @@
 // ============================================================================
 // Built-in persona registry
+//
+// Initially empty. Add entries as dedicated reviewer agent personas are
+// created. The resolution algorithm handles unknown angles by falling
+// back to the default reviewer with the angle as a focus lens.
 // ============================================================================
 
-const BUILTIN_PERSONAS = Object.freeze({
-  security: Object.freeze({ persona: "security-reviewer", defaultModel: null }),
-  style: Object.freeze({ persona: "style-reviewer", defaultModel: null }),
-  correctness: Object.freeze({ persona: "correctness-reviewer", defaultModel: null }),
-  dry: Object.freeze({ persona: "dry-reviewer", defaultModel: null }),
-  kiss: Object.freeze({ persona: "kiss-reviewer", defaultModel: null }),
-  yagni: Object.freeze({ persona: "yagni-reviewer", defaultModel: null }),
-});
+const BUILTIN_PERSONAS = Object.freeze({});
 
 const DEFAULT_REVIEWER_PERSONA = "default-reviewer";
 
@@ -49,12 +46,11 @@ export function resolveReviewerRole(config, angle) {
 
   const persona = BUILTIN_PERSONAS[angle] ?? null;
   const modelOverride = config?.models?.roles?.[angle] || null;
-  const effectiveModel = modelOverride || persona?.defaultModel || null;
 
   if (persona) {
     return {
       persona: persona.persona,
-      model: effectiveModel,
+      model: modelOverride || persona.defaultModel || null,
       fallback: false,
     };
   }
@@ -62,15 +58,7 @@ export function resolveReviewerRole(config, angle) {
   // Unknown angle — fall back to default reviewer, but still apply model override
   return {
     persona: DEFAULT_REVIEWER_PERSONA,
-    model: effectiveModel,
+    model: modelOverride || null,
     fallback: true,
   };
-}
-
-/**
- * Expose the built-in persona registry for inspection.
- * @returns {Readonly<Record<string, { persona: string, defaultModel: string|null }>>}
- */
-export function listBuiltinPersonas() {
-  return BUILTIN_PERSONAS;
 }

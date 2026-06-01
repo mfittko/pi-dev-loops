@@ -1,12 +1,14 @@
 import { z } from "zod";
 
 // ============================================================================
-// Sub-schemas (no .default() wrappers — defaults handled by BUILT_IN_DEFAULTS)
+// Sub-schemas
+//
+// No field-level defaults. BUILT_IN_DEFAULTS is the single source of truth
+// for all default values. The loader populates missing families from it.
 // ============================================================================
 
 const StrategyConfig = z.strictObject({
-  default: z.enum(["local-first", "github-first"]).default("github-first"),
-  byWorkflow: z.record(z.string(), z.enum(["local-first", "github-first"])).optional(),
+  default: z.enum(["local-first", "github-first"]),
 });
 
 const ModelsConfig = z.strictObject({
@@ -15,8 +17,8 @@ const ModelsConfig = z.strictObject({
 });
 
 const RefinementConfig = z.strictObject({
-  fanOut: z.number().int().min(1).max(10).default(3),
-  mode: z.enum(["parallel", "sequential"]).default("parallel"),
+  fanOut: z.number().int().min(1).max(10),
+  mode: z.enum(["parallel", "sequential"]),
   roles: z.array(z.string().min(1)).optional(),
 });
 
@@ -33,7 +35,7 @@ const GatesConfig = z.strictObject({
 const AutonomyConfig = z.strictObject({
   stopAt: z.array(
     z.enum(["refinement", "draft-pr", "pre-approval", "merge"])
-  ).default(["merge"]),
+  ),
 });
 
 // ============================================================================
@@ -54,7 +56,7 @@ export const DevLoopConfigSchema = z.strictObject({
 });
 
 // ============================================================================
-// Built-in defaults — frozen canonical fallback
+// Built-in defaults — frozen canonical single source of truth
 // ============================================================================
 
 export const BUILT_IN_DEFAULTS = Object.freeze({
@@ -67,25 +69,14 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
 });
 
 // ============================================================================
-// Validation helpers
+// File-level validation schema — allows partial family objects
 // ============================================================================
 
-/**
- * Validate a complete config object. Returns zod SafeParseReturnType.
- * @param {unknown} input
- * @returns {import("zod").SafeParseReturnType<unknown, import("zod").infer<typeof DevLoopConfigSchema>>}
- */
-export function validateConfig(input) {
-  return DevLoopConfigSchema.safeParse(input);
-}
-
-/**
- * Validate a partial config layer (e.g. a single file before merging).
- * All top-level and nested fields are optional, but unknown keys are still rejected.
- * @param {unknown} input
- * @returns {import("zod").SafeParseReturnType<unknown, unknown>}
- */
-export function validatePartialConfig(input) {
-  const partialSchema = DevLoopConfigSchema.partial().strict();
-  return partialSchema.safeParse(input);
-}
+export const FileConfigSchema = z.strictObject({
+  version: z.literal(1),
+  strategy: StrategyConfig.partial().optional(),
+  models: ModelsConfig.partial().optional(),
+  refinement: RefinementConfig.partial().optional(),
+  gates: GatesConfig.partial().optional(),
+  autonomy: AutonomyConfig.partial().optional(),
+});
