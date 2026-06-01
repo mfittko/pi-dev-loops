@@ -154,11 +154,17 @@ export function buildResolveDevLoopStartupResult(input) {
   // Preserve the raw bundle.selectedStrategy (may be null per the core contract).
   // Use a derived key only for required-reads lookup and the top-level selectedStrategy field.
   const strategyKey = bundle.selectedStrategy ?? "none";
+  if (!(strategyKey in STRATEGY_REQUIRED_READS)) {
+    throw new Error(
+      `Unknown strategy key "${strategyKey}" is not in the allowed strategy required-reads map. ` +
+      `Update STRATEGY_REQUIRED_READS to include this strategy or check for a core routing contract drift.`,
+    );
+  }
   return {
     ok: true,
     bundleKind: bundle.bundleKind,
     selectedStrategy: strategyKey,
-    requiredReads: STRATEGY_REQUIRED_READS[strategyKey] ?? STRATEGY_REQUIRED_READS.none,
+    requiredReads: STRATEGY_REQUIRED_READS[strategyKey],
     nextAction: bundle.nextAction,
     canonicalStateSummary: summarizeCanonicalState(bundle),
     bundle,
