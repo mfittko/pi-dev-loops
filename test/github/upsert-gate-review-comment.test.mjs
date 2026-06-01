@@ -886,7 +886,6 @@ test("upsert-gate-review-comment fails closed when draft_gate is forbidden on a 
     const payload = JSON.parse(result.stderr);
     assert.equal(payload.ok, false);
     assert.match(payload.error, /Cannot enter draft_gate/i);
-    assert.match(payload.error, /Cannot enter draft_gate/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
