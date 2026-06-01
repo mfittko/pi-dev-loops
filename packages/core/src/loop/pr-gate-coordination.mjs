@@ -123,6 +123,9 @@ export function evaluatePrGateCoordination(input = {}) {
   const prClosed = input.prClosed === true;
   const prMerged = input.prMerged === true;
   const sameHeadCleanConverged = input.sameHeadCleanConverged === true;
+  const reviewMode = typeof input.reviewMode === "string"
+    ? input.reviewMode.trim().toLowerCase()
+    : null;
 
   const draftGate = toGateStatus(input.draftGate, input.draftGateMarker, currentHeadSha);
   const preApprovalGate = toGateStatus(input.preApprovalGate, input.preApprovalGateMarker, currentHeadSha);
@@ -249,7 +252,53 @@ export function evaluatePrGateCoordination(input = {}) {
     PR_GATE_ACTION.DECLARE_MERGE_READY,
   ];
 
+  const localFirstPostDraftForbidden = [
+    PR_GATE_ACTION.RUN_DRAFT_GATE,
+    PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
+    PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
+    PR_GATE_ACTION.DECLARE_MERGE_READY,
+  ];
+
   if (lifecycleState === STATE.PR_READY_NO_FEEDBACK) {
+    if (reviewMode === "local_first") {
+      // Explicitly local-first PR: skip the external Copilot review cycle
+      if (preApprovalGate.currentHeadClean) {
+        pushUnique(allowedNextActions, [PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
+        pushUnique(forbiddenActions, localFirstPostDraftForbidden);
+        return buildResult({
+          repo: input.repo ?? null,
+          pr: Number.isInteger(input.pr) ? input.pr : null,
+          currentHeadSha,
+          lifecycleState,
+          loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
+          gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+          draftGate,
+          preApprovalGate,
+          allowedNextActions,
+          forbiddenActions,
+          nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
+          reason: "This is an explicitly local-first PR with clean draft_gate evidence and current-head clean pre_approval_gate, so it is ready for final human approval.",
+        });
+      }
+
+      pushUnique(allowedNextActions, [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE]);
+      pushUnique(forbiddenActions, localFirstPostDraftForbidden);
+      return buildResult({
+        repo: input.repo ?? null,
+        pr: Number.isInteger(input.pr) ? input.pr : null,
+        currentHeadSha,
+        lifecycleState,
+        loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
+        gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
+        draftGate,
+        preApprovalGate,
+        allowedNextActions,
+        forbiddenActions,
+        nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
+        reason: "This is an explicitly local-first PR, so `pre_approval_gate` is the next legal boundary instead of an external Copilot review cycle.",
+      });
+    }
+
     pushUnique(allowedNextActions, [PR_GATE_ACTION.REQUEST_COPILOT_REVIEW]);
     pushUnique(forbiddenActions, postDraftForbidden);
     return buildResult({

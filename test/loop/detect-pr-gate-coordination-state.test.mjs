@@ -190,6 +190,78 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
 });
 
 
+test("detect-pr-gate-coordination-state with --review-mode local_first skips Copilot review", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-local-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "267", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 267,
+          state: "OPEN",
+          isDraft: false,
+          headRefOid: "ccc1234567890",
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [],
+        }),
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/267/requested_reviewers"],
+        stdout: jsonLine({ users: [], teams: [] }),
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=267"],
+        stdout: jsonLine({
+          data: {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  nodes: [],
+                },
+              },
+            },
+          },
+        }),
+      },
+      {
+        assertArgs: ["pr", "view", "267", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: jsonLine({ headRefOid: "ccc1234567890" }),
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/267/comments?per_page=100"],
+        stdout: jsonLine([[
+          {
+            id: 12,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: ccc1234",
+              "Verdict: clean",
+              "Findings summary: no issues found",
+              "Next action: mark ready for review",
+            ].join("\n"),
+            html_url: "https://example.test/comment/12",
+            updated_at: "2026-05-31T20:00:00Z",
+          },
+        ]]),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "267", "--review-mode", "local_first"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.gateBoundary, "pre_approval_gate_window");
+    assert.equal(parsed.nextAction, "run_pre_approval_gate");
+    assert(parsed.forbiddenActions.includes("request_copilot_review"));
+    assert(parsed.allowedNextActions.includes("run_pre_approval_gate"));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
 test("detect-pr-gate-coordination-state fails closed when the PR head changes mid-read", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-head-drift-"));
 

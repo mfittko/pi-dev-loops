@@ -233,6 +233,87 @@ test("non-draft PR with findings_present draft_gate fails closed because no clea
   assert.match(result.reason, /no clean `draft_gate` evidence exists at all/i);
 });
 
+test("local-first PR with explicit reviewMode skips to pre-approval gate after draft→ready", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 298,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    reviewMode: "local_first",
+    draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  // Local-first PRs skip Copilot review and go straight to pre-approval gate
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
+  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
+  assert.match(result.reason, /local-first/i);
+});
+
+test("local-first PR with both gates clean goes straight to final approval", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 298,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    reviewMode: "local_first",
+    draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+  });
+
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.FINAL_APPROVAL_READY);
+  assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
+  assert.match(result.reason, /local-first/i);
+});
+
+test("PR without explicit reviewMode uses standard Copilot review path (default)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 298,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  // Without reviewMode, default to Copilot review (hybrid local-first + external review)
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+});
+
+test("local-first PR without clean draft gate still blocks at post-draft", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 298,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    reviewMode: "local_first",
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  // No clean draft_gate → blocked regardless of review mode
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
+  assert.equal(result.nextAction, PR_GATE_ACTION.REPORT_BLOCKED);
+});
+
 test("draft PR with clean current-head draft_gate sets cleanEvidenceExists", () => {
   const result = evaluatePrGateCoordination({
     pr: 10,
