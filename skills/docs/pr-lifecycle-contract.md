@@ -8,7 +8,6 @@ It consolidates the lifecycle boundary currently split across:
 - `docs/copilot-loop-state-graph.md`
 - `docs/reviewer-loop-state-graph.md`
 - `docs/gate-review-comment-contract.md`
-- `packages/core/src/loop/pr-gate-coordination.mjs`
 
 ## Purpose
 
@@ -58,13 +57,9 @@ Purpose:
 - decide whether the current draft head is materially reviewable
 - decide whether the PR stays draft for more remediation or may leave draft
 
-A clean current-head `draft_gate` result authorizes:
-- `gh pr ready` / leaving draft for that head
-
-A clean `draft_gate` result does **not** authorize:
-- final approval readiness
-- merge-ready claims
-- satisfaction of `pre_approval_gate`
+Boundary note:
+- `draft_gate` governs only the draft -> ready-for-review boundary for the reviewed head
+- visible comment schema/evidence rules stay in `docs/gate-review-comment-contract.md`
 
 ### 2. `pre_approval_gate`
 
@@ -72,12 +67,9 @@ Applies after Copilot convergence and before final approval / merge claims.
 
 This gate uses the DRY/KISS/YAGNI review policy from #43.
 
-A clean current-head `pre_approval_gate` result authorizes:
-- approval-ready / final-human-approval readiness for that head
-
-A clean `pre_approval_gate` result does **not** authorize:
-- draft-stage ready-for-review decisions
-- retroactive satisfaction of `draft_gate` for a later head
+Boundary note:
+- `pre_approval_gate` governs only final approval readiness for the reviewed head
+- visible comment schema/evidence rules stay in `docs/gate-review-comment-contract.md`
 
 ## Lifecycle states
 
@@ -140,17 +132,14 @@ At minimum, the lifecycle must enforce these transitions:
 - no reuse of ready-side or gate evidence after ready -> draft
 - no implicit fallthrough from approval/merge waits into remediation without a triggering event
 
-## Ownership classes
+## Remediation ownership boundary
 
-The lifecycle must make the next owner/action class explicit.
-
-| Finding / state class | Next owner |
-|---|---|
-| draft-stage local findings | `draft_local_remediation` |
-| actionable Copilot feedback | `copilot_feedback_remediation` |
-| fixes applied but unresolved GitHub reply/resolve work remains | `copilot_reply_resolve_pending` |
-| final DRY/KISS/YAGNI findings | `final_gate_remediation` |
-| human approval / merge | explicit external wait |
+The lifecycle must keep the next action class explicit:
+- draft-stage local findings route to `draft_local_remediation`
+- actionable Copilot feedback routes to `copilot_feedback_remediation`
+- fixes applied but unresolved GitHub reply/resolve work remains route to `copilot_reply_resolve_pending`
+- final DRY/KISS/YAGNI findings route to `final_gate_remediation`
+- human approval / merge remain explicit external waits
 
 Reviewer-loop reminder:
 - reviewer-loop semantics end at a review result / submission boundary

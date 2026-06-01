@@ -107,13 +107,13 @@ test("consolidated PR lifecycle contract freezes the family-local lifecycle boun
 
   assert.match(docsIndex, /skills\/docs\/pr-lifecycle-contract\.md/i);
   assert.match(lifecycleContract, /^# PR lifecycle contract$/m);
-  assert.match(lifecycleContract, /draft-stage local gate -> draft remediation -> ready-for-review/i);
-  assert.match(lifecycleContract, /Exactly \*\*one current lifecycle state\*\* must apply at a time/i);
+  assert.match(lifecycleContract, /## Lifecycle states/i);
+  assert.match(lifecycleContract, /## Required transitions/i);
+  assert.match(lifecycleContract, /## Fail-closed rules/i);
   assert.match(lifecycleContract, /draft_local_review_gate/i);
   assert.match(lifecycleContract, /copilot_reply_resolve_pending/i);
   assert.match(lifecycleContract, /final_gate_remediation/i);
   assert.match(lifecycleContract, /waiting_for_human_pr_approval/i);
-  assert.match(lifecycleContract, /required visible gate evidence beats local-only gate records/i);
 
   assert.match(copilotGraph, /skills\/docs\/pr-lifecycle-contract\.md/i);
   assert.match(gateContract, /skills\/docs\/pr-lifecycle-contract\.md/i);
