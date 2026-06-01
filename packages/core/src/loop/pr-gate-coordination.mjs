@@ -252,17 +252,19 @@ export function evaluatePrGateCoordination(input = {}) {
     PR_GATE_ACTION.DECLARE_MERGE_READY,
   ];
 
+  const localFirstPostDraftForbidden = [
+    PR_GATE_ACTION.RUN_DRAFT_GATE,
+    PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
+    PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
+    PR_GATE_ACTION.DECLARE_MERGE_READY,
+  ];
+
   if (lifecycleState === STATE.PR_READY_NO_FEEDBACK) {
     if (reviewMode === "local_first") {
       // Explicitly local-first PR: skip the external Copilot review cycle
       if (preApprovalGate.currentHeadClean) {
         pushUnique(allowedNextActions, [PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
-        pushUnique(forbiddenActions, [
-          PR_GATE_ACTION.RUN_DRAFT_GATE,
-          PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-          PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-          PR_GATE_ACTION.DECLARE_MERGE_READY,
-        ]);
+        pushUnique(forbiddenActions, localFirstPostDraftForbidden);
         return buildResult({
           repo: input.repo ?? null,
           pr: Number.isInteger(input.pr) ? input.pr : null,
@@ -280,12 +282,7 @@ export function evaluatePrGateCoordination(input = {}) {
       }
 
       pushUnique(allowedNextActions, [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE]);
-      pushUnique(forbiddenActions, [
-        PR_GATE_ACTION.RUN_DRAFT_GATE,
-        PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-        PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-        PR_GATE_ACTION.DECLARE_MERGE_READY,
-      ]);
+      pushUnique(forbiddenActions, localFirstPostDraftForbidden);
       return buildResult({
         repo: input.repo ?? null,
         pr: Number.isInteger(input.pr) ? input.pr : null,
