@@ -45,6 +45,7 @@ Output (stdout, JSON):
       "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101",
       "updatedAt": "2026-05-29T22:00:00Z"
     },
+    "draftGateSatisfied": true,
     "preApprovalGate": {
       "visible": false,
       "headSha": null,
