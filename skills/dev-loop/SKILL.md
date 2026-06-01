@@ -52,13 +52,13 @@ Load only the route-specific internal skill required by `selectedStrategy`:
 
 | Strategy | Route pack to load |
 | --- | --- |
-| `local_implementation` | `skills/local-implementation/SKILL.md` |
-| `issue_intake` | `skills/issue-intake/SKILL.md` |
-| `copilot_pr_followup` | `skills/copilot-pr-followup/SKILL.md` |
-| `external_pr_followup` | `skills/copilot-pr-followup/SKILL.md` |
-| `reviewer_fixer` | `skills/copilot-pr-followup/SKILL.md` |
-| `wait_watch` | `skills/copilot-pr-followup/SKILL.md` |
-| `final_approval` | `skills/final-approval/SKILL.md` |
+| `local_implementation` | `../local-implementation/SKILL.md` |
+| `issue_intake` | `../issue-intake/SKILL.md` |
+| `copilot_pr_followup` | `../copilot-pr-followup/SKILL.md` |
+| `external_pr_followup` | `../copilot-pr-followup/SKILL.md` |
+| `reviewer_fixer` | `../copilot-pr-followup/SKILL.md` |
+| `wait_watch` | `../copilot-pr-followup/SKILL.md` |
+| `final_approval` | `../final-approval/SKILL.md` |
 
 Do not preload local implementation, issue intake, PR follow-up, or final approval procedure before the resolver selects that route.
 

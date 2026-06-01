@@ -14,7 +14,7 @@ user-invocable: false
 
 This skill is the canonical internal `final_approval` route behind the public `dev-loop` façade.
 
-Use it only after the public dispatcher has already resolved `selectedStrategy: final_approval`. Treat `skills/copilot-pr-followup/SKILL.md` as the canonical owner of the full PR follow-up procedure; this skill narrows the fresh-context read set to the final approval and merge gate.
+Use it only after the public dispatcher has already resolved `selectedStrategy: final_approval`. Treat `../copilot-pr-followup/SKILL.md` as the canonical owner of the full PR follow-up procedure; this skill narrows the fresh-context read set to the final approval and merge gate.
 
 ## Required reads
 

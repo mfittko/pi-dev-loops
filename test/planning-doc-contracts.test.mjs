@@ -79,14 +79,14 @@ test("coordinator agent remains the RFC receiving boundary and decision owner", 
 });
 
 test("planning guidance keeps sub-issue trees as the durable decomposition owner", async () => {
-  const [devLoopSkill, coordinatorAgent, subIssueTreeContract, docsIndex] = await Promise.all([
+  const [localImplementationSkill, coordinatorAgent, subIssueTreeContract, docsIndex] = await Promise.all([
     readRepo("skills/local-implementation/SKILL.md"),
     readRepo("agents/coordinator.agent.md"),
     readRepo("docs/sub-issue-tree-contract.md"),
     readRepo("docs/index.md"),
   ]);
 
-  assertMatchesAll(devLoopSkill, [
+  assertMatchesAll(localImplementationSkill, [
     ...SUB_ISSUE_TREE_GUIDANCE,
     /plain related-issue references/i,
   ], "skills/local-implementation/SKILL.md");

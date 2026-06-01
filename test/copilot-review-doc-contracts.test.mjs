@@ -27,8 +27,8 @@ test("copilot review gates keep phase-specific angle ownership in one canonical 
   const devLoopPreApproval = devLoopPreApprovalMatch ? devLoopPreApprovalMatch[0] : "";
   assert.ok(devLoopPreApproval.length > 0, "copilot-pr-followup pre-approval gate section not found inside Step 7");
 
+  assert.match(copilotPrFollowupSkill, /canonical internal `copilot_pr_followup` route behind the public `dev-loop` façade/i);
   assert.match(copilotPrFollowupSkill, /canonical internal owner of the shared post-PR mechanics/i);
-  assert.match(copilotPrFollowupSkill, /This skill is the canonical internal owner of the shared post-PR mechanics/i);
   assert.match(gateContract, /visible gate-review comment evidence contract only/i);
 
   const expectedDevLoopShape = [/Gate name:/i, /Trigger \/ boundary:/i, /Review angles \(owned by this gate\):/i, /Pass criteria:/i, /Next step after passing:/i];
