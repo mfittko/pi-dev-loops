@@ -375,8 +375,6 @@ Each summary should record:
 
 If the subagent ran asynchronously, update its summary when results arrive so fresh sessions can understand what happened without replaying the whole conversation.
 
-## Implementation loop for the phase
-
 ## Workflow-run subagent hand-off contract
 
 When handing off a full workflow run to a subagent (draft PR → gates → Copilot → merge),

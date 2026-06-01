@@ -67,10 +67,10 @@ For each Copilot review pass:
 
 ### 8. Merge
 
-- All evidence must be current-head clean:
-  - `draft_gate` clean comment exists (any head — one-time boundary)
+- Required evidence:
+  - `draft_gate` clean comment exists (any head — one-time transition boundary, no current-head requirement)
   - `pre_approval_gate` clean comment exists for **current** head SHA
-  - CI green
+  - CI green on current head
   - `unresolvedThreadCount === 0`
 - Merge only after explicit authorization
 
