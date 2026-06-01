@@ -55,7 +55,7 @@ test("workflow-handoff-template references required contract docs by path", asyn
 
   const requiredRefs = [
     "docs/gate-review-comment-contract.md",
-    "copilot-dev-loop/SKILL.md",
+    "skills/copilot-dev-loop/SKILL.md",
     "scripts/README.md",
   ];
 
@@ -112,5 +112,37 @@ test("workflow-handoff-template includes non-negotiable invariants section", asy
     /Copilot review loop.*between.*draft_gate.*pre_approval_gate/i.test(content) ||
     /between.*draft_gate.*pre_approval_gate/i.test(content),
     "invariants must state Copilot review loop sits between draft_gate and pre_approval_gate",
+  );
+});
+
+test("unresolvedThreadCount === 0 appears before pre_approval_gate in mandatory sequence", async () => {
+  const content = await readTemplate();
+
+  const seqStart = content.indexOf("## Mandatory sequence");
+  const nextSection = content.indexOf("## Non-negotiable");
+  const sequenceSection = content.slice(seqStart, nextSection);
+
+  const unresolvedIndex = sequenceSection.indexOf("unresolvedThreadCount === 0");
+  const preApprovalIndex = sequenceSection.indexOf("### 7. Pre-approval gate review");
+
+  assert.ok(unresolvedIndex >= 0, "unresolvedThreadCount === 0 must appear in mandatory sequence");
+  assert.ok(preApprovalIndex >= 0, "pre_approval_gate step must exist in mandatory sequence");
+  assert.ok(
+    unresolvedIndex < preApprovalIndex,
+    "unresolvedThreadCount === 0 verification must appear before pre_approval_gate step",
+  );
+});
+
+test("coordinator prompt references the canonical hand-off template", async () => {
+  const coordinatorPath = path.resolve("agents/coordinator.agent.md");
+  const coordinatorContent = await readFile(coordinatorPath, "utf8");
+
+  assert.ok(
+    coordinatorContent.includes("skills/docs/workflow-handoff-template.md"),
+    "coordinator prompt must reference skills/docs/workflow-handoff-template.md",
+  );
+  assert.ok(
+    /abbreviated task summaries|operator memory/i.test(coordinatorContent),
+    "coordinator prompt must forbid abbreviated task summaries",
   );
 });
