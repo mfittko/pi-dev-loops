@@ -154,25 +154,31 @@ async function defaultStopManagedProcess(pid) {
   process.kill(pid, 'SIGTERM');
 }
 
-async function defaultOpenBrowser(url) {
+export function buildOpenBrowserInvocation(url, platform = process.platform) {
   let command;
   let args;
   let options = { detached: true, stdio: 'ignore' };
-  switch (process.platform) {
+  switch (platform) {
     case 'darwin':
       command = 'open';
       args = [url];
       break;
     case 'win32':
       command = 'cmd';
-      args = ['/c', 'start', '', url];
-      options = { detached: true, stdio: 'ignore', windowsHide: true };
+      args = ['/c', 'start', '""', `"${`${url}`.replaceAll('"', '""')}"`];
+      options = { detached: true, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true };
       break;
     default:
       command = 'xdg-open';
       args = [url];
       break;
   }
+
+  return { command, args, options };
+}
+
+async function defaultOpenBrowser(url) {
+  const { command, args, options } = buildOpenBrowserInvocation(url);
   await new Promise((resolve, reject) => {
     const child = spawn(command, args, options);
     child.once('error', reject);

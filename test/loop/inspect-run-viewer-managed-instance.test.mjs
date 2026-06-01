@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 
 import {
   INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH,
+  buildOpenBrowserInvocation,
   createInspectRunViewerLifecycleManager,
 } from '../../scripts/loop/inspect-run-viewer/managed-instance.mjs';
 
@@ -435,6 +436,20 @@ test('status rejects a missing repoRoot with a clear lifecycle error', async () 
   const { manager } = createManager();
 
   await assert.rejects(manager.status(), /requires a repoRoot/i);
+});
+
+test('buildOpenBrowserInvocation quotes Windows URLs as one literal argument', () => {
+  const invocation = buildOpenBrowserInvocation('http://127.0.0.1:4311/?scope=owner/repo&view=current', 'win32');
+
+  assert.equal(invocation.command, 'cmd');
+  assert.deepEqual(invocation.args, [
+    '/c',
+    'start',
+    '""',
+    '"http://127.0.0.1:4311/?scope=owner/repo&view=current"',
+  ]);
+  assert.equal(invocation.options.windowsHide, true);
+  assert.equal(invocation.options.windowsVerbatimArguments, true);
 });
 
 test('status treats a record with a non-default host or port as stale_record', async () => {
