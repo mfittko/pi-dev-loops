@@ -66,22 +66,19 @@ describe("detectTrackerSpecFormat", () => {
     assert.equal(result.number, "294");
   });
 
-  it("recognizes Shortcut story reference sc#1234", () => {
+  it("recognizes Shortcut story reference sc#1234 as UNKNOWN (no adapter)", () => {
     const result = detectTrackerSpecFormat("sc#1234");
-    assert.equal(result.format, TRACKER_SPEC_FORMAT.SHORTCUT_STORY);
-    assert.equal(result.number, "1234");
+    assert.equal(result.format, TRACKER_SPEC_FORMAT.UNKNOWN);
   });
 
-  it("recognizes Shortcut story reference sc-5678", () => {
+  it("recognizes Shortcut story reference sc-5678 as UNKNOWN (no adapter)", () => {
     const result = detectTrackerSpecFormat("sc-5678");
-    assert.equal(result.format, TRACKER_SPEC_FORMAT.SHORTCUT_STORY);
-    assert.equal(result.number, "5678");
+    assert.equal(result.format, TRACKER_SPEC_FORMAT.UNKNOWN);
   });
 
-  it("recognizes Jira issue reference", () => {
+  it("recognizes Jira issue reference as UNKNOWN (no adapter)", () => {
     const result = detectTrackerSpecFormat("PROJ-1234");
-    assert.equal(result.format, TRACKER_SPEC_FORMAT.JIRA_ISSUE);
-    assert.equal(result.number, "PROJ-1234");
+    assert.equal(result.format, TRACKER_SPEC_FORMAT.UNKNOWN);
   });
 
   it("returns unknown for empty string", () => {

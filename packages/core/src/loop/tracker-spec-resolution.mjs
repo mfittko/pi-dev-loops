@@ -15,10 +15,6 @@
 export const TRACKER_SPEC_FORMAT = Object.freeze({
   /** GitHub issue: owner/repo#N or just #N */
   GITHUB_ISSUE: "github_issue",
-  /** Shortcut story: sc#N or sc-1234 */
-  SHORTCUT_STORY: "shortcut_story",
-  /** Jira issue: PROJ-1234 */
-  JIRA_ISSUE: "jira_issue",
   /** Full URL to a GitHub issue */
   GITHUB_URL: "github_url",
   /** Unrecognized format */
@@ -29,8 +25,6 @@ const GITHUB_ISSUE_RE =
   /^(?:(?:https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\/(\d+))|(?:([^/]+\/[^/]+)?#(\d+)))$/i;
 
 const SHORTCUT_RE = /^sc[#-]?\d+$/i;
-
-const JIRA_RE = /^[A-Z][A-Z0-9]+-\d+$/;
 
 /**
  * Section headings that indicate a spec-bearing issue body.
@@ -56,15 +50,11 @@ export function detectTrackerSpecFormat(raw) {
 
   const trimmed = raw.trim();
 
-  // Check Shortcut and Jira first — they have distinctive prefixes
-  // that avoid false-positive GitHub bare-issue matches (e.g. sc#1234).
-  if (SHORTCUT_RE.test(trimmed)) {
-    const num = trimmed.match(/\d+/)?.[0] || undefined;
-    return { format: TRACKER_SPEC_FORMAT.SHORTCUT_STORY, number: num };
-  }
-
-  if (JIRA_RE.test(trimmed)) {
-    return { format: TRACKER_SPEC_FORMAT.JIRA_ISSUE, number: trimmed };
+  // Shortcut and Jira patterns are detected but return UNKNOWN —
+  // the contract is adapter-agnostic and only GitHub has a CLI helper.
+  // Adapter-specific detection can be added when a real adapter ships.
+  if (SHORTCUT_RE.test(trimmed) || /^[A-Z][A-Z0-9]+-\d+$/.test(trimmed)) {
+    return { format: TRACKER_SPEC_FORMAT.UNKNOWN, raw: trimmed };
   }
 
   const ghMatch = trimmed.match(GITHUB_ISSUE_RE);
