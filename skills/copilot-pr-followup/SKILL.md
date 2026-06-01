@@ -547,7 +547,7 @@ When you do hand work to Copilot:
 
 ## PR description contract
 
-Follow the PR description contract in `AGENTS.md`: detailed structured descriptions, not thin placeholders. At minimum include change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
+Follow the PR description contract (see `AGENTS.md` if present; otherwise use the structure below): detailed structured descriptions, not thin placeholders. At minimum include change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
 
 New PRs in this workflow must be opened as **draft** PRs first. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft-gate review is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is even eligible.
 
