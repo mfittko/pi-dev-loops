@@ -1,0 +1,82 @@
+import { z } from "zod";
+
+// ============================================================================
+// Sub-schemas
+//
+// No field-level defaults. BUILT_IN_DEFAULTS is the single source of truth
+// for all default values. The loader populates missing families from it.
+// ============================================================================
+
+const StrategyConfig = z.strictObject({
+  default: z.enum(["local-first", "github-first"]),
+});
+
+const ModelsConfig = z.strictObject({
+  conductor: z.string().min(1).optional(),
+  roles: z.record(z.string(), z.string().min(1)).optional(),
+});
+
+const RefinementConfig = z.strictObject({
+  fanOut: z.number().int().min(1).max(10),
+  mode: z.enum(["parallel", "sequential"]),
+  roles: z.array(z.string().min(1)).optional(),
+});
+
+const GateConfig = z.strictObject({
+  angles: z.array(z.string().min(1)),
+  required: z.boolean().default(true),
+});
+
+const GatesConfig = z.strictObject({
+  draft: GateConfig.optional(),
+  preApproval: GateConfig.optional(),
+});
+
+const AutonomyConfig = z.strictObject({
+  stopAt: z.array(
+    z.enum(["refinement", "draft-pr", "pre-approval", "merge"])
+  ),
+});
+
+// ============================================================================
+// Full schema — families are optional (BUILT_IN_DEFAULTS provides fallback)
+// ============================================================================
+
+/**
+ * @typedef {z.infer<typeof DevLoopConfigSchema>} DevLoopConfig
+ */
+
+export const DevLoopConfigSchema = z.strictObject({
+  version: z.literal(1),
+  strategy: StrategyConfig.optional(),
+  models: ModelsConfig.optional(),
+  refinement: RefinementConfig.optional(),
+  gates: GatesConfig.optional(),
+  autonomy: AutonomyConfig.optional(),
+});
+
+// ============================================================================
+// Built-in defaults — frozen canonical single source of truth
+// ============================================================================
+
+export const BUILT_IN_DEFAULTS = Object.freeze({
+  version: 1,
+  strategy: Object.freeze({ default: "github-first" }),
+  models: Object.freeze({}),
+  refinement: Object.freeze({ fanOut: 3, mode: "parallel" }),
+  gates: Object.freeze({}),
+  autonomy: Object.freeze({ stopAt: Object.freeze(["merge"]) }),
+});
+
+// ============================================================================
+// File-level validation schema — allows partial family objects
+// ============================================================================
+
+export const FileConfigSchema = z.strictObject({
+  version: z.literal(1),
+  strategy: StrategyConfig.partial().optional(),
+  models: ModelsConfig.partial().optional(),
+  refinement: RefinementConfig.partial().optional(),
+  gates: GatesConfig.partial().optional(),
+  autonomy: AutonomyConfig.partial().optional(),
+});

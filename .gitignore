@@ -8,5 +8,6 @@ test-results/
 .DS_Store
 *.log
 .pi/dev-loop-retrospective-checkpoint.json
+.pi/dev-loop/overrides.json
 
 .pi/ui-servers/

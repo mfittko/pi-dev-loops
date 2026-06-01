@@ -7,6 +7,11 @@ const packageJsonUrl = new URL("../package.json", import.meta.url);
 test("packages/core exports the sanctioned runtime boundary and de-exports unused weak-runtime surfaces", async () => {
   const packageJson = JSON.parse(await readFile(packageJsonUrl, "utf8"));
 
+  assert.equal(packageJson.exports["./bash-exit-one"], "./src/bash-exit-one.mjs");
+  assert.equal(packageJson.exports["./config"], "./src/config/index.mjs");
+  assert.equal(packageJson.exports["./config/schema"], "./src/config/schema.mjs");
+  assert.equal(packageJson.exports["./config/loader"], "./src/config/loader.mjs");
+  assert.equal(packageJson.exports["./config/roles"], "./src/config/roles.mjs");
   assert.equal(packageJson.exports["./github/copilot-helpers"], "./src/github/copilot-helpers.mjs");
   assert.equal(packageJson.exports["./github/repo-slug"], "./src/github/repo-slug.mjs");
   assert.equal(packageJson.exports["./github/review-threads"], "./src/github/review-threads.mjs");
