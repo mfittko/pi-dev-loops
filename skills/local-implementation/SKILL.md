@@ -515,7 +515,7 @@ Stop after the current phase when:
 - Do not commit before the relevant validation for that slice passes.
 - Immediately before every `git add && git commit` sequence, assert branch identity with `git branch --show-current` and stop if it does not match the intended local working branch.
 - Keep commits small and phase-bounded.
-- Do not leave completed phase work stranded off `main`; once the reviewed branch is ready and authorized, merge it locally.
+- Do not leave completed phase work stranded off `main`; once the reviewed branch is ready and authorized, finalize it according to session type (merge into local `main` for phase-doc-backed sessions; complete via PR merge for tracker-backed sessions).
 - Commit only when the coordination/main agent has decided the slice or phase is ready.
 - If commit/merge authorization has not yet been given, do not call the phase `completed`; call it `awaiting-finalization` instead.
 
