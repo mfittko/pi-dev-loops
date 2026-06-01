@@ -96,9 +96,28 @@ Before local phase planning or coding:
 3. read `PLAN.md`
 4. if `docs/IMPLEMENTATION_WORKFLOW.md` exists, read it
 5. if `docs/IMPLEMENTATION_STATE.md` exists, read it
-6. if `docs/phases/phase-x.md` exists for the active phase, read it
+6. if the active local session is phase-doc-backed and `docs/phases/phase-x.md` exists for the active phase, read it
+7. if the active local session is tracker-backed, deterministically resolve the tracker issue spec first via `scripts/github/resolve-tracker-local-spec.mjs` (or the equivalent `gh issue view <number> --repo <owner/name> --json number,title,body,url,state` call), then treat that tracker issue as canonical for the rest of the local session
 
 Treat missing optional files as normal bootstrap conditions, not as errors.
+
+### Tracker-backed local implementation
+
+Local implementation supports two durable spec inputs:
+
+- phase-doc-backed local sessions (`docs/phases/phase-x.md` is canonical)
+- tracker-backed local sessions (the tracker issue is canonical)
+
+Tracker-backed local implementation stays inside the existing `local_implementation` path. It does not introduce a new routing mode.
+
+When the local spec already lives in a tracker issue:
+
+- resolve the tracker reference deterministically from a GitHub issue URL or explicit `<owner/name>` + issue number
+- use the bounded GitHub helper `scripts/github/resolve-tracker-local-spec.mjs` when you need a machine-readable spec bundle
+- treat the tracker issue title/body/url/state as the durable local spec bundle
+- do not create or read `docs/phases/phase-x.md` for that same tracker-backed session
+- sync durable scope / acceptance / status changes back to the tracker issue rather than maintaining a duplicate local phase doc
+- keep `tmp/` as temporary local execution state only; it does not become a second durable spec surface
 
 ## Primary execution rules
 
@@ -108,7 +127,7 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 - Work **test-first** for all non-trivial logic.
 - Maintain **90% coverage** thresholds.
 - Log detailed iteration artifacts under `tmp/` using the required structure below.
-- Keep durable phase intent and acceptance criteria in `docs/phases/phase-x.md`, but keep detailed execution artifacts in `tmp/`.
+- For phase-doc-backed local sessions, keep durable phase intent and acceptance criteria in `docs/phases/phase-x.md`; for tracker-backed local sessions, keep that durable intent in the tracker issue and do not duplicate it into `docs/phases/phase-x.md`. Keep detailed execution artifacts in `tmp/`.
 - Treat `tmp/` as temporary local execution state. Do not rely on it as durable repo history and do not force-add it to git unless the user explicitly wants checked-in examples or fixtures.
 - When a phase changes durable product truth in ways `PLAN.md` should express (for example command surface, accepted product decisions, resolved open questions, or scope changes), update `PLAN.md` before closing the phase.
 - Do implementation work on a dedicated local branch, not directly on `main`.
@@ -123,13 +142,13 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 
 Treat the workflow as three layers:
 - `PLAN.md` = strategic product and architecture truth
-- `docs/phases/phase-x.md` = durable per-phase plan and acceptance criteria
+- `docs/phases/phase-x.md` or the canonical tracker issue = durable per-phase plan and acceptance criteria for the active local session
 - `tmp/` = temporary local execution audit trail and machine-friendly continuation state
 
 Maintain the core paths below while the phase is active locally, and create optional artifacts only when they are actually used:
 
 Core paths:
-- `docs/phases/phase-x.md`
+- for phase-doc-backed local sessions: `docs/phases/phase-x.md`
 - `tmp/phases/index.json`
 - `tmp/phases/phase-x/manifest.json`
 - `tmp/phases/phase-x/variant-a.md`
@@ -161,10 +180,10 @@ If these files are missing, create them from `templates/` before continuing:
 - missing `AGENTS.md` -> create from `templates/bootstrap-agents.md`
 - missing `docs/IMPLEMENTATION_STATE.md` -> create from `templates/bootstrap-implementation-state.md`
 - missing `docs/IMPLEMENTATION_WORKFLOW.md` -> create from `templates/bootstrap-implementation-workflow.md`
-- missing `docs/phases/phase-x.md` for the active phase -> create from `templates/phase-doc.md`
+- missing `docs/phases/phase-x.md` for the active phase -> create from `templates/phase-doc.md` only for phase-doc-backed local sessions
 - missing `tmp/phases/index.json` -> create or reinitialize it
 
-The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth, and `docs/phases/phase-x.md` is the durable source of truth for the current phase's plan and acceptance boundary.
+The bootstrap files are support infrastructure. `PLAN.md` remains the product source of truth. For phase-doc-backed local sessions, `docs/phases/phase-x.md` is the durable source of truth for the current phase's plan and acceptance boundary. For tracker-backed local sessions, the tracker issue is that durable source of truth, and no duplicate local phase doc should be bootstrapped.
 
 For bootstrap/setup phases, do not mark the phase `completed` or `awaiting-finalization` until the expected durable support files for the chosen workflow contract actually exist in the repository. Temporary `tmp/` execution artifacts do not need to be committed.
 ## Plan sufficiency check
@@ -187,7 +206,7 @@ When the plan is insufficient, use one of these modes:
 - ask only the missing high-value questions needed to safely refine the current phase
 - prefer a short interview or wizard-style sequence over one giant question dump
 - record the answers in `tmp/phases/phase-x/clarification.md`
-- update `docs/phases/phase-x.md` with clarified durable phase intent, scope, or acceptance criteria
+- update the canonical durable phase spec source with clarified durable phase intent, scope, or acceptance criteria (`docs/phases/phase-x.md` for phase-doc-backed sessions, tracker issue for tracker-backed sessions)
 - update `PLAN.md` only if the clarified information is durable product/project truth beyond the current phase
 - update `docs/IMPLEMENTATION_STATE.md` if the clarification changes the next phase boundary
 
@@ -208,10 +227,10 @@ Do not begin fan-out planning until the current phase is sufficiently specified,
 ## Determine where to resume
 
 Read `docs/IMPLEMENTATION_STATE.md` and identify the next unfinished phase.
-Read `docs/phases/phase-x.md` for that phase if it exists.
+Read `docs/phases/phase-x.md` for that phase if it exists in a phase-doc-backed session. For tracker-backed sessions, resolve and read the canonical tracker issue spec instead.
 
 If `tmp/phases/index.json` exists locally, use it as a fast index for prior artifacts.
-If the durable phase doc, the state file, and the tmp index disagree, trust docs first and note the mismatch in the phase review log.
+If the canonical durable spec source (phase doc or tracker issue), the state file, and the tmp index disagree, trust the canonical durable spec source first and note the mismatch in the phase review log.
 
 If the state file is ambiguous, resolve ambiguity conservatively:
 - prefer the earliest clearly unfinished phase
@@ -223,7 +242,7 @@ If the state file is ambiguous, resolve ambiguity conservatively:
 
 For the **current phase only**, run this loop before implementation.
 
-### 1. Create or update the durable phase doc and tmp scaffold
+### 1. Create or update the durable phase spec and tmp scaffold
 
 Use paths like:
 - `docs/phases/phase-0.md`
@@ -232,7 +251,7 @@ Use paths like:
 - `tmp/phases/phase-1/`
 
 Create or update:
-- `docs/phases/phase-x.md`
+- `docs/phases/phase-x.md` for phase-doc-backed local sessions only
 - `tmp/phases/phase-x/manifest.json`
 - `tmp/phases/index.json`
 
@@ -299,7 +318,7 @@ Update `manifest.json` with the planned artifact list and current status.
 
 Write:
 - `tmp/phases/phase-x/merged-plan.md`
-- update `docs/phases/phase-x.md` with the selected durable phase plan
+- update the selected durable phase spec source with the accepted plan (`docs/phases/phase-x.md` for phase-doc-backed sessions, or the canonical tracker issue for tracker-backed sessions)
 
 Use the templates in `templates/merged-phase-plan.md` and `templates/phase-doc.md`.
 
@@ -316,7 +335,7 @@ The merged plan must include:
 - for any watcher/predicate-driven behavior: explicit timeout semantics plus negative-case detection rules for non-target identities or events
 - for package-first phases in a source-loaded workspace: explicit expectations about whether callers consume shared logic through workspace/source adapters or published package import paths during local development
 
-The durable phase doc should capture the subset that a fresh human or agent should read first: objective, why now, scope, non-goals, acceptance criteria, definition of done, validation approach, durable decisions, and open questions.
+The durable phase spec source should capture the subset that a fresh human or agent should read first: objective, why now, scope, non-goals, acceptance criteria, definition of done, validation approach, durable decisions, and open questions.
 
 ### 5. Review the merged phase plan adversarially
 
@@ -324,7 +343,7 @@ Write:
 - `tmp/phases/phase-x/review.md`
 
 Use the template in `templates/review.md`.
-Ensure the durable phase doc still matches the reviewed plan; update `docs/phases/phase-x.md` if the review changes accepted scope or criteria.
+Ensure the durable phase spec source still matches the reviewed plan; update `docs/phases/phase-x.md` for phase-doc-backed sessions or sync the accepted change back to the tracker issue for tracker-backed sessions.
 
 The review must check for:
 - overreach beyond phase scope
@@ -412,7 +431,7 @@ After the phase plan passes review:
    - apply accepted fixes on the same branch
    - rerun validation after fixes
    - log review artifacts and subagent summaries under `tmp/`
-6. Update `docs/phases/phase-x.md` so it reflects the phase as actually implemented, including any accepted scope or validation changes.
+6. Update the canonical durable phase spec so it reflects the phase as actually implemented, including any accepted scope or validation changes (`docs/phases/phase-x.md` for phase-doc-backed sessions, tracker issue for tracker-backed sessions).
 7. Update `PLAN.md` when the phase changed durable product truth, resolved an open question, or made the shipped command/behavior surface more concrete.
 8. Write `tmp/phases/phase-x/summary.md` using `templates/phase-summary.md`.
 9. Write `tmp/phases/phase-x/retrospective.md` using `templates/retrospective.md`.
@@ -471,7 +490,7 @@ Dev mode is still phase-bounded. It improves the loop around the completed phase
 ## tmp/ logging requirements
 
 At minimum, each phase should leave behind:
-- a durable phase doc at `docs/phases/phase-x.md`
+- a durable phase spec in exactly one canonical place: `docs/phases/phase-x.md` for phase-doc-backed sessions, or the tracker issue for tracker-backed sessions
 - local `tmp/` execution artifacts needed to resume and audit the phase, including:
   - `manifest.json`
   - `variant-a.md`
@@ -549,7 +568,7 @@ Do not:
 - treat rough notes as implementation authorization
 - expand scope because a helper may be useful later
 - rely on Pi private internals when public hooks exist
-- skip updating `docs/phases/phase-x.md` when the accepted phase plan changes
+- skip updating the canonical durable phase spec source when the accepted phase plan changes
 - skip updating `docs/IMPLEMENTATION_STATE.md`
 - skip writing `tmp/` artifacts
 - use subagents without leaving readable summaries of what they did
