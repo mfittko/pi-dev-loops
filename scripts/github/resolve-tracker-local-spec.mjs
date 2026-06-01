@@ -236,11 +236,12 @@ export async function resolveTrackerLocalSpec(
   { repo, issue },
   { env = process.env, ghCommand = "gh" } = {},
 ) {
-  parseRepoSlug(repo);
+  const { owner, name } = parseRepoSlug(repo);
+  const canonicalRepo = `${owner}/${name}`;
 
   const result = await runChild(
     ghCommand,
-    buildIssueViewArgs({ repo, issue }),
+    buildIssueViewArgs({ repo: canonicalRepo, issue }),
     env,
   );
 
@@ -254,7 +255,7 @@ export async function resolveTrackerLocalSpec(
 
   return {
     ok: true,
-    repo,
+    repo: canonicalRepo,
     issue: resolvedIssue.number,
     issueUrl: resolvedIssue.url,
     state: resolvedIssue.state,

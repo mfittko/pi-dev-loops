@@ -229,6 +229,37 @@ test("resolve-tracker-local-spec reports usage errors with usage payload", async
   assert.match(payload.usage, /resolve-tracker-local-spec\.mjs/);
 });
 
+
+test("resolve-tracker-local-spec normalizes repo slug in gh call and output", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-resolve-tracker-local-spec-normalize-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["issue", "view", "85", "--repo", "owner/repo"],
+        stdout: `${JSON.stringify({
+          number: 85,
+          title: "Tracker-backed local contract",
+          body: "Acceptance criteria live in this tracker issue.",
+          url: "https://github.com/owner/repo/issues/85",
+          state: "OPEN",
+        })}
+`,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "  owner/repo  ", "--issue", "85"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.repo, "owner/repo");
+    assert.equal(payload.issue, 85);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 test("resolve-tracker-local-spec reports gh failures without usage for runtime errors", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-resolve-tracker-local-spec-ghfail-"));
 
