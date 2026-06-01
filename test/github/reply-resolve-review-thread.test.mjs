@@ -194,6 +194,28 @@ test("reply-resolve-review-thread rejects thin replies without commit SHA or sen
   }
 });
 
+test("reply-resolve-review-thread rejects pure-numeric tokens that are not commit SHAs", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-numeric-sha-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  // "1234567" matches the 7-40 hex-char regex but contains no hex letters; must not bypass the check
+  await writeFile(bodyFile, "1234567\n", "utf8");
+
+  try {
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: { ...process.env, PATH: process.env.PATH } },
+    );
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const parsed = JSON.parse(result.stderr);
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.error, /Reply body \(7 characters after trimming\) must contain either a commit SHA reference/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("reply-resolve-review-thread rejects malformed arguments and empty body files deterministically", async () => {
   const missing = await runNode(["--repo", "owner/repo"]);
   assert.equal(missing.code, 1);

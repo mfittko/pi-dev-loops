@@ -227,7 +227,8 @@ export async function runCli(
   }
 
   const trimmedBody = rawBody.trim();
-  const hasCommitSha = /\b[0-9a-f]{7,40}\b/i.test(trimmedBody);
+  const hexTokens = trimmedBody.match(/\b[0-9a-f]{7,40}\b/gi) ?? [];
+  const hasCommitSha = hexTokens.some((t) => /[a-f]/i.test(t));
   const hasSentenceReason = trimmedBody.length >= MIN_DISMISSAL_REASON_LENGTH;
   if (!hasCommitSha && !hasSentenceReason) {
     throw new Error(
