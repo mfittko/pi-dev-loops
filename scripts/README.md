@@ -628,12 +628,27 @@ Failure behavior:
 Owned read-only local/operator inspection dashboard layered on `inspect-run`.
 `inspect-run` remains authoritative for inspection/status state; the viewer owns local inbox discovery and read-only presentation/prioritization.
 
+Primary local lifecycle UX now lives in the Pi extension under:
+- `/dev-loops inspect open [--repo <owner/name>]`
+- `/dev-loops inspect resume [--repo <owner/name>]`
+- `/dev-loops inspect status [--repo <owner/name>]`
+- `/dev-loops inspect stop [--repo <owner/name>]`
+- `/dev-loops inspect restart [--repo <owner/name>]`
+
+The extension-managed seam stores one narrow repo-local managed-instance record at:
+- `.pi/ui-servers/inspect-run-viewer.json`
+
+Ownership split for this slice:
+- extension owns lifecycle UX, URL discovery, liveness checks, reattach logic, stop/restart, and best-effort browser opening
+- when a repo-scoped command reuses an inbox-first managed viewer, the surfaced URL may include `?scope=<owner/name>` to pre-scope the inbox without replacing the managed instance
+- viewer script still owns HTTP server behavior, rendering, inbox/query behavior, and snapshot loading
+
 Optional:
 - `--repo <owner/name>` (repo-scope the inbox; otherwise the viewer starts in inbox-first mode)
 - `--host <host>` (default: `127.0.0.1`; non-loopback binds require `--allow-non-localhost`)
 - `--port <port>` (default: `4311`)
 - `--allow-non-localhost` (explicit opt-in for non-loopback binds such as `0.0.0.0` or LAN IPs)
-- `--restart` (stop any existing listener on the chosen port before starting; requires `lsof` / POSIX support and sends `SIGTERM` to every listener already bound to that port)
+- `--restart` (manual/debug convenience only; requires `lsof` / POSIX support and sends `SIGTERM` to every listener already bound to that port)
 - `--steering-state-file <path>` (pass-through to `inspect-run`)
 - `--reviewer-login <login>` (pass-through to `inspect-run`)
 - `--copilot-input <path>` (pass-through to `inspect-run`)
@@ -643,7 +658,8 @@ Contract:
 - current-slice posture: kept/promoted as an explicitly owned local/operator inspection dashboard (not a second public workflow entrypoint)
 - read-only: no GitHub mutations, no checkpoint writes, no steering writes, no worker attachment
 - ownership boundary: `inspect-run` owns authoritative inspection/status state; viewer owns local inbox discovery plus read-only operator presentation/prioritization
-- local-viewer safety: default host remains loopback-only; non-loopback binds require explicit `--allow-non-localhost` because they may expose local inspection state on the network
+- extension-managed lifecycle remains loopback-first and local-only; no remote/public hosting support
+- the script fallback still requires explicit `--allow-non-localhost` opt-in for non-loopback binds; do not expose inspection state on the network by default
 - GitHub-first launch boundary: repo scope is optional and PR selection happens through the viewer URL/query state, not a CLI `--pr` flag
 - uses one adapter module (`scripts/loop/_inspect-run-viewer-adapter.mjs`) to load the normalized inspection snapshot
 - adapter is the only viewer integration seam that calls the existing `inspect-run` contract in this source-loaded workspace
@@ -654,17 +670,22 @@ Contract:
 - `/snapshot.json` returns `application/json; charset=utf-8` on success and deterministic JSON error output with non-2xx status when snapshot loading throws or yields no snapshot
 - unsupported paths return deterministic `404` without loading a snapshot (even for unsupported methods on unknown paths); `/favicon.ico` returns deterministic `204`; unsupported methods on supported routes return `405 Allow: GET`
 - both primary endpoints send `Cache-Control: no-store` to match the manual-reload workflow
-- `--restart` is a local convenience flag that requires `lsof` / POSIX support and attempts to stop every listener already bound to the chosen port with `SIGTERM` before starting the new server process
+- the script-local `--restart` flag remains a manual/debug fallback only; the extension-managed path must not depend on killing unknown listeners
 - manual reload only (`window.location.reload()`); no polling/watch/timeout/control semantics
 
 Local manual verification path:
-1. Start the viewer in inbox-first or repo-scoped mode:
+1. Preferred extension-managed path:
+   - `/dev-loops inspect open`
+   - `/dev-loops inspect status`
+   - `/dev-loops inspect resume`
+   - `/dev-loops inspect stop`
+2. Script fallback for manual/debug verification:
    - `node scripts/loop/inspect-run-viewer.mjs`
    - `node scripts/loop/inspect-run-viewer.mjs --repo <owner/name>`
-2. Open the printed URL in a local browser and verify the human-oriented `/` page
-3. Select a PR via the sidebar or by adding `?repo=<owner/name>&pr=<number>` to the viewer URL
-4. Open `/snapshot.json` for that selected/query-targeted PR and verify it returns the matching full inspection snapshot JSON
-5. Use browser refresh or the reload button for point-in-time re-inspection
+3. Open the printed/resolved URL in a local browser and verify the human-oriented `/` page
+4. Select a PR via the sidebar or by adding `?repo=<owner/name>&pr=<number>` to the viewer URL
+5. Open `/snapshot.json` for that selected/query-targeted PR and verify it returns the matching full inspection snapshot JSON
+6. Use browser refresh or the reload button for point-in-time re-inspection
 
 Local WebKit/Playwright smoke path:
 1. Install the Safari/WebKit browser runtime once:
