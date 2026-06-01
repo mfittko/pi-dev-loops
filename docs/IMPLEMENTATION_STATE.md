@@ -25,7 +25,7 @@ Current `main` also includes the current conductor-adjacent ownership/routing co
 ## Current phase
 
 - Active phase: `phase-7` (`planning`)
-- Recently active tracker-backed session: GitHub issue [#294](https://github.com/mfittko/pi-dev-loops/issues/294) — tracker-backed local implementation contract (no phase doc — tracker issue is canonical spec; phase numbers are for full local mode only)
+- Recently active tracker-backed session: GitHub issue [#294](https://github.com/mfittko/pi-dev-loops/issues/294) — tracker-backed local implementation contract (no `docs/phases/` entry — the tracker issue is the canonical spec; `tmp/phases/index.json` tracks execution state but phase-numbered entries there are an implementation detail, not a phase doc)
 
 ## Next action for a fresh session
 

@@ -56,7 +56,7 @@ export async function resolveTrackerSpec({ issue, repo }) {
     args.push("--repo", repo);
   }
 
-  const raw = execFileSync("gh", args, { encoding: "utf8", timeout: 30_000 });
+  const raw = execFileSync("gh", args, { encoding: "utf8", timeout: 30_000, maxBuffer: 10 * 1024 * 1024 });
   const parsed = JSON.parse(raw);
 
   const { normalizeTrackerSpec, detectTrackerSpecFormat, TRACKER_SPEC_FORMAT } =
