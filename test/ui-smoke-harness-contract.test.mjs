@@ -6,11 +6,11 @@ const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), 'utf8');
 
 test('ui smoke harness doc defines the bounded reusable local Playwright/WebKit baseline', async () => {
-  const [doc, readme, indexDoc, devLoopSkill] = await Promise.all([
+  const [doc, readme, indexDoc, localImplementationSkill] = await Promise.all([
     readRepo('docs/ui-smoke-harness.md'),
     readRepo('README.md'),
     readRepo('docs/index.md'),
-    readRepo('skills/dev-loop/SKILL.md'),
+    readRepo('skills/local-implementation/SKILL.md'),
   ]);
 
   assert.match(doc, /minimal reusable local smoke harness\/template/i);
@@ -27,5 +27,5 @@ test('ui smoke harness doc defines the bounded reusable local Playwright/WebKit 
 
   assert.match(readme, /docs\/ui-smoke-harness\.md/i);
   assert.match(indexDoc, /docs\/ui-smoke-harness\.md/i);
-  assert.match(devLoopSkill, /docs\/ui-smoke-harness\.md/i);
+  assert.match(localImplementationSkill, /docs\/ui-smoke-harness\.md/i);
 });

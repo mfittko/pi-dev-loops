@@ -6,12 +6,12 @@ const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), 'utf8');
 
 test('designer review loop doc and template define the bounded UI review handoff contract', async () => {
-  const [doc, template, readme, indexDoc, devLoopSkill] = await Promise.all([
+  const [doc, template, readme, indexDoc, localImplementationSkill] = await Promise.all([
     readRepo('docs/ui-designer-review-loop.md'),
     readRepo('skills/dev-loop/templates/ui-designer-review.md'),
     readRepo('README.md'),
     readRepo('docs/index.md'),
-    readRepo('skills/dev-loop/SKILL.md'),
+    readRepo('skills/local-implementation/SKILL.md'),
   ]);
 
   assert.match(doc, /designer-persona review loop/i);
@@ -34,5 +34,5 @@ test('designer review loop doc and template define the bounded UI review handoff
 
   assert.match(readme, /docs\/ui-designer-review-loop\.md/i);
   assert.match(indexDoc, /docs\/ui-designer-review-loop\.md/i);
-  assert.match(devLoopSkill, /docs\/ui-designer-review-loop\.md/i);
+  assert.match(localImplementationSkill, /docs\/ui-designer-review-loop\.md/i);
 });

@@ -48,8 +48,8 @@ test("refiner agent defines the approved phase-refinement contract", async () =>
   assert.doesNotMatch(content, /execute RFC work itself|run the RFC team|implement the RFC team/i);
 });
 
-test("dev-loop skill uses the refiner for phase planning without replacing the coordinator", async () => {
-  const content = await readRepo("skills/dev-loop/SKILL.md");
+test("local-implementation skill uses the refiner for phase planning without replacing the coordinator", async () => {
+  const content = await readRepo("skills/local-implementation/SKILL.md");
 
   assertMatchesAll(content, [
     /refiner/i,
@@ -62,7 +62,7 @@ test("dev-loop skill uses the refiner for phase planning without replacing the c
     /RFC-worthy technical decisions/i,
     /through the coordinator/i,
     /keeps? the coordinator as the escalation\/decision owner|coordinator as the escalation and decision owner/i,
-  ], "skills/dev-loop/SKILL.md");
+  ], "skills/local-implementation/SKILL.md");
 });
 
 test("coordinator agent remains the RFC receiving boundary and decision owner", async () => {
@@ -79,17 +79,17 @@ test("coordinator agent remains the RFC receiving boundary and decision owner", 
 });
 
 test("planning guidance keeps sub-issue trees as the durable decomposition owner", async () => {
-  const [devLoopSkill, coordinatorAgent, subIssueTreeContract, docsIndex] = await Promise.all([
-    readRepo("skills/dev-loop/SKILL.md"),
+  const [localImplementationSkill, coordinatorAgent, subIssueTreeContract, docsIndex] = await Promise.all([
+    readRepo("skills/local-implementation/SKILL.md"),
     readRepo("agents/coordinator.agent.md"),
     readRepo("docs/sub-issue-tree-contract.md"),
     readRepo("docs/index.md"),
   ]);
 
-  assertMatchesAll(devLoopSkill, [
+  assertMatchesAll(localImplementationSkill, [
     ...SUB_ISSUE_TREE_GUIDANCE,
     /plain related-issue references/i,
-  ], "skills/dev-loop/SKILL.md");
+  ], "skills/local-implementation/SKILL.md");
   assertMatchesAll(coordinatorAgent, [
     ...SUB_ISSUE_TREE_GUIDANCE,
     /duplicating order in checklist prose/i,
@@ -103,9 +103,9 @@ test("planning guidance keeps sub-issue trees as the durable decomposition owner
 });
 
 test("local workflow docs define tracker-backed local canonicality and no-dup rules", async () => {
-  const [workflowDoc, devLoopSkill, scriptsReadme] = await Promise.all([
+  const [workflowDoc, localImplSkill, scriptsReadme] = await Promise.all([
     readRepo("docs/IMPLEMENTATION_WORKFLOW.md"),
-    readRepo("skills/dev-loop/SKILL.md"),
+    readRepo("skills/local-implementation/SKILL.md"),
     readRepo("scripts/README.md"),
   ]);
 
@@ -116,13 +116,13 @@ test("local workflow docs define tracker-backed local canonicality and no-dup ru
     /do \*\*not\*\* also maintain `docs\/phases\/phase-<n>\.md` for that same tracker-backed session/i,
   ], "docs/IMPLEMENTATION_WORKFLOW.md");
 
-  assertMatchesAll(devLoopSkill, [
+  assertMatchesAll(localImplSkill, [
     /Local implementation supports two durable spec inputs/i,
     /phase-doc-backed local sessions/i,
     /tracker-backed local sessions/i,
     /do not create or read `docs\/phases\/phase-x\.md` for that same tracker-backed session/i,
     /keep `tmp\/` as temporary local execution state only/i,
-  ], "skills/dev-loop/SKILL.md");
+  ], "skills/local-implementation/SKILL.md");
 
   assertMatchesAll(scriptsReadme, [
     /resolve-tracker-local-spec\.mjs/i,

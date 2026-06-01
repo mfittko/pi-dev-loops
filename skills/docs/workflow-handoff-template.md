@@ -11,7 +11,7 @@ Before executing any step, the subagent must read these contract docs:
 | Doc | Purpose |
 |---|---|
 | `docs/gate-review-comment-contract.md` | `draft_gate` and `pre_approval_gate` semantics, verdict definitions, rerun rules, fail-closed behavior |
-| `skills/copilot-dev-loop/SKILL.md` | Step 7: review/fix follow-up loop, reply/resolve policy, merge-ready preconditions |
+| `skills/copilot-pr-followup/SKILL.md` | Step 7: review/fix follow-up loop, reply/resolve policy, merge-ready preconditions |
 | `scripts/README.md` | Deterministic helpers for gate evidence, thread capture, review requests |
 
 ## Mandatory sequence

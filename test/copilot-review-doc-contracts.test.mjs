@@ -10,31 +10,31 @@ import {
 } from "./imported-assets-helpers.mjs";
 
 test("copilot review gates keep phase-specific angle ownership in one canonical internal skill", async () => {
-  const [copilotDevLoopSkill, gateContract] = await Promise.all([
-    readRepo("skills/copilot-dev-loop/SKILL.md"),
+  const [copilotPrFollowupSkill, gateContract] = await Promise.all([
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
     readRepo("docs/gate-review-comment-contract.md"),
   ]);
 
-  const devLoopStep7Match = copilotDevLoopSkill.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Step 8|$)/);
+  const devLoopStep7Match = copilotPrFollowupSkill.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Step 8|$)/);
   const devLoopStep7 = devLoopStep7Match ? devLoopStep7Match[0] : "";
-  assert.ok(devLoopStep7.length > 0, "copilot-dev-loop Step 7 section not found");
+  assert.ok(devLoopStep7.length > 0, "copilot-pr-followup Step 7 section not found");
 
   const devLoopDraftGateMatch = devLoopStep7.match(/### Draft gate contract[\s\S]*?(?=\n### |$)/);
   const devLoopDraftGate = devLoopDraftGateMatch ? devLoopDraftGateMatch[0] : "";
-  assert.ok(devLoopDraftGate.length > 0, "copilot-dev-loop draft-gate section not found inside Step 7");
+  assert.ok(devLoopDraftGate.length > 0, "copilot-pr-followup draft-gate section not found inside Step 7");
 
   const devLoopPreApprovalMatch = devLoopStep7.match(/### Pre-approval gate contract[\s\S]*?(?=\n## |\n### |$)/);
   const devLoopPreApproval = devLoopPreApprovalMatch ? devLoopPreApprovalMatch[0] : "";
-  assert.ok(devLoopPreApproval.length > 0, "copilot-dev-loop pre-approval gate section not found inside Step 7");
+  assert.ok(devLoopPreApproval.length > 0, "copilot-pr-followup pre-approval gate section not found inside Step 7");
 
-  assert.match(copilotDevLoopSkill, /canonical internal owner of the shared post-PR mechanics/i);
-  assert.match(copilotDevLoopSkill, /This skill also owns the routed `issue_intake` behavior/i);
+  assert.match(copilotPrFollowupSkill, /canonical internal `copilot_pr_followup` route behind the public `dev-loop` façade/i);
+  assert.match(copilotPrFollowupSkill, /canonical internal owner of the shared post-PR mechanics/i);
   assert.match(gateContract, /visible gate-review comment evidence contract only/i);
 
   const expectedDevLoopShape = [/Gate name:/i, /Trigger \/ boundary:/i, /Review angles \(owned by this gate\):/i, /Pass criteria:/i, /Next step after passing:/i];
   for (const [label, section] of [
-    ["copilot-dev-loop draft gate", devLoopDraftGate],
-    ["copilot-dev-loop pre-approval gate", devLoopPreApproval],
+    ["copilot-pr-followup draft gate", devLoopDraftGate],
+    ["copilot-pr-followup pre-approval gate", devLoopPreApproval],
   ]) {
     for (const shapePart of expectedDevLoopShape) {
       assert.match(section, shapePart, `${label} should include contract field ${shapePart}`);
@@ -65,9 +65,9 @@ test("copilot review gates keep phase-specific angle ownership in one canonical 
   }
 });
 
-test("copilot-dev-loop skill keeps async watch persistence explicit", async () => {
+test("copilot-pr-followup skill keeps async watch persistence explicit", async () => {
   const [skillContent, scriptsReadme, stateGraph] = await Promise.all([
-    readRepo("skills/copilot-dev-loop/SKILL.md"),
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
     readRepo("scripts/README.md"),
     readRepo("docs/copilot-loop-state-graph.md"),
   ]);
@@ -85,12 +85,12 @@ test("copilot-dev-loop skill keeps async watch persistence explicit", async () =
   assert.match(stateGraph, /If the next deterministic state returns to `waiting_for_copilot_review`, resume watch mode again instead of treating the re-request handoff as the end of the async run/i);
 });
 
-test("copilot-dev-loop skill hardens reply-resolve, gate sequencing, and merge-ready checks", async () => {
-  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merge-ready checks", async () => {
+  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
   const step6Match = skillContent.match(/## Step 6: Async watch behavior[\s\S]*?(?=\n## Step 7|$)/);
   const step6 = step6Match ? step6Match[0] : "";
-  assert.ok(step6.length > 0, "copilot-dev-loop Step 6 section not found");
+  assert.ok(step6.length > 0, "copilot-pr-followup Step 6 section not found");
   assert.match(
     step6,
     /Every async dev-loop dispatch task body must include this clause verbatim/i,
@@ -104,7 +104,7 @@ test("copilot-dev-loop skill hardens reply-resolve, gate sequencing, and merge-r
 
   const step7Match = skillContent.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Validation policy|$)/);
   const step7 = step7Match ? step7Match[0] : "";
-  assert.ok(step7.length > 0, "copilot-dev-loop Step 7 section not found");
+  assert.ok(step7.length > 0, "copilot-pr-followup Step 7 section not found");
 
   assert.match(
     step7,
@@ -164,7 +164,7 @@ test("copilot-dev-loop skill hardens reply-resolve, gate sequencing, and merge-r
 
   const antiPatternsMatch = skillContent.match(/## Anti-patterns[\s\S]*?(?=\n## Recommended companion skills|$)/);
   const antiPatterns = antiPatternsMatch ? antiPatternsMatch[0] : "";
-  assert.ok(antiPatterns.length > 0, "copilot-dev-loop anti-patterns section not found");
+  assert.ok(antiPatterns.length > 0, "copilot-pr-followup anti-patterns section not found");
   assert.match(antiPatterns, /use inline `gh api` to post thread replies without the resolve mutation/i);
   assert.match(antiPatterns, /declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA/i);
   assert.match(antiPatterns, /declare merge-ready based solely on `mergeable_state: clean` \+ CI green without gate evidence/i);
@@ -176,7 +176,7 @@ test("legacy copilot workflow entrypoint agents are removed from normal executab
     .filter((name) => name.endsWith(".agent.md"))
     .sort();
 
-  assert.equal(agentFiles.includes("copilot-dev-loop.agent.md"), false);
+  assert.equal(agentFiles.includes("copilot-pr-followup.agent.md"), false);
   assert.equal(agentFiles.includes("copilot-autopilot.agent.md"), false);
 });
 
@@ -200,7 +200,7 @@ test("public dev-loop agent is a thin executable entrypoint that defers to the p
 
 test("tracker-first MVP state graph is a thin pointer to the canonical tracker story-PR contract", async () => {
   const content = await readRepo("docs/tracker-first-mvp-state-graph.md");
-  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
   assert.match(content, /thin pointer/i);
   assert.match(content, /canonical tracker-first contract/i);
@@ -269,11 +269,11 @@ test("gate-review comment contract documents required fields, verdict values, re
 });
 
 test("gate-review comment ownership stays explicit in the canonical internal skill file", async () => {
-  const copilotDevLoopSkill = await readRepo("skills/copilot-dev-loop/SKILL.md");
+  const copilotPrFollowupSkill = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
-  const devLoopDraftGateMatch = copilotDevLoopSkill.match(/### Draft gate contract[\s\S]*?(?=\n### |\n## |$)/);
+  const devLoopDraftGateMatch = copilotPrFollowupSkill.match(/### Draft gate contract[\s\S]*?(?=\n### |\n## |$)/);
   const devLoopDraftGate = devLoopDraftGateMatch ? devLoopDraftGateMatch[0] : "";
-  assert.ok(devLoopDraftGate.length > 0, "copilot-dev-loop draft gate section not found");
+  assert.ok(devLoopDraftGate.length > 0, "copilot-pr-followup draft gate section not found");
   assert.match(devLoopDraftGate, /Required PR comment/i);
   assert.match(devLoopDraftGate, /`draft_gate`/);
   assert.match(devLoopDraftGate, /head SHA/i);
@@ -287,9 +287,9 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopDraftGate, /raw passing test output/i);
   assert.match(devLoopDraftGate, /truncate it to a deterministic retained-prefix length/i);
 
-  const devLoopPreApprovalGateMatch = copilotDevLoopSkill.match(/### Pre-approval gate contract[\s\S]*?(?=\n### |\n## |$)/);
+  const devLoopPreApprovalGateMatch = copilotPrFollowupSkill.match(/### Pre-approval gate contract[\s\S]*?(?=\n### |\n## |$)/);
   const devLoopPreApprovalGate = devLoopPreApprovalGateMatch ? devLoopPreApprovalGateMatch[0] : "";
-  assert.ok(devLoopPreApprovalGate.length > 0, "copilot-dev-loop pre-approval gate section not found");
+  assert.ok(devLoopPreApprovalGate.length > 0, "copilot-pr-followup pre-approval gate section not found");
   assert.match(devLoopPreApprovalGate, /Required PR comment/i);
   assert.match(devLoopPreApprovalGate, /`pre_approval_gate`/);
   assert.match(devLoopPreApprovalGate, /head SHA/i);
@@ -305,8 +305,8 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopPreApprovalGate, /truncate it to a deterministic retained-prefix length/i);
 });
 
-test("copilot-dev-loop skill documents epic decomposition with GitHub sub-issue trees", async () => {
-  const skillContent = await readRepo("skills/copilot-dev-loop/SKILL.md");
+test("issue-intake skill documents epic decomposition with GitHub sub-issue trees", async () => {
+  const skillContent = await readRepo("skills/issue-intake/SKILL.md");
 
   assert.match(skillContent, /GitHub sub-issue trees/i);
   assert.match(skillContent, /Prefer real sub-issue linkage over parent-body checklists/i);

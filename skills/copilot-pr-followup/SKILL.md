@@ -1,5 +1,5 @@
 ---
-name: copilot-dev-loop
+name: copilot-pr-followup
 description: >-
   Internal routed strategy behind `dev-loop` for GitHub-first Copilot-owned PR
   follow-up: confirm a ready issue, align on scope and acceptance criteria,
@@ -11,13 +11,13 @@ allowed-tools: read bash edit write subagent review_loop
 user-invocable: false
 ---
 
-# Copilot Dev Loop
+# Copilot PR Follow-up
 
-This skill is the canonical internal GitHub/Copilot routed strategy behind the public `dev-loop` façade.
+This skill is the canonical internal `copilot_pr_followup` route behind the public `dev-loop` façade.
 
-Use it only when the public `dev-loop` router lands on a Copilot-owned issue/PR path. Keep repository specifics grounded in the active repo's actual files, scripts, CI, and GitHub state rather than assuming a hard-coded project layout.
+Use it only when the public `dev-loop` router lands on a Copilot-owned or equivalent PR follow-up path. Keep repository specifics grounded in the active repo's actual files, scripts, CI, and GitHub state rather than assuming a hard-coded project layout.
 
-Once work is in the active Copilot PR follow-up stage, this skill is the canonical internal owner of the shared post-PR mechanics used by this repo: PR discovery and interpretation, async watch behavior, fix / reply-resolve / re-request flow, gate sequencing, and merge-ready preconditions.
+This skill is the canonical internal owner of the shared post-PR mechanics used by this repo: PR discovery and interpretation, async watch behavior, fix / reply-resolve / re-request flow, gate sequencing, and merge-ready preconditions.
 
 ## Operational cookbook
 
@@ -53,8 +53,8 @@ For explicit async loop entry or continuation, this is a persistent async watch/
 - follow Step 6 and Step 7 below for the fuller wait/watch and fixer-loop policy details
 
 For direct low-level diagnostics only:
-- `scripts/github/request-copilot-review.mjs`
-- `scripts/github/watch-copilot-review.mjs`
+- `<resolved-skill-scripts>/github/request-copilot-review.mjs`
+- `<resolved-skill-scripts>/github/watch-copilot-review.mjs`
 
 **Pass `--help` to any helper for full usage:**
 ```sh
@@ -105,7 +105,7 @@ When this skill refers to helper paths such as `scripts/...` or `docs/...`, reso
 
 Use this rule:
 - if the skill is installed as a normalized standalone copy, the required bundled contract docs live under the shared `../docs/` directory next to the installed skill directories; do not assume helper scripts are bundled unless that installed layout actually contains them
-- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-dev-loop/`, so source-repo helper scripts live two levels up at `../../scripts/`, while required bundled contract docs live one level up at `../docs/`
+- if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-pr-followup/`, so source-repo helper scripts live two levels up at `../../scripts/`, while required bundled contract docs live one level up at `../docs/`
 - when in doubt, resolve helper paths relative to this `SKILL.md` file first, then verify the target file exists before running it
 
 Required bundled runtime contract docs for installed copies of this skill:
@@ -168,235 +168,6 @@ Goal:
 - apply only narrow fixes related to the current PR
 - validate and report readiness for the next GitHub action
 
-## Issue-first intake and durable-auto overlays
-
-This skill also owns the routed `issue_intake` behavior. Keep it internal behind `dev-loop`; there is no need for a second large sibling skill.
-
-Use this section when the routed work is issue-first rather than already in active PR follow-up. In that mode, this skill acts as an issue-refinement specialist before the shared post-PR loop takes over.
-
-### New-idea safety layer (default contract in this repo)
-
-For **all new ideas** that are not already anchored to an existing issue (including abstract ideas such as plain-language requests without an issue number or plan-doc path), apply this coordinator-owned intake contract before any GitHub mutation:
-
-- coordinator owns classification and mutation gating decisions
-- run classification in fresh context by default
-- run classification asynchronously when practical
-- run async fan-out / fan-in proposal generation by default when practical
-- emit a proposal artifact before any GitHub state-changing mutation, including create/edit/retitle/collapse/link operations
-- default to create-new over overwrite/update when a new tracked artifact is justified
-- do not repurpose/retitle/collapse/overwrite an existing issue unless that exact mutation is explicitly proposed and explicitly approved
-- after approval, run a second async coordinator mutation pass instead of mutating directly from inherited context
-- verify post-mutation artifact state and record what actually changed
-
-Deterministic intake + mutation-gate state machine:
-
-```text
-idea_received
-  -> fresh_context_started
-  -> fanout_started
-  -> fanin_complete
-  -> artifact_scan_complete
-  -> classified
-  -> proposal_emitted
-  -> awaiting_user_approval
-  -> ready_for_mutation
-  -> mutation_executed
-  -> mutation_verified
-  -> done
-
-stop states:
-- stopped_overlap_needs_decision
-- stopped_low_confidence
-- stopped_explicit_reject
-```
-
-Proposal artifact contract:
-- human-readable Markdown proposal
-- machine-readable JSON snapshot
-- write temporary artifacts under `tmp/new-idea-intake/<run-id>/proposal.md` and `tmp/new-idea-intake/<run-id>/proposal.json`
-
-If the Phase 1 preflight verdict is `pause_for_clarification`, stop and ask.
-If the intake state machine stops at `stopped_overlap_needs_decision` or `stopped_low_confidence`, stop and ask.
-If the intake state machine stops at `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub.
-After approval, start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact. Emit a concise post-mutation verification artifact and record what the mutation pass actually changed and verify the resulting issue/artifact state.
-
-### Unattended issue-first execution and automatic re-entry
-
-When the user explicitly authorizes unattended execution for a specific issue/PR scope, continue through the normal loop mutations for that scope without stopping at every intermediate phase boundary.
-
-Under that unattended execution contract:
-- automatically detect the current lifecycle entrypoint from existing GitHub state
-- use the deterministic helper/state-machine surface as the authority for current-state routing and next-step selection
-- if local facts, GitHub facts, and helper/state-machine output do not agree, or the state is materially unclear, contradictory, off-trail, or not cleanly covered, stop and ask for human direction rather than guessing
-- a pre-existing PR is not a stop-by-default condition
-- If a PR already exists, classify the post-assignment seam before follow-up
-- `waiting_for_initial_copilot_implementation`: keep waiting
-- `linked_pr_ready_for_followup`: route to the existing PR follow-up path immediately; resume from that PR
-- when routing leaves bootstrap wait for `linked_pr_ready_for_followup`, do not stop only because local isolation is required; re-enter the same PR follow-up from a safe isolated checkout/worktree
-- When the draft PR appears, classify whether it is still the bootstrap-only Copilot draft before entering normal follow-up
-- if a child async run exits while the deterministic state is still non-terminal (for example `waiting_for_copilot_review`), automatically resume/restart follow-up when continuation is feasible instead of requiring manual operator restart
-- continue unattended until the final approval gate unless a genuine stop condition is reached
-- stop for a human approval decision by default
-- after approval, report `waiting_for_merge_authorization` and stop again unless merge has been explicitly authorized
-- this does **not** imply unattended merge by default
-
-Issue-first shorthand such as `auto dev loop on issue <n>` should preserve this same stop boundary and final human approval gate default.
-
-### Phase 1 — Preflight intake
-
-Before any automation, answer these questions:
-1. smallest executable work item
-2. existing issue check
-3. scope clarity
-4. acceptance criteria
-5. verification path
-6. active PR check
-
-Accepted input types:
-- GitHub issue number or URL
-- plan-doc path
-- abstract roadmap idea
-
-Preflight verdicts:
-- `proceed`
-- `proceed_with_assumptions`
-- `pause_for_clarification`
-
-### Phase 2 — Input normalization
-
-#### From a GitHub issue number or URL
-
-- if the input is a full GitHub issue URL, parse `<owner/name>` and `<number>`
-- fetch with:
-  ```sh
-  gh issue view <number> --repo <owner/name> --json number,title,body,state,labels,assignees,milestone
-  ```
-- If the issue is closed, stop for a user decision before proceeding
-- detect an existing linked PR with the deterministic linked-PR helper:
-  ```sh
-  node <resolved-skill-scripts>/github/detect-linked-issue-pr.mjs --repo <resolved-repo> --issue <number>
-  ```
-- treat the helper output as authoritative for linked-PR detection/selection
-- do not re-implement linked-event query behavior, pagination, repo filtering, or tie-break logic
-- do not rely only on PR title/body containing a literal issue number
-- treat an open linked PR as the active implementation for this issue
-- once an open linked PR exists, that PR is the only canonical follow-up artifact for the issue; attach follow-up work to it and do not open another PR unless the prior PR was explicitly superseded and reconciled first
-- if a PR already exists, classify bootstrap-wait versus follow-up:
-  ```sh
-  node <resolved-skill-scripts>/loop/detect-initial-copilot-pr-state.mjs --repo <resolved-repo> --issue <number>
-  ```
-- `waiting_for_initial_copilot_implementation`: keep waiting; in durable-auto mode use:
-  ```sh
-  node <resolved-skill-scripts>/loop/watch-initial-copilot-pr.mjs --repo <resolved-repo> --issue <number>
-  ```
-  - must use the dedicated `watch-initial-copilot-pr.mjs` watcher and its default 1-hour watch budget
-  - quiet/no-activity watch observations alone are non-terminal
-  - `ready_for_followup`: linked PR has become substantive; resume from that PR
-  - `timed_out`: observational first; refresh authoritative state
-  - if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached to the same durable wait seam and continue waiting
-  - if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention
-  - when the refreshed state is `linked_pr_ready_for_followup`, re-enter normal PR follow-up; if the follow-up handoff carries `conductorRouting.handoffEnvelope.requiresLocalIsolation=true`, perform the expected isolated-checkout/worktree handoff and continue
-  - only surface timeout attention when the seam's durable watch budget is actually exhausted
-  - for explicit inspect/status requests, report the still-waiting state and exit normally
-- Carry that resolved repo slug through every later GitHub issue/PR command
-
-#### From a plan-doc path
-
-- Resolve the target repository slug for this work item before any GitHub search or mutation
-- default to the current repository slug
-- if the plan-doc reference explicitly points at another GitHub repository, resolve `<resolved-repo>` first
-- search existing issues with:
-  ```sh
-  gh issue list --repo <resolved-repo> --state all --search "<title keywords>"
-  ```
-- If a matching issue exists:
-  - if the matching issue is closed, stop for a user decision before proceeding
-  - if that matching issue turns out to be closed, stop for a user decision
-  - if a PR already exists, classify bootstrap-wait versus follow-up
-- if a governing plan doc or roadmap section actually applies, follow the plan-doc normalization path above
-
-#### From an abstract idea
-
-- otherwise search existing issues directly
-- if a matching issue exists, follow the issue-number/URL normalization path
-- resolve `<resolved-repo>` for this work item using the same rule as the plan-doc path
-
-### Phase 3 — Async issue refinement
-
-Before updating or assigning the issue, refine it asynchronously when practical. Keep issue refinement separate from the phase-scoped refiner used by the local implementation workflow.
-
-### Phase 3b — Epic decomposition with GitHub sub-issue trees
-
-When the work item is an umbrella/epic issue that must be decomposed into bounded child slices,
-use **real GitHub sub-issue trees** as the default durable output — not body checklists, not
-a manual follow-up linking step.
-
-Prefer real sub-issue linkage over parent-body checklists when a work tree is intended.
-A parent issue body should stay lean once the tree exists: keep scope, acceptance criteria, and
-non-goals there, but do **not** duplicate the ordered child list in the body.
-
-Full decomposition flow:
-
-1. refine umbrella issue framing (scope, acceptance criteria, non-goals)
-2. define bounded child slices — each slice must be independently closable
-3. create child issues with `gh issue create --repo <resolved-repo>`
-4. attach each child as a real sub-issue:
-   ```sh
-   node <resolved-skill-scripts>/github/manage-sub-issues.mjs add \
-     --repo <resolved-repo> --issue <parent-number> --child <child-number>
-   ```
-5. set execution order (highest priority first):
-   ```sh
-   node <resolved-skill-scripts>/github/manage-sub-issues.mjs reorder \
-     --repo <resolved-repo> --issue <parent-number> --order <n1,n2,...>
-   ```
-6. verify the resulting tree:
-   ```sh
-   node <resolved-skill-scripts>/github/manage-sub-issues.mjs verify \
-     --repo <resolved-repo> --issue <parent-number> --expected <n1,n2,...> [--ordered]
-   ```
-7. keep the parent issue body lean — sequencing and progress now live in the sub-issue tree
-
-To inspect the current tree at any time:
-```sh
-node <resolved-skill-scripts>/github/manage-sub-issues.mjs list \
-  --repo <resolved-repo> --issue <parent-number>
-```
-
-Do **not** re-implement sub-issue management ad hoc or bypass `manage-sub-issues.mjs`.
-Do **not** maintain a body checklist that duplicates the sub-issue tree.
-
-For the full `manage-sub-issues.mjs` contract, use `../../docs/sub-issue-tree-contract.md` when working in the `pi-dev-loops` source repository.
-For installed or normalized skill copies, read the same contract from the resolved skill docs directory instead of assuming the source checkout is present.
-
-### Phase 4 — Copilot handoff and bootstrap wait
-
-Before updating the GitHub issue body, show the diff and get explicit confirmation.
-Then use commands like:
-```sh
-gh issue edit <number> --repo <resolved-repo> --body-file <updated-body-file>
-gh issue edit <number> --repo <resolved-repo> --add-assignee copilot-swe-agent
-```
-Verify assignment with:
-```sh
-gh issue view <number> --repo <resolved-repo> --json assignees
-```
-
-When the linked PR becomes substantive, keep the shared loop scoped to the resolved repo, for example:
-```sh
-node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <resolved-repo> --pr <number>
-gh pr edit <pr-number> --repo <resolved-repo> --title "..." --body-file <body-file>
-gh pr ready <pr-number> --repo <resolved-repo>
-gh pr review <pr-number> --repo <resolved-repo> --approve --body "..."
-gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch
-```
-
-Bootstrap-wait interpretation remains fail-closed and observational-first:
-- `ready_for_followup`: linked PR has become substantive; resume from that PR
-- `timed_out`: observational first; refresh authoritative state
-- if refreshed state is still `waiting_for_initial_copilot_implementation`, remain attached to the same durable wait seam and continue waiting
-- if the refreshed state exits this seam, route based on that refreshed state instead of surfacing timeout attention
-
 ## Deterministic orchestration authority
 
 When operating in PR follow-up or async watch mode, use the deterministic state machines
@@ -450,7 +221,7 @@ states for this narrower MVP slice.
    `node <resolved-skill-scripts>/github/stage-reviewer-draft.mjs --repo <owner/name> --pr <number> --review-file <merged-review.json> --local-state-output <state.json>`,
    then re-run the detector with `--local-state <state.json>`.
 
-   In the `pi-dev-loops` source repository, `<resolved-skill-scripts>` is `../scripts` relative to this file.
+   In the `pi-dev-loops` source repository, `<resolved-skill-scripts>` is `../../scripts` relative to this file.
    In normalized installed skill copies, it may instead be `scripts` inside the installed skill directory.
 
 5. Follow the `nextAction` from the machine output. For stop states (`review_request_unavailable`,
@@ -573,7 +344,7 @@ When creating the PR from the CLI, prefer:
 gh pr create --draft --repo <owner/name> --base <base> --head <head> --title "..." --body-file <body-file>
 ```
 
-Only use `gh pr create` when authoritative issue↔PR resolution says there is no already-open linked PR/current PR artifact for this scope. If linked-PR detection or startup/status routing says a PR already exists, reuse/update that canonical PR instead of opening another one.
+Only use `gh pr create` when authoritative issue↔PR resolution says there is no already-open linked PR/current PR artifact for this scope. If linked-PR detection or startup/status routing says a PR already exists, do not open another PR unless the prior PR was explicitly superseded and reconciled first; reuse/update that canonical PR instead of opening another one.
 
 Keep verdict status, pass/fail assessments, evidence tables, and changelog-style release notes out of the PR description; those belong in review output, validation logs, or release notes instead.
 
@@ -698,7 +469,7 @@ This step covers three responsibilities: the draft gate right before `gh pr read
 When actionable review feedback exists, use a narrow follow-up loop:
 
 1. inspect unresolved comments/threads and failing checks
-2. before the first local file write in each fixer pass on a Copilot-assigned PR, run `node scripts/loop/pre-write-remote-freshness-guard.mjs --branch <headRefName>` as a required fail-closed guard
+2. before the first local file write in each fixer pass on a Copilot-assigned PR, run `node <resolved-skill-scripts>/loop/pre-write-remote-freshness-guard.mjs --branch <headRefName>` as a required fail-closed guard
    - source `<headRefName>` from authoritative PR state (`headRefName`), not from a local branch guess
    - if the guard exits non-zero (`remote_ahead`), stop writing locally, reconcile to the refreshed remote head, then restart the fixer pass
 3. classify findings:
@@ -707,7 +478,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - defer / non-blocking / disagree
 4. apply only the accepted narrow fixes
 5. run the smallest validation that honestly proves the fix
-6. if files changed, run `node scripts/loop/pre-commit-branch-guard.mjs --expected-branch <headRefName>` immediately before every `git add && git commit` sequence as a required fail-closed guard
+6. if files changed, run `node <resolved-skill-scripts>/loop/pre-commit-branch-guard.mjs --expected-branch <headRefName>` immediately before every `git add && git commit` sequence as a required fail-closed guard
    - source `<headRefName>` from authoritative PR state (`headRefName`), not from a local branch guess
    - if the guard exits non-zero (`branch_mismatch`), stop and realign to the expected branch before staging or committing
 7. if files changed, push the resolving commit before any thread reply claims the fix is present
@@ -718,10 +489,6 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - when the intent is GitHub linkability, keep commit SHAs and issue/PR refs as plain text (for example 3ee82fc and owner/repo#70) and do not wrap them in backticks
    - keep backticks for actual code/path/CLI literals only
    - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
-   - **resolution contract:** every resolution must satisfy at least one of:
-     - **Applied**: the requested change was implemented; the reply MUST name the resolving commit SHA (e.g. "Fixed in abc1234.")
-     - **Dismissed with reasoning**: the change is not applied, but the reply MUST include an explicit, well-grounded reason at least 30 characters after trimming (e.g. "Intentionally kept for downstream consumers", "Out of scope for this phase — tracked in issue #N")
-   - invalid resolutions (must not resolve the thread): bare "Acknowledged." without reasoning; "Looks good", "OK", "+1", or other thin acknowledgments on actionable feedback; batch-resolving without reading or without per-thread replies; any reply too short to contain either a commit SHA reference or a dismissal reason (at least 30 characters after trimming)
 9. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
    - do not stop at a local fix if GitHub-side reply/resolve is authorized
 10. after completing reply/resolve for a pass, verify `unresolvedThreadCount === 0` via `capture-review-threads.mjs` before proceeding
@@ -915,9 +682,6 @@ Do not:
 - create a separate local backlog
 - broaden a Copilot PR into multiple issue scopes
 - resolve threads without checking whether the current branch actually fixes them
-- reply to review comments with bare "Acknowledged." or other thin dismissals that give no reasoning
-- resolve review threads without a commit SHA reference (applied) or a dismissal reason of at least 30 characters after trimming (dismissed)
-- batch-resolve without reading or per-thread replies
 - use inline `gh api` to post thread replies without the resolve mutation
 - submit a merge-ready verdict without first summarizing the pending thread state
 - declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA

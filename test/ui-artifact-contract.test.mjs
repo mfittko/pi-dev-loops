@@ -6,11 +6,11 @@ const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), 'utf8');
 
 test('ui artifact contract doc defines named-state artifacts and CI promotion rules', async () => {
-  const [doc, readme, indexDoc, devLoopSkill, ciWorkflow] = await Promise.all([
+  const [doc, readme, indexDoc, localImplementationSkill, ciWorkflow] = await Promise.all([
     readRepo('docs/ui-artifact-contract.md'),
     readRepo('README.md'),
     readRepo('docs/index.md'),
-    readRepo('skills/dev-loop/SKILL.md'),
+    readRepo('skills/local-implementation/SKILL.md'),
     readRepo('.github/workflows/ci.yml'),
   ]);
 
@@ -29,6 +29,6 @@ test('ui artifact contract doc defines named-state artifacts and CI promotion ru
 
   assert.match(readme, /docs\/ui-artifact-contract\.md/i);
   assert.match(indexDoc, /docs\/ui-artifact-contract\.md/i);
-  assert.match(devLoopSkill, /docs\/ui-artifact-contract\.md/i);
+  assert.match(localImplementationSkill, /docs\/ui-artifact-contract\.md/i);
   assert.match(ciWorkflow, /viewer-smoke:/i);
 });

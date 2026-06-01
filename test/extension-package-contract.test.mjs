@@ -88,5 +88,7 @@ test("required installed runtime contract docs are bundled once in the shared in
   }
 
   await assert.rejects(stat(fromRepoRoot(".pi/skills/dev-loop/docs")), /ENOENT/);
-  await assert.rejects(stat(fromRepoRoot(".pi/skills/copilot-dev-loop/docs")), /ENOENT/);
+  for (const skillDir of ["dev-loop", "copilot-pr-followup", "issue-intake", "local-implementation", "final-approval"]) {
+    await assert.rejects(stat(fromRepoRoot(`.pi/skills/${skillDir}/docs`)), /ENOENT/);
+  }
 });

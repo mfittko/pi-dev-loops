@@ -132,6 +132,6 @@ required visible PR comment is confirmed posted for the current head SHA.
 
 | Contract | Relationship |
 |---|---|
-| `draft_gate` boundary | Governs the draft → ready-for-review transition in `copilot-dev-loop` Step 7, including the issue-intake/autonomy overlays now owned there |
-| `pre_approval_gate` boundary | Governs final-approval readiness in `copilot-dev-loop` Step 7, including the issue-intake/autonomy overlays now owned there |
+| `draft_gate` boundary | Governs the draft → ready-for-review transition in `skills/copilot-pr-followup/SKILL.md` Step 7 |
+| `pre_approval_gate` boundary | Governs final-approval readiness in `skills/copilot-pr-followup/SKILL.md` Step 7 and the narrowed `skills/final-approval/SKILL.md` route |
 | Local/session artifacts | These remain complementary; the visible PR comment is the minimum required auditable surface, not a replacement for all local artifacts |

@@ -10,7 +10,7 @@ import {
 } from "./imported-assets-helpers.mjs";
 
 test("copilot skill does not contain known imported blocker phrases", async () => {
-  const content = await readRepo("skills/copilot-dev-loop/SKILL.md");
+  const content = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
   assert.doesNotMatch(content, /repo-wiki/);
   assert.doesNotMatch(content, /copilot-review-followup/);
@@ -34,9 +34,9 @@ test("coordinator agent does not contain stale docs/plans path and requires fres
 });
 
 test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with explicit fallback requirement", async () => {
-  const [devLoopSkill, copilotSkill, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph] = await Promise.all([
-    readRepo("skills/dev-loop/SKILL.md"),
-    readRepo("skills/copilot-dev-loop/SKILL.md"),
+  const [localImplementationSkill, copilotFollowupSkill, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph] = await Promise.all([
+    readRepo("skills/local-implementation/SKILL.md"),
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
     readRepo("agents/review.agent.md"),
     readRepo("agents/coordinator.agent.md"),
     readRepo("skills/dev-loop/templates/review.md"),
@@ -44,8 +44,8 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
   ]);
 
   const gateDocuments = [
-    ["skills/dev-loop/SKILL.md", devLoopSkill, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
-    ["skills/copilot-dev-loop/SKILL.md", copilotSkill, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
+    ["skills/local-implementation/SKILL.md", localImplementationSkill, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
+    ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
     ["agents/review.agent.md", reviewAgent, /default pre-approval gate contract:[\s\S]{0,160}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
     ["agents/coordinator.agent.md", coordinatorAgent, /default pre-approval review fan-out must use the [\s\S]{0,40}\bDRY\b[\s\S]{0,40}\bKISS\b[\s\S]{0,40}\bYAGNI\b lenses/i],
     ["skills/dev-loop/templates/review.md", reviewTemplate, /^## Default pre-approval gate \(DRY \/ KISS \/ YAGNI\)$/m],
@@ -57,8 +57,8 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
   }
 
   for (const [label, content] of [
-    ["skills/dev-loop/SKILL.md", devLoopSkill],
-    ["skills/copilot-dev-loop/SKILL.md", copilotSkill],
+    ["skills/local-implementation/SKILL.md", localImplementationSkill],
+    ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill],
     ["agents/review.agent.md", reviewAgent],
     ["agents/coordinator.agent.md", coordinatorAgent],
     ["docs/reviewer-loop-state-graph.md", reviewerGraph],
@@ -71,9 +71,9 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
   }
 
   assert.match(reviewTemplate, /fallback note:[^\n]*if parallel execution of the three review lenses is impractical/i);
-  assert.match(devLoopSkill, /if parallel execution is impractical[\s\S]*run all three lenses sequentially and explicitly record why parallel execution was impractical/i);
-  assert.match(copilotSkill, /fresh context and in parallel when practical/i);
-  assert.match(copilotSkill, /if parallel execution is impractical[\s\S]*still run all three lenses and explicitly record the limitation/i);
+  assert.match(localImplementationSkill, /if parallel execution is impractical[\s\S]*run all three lenses sequentially and explicitly record why parallel execution was impractical/i);
+  assert.match(copilotFollowupSkill, /fresh context and in parallel when practical/i);
+  assert.match(copilotFollowupSkill, /if parallel execution is impractical[\s\S]*still run all three lenses and explicitly record the limitation/i);
   assert.match(reviewAgent, /if parallel execution is impractical[\s\S]*still cover all three lenses and explicitly record the limitation/i);
   assert.match(coordinatorAgent, /default to three focused lenses \(DRY, KISS, YAGNI\) and run them in parallel when practical/i);
   assert.match(coordinatorAgent, /if parallel execution is impractical[\s\S]*still run all three lenses and record that limitation explicitly/i);
@@ -122,11 +122,11 @@ test("consolidated PR lifecycle contract freezes the family-local lifecycle boun
 });
 
 test("dev-loop skill documents opt-in Playwright smoke harnesses for UI slices", async () => {
-  const devLoopSkill = await readRepo("skills/dev-loop/SKILL.md");
+  const localImplementationSkill = await readRepo("skills/local-implementation/SKILL.md");
 
-  assert.match(devLoopSkill, /user-facing HTML\/UI\/component slices when the user opts in/i);
-  assert.match(devLoopSkill, /Playwright WebKit plus screenshot capture/i);
-  assert.match(devLoopSkill, /wire it into CI once it becomes required validation for that slice/i);
+  assert.match(localImplementationSkill, /user-facing HTML\/UI\/component slices when the user opts in/i);
+  assert.match(localImplementationSkill, /Playwright WebKit plus screenshot capture/i);
+  assert.match(localImplementationSkill, /wire it into CI once it becomes required validation for that slice/i);
 });
 
 
