@@ -129,7 +129,7 @@ Optional when used:
 
 Use the templates in `../dev-loop/templates/` (the sibling `skills/dev-loop/templates/` directory in this repo).
 
-Use deterministic helper scripts from `../dev-loop/scripts/` (the sibling `skills/dev-loop/scripts/` directory in this repo, or the equivalent `scripts/` inside the installed skill directory) for repeatable support tasks such as phase initialization, phase-file updates, template materialization, bash-exit logging, and dev-mode context collection.
+Use deterministic helper scripts from `../dev-loop/scripts/` (the sibling `skills/dev-loop/scripts/` directory in this repo; in installed-skill layouts these live at `../dev-loop/scripts/` relative to this skill file, not inside this skill's own directory) for repeatable support tasks such as phase initialization, phase-file updates, template materialization, bash-exit logging, and dev-mode context collection.
 
 ## Bootstrap missing support files
 
