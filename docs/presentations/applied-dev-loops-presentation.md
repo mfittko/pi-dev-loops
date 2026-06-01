@@ -173,28 +173,26 @@ stateDiagram-v2
 
 ---
 
-<p class="kicker">PR Projection</p>
+<p class="kicker">PR Lifecycle</p>
 
-## PRs Announce Their Own Lifecycle Phase
+## PRs Flow Through a Deterministic Lifecycle
 
 <div class="grid grid-cols-2 gap-5 items-start">
 <div class="glass-card">
 <ul class="tight-list">
-  <li><code>conductor-pr-projection</code> can mirror meaningful transitions to PR when visible projection is enabled</li>
-  <li>Phase derived from routing outcome + ownership signal</li>
-  <li>Idempotency keys prevent duplicates across restarts</li>
-  <li>Mentions opt-in with cooldown and allow-list</li>
+  <li>Gate review comments are required (fail-closed) at draft and pre-approval boundaries</li>
+  <li>Review threads are captured and resolved deterministically</li>
+  <li>CI gates are checked before state transitions</li>
 </ul>
 </div>
 <div class="glass-card">
-<p><strong>Projection transition taxonomy</strong></p>
+<p><strong>Lifecycle checkpoints</strong></p>
 <div class="chip-row">
-  <span class="pill">draft_gate_entered</span>
-  <span class="pill">ready_for_review_entered</span>
-  <span class="pill">copilot_review_requested</span>
-  <span class="pill">copilot_settle_wait_entered</span>
+  <span class="pill">draft_gate</span>
+  <span class="pill">ready_for_review</span>
+  <span class="pill">pre_approval_gate</span>
+  <span class="pill">merge_ready</span>
 </div>
-<p class="soft-note note-top-sm">Visible PR comments are opt-in, and some transitions are bookkeeping-only rather than default-visible updates.</p>
 </div>
 </div>
 
@@ -215,8 +213,8 @@ stateDiagram-v2
 <div class="glass-card">
 <p><strong>Wait time ↓</strong></p>
 <ul class="mini-list">
-  <li>Ownership always explicit</li>
-  <li>PR phase projected live</li>
+  <li>Gate-review comments required at key boundaries</li>
+  <li>CI and thread states drive lifecycle transitions</li>
 </ul>
 </div>
 <div class="glass-card">

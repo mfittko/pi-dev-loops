@@ -13,7 +13,7 @@ already known:
 
 This contract starts **after**:
 - the active run has been identified (scope/target resolved)
-- ownership/idempotency has been classified (from `conductor-ownership.mjs`, issue #32)
+- ownership/idempotency classification is optional (the `conductor-ownership.mjs` module and its issue #32 have been retired; designs archived in git history); when supplied, `ownershipState` activates routing branches such as `stay_with_current_live_owner`
 - the copilot/reviewer inner-loop state-machine outputs have been detected (from `copilot-loop-state.mjs` and `reviewer-loop-state.mjs`) and are interpreted under the broader family-local PR lifecycle semantics frozen in `skills/docs/pr-lifecycle-contract.md`
 
 The routing outcome is derived **directly from normalized state inputs** — the evaluator does not accept a
@@ -24,7 +24,7 @@ pre-computed outer-loop action. It is the routing authority, not a remapper.
 | Contract / Issue | Relationship |
 |---|---|
 | [#28 — conductor umbrella](https://github.com/mfittko/pi-dev-loops/issues/28) | Parent umbrella |
-| [#32 — ownership/idempotency](https://github.com/mfittko/pi-dev-loops/issues/32) | **Upstream**: provides optional `ownershipState` input; this contract starts after ownership is settled |
+| [#32 — ownership/idempotency](https://github.com/mfittko/pi-dev-loops/issues/32) | **Historical**: designed the ownership model; the `conductor-ownership.mjs` module was retired during deslop cleanup (issue #319). `ownershipState` remains as an optional external input. |
 | [#26 — family-local PR lifecycle contract](https://github.com/mfittko/pi-dev-loops/issues/26) / `skills/docs/pr-lifecycle-contract.md` | **Upstream**: provides family-local PR lifecycle semantics; the concrete `copilotState` and `reviewerState` inputs still come from the existing copilot/reviewer state machines, and this contract consumes them without redefining their semantics |
 | [#34 — request/watch helper contract](https://github.com/mfittko/pi-dev-loops/issues/34) | **Adjacent**: defines Copilot request/watch semantics inside the copilot loop family; this contract decides _which family_ gets control |
 | [#48 — visible PR projection](https://github.com/mfittko/pi-dev-loops/issues/48) | **Downstream**: routing decisions may drive PR projection artifacts |
@@ -35,7 +35,7 @@ pre-computed outer-loop action. It is the routing authority, not a remapper.
 This contract owns **conductor routing and handoff decisions after ownership and family-local state are already known**.
 
 It does **not** define:
-- which run is active (ownership/idempotency rules from #32)
+- which run is active (ownership/idempotency rules; the conductor implementation was retired, see issue #319)
 - PR lifecycle state semantics, gate order, or draft/ready transitions (from `skills/docs/pr-lifecycle-contract.md`)
 - Copilot request/re-request/watch helper semantics (from #34)
 - PR-visible projection artifacts (from #48)
@@ -83,19 +83,17 @@ In that fail-closed result, `handoffEnvelope.targetIdentity` is stable:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `ownershipState` | `string` | `undefined` | Settled ownership/idempotency classification from `conductor-ownership.mjs`. `"live_owner"` → `stay_with_current_live_owner` for active states. `"duplicate_local_owners"` → `needs_reconcile`. Other values or omission → routing continues purely from states. **See ownership availability note below.** |
+| `ownershipState` | `string` | `undefined` | Settled ownership/idempotency classification (conductor-ownership module retired; see git history and issue #319). `"live_owner"` → `stay_with_current_live_owner` for active states. `"duplicate_local_owners"` → `needs_reconcile`. Other values or omission → routing continues purely from states. **See ownership availability note below.** |
 | `sourceMode` | `string` | `"local"` | Source/confidence mode: `"authoritative"` \| `"local"` \| `"snapshot"` |
 | `requiresLocalIsolation` | `boolean` | `false` | Whether the checkout is dirty or detached; callers must continue local-execution handoffs from an isolated checkout/worktree when this is true |
 
 ### Ownership availability note
 
 `ownershipState` is an optional caller-supplied input. **The current `outer-loop.mjs` integration seam does not
-supply it** — the outer loop does not yet resolve ownership from `conductor-ownership.mjs` (#32).
+supply it** — the outer loop does not yet resolve conductor ownership (the conductor-ownership module has been retired; see git history and issue #319 for its design).
 The ownership-aware routing branches (`stay_with_current_live_owner`, duplicate-owner reconcile) are fully
-implemented and unit-tested; they become active when a caller that has already resolved ownership (e.g., a future
-#32-wired seam) supplies `ownershipState`. Wiring ownership resolution into `outer-loop.mjs` is deferred to a
-follow-up slice once #32 stabilises its public API.
-
+implemented and unit-tested; they become active when a caller that has already resolved ownership supplies
+`ownershipState`.
 ### Sufficient signals for direct routing
 
 The following input combinations are sufficient for direct routing (no reconcile needed):
@@ -286,7 +284,7 @@ required and optional fields listed above affect routing decisions.
 ### 6. Live owner suppresses handoff (ownership-aware path)
 
 **Note**: this path is exercised by unit tests only. The `outer-loop.mjs` integration seam does not supply
-`ownershipState` yet; ownership wiring from #32 is a follow-up slice.
+`ownershipState` yet; the conductor-ownership module has been retired (issue #319).
 
 | Field | Value |
 |---|---|
@@ -313,8 +311,8 @@ required and optional fields listed above affect routing decisions.
 
 This contract intentionally does **not** cover:
 
-- ownership-key design, duplicate-owner handling, or start/attach/resume idempotency rules (→ #32)
-- wiring `ownershipState` into `outer-loop.mjs` or any other caller (deferred to a follow-up slice)
+- ownership-key design, duplicate-owner handling, or start/attach/resume idempotency rules (→ #32, conductor implementation retired, see issue #319)
+- wiring `ownershipState` into `outer-loop.mjs` or any other caller (deferred; conductor implementation retired)
 - PR lifecycle states, draft/ready gate order, remediation ownership classes, or approval-gate semantics (→ `skills/docs/pr-lifecycle-contract.md`)
 - Copilot request / re-request / watch helper semantics (→ #34)
 - inspection, viewer, or steering surface design (→ #57/#58/#59)

@@ -22,7 +22,6 @@ Read only what the final approval decision needs:
 
 1. `../docs/public-dev-loop-contract.md`
 2. `../docs/retrospective-checkpoint-contract.md` when the current step depends on async start/resume/status or retrospective enforcement
-3. `../docs/conductor-pr-projection-contract.md` when projection / closeout behavior is in scope
 4. `../copilot-pr-followup/SKILL.md`
 5. the active GitHub issue / PR, current review comments, and current-head CI/check status
 6. task-relevant source files, tests, and config

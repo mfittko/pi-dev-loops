@@ -10,12 +10,11 @@ import {
 } from "./imported-assets-helpers.mjs";
 
 test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
-  const [devLoopSkill, copilotFollowupSkill, publicContract, retrospectiveContract, projectionContract] = await Promise.all([
+  const [devLoopSkill, copilotFollowupSkill, publicContract, retrospectiveContract] = await Promise.all([
     readRepo(".pi/skills/dev-loop/SKILL.md"),
     readRepo(".pi/skills/copilot-pr-followup/SKILL.md"),
     readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/docs/retrospective-checkpoint-contract.md"),
-    readRepo("skills/docs/conductor-pr-projection-contract.md"),
   ]);
 
   assert.match(devLoopSkill, /Required installed runtime contract docs/i);
@@ -35,7 +34,6 @@ test("installed skill guidance owns packaging guarantees and contract docs stay 
   for (const [label, content] of [
     ["skills/docs/public-dev-loop-contract.md", publicContract],
     ["skills/docs/retrospective-checkpoint-contract.md", retrospectiveContract],
-    ["skills/docs/conductor-pr-projection-contract.md", projectionContract],
   ]) {
     assert.doesNotMatch(content, /Packaged \/ installed skill use|Packaged \/ installed agent use/i, `${label} should not restate the shared install contract block`);
     assert.doesNotMatch(content, /required runtime contract doc for installed/i, `${label} should not duplicate install-contract ownership prose`);

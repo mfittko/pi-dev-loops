@@ -10,7 +10,6 @@ Start here for repository documentation.
 - `skills/docs/pr-lifecycle-contract.md` — canonical family-local PR lifecycle contract
 - `docs/tracker-story-pr-contract.md` — canonical tracker-first story/PR contract
 - `docs/sub-issue-tree-contract.md` — deterministic pattern for epic decomposition with GitHub sub-issue trees
-- `docs/conductor-ownership-contract.md`
 - `docs/copilot-loop-state-graph.md`
 - `docs/reviewer-loop-state-graph.md`
 - `docs/gate-review-comment-contract.md`

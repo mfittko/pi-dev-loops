@@ -43,7 +43,6 @@ Exit codes:
 
 const SHARED_PUBLIC_CONTRACT = "skills/docs/public-dev-loop-contract.md";
 const SHARED_RETROSPECTIVE_CONTRACT = "skills/docs/retrospective-checkpoint-contract.md";
-const SHARED_PROJECTION_CONTRACT = "skills/docs/conductor-pr-projection-contract.md";
 
 const STRATEGY_REQUIRED_READS = {
   local_implementation: [
@@ -53,37 +52,32 @@ const STRATEGY_REQUIRED_READS = {
   issue_intake: [
     SHARED_PUBLIC_CONTRACT,
     SHARED_RETROSPECTIVE_CONTRACT,
-    SHARED_PROJECTION_CONTRACT,
+    "skills/copilot-pr-followup/SKILL.md",
     "skills/issue-intake/SKILL.md",
   ],
   copilot_pr_followup: [
     SHARED_PUBLIC_CONTRACT,
     SHARED_RETROSPECTIVE_CONTRACT,
-    SHARED_PROJECTION_CONTRACT,
     "skills/copilot-pr-followup/SKILL.md",
   ],
   external_pr_followup: [
     SHARED_PUBLIC_CONTRACT,
     SHARED_RETROSPECTIVE_CONTRACT,
-    SHARED_PROJECTION_CONTRACT,
     "skills/copilot-pr-followup/SKILL.md",
   ],
   reviewer_fixer: [
     SHARED_PUBLIC_CONTRACT,
     SHARED_RETROSPECTIVE_CONTRACT,
-    SHARED_PROJECTION_CONTRACT,
     "skills/copilot-pr-followup/SKILL.md",
   ],
   wait_watch: [
     SHARED_PUBLIC_CONTRACT,
     SHARED_RETROSPECTIVE_CONTRACT,
-    SHARED_PROJECTION_CONTRACT,
     "skills/copilot-pr-followup/SKILL.md",
   ],
   final_approval: [
     SHARED_PUBLIC_CONTRACT,
     SHARED_RETROSPECTIVE_CONTRACT,
-    SHARED_PROJECTION_CONTRACT,
     "skills/final-approval/SKILL.md",
     "skills/copilot-pr-followup/SKILL.md",
   ],

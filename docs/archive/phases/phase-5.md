@@ -16,7 +16,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 
 - add `scripts/github/capture-review-threads.mjs`
 - add `scripts/github/watch-copilot-review.mjs`
-- add `scripts/loop/summarize-loop-state.mjs`
+- add `scripts/loop/summarize-loop-state.mjs` (later deleted during deslop cleanup, issue #319)
 - keep all outputs machine-readable and deterministic
 - reuse Phase 4 package helpers wherever logic is pure and shared
 - allow bounded custom polling only for fresh Copilot review activity because native `gh` watch does not express that exact condition well
@@ -40,7 +40,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 - root `scripts/` gains exactly three Phase 5 entrypoints:
   - `scripts/github/capture-review-threads.mjs`
   - `scripts/github/watch-copilot-review.mjs`
-  - `scripts/loop/summarize-loop-state.mjs`
+  - `scripts/loop/summarize-loop-state.mjs` (deleted)
 - `capture-review-threads`:
   - accepts fixture/stdin or explicit live PR arguments via `--repo <owner/name> --pr <number>`
   - reuses the shared review-thread parser
@@ -50,7 +50,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
   - emits deterministic changed/timeout/idle JSON with an explicit minimal machine-readable result shape
   - does not mutate GitHub state
   - does not wake on fresh non-Copilot review activity
-- `summarize-loop-state`:
+- `summarize-loop-state` (deleted):
   - reads existing phase artifacts only
   - emits a deterministic machine-readable summary
   - does not mutate or clean files
@@ -76,7 +76,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 ## Validation approach
 
 - write the three root script tests first
-- run `node --test test/github/capture-review-threads.test.mjs test/github/watch-copilot-review.test.mjs test/loop/summarize-loop-state.test.mjs`
+- _(summarize-loop-state test was deleted during deslop cleanup)_
 - run `npm test`
 - run `npm run test:core`
 - run `git diff --check`
