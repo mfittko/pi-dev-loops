@@ -506,8 +506,12 @@ Optional:
 - `--repo <owner/repo>` — defaults to the current repo if omitted
 
 Success output shape:
-- `{ "ok": true, "spec": { "objective": "...", "summary": "...", "scope": "...", "nonGoals": "...", "acceptanceCriteria": "...", "trackerRef": { "format": "...", "number": "...", ... }, "specBearing": true } }`
+- `{ "ok": true, "spec": { "objective": "...", "summary": "...", "scope": "...", "nonGoals": "...", "acceptanceCriteria": "...", "trackerRef": { "format": "...", "number": "...", ... }, "rawBody": "...", "specBearing": true } }`
 - When `--repo` is omitted, `trackerRef` includes `format` and `number` only; owner/repo are absent.
+
+Error output shape:
+- `{ "ok": false, "error": "..." }` on runtime failures
+- On argument errors, a `usage` field is also included (via `parseError` / `formatCliError`)
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
