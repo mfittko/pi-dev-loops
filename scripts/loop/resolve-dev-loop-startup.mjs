@@ -26,11 +26,11 @@ Output (stdout, JSON):
   {
     "ok": true,
     "bundleKind": "resolved|needs_reconcile",
-    "selectedStrategy": "...",
+    "selectedStrategy": "...",   // normalized: null (core) is surfaced as "none" here
     "requiredReads": ["..."],
     "nextAction": "...",
     "canonicalStateSummary": { ... },
-    "bundle": { ... }
+    "bundle": { ... }            // bundle.selectedStrategy preserves the raw core value (may be null)
   }
 
 Error output (stderr, JSON):
