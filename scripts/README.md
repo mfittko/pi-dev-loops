@@ -97,6 +97,30 @@ Success output shape:
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/github/resolve-tracker-local-spec.mjs`
+
+Resolve the canonical spec bundle for tracker-backed local implementation from one
+GitHub issue reference. This is the bounded GitHub-backed path for tracker-backed
+local spec resolution; it does not create or read `docs/phases/phase-<n>.md`.
+
+Allowed inputs:
+- `--repo <owner/name>` with `--issue <number>`
+- `--issue-url <github issue url>`
+
+Contract:
+- deterministically resolves exactly one repo slug + issue number pair
+- reads the GitHub issue via `gh issue view <number> --repo <owner/name> --json number,title,body,url,state`
+- treats the issue as canonical for tracker-backed local sessions
+- always reports `localPhaseDocAllowed: false` so callers do not silently maintain a duplicate local phase doc for the same session
+- leaves full tracker-sync policy to higher-level callers; this helper's bounded responsibility is spec resolution only
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/name", "issue": 85, "issueUrl": "...", "state": "OPEN"|"CLOSED", "title": "...", "body": "...", "canonicalSpecSource": "tracker_issue", "localImplementationMode": "tracker_backed", "localPhaseDocAllowed": false, "stateSync": "tracker_issue_is_canonical" }`
+
+Failure behavior:
+- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- unexpected `gh` failures and malformed `gh` JSON emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
 ### `scripts/github/manage-sub-issues.mjs`
 
 Deterministic helper for reading, linking, ordering, and verifying GitHub sub-issue trees.

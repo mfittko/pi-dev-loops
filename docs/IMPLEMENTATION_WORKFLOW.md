@@ -40,7 +40,7 @@ Use for the current repo execution snapshot:
 
 ### 4. `docs/phases/phase-<n>.md`
 
-Use for the durable plan for one local phase:
+Use for the durable plan for one phase-doc-backed local phase:
 - why the phase exists now
 - in-scope work
 - explicit non-goals
@@ -50,6 +50,16 @@ Use for the durable plan for one local phase:
 - durable decisions and open questions
 
 A fresh human or agent should be able to read the active phase doc first and understand the current local-phase intent without replaying `tmp/` artifacts.
+
+### 4a. Tracker-backed local issue spec
+
+For tracker-backed local sessions, the tracker issue is the durable canonical spec for the active local slice.
+
+- resolve the tracker reference deterministically from a full GitHub issue URL or explicit `<owner/name>` + issue number
+- use the bounded GitHub-backed helper path (`scripts/github/resolve-tracker-local-spec.mjs`) or the equivalent `gh issue view <number> --repo <owner/name> --json number,title,body,url,state` call
+- treat the tracker issue title/body/acceptance content as the local spec surface
+- sync durable scope / acceptance / status changes back to the tracker issue
+- do **not** also maintain `docs/phases/phase-<n>.md` for that same tracker-backed session
 
 ### 5. `tmp/`
 
@@ -94,6 +104,7 @@ When the user explicitly chooses the local phased path:
 - work one phase at a time
 - refine the active phase before coding it
 - use the dedicated refiner role for phase-refinement work when available, while keeping the coordinator as the RFC receiving boundary and decision owner
+- when the active local spec is tracker-backed, treat the tracker issue as canonical and do not bootstrap a duplicate phase doc
 - keep durable decisions in docs and execution traces in `tmp/`
 - use fan-out / fan-in / review before implementation
 - write tests first for non-trivial changes
@@ -116,7 +127,7 @@ The local phase workflow expects the repo to maintain:
 - `AGENTS.md`
 - `docs/IMPLEMENTATION_STATE.md`
 - `docs/IMPLEMENTATION_WORKFLOW.md`
-- `docs/phases/phase-<n>.md`
+- `docs/phases/phase-<n>.md` for phase-doc-backed local sessions
 - `tmp/phases/index.json`
 - `tmp/phases/phase-<n>/...`
 
