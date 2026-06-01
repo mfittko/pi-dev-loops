@@ -63,12 +63,11 @@ function isManagedRecordShape(record) {
     && record.surfaceId === INSPECT_RUN_VIEWER_SURFACE_ID
     && record.schemaVersion === 1
     && typeof record.pid === 'number'
-    && typeof record.host === 'string'
-    && Number.isInteger(record.port)
-    && record.port > 0
+    && record.host === DEFAULT_HOST
+    && record.port === DEFAULT_PORT
     && record.launchArgs
-    && record.launchArgs.host === record.host
-    && record.launchArgs.port === record.port;
+    && record.launchArgs.host === DEFAULT_HOST
+    && record.launchArgs.port === DEFAULT_PORT;
 }
 
 function baseUrlForRecord(record) {
