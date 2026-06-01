@@ -355,20 +355,12 @@ function summarizeExistingComment({ strict, marker, headSha }) {
   return null;
 }
 
-function detectStaleGateCommentWarning({ strict, marker, headSha, gate }) {
-  const staleStrict = strict?.visible === true && strict.headSha !== null && strict.headSha !== headSha
-    ? strict
-    : null;
-  const staleMarker = marker?.visible === true && marker.headSha !== null && marker.headSha !== headSha
-    ? marker
-    : null;
-
-  if (!staleStrict && !staleMarker) {
+function detectStaleGateCommentWarning({ strict, headSha, gate }) {
+  if (!(strict?.visible === true && strict.headSha !== null && strict.headSha !== headSha)) {
     return null;
   }
 
-  const stale = staleStrict ?? staleMarker;
-  return `A gate comment for \`${gate}\` already exists on a different head SHA \`${stale.headSha}\` (comment ${stale.commentId}). The old comment is stale for the current head.`;
+  return `A gate comment for \`${gate}\` already exists on a different head SHA \`${strict.headSha}\` (comment ${strict.commentId}). The old comment is stale for the current head.`;
 }
 
 async function runGhJson(args, { env, ghCommand }) {
@@ -433,7 +425,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
 
   const gateEvidence = selectGateEvidence(evidence, options.gate);
   const existing = summarizeExistingComment({ ...gateEvidence, headSha: canonicalHeadSha });
-  const warning = detectStaleGateCommentWarning({ ...gateEvidence, headSha: canonicalHeadSha, gate: options.gate });
+  const warning = detectStaleGateCommentWarning({ strict: gateEvidence.strict, headSha: canonicalHeadSha, gate: options.gate });
 
   if (
     existing
