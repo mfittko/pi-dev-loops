@@ -273,7 +273,6 @@ export function evaluatePublicDevLoopRouting(input = {}) {
     issueReadiness: acceptsIssueAssignmentFacts ? issueReadiness : null,
     issueAssignmentState: acceptsIssueAssignmentFacts ? issueAssignmentState : null,
     gateReviewEvidence,
-    targetPreference,
   };
 
   const finalizeRoutingResult = (result) => {

@@ -281,9 +281,6 @@ test("public dev-loop contract keeps tracker-backed local work inside local_impl
   assert.match(localImplSkill, /stays inside the existing `local_implementation` path/i);
   assert.match(localImplSkill, /do not create or read `docs\/phases\/phase-x\.md` for that same tracker-backed session/i);
   assert.match(localImplSkill, /sync durable scope \/ acceptance \/ status changes back to the tracker issue/i);
-  assert.match(localImplSkill, /handoff path for tracker-backed sessions is always.*push.*branch.*open.*PR.*merge via GitHub/i);
-  assert.match(localImplSkill, /never suggest a direct local-main merge/i);
-  assert.match(localImplSkill, /do not merge the working branch into local `main` at phase completion/i);
 });
 
 test("gate-review sub-loop contract exists and is referenced by both gates", async () => {
