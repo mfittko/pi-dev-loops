@@ -123,8 +123,8 @@ export function evaluatePrGateCoordination(input = {}) {
   const prClosed = input.prClosed === true;
   const prMerged = input.prMerged === true;
   const sameHeadCleanConverged = input.sameHeadCleanConverged === true;
-  const copilotReviewRequestStatus = typeof input.copilotReviewRequestStatus === "string"
-    ? input.copilotReviewRequestStatus.trim().toLowerCase()
+  const reviewMode = typeof input.reviewMode === "string"
+    ? input.reviewMode.trim().toLowerCase()
     : null;
 
   const draftGate = toGateStatus(input.draftGate, input.draftGateMarker, currentHeadSha);
@@ -253,8 +253,8 @@ export function evaluatePrGateCoordination(input = {}) {
   ];
 
   if (lifecycleState === STATE.PR_READY_NO_FEEDBACK) {
-    if (copilotReviewRequestStatus === "none") {
-      // Local-first PR: no Copilot review was ever requested, so skip the external review cycle
+    if (reviewMode === "local_first") {
+      // Explicitly local-first PR: skip the external Copilot review cycle
       if (preApprovalGate.currentHeadClean) {
         pushUnique(allowedNextActions, [PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
         pushUnique(forbiddenActions, [
@@ -275,7 +275,7 @@ export function evaluatePrGateCoordination(input = {}) {
           allowedNextActions,
           forbiddenActions,
           nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
-          reason: "This is a self-reviewed local-first PR with clean draft_gate and pre_approval_gate evidence on the current head, so it is ready for final human approval.",
+          reason: "This is an explicitly local-first PR with clean draft_gate and pre_approval_gate evidence on the current head, so it is ready for final human approval.",
         });
       }
 
@@ -298,7 +298,7 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-        reason: "This is a self-reviewed local-first PR, so `pre_approval_gate` is the next legal boundary instead of an external Copilot review cycle.",
+        reason: "This is an explicitly local-first PR, so `pre_approval_gate` is the next legal boundary instead of an external Copilot review cycle.",
       });
     }
 

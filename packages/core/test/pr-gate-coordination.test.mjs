@@ -233,14 +233,14 @@ test("non-draft PR with findings_present draft_gate fails closed because no clea
   assert.match(result.reason, /no clean `draft_gate` evidence exists at all/i);
 });
 
-test("local-first PR with no Copilot review ever requested skips to pre-approval gate after draft→ready", () => {
+test("local-first PR with explicit reviewMode skips to pre-approval gate after draft→ready", () => {
   const result = evaluatePrGateCoordination({
     pr: 298,
     currentHeadSha: "abc123456789",
     prDraft: false,
     lifecycleState: STATE.PR_READY_NO_FEEDBACK,
     loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
-    copilotReviewRequestStatus: "none",
+    reviewMode: "local_first",
     draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
     draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
     preApprovalGate: gate({ visible: false }),
@@ -253,7 +253,7 @@ test("local-first PR with no Copilot review ever requested skips to pre-approval
   assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
   assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
-  assert.match(result.reason, /self-reviewed/i);
+  assert.match(result.reason, /local-first/i);
 });
 
 test("local-first PR with both gates clean goes straight to final approval", () => {
@@ -263,7 +263,7 @@ test("local-first PR with both gates clean goes straight to final approval", () 
     prDraft: false,
     lifecycleState: STATE.PR_READY_NO_FEEDBACK,
     loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
-    copilotReviewRequestStatus: "none",
+    reviewMode: "local_first",
     draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
     draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
     preApprovalGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
@@ -273,43 +273,24 @@ test("local-first PR with both gates clean goes straight to final approval", () 
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.FINAL_APPROVAL_READY);
   assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
-  assert.match(result.reason, /self-reviewed/i);
+  assert.match(result.reason, /local-first/i);
 });
 
-test("PR with Copilot previously requested still requires Copilot review (not local-first)", () => {
+test("PR without explicit reviewMode uses standard Copilot review path (default)", () => {
   const result = evaluatePrGateCoordination({
     pr: 298,
     currentHeadSha: "abc123456789",
     prDraft: false,
     lifecycleState: STATE.PR_READY_NO_FEEDBACK,
     loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
-    copilotReviewRequestStatus: "requested",
     draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
     draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
     preApprovalGate: gate({ visible: false }),
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  // Copilot-requested PRs stay on the standard Copilot review path
+  // Without reviewMode, default to Copilot review (hybrid local-first + external review)
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-});
-
-test("PR with Copilot already-reviewed still uses standard review path", () => {
-  const result = evaluatePrGateCoordination({
-    pr: 298,
-    currentHeadSha: "abc123456789",
-    prDraft: false,
-    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
-    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
-    copilotReviewRequestStatus: "already-requested",
-    draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
-    draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
-    preApprovalGate: gate({ visible: false }),
-    preApprovalGateMarker: gate({ visible: false }),
-  });
-
   assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
 });
@@ -321,7 +302,7 @@ test("local-first PR without clean draft gate still blocks at post-draft", () =>
     prDraft: false,
     lifecycleState: STATE.PR_READY_NO_FEEDBACK,
     loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
-    copilotReviewRequestStatus: "none",
+    reviewMode: "local_first",
     draftGate: gate({ visible: false }),
     draftGateMarker: gate({ visible: false }),
     preApprovalGate: gate({ visible: false }),

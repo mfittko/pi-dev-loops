@@ -14,7 +14,7 @@ import { evaluatePrGateCoordination } from "@pi-dev-loops/core/loop/pr-gate-coor
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { detectGateReviewEvidence } from "../github/detect-gate-review-evidence.mjs";
 
-const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number>
+const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number> [--review-mode local_first]
 
 Determine which PR gate/transition is legal next for a pull request.
 
@@ -71,6 +71,7 @@ export function parseDetectPrGateCoordinationCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
+    reviewMode: undefined,
   };
 
   while (args.length > 0) {
@@ -89,6 +90,15 @@ export function parseDetectPrGateCoordinationCliArgs(argv) {
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
       continue;
+    }
+
+    if (token === "--review-mode") {
+      const raw = requireOptionValue(args, "--review-mode", parseError).trim().toLowerCase();
+      if (raw === "local_first") {
+        options.reviewMode = "local_first";
+        continue;
+      }
+      throw parseError(`--review-mode must be "local_first", got: ${raw}`);
     }
 
     throw parseError(`Unknown argument: ${token}`);
@@ -189,7 +199,6 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     gateEvidence,
     interpretation,
     disposition,
-    reviewRequestStatus,
   };
 }
 
@@ -205,7 +214,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     lifecycleState: context.interpretation.state,
     loopDisposition: context.disposition.loopDisposition,
     sameHeadCleanConverged: context.interpretation.sameHeadCleanConverged,
-    copilotReviewRequestStatus: context.reviewRequestStatus,
+    reviewMode: options.reviewMode ?? null,
     draftGate: context.gateEvidence.draftGate,
     draftGateMarker: context.gateEvidence.draftGateMarker,
     preApprovalGate: context.gateEvidence.preApprovalGate,
