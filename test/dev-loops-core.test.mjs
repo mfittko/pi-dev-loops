@@ -171,3 +171,31 @@ test("parser accepts the bounded inspect-run UI lifecycle command family only on
     tokens: ["ui", "inspect-run", "open"],
   });
 });
+
+test('executor returns a structured inspect-run UI result when repo-root lookup or lifecycle execution throws', async () => {
+  const repoRootFailure = await executeDevLoopsCommand({
+    input: ['ui', 'inspect-run', 'open'],
+    surface: 'extension',
+    runtime: {
+      async getRepoRoot() {
+        throw new Error('not in a git repo');
+      },
+      uiLifecycle: {
+        async open() {
+          throw new Error('should not run');
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(repoRootFailure, {
+    kind: 'ui_inspect_run_result',
+    action: 'open',
+    repo: null,
+    repoRoot: null,
+    state: 'stopped',
+    url: null,
+    detail: 'not in a git repo',
+    warning: null,
+  });
+});

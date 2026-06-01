@@ -151,6 +151,12 @@ async function readManagedRecord(recordPath) {
     if (error?.code === 'ENOENT') {
       return null;
     }
+    if (error instanceof SyntaxError) {
+      return {
+        invalidRecord: true,
+        parseError: error.message,
+      };
+    }
     throw error;
   }
 }
@@ -202,6 +208,16 @@ export function createInspectRunViewerLifecycleManager({
   async function inspectRecord({ repoRoot }) {
     const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
     const record = await readManagedRecord(recordPath);
+    if (record?.invalidRecord === true) {
+      return {
+        recordPath,
+        record: null,
+        state: 'stale_record',
+        url: formatInspectRunViewerUrl(DEFAULT_HOST, DEFAULT_PORT),
+        detail: 'The managed inspect-run viewer record is unreadable; delete `.pi/ui-servers/inspect-run-viewer.json` and reopen the viewer.',
+        listeners: await listListeningPidsImpl(DEFAULT_PORT),
+      };
+    }
     if (!record) {
       const listeners = await listListeningPidsImpl(DEFAULT_PORT);
       if (listeners.length > 0) {
@@ -306,6 +322,9 @@ export function createInspectRunViewerLifecycleManager({
   }
 
   async function maybeOpenBrowser(result) {
+    if (result.state !== 'running' || typeof result.url !== 'string' || result.url.length === 0) {
+      return result;
+    }
     try {
       await openBrowserImpl(result.url);
       return result;
@@ -443,6 +462,17 @@ export function createInspectRunViewerLifecycleManager({
           warning: null,
           recordPath: snapshot.recordPath,
           record: null,
+        };
+      }
+
+      if (snapshot.state === 'running' && snapshot.record && !canServeRequestedRepo(snapshot.record, requestedRepo)) {
+        return {
+          state: 'stopped',
+          url: null,
+          detail: 'A different managed inspect-run viewer is running; stop without `--repo` or use `open` to replace it for this repo.',
+          warning: null,
+          recordPath: snapshot.recordPath,
+          record: snapshot.record,
         };
       }
 

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 
 import {
   INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH,
@@ -194,4 +194,40 @@ test('open reports a warning instead of failing when browser auto-open errors', 
   const opened = await manager.open({ repoRoot });
   assert.equal(opened.state, 'running');
   assert.equal(opened.warning, 'browser unavailable');
+});
+
+test('status treats an unreadable managed record as stale_record with delete guidance', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-corrupt-record-'));
+  await mkdir(path.join(repoRoot, '.pi', 'ui-servers'), { recursive: true });
+  await writeFile(path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH), '{not json\n');
+  const { manager } = createManager();
+
+  const status = await manager.status({ repoRoot });
+  assert.equal(status.state, 'stale_record');
+  assert.match(status.detail, /delete/i);
+});
+
+test('stop fails closed with explicit guidance when --repo does not match the managed instance', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-stop-mismatch-'));
+  const { manager, launches, stopped } = createManager();
+
+  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const result = await manager.stop({ repoRoot, repo: 'other/repo' });
+
+  assert.equal(result.state, 'stopped');
+  assert.equal(result.url, null);
+  assert.match(result.detail, /different managed inspect-run viewer/i);
+  assert.equal(stopped.length, 0);
+  assert.equal(launches.length, 1);
+});
+
+test('open does not attempt to auto-open a browser for conflict_unmanaged_listener results', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-open-conflict-'));
+  const { manager, listenersByPort, processes, browserOpens } = createManager();
+  listenersByPort.set(4311, [9555]);
+  processes.set(9555, { alive: true, healthy: true, port: 4311, url: 'http://127.0.0.1:4311' });
+
+  const result = await manager.open({ repoRoot });
+  assert.equal(result.state, 'conflict_unmanaged_listener');
+  assert.deepEqual(browserOpens, []);
 });
