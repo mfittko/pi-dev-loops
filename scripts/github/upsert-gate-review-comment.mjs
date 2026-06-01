@@ -41,6 +41,9 @@ Output (stdout, JSON):
     "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101"
   }
 
+A `warning` field is included when a gate comment for the same gate already
+exists on a different head SHA (the old comment is stale for the current head).
+
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
   { "ok": false, "error": "..." }
@@ -352,6 +355,22 @@ function summarizeExistingComment({ strict, marker, headSha }) {
   return null;
 }
 
+function detectStaleGateCommentWarning({ strict, marker, headSha, gate }) {
+  const staleStrict = strict?.visible === true && strict.headSha !== null && strict.headSha !== headSha
+    ? strict
+    : null;
+  const staleMarker = marker?.visible === true && marker.headSha !== null && marker.headSha !== headSha
+    ? marker
+    : null;
+
+  if (!staleStrict && !staleMarker) {
+    return null;
+  }
+
+  const stale = staleStrict ?? staleMarker;
+  return `A gate comment for \`${gate}\` already exists on a different head SHA \`${stale.headSha}\` (comment ${stale.commentId}). The old comment is stale for the current head and a new comment will be created.`;
+}
+
 async function runGhJson(args, { env, ghCommand }) {
   const result = await runChild(ghCommand, args, env);
   if (result.code !== 0) {
@@ -412,7 +431,9 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
   const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha });
 
-  const existing = summarizeExistingComment({ ...selectGateEvidence(evidence, options.gate), headSha: canonicalHeadSha });
+  const gateEvidence = selectGateEvidence(evidence, options.gate);
+  const existing = summarizeExistingComment({ ...gateEvidence, headSha: canonicalHeadSha });
+  const warning = detectStaleGateCommentWarning({ ...gateEvidence, headSha: canonicalHeadSha, gate: options.gate });
 
   if (
     existing
@@ -431,6 +452,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       currentHeadSha: evidence.currentHeadSha,
       commentId: existing.commentId,
       commentUrl: existing.commentUrl,
+      ...(warning ? { warning } : {}),
     };
   }
 
@@ -446,6 +468,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       currentHeadSha: evidence.currentHeadSha,
       commentId: updated.commentId,
       commentUrl: updated.commentUrl,
+      ...(warning ? { warning } : {}),
     };
   }
 
@@ -460,6 +483,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     currentHeadSha: evidence.currentHeadSha,
     commentId: created.commentId,
     commentUrl: created.commentUrl,
+    ...(warning ? { warning } : {}),
   };
 }
 
