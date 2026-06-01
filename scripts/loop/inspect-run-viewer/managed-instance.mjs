@@ -374,7 +374,7 @@ export function createInspectRunViewerLifecycleManager({
     const record = buildRecordPayload({ repoRoot, launchArgs, pid, startedAt: nowImpl() });
 
     try {
-      const deadline = nowMsImpl() + 8000;
+      const deadline = nowMsImpl() + 20000;
       while (nowMsImpl() < deadline) {
         const [alive, healthy] = await Promise.all([
           isProcessAliveImpl(pid),
