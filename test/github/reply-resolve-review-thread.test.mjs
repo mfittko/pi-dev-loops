@@ -221,7 +221,7 @@ test("reply-resolve-review-thread rejects malformed arguments and empty body fil
 test("reply-resolve-review-thread preserves leading whitespace in the reply body payload", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-whitespace-"));
   const bodyFile = path.join(tempDir, "reply.md");
-  await writeFile(bodyFile, "  indented line\n", "utf8");
+  await writeFile(bodyFile, "  indented line with enough text to pass resolution contract\n", "utf8");
 
   try {
     const gh = await writeGhStub(tempDir, [
@@ -240,7 +240,7 @@ test("reply-resolve-review-thread preserves leading whitespace in the reply body
       },
       {
         assertArgs: ["api", "-X", "POST", "repos/owner/repo/pulls/17/comments/123/replies", "--input", "-"],
-        assertStdinIncludes: ['"body":"  indented line\\n"'],
+        assertStdinIncludes: ['"body":"  indented line with enough text to pass resolution contract\\n"'],
         stdout: '{"id":456,"html_url":"https://github.com/owner/repo/pull/17#discussion_r456"}\n',
       },
       {

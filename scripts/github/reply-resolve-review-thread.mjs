@@ -224,6 +224,16 @@ export async function runCli(
     throw new Error("--body-file must contain non-empty text");
   }
 
+  const trimmedBody = rawBody.trim();
+  const hasCommitSha = /\b[0-9a-f]{7,40}\b/i.test(trimmedBody);
+  const hasSentenceReason = trimmedBody.length >= 30;
+  if (!hasCommitSha && !hasSentenceReason) {
+    throw new Error(
+      "Reply body must contain either a commit SHA reference (applied fix) or a sentence-length dismissal reason (at least 30 characters). " +
+      "Bare acknowledgments like \"Acknowledged.\" are not valid resolutions.",
+    );
+  }
+
   await validateReplyTarget(
     {
       repo: options.repo,
