@@ -282,3 +282,43 @@ test("public dev-loop contract keeps tracker-backed local work inside local_impl
   assert.match(localImplSkill, /do not create or read `docs\/phases\/phase-x\.md` for that same tracker-backed session/i);
   assert.match(localImplSkill, /sync durable scope \/ acceptance \/ status changes back to the tracker issue/i);
 });
+
+test("gate-review sub-loop contract exists and is referenced by both gates", async () => {
+  const [subLoopContract, copilotFollowupSkill] = await Promise.all([
+    readRepo("docs/gate-review-sub-loop-contract.md"),
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
+  ]);
+
+  // Contract doc prescribes the 5 sub-loop phases
+  assert.match(subLoopContract, /context-builder/i);
+  assert.match(subLoopContract, /fork fan-out/i);
+  assert.match(subLoopContract, /fan-in.*synthesis/i);
+  assert.match(subLoopContract, /fix/i);
+  assert.match(subLoopContract, /repeat until clean/i);
+
+  // References pi-subagents parallel context-build technique
+  assert.match(subLoopContract, /parallel context-build/i);
+
+  // Worktree prescribed but not hard-required
+  assert.match(subLoopContract, /worktree.*recommended/i);
+  assert.match(subLoopContract, /do not fail closed if worktrees are unavailable/i);
+
+  // Machine-parseable fields
+  assert.match(subLoopContract, /subLoopPhases/i);
+  assert.match(subLoopContract, /contextBuilderRequired/i);
+  assert.match(subLoopContract, /worktreeRecommended/i);
+  assert.match(subLoopContract, /fixRetryUntilClean/i);
+
+  // Draft gate references the sub-loop contract
+  assert.match(copilotFollowupSkill, /gate-review-sub-loop-contract\.md.*draft gate/i);
+
+  // Pre-approval gate references the sub-loop contract
+  assert.match(copilotFollowupSkill, /gate-review-sub-loop-contract\.md.*pre-approval/i);
+
+  // Contract owns execution shape, not review angles
+  assert.match(subLoopContract, /execution shape/i);
+  assert.match(subLoopContract, /does not own/i);
+
+  // Non-substitution rule between gates
+  assert.match(subLoopContract, /does not satisfy the other gate/i);
+});
