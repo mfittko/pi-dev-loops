@@ -719,7 +719,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - keep backticks for actual code/path/CLI literals only
    - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
 
-**Copilot review comment resolution contract:** every resolution must satisfy exactly one of:
+**Copilot review comment resolution contract:** every resolution must satisfy at least one of:
 
 - **Applied**: the requested change was implemented; the reply MUST name the resolving commit SHA (e.g. "Fixed in abc1234.")
 - **Dismissed with reasoning**: the change is not applied, but the reply MUST include an explicit, well-grounded reason at least one sentence in length (e.g. "Intentionally kept for downstream consumers", "Out of scope for this phase — tracked in issue #N")

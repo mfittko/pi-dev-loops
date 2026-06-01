@@ -173,6 +173,27 @@ test("reply-resolve-review-thread posts a reply then resolves the thread", async
   }
 });
 
+test("reply-resolve-review-thread rejects thin replies without commit SHA or sentence-length reasoning", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-thin-"));
+  const bodyFile = path.join(tempDir, "reply.md");
+  await writeFile(bodyFile, "Acknowledged.\n", "utf8");
+
+  try {
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", bodyFile],
+      { env: { ...process.env, PATH: process.env.PATH } },
+    );
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const parsed = JSON.parse(result.stderr);
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.error, /Reply body \(13 characters after trimming\) must contain either a commit SHA reference or a sentence-length reason/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("reply-resolve-review-thread rejects malformed arguments and empty body files deterministically", async () => {
   const missing = await runNode(["--repo", "owner/repo"]);
   assert.equal(missing.code, 1);

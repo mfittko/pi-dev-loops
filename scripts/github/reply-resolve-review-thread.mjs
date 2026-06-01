@@ -6,6 +6,8 @@ import { formatCliError, isDirectCliRun, parseReviewThreads } from "../_core-hel
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
+const MIN_DISMISSAL_REASON_LENGTH = 30;
+
 const RESOLVE_REVIEW_THREAD_MUTATION = [
   "mutation($threadId: ID!) {",
   "  resolveReviewThread(input: { threadId: $threadId }) {",
@@ -226,10 +228,10 @@ export async function runCli(
 
   const trimmedBody = rawBody.trim();
   const hasCommitSha = /\b[0-9a-f]{7,40}\b/i.test(trimmedBody);
-  const hasSentenceReason = trimmedBody.length >= 30;
+  const hasSentenceReason = trimmedBody.length >= MIN_DISMISSAL_REASON_LENGTH;
   if (!hasCommitSha && !hasSentenceReason) {
     throw new Error(
-      "Reply body must contain either a commit SHA reference (applied fix) or a sentence-length dismissal reason (at least 30 characters). " +
+      `Reply body (${trimmedBody.length} characters after trimming) must contain either a commit SHA reference or a sentence-length reason (at least ${MIN_DISMISSAL_REASON_LENGTH} characters after trimming). ` +
       "Bare acknowledgments like \"Acknowledged.\" are not valid resolutions.",
     );
   }
