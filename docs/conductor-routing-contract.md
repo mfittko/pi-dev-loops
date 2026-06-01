@@ -13,7 +13,7 @@ already known:
 
 This contract starts **after**:
 - the active run has been identified (scope/target resolved)
-- ownership/idempotency has been classified (the `conductor-ownership.mjs` module and its issue #32 have been retired; designs archived in git history)
+- ownership/idempotency classification is optional (the `conductor-ownership.mjs` module and its issue #32 have been retired; designs archived in git history); when supplied, `ownershipState` activates routing branches such as `stay_with_current_live_owner`
 - the copilot/reviewer inner-loop state-machine outputs have been detected (from `copilot-loop-state.mjs` and `reviewer-loop-state.mjs`) and are interpreted under the broader family-local PR lifecycle semantics frozen in `skills/docs/pr-lifecycle-contract.md`
 
 The routing outcome is derived **directly from normalized state inputs** — the evaluator does not accept a

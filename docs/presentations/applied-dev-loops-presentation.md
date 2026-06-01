@@ -180,20 +180,19 @@ stateDiagram-v2
 <div class="grid grid-cols-2 gap-5 items-start">
 <div class="glass-card">
 <ul class="tight-list">
-  <li>Gate review comments track draft and pre-approval boundaries</li>
+  <li>Gate review comments are required (fail-closed) at draft and pre-approval boundaries</li>
   <li>Review threads are captured and resolved deterministically</li>
   <li>CI gates are checked before state transitions</li>
 </ul>
 </div>
 <div class="glass-card">
-<p><strong>Gate taxonomy</strong></p>
+<p><strong>Lifecycle checkpoints</strong></p>
 <div class="chip-row">
   <span class="pill">draft_gate</span>
   <span class="pill">ready_for_review</span>
   <span class="pill">pre_approval_gate</span>
   <span class="pill">merge_ready</span>
 </div>
-<p class="soft-note note-top-sm">Visible PR comments are opt-in, and some transitions are bookkeeping-only rather than default-visible updates.</p>
 </div>
 </div>
 
