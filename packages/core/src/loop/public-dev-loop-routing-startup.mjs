@@ -15,6 +15,7 @@ import {
 } from "./public-dev-loop-routing-contract.mjs";
 import {
   ALLOWED_MODE_VALUES_TEXT,
+  ALLOWED_TARGET_PREFERENCE_VALUES_TEXT,
   applyRetrospectiveCheckpointGate,
   buildAuthoritativeStatusNextAction,
   buildContractTrace,
@@ -30,6 +31,7 @@ import {
   normalizeIssueReadiness,
   normalizeOptionalLoopState,
   normalizeState,
+  normalizeTargetPreference,
   normalizeVariationMode,
   routeForState,
 } from "./public-dev-loop-routing-shared.mjs";
@@ -237,6 +239,18 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     ? DEV_LOOP_EXECUTION_MODE.DURABLE_AUTO
     : (variationMode ?? DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF);
 
+  const targetPreference = input.targetPreference !== undefined
+    ? normalizeTargetPreference(input.targetPreference)
+    : null;
+
+  if (input.targetPreference !== undefined && targetPreference === null) {
+    return buildStartupResumeBundleReconcile({
+      reason: `Authoritative startup/resume routing received an invalid targetPreference value; allowed values: ${ALLOWED_TARGET_PREFERENCE_VALUES_TEXT}.`,
+      canonicalState,
+      executionMode: effectiveMode,
+    });
+  }
+
   const issueLinkageResolution = normalizeIssueLinkageResolution(input.issueLinkageResolution);
   const issueReadiness = normalizeIssueReadiness(input.issueReadiness);
   const issueAssignmentState = normalizeIssueAssignmentState(input.issueAssignmentState);
@@ -370,6 +384,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     issueReadiness,
     issueAssignmentState,
     gateReviewEvidence,
+    targetPreference,
   });
   if (routed.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) {
     return buildStartupResumeBundleReconcile({

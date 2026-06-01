@@ -575,6 +575,7 @@ function routeForState(
     issueReadiness = null,
     issueAssignmentState = null,
     gateReviewEvidence = null,
+    targetPreference = null,
   } = {},
 ) {
   const routableCanonicalState = toRoutableCanonicalState(canonicalState);
@@ -680,6 +681,28 @@ function routeForState(
   }
 
   if (selectedGate === DEV_LOOP_GATE.ISSUE_INTAKE) {
+    if (targetPreference === DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL) {
+      const localPhase = routableCanonicalState.target.issue
+        ? `issue-${routableCanonicalState.target.issue}`
+        : null;
+      const localTarget = {
+        kind: DEV_LOOP_TARGET_KIND.LOCAL_PHASE,
+        issue: routableCanonicalState.target.issue,
+        pr: null,
+        linkedPr: null,
+        branch: null,
+        phase: localPhase,
+      };
+      return buildResult({
+        selectedGate: DEV_LOOP_GATE.LOCAL_IMPLEMENTATION,
+        routeKind: DEV_LOOP_ROUTE_KIND.ROUTE,
+        selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION,
+        executionMode,
+        canonicalState: { ...routableCanonicalState, target: localTarget },
+        nextAction: `Run the local implementation strategy for issue #${routableCanonicalState.target.issue} (tracker-backed local session).`,
+        reason: "Issue targets with `targetPreference=prefer_local` route to local implementation instead of Copilot-first issue intake.",
+      });
+    }
     const copilotFirstIssueSeam = isCopilotFirstIssueFlow(routableCanonicalState)
       ? resolveCopilotFirstIssueAssignmentSeam(routableCanonicalState, issueReadiness, issueAssignmentState)
       : {
