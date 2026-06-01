@@ -90,12 +90,10 @@ In that fail-closed result, `handoffEnvelope.targetIdentity` is stable:
 ### Ownership availability note
 
 `ownershipState` is an optional caller-supplied input. **The current `outer-loop.mjs` integration seam does not
-supply it** — the outer loop does not yet resolve ownership (the conductor-ownership module has been retired; see git history and audit for its design).
+supply it** — the outer loop does not yet resolve conductor ownership (the conductor-ownership module has been retired; see git history and issue #319 for its design).
 The ownership-aware routing branches (`stay_with_current_live_owner`, duplicate-owner reconcile) are fully
-implemented and unit-tested; they become active when a caller that has already resolved ownership (e.g., a future
-#32-wired seam) supplies `ownershipState`. Wiring ownership resolution into `outer-loop.mjs` is deferred to a
-follow-up slice once #32 stabilises its public API.
-
+implemented and unit-tested; they become active when a caller that has already resolved ownership supplies
+`ownershipState`.
 ### Sufficient signals for direct routing
 
 The following input combinations are sufficient for direct routing (no reconcile needed):

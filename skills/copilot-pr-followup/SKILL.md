@@ -116,7 +116,7 @@ Required bundled runtime contract docs for installed copies of this skill:
 Read those bundled `../docs/` files from the installed skill layout instead of assuming the source repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
 Do not assume `scripts/...` is repo-local to the target codebase you are operating on.
 
-The conductor-ownership and conductor-pr-projection modules have been retired. Their designs are archived in git history see git history for their design.
+The conductor-ownership and conductor-pr-projection modules have been retired. Their designs are archived in git history (see audit at issue #319).
 
 ## Authority and safety rules
 

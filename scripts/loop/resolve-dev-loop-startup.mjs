@@ -52,6 +52,7 @@ const STRATEGY_REQUIRED_READS = {
   issue_intake: [
     SHARED_PUBLIC_CONTRACT,
     SHARED_RETROSPECTIVE_CONTRACT,
+    "skills/copilot-pr-followup/SKILL.md",
     "skills/issue-intake/SKILL.md",
   ],
   copilot_pr_followup: [
