@@ -30,12 +30,9 @@
 
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const packagesRoot = path.resolve(scriptDir, "..", "..", "packages", "core");
-
-async function resolveTrackerSpec({ issue, repo }) {
+export async function resolveTrackerSpec({ issue, repo }) {
   const args = ["issue", "view", String(issue), "--json", "title,body,state,number"];
   if (repo) {
     args.push("--repo", repo);
@@ -44,15 +41,14 @@ async function resolveTrackerSpec({ issue, repo }) {
   const raw = execFileSync("gh", args, { encoding: "utf8", timeout: 30_000 });
   const parsed = JSON.parse(raw);
 
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+  const packagesRoot = path.resolve(scriptDir, "..", "..", "packages", "core");
+  const modulePath = pathToFileURL(
+    path.join(packagesRoot, "src", "loop", "tracker-spec-resolution.mjs")
+  ).href;
+
   const { normalizeTrackerSpec, detectTrackerSpecFormat, TRACKER_SPEC_FORMAT } =
-    await import(
-      path.join(
-        packagesRoot,
-        "src",
-        "loop",
-        "tracker-spec-resolution.mjs"
-      )
-    );
+    await import(modulePath);
 
   const repoSlug = repo || "";
   const trackerRef = repoSlug
@@ -68,7 +64,7 @@ async function resolveTrackerSpec({ issue, repo }) {
   return { ok: true, spec };
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = [...argv];
   const options = { issue: undefined, repo: undefined };
 
@@ -91,15 +87,20 @@ function parseArgs(argv) {
   return options;
 }
 
-async function main(argv = process.argv.slice(2)) {
+export async function runCli(argv = process.argv.slice(2), stdout = process.stdout) {
   const options = parseArgs(argv);
   const result = await resolveTrackerSpec(options);
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-main().catch((error) => {
-  process.stderr.write(
-    `${JSON.stringify({ ok: false, error: error.message })}\n`
-  );
-  process.exitCode = 1;
-});
+const invokedAsScript =
+  import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedAsScript) {
+  runCli().catch((error) => {
+    process.stderr.write(
+      `${JSON.stringify({ ok: false, error: error.message })}\n`
+    );
+    process.exitCode = 1;
+  });
+}

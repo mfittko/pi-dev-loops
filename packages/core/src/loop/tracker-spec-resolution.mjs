@@ -26,7 +26,7 @@ export const TRACKER_SPEC_FORMAT = Object.freeze({
 });
 
 const GITHUB_ISSUE_RE =
-  /^(?:https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\/(\d+))|(?:([^/]+\/[^/]+)?#(\d+))$/i;
+  /^(?:(?:https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\/(\d+))|(?:([^/]+\/[^/]+)?#(\d+)))$/i;
 
 const SHORTCUT_RE = /^sc[#-]?\d+$/i;
 
@@ -239,7 +239,11 @@ export function generateThinPhaseDoc({ phase, trackerRef, title }) {
   if (trackerRef.format === TRACKER_SPEC_FORMAT.GITHUB_ISSUE ||
       trackerRef.format === TRACKER_SPEC_FORMAT.GITHUB_URL) {
     const id = trackerRef.number || "?";
-    refLine = `GitHub issue [#${id}](${issueUrl}) — ${title}`;
+    if (issueUrl) {
+      refLine = `GitHub issue [#${id}](${issueUrl}) — ${title}`;
+    } else {
+      refLine = `GitHub issue #${id} — ${title}`;
+    }
   } else if (trackerRef.number) {
     refLine = `${trackerRef.number} — ${title}`;
   } else {

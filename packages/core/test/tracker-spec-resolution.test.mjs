@@ -318,7 +318,8 @@ describe("generateThinPhaseDoc", () => {
       title: "Bare issue",
     });
 
-    assert.ok(doc.includes("GitHub issue [#500]"));
+    // Without owner/repo, renders as plain text (no link, no brackets)
+    assert.ok(doc.includes("GitHub issue #500"));
     // Should not include a malformed URL
     assert.ok(!doc.includes("github.com/undefined"));
   });
