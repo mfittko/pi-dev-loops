@@ -24,7 +24,7 @@
  *   }
  *
  *   When --repo is omitted, trackerRef includes format and number only
- *   (owner/repo fields are absent).
+ *   (owner/name fields are absent).
  *   The spec also includes `rawBody` (the full issue body text).
  *
  * Error output (stderr, JSON):
