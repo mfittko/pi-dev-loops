@@ -8,6 +8,19 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 const MIN_DISMISSAL_REASON_LENGTH = 30;
 
+// Exported for unit testing
+export function hasCommitShaReference(text) {
+  const trimmed = text.trim();
+  // Accept a hex token (7-40 chars) that contains at least one hex letter (a-f) — the common case.
+  // Also accept a pure-numeric hex token when it is explicitly contextualized with a
+  // commit-reference keyword (e.g. "Fixed in 1234567"), covering the rare-but-valid all-digit SHA.
+  const hexTokens = trimmed.match(/\b[0-9a-f]{7,40}\b/gi) ?? [];
+  const hasHexLetterToken = hexTokens.some((t) => /[a-f]/i.test(t));
+  const hasContextualNumericRef = /\b(?:fixed\s+in|commit|sha|rev(?:ision)?)\s+[0-9a-f]{7,40}\b/i.test(trimmed);
+  return hasHexLetterToken || hasContextualNumericRef;
+}
+
+
 const RESOLVE_REVIEW_THREAD_MUTATION = [
   "mutation($threadId: ID!) {",
   "  resolveReviewThread(input: { threadId: $threadId }) {",
@@ -227,8 +240,7 @@ export async function runCli(
   }
 
   const trimmedBody = rawBody.trim();
-  const hexTokens = trimmedBody.match(/\b[0-9a-f]{7,40}\b/gi) ?? [];
-  const hasCommitSha = hexTokens.some((t) => /[a-f]/i.test(t));
+  const hasCommitSha = hasCommitShaReference(trimmedBody);
   const hasSentenceReason = trimmedBody.length >= MIN_DISMISSAL_REASON_LENGTH;
   if (!hasCommitSha && !hasSentenceReason) {
     throw new Error(

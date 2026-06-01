@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { hasCommitShaReference } from "../../scripts/github/reply-resolve-review-thread.mjs";
 
 const scriptPath = path.resolve("scripts/github/reply-resolve-review-thread.mjs");
 
@@ -214,6 +215,30 @@ test("reply-resolve-review-thread rejects pure-numeric tokens that are not commi
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("hasCommitShaReference unit — hex-with-letters accepted, bare numeric rejected, contextualized numeric accepted", () => {
+  // Bare hex tokens with at least one hex letter — the common case
+  assert.equal(hasCommitShaReference("Fixed in abc1234."), true);
+  assert.equal(hasCommitShaReference("39add8d"), true);
+  assert.equal(hasCommitShaReference("0350a214"), true);
+
+  // Bare pure-numeric token — no hex letters, no keyword context: rejected
+  assert.equal(hasCommitShaReference("1234567"), false);
+  assert.equal(hasCommitShaReference("12345678"), false);
+
+  // Numeric token in explicit commit-reference context — rare-but-valid all-digit SHA form
+  assert.equal(hasCommitShaReference("Fixed in 1234567"), true);
+  assert.equal(hasCommitShaReference("Commit 1234567"), true);
+  assert.equal(hasCommitShaReference("SHA 1234567"), true);
+
+  // Too short (6 chars) or too long (41 chars) — rejected
+  assert.equal(hasCommitShaReference("abc123"), false);
+  assert.equal(hasCommitShaReference("a".repeat(41)), false);
+
+  // Empty / whitespace only
+  assert.equal(hasCommitShaReference(""), false);
+  assert.equal(hasCommitShaReference("   "), false);
 });
 
 test("reply-resolve-review-thread rejects malformed arguments and empty body files deterministically", async () => {
