@@ -2,7 +2,7 @@
 
 This document defines the deterministic **family-local PR lifecycle contract** for the GitHub/Copilot workflow family in `pi-dev-loops`.
 
-This canonical owner lives in the shipped `skills/docs/` surface because installed skill/runtime consumers reliably own the skills subtree.
+The canonical contract lives in the shipped `skills/docs/` surface because installed skill/runtime consumers reliably own the skills subtree.
 
 It consolidates the lifecycle boundary currently split across:
 - `docs/copilot-loop-state-graph.md`

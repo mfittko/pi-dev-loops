@@ -14,7 +14,7 @@ already known:
 This contract starts **after**:
 - the active run has been identified (scope/target resolved)
 - ownership/idempotency has been classified (from `conductor-ownership.mjs`, issue #32)
-- family-local lifecycle states have been detected (from `copilot-loop-state.mjs`, `reviewer-loop-state.mjs`, under the broader semantics frozen in `skills/docs/pr-lifecycle-contract.md`)
+- family-local lifecycle states have been detected (from `copilot-loop-state.mjs` and `reviewer-loop-state.mjs`) and are interpreted under the broader semantics frozen in `skills/docs/pr-lifecycle-contract.md`
 
 The routing outcome is derived **directly from normalized state inputs** — the evaluator does not accept a
 pre-computed outer-loop action. It is the routing authority, not a remapper.
