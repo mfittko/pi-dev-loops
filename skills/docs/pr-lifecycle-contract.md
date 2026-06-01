@@ -158,7 +158,7 @@ Reviewer-loop reminder:
 
 ## Required evidence classes
 
-The lifecycle distinguishes three evidence classes:
+The lifecycle distinguishes two evidence classes:
 
 1. **observable GitHub state**
    - PR draft/non-draft/merged/closed state
