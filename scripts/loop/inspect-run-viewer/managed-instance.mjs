@@ -276,7 +276,7 @@ export function createInspectRunViewerLifecycleManager({
           record: null,
           state: 'conflict_unmanaged_listener',
           url: formatInspectRunViewerUrl(DEFAULT_HOST, DEFAULT_PORT),
-          detail: 'Port 4311 is occupied by an unmanaged listener.',
+          detail: `Port ${DEFAULT_PORT} is occupied by an unmanaged listener.`,
           listeners,
         };
       }
@@ -327,7 +327,7 @@ export function createInspectRunViewerLifecycleManager({
       return {
         state: 'conflict_unmanaged_listener',
         url: baseUrl,
-        detail: 'Port 4311 is occupied by an unmanaged listener.',
+        detail: `Port ${DEFAULT_PORT} is occupied by an unmanaged listener.`,
         warning: null,
         recordPath,
       };

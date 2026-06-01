@@ -320,3 +320,52 @@ test('extension keeps fail-closed stopped inspect-run results on error severity'
   assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer stop: stopped');
   assert.equal(calls.notifications.at(-1).level, 'error');
 });
+
+test('extension renders inspect-run status as an info notification when the managed viewer is running', async () => {
+  const pi = readyPi();
+  registerExtension(pi, {
+    uiLifecycle: {
+      async status() {
+        return {
+          state: 'running',
+          url: 'http://127.0.0.1:4311',
+          detail: 'Managed inspect-run viewer is running.',
+          warning: null,
+          record: { pid: 1234 },
+        };
+      },
+    },
+    getRepoRoot: async () => '/repo/root',
+  });
+
+  const { ctx, calls } = createCommandContext();
+  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run status', ctx);
+
+  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer status: running');
+  assert.equal(calls.notifications.at(-1).level, 'info');
+  assert(calls.widgets.at(-1).lines.some((line) => /Managed inspect-run viewer is running/i.test(line)));
+});
+
+test('extension keeps inspect-run restart conflicts on error severity', async () => {
+  const pi = readyPi();
+  registerExtension(pi, {
+    uiLifecycle: {
+      async restart() {
+        return {
+          state: 'conflict_unmanaged_listener',
+          url: 'http://127.0.0.1:4311',
+          detail: 'Restart refused to stop an unmanaged listener on the inspect-run viewer port.',
+          warning: null,
+          record: null,
+        };
+      },
+    },
+    getRepoRoot: async () => '/repo/root',
+  });
+
+  const { ctx, calls } = createCommandContext();
+  await pi.registeredCommands.get('dev-loops').handler('ui inspect-run restart', ctx);
+
+  assert.equal(calls.notifications.at(-1).message, 'inspect-run viewer restart: conflict_unmanaged_listener');
+  assert.equal(calls.notifications.at(-1).level, 'error');
+});
