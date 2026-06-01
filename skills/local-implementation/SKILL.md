@@ -76,7 +76,8 @@ When the local spec already lives in a tracker issue:
 - do not create or read `docs/phases/phase-x.md` for that same tracker-backed session
 - sync durable scope / acceptance / status changes back to the tracker issue rather than maintaining a duplicate local phase doc
 - keep `tmp/` as temporary local execution state only; it does not become a second durable spec surface
-- the handoff path for tracker-backed sessions is always: push the working branch → open a PR → merge via GitHub; never suggest a direct local-main merge and do not merge the working branch into local `main` at phase completion
+- for tracker-backed sessions, the handoff path is always: push the working branch → open a PR → merge via GitHub
+- do not suggest a direct local-main merge for tracker-backed sessions; do not merge the working branch into local `main` at phase completion
 
 ## Primary execution rules
 
@@ -92,8 +93,8 @@ When the local spec already lives in a tracker issue:
 - Do implementation work on a dedicated local branch, not directly on `main`.
 - If the repo has no commits yet, still create the working branch first so the first commits land off `main`; only move `main` forward after review and validation.
 - Use small atomic local commits as progress checkpoints whenever a coherent slice is green and reviewable.
-- Before a branch is considered review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate as a full review / fix loop with focused DRY, KISS, and YAGNI lenses, then apply accepted fixes, rerun validation, and merge the reviewed branch back into local `main` when authorized.
-- A phase is only fully complete when its scoped work, required support files, artifacts, validation, review/fix pass, commit(s), and merge back to local `main` are done, or when the only remaining step is an explicitly noted authorization-gated finalization action.
+- Before a branch is considered review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate as a full review / fix loop with focused DRY, KISS, and YAGNI lenses, then apply accepted fixes and rerun validation.
+- A phase is only fully complete when its scoped work, required support files, artifacts, validation, review/fix pass, commit(s), and finalization (merge into local `main` for phase-doc-backed sessions; PR merge for tracker-backed sessions) are done, or when the only remaining step is an explicitly noted authorization-gated finalization action.
 - When subagents are used, log what each subagent was asked to do and what it concluded.
 - If `PLAN.md` is too rough or ambiguous to safely start the current phase, do not guess: run a clarification/interview step with the user first.
 
@@ -503,10 +504,10 @@ Stop after the current phase when:
 - Use atomic local commits to log progress, but only for coherent reviewable slices.
 - Before merging, run a full parallel review / fix loop and resolve accepted findings on the same branch.
 - Rerun validation after review-driven fixes.
-- A phase is not operationally closed until its branch state is captured in commit history and the reviewed branch has been merged back into local `main`, unless authorization for that finalization is still pending.
+- A phase is not operationally closed until its branch state is captured in commit history and the reviewed branch has been finalized according to session type (merged into local `main` for phase-doc-backed sessions; merged via GitHub PR for tracker-backed sessions), unless authorization for that finalization is still pending.
 - For tracker-backed sessions, the handoff path is always: push the working branch → open a PR → merge via GitHub; never merge the working branch into local `main`.
 - When authorization is pending, record the phase as `awaiting-finalization` and describe the exact missing step.
-- Merge the fully reviewed, locally validated branch back into local `main` when authorized.
+- For phase-doc-backed sessions, merge the fully reviewed, locally validated branch back into local `main` when authorized.
 
 ## Commit policy
 
