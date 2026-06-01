@@ -96,9 +96,7 @@ export async function runCli(argv = process.argv.slice(2), stdout = process.stdo
 
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
-    process.stderr.write(
-      `${JSON.stringify({ ok: false, error: error.message })}\n`
-    );
+    process.stderr.write(`${formatCliError(error)}\n`);
     process.exitCode = 1;
   });
 }
