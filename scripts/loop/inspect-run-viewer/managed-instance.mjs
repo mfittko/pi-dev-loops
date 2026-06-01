@@ -264,7 +264,7 @@ export function createInspectRunViewerLifecycleManager({
         record: null,
         state: 'stale_record',
         url: formatInspectRunViewerUrl(DEFAULT_HOST, DEFAULT_PORT),
-        detail: 'The managed inspect-run viewer record is unreadable; delete `.pi/ui-servers/inspect-run-viewer.json` and reopen the viewer.',
+        detail: 'The managed inspect-run viewer record is invalid or unreadable; delete `.pi/ui-servers/inspect-run-viewer.json` and reopen the viewer.',
         listeners: await listListeningPids(DEFAULT_PORT),
       };
     }

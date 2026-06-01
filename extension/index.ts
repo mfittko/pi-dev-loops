@@ -74,9 +74,13 @@ export default function (pi: ExtensionAPI, runtimeOverrides = {}) {
           ctx.ui.notify(buildNotificationMessage(result.action as Extract<DevLoopsAction, 'doctor' | 'status'>, result.checks), 'info');
           return;
         case 'ui_inspect_run_result': {
-          const informationalStopped = result.state === 'stopped'
+          const structuredStoppedSuccess = result.state === 'stopped'
+            && result.record === null
+            && (result.action === 'stop' || result.action === 'status');
+          const fallbackStoppedSuccess = result.state === 'stopped'
             && ((result.action === 'stop' && /stopped the managed inspect-run viewer/i.test(result.detail ?? ''))
               || (result.action === 'status' && /no managed inspect-run viewer is recorded/i.test(result.detail ?? '')));
+          const informationalStopped = structuredStoppedSuccess || fallbackStoppedSuccess;
           const notificationLevel = informationalStopped || result.state === 'running' ? 'info' : 'error';
           ctx.ui.setWidget(WIDGET_KEY, buildInspectRunUiLines(result.action as InspectRunUiAction, result), {
             placement: 'belowEditor',
