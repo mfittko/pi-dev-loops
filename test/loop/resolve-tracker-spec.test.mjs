@@ -10,6 +10,11 @@ const scriptPath = path.resolve(
 );
 
 describe("resolve-tracker-spec.mjs integration", () => {
+  it("prints usage on --help and exits 0", () => {
+    const result = execFileSync("node", [scriptPath, "--help"], { encoding: "utf8", timeout: 5000 });
+    assert.ok(result.includes("Usage:"));
+  });
+
   it("exits with error on missing --issue", () => {
     try {
       execFileSync("node", [scriptPath], { encoding: "utf8", timeout: 5000 });

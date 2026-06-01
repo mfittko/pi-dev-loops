@@ -77,10 +77,14 @@ export async function resolveTrackerSpec({ issue, repo }) {
 
 export function parseArgs(argv) {
   const args = [...argv];
-  const options = { issue: undefined, repo: undefined };
+  const options = { issue: undefined, repo: undefined, help: false };
 
   while (args.length > 0) {
     const token = args.shift();
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
     if (token === "--issue") {
       const val = args.shift();
       if (!val || val.startsWith("--")) throw parseError("Missing value for --issue");
@@ -105,6 +109,10 @@ export function parseArgs(argv) {
 
 export async function runCli(argv = process.argv.slice(2), stdout = process.stdout) {
   const options = parseArgs(argv);
+  if (options.help) {
+    stdout.write(`${USAGE}\n`);
+    return;
+  }
   const result = await resolveTrackerSpec(options);
   stdout.write(`${JSON.stringify(result)}\n`);
 }
