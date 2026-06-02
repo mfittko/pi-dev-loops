@@ -22,7 +22,7 @@ Every step is non-optional. Do not skip, reorder, or batch steps.
 
 - Branch off `origin/main`
 - Implement changes, write tests, run `npm run verify`
-- Create PR as **draft** via `gh pr create --draft`
+- Create PR as **draft** via `gh pr create --draft --assignee @me`
 
 ### 2. Draft gate review
 

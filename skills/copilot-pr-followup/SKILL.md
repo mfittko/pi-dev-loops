@@ -335,7 +335,7 @@ Full decomposition flow:
 
 1. refine umbrella issue framing (scope, acceptance criteria, non-goals)
 2. define bounded child slices — each slice must be independently closable
-3. create child issues with `gh issue create --repo <resolved-repo>`
+3. create child issues with `gh issue create --repo <resolved-repo> --assignee @me`
 4. attach each child as a real sub-issue:
    ```sh
    node <resolved-skill-scripts>/github/manage-sub-issues.mjs add \
@@ -559,7 +559,7 @@ New PRs in this workflow must be opened as **draft** PRs first when the reposito
 
 Only use `gh pr create` when authoritative issue↔PR resolution says there is no already-open linked PR. If a PR already exists, reuse/update that canonical PR instead of opening another one.
 
-MUST use `gh pr create --draft --repo <owner/name> --base <base> --head <head> --title "..." --body-file <body-file>`.
+MUST use `gh pr create --draft --repo <owner/name> --assignee @me --base <base> --head <head> --title "..." --body-file <body-file>`.
 
 ## Timeout and watch policy
 

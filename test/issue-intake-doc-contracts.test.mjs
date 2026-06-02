@@ -74,7 +74,7 @@ test("issue-intake skill requires unattended resume-from-state behavior when aut
   assert.match(content, /automatically resume\/restart follow-up when continuation is feasible/i);
   assert.match(content, /New PRs in this workflow must be opened as \*\*draft\*\* PRs first/i);
   assert.match(content, /Do not create a fresh PR directly in ready-for-review state/i);
-  assert.match(content, /gh pr create --draft --repo <owner\/name> --base <base> --head <head> --title/i);
+  assert.match(content, /gh pr create --draft --repo <owner\/name> --assignee @me --base <base> --head <head> --title/i);
   assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
   assert.match(content, /continue unattended until the final approval gate/i);
   assert.match(content, /stop for a human approval decision by default/i);
@@ -184,6 +184,7 @@ test("issue-intake flow carries the resolved repo slug through later GitHub issu
   const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
   assert.match(skillContent, /Carry that resolved repo slug through every later GitHub issue\/PR command/i);
+  assert.match(skillContent, /gh issue create --repo <resolved-repo> --assignee @me/);
   assert.match(skillContent, /gh issue edit <number> --repo <resolved-repo> --body-file <updated-body-file>/);
   assert.match(skillContent, /gh issue edit <number> --repo <resolved-repo> --add-assignee copilot-swe-agent/);
   assert.match(skillContent, /gh pr edit <pr-number> --repo <resolved-repo> --title/);

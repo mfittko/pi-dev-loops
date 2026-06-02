@@ -326,20 +326,33 @@ test("gate-review sub-loop contract exists and is referenced by both gates", asy
   assert.match(subLoopContract, /does not satisfy the other gate/i);
 });
 
-test("skill docs enforce --draft flag for PR creation", async () => {
-  const [copilotFollowupSkill, localImplementationSkill] = await Promise.all([
+test("skill docs enforce self-assignment and draft-first rules for create commands", async () => {
+  const [copilotFollowupSkill, localImplementationSkill, finalApprovalSkill, agents, workflowHandoffTemplate, trackerStoryPrContract] = await Promise.all([
     readRepo("skills/copilot-pr-followup/SKILL.md"),
     readRepo("skills/local-implementation/SKILL.md"),
+    readRepo("skills/final-approval/SKILL.md"),
+    readRepo("AGENTS.md"),
+    readRepo("skills/docs/workflow-handoff-template.md"),
+    readRepo("docs/tracker-story-pr-contract.md"),
   ]);
 
   // copilot-pr-followup enforces --draft in PR creation command
   assert.match(copilotFollowupSkill, /MUST use `gh pr create --draft/i);
+  assert.match(copilotFollowupSkill, /gh issue create --repo <resolved-repo> --assignee @me/i);
+  assert.match(copilotFollowupSkill, /gh pr create --draft --repo <owner\/name> --assignee @me --base <base> --head <head> --title/i);
   assert.match(copilotFollowupSkill, /New PRs in this workflow must be opened as \*\*draft\*\* PRs first/i);
   assert.match(copilotFollowupSkill, /Do not create a fresh PR directly in ready-for-review state/i);
   assert.match(copilotFollowupSkill, /draft gate review is a real workflow boundary/i);
 
-  // local-implementation enforces --draft for tracker-backed PR creation
-  assert.match(localImplementationSkill, /PR creation must use `gh pr create --draft`/i);
+  // local-implementation keeps self-assignment unconditional and draft-first config-driven
+  assert.match(localImplementationSkill, /PR creation must always include `--assignee @me`/i);
+  assert.match(localImplementationSkill, /workflow\.requireDraftFirst[\s\S]{0,120}gh pr create --draft --assignee @me/i);
   assert.match(localImplementationSkill, /Do not create a fresh PR directly in ready-for-review state/i);
   assert.match(localImplementationSkill, /draft gate review is a real workflow boundary/i);
+
+  assert.match(finalApprovalSkill, /gh issue create --assignee @me \.\.\./i);
+  assert.match(finalApprovalSkill, /gh pr create --draft --assignee @me \.\.\./i);
+  assert.match(agents, /gh issue create` or `gh pr create`, always include `--assignee @me`/i);
+  assert.match(workflowHandoffTemplate, /gh pr create --draft --assignee @me/i);
+  assert.match(trackerStoryPrContract, /gh pr create --draft --assignee @me/);
 });
