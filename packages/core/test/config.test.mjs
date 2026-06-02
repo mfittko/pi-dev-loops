@@ -382,7 +382,7 @@ describe("loader — graceful degradation", () => {
     }
   });
 
-  test("L7: defaults.yaml loads with YAML comments and parses correctly", async () => {
+  test("Y1: defaults.yaml loads with YAML comments and parses correctly", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L7-"));
     try {
       const piDir = path.join(tmpDir, ".pi", "dev-loop");
@@ -416,7 +416,7 @@ describe("loader — graceful degradation", () => {
     }
   });
 
-  test("L8: YAML preferred over JSON when both exist", async () => {
+  test("Y2: YAML preferred over JSON when both exist", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L8-"));
     try {
       const piDir = path.join(tmpDir, ".pi", "dev-loop");

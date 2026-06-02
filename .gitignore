@@ -9,6 +9,7 @@ test-results/
 *.log
 .pi/dev-loop-retrospective-checkpoint.json
 .pi/dev-loop/overrides.json
+.pi/dev-loop/overrides.yaml
 
 .pi/ui-servers/
 worktrees/
