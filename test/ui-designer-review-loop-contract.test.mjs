@@ -26,7 +26,10 @@ test('designer review loop doc remains the canonical bounded UI review handoff c
   assert.match(doc, /fails closed/i);
   assert.match(doc, /does not trigger for non-UI work/i);
 
-  await assert.rejects(stat(fromRepoRoot('skills/dev-loop/templates/ui-designer-review.md')), /ENOENT/);
+  await assert.rejects(
+    stat(fromRepoRoot('skills/dev-loop/templates/ui-designer-review.md')),
+    (error) => error && error.code === 'ENOENT',
+  );
 
   assert.match(readme, /docs\/ui-designer-review-loop\.md/i);
   assert.match(indexDoc, /ui-designer-review-loop\.md/i);

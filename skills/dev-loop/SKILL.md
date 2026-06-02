@@ -54,11 +54,11 @@ Load only the route-specific internal skill required by `selectedStrategy`:
 | --- | --- |
 | `local_implementation` | [Local Implementation Skill](../local-implementation/SKILL.md) |
 | `issue_intake` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Issue Intake Procedure](../docs/issue-intake-procedure.md) |
-| `copilot_pr_followup` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) |
-| `external_pr_followup` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) |
-| `reviewer_fixer` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) |
-| `wait_watch` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) |
-| `final_approval` | [Final Approval Skill](../final-approval/SKILL.md) |
+| `copilot_pr_followup` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) |
+| `external_pr_followup` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) |
+| `reviewer_fixer` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) |
+| `wait_watch` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) |
+| `final_approval` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) + [Final Approval Skill](../final-approval/SKILL.md) |
 
 Do not preload local implementation, issue intake, PR follow-up, or final approval procedure before the resolver selects that route.
 

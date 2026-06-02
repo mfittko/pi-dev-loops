@@ -77,7 +77,7 @@ Before planning, review, or automation:
 
 Read only the contract docs and runtime surface needed for the current routed step.
 
-Always read:
+Read in every routed flow unless a line explicitly says otherwise:
 1. [Agent Instructions](../../AGENTS.md) if present
 2. [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
 3. [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md) when the current step depends on async start/resume/status or retrospective enforcement
