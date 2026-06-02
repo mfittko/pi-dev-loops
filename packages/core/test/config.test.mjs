@@ -9,7 +9,14 @@ import {
   DevLoopConfigSchema,
   BUILT_IN_DEFAULTS,
 } from "../src/config/schema.mjs";
-import { resolveConductorModel, resolveAutonomyStopAt, resolveRefinementConfig, resolveRefinement, resolveGateAngles } from "../src/config/model-resolution.mjs";
+import {
+  resolveConductorModel,
+  resolveAutonomyStopAt,
+  resolveRefinementConfig,
+  resolveRefinement,
+  resolveGateAngles,
+  resolveWorkflowConfig,
+} from "../src/config/model-resolution.mjs";
 // ============================================================================
 // Schema validation tests (S1–S26)
 // ============================================================================
@@ -26,6 +33,11 @@ describe("schema validation", () => {
         preApproval: { angles: ["dry", "kiss", "yagni"], required: false },
       },
       autonomy: { stopAt: ["draft-pr", "merge"] },
+      workflow: {
+        requireRetrospective: true,
+        requireDraftFirst: false,
+        devModeDefault: true,
+      },
     };
     const result = DevLoopConfigSchema.safeParse(input);
     assert.ok(result.success, "full config should parse");
@@ -92,6 +104,32 @@ describe("schema validation", () => {
     const result = DevLoopConfigSchema.safeParse({
       version: 1,
       autonomy: { stopAt: ["merge"], unknownKey: true },
+    });
+    assert.ok(!result.success);
+  });
+
+  test("S10b: workflow family parses when all supported keys are present", () => {
+    const result = DevLoopConfigSchema.safeParse({
+      version: 1,
+      workflow: {
+        requireRetrospective: true,
+        requireDraftFirst: false,
+        devModeDefault: true,
+      },
+    });
+    assert.ok(result.success);
+    assert.equal(result.data.workflow.requireRetrospective, true);
+    assert.equal(result.data.workflow.requireDraftFirst, false);
+    assert.equal(result.data.workflow.devModeDefault, true);
+  });
+
+  test("S10c: unknown nested key inside workflow rejected", () => {
+    const result = DevLoopConfigSchema.safeParse({
+      version: 1,
+      workflow: {
+        requireRetrospective: true,
+        unknownKey: true,
+      },
     });
     assert.ok(!result.success);
   });
@@ -263,6 +301,14 @@ describe("BUILT_IN_DEFAULTS", () => {
 
   test("autonomy.stopAt is [merge]", () => {
     assert.deepEqual(BUILT_IN_DEFAULTS.autonomy.stopAt, ["merge"]);
+  });
+
+  test("workflow defaults exist and all three values are false", () => {
+    assert.deepEqual(BUILT_IN_DEFAULTS.workflow, {
+      requireRetrospective: false,
+      requireDraftFirst: false,
+      devModeDefault: false,
+    });
   });
 });
 
@@ -442,6 +488,36 @@ describe("loader — graceful degradation", () => {
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.equal(result.errors.length, 0);
       assert.equal(result.config.refinement.maxCopilotRounds, 5);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("Y1c: workflow family merges correctly from defaults.yaml and overrides.yaml", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-workflow-yaml-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.yaml"), [
+        "version: 1",
+        "workflow:",
+        "  requireRetrospective: true",
+        "  requireDraftFirst: false",
+        "  devModeDefault: false",
+      ].join("\n"));
+      await writeFile(path.join(piDir, "overrides.yaml"), [
+        "version: 1",
+        "workflow:",
+        "  requireDraftFirst: true",
+      ].join("\n"));
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.deepEqual(result.errors, []);
+      assert.deepEqual(result.config.workflow, {
+        requireRetrospective: true,
+        requireDraftFirst: true,
+        devModeDefault: false,
+      });
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -795,6 +871,44 @@ describe("loader — precedence", () => {
       assert.deepEqual(result.errors, []);
       assert.equal(result.config.personas.dry.persona, "custom-dry-reviewer");
       assert.equal(result.config.personas.dry.prompt, undefined);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("M8: workflow family merges correctly from defaults.json and overrides.json", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-M8-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(
+        path.join(piDir, "defaults.json"),
+        JSON.stringify({
+          version: 1,
+          workflow: {
+            requireRetrospective: false,
+            requireDraftFirst: false,
+            devModeDefault: true,
+          },
+        }),
+      );
+      await writeFile(
+        path.join(piDir, "overrides.json"),
+        JSON.stringify({
+          version: 1,
+          workflow: {
+            requireRetrospective: true,
+          },
+        }),
+      );
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.deepEqual(result.errors, []);
+      assert.deepEqual(result.config.workflow, {
+        requireRetrospective: true,
+        requireDraftFirst: false,
+        devModeDefault: true,
+      });
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -1188,6 +1302,37 @@ describe("role resolution", () => {
       const result = resolveRefinement(config);
       result.roles.push("style");
       assert.deepEqual(config.refinement.roles, ["security"]);
+    });
+
+    test("resolveWorkflowConfig returns built-in defaults when workflow family is absent", () => {
+      assert.equal(resolveWorkflowConfig({ version: 1 }, "requireRetrospective"), false);
+      assert.equal(resolveWorkflowConfig({ version: 1 }, "requireDraftFirst"), false);
+      assert.equal(resolveWorkflowConfig({ version: 1 }, "devModeDefault"), false);
+    });
+
+    test("resolveWorkflowConfig returns configured booleans", () => {
+      const config = {
+        version: 1,
+        workflow: {
+          requireRetrospective: true,
+          requireDraftFirst: true,
+          devModeDefault: false,
+        },
+      };
+      assert.equal(resolveWorkflowConfig(config, "requireRetrospective"), true);
+      assert.equal(resolveWorkflowConfig(config, "requireDraftFirst"), true);
+      assert.equal(resolveWorkflowConfig(config, "devModeDefault"), false);
+    });
+
+    test("resolveWorkflowConfig falls through to built-in false when an individual key is absent", () => {
+      const config = { version: 1, workflow: { requireDraftFirst: true } };
+      assert.equal(resolveWorkflowConfig(config, "requireRetrospective"), false);
+      assert.equal(resolveWorkflowConfig(config, "requireDraftFirst"), true);
+      assert.equal(resolveWorkflowConfig(config, "devModeDefault"), false);
+    });
+
+    test("resolveWorkflowConfig throws on unknown key", () => {
+      assert.throws(() => resolveWorkflowConfig({ version: 1 }, "unknownKey"), /Unknown workflow config key/);
     });
   });
 

@@ -1,6 +1,6 @@
 # Retrospective checkpoint contract
 
-This document defines the enforcement seam for the required post-run behavioral retrospective after qualifying async `dev-loop` completions in this repository.
+This document defines the enforcement seam for the post-run behavioral retrospective checkpoint after qualifying async `dev-loop` completions in this repository. Whether a missing checkpoint blocks the next qualifying start/resume is controlled by `.pi/dev-loop/overrides.yaml` `workflow.requireRetrospective`; shipped defaults remain permissive and this repo opts in.
 
 ## Relationship to formal dev mode
 
@@ -11,7 +11,7 @@ Formal local dev mode and the required post-run behavioral retrospective are rel
 | **Formal local dev mode** | Local implementation/self-improvement work; explicitly scoped in [Dev Loop Skill](../dev-loop/SKILL.md) |
 | **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo |
 
-Routed GitHub-first async `dev-loop` runs do **not** need to be in full formal local dev mode, but they **do** require the retrospective checkpoint.
+Routed GitHub-first async `dev-loop` runs do **not** need to be in full formal local dev mode. When `workflow.requireRetrospective` is enabled, they **do** require the retrospective checkpoint before the next qualifying start/resume.
 
 ## Qualifying completions
 
@@ -41,7 +41,7 @@ A fresh session can determine the status of the required retrospective by readin
 
 ## Enforcement gate
 
-The enforcement seam is the pure function `evaluateRetrospectiveGate` in `packages/core/src/loop/retrospective-checkpoint.mjs`.
+The enforcement seam is the pure function `evaluateRetrospectiveGate` in `packages/core/src/loop/retrospective-checkpoint.mjs`. The checkpoint artifact may still exist even when enforcement is disabled; the workflow config controls whether callers should block the next qualifying routed start/resume on that artifact.
 
 For convenience, the public routing helpers in `packages/core/src/loop/public-dev-loop-routing.mjs` also accept an optional `retrospectiveCheckpointState` input and apply the same gate internally before returning routed start/resume/status results.
 

@@ -42,6 +42,12 @@ autonomy:
   stopAt:
     - merge
 
+# Workflow defaults: optional enforcement and local-mode posture
+workflow:
+  requireRetrospective: false
+  requireDraftFirst: false
+  devModeDefault: false
+
 # Persona registry: maps each review angle to an agent persona and prompt.
 # Consumers can add custom angles with their own persona agents.
 # Each entry:
