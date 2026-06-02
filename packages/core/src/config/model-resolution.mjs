@@ -1,3 +1,5 @@
+import { BUILT_IN_DEFAULTS } from "./schema.mjs";
+
 /**
  * Resolve the conductor model from the merged dev-loop config.
  *
@@ -40,11 +42,7 @@ export function resolveAutonomyStopAt(config) {
   return ["merge"];
 }
 
-const DEFAULT_REFINEMENT_CONFIG = Object.freeze({
-  fanOut: 3,
-  mode: "parallel",
-  maxCopilotRounds: 5,
-});
+const DEFAULT_REFINEMENT_CONFIG = BUILT_IN_DEFAULTS.refinement;
 
 /**
  * Resolve one refinement configuration value from the merged dev-loop config.
