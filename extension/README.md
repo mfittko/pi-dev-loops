@@ -168,7 +168,7 @@ The shipped defaults activate these angles. Additional angles are available as o
 
 YAML is preferred (`.yaml`). JSON (`.json`) is supported as a fallback for backward compatibility. When both exist, YAML takes priority.
 
-The full JSON Schema is at `schemas/dev-loop-config.schema.json`. Editors with YAML language server support (VS Code, Neovim, etc.) will auto-validate and provide autocompletion when the schema reference is present in the YAML file header.
+Config is validated at runtime by Zod schemas (`packages/core/src/config/schema.mjs`).
 
 ## Runtime / build / test contract
 
