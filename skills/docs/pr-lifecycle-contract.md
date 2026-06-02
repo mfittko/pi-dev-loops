@@ -55,10 +55,12 @@ Applies while the PR is draft.
 Purpose:
 - decide whether the current draft head is materially reviewable
 - decide whether the PR stays draft for more remediation or may leave draft
+- when `gates.draft.requireCi=true` (default), require green current-head CI before the draft gate may be entered; when `false`, this draft-only CI prerequisite may be skipped
 
 Boundary note:
 - `draft_gate` governs only the draft -> ready-for-review boundary for the reviewed head
 - visible comment schema/evidence rules stay in [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md)
+- `gates.draft.requireCi=false` does **not** relax `pre_approval_gate`; final approval and merge readiness still require green current-head CI
 
 ### 2. `pre_approval_gate`
 

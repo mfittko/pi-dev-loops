@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { loadDevLoopConfig, resolveGateConfig } from "@pi-dev-loops/core/config";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { truncateText } from "@pi-dev-loops/core/bash-exit-one";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
@@ -429,8 +430,12 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
   return parseCommentMutationResponse(payload);
 }
 
-export async function upsertGateReviewComment(options, { env = process.env, ghCommand = "gh" } = {}) {
+export async function upsertGateReviewComment(options, { env = process.env, ghCommand = "gh", repoRoot = process.cwd() } = {}) {
   const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr, localValidationHeadSha: options.localValidationHeadSha }, { env, ghCommand });
+  const evidence = coordinationContext.gateEvidence;
+  const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
+  const { config } = await loadDevLoopConfig({ repoRoot });
+  const draftGateConfig = resolveGateConfig(config, "draft");
   const coordination = evaluatePrGateCoordination({
     repo: coordinationContext.repo,
     pr: coordinationContext.pr,
@@ -442,6 +447,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     loopDisposition: coordinationContext.disposition.loopDisposition,
     ciStatus: coordinationContext.snapshot?.ciStatus ?? null,
     sameHeadCleanConverged: coordinationContext.interpretation.sameHeadCleanConverged,
+    draftGateRequireCi: draftGateConfig.requireCi,
     draftGate: coordinationContext.gateEvidence.draftGate,
     draftGateMarker: coordinationContext.gateEvidence.draftGateMarker,
     preApprovalGate: coordinationContext.gateEvidence.preApprovalGate,
@@ -454,8 +460,6 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     throw new Error(`Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`);
   }
 
-  const evidence = coordinationContext.gateEvidence;
-  const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
   const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha });
 
   const gateEvidence = selectGateEvidence(evidence, options.gate);

@@ -14,6 +14,7 @@ import {
   resolveAutonomyStopAt,
   resolveRefinementConfig,
   resolveRefinement,
+  resolveGateConfig,
   resolveGateAngles,
   resolveWorkflowConfig,
 } from "../src/config/model-resolution.mjs";
@@ -29,8 +30,8 @@ describe("schema validation", () => {
       models: { conductor: "gpt-5", roles: { security: "gpt-5" } },
       refinement: { fanOut: 5, mode: "sequential", roles: ["security"] },
       gates: {
-        draft: { angles: ["style", "correctness"], required: true },
-        preApproval: { angles: ["dry", "kiss", "yagni"], required: false },
+        draft: { angles: ["style", "correctness"], required: true, requireCi: true },
+        preApproval: { angles: ["dry", "kiss", "yagni"], required: false, requireCi: true },
       },
       autonomy: { stopAt: ["draft-pr", "merge"] },
       workflow: {
@@ -563,6 +564,38 @@ describe("loader — graceful degradation", () => {
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.equal(result.config.strategy.default, "github-first");
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("Y1g: settings.yaml can override only gates.draft.requireCi without losing default draft angles", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-gate-require-ci-yaml-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.yaml"), [
+        "version: 1",
+        "gates:",
+        "  draft:",
+        "    angles:",
+        "      - scope",
+        "      - coverage",
+        "    required: true",
+        "    requireCi: true",
+      ].join("\n"));
+      await writeFile(path.join(piDir, "settings.yaml"), [
+        "version: 1",
+        "gates:",
+        "  draft:",
+        "    requireCi: false",
+      ].join("\n"));
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.deepEqual(result.errors, []);
+      assert.deepEqual(result.config.gates?.draft?.angles, ["scope", "coverage"]);
+      assert.equal(result.config.gates?.draft?.requireCi, false);
+      assert.equal(result.config.gates?.draft?.required, true);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -1328,9 +1361,33 @@ describe("role resolution", () => {
     test("resolveGateAngles returns configured draft angles", () => {
       const result = resolveGateAngles({
         version: 1,
-        gates: { draft: { angles: ["scope", "coverage"], required: true } }
+        gates: { draft: { angles: ["scope", "coverage"], required: true, requireCi: false } }
       }, "draft");
       assert.deepEqual(result, ["scope", "coverage"]);
+    });
+
+    test("resolveGateConfig returns default booleans when gates config is absent", () => {
+      const result = resolveGateConfig({ version: 1 }, "draft");
+      assert.deepEqual(result, {
+        angles: null,
+        required: true,
+        requireCi: true,
+      });
+    });
+
+    test("resolveGateConfig returns configured gate booleans and cloned angles", () => {
+      const config = {
+        version: 1,
+        gates: { draft: { angles: ["scope", "coverage"], required: false, requireCi: false } },
+      };
+      const result = resolveGateConfig(config, "draft");
+      result.angles.push("correctness");
+      assert.deepEqual(result, {
+        angles: ["scope", "coverage", "correctness"],
+        required: false,
+        requireCi: false,
+      });
+      assert.deepEqual(config.gates.draft.angles, ["scope", "coverage"]);
     });
 
     test("resolveGateAngles returns configured preApproval angles", () => {

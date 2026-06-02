@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -307,6 +307,91 @@ test("reconcile-draft-gate blocks when no CI checks are reported", async () => {
   }
 });
 
+test("reconcile-draft-gate skips CI checks when config disables draft requireCi", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reconcile-draft-gate-config-skip-ci-"));
+
+  try {
+    await mkdir(path.join(tempDir, ".pi", "dev-loop"), { recursive: true });
+    await writeFile(path.join(tempDir, ".pi", "dev-loop", "defaults.yaml"), [
+      "version: 1",
+      "gates:",
+      "  draft:",
+      "    angles:",
+      "      - scope",
+      "    requireCi: false",
+    ].join("\n"));
+
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc123456789"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "-f", "-F"],
+        assertArgContains: ["owner=owner", "name=repo", "number=17", "pullRequest(number: $number)"],
+        stdout: '{"data":{"repository":{"pullRequest":{"id":"PR_kwDOScHU78000017","isDraft":false}}}}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "-f", "-F"],
+        assertArgContains: ["pullRequestId=PR_kwDOScHU78000017", "convertPullRequestToDraft"],
+        stdout: '{"data":{"convertPullRequestToDraft":{"pullRequest":{"id":"PR_kwDOScHU78000017","isDraft":true}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "--field", "owner=owner", "--field", "name=repo", "--field", "pr=17"],
+        assertArgContains: ["reviewThreads(first: 100)"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc123456789"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+        assertArgContains: ["body=### Gate review: `draft_gate`", "CI optional by config"],
+        stdout: '{"id":301,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-301"}\n',
+      },
+      {
+        assertArgs: ["pr", "ready", "17", "--repo", "owner/repo"],
+        stdout: "",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env, cwd: tempDir });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      action: "reconciled",
+      repo: "owner/repo",
+      pr: 17,
+      headSha: "abc123456789",
+      currentHeadSha: "abc123456789",
+      commentId: 301,
+      commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-301",
+    });
+    assert.equal(await readGhCallCount(tempDir), 11);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("reconcile-draft-gate skips the draft conversion mutation when the PR is already draft", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reconcile-draft-gate-already-draft-"));
 
@@ -331,7 +416,7 @@ test("reconcile-draft-gate skips the draft conversion mutation when the PR is al
       },
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
-        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[]}\n',
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -406,7 +491,7 @@ test("reconcile-draft-gate does not mark ready when upsert throws and the PR was
       },
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
-        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[]}\n',
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -472,7 +557,7 @@ test("reconcile-draft-gate marks the PR ready again if gate-comment upsert throw
       },
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
-        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[]}\n',
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -542,7 +627,7 @@ test("reconcile-draft-gate converts to draft, posts clean evidence, and marks re
       },
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
-        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[]}\n',
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],

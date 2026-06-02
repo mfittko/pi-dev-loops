@@ -210,6 +210,7 @@ export function evaluatePrGateCoordination(input = {}) {
   const mergeStateStatus = normalizeMergeStateStatus(input.mergeStateStatus);
   const conflictFiles = normalizeConflictFiles(input.conflictFiles);
   const ciStatus = normalizeCiStatus(input.ciStatus);
+  const draftGateRequireCi = input.draftGateRequireCi !== false;
 
   const effectiveLifecycleState = lifecycleState;
 
@@ -312,17 +313,71 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (prDraft || effectiveLifecycleState === STATE.PR_DRAFT) {
-    pushUnique(allowedNextActions, [PR_GATE_ACTION.RUN_DRAFT_GATE]);
-    if (draftGate.currentHeadClean) {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.MARK_READY_FOR_REVIEW]);
-    }
-    pushUnique(forbiddenActions, [
+    const draftReviewForbidden = [
       ...(draftGate.currentHeadClean ? [] : [PR_GATE_ACTION.MARK_READY_FOR_REVIEW]),
       PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
       PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
       PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
       PR_GATE_ACTION.DECLARE_MERGE_READY,
-    ]);
+    ];
+
+    if (!draftGate.currentHeadClean && draftGateRequireCi) {
+      if (ciStatus === "failure") {
+        pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
+        pushUnique(forbiddenActions, [
+          PR_GATE_ACTION.RUN_DRAFT_GATE,
+          ...draftReviewForbidden,
+        ]);
+        return buildResult({
+          repo: input.repo ?? null,
+          pr: Number.isInteger(input.pr) ? input.pr : null,
+          currentHeadSha,
+          lifecycleState: STATE.BLOCKED_NEEDS_USER_DECISION,
+          loopDisposition: LOOP_DISPOSITION.BLOCKED,
+          gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
+          draftGateAlreadySatisfied,
+          draftGate,
+          preApprovalGate,
+          allowedNextActions,
+          forbiddenActions,
+          nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
+          reason: "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`. The current head is failing CI, so fix the checks before retrying the draft gate.",
+          mergeStateStatus,
+          conflictFiles,
+        });
+      }
+
+      if (ciStatus !== "success") {
+        pushUnique(allowedNextActions, [PR_GATE_ACTION.WAIT_FOR_CI]);
+        pushUnique(forbiddenActions, [
+          PR_GATE_ACTION.RUN_DRAFT_GATE,
+          ...draftReviewForbidden,
+        ]);
+        return buildResult({
+          repo: input.repo ?? null,
+          pr: Number.isInteger(input.pr) ? input.pr : null,
+          currentHeadSha,
+          lifecycleState: STATE.WAITING_FOR_CI,
+          loopDisposition: LOOP_DISPOSITION.PENDING,
+          gateBoundary: PR_GATE_BOUNDARY.DRAFT_REVIEW,
+          draftGateAlreadySatisfied,
+          draftGate,
+          preApprovalGate,
+          allowedNextActions,
+          forbiddenActions,
+          nextAction: PR_GATE_ACTION.WAIT_FOR_CI,
+          reason: "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`, so wait for CI to settle green before running the draft gate.",
+          mergeStateStatus,
+          conflictFiles,
+        });
+      }
+    }
+
+    pushUnique(allowedNextActions, [PR_GATE_ACTION.RUN_DRAFT_GATE]);
+    if (draftGate.currentHeadClean) {
+      pushUnique(allowedNextActions, [PR_GATE_ACTION.MARK_READY_FOR_REVIEW]);
+    }
+    pushUnique(forbiddenActions, draftReviewForbidden);
 
     return buildResult({
       repo: input.repo ?? null,
@@ -339,7 +394,9 @@ export function evaluatePrGateCoordination(input = {}) {
       nextAction: draftGate.currentHeadClean ? PR_GATE_ACTION.MARK_READY_FOR_REVIEW : PR_GATE_ACTION.RUN_DRAFT_GATE,
       reason: draftGate.currentHeadClean
         ? "The PR is still draft, and current-head clean `draft_gate` evidence exists, so `gh pr ready` is now legal."
-        : "The PR is still draft, so `draft_gate` is the only legal gate boundary before `gh pr ready`.",
+        : (draftGateRequireCi
+          ? "The PR is still draft, current-head CI is green, and `draft_gate` is now the legal gate boundary before `gh pr ready`."
+          : "The PR is still draft, and this repo does not require CI before `draft_gate`, so the draft gate is the next legal boundary before `gh pr ready`."),
       mergeStateStatus,
       conflictFiles,
     });

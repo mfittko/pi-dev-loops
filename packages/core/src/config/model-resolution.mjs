@@ -98,6 +98,28 @@ export function resolveRefinement(config) {
 }
 
 /**
+ * Resolve one gate configuration object from the merged dev-loop config.
+ *
+ * Returns the configured gate angles when present, or null for angles when the
+ * config omits them (caller falls back to skill-defined defaults). Boolean gate
+ * flags always resolve to stable defaults.
+ *
+ * @param {import("./schema.mjs").DevLoopConfig} config
+ * @param {"draft"|"preApproval"} gate
+ * @returns {{ angles: string[]|null, required: boolean, requireCi: boolean }}
+ */
+export function resolveGateConfig(config, gate) {
+  const gateConfig = config?.gates?.[gate];
+  return {
+    angles: gateConfig?.angles && Array.isArray(gateConfig.angles)
+      ? [...gateConfig.angles]
+      : null,
+    required: gateConfig?.required ?? true,
+    requireCi: gateConfig?.requireCi ?? true,
+  };
+}
+
+/**
  * Resolve review angles for a specific gate from the merged dev-loop config.
  *
  * Returns the configured angle names for the given gate, or null when the
@@ -109,11 +131,7 @@ export function resolveRefinement(config) {
  * @returns {string[]|null}
  */
 export function resolveGateAngles(config, gate) {
-  const gateConfig = config?.gates?.[gate];
-  if (gateConfig?.angles && Array.isArray(gateConfig.angles)) {
-    return [...gateConfig.angles];
-  }
-  return null;
+  return resolveGateConfig(config, gate).angles;
 }
 
 /**

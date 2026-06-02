@@ -6,6 +6,7 @@ export {
   resolveAutonomyStopAt,
   resolveRefinementConfig,
   resolveRefinement,
+  resolveGateConfig,
   resolveGateAngles,
   resolveWorkflowConfig,
 } from "./model-resolution.mjs";

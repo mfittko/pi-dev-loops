@@ -27,6 +27,7 @@ const RefinementConfig = z.strictObject({
 const GateConfig = z.strictObject({
   angles: z.array(z.string().min(1)),
   required: z.boolean().default(true),
+  requireCi: z.boolean().default(true),
 });
 
 const GatesConfig = z.strictObject({
@@ -55,6 +56,14 @@ const PersonaEntry = z.strictObject({
 });
 
 const PersonasConfig = z.record(z.string().min(1), PersonaEntry);
+
+// Partial nested gate entries for file-level config (allows overriding only
+// requireCi/required/angles without restating the whole gate object).
+const FileGateConfig = GateConfig.partial();
+const FileGatesConfig = z.strictObject({
+  draft: FileGateConfig.optional(),
+  preApproval: FileGateConfig.optional(),
+});
 
 // Partial persona entries for file-level config (allows omitting fields)
 const FilePersonasConfig = z.record(z.string().min(1), PersonaEntry.partial());
@@ -106,7 +115,7 @@ export const FileConfigSchema = z.strictObject({
   strategy: StrategyConfig.partial().optional(),
   models: ModelsConfig.partial().optional(),
   refinement: RefinementConfig.partial().optional(),
-  gates: GatesConfig.partial().optional(),
+  gates: FileGatesConfig.optional(),
   autonomy: AutonomyConfig.partial().optional(),
   workflow: WorkflowConfig.partial().optional(),
   personas: FilePersonasConfig.optional(),
