@@ -25,7 +25,9 @@
  *       "stopReason": null|"...", "handoffEnvelope": { ... } },
  *     "checkpoint": { "pr": N, "repo": "...", "outerAction": "...",
  *       "copilotState": "...", "reviewerState": "...", "reason": null|"...",
- *       "timestamp": "...", "waitCycles": N, "headSha": "..."|null } }
+ *       "timestamp": "...", "waitCycles": N, "headSha": "..."|null },
+ *     "conductorModel": "..."|null,
+ *     ...(branchIdentity for reenter actions) }
  *
  * Failure behavior:
  *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
@@ -57,6 +59,7 @@ import {
   buildAsyncStartRejection,
   validateAsyncStartContext,
 } from "@pi-dev-loops/core/loop/async-start-contract";
+import { loadDevLoopConfig, resolveConductorModel } from "@pi-dev-loops/core/config";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 
@@ -91,7 +94,8 @@ Output (stdout, JSON):
       "copilotState": "...", "reviewerState": "...",
       "reviewerScope": "...", "reviewerLogin": "..."|null,
       "reason": null|"...", "timestamp": "...", "waitCycles": N,
-      "headSha": "..."|null } }
+      "headSha": "..."|null },
+    "conductorModel": "..."|null }
 
 Outer actions:
   continue_wait          Durable outer-loop wait state; re-run after bounded wait
@@ -533,6 +537,16 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
 
   await writeCheckpoint(checkpointDir, checkpoint);
 
+  // Resolve conductor model override from config
+  let conductorModel = null;
+  if (!isSnapshotMode) {
+    // Only load real config; skip for snapshot/test input mode
+    const { config: devLoopConfig, errors = [] } = await loadDevLoopConfig();
+    if (errors.length === 0) {
+      conductorModel = resolveConductorModel(devLoopConfig);
+    }
+  }
+
   return {
     ok: true,
     outerAction,
@@ -546,6 +560,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     ...(branchIdentity !== null ? { branchIdentity } : {}),
     conductorRouting,
     checkpoint,
+    conductorModel,
   };
 }
 
