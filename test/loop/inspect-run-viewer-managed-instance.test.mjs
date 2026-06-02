@@ -611,6 +611,8 @@ test('open fails with a clear error when the launch seam does not return a posit
 test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-healthcheck-signal-'));
 
+  // Spy on global fetch and short-circuit the response so the contract test
+  // stays deterministic without depending on a real HTTP server lifecycle.
   const originalFetch = globalThis.fetch;
   const fetchCalls = [];
   globalThis.fetch = async (url, options) => {
@@ -619,6 +621,8 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
   };
 
   try {
+    // Manager with real defaultHealthcheck (healthcheckUrlImpl defaults)
+    // but stubbed lifecycle seams.
     const manager = createInspectRunViewerLifecycleManager({
       listListeningPidsImpl: async () => [42],
       isProcessAliveImpl: async () => true,
@@ -640,12 +644,13 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
       argsFingerprint: JSON.stringify({ repo: null, host: '127.0.0.1', port: 4311 }),
       startedAt: new Date().toISOString(),
       cwd: repoRoot,
-    })}\n`);
+    })}
+`);
 
     const status = await manager.status({ repoRoot });
     assert.equal(status.state, 'running');
 
-    const healthcheckCall = fetchCalls.find((call) => String(call.url).includes('4311'));
+    const healthcheckCall = fetchCalls.find((c) => String(c.url).includes('4311'));
     assert.ok(healthcheckCall, 'healthcheck should call fetch');
     assert.ok(!healthcheckCall.options?.signal, 'fetch must not receive an AbortSignal');
   } finally {
