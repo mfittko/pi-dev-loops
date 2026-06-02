@@ -232,9 +232,9 @@ Use those lessons to improve the current phase plan.
 ### 3. Fan out short plan variants
 
 Write 2-3 short variants:
-- [Variant A](variant-a.md) = smallest safe implementation
-- [Variant B](variant-b.md) = best practical UX/developer-experience option within phase scope
-- [Variant C](variant-c.md) = safest boundary/risk-reduction option when useful
+- `Variant A` (`tmp/phases/phase-x/variant-a.md`) = smallest safe implementation
+- `Variant B` (`tmp/phases/phase-x/variant-b.md`) = best practical UX/developer-experience option within phase scope
+- `Variant C` (`tmp/phases/phase-x/variant-c.md`) = safest boundary/risk-reduction option when useful
 
 When subagents are available, the default refinement path should use the `refiner` role and **parallel fresh-context subagents** so the variants are independently generated rather than serially contaminated by one another. Pass each refiner a concise written briefing summary instead of relying on forked parent-session context.
 
@@ -270,7 +270,7 @@ If subagents generate the variants:
 - when you want broader hardening, add another fan-out pass with a different persona or angle and its own `variant-a` / `variant-b` pair instead of blending multiple personas into one pair
 - do not fork the parent session just to share planning context; summarize it instead
 - save raw subagent outputs under `tmp/phases/phase-x/subagents/raw/` only when keeping the raw capture is actually useful
-- then write the human-oriented [Variant A](variant-a.md) / [Variant B](variant-b.md) / [Variant C](variant-c.md) files from those raw outputs when applicable
+- then write the human-oriented `Variant A` (`tmp/phases/phase-x/variant-a.md`) / `Variant B` (`tmp/phases/phase-x/variant-b.md`) / `Variant C` (`tmp/phases/phase-x/variant-c.md`) files from those raw outputs when applicable
 
 Update `manifest.json` with the planned artifact list and current status.
 
@@ -455,13 +455,13 @@ At minimum, each phase should leave behind:
 - a durable phase doc at [Phase Plan](../../docs/phases/phase-x.md)
 - local `tmp/` execution artifacts needed to resume and audit the phase, including:
   - `manifest.json`
-  - [Variant A](variant-a.md)
-  - [Variant B](variant-b.md)
+  - `Variant A` (`tmp/phases/phase-x/variant-a.md`)
+  - `Variant B` (`tmp/phases/phase-x/variant-b.md`)
   - [Merged Plan](merged-plan.md)
   - [Phase Review](review.md)
   - [Phase Summary](summary.md)
   - [Retrospective](retrospective.md)
-  - optional [Variant C](variant-c.md) when a third variant was actually useful
+  - optional `Variant C` (`tmp/phases/phase-x/variant-c.md`) when a third variant was actually useful
   - `bash-exit-1.jsonl` when any bash call during the phase exited with code `1`
   - [Clarification Log](clarification.md) when a plan-sufficiency interview or auto-clarification step was needed
   - subagent summaries when subagents were used

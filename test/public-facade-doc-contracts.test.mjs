@@ -29,7 +29,7 @@ test("installed skill guidance owns packaging guarantees and contract docs stay 
   assert.match(copilotFollowupSkill, /packaging\/installer bug/i);
   assert.match(publicContract, /canonical owner lives in the shipped `skills\/docs\/` surface/i);
   assert.match(publicContract, /installed skill\/runtime consumers reliably own the skills subtree/i);
-  assert.match(publicContract, /read the same contract via \[Public Dev Loop Contract\]\(.\/public-dev-loop-contract\.md\) from the installed skill directory/i);
+  assert.match(publicContract, /read the same contract via \[Public Dev Loop Contract\]\(..\/docs\/public-dev-loop-contract\.md\) from the installed skill directory/i);
 
   for (const [label, content] of [
     ["skills/docs/public-dev-loop-contract.md", publicContract],

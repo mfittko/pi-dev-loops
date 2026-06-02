@@ -7,7 +7,7 @@ Preparation is in place. Implementation has not started.
 ## Current source of truth
 
 - Product plan: [Project Plan](../../../PLAN.md)
-- Durable phase plans: [Phase Plan](docs/phases/phase-<n>.md)
+- Durable phase plans: [Phase Plan](../../../docs/phases/)
 - Execution skill: `dev-loop`
 - Repo contract: [Agent Instructions](../../../AGENTS.md)
 - Workflow explainer: [Implementation Workflow](../../../docs/IMPLEMENTATION_WORKFLOW.md)
