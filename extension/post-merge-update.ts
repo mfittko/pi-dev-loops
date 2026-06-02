@@ -31,7 +31,6 @@ type RunCommandResult = ExecResult;
 type PostMergeUpdateHookState = {
   pendingPostMergeUpdate: boolean;
   updateInFlight: boolean;
-  lastTriggerToken: string | null;
   pendingRepoRoot: string | null;
 };
 
@@ -43,10 +42,6 @@ type CreatePostMergeUpdateHookOptions = {
 function trimToNull(value: string | null | undefined): string | null {
   const trimmed = `${value ?? ''}`.trim();
   return trimmed ? trimmed : null;
-}
-
-function buildMergeTriggerToken(command: string, repoRoot: string, repoSlug: string): string {
-  return `${repoSlug}\n${repoRoot}\n${command.trim()}`;
 }
 
 function buildShellOutput(result: Pick<RunCommandResult, 'stdout' | 'stderr'>): string {
@@ -120,16 +115,13 @@ function markPendingUpdate(state: PostMergeUpdateHookState, command: string, rep
     return;
   }
 
-  const triggerToken = buildMergeTriggerToken(command, repoContext.repoRoot, repoContext.repoSlug);
   if (state.pendingPostMergeUpdate) {
-    state.lastTriggerToken = triggerToken;
     state.pendingRepoRoot ??= repoContext.repoRoot;
     return;
   }
 
   state.pendingPostMergeUpdate = true;
   state.pendingRepoRoot = repoContext.repoRoot;
-  state.lastTriggerToken = triggerToken;
 }
 
 async function resolveRepoContextSafe(
@@ -245,14 +237,12 @@ export function createPostMergeUpdateHook(
   const state: PostMergeUpdateHookState = {
     pendingPostMergeUpdate: false,
     updateInFlight: false,
-    lastTriggerToken: null,
     pendingRepoRoot: null,
   };
 
   function reset(): void {
     state.pendingPostMergeUpdate = false;
     state.updateInFlight = false;
-    state.lastTriggerToken = null;
     state.pendingRepoRoot = null;
   }
 
