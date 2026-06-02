@@ -4,42 +4,42 @@ Start here for repository documentation.
 
 ## Current operator + contract surface
 
-- `docs/IMPLEMENTATION_STATE.md` — current execution snapshot and fresh-session read order
-- `docs/IMPLEMENTATION_WORKFLOW.md` — workflow/process authority boundaries
-- `docs/conductor-routing-contract.md` — canonical outer-loop routing contract
-- `skills/docs/pr-lifecycle-contract.md` — canonical family-local PR lifecycle contract
-- `docs/tracker-story-pr-contract.md` — canonical tracker-first story/PR contract
-- `docs/sub-issue-tree-contract.md` — deterministic pattern for epic decomposition with GitHub sub-issue trees
-- `docs/copilot-loop-state-graph.md`
-- `docs/reviewer-loop-state-graph.md`
-- `docs/gate-review-comment-contract.md`
-- `docs/steering-contract.md`
-- `docs/ui-validation-contract.md`
-- `docs/ui-smoke-harness.md`
-- `docs/ui-artifact-contract.md`
-- `docs/ui-designer-review-loop.md`
+- [Implementation State](./IMPLEMENTATION_STATE.md) — current execution snapshot and fresh-session read order
+- [Implementation Workflow](./IMPLEMENTATION_WORKFLOW.md) — workflow/process authority boundaries
+- [Conductor Routing Contract](./conductor-routing-contract.md) — canonical outer-loop routing contract
+- [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md) — canonical family-local PR lifecycle contract
+- [Tracker Story PR Contract](./tracker-story-pr-contract.md) — canonical tracker-first story/PR contract
+- [Sub-Issue Tree Contract](./sub-issue-tree-contract.md) — deterministic pattern for epic decomposition with GitHub sub-issue trees
+- [Copilot Loop State Graph](./copilot-loop-state-graph.md)
+- [Reviewer Loop State Graph](./reviewer-loop-state-graph.md)
+- [Gate Review Comment Contract](./gate-review-comment-contract.md)
+- [Steering Contract](./steering-contract.md)
+- [UI Validation Contract](./ui-validation-contract.md)
+- [UI Smoke Harness](./ui-smoke-harness.md)
+- [UI Artifact Contract](./ui-artifact-contract.md)
+- [UI Designer Review Loop](./ui-designer-review-loop.md)
 
 ## Active local phase doc
 
-- `docs/phases/phase-7.md` — active phase plan
+- [Phase 7 Plan](./phases/phase-7.md) — active phase plan
 
 ## Archived history
 
-- `docs/archive/phases/phase-0.md` through `docs/archive/phases/phase-6.md` — completed phase history
-- `docs/archive/workflow-remediation-prep.md` — issue #70 supporting memo/history
+- [Phase 0 Archive](./archive/phases/phase-0.md) through [Phase 6 Archive](./archive/phases/phase-6.md) — completed phase history
+- [Workflow Remediation Prep](./archive/workflow-remediation-prep.md) — issue #70 supporting memo/history
 
 ## Presentations
 
-- `docs/presentations/applied-dev-loops-presentation.md`
-- `docs/presentations/process-observability-presentation.md`
+- [Applied Dev Loops Presentation](./presentations/applied-dev-loops-presentation.md)
+- [Process Observability Presentation](./presentations/process-observability-presentation.md)
 - `docs/presentations/style.css`
 
 ## Canonical-owner pointers
 
-- `docs/lib-vs-packages-core-boundary.md` — ownership boundary between `lib/`, `packages/core/`, and `scripts/_core-helpers.mjs`
-- `docs/outer-loop-state-graph.md` → `docs/conductor-routing-contract.md` (symlink)
-- `docs/tracker-first-mvp-state-graph.md` → `docs/tracker-story-pr-contract.md` (symlink)
-- `docs/copilot-ci-status-contract.md` → `skills/docs/copilot-ci-status-contract.md` (symlink)
+- [Library vs Packages Core Boundary](./lib-vs-packages-core-boundary.md) — ownership boundary between `lib/`, `packages/core/`, and `scripts/_core-helpers.mjs`
+- [Outer Loop State Graph](./outer-loop-state-graph.md) → [Conductor Routing Contract](conductor-routing-contract.md) (symlink)
+- [Tracker-First MVP State Graph](./tracker-first-mvp-state-graph.md) → [Tracker Story PR Contract](tracker-story-pr-contract.md) (symlink)
+- [Copilot CI Status Contract](./copilot-ci-status-contract.md) → [Copilot CI Status Contract](../skills/docs/copilot-ci-status-contract.md) (symlink)
 
 ## See also
 

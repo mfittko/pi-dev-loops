@@ -13,7 +13,7 @@ This repo supports both local and GitHub-first work, but the public workflow sur
 A canonical shorthand example still maps to the same public `dev-loop` intent:
 - `auto dev loop on issue 112`
 
-The canonical public routing and shorthand contract lives in `skills/docs/public-dev-loop-contract.md`.
+The canonical public routing and shorthand contract lives in [Public Dev Loop Contract](./skills/docs/public-dev-loop-contract.md).
 
 ## What this repository provides
 
@@ -42,7 +42,7 @@ For project-local installs, use `pi install -l git:github.com/mfittko/pi-dev-loo
 
 Legacy `/dev-loops install` and `/dev-loops update` commands are removed; use `pi install` / `pi update` directly instead.
 
-See `extension/README.md` for the full command and package-install contract.
+See [Extension Documentation](./extension/README.md) for the full command and package-install contract.
 
 ## Configuration
 
@@ -59,7 +59,7 @@ Key configurable surfaces:
 - **Refinement** — fan-out count and mode for parallel review variants
 - **Autonomy** — which gates require operator confirmation
 
-Full details: `extension/README.md` and `.pi/dev-loop/defaults.yaml`.
+Full details: [Extension Documentation](extension/README.md) and `.pi/dev-loop/defaults.yaml`.
 
 ## Requirements and assumptions
 
@@ -105,9 +105,9 @@ CI currently splits into a small changed-files gate plus parallel `verify` and c
 
 ## Where to read next
 
-- `docs/index.md` — start here for active docs and canonical-owner pointers
-- `extension/README.md` — `/dev-loops` command and package-install contract
-- `scripts/README.md` — deterministic script contracts
-- `docs/ui-smoke-harness.md` — reusable local Playwright/WebKit smoke baseline for opted-in UI slices
-- `docs/ui-artifact-contract.md` — screenshot/state artifact contract and bounded CI-promotion rules for UI slices
-- `docs/ui-designer-review-loop.md` — designer-persona review loop contract for UI slices
+- [Docs Index](./docs/index.md) — start here for active docs and canonical-owner pointers
+- [Extension Documentation](extension/README.md) — `/dev-loops` command and package-install contract
+- [Scripts Documentation](./scripts/README.md) — deterministic script contracts
+- [UI Smoke Harness](./docs/ui-smoke-harness.md) — reusable local Playwright/WebKit smoke baseline for opted-in UI slices
+- [UI Artifact Contract](./docs/ui-artifact-contract.md) — screenshot/state artifact contract and bounded CI-promotion rules for UI slices
+- [UI Designer Review Loop](./docs/ui-designer-review-loop.md) — designer-persona review loop contract for UI slices

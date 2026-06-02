@@ -1,6 +1,6 @@
 # Phase {{phase}} dev-mode review
 
-Optional analytical notes that support the required `dev-mode-retrospective.md`.
+Optional analytical notes that support the required [Dev Mode Retrospective](./dev-mode-retrospective.md).
 
 ## Iteration reviewed
 

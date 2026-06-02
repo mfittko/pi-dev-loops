@@ -59,13 +59,13 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 
 ## Definition of done
 
-- `docs/phases/phase-5.md` records the narrowed objective, exact scope, non-goals, tests-first plan, AC, DoD, validation steps, durable decisions, and unresolved questions
+- [Phase 5 Plan](./phase-5.md) records the narrowed objective, exact scope, non-goals, tests-first plan, AC, DoD, validation steps, durable decisions, and unresolved questions
 - failing tests for all three scripts exist before implementation is considered complete
 - script success and malformed-argument/error JSON contracts are explicit and tested
 - the live capture contract is explicit: live mode requires both `--repo` and `--pr`
 - the watcher contract is explicit: fresh non-Copilot review activity does not count as a change event
 - any new shared helper added to `packages/core` is pure, fixture-backed, and justified by actual reuse
-- `scripts/README.md` documents supported scripts, arguments, success outputs, and failure behavior accurately
+- [Scripts Documentation](../../../scripts/README.md) documents supported scripts, arguments, success outputs, and failure behavior accurately
 - `npm test` passes
 - `npm run test:core` passes
 - `git diff --check` passes
@@ -82,7 +82,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 - run `git diff --check`
 - run `npm run test:dev-loop`
 - probe for local coverage tooling and record a bounded gap if unavailable
-- do a focused read-through of the new root scripts, any shared helper added for them, and `scripts/README.md`
+- do a focused read-through of the new root scripts, any shared helper added for them, and [Scripts Documentation](../../../scripts/README.md)
 
 ## Durable decisions
 
@@ -98,7 +98,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 
 - what is the narrowest stable JSON contract for `watch-copilot-review` that still supports later follow-up automation without over-modeling every poll detail beyond the explicit changed/timeout/idle result shape?
 - if a tiny shared diff helper is added under `packages/core`, what is the narrowest reusable seam that avoids premature generalization?
-- should `scripts/README.md` move fully from `lib/` terminology to package-first shared-helper terminology in this phase, or is a smaller wording correction enough?
+- should [Scripts Documentation](../../../scripts/README.md) move fully from `lib/` terminology to package-first shared-helper terminology in this phase, or is a smaller wording correction enough?
 
 ## Operational closure status
 

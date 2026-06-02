@@ -223,7 +223,7 @@ test("new See Also markdown links resolve from docs files", async () => {
       "../skills/copilot-pr-followup/SKILL.md",
       "../skills/final-approval/SKILL.md",
       "../skills/docs/pr-lifecycle-contract.md",
-      "gate-review-sub-loop-contract.md",
+      "./gate-review-sub-loop-contract.md",
     ],
     "docs/gate-review-sub-loop-contract.md": [
       "gate-review-comment-contract.md",
@@ -255,11 +255,11 @@ test("docs index separates active docs, archived history, and presentations", as
   const content = await readRepo("docs/index.md");
 
   assert.match(content, /Start here/i);
-  assert.match(content, /docs\/phases\/phase-7\.md/i);
-  assert.match(content, /docs\/archive\/phases\/phase-0\.md/i);
-  assert.match(content, /docs\/archive\/workflow-remediation-prep\.md/i);
-  assert.match(content, /docs\/presentations\/applied-dev-loops-presentation\.md/i);
-  assert.match(content, /docs\/presentations\/style\.css/i);
+  assert.match(content, /phases\/phase-7\.md/i);
+  assert.match(content, /archive\/phases\/phase-0\.md/i);
+  assert.match(content, /archive\/workflow-remediation-prep\.md/i);
+  assert.match(content, /presentations\/applied-dev-loops-presentation\.md/i);
+  assert.match(content, /presentations\/style\.css/i);
 });
 
 test("gate-review comment contract documents required fields, verdict values, rerun rules, and fail-closed behavior", async () => {

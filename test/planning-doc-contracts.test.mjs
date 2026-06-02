@@ -99,7 +99,7 @@ test("planning guidance keeps sub-issue trees as the durable decomposition owner
     /When to use sub-issues vs plain related-issue references/i,
     /do not maintain.*checklist.*duplicates|not.*maintain.*ordered checklist.*duplicates/i,
   ], "docs/sub-issue-tree-contract.md");
-  assert.match(docsIndex, /docs\/sub-issue-tree-contract\.md/i);
+  assert.match(docsIndex, /sub-issue-tree-contract\.md/i);
 });
 
 test("local workflow docs define tracker-backed local canonicality and no-dup rules", async () => {
@@ -113,14 +113,14 @@ test("local workflow docs define tracker-backed local canonicality and no-dup ru
     /Tracker-backed local issue spec/i,
     /tracker issue is the durable canonical spec/i,
     /resolve-tracker-local-spec\.mjs/i,
-    /do \*\*not\*\* also maintain `docs\/phases\/phase-<n>\.md` for that same tracker-backed session/i,
+    /do \*\*not\*\* also maintain.*Phase Plan.*for that same tracker-backed session/i,
   ], "docs/IMPLEMENTATION_WORKFLOW.md");
 
   assertMatchesAll(localImplSkill, [
     /Local implementation supports two durable spec inputs/i,
     /phase-doc-backed local sessions/i,
     /tracker-backed local sessions/i,
-    /do not create or read `docs\/phases\/phase-x\.md` for that same tracker-backed session/i,
+    /do not create or read \[Phase Plan\]\(\.\.\/\.\.\/docs\/phases\/phase-x\.md\) for that same tracker-backed session/i,
     /keep `tmp\/` as temporary local execution state only/i,
   ], "skills/local-implementation/SKILL.md");
 

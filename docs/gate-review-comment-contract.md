@@ -13,7 +13,7 @@ the latest head — without relying on local or session-only artifacts.
 This document owns the visible gate-review comment evidence contract only. It does
 not restate the full PR follow-up procedure; that remains owned by the relevant
 workflow skill. The broader family-local PR lifecycle that consumes this evidence
-is defined in `skills/docs/pr-lifecycle-contract.md`.
+is defined in [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md).
 
 ## Scope
 
@@ -147,6 +147,6 @@ required visible PR comment is confirmed posted for the current head SHA.
 ## See also
 
 - [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md) — broader lifecycle state machine
-- [Gate-Review Sub-Loop Contract](gate-review-sub-loop-contract.md) — execution shape for gate review work
+- [Gate-Review Sub-Loop Contract](./gate-review-sub-loop-contract.md) — execution shape for gate review work
 - [Copilot PR Follow-up](../skills/copilot-pr-followup/SKILL.md) — skill that owns gate execution
 - [Final Approval](../skills/final-approval/SKILL.md) — human approval gate route

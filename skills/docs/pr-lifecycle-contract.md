@@ -5,9 +5,9 @@ This document defines the deterministic **family-local PR lifecycle contract** f
 The canonical contract lives in the shipped `skills/docs/` surface because installed skill/runtime consumers reliably own the skills subtree.
 
 It consolidates the lifecycle boundary currently split across:
-- `docs/copilot-loop-state-graph.md`
-- `docs/reviewer-loop-state-graph.md`
-- `docs/gate-review-comment-contract.md`
+- [Copilot Loop State Graph](../../docs/copilot-loop-state-graph.md)
+- [Reviewer Loop State Graph](../../docs/reviewer-loop-state-graph.md)
+- [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md)
 
 ## Purpose
 
@@ -26,10 +26,10 @@ It does not redefine helper transport mechanics, reviewer-loop internals, conduc
 
 | Surface | Relationship |
 |---|---|
-| `docs/copilot-loop-state-graph.md` | Copilot-family inner-loop state machine consumed by this lifecycle |
-| `docs/reviewer-loop-state-graph.md` | Reviewer-side review production / submission boundary consumed by this lifecycle |
-| `docs/gate-review-comment-contract.md` | Visible evidence contract for `draft_gate` and `pre_approval_gate` |
-| `docs/conductor-routing-contract.md` | Downstream consumer of family-local lifecycle outcomes |
+| [Copilot Loop State Graph](../../docs/copilot-loop-state-graph.md) | Copilot-family inner-loop state machine consumed by this lifecycle |
+| [Reviewer Loop State Graph](../../docs/reviewer-loop-state-graph.md) | Reviewer-side review production / submission boundary consumed by this lifecycle |
+| [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) | Visible evidence contract for `draft_gate` and `pre_approval_gate` |
+| [Conductor Routing Contract](../../docs/conductor-routing-contract.md) | Downstream consumer of family-local lifecycle outcomes |
 | issue #29 | Reviewer-loop boundary semantics |
 | issue #34 | Copilot request / re-request / watch helper mechanics |
 | issue #43 | Review-angle policy for the final local pre-approval gate (now config-driven via `gates.preApproval.angles` and `resolveGateAngles`) |
@@ -58,7 +58,7 @@ Purpose:
 
 Boundary note:
 - `draft_gate` governs only the draft -> ready-for-review boundary for the reviewed head
-- visible comment schema/evidence rules stay in `docs/gate-review-comment-contract.md`
+- visible comment schema/evidence rules stay in [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md)
 
 ### 2. `pre_approval_gate`
 
@@ -68,7 +68,7 @@ This gate uses review angles resolved from config (`resolveGateAngles(config, "p
 
 Boundary note:
 - `pre_approval_gate` governs only final approval readiness for the reviewed head
-- visible comment schema/evidence rules stay in `docs/gate-review-comment-contract.md`
+- visible comment schema/evidence rules stay in [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md)
 
 ## Lifecycle states
 

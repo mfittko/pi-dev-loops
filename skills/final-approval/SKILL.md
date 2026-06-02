@@ -14,17 +14,17 @@ user-invocable: false
 
 This skill is the canonical internal `final_approval` route behind the public `dev-loop` façade.
 
-Use it only after the public dispatcher has already resolved `selectedStrategy: final_approval`. Treat `../copilot-pr-followup/SKILL.md` as the canonical owner of the full PR follow-up procedure; this skill narrows the fresh-context read set to the final approval and merge gate.
+Use it only after the public dispatcher has already resolved `selectedStrategy: final_approval`. Treat [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) as the canonical owner of the full PR follow-up procedure; this skill narrows the fresh-context read set to the final approval and merge gate.
 
 ## Required reads
 
 Read only what the final approval decision needs:
 
-1. `../docs/public-dev-loop-contract.md`
-2. `../docs/retrospective-checkpoint-contract.md` when the current step depends on async start/resume/status or retrospective enforcement
-4. `../copilot-pr-followup/SKILL.md`
-5. the active GitHub issue / PR, current review comments, and current-head CI/check status
-6. task-relevant source files, tests, and config
+1. [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
+2. [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md) when the current step depends on async start/resume/status or retrospective enforcement
+3. [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md)
+4. the active GitHub issue / PR, current review comments, and current-head CI/check status
+5. task-relevant source files, tests, and config
 
 ## Final approval contract
 

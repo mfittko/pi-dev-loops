@@ -6,7 +6,7 @@ Installing the package exposes two thin wrappers over one shared deterministic c
 - the Pi extension command family rooted at `/dev-loops`
 - the shell CLI entrypoint `pi-dev-loops`
 
-Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes the packaged skills through `package.json` `pi.skills`, and the extension syncs packaged `.pi/agents/*.agent.md` files into `~/.agents/` on `session_start`.
+Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes the packaged skills through `package.json` `pi.skills`, and the extension syncs packaged agent files (`.pi/agents/*.agent.md`) into `~/.agents/` on `session_start`.
 
 ## Command surface
 
@@ -91,7 +91,7 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 - `pi install git:github.com/mfittko/pi-dev-loops` is the distribution mechanism for the extension, skills, scripts, packaged agents, and required installed runtime contract docs
 - `pi install -l git:github.com/mfittko/pi-dev-loops` is the project-local replacement for the old `install repo` flow
 - `pi update git:github.com/mfittko/pi-dev-loops` refreshes an installed package
-- source-tree canonical contract docs live under `skills/docs/`; installer/package output must ship this shared docs bundle with the installed skills subtree: `public-dev-loop-contract.md` and `retrospective-checkpoint-contract.md`
+- source-tree canonical contract docs live under `skills/docs/`; installer/package output must ship this shared docs bundle with the installed skills subtree: [Public Dev Loop Contract](../skills/docs/public-dev-loop-contract.md) and [Retrospective Checkpoint Contract](../skills/docs/retrospective-checkpoint-contract.md)
 - installed skill/runtime guidance must read those bundled shared docs (from installed `skills/<skill>/`, resolve via `../docs/`) instead of assuming a source checkout is present; a missing bundled contract doc is a packaging/installer bug
 - packaged agents are refreshed into `~/.agents/` on each `session_start`
 - `/dev-loops install ...` and `/dev-loops update ...` are removed; use `pi install` / `pi update` directly instead
@@ -165,7 +165,7 @@ The shipped defaults activate these angles. Additional angles are available as o
 
 1. Add the angle name to `gates.draft.angles` or `gates.preApproval.angles`
 2. Add a `personas.<angle>` entry with a `persona` agent name and a `prompt` instruction
-3. Create the corresponding `.pi/agents/<persona>.agent.md` if using a new persona
+3. Create the corresponding `Agent file` (`.pi/agents/<persona>.agent.md`) if using a new persona
 4. Optionally set a per-angle model override via `models.roles.<angle>`
 
 ### Config format
@@ -182,7 +182,7 @@ Current Phase 3+ contract:
 - the extension is source-loaded from `./extension/index.ts` through `package.json` `pi.extensions`
 - the package exposes `.pi/skills` through `package.json` `pi.skills` for install-based global skill loading
 - the shell CLI is exposed through `package.json` `bin.pi-dev-loops`
-- the extension syncs packaged `.pi/agents/*.agent.md` files into `~/.agents/` on `session_start` so user-level agents are available outside this repo
+- the extension syncs packaged agent files (`.pi/agents/*.agent.md`) into `~/.agents/` on `session_start` so user-level agents are available outside this repo
 - package install/update happens through `pi install` / `pi update`
 - this phase does not yet claim a specific supported `gh` version; it only checks `gh` presence and authentication state
 - this phase does not require a separate compiled build or `dist/` pipeline
@@ -199,4 +199,4 @@ Root verification and test commands are intentionally explicit:
 
 ## Design rule
 
-Both wrappers should stay thin. Shared workflow mechanics should live in deterministic `packages/core/` modules and `scripts/`, not in extension-only or CLI-only command logic. Runtime command support that bridges both surfaces belongs in `lib/dev-loops-core.mjs`. See `docs/lib-vs-packages-core-boundary.md` for the full ownership rule.
+Both wrappers should stay thin. Shared workflow mechanics should live in deterministic `packages/core/` modules and `scripts/`, not in extension-only or CLI-only command logic. Runtime command support that bridges both surfaces belongs in `lib/dev-loops-core.mjs`. See [Library vs Packages Core Boundary](../docs/lib-vs-packages-core-boundary.md) for the full ownership rule.

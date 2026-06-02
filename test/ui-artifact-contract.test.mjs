@@ -28,7 +28,7 @@ test('ui artifact contract doc defines named-state artifacts and CI promotion ru
   assert.match(doc, /viewer-smoke/i);
 
   assert.match(readme, /docs\/ui-artifact-contract\.md/i);
-  assert.match(indexDoc, /docs\/ui-artifact-contract\.md/i);
-  assert.match(localImplementationSkill, /docs\/ui-artifact-contract\.md/i);
+  assert.match(indexDoc, /ui-artifact-contract\.md/i);
+  assert.match(localImplementationSkill, /\.\.\/\.\.\/docs\/ui-artifact-contract\.md/i);
   assert.match(ciWorkflow, /viewer-smoke:/i);
 });

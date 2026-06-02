@@ -21,9 +21,9 @@ Phase 0 established the docs-first workflow convention. Phase 1 now uses that fo
   - keep local until split into base + overlay
 - add one narrow regression test surface for imported blocker phrases
 - normalize only the current known blockers:
-  - `repo-wiki` wording in `skills/copilot-dev-loop/SKILL.md`
+  - `repo-wiki` wording in [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md)
   - required references to companion skills that do not exist in this repo
-  - hardcoded reviewer identity in `agents/review.agent.md`
+  - hardcoded reviewer identity in [Review Agent](../../../agents/review.agent.md)
   - stale `docs/plans/` references in imported agent prompts
 - keep coordinator cleanup narrow: remove stale assumptions and classify the remaining workflow-policy coupling honestly
 
@@ -41,9 +41,9 @@ Phase 0 established the docs-first workflow convention. Phase 1 now uses that fo
 
 - this phase doc contains the imported-asset classification and final phase boundary
 - the scoped imported blockers are removed from the edited assets
-- `skills/copilot-dev-loop/SKILL.md` preserves its GitHub/Copilot workflow intent while dropping source-repo-specific assumptions
-- `agents/review.agent.md` has no hardcoded reviewer identity and no stale plan-path assumption
-- `agents/coordinator.agent.md` no longer contains stale `docs/plans/` assumptions and is not over-claimed as generic
+- [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md) preserves its GitHub/Copilot workflow intent while dropping source-repo-specific assumptions
+- [Review Agent](../../../agents/review.agent.md) has no hardcoded reviewer identity and no stale plan-path assumption
+- [Coordinator Agent](../../../agents/coordinator.agent.md) no longer contains stale `docs/plans/` assumptions and is not over-claimed as generic
 - at least one focused regression test guards against reintroducing the known blocker phrases
 - the work stays phase-bounded and does not add unnecessary doc or tmp complexity
 
@@ -68,28 +68,28 @@ Phase 0 established the docs-first workflow convention. Phase 1 now uses that fo
 ## Imported asset classification targets
 
 ### Skills
-- `skills/dev-loop/SKILL.md` — reusable after moderate refactor
+- [Dev Loop Skill](../../../skills/dev-loop/SKILL.md) — reusable after moderate refactor
   - rationale: the workflow is intentionally repo-opinionated and phase-based, but its path handling and artifact contract are increasingly portable
-- `skills/copilot-dev-loop/SKILL.md` — reusable after moderate refactor
+- [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md) — reusable after moderate refactor
   - rationale: useful workflow shape, but imported repo-specific assumptions still need cleanup in this phase
 
 ### Agents
-- `agents/developer.agent.md` — ready to globalize now
+- [Developer Agent](../../../agents/developer.agent.md) — ready to globalize now
   - rationale: already reads mostly as a role definition; only tiny wording cleanup should be needed, if any
-- `agents/docs.agent.md` — ready to globalize now
+- [Docs Agent](../../../agents/docs.agent.md) — ready to globalize now
   - rationale: already close to a generic documentation role
-- `agents/quality.agent.md` — ready to globalize now
+- [Quality Agent](../../../agents/quality.agent.md) — ready to globalize now
   - rationale: already close to a generic quality/build/test role
-- `agents/fixer.agent.md` — reusable after moderate refactor
+- [Fixer Agent](../../../agents/fixer.agent.md) — reusable after moderate refactor
   - rationale: the role is reusable, but the PR-thread workflow remains GitHub-policy-specific
-- `agents/review.agent.md` — reusable after moderate refactor
+- [Review Agent](../../../agents/review.agent.md) — reusable after moderate refactor
   - rationale: the review role is reusable, but hardcoded reviewer identity and stale plan-path assumptions must be removed
-- `agents/coordinator.agent.md` — keep local until split into base + overlay
+- [Coordinator Agent](../../../agents/coordinator.agent.md) — keep local until split into base + overlay
   - rationale: it still encodes too much workflow and GitHub-policy behavior to treat as a generic role after only minimal cleanup
 
 ## Open questions
 
-- does `agents/fixer.agent.md` need a small wording cleanup in this phase, or is honest classification enough?
+- does [Fixer Agent](../../../agents/fixer.agent.md) need a small wording cleanup in this phase, or is honest classification enough?
 - should the dev-loop tmp artifact contract be simplified further beyond the current default-artifact reduction?
 - what is the smallest useful root validation contract for markdown-based imported assets in this repo?
 

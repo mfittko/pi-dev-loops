@@ -84,9 +84,9 @@ Read only the constitution / contract docs and runtime surface needed for the cu
 
 Before planning, review, or automation:
 
-1. `AGENTS.md` if present
-2. `../docs/public-dev-loop-contract.md`
-3. if the current step depends on async start/resume/status or retrospective enforcement, `../docs/retrospective-checkpoint-contract.md`
+1. [Agent Instructions](../../AGENTS.md) if present
+2. [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
+3. if the current step depends on async start/resume/status or retrospective enforcement, [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md)
 4. the relevant GitHub issue or PR
 5. the repository's actual validation/runtime surface:
    - root `package.json`
@@ -106,11 +106,11 @@ When this skill refers to helper paths such as `scripts/...` or `docs/...`, reso
 Use this rule:
 - if the skill is installed as a normalized standalone copy, the required bundled contract docs live under the shared `../docs/` directory next to the installed skill directories; do not assume helper scripts are bundled unless that installed layout actually contains them
 - if you are working in the `pi-dev-loops` source repository, this skill file lives under `skills/copilot-pr-followup/`, so source-repo helper scripts live two levels up at `../../scripts/`, while required bundled contract docs live one level up at `../docs/`
-- when in doubt, resolve helper paths relative to this `SKILL.md` file first, then verify the target file exists before running it
+- when in doubt, resolve helper paths relative to this [skill file](./SKILL.md) first, then verify the target file exists before running it
 
 Required bundled runtime contract docs for installed copies of this skill:
-- `../docs/public-dev-loop-contract.md`
-- `../docs/retrospective-checkpoint-contract.md`
+- [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
+- [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md)
 
 
 Read those bundled `../docs/` files from the installed skill layout instead of assuming the source repository checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
@@ -215,7 +215,7 @@ stop states:
 Proposal artifact contract:
 - human-readable Markdown proposal
 - machine-readable JSON snapshot
-- write temporary artifacts under `tmp/new-idea-intake/<run-id>/proposal.md` and `tmp/new-idea-intake/<run-id>/proposal.json`
+- write temporary artifacts under `Proposal` (`tmp/new-idea-intake/<run-id>/proposal.md`) and `tmp/new-idea-intake/<run-id>/proposal.json`
 
 If the Phase 1 preflight verdict is `pause_for_clarification`, stop and ask.
 If the intake state machine stops at `stopped_overlap_needs_decision` or `stopped_low_confidence`, stop and ask.
@@ -361,7 +361,7 @@ node <resolved-skill-scripts>/github/manage-sub-issues.mjs list \
 Do **not** re-implement sub-issue management ad hoc or bypass `manage-sub-issues.mjs`.
 Do **not** maintain a body checklist that duplicates the sub-issue tree.
 
-For the full `manage-sub-issues.mjs` contract, use `../../docs/sub-issue-tree-contract.md` when working in the `pi-dev-loops` source repository.
+For the full `manage-sub-issues.mjs` contract, use [Sub-Issue Tree Contract](../../docs/sub-issue-tree-contract.md) when working in the `pi-dev-loops` source repository.
 For installed or normalized skill copies, read the same contract from the resolved skill docs directory instead of assuming the source checkout is present.
 
 ### Phase 4 — Copilot handoff and bootstrap wait
@@ -409,12 +409,12 @@ installed copies it may instead be `scripts/` inside the installed skill directo
 
 Each machine captures an observable snapshot from GitHub facts (plus explicit bounded local loop
 metadata when required) and interprets it into exactly one current state plus allowed next
-transitions. See `copilot-loop-state-graph.md` and `reviewer-loop-state-graph.md` in the resolved
+transitions. See [Copilot Loop State Graph](../../docs/copilot-loop-state-graph.md) and [Reviewer Loop State Graph](../../docs/reviewer-loop-state-graph.md) in the resolved
 skill docs directory; in the `pi-dev-loops` source repository those source-authority docs live under
 `../../docs/` relative to this file.
 
 For tracker-first MVP `story -> PR -> tracker sync` work, also use
-`tracker-first-mvp-state-graph.md` in that same docs directory as the bounded workflow-family
+[Tracker-First MVP State Graph](../../docs/tracker-first-mvp-state-graph.md) in that same docs directory as the bounded workflow-family
 contract (under `#17`, complementary to `#21`, narrower than `#19`). That document inherits
 source-of-truth ownership, the required work item <-> PR link, and reverse-sync semantics from
 `#21`; it only adds the mutually exclusive workflow-family states and post-merge sync-verification
@@ -547,7 +547,7 @@ When you do hand work to Copilot:
 
 ## PR description contract
 
-Follow the PR description contract (see `AGENTS.md` if present; otherwise use the structure below): detailed structured descriptions, not thin placeholders. At minimum include change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
+Follow the PR description contract (see [Agent Instructions](../../AGENTS.md) if present; otherwise use the structure below): detailed structured descriptions, not thin placeholders. At minimum include change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
 
 New PRs in this workflow must be opened as **draft** PRs first. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate review is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is even eligible.
 
@@ -704,7 +704,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - if yes, run the smallest honest local validation for the accepted fix scope
    - if that local validation is still known red, continue remediation instead of re-requesting Copilot
    - after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for any CI-dependent follow-up decision
-   - refresh/re-read current-head CI/check data before advancing and apply the contract in `../docs/copilot-ci-status-contract.md` (wait for `pending`/`none`, stop for `failure`, proceed only on `success`)
+   - refresh/re-read current-head CI/check data before advancing and apply the contract in [Copilot CI Status Contract](../docs/copilot-ci-status-contract.md) (wait for `pending`/`none`, stop for `failure`, proceed only on `success`)
    - passing local validation alone does not satisfy a step that still requires GitHub CI/check readiness for the current head
    - only results for the current head SHA may satisfy a CI-dependent follow-up step; older-head results must not unblock the new head
    - if GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot
@@ -736,17 +736,17 @@ Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.
 
 ### Draft gate contract (before marking PR ready for review)
 
-The canonical gate-review comment contract is `docs/gate-review-comment-contract.md`. This section summarizes the procedural integration only.
+The canonical gate-review comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
 
 - **Gate name:** Draft gate
 - **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
 - **Skip rule:** before entering the draft gate, run `detect-pr-gate-coordination-state.mjs` and check `draftGateAlreadySatisfied`. If `true`, skip the draft gate entirely — the draft→ready transition was already recorded. `draft_gate` is a one-time gate; do not re-post on new heads. Only run the draft gate if `draftGateAlreadySatisfied` is `false` and no clean evidence exists.
-- **Execution directive:** run the gate-review sub-loop defined in `docs/gate-review-sub-loop-contract.md` with the draft gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain: context-builder produces a shared briefing, parallel reviewers fork from it, consolidation merges findings into a fix plan.
+- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the draft gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain: context-builder produces a shared briefing, parallel reviewers fork from it, consolidation merges findings into a fix plan.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config ships `scope`, `coverage`, `correctness`; consumer repos may override.
 - **Pass criteria:** all configured draft gate angles pass; all must-fix findings are addressed; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review.
 - **Non-substitution rule:** a clean `draft_gate` comment only authorizes the draft → ready-for-review transition for that head SHA. It does **not** satisfy `pre_approval_gate`, final-approval readiness, or merge-ready requirements.
-- **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper (see Mandatory gate-comment command contract above). Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See `docs/gate-review-comment-contract.md` for required fields, verdict definitions, and fail-closed behavior.
+- **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper (see Mandatory gate-comment command contract above). Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
 - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
 - If the `draft_gate` finds issues, the comment must say that the PR stays draft and needs fixes before retrying.
 - Do not run `gh pr ready` unless a visible `clean` `draft_gate` gate-review comment exists for the current head SHA.
@@ -755,17 +755,17 @@ The canonical gate-review comment contract is `docs/gate-review-comment-contract
 
 ### Pre-approval gate contract
 
-This is the default pre-approval gate for this workflow boundary. The canonical gate-review comment contract is `docs/gate-review-comment-contract.md`. This section summarizes the procedural integration only.
+This is the default pre-approval gate for this workflow boundary. The canonical gate-review comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
 
 - **Gate name:** Pre-approval gate
 - **Trigger / boundary:** right before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff
-- **Execution directive:** run the gate-review sub-loop defined in `docs/gate-review-sub-loop-contract.md` with the pre-approval gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain; only re-run reviewers that had findings in the previous pass.
+- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the pre-approval gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain; only re-run reviewers that had findings in the previous pass.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config`. Default config ships `dry`, `kiss`, `yagni`, `srp`, `soc`; consumer repos may override.
 - **Persona mapping:** each angle resolves to a reviewer persona via `resolveReviewerRole(config, angle)` from `@pi-dev-loops/core/config`. The result includes the angle-specific `prompt` — a focused review instruction. Include this prompt in each reviewer's briefing so the reviewer knows exactly what to look for. Consumers may add custom persona agents and prompts via their own config.
 - **Pass criteria:** the sub-loop completes with verdict `clean`; all configured angles pass; if parallel execution is impractical, still run all configured lenses and explicitly record the limitation.
 - **Next step after passing:** continue the Step 7 flow and then proceed to Step 8.
 - **Non-substitution rule:** a clean `pre_approval_gate` comment is separate from `draft_gate` evidence. It governs final-approval readiness for that head SHA; it does **not** replace the required `draft_gate` evidence for leaving draft.
-- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper (see Mandatory gate-comment command contract above). Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval. Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA. Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence. See `docs/gate-review-comment-contract.md` for required fields, verdict definitions, and fail-closed behavior.
+- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper (see Mandatory gate-comment command contract above). Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval. Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA. Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
 - The `pre_approval_gate` procedure must be entered and completed (visible comment posted) before any merge-ready or approval-ready declaration. Skipping the gate is not recoverable by asserting convergence.
 - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
 - If fixes advance the head SHA, post a new gate-review comment for the new head.
@@ -801,7 +801,7 @@ Useful examples in this repository:
 - changes under `skills/dev-loop/scripts/`: `npm run test:dev-loop`
 - changes under `skills/dev-loop/templates/`: run the relevant root smoke/contract tests (for example `npm run test:assets`) because `test:dev-loop` currently covers the surviving script-level tests only
 - docs-only changes: `git diff --check` and targeted markdown review
-- frontmatter or skill-only changes: parse/inspect the updated `SKILL.md` files and note any remaining gaps
+- frontmatter or skill-only changes: parse/inspect the updated [this skill file](SKILL.md) files and note any remaining gaps
 
 When GitHub Actions runs already exist and the next step is to wait for them rather than rerun them locally, prefer native GitHub CLI watch support where available:
 - use `gh run watch` for a known workflow run ID
@@ -818,13 +818,13 @@ Do not use the phase-artifact structure from the local dev-loop.
 
 For this repo-specific async Copilot loop, prefer lightweight PR/issue artifacts under `tmp/copilot-loop/` such as:
 
-- `tmp/copilot-loop/issue-<n>/summary.md`
-- `tmp/copilot-loop/pr-<n>/status.md`
+- `Issue Summary` (`tmp/copilot-loop/issue-<n>/summary.md`)
+- `PR Status` (`tmp/copilot-loop/pr-<n>/status.md`)
 - `tmp/copilot-loop/pr-<n>/copilot-baseline-<timestamp>.json`
 - `tmp/copilot-loop/pr-<n>/copilot-review-<timestamp>.json`
-- `tmp/copilot-loop/pr-<n>/copilot-review-<timestamp>.md`
-- `tmp/copilot-loop/pr-<n>/pi-findings-<timestamp>.md`
-- `tmp/copilot-loop/pr-<n>/fix-summary-<timestamp>.md`
+- `Copilot Review` (`tmp/copilot-loop/pr-<n>/copilot-review-<timestamp>.md`)
+- `Pi Findings` (`tmp/copilot-loop/pr-<n>/pi-findings-<timestamp>.md`)
+- `Fix Summary` (`tmp/copilot-loop/pr-<n>/fix-summary-<timestamp>.md`)
 
 Use these artifacts only when they genuinely help async continuation or handoff. Do not create noise files by default.
 

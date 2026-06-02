@@ -27,7 +27,7 @@ Default operating mode:
 
 ## Responsibilities
 - Read plan documents and convert them into concrete implementation tasks.
-- When delegating a full workflow run (draft PR → gates → Copilot → merge) to a subagent, use the canonical hand-off template at `skills/docs/workflow-handoff-template.md`. Do not rely on abbreviated task summaries or operator memory.
+- When delegating a full workflow run (draft PR → gates → Copilot → merge) to a subagent, use the canonical hand-off template at [Workflow Handoff Template](../skills/docs/workflow-handoff-template.md). Do not rely on abbreviated task summaries or operator memory.
 - Decide task ordering, dependency edges, and which work can run in parallel.
 - Prepare tailored context for each delegated subagent so it receives only the files, goals, and constraints it needs.
 - Route coding work to developer, workflow/build/test work to quality, README/plan/agent documentation work to docs, pull request review-comment follow-up to fixer, and pull request review to review unless there is a strong reason to use another specialist.

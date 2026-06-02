@@ -29,7 +29,7 @@ test("installed skill guidance owns packaging guarantees and contract docs stay 
   assert.match(copilotFollowupSkill, /packaging\/installer bug/i);
   assert.match(publicContract, /canonical owner lives in the shipped `skills\/docs\/` surface/i);
   assert.match(publicContract, /installed skill\/runtime consumers reliably own the skills subtree/i);
-  assert.match(publicContract, /read the same contract via `\.\.\/docs\/public-dev-loop-contract\.md` from the installed skill directory/i);
+  assert.match(publicContract, /read the same contract via \[Public Dev Loop Contract\]\(\.\.\/docs\/public-dev-loop-contract\.md\) from the installed skill directory/i);
 
   for (const [label, content] of [
     ["skills/docs/public-dev-loop-contract.md", publicContract],
@@ -67,7 +67,7 @@ test("workflow docs keep helper/runtime authority code-owned and dev-loop scope 
   ]);
 
   assert.match(workflowDoc, /shipped helper\/runtime semantics stay owned by code, tests, and the relevant contract docs/i);
-  assert.match(workflowDoc, /`scripts\/README\.md` summarizes those semantics/i);
+  assert.match(workflowDoc, /\[Scripts Documentation\]\(\.\.\/scripts\/README\.md\) summarizes those semantics/i);
   assert.match(workflowDoc, /state-graph\/contract docs under `docs\/` remain part of the authoritative shipped contract surface/i);
   assert.match(workflowDoc, /skills and phase docs explain workflow procedure and durable planning intent; they must not silently redefine shipped helper behavior/i);
 
@@ -127,7 +127,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
   assert.match(extensionReadme, /single public workflow entrypoint/i, "extension README should lead with the public entrypoint");
   assert.doesNotMatch(extensionReadme, /\/skill:copilot-dev-loop|\/skill:copilot-autopilot/i, "extension README should not surface internal seam names as readiness choices");
 
-  assert.match(devLoopSkill, /authoritative contract is `skills\/docs\/public-dev-loop-contract\.md`/i);
+  assert.match(devLoopSkill, /authoritative contract is \[Public Dev Loop Contract\]\(\.\.\/docs\/public-dev-loop-contract\.md\)/i);
   assert.match(devLoopSkill, /@pi-dev-loops\/core\/loop\/public-dev-loop-routing/i);
   assert.match(devLoopSkill, /summary/i);
 
@@ -279,7 +279,7 @@ test("public dev-loop contract keeps tracker-backed local work inside local_impl
 
   assert.match(localImplSkill, /Tracker-backed local implementation/i);
   assert.match(localImplSkill, /stays inside the existing `local_implementation` path/i);
-  assert.match(localImplSkill, /do not create or read `docs\/phases\/phase-x\.md` for that same tracker-backed session/i);
+  assert.match(localImplSkill, /do not create or read \[Phase Plan\]\(\.\.\/\.\.\/docs\/phases\/phase-x\.md\) for that same tracker-backed session/i);
   assert.match(localImplSkill, /sync durable scope \/ acceptance \/ status changes back to the tracker issue/i);
   assert.match(localImplSkill, /for tracker-backed sessions, the handoff path is always.*push.*branch.*open.*PR.*merge via GitHub/i);
   assert.match(localImplSkill, /do not suggest a direct local-main merge/i);

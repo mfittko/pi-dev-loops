@@ -11,13 +11,13 @@ Codifying the sub-loop once as a shared contract avoids inconsistent execution.
 
 This contract owns the **execution shape** of gate-review work. It does not own:
 - which review angles a specific gate runs (that stays in the skill)
-- the visible gate-review PR comment format (owned by `docs/gate-review-comment-contract.md`)
-- the broader PR lifecycle sequencing (owned by the workflow skill and `skills/docs/pr-lifecycle-contract.md`)
+- the visible gate-review PR comment format (owned by [Gate Review Comment Contract](./gate-review-comment-contract.md))
+- the broader PR lifecycle sequencing (owned by the workflow skill and [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md))
 
 ## Relationship to the gate-review comment contract
 
 The sub-loop executes the review work. The gate-review comment contract
-(`docs/gate-review-comment-contract.md`) defines the visible PR comment evidence that
+([Gate Review Comment Contract](gate-review-comment-contract.md)) defines the visible PR comment evidence that
 proves the sub-loop completed for a specific head SHA. Both are required for a gate to
 be satisfied, but they address different concerns:
 - this contract = **how** the review work is structured and executed
@@ -109,8 +109,8 @@ identical; only the review angles differ.
 
 | Gate | Review angles | Owned by |
 |---|---|---|
-| `draft_gate` | Resolved from config (`resolveGateAngles(config, "draft")`) | `skills/copilot-pr-followup/SKILL.md` |
-| `pre_approval_gate` | Resolved from config (`resolveGateAngles(config, "preApproval")`) | `skills/copilot-pr-followup/SKILL.md` |
+| `draft_gate` | Resolved from config (`resolveGateAngles(config, "draft")`) | [Copilot PR Follow-up Skill](../skills/copilot-pr-followup/SKILL.md) |
+| `pre_approval_gate` | Resolved from config (`resolveGateAngles(config, "preApproval")`) | [Copilot PR Follow-up Skill](../skills/copilot-pr-followup/SKILL.md) |
 
 ## Non-substitution rule
 
@@ -120,7 +120,7 @@ gate-review comment on the PR for the reviewed head SHA.
 
 ## See also
 
-- [Gate-Review Comment Contract](gate-review-comment-contract.md) — visible PR comment evidence format
+- [Gate-Review Comment Contract](./gate-review-comment-contract.md) — visible PR comment evidence format
 - [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md) — broader lifecycle state machine
 - [Copilot PR Follow-up](../skills/copilot-pr-followup/SKILL.md) — skill that owns gate execution
 - [Local Implementation](../skills/local-implementation/SKILL.md) — uses chain pattern for local phase reviews

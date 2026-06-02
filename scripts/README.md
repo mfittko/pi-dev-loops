@@ -124,7 +124,7 @@ Failure behavior:
 ### `scripts/github/manage-sub-issues.mjs`
 
 Deterministic helper for reading, linking, ordering, and verifying GitHub sub-issue trees.
-Use this for epic/umbrella issue decomposition. See `docs/sub-issue-tree-contract.md` for the full workflow.
+Use this for epic/umbrella issue decomposition. See [Sub-Issue Tree Contract](../docs/sub-issue-tree-contract.md) for the full workflow.
 
 Commands:
 - `list` — list sub-issues of a parent issue in tree order
@@ -353,14 +353,14 @@ Failure behavior:
 Deterministic Copilot-loop state detector. Captures current loop state from observable PR/GitHub
 facts and interprets the snapshot into one explicit current state, allowed next transitions, and
 a recommended next action. This script is the orchestration authority for the async Copilot
-review/fix loop; see `docs/copilot-loop-state-graph.md` for the full state-graph design.
+review/fix loop; see [Copilot Loop State Graph](../docs/copilot-loop-state-graph.md) for the full state-graph design.
 
 Two modes:
 
 - **Auto-detect**: `--repo <owner/name> --pr <number>`
   Fetches PR state, Copilot review request status, review threads, and CI checks from GitHub,
   builds a snapshot, and interprets it. PR CI/check normalization is owned by
-  `skills/docs/copilot-ci-status-contract.md`.
+  [Copilot CI Status Contract](../skills/docs/copilot-ci-status-contract.md).
 
 - **Snapshot interpretation**: `--input <path>`
   Reads a pre-built snapshot JSON and interprets it without any `gh` calls. Use this mode when
@@ -393,12 +393,12 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `unresolvedThreadCount` {number} — total unresolved review-thread count
 - `actionableThreadCount` {number} — unresolved threads with non-bot actionable comments
 - `ciStatus` {"success"|"failure"|"pending"|"none"} — contract-owned current-head CI/check rollup
-  from `skills/docs/copilot-ci-status-contract.md`; `none` means no usable readiness signal yet
+  from [Copilot CI Status Contract](../skills/docs/copilot-ci-status-contract.md); `none` means no usable readiness signal yet
 - `agentFixStatus` {"applied"|null} — agent-provided: "applied" when code has been fixed
 
 Success output shape:
 - `{ "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false }`
-- `state` is one of the stable state names defined in `docs/copilot-loop-state-graph.md`
+- `state` is one of the stable state names defined in [Copilot Loop State Graph](../docs/copilot-loop-state-graph.md)
 - `allowedTransitions` is the list of states reachable from `state`
 - `nextAction` is a human-readable recommended next step
 - `autoRerequestEligible` is `true` only when a meaningful remediation event has made automatic re-request valid again
@@ -522,7 +522,7 @@ Failure behavior:
 Deterministic reviewer-loop state detector. Captures reviewer-side PR loop state from observable
 GitHub facts plus optional local reviewer-loop metadata and interprets that snapshot into one
 explicit current state, allowed next transitions, and a recommended next action. See
-`docs/reviewer-loop-state-graph.md` for the full reviewer-loop state graph and contracts.
+[Reviewer Loop State Graph](../docs/reviewer-loop-state-graph.md) for the full reviewer-loop state graph and contracts.
 
 Two modes:
 
