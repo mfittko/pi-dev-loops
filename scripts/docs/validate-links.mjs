@@ -479,12 +479,13 @@ export async function validateMarkdownLinks({ repoRoot = resolveDefaultRepoRoot(
       checkedLinkCount += 1;
       const resolvedAbsolutePath = path.resolve(path.dirname(sourceAbsolutePath), strippedTarget);
       const resolvedPath = normalizeRepoRelative(path.relative(absoluteRepoRoot, resolvedAbsolutePath));
+      const resolvedInsideRepoRoot = isInsideRepoRoot(absoluteRepoRoot, resolvedAbsolutePath);
 
-      if (ignoredResolvedPaths.has(resolvedPath)) {
+      if (resolvedInsideRepoRoot && ignoredResolvedPaths.has(resolvedPath)) {
         continue;
       }
 
-      if (isInsideRepoRoot(absoluteRepoRoot, resolvedAbsolutePath) && await pathExists(resolvedAbsolutePath)) {
+      if (resolvedInsideRepoRoot && await pathExists(resolvedAbsolutePath)) {
         continue;
       }
 

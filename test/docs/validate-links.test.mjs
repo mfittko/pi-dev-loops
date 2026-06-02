@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -212,6 +212,28 @@ test("validateMarkdownLinks degrades to no suggestions when candidate indexing f
     assert.equal(result.brokenLinks[0].suggestion, null);
   } finally {
     await chmod(blockedDir, 0o755).catch(() => {});
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+
+test("validateMarkdownLinks does not let .linkcheckignore suppress outside-repo targets", async () => {
+  const repoRoot = await createRepo({
+    ".linkcheckignore": "../outside.md\n",
+    "README.md": "See [Outside](../outside.md).\n",
+  });
+  const outsidePath = path.join(path.dirname(repoRoot), "outside.md");
+
+  try {
+    await writeFile(outsidePath, "outside repo target\n", "utf8");
+    const result = await validateMarkdownLinks({ repoRoot });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.brokenLinks.length, 1);
+    assert.equal(result.brokenLinks[0].rawTarget, "../outside.md");
+    assert.equal(result.brokenLinks[0].resolvedPath, "../outside.md");
+  } finally {
+    await unlink(outsidePath).catch(() => {});
     await rm(repoRoot, { recursive: true, force: true });
   }
 });
