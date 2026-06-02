@@ -29,7 +29,7 @@ post-PR mechanics:
 - `wait_watch`
 
 Route-specific companion docs:
-- routed `issue_intake` work is implemented through this skill plus [Issue Intake Procedure](../docs/issue-intake-procedure.md)
+- routed `issue_intake` work is implemented through this skill plus [Copilot Loop Operations](../docs/copilot-loop-operations.md) and [Issue Intake Procedure](../docs/issue-intake-procedure.md)
 - routed `final_approval` work is implemented through this skill's **Final approval gate** section; [Final Approval](../final-approval/SKILL.md) is now a thin redirect to that canonical section
 - the deterministic state-machine/operator guide lives in [Copilot Loop Operations](../docs/copilot-loop-operations.md)
 
@@ -90,7 +90,7 @@ Read in every routed flow unless a line explicitly says otherwise:
 6. task-relevant source files, tests, and configuration
 
 Route-dependent extra reads:
-- routed `issue_intake`: [Issue Intake Procedure](../docs/issue-intake-procedure.md)
+- routed `issue_intake`: [Copilot Loop Operations](../docs/copilot-loop-operations.md) + [Issue Intake Procedure](../docs/issue-intake-procedure.md)
 - PR follow-up / wait-watch / reviewer-fixer / final approval seams: [Copilot Loop Operations](../docs/copilot-loop-operations.md)
 
 If the repo includes generated wiki or LLM context files, treat them as orientation aids only.
