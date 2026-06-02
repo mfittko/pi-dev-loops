@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
-import { parseGitStatusConflictFiles } from "../../scripts/loop/detect-pr-gate-coordination-state.mjs";
+import { detectPrGateCoordinationState, parseGitStatusConflictFiles } from "../../scripts/loop/detect-pr-gate-coordination-state.mjs";
 
 const scriptPath = path.resolve("scripts/loop/detect-pr-gate-coordination-state.mjs");
 
@@ -124,13 +124,14 @@ test("parseGitStatusConflictFiles parses NUL-delimited porcelain output with det
   const parsed = parseGitStatusConflictFiles([
     "UU config.test.mjs",
     "AA extension/README with spaces.md",
+    "UU  spaced-at-both-ends.txt ",
     " M ignored.txt",
     "R  old-name.md",
     "new-name.md",
     "",
   ].join("\0"));
 
-  assert.deepEqual(parsed, ["config.test.mjs", "extension/README with spaces.md"]);
+  assert.deepEqual(parsed, ["config.test.mjs", "extension/README with spaces.md", " spaced-at-both-ends.txt "]);
 });
 
 test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs with clean draft_gate on a different head (one-time boundary)", async () => {
@@ -241,6 +242,54 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
       draftGateAlreadySatisfied: true,
     });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detectPrGateCoordinationState tolerates missing local git binary and falls back to GitHub-only facts", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-missing-git-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 266,
+          state: "OPEN",
+          isDraft: false,
+          headRefOid: "fedcba987654",
+          mergeStateStatus: "CLEAN",
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [],
+        }),
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/266/requested_reviewers"],
+        stdout: jsonLine({ users: [], teams: [] }),
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=266"],
+        stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }),
+      },
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: jsonLine({ headRefOid: "fedcba987654" }),
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"],
+        stdout: jsonLine([[]]),
+      },
+    ]);
+
+    const result = await detectPrGateCoordinationState(
+      { repo: "owner/repo", pr: 266 },
+      { env, gitCommand: "definitely-missing-git" },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.mergeStateStatus, "CLEAN");
+    assert.deepEqual(result.conflictFiles, []);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

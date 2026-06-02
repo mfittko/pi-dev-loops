@@ -153,9 +153,9 @@ export function parseGitStatusConflictFiles(text) {
       continue;
     }
 
-    const normalizedPath = rawRecord.slice(3).trim();
-    if (normalizedPath.length > 0 && !conflictFiles.includes(normalizedPath)) {
-      conflictFiles.push(normalizedPath);
+    const rawPath = rawRecord.slice(3);
+    if (rawPath.trim().length > 0 && !conflictFiles.includes(rawPath)) {
+      conflictFiles.push(rawPath);
     }
   }
 
@@ -193,11 +193,16 @@ async function fetchPrFacts({ repo, pr }, { env = process.env, ghCommand = "gh" 
 }
 
 async function fetchLocalConflictFiles({ env = process.env, gitCommand = "git" } = {}) {
-  const result = await runChild(
-    gitCommand,
-    ["-c", "core.quotepath=false", "status", "--porcelain=v1", "-z", "--untracked-files=no"],
-    env,
-  );
+  let result;
+  try {
+    result = await runChild(
+      gitCommand,
+      ["-c", "core.quotepath=false", "status", "--porcelain=v1", "-z", "--untracked-files=no"],
+      env,
+    );
+  } catch {
+    return [];
+  }
 
   if (result.code !== 0) {
     return [];
