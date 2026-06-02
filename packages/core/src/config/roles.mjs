@@ -20,6 +20,7 @@ const BUILTIN_PERSONAS = Object.freeze({
   correctness: { persona: "review", prompt: "Check whether the implementation matches the acceptance criteria and PR description. Flag logic errors, contract violations, and behavior mismatches.", defaultModel: null },
   dry:         { persona: "review", prompt: "Flag duplicated logic, repeated patterns, and copy-pasted code. Prefer one canonical path. Check for restated policies across docs and skills.", defaultModel: null },
   kiss:        { persona: "review", prompt: "Flag over-engineering and unnecessary complexity. Prefer simple solutions. Question extra layers, abstractions, and indirection that don't earn their keep.", defaultModel: null },
+  srp:         { persona: "review", prompt: "Single Responsibility Principle: check that each module, file, class, and function has exactly one reason to change. Flag multi-concern files, god objects, mixed abstractions, and modules that own unrelated responsibilities.", defaultModel: null },
   yagni:       { persona: "review", prompt: "Flag speculative features, future-proofing, and compatibility shims not required by the current acceptance criteria. YAGNI = You Aren't Gonna Need It.", defaultModel: null },
 });
 

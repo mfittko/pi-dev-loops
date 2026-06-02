@@ -865,7 +865,7 @@ describe("role resolution", () => {
   });
 
   test("R12: all six known angles resolve without fallback", () => {
-    for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "yagni"]) {
+    for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "srp", "yagni"]) {
       const result = resolveReviewerRole({}, angle);
       assert.equal(result.persona, "review", `angle ${angle}`);
       assert.equal(result.fallback, false, `angle ${angle}`);
@@ -947,12 +947,12 @@ describe("role resolution", () => {
 
   test("R20: each configured angle has a distinct prompt", () => {
     const prompts = new Set();
-    for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "yagni"]) {
+    for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "srp", "yagni"]) {
       const result = resolveReviewerRole({}, angle);
       assert.ok(typeof result.prompt === "string" && result.prompt.length > 0, `${angle} prompt missing`);
       prompts.add(result.prompt);
     }
-    assert.equal(prompts.size, 6, "all six angles should have distinct prompts");
+    assert.equal(prompts.size, 7, "all seven angles should have distinct prompts");
   });
 
   test("R21: config persona prompt overrides built-in prompt", () => {

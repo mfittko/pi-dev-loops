@@ -32,6 +32,7 @@ gates:
       - dry
       - kiss
       - yagni
+      - srp
     required: true
 
 # Autonomy: which gates require operator confirmation (stop points)
@@ -84,6 +85,15 @@ personas:
       Flag over-engineering and unnecessary complexity.
       Prefer simple solutions. Question extra layers, abstractions,
       and indirection that don't earn their keep.
+    defaultModel: null
+
+  srp:
+    persona: review
+    prompt: >-
+      Single Responsibility Principle: check that each module, file,
+      class, and function has exactly one reason to change.
+      Flag multi-concern files, god objects, mixed abstractions,
+      and modules that own unrelated responsibilities.
     defaultModel: null
 
   yagni:
