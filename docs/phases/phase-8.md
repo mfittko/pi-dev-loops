@@ -64,9 +64,9 @@ These reflect the brainstorming session on 2026-06-01 and serve as the starting 
 
 ### Config home
 
-- Durable defaults: `.pi/dev-loop/defaults.json` (committed, tracked)
-- Session overrides: `.pi/dev-loop/overrides.json` (gitignored)
-- Precedence: per-run CLI flags/env vars > session overrides > repo defaults > built-in defaults
+- Shipped defaults: `.pi/dev-loop/defaults.yaml` (committed, tracked with the package)
+- Repo-local override surface: `.pi/dev-loop/settings.yaml` (preferred); the loader also accepts `.pi/dev-loop/settings.yml` and `.pi/dev-loop/settings.json`, and legacy `overrides.*` still load as fallbacks
+- Precedence: per-run CLI flags/env vars > repo-local settings > shipped defaults > built-in defaults
 - Merge is shallow (missing keys fall through, no deep merging)
 
 ### Schema shape
@@ -122,8 +122,8 @@ This means angles are lenses first, optionally backed by dedicated agent persona
 
 ## Acceptance criteria
 
-- `.pi/dev-loop/defaults.json` schema is defined and validated via zod
-- `.pi/dev-loop/overrides.json` uses the same schema, sparsely applied
+- `.pi/dev-loop/defaults.yaml` is defined and validated through the same zod-backed config contract
+- `.pi/dev-loop/settings.yaml` (plus accepted `.yml` / `.json` forms) uses the same schema as the shipped defaults
 - config loader resolves precedence correctly: per-run → session → repo → built-in
 - unknown keys cause fail-closed rejection (zod `.strict()`)
 - contradictory values (e.g. unknown enum member) cause clear parse errors
@@ -140,8 +140,8 @@ This means angles are lenses first, optionally backed by dedicated agent persona
 - zod schema committed under `packages/core/src/config/` (or equivalent canonical path)
 - config loader committed with precedence merging
 - contract tests pass with ≥ 90% coverage on the config module
-- `.pi/dev-loop/defaults.json` exists in the repo with sensible defaults
-- `.pi/dev-loop/overrides.json` is gitignored
+- `.pi/dev-loop/defaults.yaml` exists in the repo with sensible defaults
+- `.pi/dev-loop/settings.yaml` is the preferred repo-local override surface (with `.yml` / `.json` accepted by the loader)
 - one real workflow entrypoint reads the config and applies it (conductor model or strategy)
 - [Phase 8 Plan](phase-8.md) is updated to reflect the shipped surface
 - [Project Plan](../../PLAN.md) acknowledges the config contract as the canonical source for workflow defaults

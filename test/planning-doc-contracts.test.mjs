@@ -226,4 +226,7 @@ test("phase-truth docs agree that Phase 8 is active and Phase 7 is deferred", as
 
   assert.match(phase8, /## Status[\s\S]*active \(slice-1-implemented; additional Phase 8 closure work pending\)/i);
   assert.match(phase8, /Phase 8 was pulled forward ahead of the deferred Phase 7 pilot/i);
+  assert.match(phase8, /\.pi\/dev-loop\/defaults\.yaml/i);
+  assert.match(phase8, /\.pi\/dev-loop\/settings\.yaml/i);
+  assert.doesNotMatch(phase8, /defaults\.json|overrides\.json/i);
 });
