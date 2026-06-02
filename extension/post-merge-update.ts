@@ -113,17 +113,7 @@ async function defaultRunCommand(pi: ExtensionAPI, args: RunCommandArgs): Promis
   });
 }
 
-async function queueIfEligible(
-  state: PostMergeUpdateHookState,
-  resolveRepoContext: (cwd: string) => Promise<RepoContext>,
-  command: string,
-  cwd: string,
-): Promise<void> {
-  if (!isMergeCapableCommand(command)) {
-    return;
-  }
-
-  const repoContext = await resolveRepoContext(cwd);
+function markPendingUpdate(state: PostMergeUpdateHookState, command: string, repoContext: RepoContext): void {
   if (!repoContext.repoRoot || repoContext.repoSlug !== TARGET_REPO_SLUG) {
     return;
   }
@@ -138,6 +128,36 @@ async function queueIfEligible(
   state.pendingPostMergeUpdate = true;
   state.pendingRepoRoot = repoContext.repoRoot;
   state.lastTriggerToken = triggerToken;
+}
+
+async function resolveRepoContextSafe(
+  resolveRepoContext: (cwd: string) => Promise<RepoContext>,
+  cwd: string,
+): Promise<RepoContext | null> {
+  try {
+    return await resolveRepoContext(cwd);
+  } catch {
+    return null;
+  }
+}
+
+async function queueIfEligible(
+  state: PostMergeUpdateHookState,
+  resolveRepoContext: (cwd: string) => Promise<RepoContext>,
+  command: string,
+  cwd: string,
+): Promise<boolean> {
+  if (!isMergeCapableCommand(command)) {
+    return false;
+  }
+
+  const repoContext = await resolveRepoContextSafe(resolveRepoContext, cwd);
+  if (!repoContext?.repoRoot || repoContext.repoSlug !== TARGET_REPO_SLUG) {
+    return false;
+  }
+
+  markPendingUpdate(state, command, repoContext);
+  return true;
 }
 
 export function normalizeGitHubRepoSlug(remoteUrl: string): string | null {
@@ -246,6 +266,11 @@ export function createPostMergeUpdateHook(
         return undefined;
       }
 
+      const repoContext = await resolveRepoContextSafe(resolveRepoContext, event.cwd);
+      if (!repoContext?.repoRoot || repoContext.repoSlug !== TARGET_REPO_SLUG) {
+        return undefined;
+      }
+
       try {
         const result = await runCommand({
           command: event.command,
@@ -254,7 +279,7 @@ export function createPostMergeUpdateHook(
         });
 
         if (result.code === 0) {
-          await queueIfEligible(state, resolveRepoContext, event.command, event.cwd);
+          markPendingUpdate(state, event.command, repoContext);
         }
 
         return {

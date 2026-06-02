@@ -172,10 +172,28 @@ test("non-merge commands and non-target repos never trigger the update", async (
   const { ctx } = createUiCalls();
 
   await hook.onToolResult({ toolName: "bash", input: { command: "git status" }, isError: false }, ctx);
-  await hook.onUserBash({ command: "git merge feature", cwd: "/repo" }, ctx);
+  const result = await hook.onUserBash({ command: "git merge feature", cwd: "/repo" }, ctx);
   await hook.onAgentEnd({ type: "agent_end", messages: [] }, ctx);
 
-  assert.deepEqual(calls, [{ command: "git merge feature", cwd: "/repo" }]);
+  assert.equal(result, undefined);
+  assert.deepEqual(calls, []);
+  assert.equal(hook.getState().pendingPostMergeUpdate, false);
+});
+
+
+test("repo-resolution failures are swallowed so the hook stays best-effort", async () => {
+  const hook = createPostMergeUpdateHook({
+    resolveRepoContext: async () => {
+      throw new Error("git unavailable");
+    },
+    runCommand: async () => ({ code: 0, stdout: "ok", stderr: "", killed: false }),
+  });
+  const { ctx } = createUiCalls();
+
+  await hook.onToolResult({ toolName: "bash", input: { command: "gh pr merge 373" }, isError: false }, ctx);
+  const result = await hook.onUserBash({ command: "git merge origin/main", cwd: "/repo" }, ctx);
+
+  assert.equal(result, undefined);
   assert.equal(hook.getState().pendingPostMergeUpdate, false);
 });
 
