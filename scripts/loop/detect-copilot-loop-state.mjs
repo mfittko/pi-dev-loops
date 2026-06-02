@@ -414,11 +414,16 @@ async function fetchCurrentHeadCiEvidence({ repo, headSha }, { env, ghCommand })
 }
 
 function hasLocalValidationForCurrentHead(localValidationHeadSha, currentHeadSha) {
-  return typeof localValidationHeadSha === "string"
-    && localValidationHeadSha.trim().length > 0
-    && typeof currentHeadSha === "string"
-    && currentHeadSha.trim().length > 0
-    && localValidationHeadSha.trim() === currentHeadSha.trim();
+  if (typeof localValidationHeadSha !== "string" || typeof currentHeadSha !== "string") {
+    return false;
+  }
+
+  const normalizedValidationHeadSha = localValidationHeadSha.trim().toLowerCase();
+  const normalizedCurrentHeadSha = currentHeadSha.trim().toLowerCase();
+
+  return normalizedValidationHeadSha.length > 0
+    && normalizedCurrentHeadSha.length > 0
+    && normalizedCurrentHeadSha.startsWith(normalizedValidationHeadSha);
 }
 
 function shouldPromoteCrediblyGreen({

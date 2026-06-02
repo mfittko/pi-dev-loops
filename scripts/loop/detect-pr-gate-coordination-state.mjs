@@ -269,6 +269,7 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     : await autoDetectSnapshot({
         repo: options.repo,
         pr: options.pr,
+        reviewRequestStatusOverride: reviewRequestStatus,
         localValidationHeadSha: options.localValidationHeadSha,
       }, runtime);
 

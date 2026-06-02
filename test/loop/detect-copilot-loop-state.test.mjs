@@ -898,6 +898,77 @@ test("detect-copilot-loop-state promotes zero-suite current-head CI to crediblyG
   }
 });
 
+test("detect-copilot-loop-state accepts case-insensitive local-validation SHA prefixes for crediblyGreen promotion", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-credibly-green-prefix-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "abc123def456",
+          reviews: [
+            {
+              id: "r-current",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T10:00:00Z",
+              commit: { oid: "abc123def456" },
+            },
+            {
+              id: "r-old",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "CHANGES_REQUESTED",
+              submittedAt: "2026-06-01T10:00:00Z",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/abc123def456/check-runs?per_page=100"],
+        stdout: '{"check_runs":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/abc123def456/status?per_page=100"],
+        stdout: '{"statuses":[]}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--local-validation-head-sha", "ABC123D",
+    ], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.snapshot.ciStatus, "crediblyGreen");
+    assert.equal(output.state, "ready_to_rerequest_review");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-loop-state keeps zero-suite current-head CI at none without same-head local validation", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-no-credibly-green-"));
 
