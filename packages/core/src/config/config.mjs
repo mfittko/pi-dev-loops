@@ -1,0 +1,623 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { parse as parseYaml } from "yaml";
+import { z } from "zod";
+
+// ============================================================================
+// Sub-schemas
+//
+// BUILT_IN_DEFAULTS remains the canonical shipped default surface for loader
+// fallbacks. Select field-level defaults may still exist where merged-schema
+// callers need a stable value even when they construct config objects directly.
+// ============================================================================
+
+const StrategyConfig = z.strictObject({
+  default: z.enum(["local-first", "github-first"]),
+});
+
+const ModelsConfig = z.strictObject({
+  conductor: z.string().trim().min(1).optional(),
+  roles: z.record(z.string(), z.string().trim().min(1)).optional(),
+});
+
+const RefinementConfig = z.strictObject({
+  fanOut: z.number().int().min(1).max(10),
+  mode: z.enum(["parallel", "sequential"]),
+  maxCopilotRounds: z.number().int().positive().default(5),
+  roles: z.array(z.string().trim().min(1)).optional(),
+});
+
+const GateConfig = z.strictObject({
+  angles: z.array(z.string().min(1)),
+  required: z.boolean().default(true),
+  requireCi: z.boolean().default(true),
+});
+
+const GatesConfig = z.strictObject({
+  draft: GateConfig.optional(),
+  // `requireCi` is only behaviorally configurable for the draft gate.
+  // preApproval always requires CI even if config repeats `requireCi`.
+  preApproval: GateConfig.optional(),
+});
+
+const AutonomyConfig = z.strictObject({
+  stopAt: z.array(
+    z.enum(["refinement", "draft-pr", "pre-approval", "merge"])
+  ),
+});
+
+const WorkflowConfig = z.strictObject({
+  requireRetrospective: z.boolean(),
+  requireDraftFirst: z.boolean(),
+  devModeDefault: z.boolean(),
+});
+
+const PersonaEntry = z.strictObject({
+  persona: z.string().min(1),
+  // Optional in the merged/full schema so consumer overrides can replace
+  // only persona/defaultModel without having to restate the inherited prompt.
+  prompt: z.string().min(1).optional().describe("Short focused instruction for the reviewer agent — what to look for and how to judge this angle"),
+  defaultModel: z.string().trim().min(1).nullable().default(null),
+});
+
+const PersonasConfig = z.record(z.string().min(1), PersonaEntry);
+
+// Partial nested gate entries for file-level config (allows overriding only
+// requireCi/required/angles without restating the whole gate object).
+const FileGateConfig = GateConfig.partial();
+const FileGatesConfig = z.strictObject({
+  draft: FileGateConfig.optional(),
+  preApproval: FileGateConfig.optional(),
+});
+
+// Partial persona entries for file-level config (allows omitting fields)
+const FilePersonasConfig = z.record(z.string().min(1), PersonaEntry.partial());
+
+// ============================================================================
+// Full schema — families are optional (BUILT_IN_DEFAULTS provides fallback)
+// ============================================================================
+
+/**
+ * @typedef {z.infer<typeof DevLoopConfigSchema>} DevLoopConfig
+ */
+
+export const DevLoopConfigSchema = z.strictObject({
+  version: z.literal(1),
+  strategy: StrategyConfig.optional(),
+  models: ModelsConfig.optional(),
+  refinement: RefinementConfig.optional(),
+  gates: GatesConfig.optional(),
+  autonomy: AutonomyConfig.optional(),
+  workflow: WorkflowConfig.optional(),
+  personas: PersonasConfig.optional(),
+});
+
+// ============================================================================
+// Built-in defaults — frozen canonical single source of truth
+// ============================================================================
+
+export const BUILT_IN_DEFAULTS = Object.freeze({
+  version: 1,
+  strategy: Object.freeze({ default: "github-first" }),
+  models: Object.freeze({}),
+  refinement: Object.freeze({ fanOut: 3, mode: "parallel", maxCopilotRounds: 5 }),
+  gates: Object.freeze({}),
+  autonomy: Object.freeze({ stopAt: Object.freeze(["merge"]) }),
+  workflow: Object.freeze({
+    requireRetrospective: false,
+    requireDraftFirst: false,
+    devModeDefault: false,
+  }),
+  personas: Object.freeze({}),
+});
+
+// ============================================================================
+// File-level validation schema — allows partial family objects
+// ============================================================================
+
+export const FileConfigSchema = z.strictObject({
+  version: z.literal(1),
+  strategy: StrategyConfig.partial().optional(),
+  models: ModelsConfig.partial().optional(),
+  refinement: RefinementConfig.partial().optional(),
+  gates: FileGatesConfig.optional(),
+  autonomy: AutonomyConfig.partial().optional(),
+  workflow: WorkflowConfig.partial().optional(),
+  personas: FilePersonasConfig.optional(),
+});
+
+// ============================================================================
+// Built-in persona registry — fallback when config.personas is absent
+//
+// Maps gate-review angle names to reviewer personas. Only the persona name
+// is defined here; prompts and per-angle model defaults live in the config
+// (.pi/dev-loop/defaults.yaml personas section).
+//
+// Consumers can extend or override these by adding personas entries to
+// their .pi/dev-loop/defaults.* or settings.* config files (with legacy overrides.* fallback). Config-resolved
+// personas take priority over this built-in registry.
+//
+// Angle names come from the gate-angle config (gates.draft.angles /
+// gates.preApproval.angles in .pi/dev-loop/defaults.yaml).
+// ============================================================================
+
+const BUILTIN_PERSONAS = Object.freeze({
+  scope:       { persona: "review", defaultModel: null },
+  coverage:    { persona: "review", defaultModel: null },
+  correctness: { persona: "review", defaultModel: null },
+  docs:        { persona: "docs", defaultModel: null },
+  dry:         { persona: "review", defaultModel: null },
+  kiss:        { persona: "review", defaultModel: null },
+  srp:         { persona: "review", defaultModel: null },
+  ocp:         { persona: "review", defaultModel: null },
+  lsp:         { persona: "review", defaultModel: null },
+  isp:         { persona: "review", defaultModel: null },
+  dip:         { persona: "review", defaultModel: null },
+  soc:         { persona: "review", defaultModel: null },
+  yagni:       { persona: "review", defaultModel: null },
+});
+
+const DEFAULT_REVIEWER_PERSONA = "default-reviewer";
+
+// ============================================================================
+// Role resolution
+// ============================================================================
+
+/**
+ * @typedef {object} RoleResolutionResult
+ * @property {string} persona - Agent persona name to use
+ * @property {string|null} model - Effective model (null = use persona default)
+ * @property {string|null} prompt - Focused review instruction for this angle (null when fallback)
+ * @property {boolean} fallback - True when no specialized persona was found
+ */
+
+/**
+ * Resolve a gate angle name to a reviewer persona and model.
+ *
+ * Resolution order:
+ * 1. Look up angle in config.personas[angle] (consumer overrides)
+ * 2. If not found in config, look up in BUILTIN_PERSONAS
+ * 3. If found in either, apply model override from config.models.roles[angle] if present
+ * 4. If not found anywhere, fall back to default reviewer with angle as focus lens,
+ *    still applying any model override from config
+ *
+ * @param {object} config - DevLoopConfig (or partial with personas, models.roles)
+ * @param {string|null|undefined} angle - Gate angle / lens name
+ * @returns {RoleResolutionResult}
+ */
+export function resolveReviewerRole(config, angle) {
+  // Null/undefined/empty angle → fallback
+  if (angle == null || angle === "") {
+    return {
+      persona: DEFAULT_REVIEWER_PERSONA,
+      model: null,
+      prompt: null,
+      fallback: true,
+    };
+  }
+
+  // Resolution: config.personas > BUILTIN_PERSONAS > default-reviewer
+  const configPersona = config?.personas?.[angle] ?? null;
+  const builtinPersona = BUILTIN_PERSONAS[angle] ?? null;
+  const persona = configPersona ?? builtinPersona;
+  const modelOverride = config?.models?.roles?.[angle] || null;
+
+  if (persona) {
+    return {
+      persona: persona.persona,
+      model: modelOverride || persona.defaultModel || null,
+      prompt: persona.prompt || null,
+      fallback: false,
+    };
+  }
+
+  // Unknown angle — fall back to default reviewer, but still apply model override
+  return {
+    persona: DEFAULT_REVIEWER_PERSONA,
+    model: modelOverride || null,
+    prompt: null,
+    fallback: true,
+  };
+}
+
+// ============================================================================
+// Error types
+// ============================================================================
+
+/**
+ * @typedef {object} ConfigLoadError
+ * @property {string} path - Human-readable file path or layer name
+ * @property {string} message - Error description
+ * @property {"defaults"|"settings"|"merged"} layer - Which config layer failed
+ */
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Merge two config objects. Keys in `source` override keys in `target`.
+ * Family objects merge at one level, except `gates`, which merges one extra
+ * nested gate-object level so settings can override `draft.requireCi` without
+ * restating the shipped draft angles.
+ * @param {Record<string, unknown>} target
+ * @param {Record<string, unknown>} source
+ * @returns {Record<string, unknown>}
+ */
+function mergeConfigLayers(target, source) {
+  const result = { ...target };
+  for (const key of Object.keys(source)) {
+    if (
+      key !== "version" &&
+      typeof source[key] === "object" &&
+      source[key] !== null &&
+      !Array.isArray(source[key]) &&
+      typeof result[key] === "object" &&
+      result[key] !== null &&
+      !Array.isArray(result[key])
+    ) {
+      result[key] = key === "gates"
+        ? mergeNestedObject(result[key], source[key])
+        : { ...(result[key] || {}), ...(source[key] || {}) };
+    } else {
+      result[key] = source[key];
+    }
+  }
+  return result;
+}
+
+function mergeNestedObject(target, source) {
+  const result = { ...(target || {}) };
+
+  for (const key of Object.keys(source || {})) {
+    if (
+      typeof source[key] === "object" &&
+      source[key] !== null &&
+      !Array.isArray(source[key]) &&
+      typeof result[key] === "object" &&
+      result[key] !== null &&
+      !Array.isArray(result[key])
+    ) {
+      result[key] = { ...(result[key] || {}), ...(source[key] || {}) };
+    } else {
+      result[key] = source[key];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Try to read and parse a config file (YAML preferred, JSON fallback).
+ * Detects format from file extension: .yaml/.yml → YAML, .json → JSON.
+ * Returns the parsed object or null if the file doesn't exist.
+ * Throws on read errors other than ENOENT.
+ * @param {string} filePath
+ * @returns {Promise<object|null>}
+ */
+async function readConfigFile(filePath) {
+  let raw;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw configError(`Cannot read config file: ${err.message}`, err.code, filePath);
+  }
+
+  if (raw.trim() === "") {
+    throw configError("Config file is empty", "EMPTY_FILE", filePath);
+  }
+
+  const isYaml = filePath.endsWith(".yaml") || filePath.endsWith(".yml");
+  let parsed;
+  try {
+    parsed = isYaml ? parseYaml(raw) : JSON.parse(raw);
+  } catch (err) {
+    const format = isYaml ? "YAML" : "JSON";
+    throw configError(`Invalid ${format} in config file: ${err.message}`, `INVALID_${format.toUpperCase()}`, filePath);
+  }
+
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw configError("Config file must be an object", "NOT_AN_OBJECT", filePath);
+  }
+
+  return parsed;
+}
+
+/**
+ * Find a config file by trying one or more base names in order.
+ * Each base name prefers YAML (.yaml, then .yml) before JSON.
+ * @param {string|string[]} basePaths - Path(s) without extension (e.g. .../defaults)
+ * @returns {Promise<{ path: string, data: object|null }>}
+ */
+async function findConfigFile(basePaths) {
+  const candidates = Array.isArray(basePaths) ? basePaths : [basePaths];
+
+  for (const basePath of candidates) {
+    for (const ext of [".yaml", ".yml", ".json"]) {
+      const filePath = basePath + ext;
+      const data = await readConfigFile(filePath);
+      if (data !== null) return { path: filePath, data };
+    }
+  }
+
+  return { path: candidates[0] + ".yaml", data: null };
+}
+
+/**
+ * @param {string} message
+ * @param {string} code
+ * @param {string} filePath
+ * @returns {Error & { code: string, path: string }}
+ */
+function configError(message, code, filePath) {
+  return Object.assign(new Error(message), { code, path: filePath });
+}
+
+/**
+ * Try to load and merge one config layer (defaults or settings).
+ * @param {Record<string, unknown>} merged - Current merged config
+ * @param {string|string[]} basePaths - Config file base path(s) without extension
+ * @param {"defaults"|"settings"} layer - Layer name
+ * @param {string[]} warnings
+ * @param {ConfigLoadError[]} errors
+ * @param {{ warnOnMissing?: boolean }} [options]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+async function applyLayer(merged, basePaths, layer, warnings, errors, options = {}) {
+  let filePath, data = null;
+  try {
+    const found = await findConfigFile(basePaths);
+    filePath = found.path;
+    data = found.data;
+  } catch (err) {
+    const preferredBasePath = Array.isArray(basePaths) ? basePaths[0] : basePaths;
+    const errorPath = err.path ?? preferredBasePath + ".yaml";
+    errors.push({
+      path: errorPath,
+      message: `${path.basename(errorPath)}: ${err.message}`,
+      layer,
+    });
+    return merged;
+  }
+
+  if (data === null) {
+    if (options.warnOnMissing) {
+      warnings.push(`Committed ${layer} config not found (tried .yaml, .yml, and .json), using built-in defaults`);
+    }
+    return merged;
+  }
+
+  // Validate the file's structure before merging
+  const validation = FileConfigSchema.safeParse(data);
+  if (!validation.success) {
+    errors.push({
+      path: filePath,
+      message: `${path.basename(filePath)}: Schema validation failed: ${validation.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      layer,
+    });
+    return merged;
+  }
+
+  return mergeConfigLayers(merged, data);
+}
+
+// ============================================================================
+// Loader
+// ============================================================================
+
+/**
+ * @typedef {object} LoadResult
+ * @property {DevLoopConfig} config
+ * @property {string[]} warnings
+ * @property {ConfigLoadError[]} errors
+ */
+
+/**
+ * @typedef {object} LoadOptions
+ * @property {string} [repoRoot] - Path to repository root (default: process.cwd())
+ */
+
+/**
+ * Load the dev-loop configuration with full precedence:
+ *   settings.(yaml|yml|json) > legacy overrides.(yaml|yml|json) > defaults.(yaml|yml|json) > built-in defaults
+ *
+ * Never throws for config-related problems.
+ * Returns built-in defaults even when all files are missing or broken.
+ *
+ * @param {LoadOptions} [options]
+ * @returns {Promise<LoadResult>}
+ */
+export async function loadDevLoopConfig(options = {}) {
+  const repoRoot = options.repoRoot ?? process.cwd();
+  const configDir = path.join(repoRoot, ".pi", "dev-loop");
+  const defaultsPath = path.join(configDir, "defaults");
+  const settingsPaths = [path.join(configDir, "settings"), path.join(configDir, "overrides")];
+
+  /** @type {string[]} */
+  const warnings = [];
+  /** @type {ConfigLoadError[]} */
+  const errors = [];
+
+  let merged = { ...BUILT_IN_DEFAULTS };
+
+  merged = await applyLayer(merged, defaultsPath, "defaults", warnings, errors, {
+    warnOnMissing: true,
+  });
+
+  merged = await applyLayer(merged, settingsPaths, "settings", warnings, errors);
+
+  // Validate final merged config
+  const result = DevLoopConfigSchema.safeParse(merged);
+  if (!result.success) {
+    errors.push({
+      path: "<merged>",
+      message: `Config validation failed: ${result.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      layer: "merged",
+    });
+    // Return merged as-is — caller gets validation errors but still has config with all layers applied
+    return { config: /** @type {*} */ (merged), warnings, errors };
+  }
+
+  return { config: result.data, warnings, errors };
+}
+
+/**
+ * Resolve the conductor model from the merged dev-loop config.
+ *
+ * Returns the configured model string if present, or null when the config
+ * does not specify a conductor model override (caller falls back to its
+ * own built-in default).
+ *
+ * Accepts the validated DevLoopConfig from {@link loadDevLoopConfig}.
+ *
+ * @param {DevLoopConfig} config
+ * @returns {string|null}
+ */
+export function resolveConductorModel(config) {
+  const raw = config?.models?.conductor;
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    return raw.trim();
+  }
+  return null;
+}
+
+/**
+ * Resolve the autonomy stop-at list from the merged dev-loop config.
+ *
+ * Returns the set of gates that require operator confirmation. Gates not in
+ * the returned list may proceed automatically once their review conditions
+ * are satisfied.
+ *
+ * Defaults to `["merge"]` when the config does not specify `autonomy.stopAt`
+ * (the conservative built-in posture: everything auto-continues until merge).
+ *
+ * Accepts the validated DevLoopConfig from {@link loadDevLoopConfig}.
+ *
+ * @param {DevLoopConfig} config
+ * @returns {string[]}
+ */
+export function resolveAutonomyStopAt(config) {
+  if (config?.autonomy?.stopAt && Array.isArray(config.autonomy.stopAt)) {
+    return [...config.autonomy.stopAt];
+  }
+  return ["merge"];
+}
+
+const DEFAULT_REFINEMENT_CONFIG = BUILT_IN_DEFAULTS.refinement;
+const DEFAULT_WORKFLOW_CONFIG = BUILT_IN_DEFAULTS.workflow;
+
+/**
+ * Resolve one refinement configuration value from the merged dev-loop config.
+ *
+ * Returns the configured value when present, or the built-in default for the
+ * requested key.
+ *
+ * @param {DevLoopConfig} config
+ * @param {"fanOut"|"mode"|"roles"|"maxCopilotRounds"} key
+ * @returns {number|"parallel"|"sequential"|string[]|null}
+ */
+export function resolveRefinementConfig(config, key) {
+  if (key === "roles") {
+    return config?.refinement?.roles && Array.isArray(config.refinement.roles)
+      ? [...config.refinement.roles]
+      : null;
+  }
+
+  if (key === "fanOut") {
+    return config?.refinement?.fanOut ?? DEFAULT_REFINEMENT_CONFIG.fanOut;
+  }
+
+  if (key === "mode") {
+    return config?.refinement?.mode ?? DEFAULT_REFINEMENT_CONFIG.mode;
+  }
+
+  if (key === "maxCopilotRounds") {
+    return config?.refinement?.maxCopilotRounds ?? DEFAULT_REFINEMENT_CONFIG.maxCopilotRounds;
+  }
+
+  throw new Error(`Unknown refinement config key: ${key}`);
+}
+
+/**
+ * Resolve the refinement configuration from the merged dev-loop config.
+ *
+ * Returns `{ fanOut, mode, roles, maxCopilotRounds }` with sensible built-in
+ * defaults (`fanOut: 3`, `mode: "parallel"`, `roles: null`,
+ * `maxCopilotRounds: 5`).
+ *
+ * Accepts the validated DevLoopConfig from {@link loadDevLoopConfig}.
+ *
+ * @param {DevLoopConfig} config
+ * @returns {{ fanOut: number, mode: "parallel"|"sequential", roles: string[]|null, maxCopilotRounds: number }}
+ */
+export function resolveRefinement(config) {
+  const fanOut = /** @type {number} */ (resolveRefinementConfig(config, "fanOut"));
+  const mode = /** @type {"parallel"|"sequential"} */ (resolveRefinementConfig(config, "mode"));
+  const roles = /** @type {string[]|null} */ (resolveRefinementConfig(config, "roles"));
+  const maxCopilotRounds = /** @type {number} */ (resolveRefinementConfig(config, "maxCopilotRounds"));
+  return { fanOut, mode, roles, maxCopilotRounds };
+}
+
+/**
+ * Resolve one gate configuration object from the merged dev-loop config.
+ *
+ * Returns the configured gate angles when present, or null for angles when the
+ * config omits them (caller falls back to skill-defined defaults). Boolean gate
+ * flags always resolve to stable defaults.
+ *
+ * @param {DevLoopConfig} config
+ * @param {"draft"|"preApproval"} gate
+ * @returns {{ angles: string[]|null, required: boolean, requireCi: boolean }}
+ */
+export function resolveGateConfig(config, gate) {
+  const gateConfig = config?.gates?.[gate];
+  return {
+    angles: gateConfig?.angles && Array.isArray(gateConfig.angles)
+      ? [...gateConfig.angles]
+      : null,
+    required: gateConfig?.required ?? true,
+    requireCi: gateConfig?.requireCi ?? true,
+  };
+}
+
+/**
+ * Resolve review angles for a specific gate from the merged dev-loop config.
+ *
+ * Returns the configured angle names for the given gate, or null when the
+ * config does not specify angles for that gate (caller falls back to its
+ * skill-defined defaults).
+ *
+ * @param {DevLoopConfig} config
+ * @param {"draft"|"preApproval"} gate
+ * @returns {string[]|null}
+ */
+export function resolveGateAngles(config, gate) {
+  return resolveGateConfig(config, gate).angles;
+}
+
+/**
+ * Resolve one workflow configuration value from the merged dev-loop config.
+ *
+ * Returns the configured boolean when present, or the built-in default for the
+ * requested key.
+ *
+ * @param {DevLoopConfig} config
+ * @param {"requireRetrospective"|"requireDraftFirst"|"devModeDefault"} key
+ * @returns {boolean}
+ */
+export function resolveWorkflowConfig(config, key) {
+  if (key === "requireRetrospective") {
+    return config?.workflow?.requireRetrospective ?? DEFAULT_WORKFLOW_CONFIG.requireRetrospective;
+  }
+
+  if (key === "requireDraftFirst") {
+    return config?.workflow?.requireDraftFirst ?? DEFAULT_WORKFLOW_CONFIG.requireDraftFirst;
+  }
+
+  if (key === "devModeDefault") {
+    return config?.workflow?.devModeDefault ?? DEFAULT_WORKFLOW_CONFIG.devModeDefault;
+  }
+
+  throw new Error(`Unknown workflow config key: ${key}`);
+}

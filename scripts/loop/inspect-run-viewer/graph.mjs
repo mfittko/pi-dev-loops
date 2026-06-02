@@ -13,7 +13,7 @@ import {
   OUTER_STATE,
   OUTER_TERMINAL_STATES,
   OUTER_TRANSITIONS,
-} from "@pi-dev-loops/core/loop/outer-loop-state";
+} from "@pi-dev-loops/core/loop/conductor-routing";
 import {
   REVIEWER_STATE,
   REVIEWER_TRANSITIONS,

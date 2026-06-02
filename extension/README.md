@@ -178,7 +178,7 @@ workflow:
 
 ### Config precedence
 
-1. Built-in defaults (`packages/core/src/config/schema.mjs` `BUILT_IN_DEFAULTS`)
+1. Built-in defaults (`packages/core/src/config/config.mjs` `BUILT_IN_DEFAULTS`)
 2. Shipped defaults (`.pi/dev-loop/defaults.yaml` — committed in source repo)
 3. Consumer settings (`.pi/dev-loop/settings.yaml` — preferred repo-local policy surface; `.pi/dev-loop/settings.yml` and `.pi/dev-loop/settings.json` also load; legacy `overrides.*` still load as fallbacks)
 
@@ -193,7 +193,7 @@ workflow:
 
 YAML is preferred (`.yaml` or `.yml`). JSON (`.json`) is supported as a fallback for backward compatibility. When both exist, YAML takes priority.
 
-Config is validated at runtime by Zod schemas (`packages/core/src/config/schema.mjs`).
+Config is validated at runtime by Zod schemas (`packages/core/src/config/config.mjs`).
 
 ## Runtime / build / test contract
 

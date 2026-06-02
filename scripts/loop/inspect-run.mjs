@@ -61,7 +61,7 @@ import { fetchGithubReviewThreadsPayload } from "../github/capture-review-thread
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { readExistingCheckpoint } from "./_checkpoint-io.mjs";
 import { loadCopilotEvidence, loadReviewerEvidence } from "./_loop-evidence.mjs";
-import { interpretOuterLoopState } from "@pi-dev-loops/core/loop/outer-loop-state";
+import { interpretOuterLoopState } from "@pi-dev-loops/core/loop/conductor-routing";
 import {
   composeRunInspectionSnapshot,
   deriveRunIdForInspectionTarget,
