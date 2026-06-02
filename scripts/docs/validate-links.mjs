@@ -26,6 +26,7 @@ const DEFAULT_CANDIDATE_EXCLUDED_DIRS = new Set([
   "tmp",
   "coverage",
   "dist",
+  "worktrees",
   "playwright-report",
   "test-results",
 ]);
@@ -438,9 +439,16 @@ export async function validateMarkdownLinks({ repoRoot = resolveDefaultRepoRoot(
   const absoluteRepoRoot = path.resolve(repoRoot);
   const scannedFiles = await collectMarkdownFiles(absoluteRepoRoot);
   const ignoredResolvedPaths = await loadIgnoreList(absoluteRepoRoot);
-  const candidateIndex = await buildCandidateIndex(absoluteRepoRoot);
+  let candidateIndex = null;
   const brokenLinks = [];
   let checkedLinkCount = 0;
+
+  async function getCandidateIndex() {
+    if (candidateIndex === null) {
+      candidateIndex = await buildCandidateIndex(absoluteRepoRoot);
+    }
+    return candidateIndex;
+  }
 
   for (const sourcePath of scannedFiles) {
     const sourceAbsolutePath = path.join(absoluteRepoRoot, sourcePath);
@@ -475,7 +483,7 @@ export async function validateMarkdownLinks({ repoRoot = resolveDefaultRepoRoot(
           attemptedName: path.basename(strippedTarget),
           attemptedParentPath: path.dirname(resolvedAbsolutePath),
           repoRoot: absoluteRepoRoot,
-          candidateIndex,
+          candidateIndex: await getCandidateIndex(),
         }),
       });
     }

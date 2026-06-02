@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -136,6 +136,44 @@ test("validateMarkdownLinks suppresses suggestions when multiple candidates are 
     const report = formatBrokenLinkReport(result.brokenLinks);
     assert.doesNotMatch(report, /suggestion:/);
   } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+
+test("validateMarkdownLinks excludes worktrees from suggestion candidates", async () => {
+  const repoRoot = await createRepo({
+    "README.md": "See [Guide](./docs/guid.md).\n",
+    "worktrees/feature/docs/guide.md": "# Guide from another checkout\n",
+  });
+
+  try {
+    const result = await validateMarkdownLinks({ repoRoot });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.brokenLinks.length, 1);
+    assert.equal(result.brokenLinks[0].suggestion, null);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("validateMarkdownLinks skips candidate-index traversal on clean trees", async () => {
+  const repoRoot = await createRepo({
+    "README.md": "See [Guide](./docs/guide.md).\n",
+    "docs/guide.md": "# Guide\n",
+    "sandbox/": null,
+  });
+  const blockedDir = path.join(repoRoot, "sandbox");
+
+  try {
+    await chmod(blockedDir, 0o000);
+    const result = await validateMarkdownLinks({ repoRoot });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.brokenLinks, []);
+  } finally {
+    await chmod(blockedDir, 0o755).catch(() => {});
     await rm(repoRoot, { recursive: true, force: true });
   }
 });
