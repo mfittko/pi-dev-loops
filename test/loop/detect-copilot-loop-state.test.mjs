@@ -521,6 +521,57 @@ test("detect-copilot-loop-state auto-detect returns unresolved_feedback_present 
   }
 });
 
+test("detect-copilot-loop-state auto-detect tracks completed Copilot review rounds in the snapshot", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-round-count-"));
+
+  try {
+    const { env } = await writeAutoDetectGhStub(tempDir, {
+      pr: 17,
+      prView: {
+        headRefOid: "abc123",
+        reviews: [
+          {
+            id: "r-old",
+            author: { login: "copilot-pull-request-reviewer[bot]" },
+            state: "COMMENTED",
+            commit: { oid: "old123" },
+            submittedAt: "2026-01-10T00:00:00Z",
+          },
+          {
+            id: "r-current",
+            author: { login: "copilot-pull-request-reviewer[bot]" },
+            state: "CHANGES_REQUESTED",
+            commit: { oid: "abc123" },
+            submittedAt: "2026-01-11T00:00:00Z",
+          },
+          {
+            id: "r-human",
+            author: { login: "human-reviewer" },
+            state: "APPROVED",
+            commit: { oid: "abc123" },
+            submittedAt: "2026-01-11T01:00:00Z",
+          },
+        ],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+      },
+      requestedReviewers: { users: [], teams: [] },
+      reviewThreads: [],
+    });
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.snapshot.copilotReviewRoundCount, 2);
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("autoDetectSnapshot uses the default ghCommand when deps omit it", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-auto-detect-default-deps-"));
 

@@ -701,7 +701,11 @@ When actionable review feedback exists, use a narrow follow-up loop:
 10. after completing reply/resolve for a pass, verify `unresolvedThreadCount === 0` via `capture-review-threads.mjs` before proceeding
    - if the refreshed snapshot reports a non-zero unresolved thread count, re-enter the reply/resolve loop for the missed threads
 11. only after GitHub-side reply/resolve work is done for the addressed threads and the refreshed thread snapshot proves `unresolvedThreadCount === 0`, decide whether another Copilot pass is desired
-   - if yes, run the smallest honest local validation for the accepted fix scope
+   - resolve the review-round cap from config via `resolveRefinementConfig(config, "maxCopilotRounds")` from `@pi-dev-loops/core/config`; default config ships `maxCopilotRounds: 5`
+   - use `snapshot.copilotReviewRoundCount` from `detect-copilot-loop-state.mjs` / `copilot-pr-handoff.mjs` as the completed Copilot review-round count for the current PR
+   - if `snapshot.copilotReviewRoundCount >= maxCopilotRounds`, do **not** re-request Copilot review
+   - when the round cap is reached, reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note, then stop and report that the Copilot round limit was reached
+   - if yes and the round cap has not been reached, run the smallest honest local validation for the accepted fix scope
    - if that local validation is still known red, continue remediation instead of re-requesting Copilot
    - after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for any CI-dependent follow-up decision
    - refresh/re-read current-head CI/check data before advancing and apply the contract in [Copilot CI Status Contract](../docs/copilot-ci-status-contract.md) (wait for `pending`/`none`, stop for `failure`, proceed only on `success`)

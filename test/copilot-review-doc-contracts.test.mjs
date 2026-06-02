@@ -171,6 +171,21 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   assert.match(antiPatterns, /dispatch an async dev-loop task that omits the pre-approval gate requirement/i);
 });
 
+test("copilot-pr-followup skill caps Copilot re-review rounds via config and snapshot state", async () => {
+  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+
+  const step7Match = skillContent.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Validation policy|$)/);
+  const step7 = step7Match ? step7Match[0] : "";
+  assert.ok(step7.length > 0, "copilot-pr-followup Step 7 section not found");
+
+  assert.match(step7, /resolveRefinementConfig\(config, "maxCopilotRounds"\)/i);
+  assert.match(step7, /default config ships `maxCopilotRounds: 5`/i);
+  assert.match(step7, /snapshot\.copilotReviewRoundCount/i);
+  assert.match(step7, /if `snapshot\.copilotReviewRoundCount >= maxCopilotRounds`, do \*\*not\*\* re-request Copilot review/i);
+  assert.match(step7, /`deferred to follow-up` note/i);
+  assert.match(step7, /stop and report that the Copilot round limit was reached/i);
+});
+
 test("legacy copilot workflow entrypoint agents are removed from normal executable surfaces", async () => {
   const agentFiles = (await readdir(fromRepoRoot("agents")))
     .filter((name) => name.endsWith(".agent.md"))

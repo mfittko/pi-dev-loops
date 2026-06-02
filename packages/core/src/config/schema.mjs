@@ -3,8 +3,9 @@ import { z } from "zod";
 // ============================================================================
 // Sub-schemas
 //
-// No field-level defaults. BUILT_IN_DEFAULTS is the single source of truth
-// for all default values. The loader populates missing families from it.
+// BUILT_IN_DEFAULTS remains the canonical shipped default surface for loader
+// fallbacks. Select field-level defaults may still exist where merged-schema
+// callers need a stable value even when they construct config objects directly.
 // ============================================================================
 
 const StrategyConfig = z.strictObject({
@@ -19,6 +20,7 @@ const ModelsConfig = z.strictObject({
 const RefinementConfig = z.strictObject({
   fanOut: z.number().int().min(1).max(10),
   mode: z.enum(["parallel", "sequential"]),
+  maxCopilotRounds: z.number().int().positive().default(5),
   roles: z.array(z.string().trim().min(1)).optional(),
 });
 
@@ -77,7 +79,7 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
   version: 1,
   strategy: Object.freeze({ default: "github-first" }),
   models: Object.freeze({}),
-  refinement: Object.freeze({ fanOut: 3, mode: "parallel" }),
+  refinement: Object.freeze({ fanOut: 3, mode: "parallel", maxCopilotRounds: 5 }),
   gates: Object.freeze({}),
   autonomy: Object.freeze({ stopAt: Object.freeze(["merge"]) }),
   personas: Object.freeze({}),
