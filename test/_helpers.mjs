@@ -143,7 +143,7 @@ export async function writeGhStub(tempDir, entries = [], {
 
   const env = {
     ...process.env,
-    PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
+    PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter),
     GH_SEQUENCE_PATH: sequencePath,
     GH_STUB_MODE: matchMode,
     GH_REPEAT_LAST_ON_OVERFLOW: repeatLastOnOverflow ? "1" : "0",
