@@ -5,6 +5,7 @@
 Installing the package exposes two thin wrappers over one shared deterministic core:
 - the Pi extension command family rooted at `/dev-loops`
 - the shell CLI entrypoint `pi-dev-loops`
+- a bounded post-merge helper that queues one `pi update git:github.com/mfittko/pi-dev-loops` after a successful in-session `gh pr merge ...` or `git merge ...` inside this repo and flushes it on `agent_end`
 
 Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes the packaged skills through `package.json` `pi.skills`, and the extension syncs packaged agent files (`.pi/agents/*.agent.md`) into `~/.agents/` on `session_start`.
 

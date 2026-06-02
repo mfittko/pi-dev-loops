@@ -6,6 +6,7 @@ import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
 
 import { executeDevLoopsCommand } from '../lib/dev-loops-core.mjs';
 import { createExtensionCoreRuntime } from './checks.ts';
+import { createPostMergeUpdateHook } from './post-merge-update.ts';
 import {
   buildHelpLines,
   buildInspectLines,
@@ -15,6 +16,10 @@ import {
   type DevLoopsAction,
   type InspectAction,
 } from './presentation.ts';
+
+type ExtensionRuntimeOverrides = NonNullable<Parameters<typeof createExtensionCoreRuntime>[1]> & {
+  postMergeUpdateHook?: ReturnType<typeof createPostMergeUpdateHook>;
+};
 
 const STATUS_KEY = 'pi-dev-loops';
 const WIDGET_KEY = 'pi-dev-loops.setup';
@@ -39,14 +44,29 @@ export function syncPackagedAgents({
   }
 }
 
-export default function (pi: ExtensionAPI, runtimeOverrides = {}) {
+export default function (pi: ExtensionAPI, runtimeOverrides: ExtensionRuntimeOverrides = {}) {
+  const postMergeUpdateHook = runtimeOverrides.postMergeUpdateHook ?? createPostMergeUpdateHook(pi);
+
   pi.on('session_start', async (_event, ctx) => {
+    postMergeUpdateHook.onSessionStart();
     try {
       syncPackagedAgents();
     } catch {
       // Best-effort agent sync — do not break session start
     }
     ctx.ui.setStatus(STATUS_KEY, undefined);
+  });
+
+  pi.on('tool_result', async (event, ctx) => {
+    await postMergeUpdateHook.onToolResult(event, ctx);
+  });
+
+  pi.on('user_bash', async (event, ctx) => {
+    return postMergeUpdateHook.onUserBash(event, ctx);
+  });
+
+  pi.on('agent_end', async (event, ctx) => {
+    await postMergeUpdateHook.onAgentEnd(event, ctx);
   });
 
   pi.registerCommand('dev-loops', {
