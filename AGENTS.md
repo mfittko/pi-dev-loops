@@ -40,6 +40,12 @@ These skills may be provided repo-locally or globally; this contract does not as
 - In PR review/fix loops, do not stop at local code changes alone: after an accepted fix is pushed, reply to the addressed review comments with the resolving commit reference and resolve the corresponding threads when genuinely satisfied.
 - Do not merge directly to `main` without review when a PR-based remote loop is practical.
 
+### Worktree / checkout isolation
+
+- Canonical guidance lives in [Worktree Usage Guidance](docs/worktree-guidance.md).
+- Create or reuse worktrees under `tmp/worktrees/<issue-or-branch-slug>/` for mutating local work, and reserve the main checkout for inspection/control by default.
+- Check `git worktree list` before creating a new worktree, and remove merged/abandoned worktrees with `git worktree remove --force <path>` followed by `git worktree prune`.
+
 ## Standard refinement chain pattern
 
 Use this pattern whenever the work is refinement, comparison, review, or synthesis rather than implementation.
