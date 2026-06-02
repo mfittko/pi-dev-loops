@@ -78,6 +78,7 @@ import {
 } from "./_steering-state-file.mjs";
 
 import { formatCliError } from "../_core-helpers.mjs";
+import { requireOptionValue as readSharedOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 // ---------------------------------------------------------------------------
@@ -186,7 +187,7 @@ const SAFE_RUN_ID_RE = /^[A-Za-z0-9._-]+$/;
 // Argument parsing
 // ---------------------------------------------------------------------------
 
-function parseError(message, usage) {
+function usageError(message, usage) {
   return Object.assign(new Error(message), { usage });
 }
 
@@ -196,18 +197,18 @@ function runIdMismatchError(persistedRunId, requestedRunId) {
   );
 }
 
-function requireOptionValue(args, flag, usage, { allowFlagLike = false } = {}) {
-  const value = args.shift();
-  const missing = typeof value !== "string" || value.length === 0 || (!allowFlagLike && value.startsWith("--"));
-  if (missing) {
-    throw parseError(`Missing value for ${flag}`, usage);
-  }
-  return value;
+function readRequiredOptionValue(args, flag, usage, { allowFlagLike = false } = {}) {
+  return readSharedOptionValue(
+    args,
+    flag,
+    (message) => usageError(message, usage),
+    { flagPattern: allowFlagLike ? /$^/u : /^--/u },
+  );
 }
 
 function validateSafeRunId(runId, usage) {
   if (!SAFE_RUN_ID_RE.test(runId)) {
-    throw parseError("--run-id must contain only letters, numbers, dot, underscore, or hyphen", usage);
+    throw usageError("--run-id must contain only letters, numbers, dot, underscore, or hyphen", usage);
   }
 }
 
@@ -215,13 +216,13 @@ function parseRepoSlugOption(rawRepo, usage) {
   try {
     parseRepoSlug(rawRepo);
   } catch (error) {
-    throw parseError(error instanceof Error ? error.message : String(error), usage);
+    throw usageError(error instanceof Error ? error.message : String(error), usage);
   }
 }
 
 function parsePositiveIntegerOption(raw, flag, usage) {
   if (!/^\d+$/.test(raw) || Number(raw) === 0) {
-    throw parseError(`${flag} must be a positive integer`, usage);
+    throw usageError(`${flag} must be a positive integer`, usage);
   }
   return Number(raw);
 }
@@ -254,90 +255,90 @@ export function parseSubmitCliArgs(argv) {
     }
 
     if (token === "--run-id") {
-      options.runId = requireOptionValue(args, "--run-id", SUBMIT_USAGE).trim();
+      options.runId = readRequiredOptionValue(args, "--run-id", SUBMIT_USAGE).trim();
       validateSafeRunId(options.runId, SUBMIT_USAGE);
       continue;
     }
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo", SUBMIT_USAGE).trim();
+      options.repo = readRequiredOptionValue(args, "--repo", SUBMIT_USAGE).trim();
       parseRepoSlugOption(options.repo, SUBMIT_USAGE);
       continue;
     }
     if (token === "--pr") {
-      options.pr = parsePositiveIntegerOption(requireOptionValue(args, "--pr", SUBMIT_USAGE), "--pr", SUBMIT_USAGE);
+      options.pr = parsePositiveIntegerOption(readRequiredOptionValue(args, "--pr", SUBMIT_USAGE), "--pr", SUBMIT_USAGE);
       continue;
     }
     if (token === "--kind") {
-      const val = requireOptionValue(args, "--kind", SUBMIT_USAGE);
+      const val = readRequiredOptionValue(args, "--kind", SUBMIT_USAGE);
       if (!VALID_KINDS.has(val)) {
-        throw parseError(`--kind must be one of: ${[...VALID_KINDS].join(", ")}`, SUBMIT_USAGE);
+        throw usageError(`--kind must be one of: ${[...VALID_KINDS].join(", ")}`, SUBMIT_USAGE);
       }
       options.kind = val;
       continue;
     }
     if (token === "--directive") {
-      options.directive = requireOptionValue(args, "--directive", SUBMIT_USAGE, { allowFlagLike: true }).trim();
+      options.directive = readRequiredOptionValue(args, "--directive", SUBMIT_USAGE, { allowFlagLike: true }).trim();
       continue;
     }
     if (token === "--seq") {
-      options.seq = parsePositiveIntegerOption(requireOptionValue(args, "--seq", SUBMIT_USAGE), "--seq", SUBMIT_USAGE);
+      options.seq = parsePositiveIntegerOption(readRequiredOptionValue(args, "--seq", SUBMIT_USAGE), "--seq", SUBMIT_USAGE);
       continue;
     }
     if (token === "--state-file") {
-      options.stateFile = requireOptionValue(args, "--state-file", SUBMIT_USAGE);
+      options.stateFile = readRequiredOptionValue(args, "--state-file", SUBMIT_USAGE);
       continue;
     }
     if (token === "--loop-state") {
-      const val = requireOptionValue(args, "--loop-state", SUBMIT_USAGE);
+      const val = readRequiredOptionValue(args, "--loop-state", SUBMIT_USAGE);
       if (!VALID_LOOP_STATES.has(val)) {
-        throw parseError(`--loop-state must be one of: ${[...VALID_LOOP_STATES].join(", ")}`, SUBMIT_USAGE);
+        throw usageError(`--loop-state must be one of: ${[...VALID_LOOP_STATES].join(", ")}`, SUBMIT_USAGE);
       }
       options.loopState = val;
       options.loopStateExplicit = true;
       continue;
     }
     if (token === "--apply-mode") {
-      const val = requireOptionValue(args, "--apply-mode", SUBMIT_USAGE);
+      const val = readRequiredOptionValue(args, "--apply-mode", SUBMIT_USAGE);
       if (!VALID_APPLY_MODES.has(val)) {
-        throw parseError(`--apply-mode must be one of: ${[...VALID_APPLY_MODES].join(", ")}`, SUBMIT_USAGE);
+        throw usageError(`--apply-mode must be one of: ${[...VALID_APPLY_MODES].join(", ")}`, SUBMIT_USAGE);
       }
       options.applyMode = val;
       continue;
     }
     if (token === "--event-id") {
-      options.eventId = requireOptionValue(args, "--event-id", SUBMIT_USAGE);
+      options.eventId = readRequiredOptionValue(args, "--event-id", SUBMIT_USAGE);
       continue;
     }
     if (token === "--copilot-input") {
-      options.copilotInputPath = requireOptionValue(args, "--copilot-input", SUBMIT_USAGE);
+      options.copilotInputPath = readRequiredOptionValue(args, "--copilot-input", SUBMIT_USAGE);
       continue;
     }
     if (token === "--reviewer-input") {
-      options.reviewerInputPath = requireOptionValue(args, "--reviewer-input", SUBMIT_USAGE);
+      options.reviewerInputPath = readRequiredOptionValue(args, "--reviewer-input", SUBMIT_USAGE);
       continue;
     }
 
-    throw parseError(`Unknown argument: ${token}`, SUBMIT_USAGE);
+    throw usageError(`Unknown argument: ${token}`, SUBMIT_USAGE);
   }
 
   if (!options.help) {
     if ((options.repo === undefined) !== (options.pr === undefined)) {
-      throw parseError("--repo and --pr must be provided together", SUBMIT_USAGE);
+      throw usageError("--repo and --pr must be provided together", SUBMIT_USAGE);
     }
     if (!options.runId && options.repo === undefined) {
-      throw parseError("--run-id is required, or both --repo and --pr must be provided together", SUBMIT_USAGE);
+      throw usageError("--run-id is required, or both --repo and --pr must be provided together", SUBMIT_USAGE);
     }
     if (options.repo !== undefined && options.loopStateExplicit) {
-      throw parseError("--loop-state is low-level/testing mode only; omit it when using --repo/--pr operator mode", SUBMIT_USAGE);
+      throw usageError("--loop-state is low-level/testing mode only; omit it when using --repo/--pr operator mode", SUBMIT_USAGE);
     }
     if (!options.kind) {
-      throw parseError("--kind is required", SUBMIT_USAGE);
+      throw usageError("--kind is required", SUBMIT_USAGE);
     }
     if (!options.directive || options.directive.length === 0) {
-      throw parseError("--directive is required and must be non-empty", SUBMIT_USAGE);
+      throw usageError("--directive is required and must be non-empty", SUBMIT_USAGE);
     }
     if (options.seq === undefined) {
-      throw parseError("--seq is required", SUBMIT_USAGE);
+      throw usageError("--seq is required", SUBMIT_USAGE);
     }
   }
 
@@ -363,36 +364,36 @@ export function parseStatusCliArgs(argv) {
     }
 
     if (token === "--run-id") {
-      options.runId = requireOptionValue(args, "--run-id", STATUS_USAGE).trim();
+      options.runId = readRequiredOptionValue(args, "--run-id", STATUS_USAGE).trim();
       validateSafeRunId(options.runId, STATUS_USAGE);
       continue;
     }
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo", STATUS_USAGE).trim();
+      options.repo = readRequiredOptionValue(args, "--repo", STATUS_USAGE).trim();
       parseRepoSlugOption(options.repo, STATUS_USAGE);
       continue;
     }
     if (token === "--pr") {
-      options.pr = parsePositiveIntegerOption(requireOptionValue(args, "--pr", STATUS_USAGE), "--pr", STATUS_USAGE);
+      options.pr = parsePositiveIntegerOption(readRequiredOptionValue(args, "--pr", STATUS_USAGE), "--pr", STATUS_USAGE);
       continue;
     }
     if (token === "--state-file") {
-      options.stateFile = requireOptionValue(args, "--state-file", STATUS_USAGE);
+      options.stateFile = readRequiredOptionValue(args, "--state-file", STATUS_USAGE);
       continue;
     }
 
-    throw parseError(`Unknown argument: ${token}`, STATUS_USAGE);
+    throw usageError(`Unknown argument: ${token}`, STATUS_USAGE);
   }
 
   if (!options.help) {
     if ((options.repo === undefined) !== (options.pr === undefined)) {
-      throw parseError("--repo and --pr must be provided together", STATUS_USAGE);
+      throw usageError("--repo and --pr must be provided together", STATUS_USAGE);
     }
     if (options.runId && options.repo !== undefined) {
-      throw parseError("Choose exactly one target mode: either --run-id or --repo/--pr", STATUS_USAGE);
+      throw usageError("Choose exactly one target mode: either --run-id or --repo/--pr", STATUS_USAGE);
     }
     if (!options.runId && options.repo === undefined) {
-      throw parseError("--run-id is required, or both --repo and --pr must be provided together", STATUS_USAGE);
+      throw usageError("--run-id is required, or both --repo and --pr must be provided together", STATUS_USAGE);
     }
   }
 
@@ -419,47 +420,47 @@ export function parsePromoteCliArgs(argv) {
     }
 
     if (token === "--run-id") {
-      options.runId = requireOptionValue(args, "--run-id", PROMOTE_USAGE).trim();
+      options.runId = readRequiredOptionValue(args, "--run-id", PROMOTE_USAGE).trim();
       validateSafeRunId(options.runId, PROMOTE_USAGE);
       continue;
     }
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo", PROMOTE_USAGE).trim();
+      options.repo = readRequiredOptionValue(args, "--repo", PROMOTE_USAGE).trim();
       parseRepoSlugOption(options.repo, PROMOTE_USAGE);
       continue;
     }
     if (token === "--pr") {
-      options.pr = parsePositiveIntegerOption(requireOptionValue(args, "--pr", PROMOTE_USAGE), "--pr", PROMOTE_USAGE);
+      options.pr = parsePositiveIntegerOption(readRequiredOptionValue(args, "--pr", PROMOTE_USAGE), "--pr", PROMOTE_USAGE);
       continue;
     }
     if (token === "--state-file") {
-      options.stateFile = requireOptionValue(args, "--state-file", PROMOTE_USAGE);
+      options.stateFile = readRequiredOptionValue(args, "--state-file", PROMOTE_USAGE);
       continue;
     }
     if (token === "--loop-state") {
-      const val = requireOptionValue(args, "--loop-state", PROMOTE_USAGE);
+      const val = readRequiredOptionValue(args, "--loop-state", PROMOTE_USAGE);
       if (!VALID_LOOP_STATES.has(val)) {
-        throw parseError(`--loop-state must be one of: ${[...VALID_LOOP_STATES].join(", ")}`, PROMOTE_USAGE);
+        throw usageError(`--loop-state must be one of: ${[...VALID_LOOP_STATES].join(", ")}`, PROMOTE_USAGE);
       }
       options.loopState = val;
       continue;
     }
 
-    throw parseError(`Unknown argument: ${token}`, PROMOTE_USAGE);
+    throw usageError(`Unknown argument: ${token}`, PROMOTE_USAGE);
   }
 
   if (!options.help) {
     if ((options.repo === undefined) !== (options.pr === undefined)) {
-      throw parseError("--repo and --pr must be provided together", PROMOTE_USAGE);
+      throw usageError("--repo and --pr must be provided together", PROMOTE_USAGE);
     }
     if (options.runId && options.repo !== undefined) {
-      throw parseError("Choose exactly one target mode: either --run-id or --repo/--pr", PROMOTE_USAGE);
+      throw usageError("Choose exactly one target mode: either --run-id or --repo/--pr", PROMOTE_USAGE);
     }
     if (!options.runId && options.repo === undefined) {
-      throw parseError("--run-id is required, or both --repo and --pr must be provided together", PROMOTE_USAGE);
+      throw usageError("--run-id is required, or both --repo and --pr must be provided together", PROMOTE_USAGE);
     }
     if (options.loopState === undefined) {
-      throw parseError("--loop-state is required", PROMOTE_USAGE);
+      throw usageError("--loop-state is required", PROMOTE_USAGE);
     }
   }
 
@@ -480,7 +481,7 @@ function quoteCliValue(value) {
 function resolveRequestedRunId(options, usage) {
   const derivedRunId = deriveTargetRunId(options);
   if (options.runId && options.repo !== undefined && options.pr !== undefined && options.runId !== derivedRunId) {
-    throw parseError(
+    throw usageError(
       `run-id mismatch: explicit --run-id ${JSON.stringify(options.runId)} does not match derived run ${JSON.stringify(derivedRunId)} for --repo/--pr target`,
       usage,
     );
@@ -998,7 +999,7 @@ export async function runCli(
     return runStatus(rest, { stdout, cwd });
   }
 
-  const error = parseError(`Unknown subcommand: ${subcommand}`, TOP_USAGE);
+  const error = usageError(`Unknown subcommand: ${subcommand}`, TOP_USAGE);
   throw error;
 }
 

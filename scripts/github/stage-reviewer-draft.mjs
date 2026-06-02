@@ -4,26 +4,9 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { parsePositiveInteger, requireOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildDraftReviewPayload } from "@pi-dev-loops/core/loop/reviewer-loop-state";
-
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw new Error(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parsePositiveInteger(value, flag) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw new Error(`${flag} must be a positive integer`);
-  }
-
-  return Number(value);
-}
 
 export function parseStageDraftCliArgs(argv) {
   const args = [...argv];

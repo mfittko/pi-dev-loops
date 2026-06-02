@@ -36,7 +36,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, parseJsonText } from "../_core-helpers.mjs";
+import { requireOptionValue } from "../_cli-primitives.mjs";
 import {
   interpretTrackerPrState,
   normalizeTrackerPrSnapshot,
@@ -92,19 +93,8 @@ Exit codes:
   0  Success
   1  Argument error or runtime failure`.trim();
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
 
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
 
 export function parseDetectTrackerPrCliArgs(argv) {
   const args = [...argv];
@@ -122,7 +112,7 @@ export function parseDetectTrackerPrCliArgs(argv) {
     }
 
     if (token === "--input") {
-      options.inputPath = requireOptionValue(args, "--input");
+      options.inputPath = requireOptionValue(args, "--input", parseError);
       continue;
     }
 

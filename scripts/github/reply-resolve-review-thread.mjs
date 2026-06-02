@@ -2,6 +2,7 @@
 import { readFile } from "node:fs/promises";
 
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { parsePositiveInteger, requireOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
   replyAndMaybeResolve,
@@ -9,24 +10,6 @@ import {
 } from "./_review-thread-mutations.mjs";
 
 export { hasCommitShaReference } from "./_review-thread-mutations.mjs";
-
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw new Error(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parsePositiveInteger(value, flag) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw new Error(`${flag} must be a positive integer`);
-  }
-
-  return Number(value);
-}
 
 export function parseReplyResolveCliArgs(argv) {
   const args = [...argv];

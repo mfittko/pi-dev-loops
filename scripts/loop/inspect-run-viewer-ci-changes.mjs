@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { appendFile, readFile } from "node:fs/promises";
 
-import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 
 export const INSPECT_RUN_VIEWER_RELEVANT_EXACT_PATHS = Object.freeze([
   ".github/workflows/ci.yml",
@@ -22,9 +22,8 @@ export const INSPECT_RUN_VIEWER_RELEVANT_PREFIXES = Object.freeze([
 
 const USAGE = "Usage: inspect-run-viewer-ci-changes.mjs <changed-files-path>";
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 export function normalizeInspectRunViewerPath(filePath) {
   return String(filePath ?? "")

@@ -39,7 +39,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
-import { formatCliError, parseJsonText } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
   buildCheckpointFilePath,
@@ -141,9 +141,8 @@ Exit codes:
 // Argument parsing
 // ---------------------------------------------------------------------------
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 function parseReviewerLogin(value) {
   const normalized = value.trim();

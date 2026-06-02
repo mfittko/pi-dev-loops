@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
-
-import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { requireOptionValue, runCommand } from "../_cli-primitives.mjs";
 
 const USAGE = `Usage:
   pre-commit-branch-guard.mjs --expected-branch <name>
@@ -20,17 +19,8 @@ Branch mismatch output (stderr, JSON, exit 1):
 Usage errors (stderr, JSON, exit 1):
   { "ok": false, "error": "...", "usage": "..." }`.trim();
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
 
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("-")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-  return value;
-}
 
 export function parseBranchGuardCliArgs(argv) {
   const args = [...argv];
@@ -48,7 +38,7 @@ export function parseBranchGuardCliArgs(argv) {
     }
 
     if (token === "--expected-branch") {
-      options.expectedBranch = requireOptionValue(args, "--expected-branch");
+      options.expectedBranch = requireOptionValue(args, "--expected-branch", parseError, { flagPattern: /^-/u });
       continue;
     }
 
@@ -60,37 +50,6 @@ export function parseBranchGuardCliArgs(argv) {
   }
 
   return options;
-}
-
-function runCommand(command, args, { cwd = process.cwd(), env = process.env } = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd,
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
-
-      reject(new Error(stderr.trim().length > 0 ? stderr.trim() : `${command} exited with code ${code}`));
-    });
-  });
 }
 
 

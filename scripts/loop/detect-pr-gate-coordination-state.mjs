@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {
+  buildParseError,
   formatCliError,
   isCopilotLogin,
   isDirectCliRun,
@@ -80,9 +81,8 @@ Exit codes:
   0  Success
   1  Argument error or gh/runtime failure`.trim();
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 export function parseDetectPrGateCoordinationCliArgs(argv) {
   const args = [...argv];

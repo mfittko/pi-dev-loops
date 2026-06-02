@@ -1,6 +1,6 @@
 import { parseRepoSlugParts } from "@pi-dev-loops/core/github/repo-slug";
 import { inspectRun } from "./inspect-run.mjs";
-import { spawn } from "node:child_process";
+import { runChild } from "../_cli-primitives.mjs";
 
 const ASSIGNED_PR_LIST_CACHE_TTL_MS = 15_000;
 const DEFAULT_UPDATED_WITHIN_DAYS = 7;
@@ -228,39 +228,13 @@ export function normalizeInspectionTarget(target) {
 }
 
 export function createInspectionViewerAdapter({ inspectRunImpl = inspectRun, runGhJsonImpl = null, nowImpl = () => Date.now() } = {}) {
-  const runChild = (command, args, env = process.env) => new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("error", reject);
-    child.on("close", (status, signal) => resolve({
-      status,
-      signal,
-      stdout,
-      stderr,
-      command,
-      args,
-    }));
-  });
-
   const runGhJson = async (args, { env = process.env, ghCommand = "gh" } = {}) => {
     if (typeof runGhJsonImpl === "function") {
       return runGhJsonImpl(args, { env, ghCommand });
     }
     const result = await runChild(ghCommand, args, env);
-    if (result.status !== 0) {
-      throw new Error(`Command failed: ${result.command} ${result.args.join(" ")}\n${result.stderr.trim() || "(no stderr output)"}`);
+    if (result.code !== 0) {
+      throw new Error(`Command failed: ${ghCommand} ${args.join(" ")}\n${result.stderr.trim() || "(no stderr output)"}`);
     }
     return parseGhJsonOutput(result.stdout);
   };

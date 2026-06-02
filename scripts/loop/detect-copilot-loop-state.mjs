@@ -70,6 +70,7 @@ import { readFile } from "node:fs/promises";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import {
+  buildParseError,
   formatCliError,
   isCopilotLogin,
   isDirectCliRun,
@@ -166,9 +167,8 @@ Exit codes:
 
 const VALID_OVERRIDE_STATUSES = new Set(["requested", "already-requested", "unavailable", "none", "failed"]);
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 export function parseDetectCliArgs(argv) {
   const args = [...argv];

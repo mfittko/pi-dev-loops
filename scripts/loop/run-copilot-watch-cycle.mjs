@@ -3,7 +3,7 @@
 import { spawn } from "node:child_process";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
-import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION } from "@pi-dev-loops/core/loop/public-dev-loop-routing";
 import { watchCopilotReview } from "../github/watch-copilot-review.mjs";
@@ -57,9 +57,8 @@ Exit codes:
   0  Success
   1  Argument error or runtime failure`.trim();
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 async function fetchPrHeadBranch({ repo, pr }, { env, ghCommand }) {
   const result = await runChild(

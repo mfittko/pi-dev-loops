@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import {
   composeRunInspectionSnapshot,
@@ -26,122 +27,92 @@ const scriptPath = path.resolve("scripts/loop/inspect-run.mjs");
 // Helpers
 // ---------------------------------------------------------------------------
 
-function runNode(args = [], options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [scriptPath, ...args], {
-      cwd: options.cwd,
-      env: options.env ?? process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
 
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
-
-async function writeJson(filePath, data) {
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-}
+const writeJson = writeJsonHelper;
 
 async function writeGhStub(tempDir) {
-  const ghPath = path.join(tempDir, "gh");
-  const script = `#!/usr/bin/env node
-const args = process.argv.slice(2);
-const out = (value) => process.stdout.write(JSON.stringify(value));
-const apiPath = args[0] === "api" ? args.find((arg) => arg.startsWith("repos/")) : null;
-
-if (args[0] === "pr" && args[1] === "view") {
-  const fields = args[args.indexOf("--json") + 1] || "";
-  if (fields.includes("reviews")) {
-    out({
+  const prViewEntry = {
+    assertArgs: ["pr", "view", "55", "--repo", "owner/repo", "--json"],
+    stdout: JSON.stringify({
       headRefOid: "abc123",
       isDraft: false,
       state: "OPEN",
       number: 55,
       reviews: [],
       statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS" }],
-    });
-  } else {
-    out({
-      isDraft: false,
-      state: "OPEN",
-      number: 55,
-      headRefOid: "abc123",
-    });
-  }
-  process.exit(0);
-}
-
-if (args[0] === "api" && args[1] === "repos/owner/repo/pulls/55/requested_reviewers") {
-  out({ users: [{ login: "copilot-pull-request-reviewer[bot]" }, { login: "reviewer-user" }] });
-  process.exit(0);
-}
-
-if (apiPath === "repos/owner/repo/pulls/55/reviews" || apiPath === "repos/owner/repo/pulls/55/reviews?per_page=100") {
-  out([
-    { id: 40, state: "COMMENTED", user: { login: "copilot-pull-request-reviewer[bot]" }, submitted_at: "2026-05-20T09:00:00Z", commit_id: "oldsha", html_url: "https://example.test/review/40" },
-    { id: 41, state: "COMMENTED", user: { login: "reviewer-user" }, submitted_at: "2026-05-20T10:00:00Z", commit_id: "abc123", html_url: "https://example.test/review/41" },
-  ]);
-  process.exit(0);
-}
-
-if (apiPath === "repos/owner/repo/issues/55/timeline?per_page=100") {
-  out([
-    { event: "review_requested", created_at: "2026-05-20T08:55:00Z", requested_reviewer: { login: "copilot-pull-request-reviewer[bot]" } },
-    { event: "review_requested", created_at: "2026-05-20T11:00:00Z", requested_reviewer: { login: "copilot-pull-request-reviewer[bot]" } },
-  ]);
-  process.exit(0);
-}
-
-if (apiPath === "repos/owner/repo/pulls/55/comments?per_page=100") {
-  out([
-    { id: 101, created_at: "2026-05-20T09:01:00Z", user: { login: "copilot-pull-request-reviewer[bot]" } },
-    { id: 102, created_at: "2026-05-20T09:02:00Z", user: { login: "copilot-pull-request-reviewer[bot]" } },
-  ]);
-  process.exit(0);
-}
-
-if (apiPath === "repos/owner/repo/pulls/55/commits?per_page=100") {
-  out([
-    { sha: "oldsha", commit: { committer: { date: "2026-05-20T08:00:00Z" } }, author: { login: "copilot-swe-agent" } },
-    { sha: "abc123", commit: { committer: { date: "2026-05-20T10:30:00Z" } }, author: { login: "author-user" } },
-  ]);
-  process.exit(0);
-}
-
-if (args[0] === "api" && args[1] === "graphql") {
-  out({
-    data: {
-      repository: {
-        pullRequest: {
-          reviewThreads: {
-            nodes: [],
-            pageInfo: { hasNextPage: false, endCursor: null },
+    }) + "\n",
+  };
+  const requestedReviewersEntry = {
+    assertArgs: ["api", "repos/owner/repo/pulls/55/requested_reviewers"],
+    stdout: JSON.stringify({ users: [{ login: "copilot-pull-request-reviewer[bot]" }, { login: "reviewer-user" }] }) + "\n",
+  };
+  const reviewsEntry = {
+    assertArgs: ["api", "repos/owner/repo/pulls/55/reviews"],
+    stdout: JSON.stringify([
+      { id: 40, state: "COMMENTED", user: { login: "copilot-pull-request-reviewer[bot]" }, submitted_at: "2026-05-20T09:00:00Z", commit_id: "oldsha", html_url: "https://example.test/review/40" },
+      { id: 41, state: "COMMENTED", user: { login: "reviewer-user" }, submitted_at: "2026-05-20T10:00:00Z", commit_id: "abc123", html_url: "https://example.test/review/41" },
+    ]) + "\n",
+  };
+  const reviewsEntryWithPage = { ...reviewsEntry, assertArgs: ["api", "repos/owner/repo/pulls/55/reviews?per_page=100"] };
+  const timelineEntry = {
+    assertArgs: ["api", "repos/owner/repo/issues/55/timeline"],
+    stdout: JSON.stringify([
+      { event: "review_requested", created_at: "2026-05-20T08:55:00Z", requested_reviewer: { login: "copilot-pull-request-reviewer[bot]" } },
+      { event: "review_requested", created_at: "2026-05-20T11:00:00Z", requested_reviewer: { login: "copilot-pull-request-reviewer[bot]" } },
+    ]) + "\n",
+  };
+  const timelineEntryWithPage = { ...timelineEntry, assertArgs: ["api", "repos/owner/repo/issues/55/timeline?per_page=100"] };
+  const commentsEntry = {
+    assertArgs: ["api", "repos/owner/repo/pulls/55/comments"],
+    stdout: JSON.stringify([
+      { id: 101, created_at: "2026-05-20T09:01:00Z", user: { login: "copilot-pull-request-reviewer[bot]" } },
+      { id: 102, created_at: "2026-05-20T09:02:00Z", user: { login: "copilot-pull-request-reviewer[bot]" } },
+    ]) + "\n",
+  };
+  const commentsEntryWithPage = { ...commentsEntry, assertArgs: ["api", "repos/owner/repo/pulls/55/comments?per_page=100"] };
+  const commitsEntry = {
+    assertArgs: ["api", "repos/owner/repo/pulls/55/commits"],
+    stdout: JSON.stringify([
+      { sha: "oldsha", commit: { committer: { date: "2026-05-20T08:00:00Z" } }, author: { login: "copilot-swe-agent" } },
+      { sha: "abc123", commit: { committer: { date: "2026-05-20T10:30:00Z" } }, author: { login: "author-user" } },
+    ]) + "\n",
+  };
+  const commitsEntryWithPage = { ...commitsEntry, assertArgs: ["api", "repos/owner/repo/pulls/55/commits?per_page=100"] };
+  const graphqlEntry = {
+    assertArgs: ["api", "graphql"],
+    stdout: JSON.stringify({
+      data: {
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
           },
         },
       },
-    },
-  });
-  process.exit(0);
-}
+    }) + "\n",
+  };
 
-process.stderr.write("unexpected gh args: " + args.join(" ") + "\\n");
-process.exit(1);
-`;
-  await writeFile(ghPath, script, "utf8");
-  await chmod(ghPath, 0o755);
-  return ghPath;
+  return await writeGhStubHelper(
+    tempDir,
+    [
+      ...Array.from({ length: 6 }, () => prViewEntry),
+      ...Array.from({ length: 4 }, () => requestedReviewersEntry),
+      ...Array.from({ length: 6 }, () => reviewsEntry),
+      ...Array.from({ length: 6 }, () => reviewsEntryWithPage),
+      ...Array.from({ length: 4 }, () => timelineEntry),
+      ...Array.from({ length: 4 }, () => timelineEntryWithPage),
+      ...Array.from({ length: 4 }, () => commentsEntry),
+      ...Array.from({ length: 4 }, () => commentsEntryWithPage),
+      ...Array.from({ length: 4 }, () => commitsEntry),
+      ...Array.from({ length: 4 }, () => commitsEntryWithPage),
+      ...Array.from({ length: 6 }, () => graphqlEntry),
+    ],
+    { matchMode: "claims" },
+  );
+
 }
 
 async function withTempDir(fn) {
@@ -1144,7 +1115,7 @@ test("inspect-run CLI: complete snapshot inputs -> partial sourceMode (degraded 
 
 test("inspect-run CLI: mixed live + input coverage can still derive a degraded top-level state", async () => {
   await withTempDir(async (tempDir) => {
-    await writeGhStub(tempDir);
+    const gh = await writeGhStub(tempDir);
     const copilotPath = path.join(tempDir, "copilot.json");
     await writeJson(copilotPath, {
       prExists: true,
@@ -1167,7 +1138,7 @@ test("inspect-run CLI: mixed live + input coverage can still derive a degraded t
       "--copilot-input", copilotPath,
     ], {
       cwd: tempDir,
-      env: { ...process.env, PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter) },
+      env: gh.env,
     });
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
@@ -1183,14 +1154,14 @@ test("inspect-run CLI: mixed live + input coverage can still derive a degraded t
 
 test("inspect-run CLI: successful live detectors still derive authoritative top-level state", async () => {
   await withTempDir(async (tempDir) => {
-    await writeGhStub(tempDir);
+    const gh = await writeGhStub(tempDir);
 
     const result = await runNode([
       "--repo", "owner/repo",
       "--pr", "55",
     ], {
       cwd: tempDir,
-      env: { ...process.env, PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter) },
+      env: gh.env,
     });
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
@@ -1840,9 +1811,9 @@ test("inspect-run CLI: --steering-state-file with snapshot-mode inputs fails clo
 test("inspect-run CLI: --steering-state-file with live authoritative evidence advertises steering availability", async () => {
   await withTempDir(async (tempDir) => {
     const steeringPath = path.join(tempDir, "steering.json");
-    const ghPath = await writeGhStub(tempDir);
-    const env = { ...process.env, PATH: `${tempDir}${path.delimiter}${process.env.PATH}` };
-    assert.ok(ghPath.endsWith(path.join(tempDir, "gh")));
+    const gh = await writeGhStub(tempDir);
+    const env = gh.env;
+    assert.ok(gh.ghPath.endsWith(path.join(tempDir, "gh")));
 
     await writeJson(steeringPath, {
       runId: "pr-55",

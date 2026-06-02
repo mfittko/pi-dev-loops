@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {
+  buildParseError,
   formatCliError,
   isDirectCliRun,
   parseJsonText,
@@ -66,9 +67,8 @@ Exit codes:
   0  Success
   1  Argument error, gh failure, or malformed gh JSON`.trim();
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 export function parseDetectGateReviewEvidenceCliArgs(argv) {
   const args = [...argv];

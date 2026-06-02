@@ -4,88 +4,15 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 const scriptPath = path.resolve("scripts/loop/detect-reviewer-loop-state.mjs");
 
-function runNode(args = [], options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [scriptPath, ...args], {
-      cwd: options.cwd,
-      env: options.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
 
-    let stdout = "";
-    let stderr = "";
+const writeJson = writeJsonHelper;
 
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
-
-async function writeJson(filePath, value) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
-async function writeGhStub(tempDir, entries) {
-  const ghSequenceFilePath = path.join(tempDir, "gh-sequence.json");
-  const ghCallCounterFilePath = path.join(tempDir, "gh-counter.txt");
-  const ghStubScriptPath = path.join(tempDir, "gh");
-
-  await writeFile(ghSequenceFilePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
-  await writeFile(ghCallCounterFilePath, "0\n", "utf8");
-  await writeFile(
-    ghStubScriptPath,
-    [
-      "#!/usr/bin/env node",
-      'import { readFileSync, writeFileSync } from "node:fs";',
-      "const sequencePath = process.env.GH_SEQUENCE_PATH;",
-      "const counterPath = process.env.GH_COUNTER_PATH;",
-      'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
-      'const current = Number(readFileSync(counterPath, "utf8").trim() || "0");',
-      "if (current >= entries.length) {",
-      '  process.stderr.write("unexpected gh call beyond scripted sequence\\n");',
-      "  process.exit(97);",
-      "}",
-      'const entry = entries[current] ?? { stdout: "{}\\n" };',
-      "writeFileSync(counterPath, String(current + 1));",
-      "const actual = process.argv.slice(2);",
-      "if (entry.assertArgs) {",
-      "  for (const expected of entry.assertArgs) {",
-      "    if (!actual.includes(expected)) {",
-      "      process.stderr.write(`missing expected gh arg: ${expected}\\n`);",
-      "      process.exit(98);",
-      "    }",
-      "  }",
-      "}",
-      "if (entry.stderr) process.stderr.write(entry.stderr);",
-      "if (entry.stdout) process.stdout.write(entry.stdout);",
-      "process.exit(entry.exitCode ?? 0);",
-    ].join("\n"),
-    "utf8",
-  );
-  await chmod(ghStubScriptPath, 0o755);
-
-  return {
-    env: {
-      ...process.env,
-      PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
-      GH_SEQUENCE_PATH: ghSequenceFilePath,
-      GH_COUNTER_PATH: ghCallCounterFilePath,
-    },
-  };
-}
+const writeGhStub = (tempDir, entries) => writeGhStubHelper(tempDir, entries, { overflowMessageMode: "generic" });
 
 test("detect-reviewer-loop-state --input returns correct states for planning/running/merge snapshots", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reviewer-state-detect-"));

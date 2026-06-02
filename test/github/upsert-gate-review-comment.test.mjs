@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import {
   parseUpsertGateReviewCommentCliArgs,
@@ -12,93 +13,11 @@ import {
 
 const scriptPath = path.resolve("scripts/github/upsert-gate-review-comment.mjs");
 
-function runNode(args = [], options = {}) {
-  return new Promise((resolve) => {
-    const child = spawn(process.execPath, [scriptPath, ...args], {
-      cwd: options.cwd,
-      env: options.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
 
 async function writeGhStub(tempDir, entries) {
-  const sequencePath = path.join(tempDir, "gh-sequence.json");
-  const counterPath = path.join(tempDir, "gh-counter.txt");
-  const ghPath = path.join(tempDir, "gh");
-
-  await writeFile(sequencePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
-  await writeFile(counterPath, "0\n", "utf8");
-  await writeFile(
-    ghPath,
-    [
-      "#!/usr/bin/env node",
-      'import { readFileSync, writeFileSync } from "node:fs";',
-      "const sequencePath = process.env.GH_SEQUENCE_PATH;",
-      "const counterPath = process.env.GH_COUNTER_PATH;",
-      'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
-      'const current = Number(readFileSync(counterPath, "utf8").trim() || "0");',
-      'const entry = entries[Math.min(current, entries.length - 1)] ?? { stdout: "{}\\n" };',
-      'writeFileSync(counterPath, String(current + 1));',
-      'const actual = process.argv.slice(2);',
-      'if (entry.assertArgs) {',
-      '  for (const expected of entry.assertArgs) {',
-      '    if (!actual.includes(expected)) {',
-      '      process.stderr.write(`missing expected gh arg: ${expected}\\n`);',
-      '      process.exit(98);',
-      '    }',
-      '  }',
-      '}',
-      'if (entry.assertArgContains) {',
-      '  for (const expected of entry.assertArgContains) {',
-      '    if (!actual.some((value) => value.includes(expected))) {',
-      '      process.stderr.write(`missing expected gh arg fragment: ${expected}\\n`);',
-      '      process.exit(97);',
-      '    }',
-      '  }',
-      '}',
-      'if (entry.assertArgNotContains) {',
-      '  for (const unexpected of entry.assertArgNotContains) {',
-      '    if (actual.some((value) => value.includes(unexpected))) {',
-      '      process.stderr.write(`unexpected gh arg fragment: ${unexpected}\\n`);',
-      '      process.exit(96);',
-      '    }',
-      '  }',
-      '}',
-      'if (entry.stderr) {',
-      '  process.stderr.write(entry.stderr);',
-      '}',
-      'if (entry.stdout) {',
-      '  process.stdout.write(entry.stdout);',
-      '}',
-      'process.exit(entry.exitCode ?? 0);',
-      "",
-    ].join("\n"),
-    "utf8",
-  );
-  await chmod(ghPath, 0o755);
-
-  return {
-    ...process.env,
-    PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
-    GH_SEQUENCE_PATH: sequencePath,
-    GH_COUNTER_PATH: counterPath,
-  };
+  const { env } = await writeGhStubHelper(tempDir, entries, { repeatLastOnOverflow: true });
+  return env;
 }
 
 test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments deterministically", () => {
