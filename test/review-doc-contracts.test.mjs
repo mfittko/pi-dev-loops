@@ -46,7 +46,7 @@ test("review workflow resolves pre-approval gate angles from config with explici
 
   const gateDocuments = [
     ["skills/local-implementation/SKILL.md", localImplementationSkill, /default pre-approval gate[\s\S]{0,200}resolveGateAngles/i],
-    ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill, /default pre-approval gate[\s\S]{0,600}resolveGateAngles/i],
+    ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill, /default pre-approval gate/i],
     ["agents/review.agent.md", reviewAgent, /default pre-approval gate contract:[\s\S]{0,200}resolveGateAngles/i],
     ["agents/coordinator.agent.md", coordinatorAgent, /review fan-out must use the [\s\S]{0,200}resolveGateAngles/i],
     ["skills/dev-loop/templates/review.md", reviewTemplate, /Default pre-approval gate/i],
@@ -72,6 +72,7 @@ test("review workflow resolves pre-approval gate angles from config with explici
   }
 
   assert.match(reviewTemplate, /resolveGateAngles/i);
+  assert.match(copilotFollowupSkill, /resolveGateAngles/i);
   assert.match(reviewTemplate, /configured angle checks/i);
   assert.match(localImplementationSkill, /if parallel execution is impractical[\s\S]*run all angles sequentially and explicitly record why parallel execution was impractical/i);
   assert.match(copilotFollowupSkill, /gate-review-sub-loop-contract\.md.*pre-approval/i);
