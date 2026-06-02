@@ -9,7 +9,7 @@ import { evaluatePrGateCoordination, PR_GATE_ACTION } from "@pi-dev-loops/core/l
 
 const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
 const GATE_VERDICTS = new Set(["clean", "findings_present", "blocked"]);
-const MAX_GATE_COMMENT_TEXT_LENGTH = 280;
+const MAX_GATE_COMMENT_TEXT_LENGTH = 2000;
 const MAX_GATE_COMMENT_EXCERPT_LENGTH = 120;
 
 const USAGE = `Usage: upsert-gate-review-comment.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text>
@@ -79,11 +79,24 @@ function normalizeRequiredText(value, flag) {
   if (flag === "--findings-summary") {
     return summarizeGateReviewText(normalized);
   }
-  return truncateText(collapseWhitespace(normalized), MAX_GATE_COMMENT_TEXT_LENGTH);
+  return smartTruncate(collapseWhitespace(normalized), MAX_GATE_COMMENT_TEXT_LENGTH);
 }
 
 function collapseWhitespace(value) {
   return String(value).replace(/\s+/gu, " ").trim();
+}
+
+function smartTruncate(value, limit) {
+  const text = String(value);
+  if (text.length <= limit) {
+    return text;
+  }
+  const truncated = text.slice(0, limit);
+  const lastSpace = truncated.lastIndexOf(" ");
+  const breakPoint = lastSpace > Math.floor(limit * 0.7) ? lastSpace : limit;
+  const retained = truncated.slice(0, breakPoint);
+  const omitted = text.length - retained.length;
+  return `${retained}…[truncated ${omitted} chars]`;
 }
 
 function pushUnique(values, value) {
@@ -182,12 +195,12 @@ export function summarizeGateReviewText(value, limit = MAX_GATE_COMMENT_TEXT_LEN
 
   const flat = collapseWhitespace(normalized);
   if (!/[\r\n]/u.test(normalized)) {
-    return truncateText(flat, limit);
+    return smartTruncate(flat, limit);
   }
 
   const lines = normalized.split(/\r?\n/u);
   const verboseSummary = buildVerboseValidationSummary(lines);
-  return truncateText(verboseSummary ?? flat, limit);
+  return smartTruncate(verboseSummary ?? flat, limit);
 }
 
 export function parseUpsertGateReviewCommentCliArgs(argv) {
@@ -278,11 +291,14 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
 
 export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction }) {
   return [
-    `Gate review: ${gate}`,
-    `Reviewed head SHA: ${headSha}`,
-    `Verdict: ${verdict}`,
-    `Findings summary: ${findingsSummary}`,
-    `Next action: ${nextAction}`,
+    `### Gate review: \`${gate}\``,
+    "",
+    `**Reviewed head SHA:** \`${headSha}\``,
+    `**Verdict:** ${verdict}`,
+    "",
+    `**Findings summary:** ${findingsSummary}`,
+    "",
+    `**Next action:** ${nextAction}`,
   ].join("\n");
 }
 
