@@ -198,13 +198,13 @@ test("public dev-loop agent is a thin executable entrypoint that defers to the p
   assert.match(skillContent, /public `dev-loop` façade/i);
 });
 
-test("tracker-first MVP state graph is a thin pointer to the canonical tracker story-PR contract", async () => {
+test("tracker-first MVP state graph symlinks to canonical tracker story-PR contract", async () => {
   const content = await readRepo("docs/tracker-first-mvp-state-graph.md");
   const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
-  assert.match(content, /thin pointer/i);
+  // Symlink resolves to tracker-story-pr-contract.md content
   assert.match(content, /canonical tracker-first contract/i);
-  assert.match(content, /docs\/tracker-story-pr-contract\.md/i);
+  assert.match(content, /deterministic pr lifecycle/i);
 
   assert.match(skillContent, /inherits[\s\S]*source-of-truth ownership[\s\S]*work item <-> PR link[\s\S]*reverse-sync semantics from\s*`#21`/i);
 });
