@@ -20,12 +20,11 @@ If the user says **"start implementation"**:
 1. read `PLAN.md`
 2. load the `dev-loop` skill
 3. read `AGENTS.md` if it exists
-4. read `AGENTS.md`
-5. read `docs/IMPLEMENTATION_WORKFLOW.md`
-6. read the current durable phase plan under `docs/phases/` if it exists
-7. inspect `tmp/phases/` only if it exists locally and is relevant
-8. read this file
-9. start with the next unfinished phase only
+4. read `docs/IMPLEMENTATION_WORKFLOW.md`
+5. read the current durable phase plan under `docs/phases/` if it exists
+6. inspect `tmp/phases/` only if it exists locally and is relevant
+7. read this file
+8. start with the next unfinished phase only
 
 ## Next unfinished phase
 

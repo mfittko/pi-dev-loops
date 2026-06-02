@@ -56,7 +56,7 @@ The public entrypoint should expose user intent; internal strategy names should 
 
 ### 3. Extension and CLI surface
 
-Thin package-level UX under `extension/`, `cli/`, and `bin/` for:
+Thin package-level UX under `extension/` and `cli/` for:
 - readiness and diagnostics
 - shell access to shared deterministic helpers
 - lightweight orchestration glue that defers real mechanics to scripts/core modules
