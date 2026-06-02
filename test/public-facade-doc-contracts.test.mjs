@@ -344,8 +344,9 @@ test("skill docs enforce self-assignment and draft-first rules for create comman
   assert.match(copilotFollowupSkill, /Do not create a fresh PR directly in ready-for-review state/i);
   assert.match(copilotFollowupSkill, /draft gate review is a real workflow boundary/i);
 
-  // local-implementation enforces --draft for tracker-backed PR creation
-  assert.match(localImplementationSkill, /PR creation must use `gh pr create --draft --assignee @me`/i);
+  // local-implementation keeps self-assignment unconditional and draft-first config-driven
+  assert.match(localImplementationSkill, /PR creation must always include `--assignee @me`/i);
+  assert.match(localImplementationSkill, /workflow\.requireDraftFirst[\s\S]{0,120}gh pr create --draft --assignee @me/i);
   assert.match(localImplementationSkill, /Do not create a fresh PR directly in ready-for-review state/i);
   assert.match(localImplementationSkill, /draft gate review is a real workflow boundary/i);
 

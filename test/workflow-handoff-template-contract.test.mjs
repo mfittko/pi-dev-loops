@@ -71,7 +71,11 @@ test("workflow-handoff-template requires self-assigned draft PR creation in the 
   const content = await readTemplate();
 
   const seqStart = content.indexOf("## Mandatory sequence");
-  const nextSection = content.indexOf("## Non-negotiable");
+  const nextSection = content.indexOf("## Non-negotiable", seqStart);
+
+  assert.ok(seqStart >= 0, "mandatory sequence section should exist");
+  assert.ok(nextSection > seqStart, "non-negotiable section should follow mandatory sequence");
+
   const sequenceSection = content.slice(seqStart, nextSection);
 
   assert.match(sequenceSection, /gh pr create --draft --assignee @me/i);
