@@ -34,7 +34,7 @@ export function resolveConductorModel(config) {
  * @returns {string[]}
  */
 export function resolveAutonomyStopAt(config) {
-  if (config?.autonomy?.stopAt && Array.isArray(config.autonomy.stopAt) && config.autonomy.stopAt.length > 0) {
+  if (config?.autonomy?.stopAt && Array.isArray(config.autonomy.stopAt)) {
     return [...config.autonomy.stopAt];
   }
   return ["merge"];

@@ -812,9 +812,9 @@ describe("role resolution", () => {
       assert.deepEqual(result, ["merge"]);
     });
 
-    test("resolveAutonomyStopAt defaults to ['merge'] when stopAt is empty array", () => {
+    test("resolveAutonomyStopAt returns empty array when stopAt is explicitly empty", () => {
       const result = resolveAutonomyStopAt({ version: 1, autonomy: { stopAt: [] } });
-      assert.deepEqual(result, ["merge"]);
+      assert.deepEqual(result, []);
     });
 
     test("resolveAutonomyStopAt returns new array (not reference to config)", () => {
