@@ -198,15 +198,57 @@ test("public dev-loop agent is a thin executable entrypoint that defers to the p
   assert.match(skillContent, /public `dev-loop` façade/i);
 });
 
-test("tracker-first MVP state graph is a thin pointer to the canonical tracker story-PR contract", async () => {
-  const content = await readRepo("docs/tracker-first-mvp-state-graph.md");
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+test("thin pointer docs symlink to canonical contract content", async () => {
+  const [trackerContent, conductorContent, ciContent, skillContent] = await Promise.all([
+    readRepo("docs/tracker-first-mvp-state-graph.md"),
+    readRepo("docs/outer-loop-state-graph.md"),
+    readRepo("docs/copilot-ci-status-contract.md"),
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
+  ]);
 
-  assert.match(content, /thin pointer/i);
-  assert.match(content, /canonical tracker-first contract/i);
-  assert.match(content, /docs\/tracker-story-pr-contract\.md/i);
+  // Symlink reads resolve to each canonical target's content.
+  assert.match(trackerContent, /Tracker-First Story-to-PR Contract/i);
+  assert.match(trackerContent, /MVP invariant: one tracker work item → one GitHub PR/i);
+  assert.match(conductorContent, /Conductor Routing Contract/i);
+  assert.match(conductorContent, /conductor routing contract/i);
+  assert.match(ciContent, /Copilot PR CI\/check normalization contract/i);
+  assert.match(ciContent, /canonical bundled contract/i);
 
   assert.match(skillContent, /inherits[\s\S]*source-of-truth ownership[\s\S]*work item <-> PR link[\s\S]*reverse-sync semantics from\s*`#21`/i);
+});
+
+test("new See Also markdown links resolve from docs files", async () => {
+  const linkTargetsByDoc = {
+    "docs/gate-review-comment-contract.md": [
+      "../skills/copilot-pr-followup/SKILL.md",
+      "../skills/final-approval/SKILL.md",
+      "../skills/docs/pr-lifecycle-contract.md",
+      "gate-review-sub-loop-contract.md",
+    ],
+    "docs/gate-review-sub-loop-contract.md": [
+      "gate-review-comment-contract.md",
+      "../skills/docs/pr-lifecycle-contract.md",
+      "../skills/copilot-pr-followup/SKILL.md",
+      "../skills/local-implementation/SKILL.md",
+    ],
+    "docs/index.md": [
+      "../README.md",
+      "../extension/README.md",
+      "../skills/docs/public-dev-loop-contract.md",
+      "../AGENTS.md",
+    ],
+  };
+
+  for (const [docPath, targets] of Object.entries(linkTargetsByDoc)) {
+    const doc = await readRepo(docPath);
+    for (const target of targets) {
+      assert.match(doc, new RegExp(`\\]\\(${target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\)`));
+      const docDir = docPath.slice(0, docPath.lastIndexOf("/") + 1);
+      const targetUrl = new URL(target, fromRepoRoot(docDir));
+      const targetStat = await stat(targetUrl);
+      assert.ok(targetStat.isFile(), `${docPath} should link to existing file ${target}`);
+    }
+  }
 });
 
 test("docs index separates active docs, archived history, and presentations", async () => {
