@@ -154,6 +154,8 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       gateBoundary: "post_draft_external_review",
       draftGate: {
         visible: true,
+        markerVisible: false,
+        anyVisible: true,
         currentHead: false,
         headSha: "c94679e",
         verdict: "clean",
@@ -165,6 +167,8 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       },
       preApprovalGate: {
         visible: false,
+        markerVisible: false,
+        anyVisible: false,
         currentHead: false,
         headSha: null,
         verdict: null,
@@ -184,6 +188,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       nextAction: "request_copilot_review",
       reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
       draftGateAlreadySatisfied: true,
+      draftGateReconciled: false,
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
