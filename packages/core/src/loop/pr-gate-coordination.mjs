@@ -4,6 +4,7 @@ export const PR_GATE_BOUNDARY = Object.freeze({
   DRAFT_REVIEW: "draft_review",
   POST_DRAFT_EXTERNAL_REVIEW: "post_draft_external_review",
   FEEDBACK_RESOLUTION: "feedback_resolution",
+  CONFLICT_RESOLUTION: "conflict_resolution",
   PRE_APPROVAL_GATE_WINDOW: "pre_approval_gate_window",
   FINAL_APPROVAL_READY: "final_approval_ready",
   BLOCKED: "blocked",
@@ -19,6 +20,7 @@ export const PR_GATE_ACTION = Object.freeze({
   ADDRESS_REVIEW_FEEDBACK: "address_review_feedback",
   REPLY_RESOLVE_REVIEW_THREADS: "reply_resolve_review_threads",
   REREQUEST_COPILOT_REVIEW: "rerequest_copilot_review",
+  RESOLVE_MERGE_CONFLICTS: "resolve_merge_conflicts",
   RUN_PRE_APPROVAL_GATE: "run_pre_approval_gate",
   AWAIT_FINAL_HUMAN_APPROVAL: "await_final_human_approval",
   DECLARE_MERGE_READY: "declare_merge_ready",
@@ -86,6 +88,54 @@ function pushUnique(values, additions) {
   }
 }
 
+const CONFLICTING_MERGE_STATE_STATUSES = new Set(["DIRTY", "CONFLICTING"]);
+
+function normalizeMergeStateStatus(value) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return null;
+  }
+
+  return value.trim().toUpperCase();
+}
+
+function normalizeConflictFiles(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const normalized = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+
+    const trimmed = entry.trim();
+    if (trimmed.length > 0 && !normalized.includes(trimmed)) {
+      normalized.push(trimmed);
+    }
+  }
+
+  return normalized;
+}
+
+function hasConflictStatus(mergeStateStatus) {
+  return mergeStateStatus !== null && CONFLICTING_MERGE_STATE_STATUSES.has(mergeStateStatus);
+}
+
+function formatConflictResolutionReason(mergeStateStatus, conflictFiles) {
+  let reason = "The current branch conflicts with the base branch, so resolve the conflict locally on the PR branch, rerun validation, rerun gate detection, and only then resume the normal gate path.";
+
+  if (mergeStateStatus !== null) {
+    reason += ` GitHub mergeStateStatus: ${mergeStateStatus}.`;
+  }
+
+  if (conflictFiles.length > 0) {
+    reason += ` Conflicting files: ${conflictFiles.join(", ")}.`;
+  }
+
+  return reason;
+}
+
 function buildResult({
   draftGateAlreadySatisfied = false,
   repo = null,
@@ -100,6 +150,8 @@ function buildResult({
   forbiddenActions,
   nextAction,
   reason,
+  mergeStateStatus = null,
+  conflictFiles = [],
 }) {
   return {
     ok: true,
@@ -115,6 +167,8 @@ function buildResult({
     forbiddenActions,
     nextAction,
     reason,
+    mergeStateStatus,
+    conflictFiles,
     draftGateAlreadySatisfied,
   };
 }
@@ -132,6 +186,8 @@ export function evaluatePrGateCoordination(input = {}) {
   const reviewMode = typeof input.reviewMode === "string"
     ? input.reviewMode.trim().toLowerCase()
     : null;
+  const mergeStateStatus = normalizeMergeStateStatus(input.mergeStateStatus);
+  const conflictFiles = normalizeConflictFiles(input.conflictFiles);
 
   const draftGate = toGateStatus(input.draftGate, input.draftGateMarker, currentHeadSha);
   const preApprovalGate = toGateStatus(input.preApprovalGate, input.preApprovalGateMarker, currentHeadSha);
@@ -189,6 +245,43 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
       reason: "The PR is in a blocked lifecycle state, so gate progression must stop for a user decision.",
+      mergeStateStatus,
+      conflictFiles,
+    });
+  }
+
+  if (hasConflictStatus(mergeStateStatus) || conflictFiles.length > 0) {
+    pushUnique(allowedNextActions, [PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS]);
+    pushUnique(forbiddenActions, [
+      PR_GATE_ACTION.RUN_DRAFT_GATE,
+      PR_GATE_ACTION.RECONCILE_DRAFT_GATE,
+      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
+      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
+      PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
+      PR_GATE_ACTION.WAIT_FOR_CI,
+      PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK,
+      PR_GATE_ACTION.REPLY_RESOLVE_REVIEW_THREADS,
+      PR_GATE_ACTION.REREQUEST_COPILOT_REVIEW,
+      PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
+      PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
+      PR_GATE_ACTION.DECLARE_MERGE_READY,
+    ]);
+    return buildResult({
+      repo: input.repo ?? null,
+      pr: Number.isInteger(input.pr) ? input.pr : null,
+      currentHeadSha,
+      lifecycleState,
+      loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+      gateBoundary: PR_GATE_BOUNDARY.CONFLICT_RESOLUTION,
+      draftGateAlreadySatisfied,
+      draftGate,
+      preApprovalGate,
+      allowedNextActions,
+      forbiddenActions,
+      nextAction: PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS,
+      reason: formatConflictResolutionReason(mergeStateStatus, conflictFiles),
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 

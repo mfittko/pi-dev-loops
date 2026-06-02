@@ -129,7 +129,9 @@ test("consolidated PR lifecycle contract freezes the family-local lifecycle boun
   assert.match(lifecycleContract, /draft_local_review_gate/i);
   assert.match(lifecycleContract, /copilot_reply_resolve_pending/i);
   assert.match(lifecycleContract, /final_gate_remediation/i);
+  assert.match(lifecycleContract, /merge_conflict_resolution/i);
   assert.match(lifecycleContract, /waiting_for_human_pr_approval/i);
+  assert.match(lifecycleContract, /must not be treated as `waiting_for_human_pr_approval`, `waiting_for_merge`, or merge-ready/i);
 
   assert.match(copilotGraph, /skills\/docs\/pr-lifecycle-contract\.md/i);
   assert.match(gateContract, /skills\/docs\/pr-lifecycle-contract\.md/i);

@@ -79,6 +79,38 @@ async function writeGhStub(tempDir, entries) {
   };
 }
 
+async function writeGitStub(tempDir, { stdout = "", stderr = "", exitCode = 0, assertArgs = [] } = {}) {
+  const gitPath = path.join(tempDir, "git");
+
+  await writeFile(
+    gitPath,
+    [
+      "#!/usr/bin/env node",
+      'const actual = process.argv.slice(2);',
+      'const assertArgs = JSON.parse(process.env.GIT_ASSERT_ARGS || "[]");',
+      'for (const expected of assertArgs) {',
+      '  if (!actual.includes(expected)) {',
+      '    process.stderr.write(`missing expected git arg: ${expected}\\nactual: ${actual.join(" ")}\\n`);',
+      '    process.exit(98);',
+      '  }',
+      '}',
+      'if (process.env.GIT_STDERR) process.stderr.write(process.env.GIT_STDERR);',
+      'if (process.env.GIT_STDOUT) process.stdout.write(process.env.GIT_STDOUT);',
+      'process.exit(Number(process.env.GIT_EXIT_CODE || "0"));',
+      '',
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(gitPath, 0o755);
+
+  return {
+    GIT_ASSERT_ARGS: JSON.stringify(assertArgs),
+    GIT_STDOUT: stdout,
+    GIT_STDERR: stderr,
+    GIT_EXIT_CODE: String(exitCode),
+  };
+}
+
 function jsonLine(value) {
   return `${JSON.stringify(value)}\n`;
 }
@@ -89,7 +121,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 266,
           state: "OPEN",
@@ -149,6 +181,8 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       repo: "owner/repo",
       pr: 266,
       currentHeadSha: "def56789abcdef",
+      mergeStateStatus: null,
+      conflictFiles: [],
       lifecycleState: "pr_ready_no_feedback",
       loopDisposition: "action_required",
       gateBoundary: "post_draft_external_review",
@@ -194,6 +228,68 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
   }
 });
 
+test("detect-pr-gate-coordination-state surfaces conflict_resolution for conflicted PRs and reports conflict files", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-conflict-"));
+
+  try {
+    const ghEnv = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "370", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 370,
+          state: "OPEN",
+          isDraft: false,
+          headRefOid: "deadbeef1234",
+          mergeStateStatus: "DIRTY",
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [],
+        }),
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/370/requested_reviewers"],
+        stdout: jsonLine({ users: [], teams: [] }),
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=370"],
+        stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }),
+      },
+      {
+        assertArgs: ["pr", "view", "370", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: jsonLine({ headRefOid: "deadbeef1234" }),
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/370/comments?per_page=100"],
+        stdout: "[]\n",
+      },
+    ]);
+    const gitEnv = await writeGitStub(tempDir, {
+      assertArgs: ["status", "--porcelain=v1", "--untracked-files=no"],
+      stdout: [
+        "UU config.test.mjs",
+        "AA extension/README.md",
+      ].join("\n") + "\n",
+    });
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "370"], {
+      env: { ...ghEnv, ...gitEnv },
+    });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.gateBoundary, "conflict_resolution");
+    assert.equal(parsed.nextAction, "resolve_merge_conflicts");
+    assert.equal(parsed.mergeStateStatus, "DIRTY");
+    assert.deepEqual(parsed.conflictFiles, ["config.test.mjs", "extension/README.md"]);
+    assert.deepEqual(parsed.allowedNextActions, ["resolve_merge_conflicts"]);
+    assert(parsed.forbiddenActions.includes("run_pre_approval_gate"));
+    assert(parsed.forbiddenActions.includes("await_final_human_approval"));
+    assert(parsed.forbiddenActions.includes("declare_merge_ready"));
+    assert.match(parsed.reason, /config\.test\.mjs/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 
 test("detect-pr-gate-coordination-state with --review-mode local_first skips Copilot review", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-local-"));
@@ -201,7 +297,7 @@ test("detect-pr-gate-coordination-state with --review-mode local_first skips Cop
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "267", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "267", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 267,
           state: "OPEN",
@@ -266,14 +362,13 @@ test("detect-pr-gate-coordination-state with --review-mode local_first skips Cop
   }
 });
 
-
 test("detect-pr-gate-coordination-state fails closed when the PR head changes mid-read", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-head-drift-"));
 
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 266,
           state: "OPEN",
@@ -297,7 +392,7 @@ test("detect-pr-gate-coordination-state fails closed when the PR head changes mi
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"],
-        stdout: '[]\n',
+        stdout: "[]\n",
       },
     ]);
 

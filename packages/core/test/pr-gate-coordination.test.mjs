@@ -236,6 +236,77 @@ test("non-draft PR with visible non-clean draft_gate evidence blocks without sug
   assert.doesNotMatch(result.reason, /reconcile-draft-gate\.mjs/i);
 });
 
+
+test("conflicted PR returns the conflict-resolution boundary and reports conflicted files", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 370,
+    currentHeadSha: "deadbeef1234",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
+    sameHeadCleanConverged: true,
+    mergeStateStatus: "DIRTY",
+    conflictFiles: ["config.test.mjs", "extension/README.md"],
+    draftGate: gate({ visible: true, headSha: "deadbee", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "deadbee", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: true, headSha: "deadbee", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "deadbee", verdict: "clean", contractComplete: true }),
+  });
+
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.CONFLICT_RESOLUTION);
+  assert.equal(result.nextAction, PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS);
+  assert.equal(result.mergeStateStatus, "DIRTY");
+  assert.deepEqual(result.conflictFiles, ["config.test.mjs", "extension/README.md"]);
+  assert.deepEqual(result.allowedNextActions, [PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS]);
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.DECLARE_MERGE_READY));
+  assert.match(result.reason, /resolve the conflict locally on the PR branch/i);
+  assert.match(result.reason, /config\.test\.mjs/i);
+});
+
+test("conflict state takes precedence over otherwise merge-ready current-head evidence", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 370,
+    currentHeadSha: "deadbeef1234",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
+    sameHeadCleanConverged: true,
+    mergeStateStatus: "CONFLICTING",
+    draftGate: gate({ visible: true, headSha: "deadbee", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "deadbee", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: true, headSha: "deadbee", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "deadbee", verdict: "clean", contractComplete: true }),
+  });
+
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.CONFLICT_RESOLUTION);
+  assert.equal(result.nextAction, PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS);
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.DECLARE_MERGE_READY));
+});
+
+test("local git conflict files trigger the conflict-resolution boundary even without DIRTY mergeStateStatus", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 370,
+    currentHeadSha: "deadbeef1234",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    mergeStateStatus: "CLEAN",
+    conflictFiles: [".pi/dev-loop/defaults.yaml"],
+    draftGate: gate({ visible: true, headSha: "deadbee", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "deadbee", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.CONFLICT_RESOLUTION);
+  assert.equal(result.nextAction, PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS);
+  assert.deepEqual(result.conflictFiles, [".pi/dev-loop/defaults.yaml"]);
+});
+
 test("local-first PR with explicit reviewMode skips to pre-approval gate after draft→ready", () => {
   const result = evaluatePrGateCoordination({
     pr: 298,

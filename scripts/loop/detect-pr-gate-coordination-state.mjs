@@ -14,6 +14,8 @@ import { evaluatePrGateCoordination } from "@pi-dev-loops/core/loop/pr-gate-coor
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { detectGateReviewEvidence } from "../github/detect-gate-review-evidence.mjs";
 
+const UNMERGED_GIT_STATUS_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
+
 const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number> [--review-mode local_first]
 
 Determine which PR gate/transition is legal next for a pull request.
@@ -28,9 +30,11 @@ Output (stdout, JSON):
     "repo": "owner/repo",
     "pr": 266,
     "currentHeadSha": "...",
+    "mergeStateStatus": "DIRTY",
+    "conflictFiles": ["config.test.mjs", "extension/README.md"],
     "lifecycleState": "pr_ready_no_feedback",
     "loopDisposition": "action_required",
-    "gateBoundary": "post_draft_external_review",
+    "gateBoundary": "conflict_resolution",
     "draftGate": {
       "visible": true,
       "markerVisible": false,
@@ -51,9 +55,9 @@ Output (stdout, JSON):
       "headSha": null,
       "verdict": null
     },
-    "allowedNextActions": ["request_copilot_review"],
+    "allowedNextActions": ["resolve_merge_conflicts"],
     "forbiddenActions": ["run_pre_approval_gate", "declare_merge_ready"],
-    "nextAction": "request_copilot_review",
+    "nextAction": "resolve_merge_conflicts",
     "reason": "..."
   }
 
@@ -129,6 +133,39 @@ function parseRequestedReviewersPayload(text) {
   };
 }
 
+export function parseGitStatusConflictFiles(text) {
+  if (typeof text !== "string" || text.trim().length === 0) {
+    return [];
+  }
+
+  const conflictFiles = [];
+  for (const rawLine of text.split(/\r?\n/)) {
+    if (rawLine.length < 4) {
+      continue;
+    }
+
+    const status = rawLine.slice(0, 2);
+    if (!UNMERGED_GIT_STATUS_CODES.has(status)) {
+      continue;
+    }
+
+    const rawPath = rawLine.slice(3).trim();
+    if (rawPath.length === 0) {
+      continue;
+    }
+
+    const normalizedPath = rawPath.includes(" -> ")
+      ? rawPath.split(" -> ").at(-1)?.trim() ?? rawPath
+      : rawPath;
+
+    if (normalizedPath.length > 0 && !conflictFiles.includes(normalizedPath)) {
+      conflictFiles.push(normalizedPath);
+    }
+  }
+
+  return conflictFiles;
+}
+
 async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
@@ -147,7 +184,7 @@ async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghComm
 async function fetchPrFacts({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
-    ["pr", "view", String(pr), "--repo", repo, "--json", "number,state,isDraft,headRefOid,reviews,statusCheckRollup"],
+    ["pr", "view", String(pr), "--repo", repo, "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
     env,
   );
 
@@ -159,12 +196,27 @@ async function fetchPrFacts({ repo, pr }, { env = process.env, ghCommand = "gh" 
   return parseJsonText(result.stdout, { label: "gh pr view" });
 }
 
+async function fetchLocalConflictFiles({ env = process.env, gitCommand = "git" } = {}) {
+  const result = await runChild(
+    gitCommand,
+    ["status", "--porcelain=v1", "--untracked-files=no"],
+    env,
+  );
+
+  if (result.code !== 0) {
+    return [];
+  }
+
+  return parseGitStatusConflictFiles(result.stdout);
+}
+
 export async function loadPrGateCoordinationContext(options, runtime = {}) {
   const prData = await fetchPrFacts(options, runtime);
   const requestedReviewers = await fetchRequestedReviewers(options, runtime);
   const threadsPayload = await fetchGithubReviewThreadsPayload(options, runtime);
   const parsedThreads = parseReviewThreads(threadsPayload);
   const gateEvidence = await detectGateReviewEvidence(options, runtime);
+  const conflictFiles = await fetchLocalConflictFiles(runtime);
 
   const currentHeadSha = typeof prData?.headRefOid === "string" && prData.headRefOid.trim().length > 0
     ? prData.headRefOid.trim()
@@ -195,11 +247,16 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
 
   const interpretation = interpretLoopState(snapshot);
   const disposition = summarizeLoopInterpretation(interpretation);
+  const mergeStateStatus = typeof prData?.mergeStateStatus === "string" && prData.mergeStateStatus.trim().length > 0
+    ? prData.mergeStateStatus.trim().toUpperCase()
+    : null;
 
   return {
     repo: options.repo,
     pr: options.pr,
     currentHeadSha,
+    mergeStateStatus,
+    conflictFiles,
     prData,
     gateEvidence,
     interpretation,
@@ -216,6 +273,8 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     prDraft: Boolean(context.prData?.isDraft),
     prClosed: String(context.prData?.state || "").toUpperCase() === "CLOSED",
     prMerged: String(context.prData?.state || "").toUpperCase() === "MERGED",
+    mergeStateStatus: context.mergeStateStatus,
+    conflictFiles: context.conflictFiles,
     lifecycleState: context.interpretation.state,
     loopDisposition: context.disposition.loopDisposition,
     sameHeadCleanConverged: context.interpretation.sameHeadCleanConverged,
