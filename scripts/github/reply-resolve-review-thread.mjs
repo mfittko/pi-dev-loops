@@ -1,39 +1,15 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
 
-import { formatCliError, isDirectCliRun, parseReviewThreads } from "../_core-helpers.mjs";
-import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
+import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import {
+  hasCommitShaReference,
+  replyAndMaybeResolve,
+  validateResolutionMessage,
+} from "./_review-thread-mutations.mjs";
 
-const MIN_DISMISSAL_REASON_LENGTH = 30;
-
-// Exported for unit testing
-export function hasCommitShaReference(text) {
-  const trimmed = text.trim();
-  // Accept a hex token (7-40 chars) that contains at least one hex letter (a-f) — the common case.
-  // Also accept a pure-numeric hex token when it is explicitly contextualized as a commit reference:
-  //   - via keyword + whitespace: "Fixed in 1234567", "Commit 1234567", "SHA 1234567"
-  //   - via commit URL path:      ".../commit/1234567"
-  // This handles the rare-but-valid all-digit SHA without reopening the bare-numeric bypass vector.
-  const hexTokens = trimmed.match(/\b[0-9a-f]{7,40}\b/gi) ?? [];
-  const hasHexLetterToken = hexTokens.some((t) => /[a-f]/i.test(t));
-  const hasContextualNumericRef =
-    /\b(?:fixed\s+in|commit|sha|rev(?:ision)?)\s+[0-9a-f]{7,40}\b/i.test(trimmed) ||
-    /\/commit\/[0-9a-f]{7,40}\b/i.test(trimmed);
-  return hasHexLetterToken || hasContextualNumericRef;
-}
-
-const RESOLVE_REVIEW_THREAD_MUTATION = [
-  "mutation($threadId: ID!) {",
-  "  resolveReviewThread(input: { threadId: $threadId }) {",
-  "    thread {",
-  "      id",
-  "      isResolved",
-  "    }",
-  "  }",
-  "}",
-].join("\n");
+export { hasCommitShaReference } from "./_review-thread-mutations.mjs";
 
 function requireOptionValue(args, flag) {
   const value = args.shift();
@@ -105,128 +81,6 @@ export function parseReplyResolveCliArgs(argv) {
   return options;
 }
 
-function runChild(command, args, env, stdinText) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    if (stdinText === undefined) {
-      child.stdin.end();
-    } else {
-      child.stdin.end(stdinText);
-    }
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
-
-function parseJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`Invalid JSON from gh: ${text.trim() || "<empty>"}`);
-  }
-}
-
-function parseReplyPayload(payload) {
-  const replyId = payload?.id;
-  const replyUrl = payload?.html_url;
-
-  if (!Number.isFinite(replyId) || typeof replyUrl !== "string" || replyUrl.trim().length === 0) {
-    throw new Error("Reply payload from gh did not include both id and html_url");
-  }
-
-  return {
-    replyId,
-    replyUrl,
-  };
-}
-
-async function validateReplyTarget(
-  { repo, pr, commentId, threadId },
-  { env = process.env, ghCommand = "gh" } = {},
-) {
-  const payload = await fetchGithubReviewThreadsPayload({ repo, pr }, { env, ghCommand });
-  const parsed = parseReviewThreads(payload);
-  const targetCommentId = String(commentId);
-  const thread = parsed.threads.find((entry) => entry.id === threadId) ?? null;
-  const comment = parsed.comments.find((entry) => entry.databaseId === targetCommentId) ?? null;
-
-  if (thread === null) {
-    throw new Error(`Review thread ${threadId} was not found on pull request ${repo}#${pr}`);
-  }
-
-  if (comment === null) {
-    throw new Error(`Review comment ${commentId} was not found on pull request ${repo}#${pr}`);
-  }
-
-  if (comment.threadId !== threadId) {
-    throw new Error(`Review comment ${commentId} does not belong to review thread ${threadId} on pull request ${repo}#${pr}`);
-  }
-}
-
-async function postReply({ repo, pr, commentId, body }, { env = process.env, ghCommand = "gh" } = {}) {
-  const result = await runChild(
-    ghCommand,
-    [
-      "api",
-      "-X",
-      "POST",
-      `repos/${repo}/pulls/${pr}/comments/${commentId}/replies`,
-      "--input",
-      "-",
-    ],
-    env,
-    `${JSON.stringify({ body })}\n`,
-  );
-
-  if (result.code !== 0) {
-    const detail = result.stderr.trim() || `exit code ${result.code}`;
-    throw new Error(`gh command failed: ${detail}`);
-  }
-
-  return parseJson(result.stdout);
-}
-
-async function resolveThread(threadId, { env = process.env, ghCommand = "gh" } = {}) {
-  const result = await runChild(
-    ghCommand,
-    [
-      "api",
-      "graphql",
-      "--field",
-      `threadId=${threadId}`,
-      "--field",
-      `query=${RESOLVE_REVIEW_THREAD_MUTATION}`,
-    ],
-    env,
-  );
-
-  if (result.code !== 0) {
-    const detail = result.stderr.trim() || `exit code ${result.code}`;
-    throw new Error(`gh command failed: ${detail}`);
-  }
-
-  const payload = parseJson(result.stdout);
-  return payload?.data?.resolveReviewThread?.thread;
-}
-
 export async function runCli(
   argv = process.argv.slice(2),
   {
@@ -242,40 +96,19 @@ export async function runCli(
     throw new Error("--body-file must contain non-empty text");
   }
 
-  const trimmedBody = rawBody.trim();
-  const hasCommitSha = hasCommitShaReference(trimmedBody);
-  const hasDismissalReason = trimmedBody.length >= MIN_DISMISSAL_REASON_LENGTH;
-  if (!hasCommitSha && !hasDismissalReason) {
-    throw new Error(
-      `Reply body (${trimmedBody.length} characters after trimming) must contain either a commit SHA reference or a dismissal reason (at least ${MIN_DISMISSAL_REASON_LENGTH} characters after trimming). ` +
-      "Bare acknowledgments like \"Acknowledged.\" are not valid resolutions.",
-    );
-  }
+  validateResolutionMessage(rawBody);
 
-  await validateReplyTarget(
+  const result = await replyAndMaybeResolve(
     {
       repo: options.repo,
       pr: options.pr,
       commentId: options.commentId,
       threadId: options.threadId,
+      body: rawBody,
+      resolve: true,
     },
     { env, ghCommand },
   );
-
-  const reply = parseReplyPayload(await postReply(
-    {
-      repo: options.repo,
-      pr: options.pr,
-      commentId: options.commentId,
-      body: rawBody,
-    },
-    { env, ghCommand },
-  ));
-  const resolvedThread = await resolveThread(options.threadId, { env, ghCommand });
-
-  if (!resolvedThread?.isResolved) {
-    throw new Error(`Review thread did not resolve successfully: ${options.threadId}`);
-  }
 
   stdout.write(`${JSON.stringify({
     ok: true,
@@ -283,8 +116,8 @@ export async function runCli(
     pr: options.pr,
     commentId: options.commentId,
     threadId: options.threadId,
-    replyId: reply.replyId,
-    replyUrl: reply.replyUrl,
+    replyId: result.replyId,
+    replyUrl: result.replyUrl,
     resolved: true,
   })}\n`);
 }

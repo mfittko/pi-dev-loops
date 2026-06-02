@@ -8,29 +8,23 @@ import {
   test,
   USER_FACING_AGENT_SURFACE,
 } from "./imported-assets-helpers.mjs";
-
 test("copilot review gates keep phase-specific angle ownership in one canonical internal skill", async () => {
   const [copilotPrFollowupSkill, gateContract] = await Promise.all([
     readRepo("skills/copilot-pr-followup/SKILL.md"),
     readRepo("docs/gate-review-comment-contract.md"),
   ]);
-
   const devLoopStep7Match = copilotPrFollowupSkill.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Step 8|$)/);
   const devLoopStep7 = devLoopStep7Match ? devLoopStep7Match[0] : "";
   assert.ok(devLoopStep7.length > 0, "copilot-pr-followup Step 7 section not found");
-
   const devLoopDraftGateMatch = devLoopStep7.match(/### Draft gate contract[\s\S]*?(?=\n### |$)/);
   const devLoopDraftGate = devLoopDraftGateMatch ? devLoopDraftGateMatch[0] : "";
   assert.ok(devLoopDraftGate.length > 0, "copilot-pr-followup draft-gate section not found inside Step 7");
-
   const devLoopPreApprovalMatch = devLoopStep7.match(/### Pre-approval gate contract[\s\S]*?(?=\n## |\n### |$)/);
   const devLoopPreApproval = devLoopPreApprovalMatch ? devLoopPreApprovalMatch[0] : "";
   assert.ok(devLoopPreApproval.length > 0, "copilot-pr-followup pre-approval gate section not found inside Step 7");
-
   assert.match(copilotPrFollowupSkill, /canonical internal `copilot_pr_followup` route behind the public `dev-loop` façade/i);
   assert.match(copilotPrFollowupSkill, /canonical internal owner of the shared post-PR mechanics/i);
   assert.match(gateContract, /visible gate-review comment evidence contract only/i);
-
   const expectedDevLoopShape = [/Gate name:/i, /Trigger \/ boundary:/i, /Review angles:/i, /Pass criteria:/i, /Next step after passing:/i];
   for (const [label, section] of [
     ["copilot-pr-followup draft gate", devLoopDraftGate],
@@ -41,15 +35,12 @@ test("copilot review gates keep phase-specific angle ownership in one canonical 
     }
     assert.doesNotMatch(section, /Gate role:/i, `${label} should not introduce extra template-only fields that drift across gates`);
   }
-
   const draftAnglePatterns = [/resolveGateAngles\(config, "draft"\)/i, /scope.*coverage.*correctness/i];
   const preApprovalAnglePatterns = [/resolveGateAngles\(config, "preApproval"\)/];
-
   const devLoopDraftOwnedAnglesMatch = devLoopDraftGate.match(/Review angles:[\s\S]*?(?=\n- \*\*Pass criteria)/i);
   const devLoopDraftOwnedAngles = devLoopDraftOwnedAnglesMatch ? devLoopDraftOwnedAnglesMatch[0] : "";
   const devLoopPreApprovalOwnedAnglesMatch = devLoopPreApproval.match(/Review angles:[\s\S]*?(?=\n- \*\*Pass criteria)/i);
   const devLoopPreApprovalOwnedAngles = devLoopPreApprovalOwnedAnglesMatch ? devLoopPreApprovalOwnedAnglesMatch[0] : "";
-
   for (const pattern of draftAnglePatterns) {
     assert.match(devLoopDraftOwnedAngles, pattern);
   }
@@ -64,14 +55,37 @@ test("copilot review gates keep phase-specific angle ownership in one canonical 
     assert.doesNotMatch(devLoopPreApprovalOwnedAngles, pattern);
   }
 });
-
+test("copilot-pr-followup skill routes review requests and wait seams through deterministic helpers", async () => {
+  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const requestSectionMatch = skillContent.match(/When confirming whether Copilot is requested as a reviewer,[\s\S]*?## Step 6: Async watch behavior/);
+  const requestSection = requestSectionMatch ? requestSectionMatch[0] : "";
+  assert.ok(requestSection.length > 0, "request/wait section not found");
+  assert.match(requestSection, /request-copilot-review\.mjs/i);
+  assert.match(requestSection, /--force-rerequest-review/i);
+  assert.match(requestSection, /Do \*\*not\*\* request Copilot by posting literal `\/copilot` or `\/copilot re-review` PR comments\./i);
+  assert.match(requestSection, /`requested`:/i);
+  assert.match(requestSection, /`already-requested`:/i);
+  assert.match(requestSection, /`suppressed_same_head_clean`:/i);
+  assert.match(requestSection, /`unavailable`:/i);
+  const step6Match = skillContent.match(/## Step 6: Async watch behavior[\s\S]*?(?=\n## Step 7|$)/);
+  const step6 = step6Match ? step6Match[0] : "";
+  assert.ok(step6.length > 0, "copilot-pr-followup Step 6 section not found");
+  assert.match(step6, /detect-copilot-loop-state\.mjs/i);
+  assert.match(step6, /run-copilot-watch-cycle\.mjs/i);
+  assert.match(step6, /gh run watch <run-id> --repo <owner\/name>/i);
+  assert.match(step6, /helper-owned sleep inside `run-copilot-watch-cycle\.mjs`, `watch-copilot-review\.mjs`, or `watch-initial-copilot-pr\.mjs` is allowed/i);
+  assert.match(step6, /agent-authored shell polling is forbidden/i);
+  assert.match(step6, /for i in \$\(seq \.\.\.\)/i);
+  assert.match(step6, /while true/i);
+  assert.match(step6, /until \.\.\.; do sleep \.\.\.; done/i);
+  assert.match(step6, /do not wrap repeated `gh pr view`, `gh pr checks`, `gh api`, or `detect-copilot-loop-state\.mjs` calls inside shell polling loops/i);
+});
 test("copilot-pr-followup skill keeps async watch persistence explicit", async () => {
   const [skillContent, scriptsReadme, stateGraph] = await Promise.all([
     readRepo("skills/copilot-pr-followup/SKILL.md"),
     readRepo("scripts/README.md"),
     readRepo("docs/copilot-loop-state-graph.md"),
   ]);
-
   assert.match(skillContent, /run-copilot-watch-cycle\.mjs/i);
   assert.match(skillContent, /zero-timeout `idle` probes are for explicit one-shot status\/reattach checks only/i);
   assert.match(skillContent, /returning to `waiting_for_copilot_review` is a persistence boundary: resume the watcher instead of reporting completion/i);
@@ -84,10 +98,8 @@ test("copilot-pr-followup skill keeps async watch persistence explicit", async (
   assert.match(stateGraph, /`waiting_for_copilot_review` is a persistence boundary for explicit async loop entry/i);
   assert.match(stateGraph, /If the next deterministic state returns to `waiting_for_copilot_review`, resume watch mode again instead of treating the re-request handoff as the end of the async run/i);
 });
-
 test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merge-ready checks", async () => {
   const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
-
   const step6Match = skillContent.match(/## Step 6: Async watch behavior[\s\S]*?(?=\n## Step 7|$)/);
   const step6 = step6Match ? step6Match[0] : "";
   assert.ok(step6.length > 0, "copilot-pr-followup Step 6 section not found");
@@ -101,21 +113,52 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
     /Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean gate-review comment exists on the PR for the current head SHA\. Do not stop or report completion without this evidence\./i,
     "Step 6 should embed the required pre-approval gate dispatch clause verbatim",
   );
-
   const step7Match = skillContent.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Validation policy|$)/);
   const step7 = step7Match ? step7Match[0] : "";
   assert.ok(step7.length > 0, "copilot-pr-followup Step 7 section not found");
-
   assert.match(
     step7,
     /must use the deterministic helper `reply-resolve-review-thread\.mjs`/i,
     "Step 7 should require the reply-resolve helper",
+  );
+  assert.match(
+    step7,
+    /reply-resolve-review-threads\.mjs/i,
+    "Step 7 should reference the deterministic batch reply-resolve helper for multi-thread follow-up",
   );
   assert.doesNotMatch(
     step7,
     /prefer the deterministic helper `reply-resolve-review-thread\.mjs`/i,
     "Step 7 should not leave the reply-resolve helper optional",
   );
+  assert.match(
+    step7,
+    /before resolving an addressed review thread, run a post-fix verification checkpoint/i,
+    "Step 7 should require a post-fix verification checkpoint before thread resolution",
+  );
+  assert.match(
+    step7,
+    /confirm the GitHub reply actually exists on the intended thread\/comment/i,
+    "verification checkpoint should require confirming the GitHub reply exists",
+  );
+  assert.match(
+    step7,
+    /confirm the pushed current-head diff genuinely addresses the reviewer concern/i,
+    "verification checkpoint should require confirming the pushed fix addresses the concern",
+  );
+  assert.match(
+    step7,
+    /including `unresolvedThreadCount`/i,
+    "verification checkpoint should require refreshed API-backed unresolvedThreadCount data",
+  );
+  assert.match(
+    step7,
+    /if any verification check fails, do \*\*not\*\* resolve the thread; leave it open/i,
+    "verification checkpoint should keep threads open when verification fails",
+  );
+  const verificationIndex = step7.indexOf("before resolving an addressed review thread, run a post-fix verification checkpoint");
+  const resolveIndex = step7.indexOf("resolve the addressed review thread only after the reply is attached successfully");
+  assert.ok(verificationIndex >= 0 && resolveIndex > verificationIndex, "verification checkpoint must appear before the resolve step");
   assert.match(
     step7,
     /verify `unresolvedThreadCount === 0` via `capture-review-threads\.mjs` before proceeding/i,
@@ -161,11 +204,10 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
     /If any check fails, do not declare merge-ready\./i,
     "merge-ready preconditions should be a hard gate",
   );
-
   const antiPatternsMatch = skillContent.match(/## Anti-patterns[\s\S]*?(?=\n## Recommended companion skills|$)/);
   const antiPatterns = antiPatternsMatch ? antiPatternsMatch[0] : "";
   assert.ok(antiPatterns.length > 0, "copilot-pr-followup anti-patterns section not found");
-  assert.match(antiPatterns, /use inline `gh api` to post thread replies without the resolve mutation/i);
+  assert.match(antiPatterns, /use ad hoc inline `gh api` or `gh api graphql` thread-mutation commands instead of the deterministic `reply-resolve-review-thread\.mjs` \/ `reply-resolve-review-threads\.mjs` helpers/i);
   assert.match(antiPatterns, /declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA/i);
   assert.match(antiPatterns, /declare merge-ready based solely on `mergeable_state: clean` \+ CI green without gate evidence/i);
   assert.match(antiPatterns, /dispatch an async dev-loop task that omits the pre-approval gate requirement/i);
@@ -190,17 +232,14 @@ test("legacy copilot workflow entrypoint agents are removed from normal executab
   const agentFiles = (await readdir(fromRepoRoot("agents")))
     .filter((name) => name.endsWith(".agent.md"))
     .sort();
-
   assert.equal(agentFiles.includes("copilot-pr-followup.agent.md"), false);
   assert.equal(agentFiles.includes("copilot-autopilot.agent.md"), false);
 });
-
 test("public dev-loop agent is a thin executable entrypoint that defers to the public skill router", async () => {
   const [agentContent, skillContent] = await Promise.all([
     readRepo("agents/dev-loop.agent.md"),
     readRepo("skills/dev-loop/SKILL.md"),
   ]);
-
   assert.match(agentContent, /name:\s*"dev-loop"/);
   assert.match(agentContent, /user-invocable:\s*true/);
   assert.match(agentContent, /skills\/dev-loop\/SKILL\.md/);
@@ -212,7 +251,6 @@ test("public dev-loop agent is a thin executable entrypoint that defers to the p
   assert.match(agentContent, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
   assert.match(skillContent, /public `dev-loop` façade/i);
 });
-
 test("thin pointer docs symlink to canonical contract content", async () => {
   const [trackerContent, conductorContent, ciContent, skillContent] = await Promise.all([
     readRepo("docs/tracker-first-mvp-state-graph.md"),
@@ -220,7 +258,6 @@ test("thin pointer docs symlink to canonical contract content", async () => {
     readRepo("docs/copilot-ci-status-contract.md"),
     readRepo("skills/copilot-pr-followup/SKILL.md"),
   ]);
-
   // Symlink reads resolve to each canonical target's content.
   assert.match(trackerContent, /Tracker-First Story-to-PR Contract/i);
   assert.match(trackerContent, /MVP invariant: one tracker work item → one GitHub PR/i);
@@ -228,10 +265,8 @@ test("thin pointer docs symlink to canonical contract content", async () => {
   assert.match(conductorContent, /conductor routing contract/i);
   assert.match(ciContent, /Copilot PR CI\/check normalization contract/i);
   assert.match(ciContent, /canonical bundled contract/i);
-
   assert.match(skillContent, /inherits[\s\S]*source-of-truth ownership[\s\S]*work item <-> PR link[\s\S]*reverse-sync semantics from\s*`#21`/i);
 });
-
 test("new See Also markdown links resolve from docs files", async () => {
   const linkTargetsByDoc = {
     "docs/gate-review-comment-contract.md": [
@@ -253,7 +288,6 @@ test("new See Also markdown links resolve from docs files", async () => {
       "../AGENTS.md",
     ],
   };
-
   for (const [docPath, targets] of Object.entries(linkTargetsByDoc)) {
     const doc = await readRepo(docPath);
     for (const target of targets) {
@@ -265,10 +299,8 @@ test("new See Also markdown links resolve from docs files", async () => {
     }
   }
 });
-
 test("docs index separates active docs, archived history, and presentations", async () => {
   const content = await readRepo("docs/index.md");
-
   assert.match(content, /Start here/i);
   assert.match(content, /phases\/phase-7\.md/i);
   assert.match(content, /archive\/phases\/phase-0\.md/i);
@@ -276,13 +308,10 @@ test("docs index separates active docs, archived history, and presentations", as
   assert.match(content, /presentations\/applied-dev-loops-presentation\.md/i);
   assert.match(content, /presentations\/style\.css/i);
 });
-
 test("gate-review comment contract documents required fields, verdict values, rerun rules, and fail-closed behavior", async () => {
   const contractContent = await readRepo("docs/gate-review-comment-contract.md");
-
   assert.match(contractContent, /visible gate-review comment evidence contract only/i);
   assert.match(contractContent, /does[\s\S]*not restate the full PR follow-up procedure/i);
-
   // Required fields
   assert.match(contractContent, /gate name/i);
   assert.match(contractContent, /head SHA/i);
@@ -296,11 +325,9 @@ test("gate-review comment contract documents required fields, verdict values, re
   assert.match(contractContent, /rerun gate/i);
   assert.match(contractContent, /mark ready for review/i);
   assert.match(contractContent, /await final human approval/i);
-
   // Both gate names must appear
   assert.match(contractContent, /draft_gate/);
   assert.match(contractContent, /pre_approval_gate/);
-
   // Rerun rules: same-head idempotent, new-head → new comment
   assert.match(contractContent, /same.head/i);
   assert.match(contractContent, /idempotent/i);
@@ -312,22 +339,18 @@ test("gate-review comment contract documents required fields, verdict values, re
   assert.match(contractContent, /raw passing log streams|raw passing test output/i);
   assert.match(contractContent, /deterministic retained-prefix length/i);
   assert.match(contractContent, /focused relevant excerpt/i);
-
   // Findings-specific and fail-closed behavior
   assert.match(contractContent, /stays draft and fixes are required before retrying/i);
   assert.match(contractContent, /follow-up fixes are required before final approval/i);
   assert.match(contractContent, /fail.closed|cannot be posted/i);
   assert.match(contractContent, /do not run `gh pr ready`|do not mark the PR ready/i);
   assert.match(contractContent, /do not declare final.approval readiness/i);
-
   // Draft vs pre-approval distinction must stay explicit
   assert.match(contractContent, /A clean `draft_gate` comment does \*\*not\*\* satisfy `pre_approval_gate` requirements/i);
   assert.match(contractContent, /A clean `pre_approval_gate` comment does \*\*not\*\* retroactively replace the required `draft_gate` evidence/i);
 });
-
 test("gate-review comment ownership stays explicit in the canonical internal skill file", async () => {
   const copilotPrFollowupSkill = await readRepo("skills/copilot-pr-followup/SKILL.md");
-
   const devLoopDraftGateMatch = copilotPrFollowupSkill.match(/### Draft gate contract[\s\S]*?(?=\n### |\n## |$)/);
   const devLoopDraftGate = devLoopDraftGateMatch ? devLoopDraftGateMatch[0] : "";
   assert.ok(devLoopDraftGate.length > 0, "copilot-pr-followup draft gate section not found");
@@ -343,7 +366,6 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopDraftGate, /command names with pass.fail status/i);
   assert.match(devLoopDraftGate, /raw passing test output/i);
   assert.match(devLoopDraftGate, /truncate it to a deterministic retained-prefix length/i);
-
   const devLoopPreApprovalGateMatch = copilotPrFollowupSkill.match(/### Pre-approval gate contract[\s\S]*?(?=\n### |\n## |$)/);
   const devLoopPreApprovalGate = devLoopPreApprovalGateMatch ? devLoopPreApprovalGateMatch[0] : "";
   assert.ok(devLoopPreApprovalGate.length > 0, "copilot-pr-followup pre-approval gate section not found");
@@ -361,10 +383,8 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopPreApprovalGate, /raw passing test output/i);
   assert.match(devLoopPreApprovalGate, /truncate it to a deterministic retained-prefix length/i);
 });
-
 test("issue-intake skill documents epic decomposition with GitHub sub-issue trees", async () => {
   const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
-
   assert.match(skillContent, /GitHub sub-issue trees/i);
   assert.match(skillContent, /Prefer real sub-issue linkage over parent-body checklists/i);
   assert.match(skillContent, /parent issue body should stay lean/i);
@@ -377,10 +397,8 @@ test("issue-intake skill documents epic decomposition with GitHub sub-issue tree
   assert.match(skillContent, /sub-issue-tree-contract\.md/i);
   assert.match(skillContent, /\.\.\/\.\.\/docs\/sub-issue-tree-contract\.md/i);
 });
-
 test("sub-issue tree contract documents the workflow, helper commands, and lean-body rule", async () => {
   const contractContent = await readRepo("docs/sub-issue-tree-contract.md");
-
   assert.match(contractContent, /manage-sub-issues\.mjs/i);
   assert.match(contractContent, /list/i);
   assert.match(contractContent, /add/i);
@@ -393,9 +411,7 @@ test("sub-issue tree contract documents the workflow, helper commands, and lean-
   assert.match(contractContent, /When to use sub-issues vs plain related-issue references/i);
   assert.match(contractContent, /dev-loop/i);
 });
-
 test("docs index references sub-issue-tree-contract.md", async () => {
   const indexContent = await readRepo("docs/index.md");
-
   assert.match(indexContent, /sub-issue-tree-contract\.md/i);
 });
