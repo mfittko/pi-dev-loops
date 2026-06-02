@@ -11,7 +11,7 @@ import { BUILT_IN_DEFAULTS, DevLoopConfigSchema, FileConfigSchema } from "./sche
  * @typedef {object} ConfigLoadError
  * @property {string} path - Human-readable file path or layer name
  * @property {string} message - Error description
- * @property {"defaults"|"overrides"|"merged"} layer - Which config layer failed
+ * @property {"defaults"|"settings"|"merged"} layer - Which config layer failed
  */
 
 // ============================================================================
@@ -83,16 +83,23 @@ async function readConfigFile(filePath) {
 }
 
 /**
- * Find a config file: try the preferred YAML path first, then JSON fallback.
- * @param {string} basePath - Path without extension (e.g. .../defaults)
+ * Find a config file by trying one or more base names in order.
+ * Each base name prefers YAML (.yaml, then .yml) before JSON.
+ * @param {string|string[]} basePaths - Path(s) without extension (e.g. .../defaults)
  * @returns {Promise<{ path: string, data: object|null }>}
  */
-async function findConfigFile(basePath) {
-  for (const ext of [".yaml", ".json"]) {
-    const data = await readConfigFile(basePath + ext);
-    if (data !== null) return { path: basePath + ext, data };
+async function findConfigFile(basePaths) {
+  const candidates = Array.isArray(basePaths) ? basePaths : [basePaths];
+
+  for (const basePath of candidates) {
+    for (const ext of [".yaml", ".yml", ".json"]) {
+      const filePath = basePath + ext;
+      const data = await readConfigFile(filePath);
+      if (data !== null) return { path: filePath, data };
+    }
   }
-  return { path: basePath + ".yaml", data: null };
+
+  return { path: candidates[0] + ".yaml", data: null };
 }
 
 /**
@@ -106,29 +113,35 @@ function configError(message, code, filePath) {
 }
 
 /**
- * Try to load and merge one config layer (defaults or overrides).
+ * Try to load and merge one config layer (defaults or settings).
  * @param {Record<string, unknown>} merged - Current merged config
- * @param {string} filePath - Path to the config file
- * @param {"defaults"|"overrides"} layer - Layer name
+ * @param {string|string[]} basePaths - Config file base path(s) without extension
+ * @param {"defaults"|"settings"} layer - Layer name
  * @param {string[]} warnings
  * @param {ConfigLoadError[]} errors
  * @param {{ warnOnMissing?: boolean }} [options]
  * @returns {Promise<Record<string, unknown>>}
  */
-async function applyLayer(merged, basePath, layer, warnings, errors, options = {}) {
+async function applyLayer(merged, basePaths, layer, warnings, errors, options = {}) {
   let filePath, data = null;
   try {
-    const found = await findConfigFile(basePath);
+    const found = await findConfigFile(basePaths);
     filePath = found.path;
     data = found.data;
   } catch (err) {
-    errors.push({ path: err.path ?? basePath + ".yaml", message: err.message, layer });
+    const preferredBasePath = Array.isArray(basePaths) ? basePaths[0] : basePaths;
+    const errorPath = err.path ?? preferredBasePath + ".yaml";
+    errors.push({
+      path: errorPath,
+      message: `${path.basename(errorPath)}: ${err.message}`,
+      layer,
+    });
     return merged;
   }
 
   if (data === null) {
     if (options.warnOnMissing) {
-      warnings.push(`Committed ${layer} config not found (tried .yaml and .json), using built-in defaults`);
+      warnings.push(`Committed ${layer} config not found (tried .yaml, .yml, and .json), using built-in defaults`);
     }
     return merged;
   }
@@ -138,7 +151,7 @@ async function applyLayer(merged, basePath, layer, warnings, errors, options = {
   if (!validation.success) {
     errors.push({
       path: filePath,
-      message: `Schema validation failed: ${validation.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      message: `${path.basename(filePath)}: Schema validation failed: ${validation.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
       layer,
     });
     return merged;
@@ -165,7 +178,7 @@ async function applyLayer(merged, basePath, layer, warnings, errors, options = {
 
 /**
  * Load the dev-loop configuration with full precedence:
- *   overrides.json > defaults.json > built-in defaults
+ *   settings.(yaml|yml|json) > legacy overrides.(yaml|yml|json) > defaults.(yaml|yml|json) > built-in defaults
  *
  * Never throws for config-related problems.
  * Returns built-in defaults even when all files are missing or broken.
@@ -177,7 +190,7 @@ export async function loadDevLoopConfig(options = {}) {
   const repoRoot = options.repoRoot ?? process.cwd();
   const configDir = path.join(repoRoot, ".pi", "dev-loop");
   const defaultsPath = path.join(configDir, "defaults");
-  const overridesPath = path.join(configDir, "overrides");
+  const settingsPaths = [path.join(configDir, "settings"), path.join(configDir, "overrides")];
 
   /** @type {string[]} */
   const warnings = [];
@@ -190,7 +203,7 @@ export async function loadDevLoopConfig(options = {}) {
     warnOnMissing: true,
   });
 
-  merged = await applyLayer(merged, overridesPath, "overrides", warnings, errors);
+  merged = await applyLayer(merged, settingsPaths, "settings", warnings, errors);
 
   // Validate final merged config
   const result = DevLoopConfigSchema.safeParse(merged);

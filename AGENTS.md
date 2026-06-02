@@ -41,7 +41,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 
 ## Dev loop defaults
 
-Repo-local workflow defaults are configured under `.pi/dev-loop/overrides.yaml` `workflow.*`. In this repo, that override is the source of truth for opting into:
+Repo-local workflow defaults are configured under `.pi/dev-loop/settings.yaml` `workflow.*`. In this repo, that settings file is the source of truth for opting into:
 - `workflow.requireRetrospective: true`
 - `workflow.requireDraftFirst: true`
 - `workflow.devModeDefault: true`
@@ -60,7 +60,7 @@ These are related but distinct requirements:
 | **Formal local dev mode** | Local implementation/self-improvement phases; explicitly scoped in [Dev Loop Skill](skills/dev-loop/SKILL.md) | Skill procedure; operator choice |
 | **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo (copilot PR follow-up, issue intake) | Machine-checkable enforcement seam |
 
-Routed GitHub-first async `dev-loop` runs in this repo do **not** need to be in full formal local dev mode, but they **do** require the post-run behavioral retrospective checkpoint when `workflow.requireRetrospective` is enabled. This repo enables that policy through `.pi/dev-loop/overrides.yaml`.
+Routed GitHub-first async `dev-loop` runs in this repo do **not** need to be in full formal local dev mode, but they **do** require the post-run behavioral retrospective checkpoint when `workflow.requireRetrospective` is enabled. This repo enables that policy through `.pi/dev-loop/settings.yaml`.
 
 Authoritative checkpoint details live in [Retrospective Checkpoint Contract](skills/docs/retrospective-checkpoint-contract.md).
 
