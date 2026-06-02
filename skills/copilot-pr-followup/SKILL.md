@@ -319,7 +319,7 @@ Preflight verdicts:
 
 ### Phase 3 — Async issue refinement
 
-Before updating or assigning the issue, refine it asynchronously when practical. Keep issue refinement separate from the phase-scoped refiner used by the local implementation workflow. Use the `refiner` agent for this review-only issue-refinement chain, including the consolidation/fan-in step; do not route those comparison/synthesis steps through `dev-loop` + `local-implementation`.
+Before updating or assigning the issue, refine it asynchronously when practical. Keep issue refinement separate from the phase-scoped refiner used by the local implementation workflow. Use the `refiner` agent for this review-only issue-refinement chain, including the consolidation/fan-in step; do not route those comparison/synthesis steps through `dev-loop` + `local_implementation` (the strategy loaded by `skills/local-implementation`).
 
 ### Phase 3b — Epic decomposition with GitHub sub-issue trees
 
