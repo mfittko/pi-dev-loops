@@ -609,24 +609,16 @@ test('open fails with a clear error when the launch seam does not return a posit
 });
 
 test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', async () => {
-  const { createServer } = await import('node:http');
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-healthcheck-signal-'));
 
-  // Start a real HTTP server on the default port so isManagedRecordShape passes
-  const healthServer = createServer((_req, res) => { res.writeHead(200); res.end('ok'); });
-  await new Promise((resolve) => healthServer.listen(4311, '127.0.0.1', resolve));
-
-  // Spy on global fetch to capture the options passed
   const originalFetch = globalThis.fetch;
   const fetchCalls = [];
   globalThis.fetch = async (url, options) => {
     fetchCalls.push({ url, options });
-    return originalFetch(url, options);
+    return { status: 200 };
   };
 
   try {
-    // Manager with real defaultHealthcheck (healthcheckUrlImpl defaults)
-    // but stubbed lifecycle seams
     const manager = createInspectRunViewerLifecycleManager({
       listListeningPidsImpl: async () => [42],
       isProcessAliveImpl: async () => true,
@@ -653,12 +645,10 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
     const status = await manager.status({ repoRoot });
     assert.equal(status.state, 'running');
 
-    const healthcheckCall = fetchCalls.find((c) => String(c.url).includes('4311'));
+    const healthcheckCall = fetchCalls.find((call) => String(call.url).includes('4311'));
     assert.ok(healthcheckCall, 'healthcheck should call fetch');
     assert.ok(!healthcheckCall.options?.signal, 'fetch must not receive an AbortSignal');
   } finally {
     globalThis.fetch = originalFetch;
-    await new Promise((resolve) => healthServer.close(resolve));
   }
 });
-
