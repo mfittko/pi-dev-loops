@@ -17,6 +17,7 @@ const BUILTIN_PERSONAS = Object.freeze({
   scope:       { persona: "review", defaultModel: null },
   coverage:    { persona: "review", defaultModel: null },
   correctness: { persona: "review", defaultModel: null },
+  docs:        { persona: "docs", defaultModel: null },
   dry:         { persona: "review", defaultModel: null },
   kiss:        { persona: "review", defaultModel: null },
   srp:         { persona: "review", defaultModel: null },

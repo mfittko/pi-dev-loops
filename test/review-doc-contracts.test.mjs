@@ -24,6 +24,17 @@ test("review agent does not hardcode reviewer identity or stale plan path", asyn
   assert.doesNotMatch(content, /docs\/plans\//);
 });
 
+
+test("docs agent supports docs-correctness review posture without becoming a public workflow entrypoint", async () => {
+  const content = await readRepo("agents/docs.agent.md");
+  const frontmatter = parseFrontmatter(content);
+
+  assert.equal(frontmatter.name, "docs");
+  assert.equal(frontmatter["user-invocable"], false);
+  assert.match(content, /resolved angle prompt as the primary review lens/i);
+  assert.match(content, /do not silently edit files when acting as reviewer/i);
+});
+
 test("coordinator agent does not contain stale docs/plans path and requires fresh-context review briefings", async () => {
   const content = await readRepo("agents/coordinator.agent.md");
 

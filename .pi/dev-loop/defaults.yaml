@@ -28,7 +28,7 @@ gates:
   preApproval:
     # Pre-approval gate: runs before declaring merge-ready.
     # Additional SOLID angles available as opt-in (see personas section):
-    #   ocp, lsp, isp, dip
+    #   ocp, lsp, isp, dip, docs
     angles:
       - dry
       - kiss
@@ -71,6 +71,19 @@ personas:
       Check whether the implementation matches the acceptance criteria
       and PR description. Flag logic errors, contract violations,
       and behavior mismatches.
+    defaultModel: null
+
+  docs:
+    persona: docs
+    prompt: >-
+      Review documentation correctness for the current change. Check that
+      relative markdown links resolve, symlink-backed doc pointers resolve,
+      navigable doc references are actual markdown links rather than bare
+      backtick path mentions, command/script references still exist and use
+      current names, and index/surface references match the current file tree.
+      When the repo provides `scripts/docs/validate-links.mjs`, use it for the
+      mechanical link pass; otherwise keep the review scoped to the touched doc
+      surface and current change only.
     defaultModel: null
 
   dry:

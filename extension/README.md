@@ -150,10 +150,12 @@ The shipped defaults activate these angles. Additional angles are available as o
 | `kiss` — over-engineering | `lsp` — Liskov Substitution (subtype contracts) |
 | `yagni` — speculative features | `isp` — Interface Segregation (fat interfaces) |
 | `srp` — Single Responsibility | `dip` — Dependency Inversion (abstractions) |
-| `soc` — Separation of Concerns | |
+| `soc` — Separation of Concerns | `docs` — documentation correctness (links, paths, command refs) |
 | `scope` — scope compliance (draft gate) | |
 | `coverage` — test coverage (draft gate) | |
 | `correctness` — acceptance criteria (draft gate) | |
+
+Built-in opt-in `docs` uses the packaged `.pi/agents/docs.agent.md` persona surface (symlinked to `agents/docs.agent.md` in-source), so consumers can enable the angle via `gates.preApproval.angles` without creating a second reviewer alias.
 
 ### Config precedence
 
