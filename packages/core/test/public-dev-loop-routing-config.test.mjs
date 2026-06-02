@@ -308,6 +308,6 @@ test("valid defaults.json (local-first) with broken settings.json falls back to 
     // Must fall back to github-first because settings.json produced a config error
     assert.equal(withFallback.selectedGate, withExplicitPreference.selectedGate);
     assert.equal(withFallback.selectedStrategy, withExplicitPreference.selectedStrategy);
-    assert.ok(warnings.some((warning) => /Invalid JSON/i.test(warning.message)));
+    assert.ok(warnings.some((warning) => /settings\.json/i.test(warning.message) && /Invalid JSON/i.test(warning.message)));
   });
 });

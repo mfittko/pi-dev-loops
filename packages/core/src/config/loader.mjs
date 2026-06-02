@@ -130,7 +130,12 @@ async function applyLayer(merged, basePaths, layer, warnings, errors, options = 
     data = found.data;
   } catch (err) {
     const preferredBasePath = Array.isArray(basePaths) ? basePaths[0] : basePaths;
-    errors.push({ path: err.path ?? preferredBasePath + ".yaml", message: err.message, layer });
+    const errorPath = err.path ?? preferredBasePath + ".yaml";
+    errors.push({
+      path: errorPath,
+      message: `${path.basename(errorPath)}: ${err.message}`,
+      layer,
+    });
     return merged;
   }
 
@@ -146,7 +151,7 @@ async function applyLayer(merged, basePaths, layer, warnings, errors, options = 
   if (!validation.success) {
     errors.push({
       path: filePath,
-      message: `Schema validation failed: ${validation.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      message: `${path.basename(filePath)}: Schema validation failed: ${validation.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
       layer,
     });
     return merged;
