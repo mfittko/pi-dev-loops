@@ -270,14 +270,14 @@ describe("loader — graceful degradation", () => {
     assert.ok(schema.DevLoopConfigSchema);
   });
 
-  test("L1: both defaults.json and overrides.json missing", async () => {
+  test("L1: both config files missing", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L1-"));
     try {
       const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.version, 1);
-      assert.ok(result.warnings.length > 0, "should warn about missing defaults.json");
+      assert.ok(result.warnings.length > 0, "should warn about missing config");
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -377,6 +377,57 @@ describe("loader — graceful degradation", () => {
       assert.ok(result.config);
       assert.equal(result.config.strategy.default, "local-first");
       assert.ok(result.errors.length > 0, "should error for broken overrides");
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("L7: defaults.yaml loads with YAML comments and parses correctly", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L7-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.yaml"), [
+        "version: 1",
+        "# This is a comment",
+        "strategy:",
+        "  default: local-first",
+        "gates:",
+        "  draft:",
+        "    angles:",
+        "      - scope",
+        "      - coverage",
+        "    required: true",
+        "personas:",
+        "  scope:",
+        "    persona: review",
+        "    prompt: Check scope",
+        "    defaultModel: null",
+      ].join("\n"));
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.ok(result.config);
+      assert.equal(result.config.strategy.default, "local-first");
+      assert.deepEqual(result.config.gates.draft.angles, ["scope", "coverage"]);
+      assert.equal(result.config.personas.scope.prompt, "Check scope");
+      assert.equal(result.warnings.length, 0);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("L8: YAML preferred over JSON when both exist", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L8-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.json"),
+        JSON.stringify({ version: 1, strategy: { default: "local-first" } }));
+      await writeFile(path.join(piDir, "defaults.yaml"),
+        "version: 1\nstrategy:\n  default: github-first");
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.equal(result.config.strategy.default, "github-first", "YAML should take priority over JSON");
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

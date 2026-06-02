@@ -92,6 +92,67 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 - packaged agents are refreshed into `~/.agents/` on each `session_start`
 - `/dev-loops install ...` and `/dev-loops update ...` are removed; use `pi install` / `pi update` directly instead
 
+## Configuration
+
+The dev-loop workflow is driven by a YAML config at `.pi/dev-loop/defaults.yaml` (shipped with the package) and an optional consumer override at `.pi/dev-loop/overrides.yaml`.
+
+### How consumers customize config
+
+Create `.pi/dev-loop/overrides.yaml` in your project repo. It merges on top of the shipped defaults. You can override any section:
+
+```yaml
+# Example: add a custom review angle with a dedicated persona agent
+gates:
+  preApproval:
+    angles:
+      - dry
+      - kiss
+      - yagni
+      - security    # your custom angle
+
+personas:
+  security:
+    persona: security-reviewer
+    prompt: >-
+      Audit for auth bypasses, secret leaks, insecure defaults,
+      unsafe command execution, and data exposure risks.
+    defaultModel: null
+
+  # Override an existing angle's prompt
+  dry:
+    persona: review
+    prompt: >-
+      Flag duplication. In this repo, also check for duplicated
+      contract language across docs/ and skills/.
+    defaultModel: null
+
+# Override gate requirements
+refinement:
+  fanOut: 5      # run 5 parallel review variants instead of 3
+
+autonomy:
+  stopAt:
+    - draft-pr
+    - merge        # stop for confirmation at both gates
+```
+
+### Config precedence
+
+1. Built-in defaults (`packages/core/src/config/schema.mjs` `BUILT_IN_DEFAULTS`)
+2. Shipped defaults (`.pi/dev-loop/defaults.yaml` — committed in source repo)
+3. Consumer overrides (`.pi/dev-loop/overrides.yaml` — per-project, gitignored by default)
+
+### Adding custom review angles
+
+1. Add the angle name to `gates.draft.angles` or `gates.preApproval.angles`
+2. Add a `personas.<angle>` entry with a `persona` agent name and a `prompt` instruction
+3. Create the corresponding `.pi/agents/<persona>.agent.md` if using a new persona
+4. Optionally set a per-angle model override via `models.roles.<angle>`
+
+### Config format
+
+YAML is preferred (`.yaml`). JSON (`.json`) is supported as a fallback for backward compatibility. When both exist, YAML takes priority.
+
 ## Runtime / build / test contract
 
 Current Phase 3+ contract:

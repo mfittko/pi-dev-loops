@@ -1,0 +1,93 @@
+version: 1
+
+# Default strategy: "github-first" or "local-first"
+strategy:
+  default: github-first
+
+# Refinement fan-out: how many parallel review variants to generate
+refinement:
+  fanOut: 3
+  mode: parallel
+  roles:
+    - scope
+    - coverage
+    - dry
+    - kiss
+
+# Gate review angle definitions
+# Consumers can add, remove, or reorder angles per gate.
+gates:
+  draft:
+    # Draft gate: runs before marking PR ready for review
+    angles:
+      - scope
+      - coverage
+      - correctness
+    required: true
+  preApproval:
+    # Pre-approval gate: runs before declaring merge-ready
+    angles:
+      - dry
+      - kiss
+      - yagni
+    required: true
+
+# Autonomy: which gates require operator confirmation (stop points)
+autonomy:
+  stopAt:
+    - merge
+
+# Persona registry: maps each review angle to an agent persona and prompt.
+# Consumers can add custom angles with their own persona agents.
+# Each entry:
+#   persona      — agent persona name (must exist in .pi/agents/)
+#   prompt       — focused instruction for the reviewer agent
+#   defaultModel — optional model override (null = use persona default)
+personas:
+  scope:
+    persona: review
+    prompt: >-
+      Check whether every changed file belongs in this PR.
+      Flag unrelated or out-of-scope changes.
+      The PR description's scope section is the contract.
+    defaultModel: null
+
+  coverage:
+    persona: review
+    prompt: >-
+      Check whether tests cover the changed behavior adequately.
+      Look for missing edge cases, untested error paths,
+      and acceptance-criteria gaps.
+    defaultModel: null
+
+  correctness:
+    persona: review
+    prompt: >-
+      Check whether the implementation matches the acceptance criteria
+      and PR description. Flag logic errors, contract violations,
+      and behavior mismatches.
+    defaultModel: null
+
+  dry:
+    persona: review
+    prompt: >-
+      Flag duplicated logic, repeated patterns, and copy-pasted code.
+      Prefer one canonical path. Check for restated policies across
+      docs and skills.
+    defaultModel: null
+
+  kiss:
+    persona: review
+    prompt: >-
+      Flag over-engineering and unnecessary complexity.
+      Prefer simple solutions. Question extra layers, abstractions,
+      and indirection that don't earn their keep.
+    defaultModel: null
+
+  yagni:
+    persona: review
+    prompt: >-
+      Flag speculative features, future-proofing, and compatibility shims
+      not required by the current acceptance criteria.
+      YAGNI = You Aren't Gonna Need It.
+    defaultModel: null

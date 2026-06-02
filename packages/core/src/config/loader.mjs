@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 import { BUILT_IN_DEFAULTS, DevLoopConfigSchema, FileConfigSchema } from "./schema.mjs";
 
 // ============================================================================
@@ -45,13 +46,14 @@ function mergeConfigLayers(target, source) {
 }
 
 /**
- * Try to read and parse a JSON file.
+ * Try to read and parse a config file (YAML preferred, JSON fallback).
+ * Detects format from file extension: .yaml/.yml → YAML, .json → JSON.
  * Returns the parsed object or null if the file doesn't exist.
  * Throws on read errors other than ENOENT.
  * @param {string} filePath
  * @returns {Promise<object|null>}
  */
-async function readJsonFile(filePath) {
+async function readConfigFile(filePath) {
   let raw;
   try {
     raw = await readFile(filePath, "utf8");
@@ -64,18 +66,33 @@ async function readJsonFile(filePath) {
     throw configError("Config file is empty", "EMPTY_FILE", filePath);
   }
 
+  const isYaml = filePath.endsWith(".yaml") || filePath.endsWith(".yml");
   let parsed;
   try {
-    parsed = JSON.parse(raw);
+    parsed = isYaml ? parseYaml(raw) : JSON.parse(raw);
   } catch (err) {
-    throw configError(`Invalid JSON in config file: ${err.message}`, "INVALID_JSON", filePath);
+    const format = isYaml ? "YAML" : "JSON";
+    throw configError(`Invalid ${format} in config file: ${err.message}`, `INVALID_${format.toUpperCase()}`, filePath);
   }
 
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw configError("Config file must be a JSON object", "NOT_AN_OBJECT", filePath);
+    throw configError("Config file must be an object", "NOT_AN_OBJECT", filePath);
   }
 
   return parsed;
+}
+
+/**
+ * Find a config file: try the preferred YAML path first, then JSON fallback.
+ * @param {string} basePath - Path without extension (e.g. .../defaults)
+ * @returns {Promise<{ path: string, data: object|null }>}
+ */
+async function findConfigFile(basePath) {
+  for (const ext of [".yaml", ".json"]) {
+    const data = await readConfigFile(basePath + ext);
+    if (data !== null) return { path: basePath + ext, data };
+  }
+  return { path: basePath + ".yaml", data: null };
 }
 
 /**
@@ -98,18 +115,20 @@ function configError(message, code, filePath) {
  * @param {{ warnOnMissing?: boolean }} [options]
  * @returns {Promise<Record<string, unknown>>}
  */
-async function applyLayer(merged, filePath, layer, warnings, errors, options = {}) {
-  let data = null;
+async function applyLayer(merged, basePath, layer, warnings, errors, options = {}) {
+  let filePath, data = null;
   try {
-    data = await readJsonFile(filePath);
+    const found = await findConfigFile(basePath);
+    filePath = found.path;
+    data = found.data;
   } catch (err) {
-    errors.push({ path: filePath, message: err.message, layer });
+    errors.push({ path: basePath + ".yaml", message: err.message, layer });
     return merged;
   }
 
   if (data === null) {
     if (options.warnOnMissing) {
-      warnings.push(`Committed ${layer}.json not found, using built-in defaults`);
+      warnings.push(`Committed ${layer} config not found (tried .yaml and .json), using built-in defaults`);
     }
     return merged;
   }
@@ -157,8 +176,8 @@ async function applyLayer(merged, filePath, layer, warnings, errors, options = {
 export async function loadDevLoopConfig(options = {}) {
   const repoRoot = options.repoRoot ?? process.cwd();
   const configDir = path.join(repoRoot, ".pi", "dev-loop");
-  const defaultsPath = path.join(configDir, "defaults.json");
-  const overridesPath = path.join(configDir, "overrides.json");
+  const defaultsPath = path.join(configDir, "defaults");
+  const overridesPath = path.join(configDir, "overrides");
 
   /** @type {string[]} */
   const warnings = [];
