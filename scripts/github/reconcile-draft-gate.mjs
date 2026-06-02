@@ -240,14 +240,17 @@ async function checkCiStatus({ repo, pr, headSha }, { env, ghCommand }) {
     "--repo", repo,
     "--json", "bucket,state,name,workflow",
   ], env);
+  const stdout = result.stdout.trim();
 
-  if (result.code !== 0 && result.code !== 1 && result.code !== 8) {
-    throw new Error(
-      `Failed to check PR #${pr} CI status: ${result.stderr.trim() || `exit code ${result.code}`}`
-    );
+  if (result.code !== 0) {
+    if ((result.code !== 1 && result.code !== 8) || stdout.length === 0) {
+      throw new Error(
+        `Failed to check PR #${pr} CI status: ${result.stderr.trim() || `exit code ${result.code}`}`
+      );
+    }
   }
 
-  const payload = parseJsonText(result.stdout || "[]", {
+  const payload = parseJsonText(stdout || "[]", {
     label: `gh pr checks #${pr}`,
   });
   if (!Array.isArray(payload)) {
@@ -330,7 +333,7 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
   }
 
   // Step 2: Convert PR to draft using GraphQL mutation
-  await convertPrToDraft({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+  const draftConversion = await convertPrToDraft({ repo: options.repo, pr: options.pr }, { env, ghCommand });
 
   // Step 3: Post a reconciling clean draft_gate comment
   let gateResult;
@@ -347,11 +350,13 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
       nextAction: "Mark ready for review (auto-reconciled).",
     }, { env, ghCommand });
   } catch (error) {
-    // Revert: mark PR ready again before throwing
-    try {
-      await markPrReady({ repo: options.repo, pr: options.pr }, { env, ghCommand });
-    } catch {
-      // Best-effort revert
+    // Revert: only flip back to ready if this run actually converted the PR to draft.
+    if (draftConversion.alreadyDraft !== true) {
+      try {
+        await markPrReady({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+      } catch {
+        // Best-effort revert
+      }
     }
     throw error;
   }
