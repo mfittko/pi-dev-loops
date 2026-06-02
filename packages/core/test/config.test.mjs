@@ -850,15 +850,15 @@ describe("role resolution", () => {
       assert.deepEqual(result.roles, ["security", "style"]);
     });
 
-    test("resolveRefinement returns null roles for empty array", () => {
+    test("resolveRefinement returns empty roles array when explicitly empty", () => {
       const result = resolveRefinement({ version: 1, refinement: { fanOut: 2, mode: "parallel", roles: [] } });
-      assert.equal(result.roles, null);
+      assert.deepEqual(result.roles, []);
     });
 
     // Gate angles resolution
     test("resolveGateAngles returns null when gates config is absent", () => {
       const result = resolveGateAngles({ version: 1 }, "draft");
-      assert.equal(result, null);
+      assert.deepEqual(result, null);
     });
 
     test("resolveGateAngles returns configured draft angles", () => {
@@ -882,7 +882,7 @@ describe("role resolution", () => {
         version: 1,
         gates: { draft: { angles: ["scope"], required: true } }
       }, "preApproval");
-      assert.equal(result, null);
+      assert.deepEqual(result, null);
     });
 
     test("resolveGateAngles returns empty array when angles explicitly empty", () => {

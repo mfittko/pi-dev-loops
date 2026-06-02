@@ -54,7 +54,7 @@ export function resolveAutonomyStopAt(config) {
 export function resolveRefinement(config) {
   const fanOut = config?.refinement?.fanOut ?? 3;
   const mode = config?.refinement?.mode ?? "parallel";
-  const roles = config?.refinement?.roles && config.refinement.roles.length > 0
+  const roles = config?.refinement?.roles && Array.isArray(config.refinement.roles)
     ? [...config.refinement.roles]
     : null;
   return { fanOut, mode, roles };
