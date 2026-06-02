@@ -19,6 +19,30 @@ For the script surfaces documented here:
 
 ## Scripts
 
+### `scripts/docs/validate-links.mjs`
+
+Validate repo-owned markdown relative links for the shipped docs / skills / agent surface.
+
+Usage:
+- `node scripts/docs/validate-links.mjs`
+
+Optional:
+- `--root <path>` — override the repo root to scan (used by deterministic tests and local dry-runs against another checkout)
+
+Contract:
+- scans these markdown sources only: `README.md`, `PLAN.md`, `AGENTS.md`, `scripts/README.md`, `extension/README.md`, `docs/**/*.md` (excluding `docs/archive/**`), `skills/**/*.md`, and `agents/**/*.md`
+- validates inline relative markdown links after resolving them from the containing file
+- strips any `#fragment` before checking the filesystem
+- treats existing files and directories as valid targets
+- ignores external URLs, `mailto:`, fragment-only links, image links, and links inside fenced code blocks
+- supports a checked-in narrow ignore list through repo-root `.linkcheckignore` for intentional symbolic placeholder targets (for example `docs/phases/phase-x.md`)
+- prints actionable broken-link output with source file, line, raw target, resolved path, and a suggestion only when one clear candidate exists
+
+Failure behavior:
+- exits `0` when all validated links resolve
+- exits `1` when one or more broken links are found
+- exits non-zero (other than `1`) for usage/runtime failures
+
 ### `scripts/github/capture-review-threads.mjs`
 
 Capture and normalize PR review-thread JSON.
