@@ -136,6 +136,21 @@ autonomy:
     - merge        # stop for confirmation at both gates
 ```
 
+### Available review angles
+
+The shipped defaults activate these angles. Additional angles are available as opt-in — add them to your `gates.draft.angles` or `gates.preApproval.angles` and they'll use the prompts defined in the personas registry.
+
+| Default (active) | Opt-in (add to gates) |
+|---|---|
+| `dry` — duplication | `ocp` — Open/Closed (extension over modification) |
+| `kiss` — over-engineering | `lsp` — Liskov Substitution (subtype contracts) |
+| `yagni` — speculative features | `isp` — Interface Segregation (fat interfaces) |
+| `srp` — Single Responsibility | `dip` — Dependency Inversion (abstractions) |
+| `soc` — Separation of Concerns | |
+| `scope` — scope compliance (draft gate) | |
+| `coverage` — test coverage (draft gate) | |
+| `correctness` — acceptance criteria (draft gate) | |
+
 ### Config precedence
 
 1. Built-in defaults (`packages/core/src/config/schema.mjs` `BUILT_IN_DEFAULTS`)
