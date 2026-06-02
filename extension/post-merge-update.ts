@@ -58,10 +58,12 @@ function buildShellOutput(result: Pick<RunCommandResult, 'stdout' | 'stderr'>): 
   return stdout || stderr;
 }
 
-function buildFailureSummary(result: Pick<RunCommandResult, 'stdout' | 'stderr' | 'code'>): string {
+function buildFailureSummary(result: Pick<RunCommandResult, 'stdout' | 'stderr' | 'code' | 'killed'>): string {
   return trimToNull(result.stderr)
     ?? trimToNull(result.stdout)
-    ?? `exit code ${result.code}`;
+    ?? (result.killed
+      ? 'command was killed before completing'
+      : (typeof result.code === 'number' ? `exit code ${result.code}` : 'exit code unavailable'));
 }
 
 function getBashCommandFromToolResult(event: ToolResultEvent): string | null {
@@ -278,7 +280,7 @@ export function createPostMergeUpdateHook(
           timeout: MERGE_COMMAND_TIMEOUT_MS,
         });
 
-        if (result.code === 0) {
+        if (result.code === 0 && !result.killed) {
           markPendingUpdate(state, event.command, repoContext);
         }
 
@@ -318,7 +320,7 @@ export function createPostMergeUpdateHook(
           timeout: POST_MERGE_UPDATE_TIMEOUT_MS,
         });
 
-        if (result.code === 0) {
+        if (result.code === 0 && !result.killed) {
           notify(ctx as ExtensionContext, `Post-merge update completed: ${POST_MERGE_UPDATE_COMMAND}`, 'info');
         } else {
           notify(

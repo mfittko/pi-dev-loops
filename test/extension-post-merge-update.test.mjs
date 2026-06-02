@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
+import { mkdtemp } from "node:fs/promises";
 
 import registerExtension from "../extension/index.ts";
 import {
@@ -234,24 +237,53 @@ test("update failure is warning-only and leaves the session healthy", async () =
   ]);
 });
 
-test("session_start resets post-merge hook state and extension registers lifecycle listeners", async () => {
-  const pi = createPiDouble();
+
+test("killed post-merge updates surface a clear warning message", async () => {
   const hook = createPostMergeUpdateHook({
     resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
-    runCommand: async () => ({ code: 0, stdout: "", stderr: "", killed: false }),
+    runCommand: async () => ({ code: 0, stdout: "", stderr: "", killed: true }),
   });
-  registerExtension(pi, { postMergeUpdateHook: hook });
+  const { ctx, notifications } = createUiCalls();
 
-  assert.equal(typeof pi.events.get("session_start"), "function");
-  assert.equal(typeof pi.events.get("tool_result"), "function");
-  assert.equal(typeof pi.events.get("user_bash"), "function");
-  assert.equal(typeof pi.events.get("agent_end"), "function");
-  assert.equal(pi.registeredCommands.has("dev-loops"), true);
+  await hook.onToolResult({ toolName: "bash", input: { command: "gh pr merge 373" }, isError: false }, ctx);
+  await hook.onAgentEnd({ type: "agent_end", messages: [] }, ctx);
 
-  const { ctx } = createUiCalls();
-  await pi.events.get("tool_result")({ toolName: "bash", input: { command: "gh pr merge 373" }, isError: false }, ctx);
-  assert.equal(hook.getState().pendingPostMergeUpdate, true);
+  assert.deepEqual(notifications, [
+    { message: `Post-merge update running: ${POST_MERGE_UPDATE_COMMAND}`, level: "info" },
+    { message: "Post-merge update failed (warning only): command was killed before completing", level: "warning" },
+  ]);
+});
 
-  await pi.events.get("session_start")({}, ctx);
-  assert.equal(hook.getState().pendingPostMergeUpdate, false);
+test("session_start resets post-merge hook state and extension registers lifecycle listeners", async () => {
+  const previousHome = process.env.HOME;
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-post-merge-home-"));
+  process.env.HOME = tempHome;
+
+  try {
+    const pi = createPiDouble();
+    const hook = createPostMergeUpdateHook({
+      resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
+      runCommand: async () => ({ code: 0, stdout: "", stderr: "", killed: false }),
+    });
+    registerExtension(pi, { postMergeUpdateHook: hook });
+
+    assert.equal(typeof pi.events.get("session_start"), "function");
+    assert.equal(typeof pi.events.get("tool_result"), "function");
+    assert.equal(typeof pi.events.get("user_bash"), "function");
+    assert.equal(typeof pi.events.get("agent_end"), "function");
+    assert.equal(pi.registeredCommands.has("dev-loops"), true);
+
+    const { ctx } = createUiCalls();
+    await pi.events.get("tool_result")({ toolName: "bash", input: { command: "gh pr merge 373" }, isError: false }, ctx);
+    assert.equal(hook.getState().pendingPostMergeUpdate, true);
+
+    await pi.events.get("session_start")({}, ctx);
+    assert.equal(hook.getState().pendingPostMergeUpdate, false);
+  } finally {
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
+  }
 });
