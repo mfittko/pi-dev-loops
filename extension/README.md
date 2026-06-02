@@ -102,7 +102,7 @@ The dev-loop workflow is driven by a YAML config at `.pi/dev-loop/defaults.yaml`
 
 ### How consumers customize config
 
-Create `.pi/dev-loop/overrides.yaml` in your project repo. It merges on top of the shipped defaults. You can override any section:
+Create `.pi/dev-loop/overrides.yaml` in your project repo. It merges on top of the shipped defaults. You can override any section, including workflow policy defaults:
 
 ```yaml
 # Example: add a custom review angle with a dedicated persona agent
@@ -138,6 +138,11 @@ autonomy:
   stopAt:
     - draft-pr
     - merge        # stop for confirmation at both gates
+
+workflow:
+  requireRetrospective: true
+  requireDraftFirst: true
+  devModeDefault: true
 ```
 
 ### Available review angles
@@ -150,18 +155,31 @@ The shipped defaults activate these angles. Additional angles are available as o
 | `kiss` — over-engineering | `lsp` — Liskov Substitution (subtype contracts) |
 | `yagni` — speculative features | `isp` — Interface Segregation (fat interfaces) |
 | `srp` — Single Responsibility | `dip` — Dependency Inversion (abstractions) |
-| `soc` — Separation of Concerns | `docs` — documentation correctness (links, paths, command refs) |
+| `soc` — Separation of Concerns | |
 | `scope` — scope compliance (draft gate) | |
 | `coverage` — test coverage (draft gate) | |
 | `correctness` — acceptance criteria (draft gate) | |
 
-Built-in opt-in `docs` uses the packaged `.pi/agents/docs.agent.md` persona surface (symlinked to `agents/docs.agent.md` in-source), so consumers can enable the angle via `gates.preApproval.angles` without creating a second reviewer alias.
+### Workflow defaults
+
+The optional `workflow` family carries repo-level workflow posture without hardcoding it into prose-only guidance. Shipped defaults stay permissive:
+
+```yaml
+workflow:
+  requireRetrospective: false
+  requireDraftFirst: false
+  devModeDefault: false
+```
+
+- `requireRetrospective` — when enabled by a repo override, the next qualifying GitHub-first async start/resume must honor the retrospective checkpoint gate
+- `requireDraftFirst` — marks draft-first PR creation as required workflow policy for repos that opt in
+- `devModeDefault` — declares that local implementation should default to formal dev mode; this is config-only for now and establishes source-of-truth config plus docs for future runtime consumers
 
 ### Config precedence
 
 1. Built-in defaults (`packages/core/src/config/schema.mjs` `BUILT_IN_DEFAULTS`)
 2. Shipped defaults (`.pi/dev-loop/defaults.yaml` — committed in source repo)
-3. Consumer overrides (`.pi/dev-loop/overrides.yaml` — per-project, gitignored by default)
+3. Consumer overrides (`.pi/dev-loop/overrides.yaml` — optional repo-local override surface, commit when you want repo-wide policy)
 
 ### Adding custom review angles
 

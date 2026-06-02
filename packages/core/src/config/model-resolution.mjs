@@ -43,6 +43,7 @@ export function resolveAutonomyStopAt(config) {
 }
 
 const DEFAULT_REFINEMENT_CONFIG = BUILT_IN_DEFAULTS.refinement;
+const DEFAULT_WORKFLOW_CONFIG = BUILT_IN_DEFAULTS.workflow;
 
 /**
  * Resolve one refinement configuration value from the merged dev-loop config.
@@ -113,4 +114,30 @@ export function resolveGateAngles(config, gate) {
     return [...gateConfig.angles];
   }
   return null;
+}
+
+/**
+ * Resolve one workflow configuration value from the merged dev-loop config.
+ *
+ * Returns the configured boolean when present, or the built-in default for the
+ * requested key.
+ *
+ * @param {import("./schema.mjs").DevLoopConfig} config
+ * @param {"requireRetrospective"|"requireDraftFirst"|"devModeDefault"} key
+ * @returns {boolean}
+ */
+export function resolveWorkflowConfig(config, key) {
+  if (key === "requireRetrospective") {
+    return config?.workflow?.requireRetrospective ?? DEFAULT_WORKFLOW_CONFIG.requireRetrospective;
+  }
+
+  if (key === "requireDraftFirst") {
+    return config?.workflow?.requireDraftFirst ?? DEFAULT_WORKFLOW_CONFIG.requireDraftFirst;
+  }
+
+  if (key === "devModeDefault") {
+    return config?.workflow?.devModeDefault ?? DEFAULT_WORKFLOW_CONFIG.devModeDefault;
+  }
+
+  throw new Error(`Unknown workflow config key: ${key}`);
 }

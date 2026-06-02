@@ -40,6 +40,12 @@ const AutonomyConfig = z.strictObject({
   ),
 });
 
+const WorkflowConfig = z.strictObject({
+  requireRetrospective: z.boolean(),
+  requireDraftFirst: z.boolean(),
+  devModeDefault: z.boolean(),
+});
+
 const PersonaEntry = z.strictObject({
   persona: z.string().min(1),
   // Optional in the merged/full schema so consumer overrides can replace
@@ -68,6 +74,7 @@ export const DevLoopConfigSchema = z.strictObject({
   refinement: RefinementConfig.optional(),
   gates: GatesConfig.optional(),
   autonomy: AutonomyConfig.optional(),
+  workflow: WorkflowConfig.optional(),
   personas: PersonasConfig.optional(),
 });
 
@@ -82,6 +89,11 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
   refinement: Object.freeze({ fanOut: 3, mode: "parallel", maxCopilotRounds: 5 }),
   gates: Object.freeze({}),
   autonomy: Object.freeze({ stopAt: Object.freeze(["merge"]) }),
+  workflow: Object.freeze({
+    requireRetrospective: false,
+    requireDraftFirst: false,
+    devModeDefault: false,
+  }),
   personas: Object.freeze({}),
 });
 
@@ -96,5 +108,6 @@ export const FileConfigSchema = z.strictObject({
   refinement: RefinementConfig.partial().optional(),
   gates: GatesConfig.partial().optional(),
   autonomy: AutonomyConfig.partial().optional(),
+  workflow: WorkflowConfig.partial().optional(),
   personas: FilePersonasConfig.optional(),
 });

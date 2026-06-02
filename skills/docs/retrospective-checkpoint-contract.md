@@ -1,6 +1,6 @@
 # Retrospective checkpoint contract
 
-This document defines the enforcement seam for the required post-run behavioral retrospective after qualifying async `dev-loop` completions in this repository.
+This document defines the enforcement seam for the post-run behavioral retrospective checkpoint after qualifying async `dev-loop` completions in this repository. Whether a missing checkpoint blocks the next qualifying start/resume is controlled by `.pi/dev-loop/overrides.yaml` `workflow.requireRetrospective`; shipped defaults remain permissive and this repo opts in.
 
 ## Relationship to formal dev mode
 
@@ -11,7 +11,7 @@ Formal local dev mode and the required post-run behavioral retrospective are rel
 | **Formal local dev mode** | Local implementation/self-improvement work; explicitly scoped in [Dev Loop Skill](../dev-loop/SKILL.md) |
 | **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo |
 
-Routed GitHub-first async `dev-loop` runs do **not** need to be in full formal local dev mode, but they **do** require the retrospective checkpoint.
+Routed GitHub-first async `dev-loop` runs do **not** need to be in full formal local dev mode. When `workflow.requireRetrospective` is enabled, they **do** require the retrospective checkpoint before the next qualifying start/resume.
 
 ## Qualifying completions
 
@@ -41,9 +41,9 @@ A fresh session can determine the status of the required retrospective by readin
 
 ## Enforcement gate
 
-The enforcement seam is the pure function `evaluateRetrospectiveGate` in `packages/core/src/loop/retrospective-checkpoint.mjs`.
+The enforcement seam is the pure function `evaluateRetrospectiveGate` in `packages/core/src/loop/retrospective-checkpoint.mjs`. The checkpoint artifact may still exist even when enforcement is disabled; callers must first consult `workflow.requireRetrospective` to decide whether the checkpoint should block the next qualifying routed start/resume or remain advisory-only.
 
-For convenience, the public routing helpers in `packages/core/src/loop/public-dev-loop-routing.mjs` also accept an optional `retrospectiveCheckpointState` input and apply the same gate internally before returning routed start/resume/status results.
+For convenience, the public routing helpers in `packages/core/src/loop/public-dev-loop-routing.mjs` also accept an optional `retrospectiveCheckpointState` input and apply the same gate internally before returning routed start/resume/status results. Callers should only pass that input when `workflow.requireRetrospective` is enabled for the active repo/workflow posture.
 
 ### Inputs
 
@@ -75,7 +75,7 @@ Callers have two supported integration options:
    - `evaluatePublicDevLoopRouting(...)`
    - `resolveAuthoritativeStartupResumeBundle(...)`
    - `resolveAuthoritativeDevLoopStatus(...)`
-4. Use the returned result directly. When the checkpoint is missing, these helpers fail closed to `needs_reconcile`.
+4. Use the returned result directly. When enforcement is enabled and the checkpoint is missing, these helpers fail closed to `needs_reconcile`.
 
 #### Option B — explicit manual gate composition
 
@@ -83,7 +83,7 @@ Callers have two supported integration options:
 2. Map the file contents to a `RETROSPECTIVE_CHECKPOINT_STATE` value.
 3. Call `evaluatePublicDevLoopRouting(...)` to get the proposed routing.
 4. Call `evaluateRetrospectiveGate({ checkpointState, proposedRouting })`.
-5. Use the gate result (not the raw routing result) as the effective routing decision.
+5. Use the gate result (not the raw routing result) as the effective routing decision when enforcement is enabled; otherwise keep the raw routing result and treat the checkpoint artifact as advisory context only.
 
 If the gate result is `needs_reconcile`, the caller must not proceed with the proposed routing. The `nextAction` field instructs the operator to complete or explicitly skip the retrospective.
 

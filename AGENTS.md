@@ -39,7 +39,13 @@ These skills may be provided repo-locally or globally; this contract does not as
 
 ## Dev loop defaults
 
-- Use the `dev-loop` skill in **dev mode by default** for all local implementation work.
+Repo-local workflow defaults are configured under `.pi/dev-loop/overrides.yaml` `workflow.*`. In this repo, that override is the source of truth for opting into:
+- `workflow.requireRetrospective: true`
+- `workflow.requireDraftFirst: true`
+- `workflow.devModeDefault: true`
+
+Current behavior notes:
+- Use the `dev-loop` skill in **dev mode by default** for local implementation work in this repo.
 - After every completed async dev loop run, run a **behavioral review**: inspect what the loop did, whether it followed the working agreement, what it got right and where it drifted, and record any corrective notes before the next loop starts.
 - The behavioral review should be brief but honest — it is not a formality. If the loop made a bad decision or skipped a step, say so explicitly.
 
@@ -52,7 +58,7 @@ These are related but distinct requirements:
 | **Formal local dev mode** | Local implementation/self-improvement phases; explicitly scoped in [Dev Loop Skill](skills/dev-loop/SKILL.md) | Skill procedure; operator choice |
 | **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo (copilot PR follow-up, issue intake) | Machine-checkable enforcement seam |
 
-Routed GitHub-first async `dev-loop` runs in this repo do **not** need to be in full formal local dev mode, but they **do** require the post-run behavioral retrospective checkpoint.
+Routed GitHub-first async `dev-loop` runs in this repo do **not** need to be in full formal local dev mode, but they **do** require the post-run behavioral retrospective checkpoint when `workflow.requireRetrospective` is enabled. This repo enables that policy through `.pi/dev-loop/overrides.yaml`.
 
 Authoritative checkpoint details live in [Retrospective Checkpoint Contract](skills/docs/retrospective-checkpoint-contract.md).
 

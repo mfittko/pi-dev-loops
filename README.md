@@ -46,7 +46,7 @@ See [Extension Documentation](./extension/README.md) for the full command and pa
 
 ## Configuration
 
-Gate review angles, refinement settings, persona mappings, and review prompts are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos can override any value through `.pi/dev-loop/overrides.yaml`.
+Gate review angles, refinement settings, persona mappings, workflow defaults, and review prompts are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos can override any value through `.pi/dev-loop/overrides.yaml`.
 
 ```bash
 # See what reviewers will check before handing off code
@@ -58,6 +58,7 @@ Key configurable surfaces:
 - **Persona prompts** — focused instructions per angle (e.g. DRY, KISS, YAGNI, SRP, SoC)
 - **Refinement** — fan-out count and mode for parallel review variants
 - **Autonomy** — which gates require operator confirmation
+- **Workflow defaults** — retrospective enforcement, draft-first posture, and formal dev-mode default policy
 
 Full details: [Extension Documentation](extension/README.md) and `.pi/dev-loop/defaults.yaml`.
 
