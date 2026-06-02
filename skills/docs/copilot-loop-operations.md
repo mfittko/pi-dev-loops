@@ -27,16 +27,9 @@ Use the machines to answer:
 
 Each machine captures an observable snapshot from GitHub facts (plus explicit bounded local loop
 metadata when required) and interprets it into exactly one current state plus allowed next
-transitions. See [Copilot Loop State Graph](../../docs/copilot-loop-state-graph.md) and [Reviewer Loop State Graph](../../docs/reviewer-loop-state-graph.md) in the resolved
-skill docs directory; in the `pi-dev-loops` source repository those source-authority docs live under
-`../../docs/` relative to `skills/copilot-pr-followup/SKILL.md`.
+transitions. In the `pi-dev-loops` source repository, the supporting source-authority references are [Copilot Loop State Graph](../../docs/copilot-loop-state-graph.md) and [Reviewer Loop State Graph](../../docs/reviewer-loop-state-graph.md) under `../../docs/` relative to `skills/copilot-pr-followup/SKILL.md`. Treat those links as source-repo references, not bundled installed-skill docs.
 
-For tracker-first MVP `story -> PR -> tracker sync` work, also use
-[Tracker-First MVP State Graph](../../docs/tracker-first-mvp-state-graph.md) in that same docs directory as the bounded workflow-family
-contract (under `#17`, complementary to `#21`, narrower than `#19`). That document inherits
-source-of-truth ownership, the required work item <-> PR link, and reverse-sync semantics from
-`#21`; it only adds the mutually exclusive workflow-family states and post-merge sync-verification
-states for this narrower MVP slice.
+For tracker-first MVP `story -> PR -> tracker sync` work, the source-repo reference is [Tracker-First MVP State Graph](../../docs/tracker-first-mvp-state-graph.md). That source doc inherits source-of-truth ownership, the required work item <-> PR link, and reverse-sync semantics from `#21`; it only adds the mutually exclusive workflow-family states and post-merge sync-verification states for this narrower MVP slice.
 
 ## Key guarantees from the state machine
 
