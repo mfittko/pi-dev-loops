@@ -43,8 +43,14 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "draft": { "$ref": "#/$defs/gateConfig" },
-        "preApproval": { "$ref": "#/$defs/gateConfig" }
+        "draft": {
+          "$ref": "#/$defs/gateConfig",
+          "description": "Draft gate config. `requireCi` controls whether draft gate waits for green CI."
+        },
+        "preApproval": {
+          "$ref": "#/$defs/gateConfig",
+          "description": "Pre-approval gate config. `requireCi` is accepted for parity with runtime config, but preApproval always requires CI so that field has no effect here."
+        }
       }
     },
     "autonomy": {

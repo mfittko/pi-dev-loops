@@ -32,6 +32,8 @@ const GateConfig = z.strictObject({
 
 const GatesConfig = z.strictObject({
   draft: GateConfig.optional(),
+  // `requireCi` is only behaviorally configurable for the draft gate.
+  // preApproval always requires CI even if config repeats `requireCi`.
   preApproval: GateConfig.optional(),
 });
 
