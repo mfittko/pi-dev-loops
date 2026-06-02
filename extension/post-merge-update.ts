@@ -121,7 +121,7 @@ function markPendingUpdate(state: PostMergeUpdateHookState, command: string, rep
   }
 
   const triggerToken = buildMergeTriggerToken(command, repoContext.repoRoot, repoContext.repoSlug);
-  if (state.lastTriggerToken === triggerToken || state.pendingPostMergeUpdate) {
+  if (state.pendingPostMergeUpdate) {
     state.lastTriggerToken = triggerToken;
     state.pendingRepoRoot ??= repoContext.repoRoot;
     return;
