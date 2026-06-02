@@ -12,7 +12,7 @@ const StrategyConfig = z.strictObject({
 });
 
 const ModelsConfig = z.strictObject({
-  conductor: z.string().min(1).optional(),
+  conductor: z.string().trim().min(1).optional(),
   roles: z.record(z.string(), z.string().min(1)).optional(),
 });
 
