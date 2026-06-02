@@ -576,7 +576,7 @@ Preferred defaults for this repo:
 
 These are the defaults built into `watch-copilot-review.mjs`, `run-copilot-watch-cycle.mjs`, and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Pass them explicitly when overriding.
 
-Helper-owned sleep inside `run-copilot-watch-cycle.mjs`, `watch-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed. Agent-authored shell polling is not.
+Helper-owned sleep inside `run-copilot-watch-cycle.mjs`, `watch-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed. Agent-authored shell polling is not allowed.
 
 A watcher sleeping between polls is expected behavior, not a blocker.
 

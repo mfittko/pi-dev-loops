@@ -4,7 +4,6 @@ import { readFile } from "node:fs/promises";
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
-  hasCommitShaReference,
   replyAndMaybeResolve,
   validateResolutionMessage,
 } from "./_review-thread-mutations.mjs";
