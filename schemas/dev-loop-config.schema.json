@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/mfittko/pi-dev-loops/schemas/dev-loop-config.schema.json",
+  "title": "Dev Loop Config",
+  "description": "Configuration schema for pi-dev-loops dev-loop workflow. Validates .pi/dev-loop/defaults.yaml and overrides.yaml.",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Config schema version. Must be 1."
+    },
+    "strategy": {
+      "type": "object",
+      "description": "Default execution strategy.",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "type": "string",
+          "enum": ["local-first", "github-first"],
+          "description": "Default strategy: local-first (phase-based local work) or github-first (PR/issue-based remote work)."
+        }
+      }
+    },
+    "models": {
+      "type": "object",
+      "description": "Model overrides.",
+      "additionalProperties": false,
+      "properties": {
+        "conductor": {
+          "type": "string",
+          "description": "Model to use for the conductor/orchestrator agent."
+        },
+        "roles": {
+          "type": "object",
+          "description": "Per-angle model overrides. Keys are angle names, values are model identifiers.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "refinement": {
+      "type": "object",
+      "description": "Refinement fan-out settings for parallel review variant generation.",
+      "additionalProperties": false,
+      "properties": {
+        "fanOut": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Number of parallel review variants to generate."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["parallel", "sequential"],
+          "description": "Review variant execution mode."
+        },
+        "roles": {
+          "type": "array",
+          "description": "Role/angle names used for refinement review variants.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "description": "Gate review configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "type": "object",
+          "description": "Draft gate: runs before marking PR ready for review. One-time transition — clean evidence survives head changes.",
+          "additionalProperties": false,
+          "properties": {
+            "angles": {
+              "type": "array",
+              "description": "Review angles for the draft gate. Each angle resolves to a persona via the personas registry.",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether this gate must pass before proceeding."
+            }
+          }
+        },
+        "preApproval": {
+          "type": "object",
+          "description": "Pre-approval gate: runs before declaring merge-ready. Per-head — must re-run on every new head SHA.",
+          "additionalProperties": false,
+          "properties": {
+            "angles": {
+              "type": "array",
+              "description": "Review angles for the pre-approval gate. Each angle resolves to a persona via the personas registry.",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether this gate must pass before proceeding."
+            }
+          }
+        }
+      }
+    },
+    "autonomy": {
+      "type": "object",
+      "description": "Autonomy policy: which gates require operator confirmation (stop points).",
+      "additionalProperties": false,
+      "properties": {
+        "stopAt": {
+          "type": "array",
+          "description": "Gates where the workflow stops for operator confirmation. Everything else auto-continues.",
+          "items": {
+            "type": "string",
+            "enum": ["refinement", "draft-pr", "pre-approval", "merge"]
+          }
+        }
+      }
+    },
+    "personas": {
+      "type": "object",
+      "description": "Persona registry: maps review angle names to agent personas with focused prompts. Consumers can add custom angles and override existing prompts.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "A persona entry for a review angle.",
+        "required": ["persona", "prompt"],
+        "additionalProperties": false,
+        "properties": {
+          "persona": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Agent persona name. Must exist in .pi/agents/<name>.agent.md."
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Focused review instruction for the reviewer agent. Included in the reviewer's briefing."
+          },
+          "defaultModel": {
+            "type": ["string", "null"],
+            "description": "Optional model override for this angle. null = use persona default."
+          }
+        }
+      }
+    }
+  }
+}

@@ -153,6 +153,8 @@ autonomy:
 
 YAML is preferred (`.yaml`). JSON (`.json`) is supported as a fallback for backward compatibility. When both exist, YAML takes priority.
 
+The full JSON Schema is at `schemas/dev-loop-config.schema.json`. Editors with YAML language server support (VS Code, Neovim, etc.) will auto-validate and provide autocompletion when the schema reference is present in the YAML file header.
+
 ## Runtime / build / test contract
 
 Current Phase 3+ contract:
