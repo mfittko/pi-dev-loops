@@ -99,7 +99,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 ## Definition of done
 
 - [Phase 4 Plan](./phase-4.md) records the final objective, scope, non-goals, tests-first plan, acceptance criteria, definition of done, validation steps, durable decisions, and unresolved questions
-- [Phase 4 Summary](tmp/phases/phase-4/summary.md) and the durable phase doc record the prioritized skill-scan findings for realistic deterministic extraction candidates
+- `Phase 4 Summary` (`tmp/phases/phase-4/summary.md`) and the durable phase doc record the prioritized skill-scan findings for realistic deterministic extraction candidates
 - failing package tests for `phase-files` parity and review-thread parsing are added before implementation is considered complete
 - `packages/core/src/loop/phase-files.mjs` is the shared source of truth for phase-file behavior
 - `packages/core/src/github/review-threads.mjs` exists with fixture-backed normalized parsing and actionable-comment detection
@@ -113,7 +113,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 - `npm test` passes
 - `npm run test:dev-loop` is run as the repo-level dev-loop script
 - `git diff --check` passes
-- changed deterministic logic has explicit coverage evidence against the repo coverage contract when local tooling is available; otherwise a bounded coverage-tooling gap is recorded under [Coverage Report](tmp/phases/phase-4/coverage.md) and coverage is not marked as validated implicitly
+- changed deterministic logic has explicit coverage evidence against the repo coverage contract when local tooling is available; otherwise a bounded coverage-tooling gap is recorded under `Coverage Report` (`tmp/phases/phase-4/coverage.md`) and coverage is not marked as validated implicitly
 - no timeout-policy module, check-status normalization module, watcher script suite, second-repo pilot, or package-strategy work is partially implemented under the Phase 4 banner
 
 ## Validation approach
@@ -124,8 +124,8 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 - run `npm run test:core`
 - run `npm test`
 - probe for reusable local coverage tooling with `npx --no-install c8 --version`
-- if `c8` is available locally, run `NODE_V8_COVERAGE=tmp/phases/phase-4/coverage/raw npx --no-install c8 --reporter=text-summary node --test packages/core/test/*.test.mjs` and capture the summary under [Coverage Report](tmp/phases/phase-4/coverage.md)
-- if `c8` is not available locally, write [Coverage Report](tmp/phases/phase-4/coverage.md) recording the attempted command, the missing-tooling limitation, the changed files that still require coverage confidence, and that coverage remains a tracked validation gap rather than a passed check
+- if `c8` is available locally, run `NODE_V8_COVERAGE=tmp/phases/phase-4/coverage/raw npx --no-install c8 --reporter=text-summary node --test packages/core/test/*.test.mjs` and capture the summary under `Coverage Report` (`tmp/phases/phase-4/coverage.md`)
+- if `c8` is not available locally, write `Coverage Report` (`tmp/phases/phase-4/coverage.md`) recording the attempted command, the missing-tooling limitation, the changed files that still require coverage confidence, and that coverage remains a tracked validation gap rather than a passed check
 - run `npm run test:dev-loop`
 - run `git diff --check`
 - do a focused read-through of:
@@ -170,15 +170,15 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 Bounded scan scope for this phase:
 - [Dev Loop Skill](../../../skills/dev-loop/SKILL.md)
 - `skills/dev-loop/scripts/*.mjs`
-- [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md)
+- [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md)
 
 Prioritized deterministic extraction candidates recorded for later phases:
 1. **P1 — GitHub review baseline diffing and fresh-activity detection for Copilot PR follow-up**
-   - Source signals: [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md) sections covering async watch behavior, baseline capture, and waiting for new Copilot-authored review bodies/comments.
+   - Source signals: [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md) sections covering async watch behavior, baseline capture, and waiting for new Copilot-authored review bodies/comments.
    - Why it is realistic: this is adjacent to the new Phase 4 fixture-backed review-thread parser and can stay deterministic if it compares stored snapshots instead of live orchestration state.
    - Deferred boundary: no watcher/polling loop implementation in Phase 4; only the future snapshot-diff helper/CLI is a candidate.
 2. **P1 — GitHub check-run / workflow snapshot normalization**
-   - Source signals: [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md) guidance around `gh pr checks`, `gh run watch`, CI interpretation, and merge-readiness reporting.
+   - Source signals: [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md) guidance around `gh pr checks`, `gh run watch`, CI interpretation, and merge-readiness reporting.
    - Why it is realistic: the skill currently relies on prose around repeated GitHub status interpretation, which is a strong fit for fixture-backed normalization before Phase 5 watcher entrypoints.
    - Deferred boundary: no timeout policy or native-watch orchestration was added in Phase 4.
 3. **P2 — dev-loop phase artifact summarization for dev-mode review inputs**

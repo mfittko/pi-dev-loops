@@ -111,23 +111,23 @@ Core paths:
 - for phase-doc-backed local sessions: [Phase Plan](../../docs/phases/phase-x.md)
 - `tmp/phases/index.json`
 - `tmp/phases/phase-x/manifest.json`
-- [Variant A](tmp/phases/phase-x/variant-a.md)
-- [Variant B](tmp/phases/phase-x/variant-b.md)
-- [Merged Plan](tmp/phases/phase-x/merged-plan.md)
-- [Phase Review](tmp/phases/phase-x/review.md)
-- [Phase Summary](tmp/phases/phase-x/summary.md)
-- [Retrospective](tmp/phases/phase-x/retrospective.md)
+- `Variant A` (`tmp/phases/phase-x/variant-a.md`)
+- `Variant B` (`tmp/phases/phase-x/variant-b.md`)
+- `Merged Plan` (`tmp/phases/phase-x/merged-plan.md`)
+- `Phase Review` (`tmp/phases/phase-x/review.md`)
+- `Phase Summary` (`tmp/phases/phase-x/summary.md`)
+- `Retrospective` (`tmp/phases/phase-x/retrospective.md`)
 
 Optional when used:
-- [Variant C](tmp/phases/phase-x/variant-c.md)
+- `Variant C` (`tmp/phases/phase-x/variant-c.md`)
 - `tmp/phases/phase-x/subagents/`
 - `tmp/phases/phase-x/subagents/raw/`
 - `tmp/phases/phase-x/bash-exit-1.jsonl`
-- [Clarification Log](tmp/phases/phase-x/clarification.md)
+- `Clarification Log` (`tmp/phases/phase-x/clarification.md`)
 - in dev mode: `tmp/phases/phase-x/dev-mode-context.json`
-- in dev mode: [Dev Mode Review](tmp/phases/phase-x/dev-mode-review.md) as optional analytical notes when they help shape the retrospective
-- in dev mode: [Dev Mode Retrospective](tmp/phases/phase-x/dev-mode-retrospective.md)
-- in dev mode: [Dev Mode Skill Changes](tmp/phases/phase-x/dev-mode-skill-changes.md)
+- in dev mode: `Dev Mode Review` (`tmp/phases/phase-x/dev-mode-review.md`) as optional analytical notes when they help shape the retrospective
+- in dev mode: `Dev Mode Retrospective` (`tmp/phases/phase-x/dev-mode-retrospective.md`)
+- in dev mode: `Dev Mode Skill Changes` (`tmp/phases/phase-x/dev-mode-skill-changes.md`)
 
 Use the templates in `../dev-loop/templates/` (the sibling `skills/dev-loop/templates/` directory in this repo).
 
@@ -165,7 +165,7 @@ When the plan is insufficient, use one of these modes:
 ### Mode A — interactive clarification
 - ask only the missing high-value questions needed to safely refine the current phase
 - prefer a short interview or wizard-style sequence over one giant question dump
-- record the answers in [Clarification Log](tmp/phases/phase-x/clarification.md)
+- record the answers in `Clarification Log` (`tmp/phases/phase-x/clarification.md`)
 - update [Phase Plan](../../docs/phases/phase-x.md) with clarified durable phase intent, scope, or acceptance criteria
 - update [Project Plan](../../PLAN.md) only if the clarified information is durable product/project truth beyond the current phase
 - update [Implementation State](../../docs/IMPLEMENTATION_STATE.md) if the clarification changes the next phase boundary
@@ -177,7 +177,7 @@ In auto mode:
 - infer the smallest safe defaults for the current phase only
 - prefer conservative assumptions over ambitious ones
 - never auto-resolve product, security, or architecture decisions that could materially change scope
-- write all assumptions to [Clarification Log](tmp/phases/phase-x/clarification.md)
+- write all assumptions to `Clarification Log` (`tmp/phases/phase-x/clarification.md`)
 - mark them clearly as `auto-assumptions`
 - surface the assumptions in the phase review so they can be challenged later
 - if an assumption is too risky to make safely, stop and ask the user anyway
@@ -277,7 +277,7 @@ Update `manifest.json` with the planned artifact list and current status.
 ### 4. Fan in to a merged phase plan
 
 Write:
-- [Merged Plan](tmp/phases/phase-x/merged-plan.md)
+- `Merged Plan` (`tmp/phases/phase-x/merged-plan.md`)
 - update [Phase Plan](../../docs/phases/phase-x.md) with the selected durable phase plan
 
 Use the templates in [Merged Phase Plan Template](../dev-loop/templates/merged-phase-plan.md) and [Phase Doc Template](../dev-loop/templates/phase-doc.md).
@@ -300,7 +300,7 @@ The durable phase doc should capture the subset that a fresh human or agent shou
 ### 5. Review the merged phase plan adversarially
 
 Write:
-- [Phase Review](tmp/phases/phase-x/review.md)
+- `Phase Review` (`tmp/phases/phase-x/review.md`)
 
 Use the template in [Review Template](../dev-loop/templates/review.md).
 Ensure the durable phase doc still matches the reviewed plan; update [Phase Plan](../../docs/phases/phase-x.md) if the review changes accepted scope or criteria.
@@ -383,7 +383,7 @@ After the phase plan passes review:
 5. Run the default pre-approval gate as a full review / fix loop on the branch before calling it review-complete, approval-ready, merge-ready, or ready for final handoff:
    - resolve review angles from config: `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config`
    - run the resolved angle-focused passes in parallel with fresh context when practical
-   - if parallel execution is impractical (for example due to tooling or resource constraints), run all angles sequentially and explicitly record why parallel execution was impractical in [Phase Review](tmp/phases/phase-x/review.md) (or the equivalent merged review artifact)
+   - if parallel execution is impractical (for example due to tooling or resource constraints), run all angles sequentially and explicitly record why parallel execution was impractical in `Phase Review` (`tmp/phases/phase-x/review.md`) (or the equivalent merged review artifact)
    - for each angle, resolve its persona and prompt via `resolveReviewerRole(config, angle)` — start each reviewer in fresh context with a concise briefing including the angle-specific prompt, the branch/phase, intended behavior, acceptance criteria, relevant files or artifacts, and current validation status
    - use a context→fork→consolidate chain: context-builder produces shared briefing, parallel reviewers fork from context, consolidation merges findings into a fix plan
    - in retry cycles, only re-run reviewers that had findings in the previous pass
@@ -395,8 +395,8 @@ After the phase plan passes review:
    - log review artifacts and subagent summaries under `tmp/`
 6. Update [Phase Plan](../../docs/phases/phase-x.md) so it reflects the phase as actually implemented, including any accepted scope or validation changes.
 7. Update [Project Plan](../../PLAN.md) when the phase changed durable product truth, resolved an open question, or made the shipped command/behavior surface more concrete.
-8. Write [Phase Summary](tmp/phases/phase-x/summary.md) using [Phase Summary Template](../dev-loop/templates/phase-summary.md).
-9. Write [Retrospective](tmp/phases/phase-x/retrospective.md) using [Retrospective Template](../dev-loop/templates/retrospective.md).
+8. Write `Phase Summary` (`tmp/phases/phase-x/summary.md`) using [Phase Summary Template](../dev-loop/templates/phase-summary.md).
+9. Write `Retrospective` (`tmp/phases/phase-x/retrospective.md`) using [Retrospective Template](../dev-loop/templates/retrospective.md).
 10. Update `tmp/phases/phase-x/manifest.json` and `tmp/phases/index.json`.
 11. Update [Implementation State](../../docs/IMPLEMENTATION_STATE.md).
 12. Make sure the phase branch history is captured with atomic commits once the phase is review-ready and authorized for commit.
@@ -432,15 +432,15 @@ In dev mode, after the normal phase summary and retrospective are written, run o
    - bash exit-code-1 patterns
    - places where skill or agent prompts should be tightened
    - places where deterministic tooling should replace ad hoc work
-3. write [Dev Mode Retrospective](tmp/phases/phase-x/dev-mode-retrospective.md)
+3. write `Dev Mode Retrospective` (`tmp/phases/phase-x/dev-mode-retrospective.md`)
    - this is the required dev-mode retrospective artifact
    - it should name the highest-value prompt/workflow follow-ups revealed by the phase
-4. optionally write [Dev Mode Review](tmp/phases/phase-x/dev-mode-review.md) when separate analytical notes help support the retrospective
+4. optionally write `Dev Mode Review` (`tmp/phases/phase-x/dev-mode-review.md`) when separate analytical notes help support the retrospective
 5. apply at least one bounded follow-up update to a relevant skill and/or agent prompt
    - deterministic tooling, docs, templates, or tests may accompany that change
    - but they do not replace the required prompt update
    - keep the change phase-bounded and tied directly to the retrospective findings
-6. write [Dev Mode Skill Changes](tmp/phases/phase-x/dev-mode-skill-changes.md)
+6. write `Dev Mode Skill Changes` (`tmp/phases/phase-x/dev-mode-skill-changes.md`)
    - record which skill and/or agent prompts changed
    - record any supporting tooling/docs/template changes that accompanied them
    - if no prompt update can be justified safely, stop and report that dev-mode exit criteria were not met

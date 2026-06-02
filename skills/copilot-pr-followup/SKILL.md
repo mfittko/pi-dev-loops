@@ -215,7 +215,7 @@ stop states:
 Proposal artifact contract:
 - human-readable Markdown proposal
 - machine-readable JSON snapshot
-- write temporary artifacts under [Proposal](tmp/new-idea-intake/<run-id>/proposal.md) and `tmp/new-idea-intake/<run-id>/proposal.json`
+- write temporary artifacts under `Proposal` (`tmp/new-idea-intake/<run-id>/proposal.md`) and `tmp/new-idea-intake/<run-id>/proposal.json`
 
 If the Phase 1 preflight verdict is `pause_for_clarification`, stop and ask.
 If the intake state machine stops at `stopped_overlap_needs_decision` or `stopped_low_confidence`, stop and ask.
@@ -818,13 +818,13 @@ Do not use the phase-artifact structure from the local dev-loop.
 
 For this repo-specific async Copilot loop, prefer lightweight PR/issue artifacts under `tmp/copilot-loop/` such as:
 
-- [Issue Summary](tmp/copilot-loop/issue-<n>/summary.md)
-- [PR Status](tmp/copilot-loop/pr-<n>/status.md)
+- `Issue Summary` (`tmp/copilot-loop/issue-<n>/summary.md`)
+- `PR Status` (`tmp/copilot-loop/pr-<n>/status.md`)
 - `tmp/copilot-loop/pr-<n>/copilot-baseline-<timestamp>.json`
 - `tmp/copilot-loop/pr-<n>/copilot-review-<timestamp>.json`
-- [Copilot Review](tmp/copilot-loop/pr-<n>/copilot-review-<timestamp>.md)
-- [Pi Findings](tmp/copilot-loop/pr-<n>/pi-findings-<timestamp>.md)
-- [Fix Summary](tmp/copilot-loop/pr-<n>/fix-summary-<timestamp>.md)
+- `Copilot Review` (`tmp/copilot-loop/pr-<n>/copilot-review-<timestamp>.md`)
+- `Pi Findings` (`tmp/copilot-loop/pr-<n>/pi-findings-<timestamp>.md`)
+- `Fix Summary` (`tmp/copilot-loop/pr-<n>/fix-summary-<timestamp>.md`)
 
 Use these artifacts only when they genuinely help async continuation or handoff. Do not create noise files by default.
 

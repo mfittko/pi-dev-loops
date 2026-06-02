@@ -21,7 +21,7 @@ Phase 0 established the docs-first workflow convention. Phase 1 now uses that fo
   - keep local until split into base + overlay
 - add one narrow regression test surface for imported blocker phrases
 - normalize only the current known blockers:
-  - `repo-wiki` wording in [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md)
+  - `repo-wiki` wording in [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md)
   - required references to companion skills that do not exist in this repo
   - hardcoded reviewer identity in [Review Agent](../../../agents/review.agent.md)
   - stale `docs/plans/` references in imported agent prompts
@@ -41,7 +41,7 @@ Phase 0 established the docs-first workflow convention. Phase 1 now uses that fo
 
 - this phase doc contains the imported-asset classification and final phase boundary
 - the scoped imported blockers are removed from the edited assets
-- [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md) preserves its GitHub/Copilot workflow intent while dropping source-repo-specific assumptions
+- [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md) preserves its GitHub/Copilot workflow intent while dropping source-repo-specific assumptions
 - [Review Agent](../../../agents/review.agent.md) has no hardcoded reviewer identity and no stale plan-path assumption
 - [Coordinator Agent](../../../agents/coordinator.agent.md) no longer contains stale `docs/plans/` assumptions and is not over-claimed as generic
 - at least one focused regression test guards against reintroducing the known blocker phrases
@@ -70,7 +70,7 @@ Phase 0 established the docs-first workflow convention. Phase 1 now uses that fo
 ### Skills
 - [Dev Loop Skill](../../../skills/dev-loop/SKILL.md) — reusable after moderate refactor
   - rationale: the workflow is intentionally repo-opinionated and phase-based, but its path handling and artifact contract are increasingly portable
-- [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md) — reusable after moderate refactor
+- [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md) — reusable after moderate refactor
   - rationale: useful workflow shape, but imported repo-specific assumptions still need cleanup in this phase
 
 ### Agents

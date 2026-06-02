@@ -14,7 +14,7 @@ Use [Project Plan](./PLAN.md) for **durable repo-level truth**:
 
 Do **not** use [Project Plan](PLAN.md) for one-off issue execution plans, PR-specific checklists, or temporary implementation notes. Those belong in:
 - GitHub issues / PRs
-- [Phase Plan](docs/phases/phase-<n>.md) for active local-phase planning
+- `Phase Plan` (`docs/phases/phase-<n>.md`) for active local-phase planning
 - `tmp/` artifacts for transient execution detail
 
 ## Current repo posture

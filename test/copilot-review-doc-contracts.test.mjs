@@ -223,7 +223,7 @@ test("new See Also markdown links resolve from docs files", async () => {
       "../skills/copilot-pr-followup/SKILL.md",
       "../skills/final-approval/SKILL.md",
       "../skills/docs/pr-lifecycle-contract.md",
-      "gate-review-sub-loop-contract.md",
+      "./gate-review-sub-loop-contract.md",
     ],
     "docs/gate-review-sub-loop-contract.md": [
       "gate-review-comment-contract.md",
