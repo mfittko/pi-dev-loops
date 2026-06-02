@@ -9,8 +9,17 @@ import {
   USER_FACING_AGENT_SURFACE,
 } from "./imported-assets-helpers.mjs";
 
-test("issue-intake skill still contains its core workflow guidance", async () => {
-  const content = await readRepo("skills/copilot-pr-followup/SKILL.md");
+async function readIssueIntakeSurface() {
+  const [skill, intakeDoc, operationsDoc] = await Promise.all([
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
+    readRepo("skills/docs/issue-intake-procedure.md"),
+    readRepo("skills/docs/copilot-loop-operations.md"),
+  ]);
+  return [skill, intakeDoc, operationsDoc].join("\n\n");
+}
+
+test("issue-intake surface still contains its core workflow guidance", async () => {
+  const content = await readIssueIntakeSurface();
 
   assert.match(content, /Before planning, review, or automation:/);
   assert.match(content, /Skill asset path resolution/);
@@ -24,8 +33,8 @@ test("issue-intake skill still contains its core workflow guidance", async () =>
   assert.match(content, /do not fork the parent session/i);
 });
 
-test("issue-intake skill requires github reply/resolve follow-up and gates waiting on confirmed review-request state", async () => {
-  const content = await readRepo("skills/copilot-pr-followup/SKILL.md");
+test("issue-intake surface requires github reply/resolve follow-up and gates waiting on confirmed review-request state", async () => {
+  const content = await readIssueIntakeSurface();
 
   assert.match(content, /reply\/resolve work is done for the addressed threads/);
   assert.match(content, /if that local validation is still known red, continue remediation instead of re-requesting Copilot/);
@@ -49,8 +58,8 @@ test("fixer agent documentation includes GitHub autolink guidance", async () => 
   assert.match(content, /reserve backticks for actual code\/path\/CLI literals/i);
 });
 
-test("issue-intake skill forbids detached bash watcher loops for async follow-up", async () => {
-  const content = await readRepo("skills/copilot-pr-followup/SKILL.md");
+test("issue-intake surface forbids detached bash watcher loops for async follow-up", async () => {
+  const content = await readIssueIntakeSurface();
 
   assert.match(content, /Pi async subagent|designated async follow-up skill/);
   assert.match(content, /do not use `nohup`, detached shell jobs, `tmux`, `screen`, or ad hoc `for i in \$\(seq \.\.\.\)`, `while true`, `until \.\.\.; do sleep \.\.\.; done`, or `sleep`-retry bash loops/);
@@ -58,8 +67,8 @@ test("issue-intake skill forbids detached bash watcher loops for async follow-up
   assert.match(content, /stop and report rather than improvising a shell watcher/);
 });
 
-test("issue-intake skill requires unattended resume-from-state behavior when authorized", async () => {
-  const content = await readRepo("skills/copilot-pr-followup/SKILL.md");
+test("issue-intake surface requires unattended resume-from-state behavior when authorized", async () => {
+  const content = await readIssueIntakeSurface();
 
   assert.match(content, /unattended execution/i);
   assert.match(content, /automatically detect the current lifecycle entrypoint/i);
@@ -86,7 +95,7 @@ test("issue-intake skill requires unattended resume-from-state behavior when aut
 });
 
 test("issue-intake behavior remains internal and resumable behind dev-loop", async () => {
-  const content = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const content = await readIssueIntakeSurface();
   const agentFiles = (await readdir(fromRepoRoot("agents")))
     .filter((name) => name.endsWith(".agent.md"))
     .sort();
@@ -107,7 +116,7 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
     readRepo("README.md"),
     readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
-    readRepo("skills/copilot-pr-followup/SKILL.md"),
+    readIssueIntakeSurface(),
     readRepo("agents/dev-loop.agent.md"),
   ]);
 
@@ -146,8 +155,8 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(devLoopAgent, /not a second public workflow entrypoint/i);
 });
 
-test("issue-intake skill keeps issue refinement separate from the phase-scoped refiner and explains thin entrypoint agents", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+test("issue-intake surface keeps issue refinement separate from the phase-scoped refiner and explains thin entrypoint agents", async () => {
+  const skillContent = await readIssueIntakeSurface();
   const planContent = await readRepo("PLAN.md");
   const agentFiles = (await readdir(fromRepoRoot("agents")))
     .filter((name) => name.endsWith(".agent.md"))
@@ -161,7 +170,7 @@ test("issue-intake skill keeps issue refinement separate from the phase-scoped r
 });
 
 test("issue-intake normalization docs require issue state checks and avoid the stale top-level-workflow roadmap question", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readIssueIntakeSurface();
   const planContent = await readRepo("PLAN.md");
 
   assert.match(skillContent, /gh issue view <number> --repo <(?:owner\/name|resolved-repo)> --json number,title,body,state,labels,assignees,milestone/);
@@ -170,7 +179,7 @@ test("issue-intake normalization docs require issue state checks and avoid the s
 });
 
 test("issue-intake docs cover issue URLs, state-all issue search, and abstract ideas without plan docs", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readIssueIntakeSurface();
 
   assert.match(skillContent, /if the input is a full GitHub issue URL, parse `<owner\/name>` and `<number>`/i);
   assert.match(skillContent, /gh issue view <number> --repo <owner\/name> --json number,title,body,state,labels,assignees,milestone/);
@@ -181,7 +190,7 @@ test("issue-intake docs cover issue URLs, state-all issue search, and abstract i
 });
 
 test("issue-intake flow carries the resolved repo slug through later GitHub issue and PR commands", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readIssueIntakeSurface();
 
   assert.match(skillContent, /Carry that resolved repo slug through every later GitHub issue\/PR command/i);
   assert.match(skillContent, /gh issue create --repo <resolved-repo> --assignee @me/);
@@ -194,7 +203,7 @@ test("issue-intake flow carries the resolved repo slug through later GitHub issu
 });
 
 test("issue-intake docs define closed-match handling and keep the handoff helper on the resolved repo", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readIssueIntakeSurface();
 
   assert.match(skillContent, /if the matching issue is closed, stop for a user decision before proceeding/i);
   assert.match(skillContent, /if that matching issue turns out to be closed, stop for a user decision/i);
@@ -202,7 +211,7 @@ test("issue-intake docs define closed-match handling and keep the handoff helper
 });
 
 test("issue-intake docs define the closed direct-issue branch and keep searches/discovery scoped to the target issue repo", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readIssueIntakeSurface();
 
   assert.match(skillContent, /If the issue is closed, stop for a user decision before proceeding/i);
   assert.match(skillContent, /gh issue list --repo <resolved-repo> --state all --search/);
@@ -215,7 +224,7 @@ test("issue-intake docs define the closed direct-issue branch and keep searches/
 });
 
 test("issue-intake overlay wires waiting_for_initial_copilot_implementation to durable watch seam", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readIssueIntakeSurface();
 
   assert.match(skillContent, /watch-initial-copilot-pr\.mjs --repo <resolved-repo> --issue <number>/i);
   assert.match(skillContent, /must use the dedicated `watch-initial-copilot-pr\.mjs` watcher and its default 1-hour watch budget/i);
@@ -235,7 +244,7 @@ test("issue-intake overlay wires waiting_for_initial_copilot_implementation to d
 });
 
 test("issue-intake overlay delegates linked-PR detection mechanics to deterministic helper tooling", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readIssueIntakeSurface();
 
   assert.match(skillContent, /deterministic linked-PR helper/i);
   assert.match(skillContent, /do not re-implement linked-event query behavior, pagination, repo filtering, or tie-break logic/i);
@@ -245,7 +254,7 @@ test("issue-intake overlay delegates linked-PR detection mechanics to determinis
 });
 
 test("issue-intake overlay resolves the target repo for non-issue inputs and README documents thin entrypoint agents", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readIssueIntakeSurface();
   const readmeContent = await readRepo("README.md");
 
   assert.match(skillContent, /Resolve the target repository slug for this work item before any GitHub search or mutation/i);
@@ -257,7 +266,7 @@ test("issue-intake overlay resolves the target repo for non-issue inputs and REA
 });
 
 test("issue-intake safety layer contract is documented", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readIssueIntakeSurface();
   const planContent = await readRepo("PLAN.md");
 
   assert.match(skillContent, /New-idea safety layer \(default contract in this repo\)/);

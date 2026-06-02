@@ -8,6 +8,15 @@ import {
   test,
   USER_FACING_AGENT_SURFACE,
 } from "./imported-assets-helpers.mjs";
+
+async function readCopilotSkillSurface() {
+  const [skill, operationsDoc, intakeDoc] = await Promise.all([
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
+    readRepo("skills/docs/copilot-loop-operations.md"),
+    readRepo("skills/docs/issue-intake-procedure.md"),
+  ]);
+  return [skill, operationsDoc, intakeDoc].join("\n\n");
+}
 test("copilot review gates keep phase-specific angle ownership in one canonical internal skill", async () => {
   const [copilotPrFollowupSkill, gateContract] = await Promise.all([
     readRepo("skills/copilot-pr-followup/SKILL.md"),
@@ -307,7 +316,7 @@ test("thin pointer docs symlink to canonical contract content", async () => {
     readRepo("docs/tracker-first-mvp-state-graph.md"),
     readRepo("docs/outer-loop-state-graph.md"),
     readRepo("docs/copilot-ci-status-contract.md"),
-    readRepo("skills/copilot-pr-followup/SKILL.md"),
+    readCopilotSkillSurface(),
   ]);
   // Symlink reads resolve to each canonical target's content.
   assert.match(trackerContent, /Tracker-First Story-to-PR Contract/i);
@@ -435,7 +444,7 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopPreApprovalGate, /truncate it to a deterministic retained-prefix length/i);
 });
 test("issue-intake skill documents epic decomposition with GitHub sub-issue trees", async () => {
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const skillContent = await readCopilotSkillSurface();
   assert.match(skillContent, /GitHub sub-issue trees/i);
   assert.match(skillContent, /Prefer real sub-issue linkage over parent-body checklists/i);
   assert.match(skillContent, /parent issue body should stay lean/i);
