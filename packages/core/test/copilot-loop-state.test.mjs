@@ -35,6 +35,7 @@ test("normalizeSnapshot returns safe defaults for an empty object", () => {
     copilotReviewOnCurrentHead: false,
     unresolvedThreadCount: 0,
     actionableThreadCount: 0,
+    copilotReviewRoundCount: 0,
     ciStatus: "none",
     agentFixStatus: null,
   });
@@ -92,6 +93,14 @@ test("normalizeSnapshot floors fractional thread counts and rejects negatives", 
   const negative = normalizeSnapshot({ unresolvedThreadCount: -1, actionableThreadCount: -2 });
   assert.equal(negative.unresolvedThreadCount, 0);
   assert.equal(negative.actionableThreadCount, 0);
+});
+
+test("normalizeSnapshot floors copilotReviewRoundCount and rejects negatives", () => {
+  const fractional = normalizeSnapshot({ copilotReviewRoundCount: 3.9 });
+  assert.equal(fractional.copilotReviewRoundCount, 3);
+
+  const negative = normalizeSnapshot({ copilotReviewRoundCount: -1 });
+  assert.equal(negative.copilotReviewRoundCount, 0);
 });
 
 test("normalizeSnapshot accepts all valid ciStatus values", () => {

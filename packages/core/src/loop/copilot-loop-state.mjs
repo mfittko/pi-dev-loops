@@ -131,6 +131,7 @@ export function buildSnapshotFromPrFacts({
   copilotReviewOnCurrentHead = false,
   unresolvedThreadCount = 0,
   actionableThreadCount = 0,
+  copilotReviewRoundCount = 0,
   ciStatus,
 }) {
   const prState = typeof prData?.state === "string" ? prData.state.toUpperCase() : "OPEN";
@@ -148,6 +149,7 @@ export function buildSnapshotFromPrFacts({
     copilotReviewOnCurrentHead,
     unresolvedThreadCount,
     actionableThreadCount,
+    copilotReviewRoundCount,
     ciStatus: ciStatus ?? normalizeCiStatus(prData?.statusCheckRollup),
   });
 }
@@ -180,6 +182,7 @@ function isAutoRerequestEligible(snapshot, state) {
  *     review-request lifecycle is settled, so callers must still check request-state fields
  * - unresolvedThreadCount {number} — total unresolved review-thread count
  * - actionableThreadCount {number} — unresolved threads with non-bot actionable comments
+ * - copilotReviewRoundCount {number} — completed Copilot review rounds observed on the PR
  * - ciStatus {"success"|"failure"|"pending"|"none"} — current CI check rollup status
  * - agentFixStatus {"applied"|null} — agent-provided input: "applied" when code has been fixed
  *
@@ -213,6 +216,9 @@ export function normalizeSnapshot(raw) {
       : 0,
     actionableThreadCount: typeof raw.actionableThreadCount === "number" && raw.actionableThreadCount >= 0
       ? Math.floor(raw.actionableThreadCount)
+      : 0,
+    copilotReviewRoundCount: typeof raw.copilotReviewRoundCount === "number" && raw.copilotReviewRoundCount >= 0
+      ? Math.floor(raw.copilotReviewRoundCount)
       : 0,
     ciStatus: VALID_CI_STATUSES.has(raw.ciStatus) ? raw.ciStatus : "none",
     agentFixStatus: raw.agentFixStatus === "applied" ? "applied" : null,

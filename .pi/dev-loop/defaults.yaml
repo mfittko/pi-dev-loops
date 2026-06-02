@@ -8,6 +8,7 @@ strategy:
 refinement:
   fanOut: 3
   mode: parallel
+  maxCopilotRounds: 5
   roles:
     - scope
     - coverage

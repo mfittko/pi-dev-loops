@@ -609,24 +609,20 @@ test('open fails with a clear error when the launch seam does not return a posit
 });
 
 test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', async () => {
-  const { createServer } = await import('node:http');
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-healthcheck-signal-'));
 
-  // Start a real HTTP server on the default port so isManagedRecordShape passes
-  const healthServer = createServer((_req, res) => { res.writeHead(200); res.end('ok'); });
-  await new Promise((resolve) => healthServer.listen(4311, '127.0.0.1', resolve));
-
-  // Spy on global fetch to capture the options passed
+  // Spy on global fetch and short-circuit the response so the contract test
+  // stays deterministic without depending on a real HTTP server lifecycle.
   const originalFetch = globalThis.fetch;
   const fetchCalls = [];
   globalThis.fetch = async (url, options) => {
     fetchCalls.push({ url, options });
-    return originalFetch(url, options);
+    return { status: 200 };
   };
 
   try {
     // Manager with real defaultHealthcheck (healthcheckUrlImpl defaults)
-    // but stubbed lifecycle seams
+    // but stubbed lifecycle seams.
     const manager = createInspectRunViewerLifecycleManager({
       listListeningPidsImpl: async () => [42],
       isProcessAliveImpl: async () => true,
@@ -648,7 +644,8 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
       argsFingerprint: JSON.stringify({ repo: null, host: '127.0.0.1', port: 4311 }),
       startedAt: new Date().toISOString(),
       cwd: repoRoot,
-    })}\n`);
+    })}
+`);
 
     const status = await manager.status({ repoRoot });
     assert.equal(status.state, 'running');
@@ -658,7 +655,5 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
     assert.ok(!healthcheckCall.options?.signal, 'fetch must not receive an AbortSignal');
   } finally {
     globalThis.fetch = originalFetch;
-    await new Promise((resolve) => healthServer.close(resolve));
   }
 });
-

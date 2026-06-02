@@ -34,7 +34,7 @@
  * Success output shape (no steering file):
  *   {
  *     "ok": true,
- *     "snapshot": { ... },
+ *     "snapshot": { ..., "copilotReviewRoundCount": N },
  *     "state": "...",
  *     "allowedTransitions": [...],
  *     "nextAction": "...",
@@ -45,7 +45,7 @@
  *   }
  *
  * Success output shape (with steering file):
- *   { "ok": true, "snapshot": { ... }, "state": "...", "allowedTransitions": [...], "nextAction": "...",
+ *   { "ok": true, "snapshot": { ..., "copilotReviewRoundCount": N }, "state": "...", "allowedTransitions": [...], "nextAction": "...",
  *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
  *     "loopDisposition": "...", "terminal": true|false,
  *     "steeringApplied": true|false,
@@ -131,7 +131,7 @@ Optional (auto-detect mode only):
                                              Values: requested|already-requested|unavailable|none|failed
 
 Output (stdout, JSON):
-  { "ok": true, "snapshot": {...}, "state": "...", "allowedTransitions": [...], "nextAction": "...",
+  { "ok": true, "snapshot": {..., "copilotReviewRoundCount": N}, "state": "...", "allowedTransitions": [...], "nextAction": "...",
     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
     "loopDisposition": "...", "terminal": true|false }
 
@@ -498,6 +498,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
     unresolvedThreadCount,
     actionableThreadCount,
+    copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
     ciStatus: currentHeadCiStatus,
   });
 }
