@@ -422,6 +422,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     prMerged: String(coordinationContext.prData?.state || "").toUpperCase() === "MERGED",
     lifecycleState: coordinationContext.interpretation.state,
     loopDisposition: coordinationContext.disposition.loopDisposition,
+    ciStatus: coordinationContext.snapshot?.ciStatus ?? null,
     sameHeadCleanConverged: coordinationContext.interpretation.sameHeadCleanConverged,
     draftGate: coordinationContext.gateEvidence.draftGate,
     draftGateMarker: coordinationContext.gateEvidence.draftGateMarker,
