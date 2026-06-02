@@ -101,6 +101,7 @@ function buildCliUsageLines(action) {
     case "help":
     case "status":
     case "doctor":
+    case "gates":
       return ["Usage:", `- pi-dev-loops ${action}`];
     case "hide":
       return [
@@ -210,6 +211,8 @@ export async function runCli({
     case "unsupported":
       writeLines(stderr, [result.message]);
       return 1;
+    case "gates":
+      return 0;
     case "malformed": {
       const lines = [result.message, ...buildCliHelpLines()];
       if (result.usageAction) {

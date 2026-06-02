@@ -36,6 +36,10 @@ Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exp
   - prints the concise readiness summary in shell-friendly output
 - `pi-dev-loops doctor`
   - prints the full diagnostic report in shell-friendly output
+- `pi-dev-loops gates`
+  - prints active review angles with their prompts from config
+- `/dev-loops gates`
+  - same as above, but inside the Pi extension
 - `pi-dev-loops hide`
   - is intentionally unsupported and exits non-zero with a shell-friendly stderr message because `hide` is session-local Pi UI behavior
 

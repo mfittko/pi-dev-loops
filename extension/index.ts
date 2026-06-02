@@ -50,7 +50,7 @@ export default function (pi: ExtensionAPI, runtimeOverrides = {}) {
   });
 
   pi.registerCommand('dev-loops', {
-    description: 'Manage pi-dev-loops readiness and inspect-run local UI lifecycle: /dev-loops [help|status|doctor|hide|inspect ...]',
+    description: 'Manage pi-dev-loops readiness and inspect-run local UI lifecycle: /dev-loops [help|status|doctor|gates|hide|inspect ...]',
     handler: async (args, ctx) => {
       const result = await executeDevLoopsCommand({
         input: args,
@@ -72,6 +72,9 @@ export default function (pi: ExtensionAPI, runtimeOverrides = {}) {
             placement: 'belowEditor',
           });
           ctx.ui.notify(buildNotificationMessage(result.action as Extract<DevLoopsAction, 'doctor' | 'status'>, result.checks), 'info');
+          return;
+        case 'gates':
+          ctx.ui.notify('Gate angles printed to console. Run `pi-dev-loops gates` in a terminal to see review prompts.', 'info');
           return;
         case 'inspect_result': {
           const structuredStoppedSuccess = result.state === 'stopped'
