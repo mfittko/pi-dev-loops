@@ -17,7 +17,9 @@ issue-first intake procedure now lives in `copilot-pr-followup` under the
 **Issue-first intake and durable-auto overlays** section.
 
 When this skill is loaded, immediately redirect to [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md)
-and follow its procedure. Use the `refiner` agent for issue-refinement
-work on the redirected `issue_intake` route. The `issue_intake` routing still
-differentiates from `copilot_pr_followup` in the public router; this redirect
-preserves that contract while keeping the procedure text canonical in one file.
+and follow its procedure. Treat **Phase 3 — Async issue refinement** there as the
+canonical refiner-only path for the redirected `issue_intake` route; do not restate
+that procedure here or route those review-only refinement steps through `dev-loop` +
+`local_implementation`. The `issue_intake` routing still differentiates from
+`copilot_pr_followup` in the public router; this redirect preserves that contract
+while keeping the procedure text canonical in one file.

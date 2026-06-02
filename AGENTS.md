@@ -29,7 +29,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Implement one phase at a time.
 - Use fan-out / fan-in / review / merge before implementing each phase.
 - Default phase and issue refinement to multiple parallel variants before converging on a merged plan; do not rely on a single-plan synthesis when fan-out is practical.
-- Standard refinement chain pattern: run parallel fan-out with the `refiner` agent, then run the consolidation/fan-in synthesis with the `refiner` agent.
+- For refinement work, follow the dedicated **Standard refinement chain pattern** section below.
 - Never route review-only comparison, synthesis, or consolidation steps through `dev-loop` + `local_implementation` (the strategy loaded by `skills/local-implementation`); reserve that path for actual implementation/edit work only.
 - Keep logs under `tmp/` in deterministic phase-scoped paths.
 - Use feature branches and small commits only after local verification.
@@ -38,6 +38,14 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Use detailed structured PR descriptions, not thin placeholder summaries. At minimum include: change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
 - In PR review/fix loops, do not stop at local code changes alone: after an accepted fix is pushed, reply to the addressed review comments with the resolving commit reference and resolve the corresponding threads when genuinely satisfied.
 - Do not merge directly to `main` without review when a PR-based remote loop is practical.
+
+## Standard refinement chain pattern
+
+Use this pattern whenever the work is refinement, comparison, review, or synthesis rather than implementation.
+
+- Parallel fan-out uses the `refiner` agent with bounded aliases such as `{agent: "refiner", as: "refine-NNN", task: "Refine issue #NNN..."}`.
+- Consolidation/fan-in also uses the `refiner` agent, for example `{agent: "refiner", task: "Review {outputs.refine-NNN}... Report readiness."}`. Treat this as review-only consolidation; no code edits are expected from that step.
+- Keep the fan-out and consolidation chain inside the reusable `refiner` role. Do not route those refinement/review steps through `dev-loop` + `local_implementation`; that path is only for actual implementation/edit work.
 
 ## Dev loop defaults
 
