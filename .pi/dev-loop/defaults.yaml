@@ -27,16 +27,14 @@ gates:
       - correctness
     required: true
   preApproval:
-    # Pre-approval gate: runs before declaring merge-ready
+    # Pre-approval gate: runs before declaring merge-ready.
+    # Additional SOLID angles available as opt-in (see personas section):
+    #   ocp, lsp, isp, dip
     angles:
       - dry
       - kiss
       - yagni
       - srp
-      - ocp
-      - lsp
-      - isp
-      - dip
       - soc
     required: true
 
