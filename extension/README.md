@@ -190,7 +190,7 @@ workflow:
 
 ### Config format
 
-YAML is preferred (`.yaml`). JSON (`.json`) is supported as a fallback for backward compatibility. When both exist, YAML takes priority.
+YAML is preferred (`.yaml` or `.yml`). JSON (`.json`) is supported as a fallback for backward compatibility. When both exist, YAML takes priority.
 
 Config is validated at runtime by Zod schemas (`packages/core/src/config/schema.mjs`).
 
