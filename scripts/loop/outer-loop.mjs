@@ -59,7 +59,7 @@ import {
   buildAsyncStartRejection,
   validateAsyncStartContext,
 } from "@pi-dev-loops/core/loop/async-start-contract";
-import { loadDevLoopConfig, resolveConductorModel } from "@pi-dev-loops/core/config";
+import { loadDevLoopConfig, resolveConductorModel, resolveAutonomyStopAt } from "@pi-dev-loops/core/config";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 
@@ -539,11 +539,13 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
 
   // Resolve conductor model override from config
   let conductorModel = null;
+  let autonomyStopAt = null;
   if (!isSnapshotMode) {
     // Only load real config; skip for snapshot/test input mode
     const { config: devLoopConfig, errors = [] } = await loadDevLoopConfig();
     if (errors.length === 0) {
       conductorModel = resolveConductorModel(devLoopConfig);
+      autonomyStopAt = resolveAutonomyStopAt(devLoopConfig);
     }
   }
 
@@ -561,6 +563,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     conductorRouting,
     checkpoint,
     conductorModel,
+    autonomyStopAt,
   };
 }
 
