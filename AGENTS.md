@@ -27,6 +27,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Work test-first for all non-trivial logic.
 - Maintain at least 90% coverage for lines, statements, functions, and branches.
 - Implement one phase at a time.
+- If durable repo docs explicitly record a reprioritization exception, follow [Implementation State](docs/IMPLEMENTATION_STATE.md) and the active phase doc as the canonical current-phase source rather than assuming numeric phase order alone.
 - Use fan-out / fan-in / review / merge before implementing each phase.
 - Default phase and issue refinement to multiple parallel variants before converging on a merged plan; do not rely on a single-plan synthesis when fan-out is practical.
 - For refinement work, follow the dedicated **Standard refinement chain pattern** section below.
