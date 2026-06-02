@@ -25,7 +25,7 @@ For UI validation under `dev-loop`, see [UI Validation Contract](../../docs/ui-v
 For a new project, the only required inputs are:
 
 1. [Project Plan](../../PLAN.md)
-2. this skill's [this skill file](./SKILL.md)
+2. [this skill file](./SKILL.md)
 
 Everything else is optional and may be bootstrapped by this skill.
 
@@ -89,7 +89,7 @@ When the local spec already lives in a tracker issue:
 - Log detailed iteration artifacts under `tmp/` using the required structure below.
 - For phase-doc-backed local sessions, keep durable phase intent and acceptance criteria in [Phase Plan](../../docs/phases/phase-x.md); for tracker-backed local sessions, keep that durable intent in the tracker issue and do not duplicate it into [Phase Plan](../../docs/phases/phase-x.md). Keep detailed execution artifacts in `tmp/`.
 - Treat `tmp/` as temporary local execution state. Do not rely on it as durable repo history and do not force-add it to git unless the user explicitly wants checked-in examples or fixtures.
-- When a phase changes durable product truth in ways [Project Plan](../../PLAN.md) should express (for example command surface, accepted product decisions, resolved open questions, or scope changes), update [Project Plan](../../PLAN.md) before closing the phase.
+- When a phase changes durable product truth in ways `PLAN.md` should express (for example command surface, accepted product decisions, resolved open questions, or scope changes), update [Project Plan](../../PLAN.md) before closing the phase.
 - Do implementation work on a dedicated local branch, not directly on `main`.
 - If the repo has no commits yet, still create the working branch first so the first commits land off `main`; only move `main` forward after review and validation.
 - Use small atomic local commits as progress checkpoints whenever a coherent slice is green and reviewable.
