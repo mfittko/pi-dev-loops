@@ -70,6 +70,7 @@ This gate uses review angles resolved from config (`resolveGateAngles(config, "p
 
 Boundary note:
 - `pre_approval_gate` governs only final approval readiness for the reviewed head
+- non-draft PRs do not need visible `draft_gate` evidence to enter the post-draft review / `pre_approval_gate` lifecycle; only the draft -> ready transition depends on `draft_gate`
 - visible comment schema/evidence rules stay in [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md)
 
 ## Lifecycle states

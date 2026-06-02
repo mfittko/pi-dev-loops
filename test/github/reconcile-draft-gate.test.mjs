@@ -145,6 +145,17 @@ test("parseReconcileDraftGateCliArgs rejects unknown arguments", () => {
   assert.throws(() => parseReconcileDraftGateCliArgs(["--repo", "owner/repo", "--pr", "17", "--bogus"]), /Unknown argument/);
 });
 
+
+test("reconcile-draft-gate --help describes the script as optional manual recovery", async () => {
+  const result = await runNode(["--help"]);
+
+  assert.equal(result.code, 0);
+  assert.equal(result.stderr, "");
+  assert.match(result.stdout, /optional\/manual recovery/i);
+  assert.match(result.stdout, /already non-draft PR/i);
+  assert.doesNotMatch(result.stdout, /required draft_gate/i);
+});
+
 test("reconcile-draft-gate fails closed when visible draft_gate evidence already exists", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reconcile-draft-gate-visible-evidence-"));
 
