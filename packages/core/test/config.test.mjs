@@ -495,7 +495,7 @@ describe("loader — graceful degradation", () => {
     }
   });
 
-  test("Y1c: workflow family merges correctly from defaults.yaml and overrides.yaml", async () => {
+  test("Y1c: workflow family merges correctly from defaults.yaml and settings.yaml", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-workflow-yaml-"));
     try {
       const piDir = path.join(tmpDir, ".pi", "dev-loop");
@@ -507,7 +507,7 @@ describe("loader — graceful degradation", () => {
         "  requireDraftFirst: false",
         "  devModeDefault: false",
       ].join("\n"));
-      await writeFile(path.join(piDir, "overrides.yaml"), [
+      await writeFile(path.join(piDir, "settings.yaml"), [
         "version: 1",
         "workflow:",
         "  requireDraftFirst: true",
@@ -520,6 +520,49 @@ describe("loader — graceful degradation", () => {
         requireDraftFirst: true,
         devModeDefault: false,
       });
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("Y1d: loader falls back to legacy overrides.yaml when settings.yaml is absent", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-legacy-overrides-yaml-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "overrides.yaml"), [
+        "version: 1",
+        "strategy:",
+        "  default: local-first",
+      ].join("\n"));
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.deepEqual(result.errors, []);
+      assert.equal(result.config.strategy.default, "local-first");
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("Y1e: settings.yaml takes precedence over legacy overrides.yaml", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-settings-preferred-yaml-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "settings.yaml"), [
+        "version: 1",
+        "strategy:",
+        "  default: github-first",
+      ].join("\n"));
+      await writeFile(path.join(piDir, "overrides.yaml"), [
+        "version: 1",
+        "strategy:",
+        "  default: local-first",
+      ].join("\n"));
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.deepEqual(result.errors, []);
+      assert.equal(result.config.strategy.default, "github-first");
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

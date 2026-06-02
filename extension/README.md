@@ -98,11 +98,11 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 
 ## Configuration
 
-The dev-loop workflow is driven by a YAML config at `.pi/dev-loop/defaults.yaml` (shipped with the package) and an optional consumer override at `.pi/dev-loop/overrides.yaml`.
+The dev-loop workflow is driven by a YAML config at `.pi/dev-loop/defaults.yaml` (shipped with the package) and an optional consumer settings file at `.pi/dev-loop/settings.yaml` (legacy `.pi/dev-loop/overrides.yaml` still loads as a fallback).
 
 ### How consumers customize config
 
-Create `.pi/dev-loop/overrides.yaml` in your project repo. It merges on top of the shipped defaults. You can override any section, including workflow policy defaults:
+Create `.pi/dev-loop/settings.yaml` in your project repo. It merges on top of the shipped defaults. You can override any section, including workflow policy defaults:
 
 ```yaml
 # Example: add a custom review angle with a dedicated persona agent
@@ -171,7 +171,7 @@ workflow:
   devModeDefault: false
 ```
 
-- `requireRetrospective` — when enabled by a repo override, the next qualifying GitHub-first async start/resume must honor the retrospective checkpoint gate
+- `requireRetrospective` — when enabled by repo settings, the next qualifying GitHub-first async start/resume must honor the retrospective checkpoint gate
 - `requireDraftFirst` — marks draft-first PR creation as required workflow policy for repos that opt in
 - `devModeDefault` — declares that local implementation should default to formal dev mode; this is config-only for now and establishes source-of-truth config plus docs for future runtime consumers
 
@@ -179,7 +179,7 @@ workflow:
 
 1. Built-in defaults (`packages/core/src/config/schema.mjs` `BUILT_IN_DEFAULTS`)
 2. Shipped defaults (`.pi/dev-loop/defaults.yaml` — committed in source repo)
-3. Consumer overrides (`.pi/dev-loop/overrides.yaml` — optional repo-local override surface, commit when you want repo-wide policy)
+3. Consumer settings (`.pi/dev-loop/settings.yaml` — preferred repo-local policy surface; legacy `.pi/dev-loop/overrides.yaml` still loads as a fallback)
 
 ### Adding custom review angles
 

@@ -288,16 +288,16 @@ test("config-driven prefer_local still fails closed when authoritative linked PR
   });
 });
 
-test("valid defaults.json (local-first) with broken overrides.json falls back to built-in github-first", async () => {
+test("valid defaults.json (local-first) with broken settings.json falls back to built-in github-first", async () => {
   await withTempRepo(async (repoRoot) => {
     // Write a valid defaults.json that would select local-first
     await writeDefaultsConfig(repoRoot, {
       version: 1,
       strategy: { default: "local-first" },
     });
-    // Write a broken overrides.json — this causes a config error layer
+    // Write a broken settings.json — this causes a config error layer
     const configDir = path.join(repoRoot, ".pi", "dev-loop");
-    await writeFile(path.join(configDir, "overrides.json"), "{broken json");
+    await writeFile(path.join(configDir, "settings.json"), "{broken json");
 
     const { routing, warnings } = await loadRoutingModuleForRepo(repoRoot);
     const withFallback = evaluateStartOnIssue(routing);
@@ -305,7 +305,7 @@ test("valid defaults.json (local-first) with broken overrides.json falls back to
       targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_GITHUB_FIRST,
     });
 
-    // Must fall back to github-first because overrides.json produced a config error
+    // Must fall back to github-first because settings.json produced a config error
     assert.equal(withFallback.selectedGate, withExplicitPreference.selectedGate);
     assert.equal(withFallback.selectedStrategy, withExplicitPreference.selectedStrategy);
     assert.ok(warnings.some((warning) => /Invalid JSON/i.test(warning.message)));

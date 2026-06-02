@@ -1,6 +1,6 @@
 # Retrospective checkpoint contract
 
-This document defines the enforcement seam for the post-run behavioral retrospective checkpoint after qualifying async `dev-loop` completions in this repository. Whether a missing checkpoint blocks the next qualifying start/resume is controlled by `.pi/dev-loop/overrides.yaml` `workflow.requireRetrospective`; shipped defaults remain permissive and this repo opts in.
+This document defines the enforcement seam for the post-run behavioral retrospective checkpoint after qualifying async `dev-loop` completions in this repository. Whether a missing checkpoint blocks the next qualifying start/resume is controlled by `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective`; shipped defaults remain permissive and this repo opts in.
 
 ## Relationship to formal dev mode
 
