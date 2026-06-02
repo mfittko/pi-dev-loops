@@ -50,13 +50,31 @@ workflow:
   requireDraftFirst: false
   devModeDefault: false
 
-# Persona registry: maps each review angle to an agent persona and prompt.
-# Consumers can add custom angles with their own persona agents.
+# Persona registry: maps named workflow personas/angles to agents and prompts.
+# Gate review angles resolve through this registry, and non-gate personas such
+# as `refiner` may also live here so consuming repos can customize prompt text.
+# Consumers can add custom angles or reusable persona prompts.
 # Each entry:
 #   persona      — agent persona name (must exist in .pi/agents/)
-#   prompt       — focused instruction for the reviewer agent
+#   prompt       — focused instruction for the agent
 #   defaultModel — optional model override (null = use persona default)
 personas:
+  refiner:
+    persona: refiner
+    prompt: |-
+      For every refinement, include an AC/DoD/Non-goal coverage matrix:
+
+      | Item | Type (AC/DoD/Non-goal) | Status (Met/Partial/Unmet/Unverified) | Evidence | Notes |
+      |---|---|---|---|---|
+      | <exact item text> | AC | Unverified | <reference> | |
+
+      Use exact wording from the source issue(s); when the governing input is a phase doc or other spec instead of an issue, use that source wording exactly for every explicit item.
+      Include every explicit acceptance criterion, definition-of-done item, and non-goal; do not skip items.
+      If no explicit definition of done exists, add a `Proposed DoD` subsection before the matrix.
+      Treat any `Partial`, `Unmet`, or `Unverified` row as incomplete refinement.
+      A refinement is complete only when no item has `Partial`, `Unmet`, or `Unverified` status.
+    defaultModel: null
+
   scope:
     persona: review
     prompt: >-

@@ -29,6 +29,15 @@ For the active phase, require and produce:
 - explicit non-goals
 - complete acceptance criteria that are concrete and testable
 - a complete definition-of-done list that covers implementation, validation, documentation, and review expectations
+- a structured AC/DoD/Non-goal coverage matrix using this format:
+
+  | Item | Type (AC/DoD/Non-goal) | Status (Met/Partial/Unmet/Unverified) | Evidence | Notes |
+  |---|---|---|---|---|
+  | <exact item text> | AC | Unverified | <reference> | |
+
+- use exact wording from the source issue(s); when the governing input is a phase doc or other spec instead of an issue, use that source wording exactly for every explicit item in the matrix
+- include every explicit acceptance criterion, definition-of-done item, and non-goal; do not skip items
+- if no explicit definition of done exists, add a `Proposed DoD` subsection before the matrix
 - explicit risks, watchpoints, and unresolved questions
 - validation steps and tests to write first
 - durable decisions that should be preserved in the phase doc
@@ -65,5 +74,11 @@ Return:
 - Complete acceptance criteria
 - Complete definition of done
 - Explicit non-goals, risks, and unresolved questions
+- An AC/DoD/Non-goal coverage matrix that uses exact source wording for every explicit item
+- If the source has no explicit definition of done, a `Proposed DoD` subsection
 - Tests to write first and validation steps
 - Any RFC escalation needed through the coordinator
+
+## Completion quality bar
+- A refinement is complete only when no item in the AC/DoD/Non-goal coverage matrix has status `Partial`, `Unmet`, or `Unverified`.
+- Any `Partial`, `Unmet`, or `Unverified` item means the refinement is still incomplete and must not be presented as ready.
