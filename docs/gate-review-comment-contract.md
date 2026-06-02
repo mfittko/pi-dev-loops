@@ -140,13 +140,13 @@ required visible PR comment is confirmed posted for the current head SHA.
 
 | Contract | Relationship |
 |---|---|
-| `draft_gate` boundary | Governs the draft → ready-for-review transition in [Copilot PR Follow-up](skills/copilot-pr-followup/SKILL.md) Step 7 |
-| `pre_approval_gate` boundary | Governs final-approval readiness in [Copilot PR Follow-up](skills/copilot-pr-followup/SKILL.md) Step 7 and the narrowed [Final Approval](skills/final-approval/SKILL.md) route |
+| `draft_gate` boundary | Governs the draft → ready-for-review transition in [Copilot PR Follow-up](../skills/copilot-pr-followup/SKILL.md) Step 7 |
+| `pre_approval_gate` boundary | Governs final-approval readiness in [Copilot PR Follow-up](../skills/copilot-pr-followup/SKILL.md) Step 7 and the narrowed [Final Approval](../skills/final-approval/SKILL.md) route |
 | Local/session artifacts | These remain complementary; the visible PR comment is the minimum required auditable surface, not a replacement for all local artifacts |
 
 ## See also
 
-- [PR Lifecycle Contract](skills/docs/pr-lifecycle-contract.md) — broader lifecycle state machine
-- [Gate-Review Sub-Loop Contract](docs/gate-review-sub-loop-contract.md) — execution shape for gate review work
-- [Copilot PR Follow-up](skills/copilot-pr-followup/SKILL.md) — skill that owns gate execution
-- [Final Approval](skills/final-approval/SKILL.md) — human approval gate route
+- [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md) — broader lifecycle state machine
+- [Gate-Review Sub-Loop Contract](gate-review-sub-loop-contract.md) — execution shape for gate review work
+- [Copilot PR Follow-up](../skills/copilot-pr-followup/SKILL.md) — skill that owns gate execution
+- [Final Approval](../skills/final-approval/SKILL.md) — human approval gate route

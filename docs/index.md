@@ -44,6 +44,6 @@ Start here for repository documentation.
 ## See also
 
 - [README](../README.md) — repo overview and workflow posture
-- [Extension README](extension/README.md) — command surface, package install, and configuration
-- [Dev Loop Contract](skills/docs/public-dev-loop-contract.md) — canonical routing contract
+- [Extension README](../extension/README.md) — command surface, package install, and configuration
+- [Dev Loop Contract](../skills/docs/public-dev-loop-contract.md) — canonical routing contract
 - [AGENTS.md](../AGENTS.md) — repo working agreement

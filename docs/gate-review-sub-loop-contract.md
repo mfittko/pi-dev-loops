@@ -120,7 +120,7 @@ gate-review comment on the PR for the reviewed head SHA.
 
 ## See also
 
-- [Gate-Review Comment Contract](docs/gate-review-comment-contract.md) — visible PR comment evidence format
-- [PR Lifecycle Contract](skills/docs/pr-lifecycle-contract.md) — broader lifecycle state machine
-- [Copilot PR Follow-up](skills/copilot-pr-followup/SKILL.md) — skill that owns gate execution
-- [Local Implementation](skills/local-implementation/SKILL.md) — uses chain pattern for local phase reviews
+- [Gate-Review Comment Contract](gate-review-comment-contract.md) — visible PR comment evidence format
+- [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md) — broader lifecycle state machine
+- [Copilot PR Follow-up](../skills/copilot-pr-followup/SKILL.md) — skill that owns gate execution
+- [Local Implementation](../skills/local-implementation/SKILL.md) — uses chain pattern for local phase reviews

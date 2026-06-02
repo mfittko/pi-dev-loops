@@ -203,10 +203,44 @@ test("tracker-first MVP state graph symlinks to canonical tracker story-PR contr
   const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
   // Symlink resolves to tracker-story-pr-contract.md content
-  assert.match(content, /canonical tracker-first contract/i);
-  assert.match(content, /deterministic pr lifecycle/i);
+  assert.match(content, /Tracker-First Story-to-PR Contract/i);
+  assert.match(content, /MVP invariant: one tracker work item → one GitHub PR/i);
 
   assert.match(skillContent, /inherits[\s\S]*source-of-truth ownership[\s\S]*work item <-> PR link[\s\S]*reverse-sync semantics from\s*`#21`/i);
+});
+
+test("new See Also markdown links resolve from docs files", async () => {
+  const linkTargetsByDoc = {
+    "docs/gate-review-comment-contract.md": [
+      "../skills/copilot-pr-followup/SKILL.md",
+      "../skills/final-approval/SKILL.md",
+      "../skills/docs/pr-lifecycle-contract.md",
+      "gate-review-sub-loop-contract.md",
+    ],
+    "docs/gate-review-sub-loop-contract.md": [
+      "gate-review-comment-contract.md",
+      "../skills/docs/pr-lifecycle-contract.md",
+      "../skills/copilot-pr-followup/SKILL.md",
+      "../skills/local-implementation/SKILL.md",
+    ],
+    "docs/index.md": [
+      "../README.md",
+      "../extension/README.md",
+      "../skills/docs/public-dev-loop-contract.md",
+      "../AGENTS.md",
+    ],
+  };
+
+  for (const [docPath, targets] of Object.entries(linkTargetsByDoc)) {
+    const doc = await readRepo(docPath);
+    for (const target of targets) {
+      assert.match(doc, new RegExp(`\\]\\(${target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\)`));
+      const docDir = docPath.slice(0, docPath.lastIndexOf("/") + 1);
+      const targetUrl = new URL(target, fromRepoRoot(docDir));
+      const targetStat = await stat(targetUrl);
+      assert.ok(targetStat.isFile(), `${docPath} should link to existing file ${target}`);
+    }
+  }
 });
 
 test("docs index separates active docs, archived history, and presentations", async () => {
