@@ -590,18 +590,18 @@ describe("loader — graceful degradation", () => {
     }
   });
 
-  test("Y2: YAML preferred over JSON when both exist", async () => {
+  test("Y2: YAML (.yml) preferred over JSON when both exist", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L8-"));
     try {
       const piDir = path.join(tmpDir, ".pi", "dev-loop");
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.json"),
         JSON.stringify({ version: 1, strategy: { default: "local-first" } }));
-      await writeFile(path.join(piDir, "defaults.yaml"),
+      await writeFile(path.join(piDir, "defaults.yml"),
         "version: 1\nstrategy:\n  default: github-first");
       const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
-      assert.equal(result.config.strategy.default, "github-first", "YAML should take priority over JSON");
+      assert.equal(result.config.strategy.default, "github-first", ".yml should take priority over JSON");
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

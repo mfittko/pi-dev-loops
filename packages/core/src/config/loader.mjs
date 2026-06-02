@@ -173,7 +173,7 @@ async function applyLayer(merged, basePaths, layer, warnings, errors, options = 
 
 /**
  * Load the dev-loop configuration with full precedence:
- *   settings.(yaml|json) > legacy overrides.(yaml|json) > defaults.(yaml|json) > built-in defaults
+ *   settings.(yaml|yml|json) > legacy overrides.(yaml|yml|json) > defaults.(yaml|yml|json) > built-in defaults
  *
  * Never throws for config-related problems.
  * Returns built-in defaults even when all files are missing or broken.
