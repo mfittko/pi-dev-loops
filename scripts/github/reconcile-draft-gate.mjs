@@ -189,36 +189,85 @@ async function markPrReady({ repo, pr }, { env, ghCommand }) {
   return true;
 }
 
+function normalizeCheckBucket(check = {}) {
+  const bucket = typeof check.bucket === "string" ? check.bucket.trim().toLowerCase() : "";
+  if (bucket) {
+    return bucket;
+  }
+
+  const state = typeof check.state === "string" ? check.state.trim().toLowerCase() : "";
+  if (["success", "passed", "pass"].includes(state)) {
+    return "pass";
+  }
+  if (["skipped", "skipping"].includes(state)) {
+    return "skipping";
+  }
+  if (["pending", "queued", "in_progress", "waiting", "requested", "expected", "action_required"].includes(state)) {
+    return "pending";
+  }
+  if (["failure", "failed", "fail", "error", "timed_out", "startup_failure"].includes(state)) {
+    return "fail";
+  }
+  if (["cancel", "cancelled", "canceled"].includes(state)) {
+    return "cancel";
+  }
+  return state || "unknown";
+}
+
+function summarizeBlockingChecks(blockingChecks) {
+  if (!Array.isArray(blockingChecks) || blockingChecks.length === 0) {
+    return "unknown blocking CI state";
+  }
+
+  return blockingChecks
+    .map((check) => `${check.name || "unnamed-check"}=${check.bucket}`)
+    .join(", ");
+}
+
 async function checkCiStatus({ repo, pr, headSha }, { env, ghCommand }) {
   const result = await runChild(ghCommand, [
     "pr", "checks", String(pr),
     "--repo", repo,
+    "--json", "bucket,state,name,workflow",
   ], env);
 
-  if (result.code !== 0) {
+  if (result.code !== 0 && result.code !== 8) {
     throw new Error(
       `Failed to check PR #${pr} CI status: ${result.stderr.trim() || `exit code ${result.code}`}`
     );
   }
 
-  const output = result.stdout.trim();
-  if (!output) {
-    return { status: "none" };
+  const payload = parseJsonText(result.stdout || "[]", {
+    label: `gh pr checks #${pr}`,
+  });
+  if (!Array.isArray(payload)) {
+    throw new Error(`Invalid gh pr checks payload for PR #${pr}: expected an array`);
   }
 
-  // Parse gh pr checks output: each line is "<check-name>\t<conclusion>\t..."
-  const lines = output.split("\n");
-  let anyFailure = false;
-
-  for (const line of lines) {
-    const parts = line.split("\t");
-    const conclusion = parts[1]?.trim()?.toLowerCase();
-    if (conclusion === "fail") {
-      anyFailure = true;
-    }
+  if (payload.length === 0) {
+    return {
+      status: "none",
+      checks: [],
+      blockingSummary: `No CI/check runs were reported for PR #${pr} head ${headSha.slice(0, 7)}.`,
+    };
   }
 
-  return { status: anyFailure ? "failure" : "success", raw: output };
+  const checks = payload.map((check) => ({
+    name: typeof check?.name === "string" && check.name.trim().length > 0 ? check.name.trim() : null,
+    workflow: typeof check?.workflow === "string" && check.workflow.trim().length > 0 ? check.workflow.trim() : null,
+    state: typeof check?.state === "string" && check.state.trim().length > 0 ? check.state.trim() : null,
+    bucket: normalizeCheckBucket(check),
+  }));
+  const blockingChecks = checks.filter((check) => !["pass", "skipping"].includes(check.bucket));
+
+  return {
+    status: blockingChecks.length === 0 ? "success" : "blocked",
+    checks,
+    blockingChecks,
+    blockingSummary: blockingChecks.length === 0
+      ? null
+      : `Blocking CI/check state on head ${headSha.slice(0, 7)}: ${summarizeBlockingChecks(blockingChecks)}.`,
+  };
 }
 
 export async function reconcileDraftGate(options, { env = process.env, ghCommand = "gh" } = {}) {
@@ -257,14 +306,14 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
 
   // Check CI status unless --skip-checks is set
   if (!options.skipChecks) {
-    const { status } = await checkCiStatus(
+    const ciStatus = await checkCiStatus(
       { repo: options.repo, pr: options.pr, headSha },
       { env, ghCommand }
     );
 
-    if (status === "failure") {
+    if (ciStatus.status !== "success") {
       throw new Error(
-        `PR #${options.pr} CI is failing on head ${headSha.slice(0, 7)}. ` +
+        `PR #${options.pr} CI is not green. ${ciStatus.blockingSummary || "No successful check state was confirmed."} ` +
         `Refusing to post a clean draft_gate comment. Fix CI or use --skip-checks.`
       );
     }

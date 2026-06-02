@@ -59,16 +59,19 @@ function toGateStatus(comment, marker, currentHeadSha) {
   const markerHeadMatches = normalizedMarker.headSha !== null
     && typeof currentHeadSha === "string"
     && currentHeadSha.startsWith(normalizedMarker.headSha);
+  const anyVisible = normalizedComment.visible || normalizedMarker.visible;
 
   const cleanEvidenceExists = normalizedComment.visible && normalizedComment.verdict === "clean" && normalizedComment.headSha !== null;
 
   return {
     visible: normalizedComment.visible,
+    markerVisible: normalizedMarker.visible,
+    anyVisible,
     currentHead: normalizedMarker.visible && markerHeadMatches,
-    headSha: normalizedComment.headSha,
-    verdict: normalizedComment.verdict,
-    findingsSummary: normalizedComment.findingsSummary,
-    nextAction: normalizedComment.nextAction,
+    headSha: normalizedComment.headSha ?? normalizedMarker.headSha,
+    verdict: normalizedComment.verdict ?? normalizedMarker.verdict,
+    findingsSummary: normalizedComment.findingsSummary ?? normalizedMarker.findingsSummary,
+    nextAction: normalizedComment.nextAction ?? normalizedMarker.nextAction,
     contractComplete: normalizedMarker.visible && markerHeadMatches && normalizedMarker.contractComplete,
     currentHeadClean: normalizedMarker.visible && markerHeadMatches && normalizedMarker.verdict === "clean" && normalizedMarker.contractComplete,
     cleanEvidenceExists,
@@ -228,7 +231,9 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (!draftGate.cleanEvidenceExists) {
-    pushUnique(allowedNextActions, [PR_GATE_ACTION.RECONCILE_DRAFT_GATE]);
+    if (!draftGate.anyVisible) {
+      pushUnique(allowedNextActions, [PR_GATE_ACTION.RECONCILE_DRAFT_GATE]);
+    }
     pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
     pushUnique(forbiddenActions, [
       PR_GATE_ACTION.RUN_DRAFT_GATE,
@@ -257,7 +262,9 @@ export function evaluatePrGateCoordination(input = {}) {
       allowedNextActions,
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
-      reason: "The PR is already non-draft and no clean `draft_gate` evidence exists at all, so no draft-gate transition was ever recorded; Use `scripts/github/reconcile-draft-gate.mjs` to auto-reconcile (convert to draft → post draft_gate comment → mark ready) and then re-evaluate.",
+      reason: draftGate.anyVisible
+        ? `The PR is already non-draft, but visible \`draft_gate\` evidence already exists (verdict: ${draftGate.verdict ?? "unknown"}). The auto-reconcile helper intentionally fails closed rather than overwriting existing evidence, so reconcile manually or clear/supersede the visible draft-gate evidence before re-evaluating.`
+        : "The PR is already non-draft and no `draft_gate` evidence is visible at all, so no draft-gate transition was ever recorded; use `scripts/github/reconcile-draft-gate.mjs` to auto-reconcile (convert to draft → post draft_gate comment → mark ready) and then re-evaluate.",
     });
   }
 

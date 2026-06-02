@@ -211,10 +211,10 @@ test("non-draft PR without any clean draft_gate evidence fails closed", () => {
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
-  assert.match(result.reason, /no clean `draft_gate` evidence exists at all/i);
+  assert.match(result.reason, /no `draft_gate` evidence is visible at all/i);
 });
 
-test("non-draft PR with findings_present draft_gate fails closed because no clean transition was recorded", () => {
+test("non-draft PR with visible non-clean draft_gate evidence blocks without suggesting auto-reconcile", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
     currentHeadSha: "abc123456789",
@@ -229,8 +229,11 @@ test("non-draft PR with findings_present draft_gate fails closed because no clea
 
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
   assert.equal(result.draftGate.cleanEvidenceExists, false);
+  assert.equal(result.draftGate.anyVisible, true);
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
-  assert.match(result.reason, /no clean `draft_gate` evidence exists at all/i);
+  assert(!result.allowedNextActions.includes(PR_GATE_ACTION.RECONCILE_DRAFT_GATE));
+  assert.match(result.reason, /visible `draft_gate` evidence already exists/i);
+  assert.doesNotMatch(result.reason, /reconcile-draft-gate\.mjs/i);
 });
 
 test("local-first PR with explicit reviewMode skips to pre-approval gate after draft→ready", () => {
@@ -344,6 +347,7 @@ test("non-draft PR without clean evidence suggests reconcile_draft_gate as recov
 
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
   assert.equal(result.nextAction, PR_GATE_ACTION.REPORT_BLOCKED);
+  assert.equal(result.draftGate.anyVisible, false);
   assert(result.allowedNextActions.includes(PR_GATE_ACTION.REPORT_BLOCKED));
   assert(result.allowedNextActions.includes(PR_GATE_ACTION.RECONCILE_DRAFT_GATE));
   assert.match(result.reason, /reconcile-draft-gate\.mjs/i);
