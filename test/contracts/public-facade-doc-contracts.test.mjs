@@ -7,7 +7,7 @@ import {
   stat,
   test,
   USER_FACING_AGENT_SURFACE,
-} from "./imported-assets-helpers.mjs";
+} from "../imported-assets-helpers.mjs";
 
 test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
   const [devLoopSkill, copilotFollowupSkill, publicContract, retrospectiveContract] = await Promise.all([

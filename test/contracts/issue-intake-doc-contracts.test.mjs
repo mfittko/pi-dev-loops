@@ -7,7 +7,7 @@ import {
   stat,
   test,
   USER_FACING_AGENT_SURFACE,
-} from "./imported-assets-helpers.mjs";
+} from "../imported-assets-helpers.mjs";
 
 test("issue-intake skill still contains its core workflow guidance", async () => {
   const content = await readRepo("skills/copilot-pr-followup/SKILL.md");
