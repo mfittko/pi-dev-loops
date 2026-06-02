@@ -206,6 +206,35 @@ Success output shape:
 Failure behavior:
 - malformed arguments, empty body files, missing threads, missing comments, comment/thread mismatches, unexpected `gh` failures, and unsuccessful resolve responses emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
+### `scripts/github/reply-resolve-review-threads.mjs`
+
+Reply to all matching unresolved review threads on one PR and optionally resolve them with one bounded note.
+
+Required:
+- `--repo <owner/name>`
+- `--pr <number>`
+
+Optional:
+- `--author <login>` (default `Copilot`)
+- exactly one message source: `--message <text>` or stdin
+- `--resolve`
+
+Contract:
+- captures one authoritative review-thread snapshot via `capture-review-threads.mjs`
+- filters to unresolved threads containing at least one comment by the selected author
+- chooses the newest matching author-authored comment in each matched thread as the REST reply target
+- processes matched threads sequentially in deterministic snapshot order
+- reuses the shared single-thread reply/resolve primitives instead of duplicating GitHub mutation logic
+- with `--resolve`, re-captures the review-thread snapshot at the end and fails closed if any targeted thread remains unresolved
+- zero-match runs are deterministic no-ops with success JSON
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/name", "pr": 17, "author": "Copilot", "resolve": true|false, "matchedThreadCount": 2, "repliedThreadCount": 2, "resolvedThreadCount": 2, "skippedThreadCount": 1, "results": [{ "threadId": "...", "commentId": 123, "replyId": 456, "replyUrl": "...", "resolved": true }] }`
+
+Failure behavior:
+- malformed arguments, empty/conflicting message input, malformed thread snapshots, unexpected `gh` failures, reply failures, resolve failures, and failed post-resolve verification emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+- when partial progress exists, stderr JSON also includes `partialProgress`
+
 For new GitHub mutation helpers in this repo, do not stop at fixture-only confidence when a real PR is available and mutation is authorized. Run a bounded real-PR smoke check before depending on the helper inside a longer async review/fix loop.
 
 ### `scripts/github/watch-copilot-review.mjs`

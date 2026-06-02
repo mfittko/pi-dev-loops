@@ -158,8 +158,9 @@ Goal:
 Use when the user wants Pi to wait for fresh Copilot review activity and then react.
 
 Goal:
-- baseline current Copilot activity
-- poll deterministically for new Copilot comments/reviews
+- baseline the current PR wait state with `detect-copilot-loop-state.mjs`
+- if the detector returns `waiting_for_copilot_review`, either enter persistent waiting via `run-copilot-watch-cycle.mjs` or stop cleanly and resume later after that single detector call
+- if the detector returns `waiting_for_ci`, use the detector snapshot plus `gh run watch` for a known current-head run id; otherwise stop cleanly and resume later instead of polling in-shell
 - launch an in-session Pi fixer only after fresh review activity appears
 
 ### 4. Fixer mode
@@ -430,7 +431,7 @@ states for this narrower MVP slice.
 **How to use the state machine in practice:**
 
 1. Run `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>`
-   to get the current Copilot-loop state and recommended next action.
+   to get the current Copilot-loop state, decisive snapshot fields, and recommended next action.
 
 2. If you already ran `<resolved-skill-scripts>/github/request-copilot-review.mjs` and got a known status,
    inject it without re-probing: add `--review-request-status <status>`.
@@ -438,7 +439,12 @@ states for this narrower MVP slice.
 3. When the agent has applied a fix and wants to signal reply/resolve is next, build a snapshot
    with `agentFixStatus: "applied"` and use `--input <snapshot.json>` for interpretation.
 
-4. For reviewer-side draft-review work, run `node <resolved-skill-scripts>/loop/detect-reviewer-loop-state.mjs --repo <owner/name> --pr <number> [--reviewer-login <login>] [--local-state <path>]`.
+4. Branch on the detector output instead of inventing a polling loop:
+   - `state=waiting_for_copilot_review` with `snapshot.copilotReviewOnCurrentHead=false`: do **not** poll manually; either run `node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent async waiting or report the wait state and resume later after the single detector call
+   - `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`: do **not** poll manually; use `gh run watch <run-id> --repo <owner/name>` when the current-head run id is already known, otherwise report pending CI and resume later after the single detector refresh
+   - `snapshot.ciStatus="failure"` remains a stop/fix state, never a wait loop
+
+5. For reviewer-side draft-review work, run `node <resolved-skill-scripts>/loop/detect-reviewer-loop-state.mjs --repo <owner/name> --pr <number> [--reviewer-login <login>] [--local-state <path>]`.
    If the state reaches `draft_review_ready`, stage the pending review with
    `node <resolved-skill-scripts>/github/stage-reviewer-draft.mjs --repo <owner/name> --pr <number> --review-file <merged-review.json> --local-state-output <state.json>`,
    then re-run the detector with `--local-state <state.json>`.
@@ -446,7 +452,7 @@ states for this narrower MVP slice.
    In the `pi-dev-loops` source repository, `<resolved-skill-scripts>` is `../../scripts` relative to this file.
    In normalized installed skill copies, it may instead be `scripts` inside the installed skill directory.
 
-5. Follow the `nextAction` from the machine output. For stop states (`review_request_unavailable`,
+6. Follow the `nextAction` from the machine output. For stop states (`review_request_unavailable`,
    `blocked_needs_user_decision`), report to the user and do not proceed.
 
 **Judgment calls that remain in the agent layer (not encoded in the machine):**
@@ -568,7 +574,9 @@ Preferred defaults for this repo:
 - parent/subagent no-activity threshold for watcher-style runs: at least **15 minutes**
 - active-long-running notice threshold for watcher-style runs: about **30 minutes**
 
-These are the defaults built into `watch-copilot-review.mjs` and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Pass them explicitly when overriding.
+These are the defaults built into `watch-copilot-review.mjs`, `run-copilot-watch-cycle.mjs`, and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Pass them explicitly when overriding.
+
+Helper-owned sleep inside `run-copilot-watch-cycle.mjs`, `watch-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed. Agent-authored shell polling is not allowed.
 
 A watcher sleeping between polls is expected behavior, not a blocker.
 
@@ -602,6 +610,21 @@ When confirming whether Copilot is requested as a reviewer, do not rely solely o
 
 Prefer the deterministic helper `request-copilot-review.mjs` from the resolved skill scripts directory when it exists. That helper verifies reviewer state through `gh api repos/<owner>/<repo>/pulls/<number>/requested_reviewers`, which is more reliable here than `gh pr view --json reviewRequests`.
 
+Use it directly for both the initial ready-for-review request and later validated re-requests:
+```sh
+node <resolved-skill-scripts>/github/request-copilot-review.mjs \
+  --repo <owner/name> \
+  --pr <number>
+```
+If a same-head clean-converged re-request is intentionally authorized, use:
+```sh
+node <resolved-skill-scripts>/github/request-copilot-review.mjs \
+  --repo <owner/name> \
+  --pr <number> \
+  --force-rerequest-review
+```
+Do **not** request Copilot by posting literal `/copilot` or `/copilot re-review` PR comments.
+
 When a PR is moved from draft to ready, explicitly attempt to request Copilot review rather than assuming repository automation will do it.
 
 After any follow-up fix commit is pushed to an open PR, explicitly decide whether another Copilot pass is desired.
@@ -616,28 +639,30 @@ If the explicit request fails because Copilot review is not enabled for the repo
 Do not treat an attempted request as equivalent to a confirmed request.
 
 For the resolved `request-copilot-review.mjs` helper, branch on the machine-readable result:
-- `requested`: if another Copilot pass is actually desired, baseline fresh state and then wait/watch; otherwise report current state without waiting
-- `already-requested`: if another Copilot pass is actually desired, baseline fresh state and then wait/watch; otherwise report current state without waiting
+- `requested`: if another Copilot pass is actually desired, immediately re-baseline with `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` and branch on returned `state`, `snapshot.copilotReviewOnCurrentHead`, `snapshot.ciStatus`, and `nextAction`; only enter persistent waiting through `run-copilot-watch-cycle.mjs` or `gh run watch`, otherwise report the wait state and resume later without bash polling
+- `already-requested`: apply the same detector-first rebasing and wait branching as `requested`; do not keep the session alive with ad hoc bash polling
 - `suppressed_same_head_clean`: report the clean-converged state and stop unless an explicit `--force-rerequest-review` bypass is intentionally authorized
 - `unavailable`: report the limitation and stop unless the user explicitly wants passive waiting without a fresh request
 - non-zero / unexpected failure: stop and report the error rather than entering a sleep/watch loop
 
 ## Step 6: Async watch behavior
 
-When the user wants Pi to wait for fresh Copilot review activity, prefer native GitHub watch behavior when `gh` supports the exact wait condition, and otherwise use a deterministic watcher rather than ad hoc polling.
+When the user wants Pi to wait for fresh Copilot review activity, start every PR-follow-up wait seam with one detector refresh:
+```sh
+node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>
+```
 
-Preferred order:
-1. use `gh ... --watch` / `gh ... watch` when GitHub CLI has a native watch mode for the exact thing you need
-2. otherwise use the existing deterministic watcher pattern
-3. only fall back to custom ad hoc polling when neither of the above can express the required condition safely
+Allowed wait tools for this PR follow-up loop:
+- one-shot PR wait-state classification: `detect-copilot-loop-state.mjs`
+- persistent Copilot review wait: `run-copilot-watch-cycle.mjs`
+- watch refresh after `timeout`/`idle`: `copilot-pr-handoff.mjs --watch-status <changed|timeout|idle>`
+- CI wait when a current-head workflow run id is known: `gh run watch <run-id> --repo <owner/name>`
+- otherwise: exit cleanly and resume later from a fresh detector call
 
 Practical rule for this repo:
-- prefer `gh run watch` for GitHub Actions / check-run waiting when you already know the run ID
-- prefer ordinary `gh pr view`, `gh issue view`, `gh api`, and `gh pr checks` snapshots for one-time inspection
-- use deterministic custom watchers for conditions that `gh` does not natively watch well, such as:
-  - waiting for a Copilot-authored PR to appear
-  - waiting for new Copilot review activity after a baseline, including review-thread comments, review summaries, or PR issue comments
-  - waiting for unresolved thread state to change in a review-aware way
+- `state=waiting_for_copilot_review` with `snapshot.copilotReviewOnCurrentHead=false`: do **not** poll manually; either run `node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent async waiting or report the wait state and resume later after the single detector call
+- `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`: do **not** poll manually; use `gh run watch <run-id> --repo <owner/name>` when the current-head run id is already known, otherwise report pending CI and resume later after the single detector refresh
+- `snapshot.ciStatus="failure"` remains a stop/fix state, never a wait loop
 
 Preferred approach for Copilot review follow-up:
 - route request/re-request/watch decisions through `copilot-pr-handoff.mjs` output instead of re-implementing branch logic in markdown
@@ -661,7 +686,10 @@ Every async dev-loop dispatch task body must include this clause verbatim so fre
 Key rules:
 - expected polling idle time is normal
 - do not restart watchers just because there has been a short quiet period
-- do not use `nohup`, detached shell jobs, tmux/screen sessions, or ad hoc `while`/`sleep` bash loops for this workflow
+- helper-owned sleep inside `run-copilot-watch-cycle.mjs`, `watch-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed
+- agent-authored shell polling is forbidden
+- do not use `nohup`, detached shell jobs, `tmux`, `screen`, or ad hoc `for i in $(seq ...)`, `while true`, `until ...; do sleep ...; done`, or `sleep`-retry bash loops for this workflow
+- do not wrap repeated `gh pr view`, `gh pr checks`, `gh api`, or `detect-copilot-loop-state.mjs` calls inside shell polling loops
 - do not bypass session-based async notifications with detached shell automation unless explicitly asked
 - if a watcher is sleeping between polls, prefer raising the orchestration inactivity threshold over interrupting the child
 - if Pi async subagents or the designated async follow-up skill are not appropriate or available, stop and report rather than improvising a shell watcher
@@ -690,34 +718,42 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - if the guard exits non-zero (`branch_mismatch`), stop and realign to the expected branch before staging or committing
 7. if files changed, push the resolving commit before any thread reply claims the fix is present
 8. when a comment or thread is actually addressed, reply on GitHub with a short resolution note that references the resolving commit SHA or commit URL when applicable
-   - must use the deterministic helper `reply-resolve-review-thread.mjs` from the resolved skill scripts directory for thread reply/resolve work
-   - when using that helper, pair `--comment-id` and `--thread-id` from the same fresh PR thread snapshot rather than mixing ids across review rounds
-   - use a body file under `tmp/` rather than inline shell text for the reply body
+   - for one thread, must use the deterministic helper `reply-resolve-review-thread.mjs` from the resolved skill scripts directory
+   - when the same bounded resolution note applies to multiple matching unresolved threads, use `reply-resolve-review-threads.mjs` instead of ad hoc inline `gh api` / `gh api graphql` mutations
+   - when using the single-thread helper, pair `--comment-id` and `--thread-id` from the same fresh PR thread snapshot rather than mixing ids across review rounds
+   - use a body file under `tmp/` rather than inline shell text for the single-thread reply body; for the batch helper, prefer stdin from that same `tmp/` body file rather than inline shell text
    - when the intent is GitHub linkability, keep commit SHAs and issue/PR refs as plain text (for example 3ee82fc and owner/repo#70) and do not wrap them in backticks
    - keep backticks for actual code/path/CLI literals only
-   - if that helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
-9. resolve the addressed review thread only after the reply is attached successfully and the concern is genuinely addressed
+   - if either helper was newly added or recently changed, smoke-check it against one real thread before assuming the rest of the loop can rely on it
+9. before resolving an addressed review thread, run a post-fix verification checkpoint
+   - confirm the GitHub reply actually exists on the intended thread/comment, not only in local notes or helper stdout
+   - confirm the pushed current-head diff genuinely addresses the reviewer concern on the flagged lines or pattern; if the concern is only partially addressed, leave the thread open and explain what remains
+   - refresh the API-backed thread snapshot via `capture-review-threads.mjs` and use that refreshed data — including `unresolvedThreadCount` — for follow-up decisions rather than prose assumptions
+   - if any verification check fails, do **not** resolve the thread; leave it open, add a short explanation when needed, and re-enter the fix/reply loop
+10. resolve the addressed review thread only after the reply is attached successfully, the verification checkpoint passes, and the concern is genuinely addressed
    - do not stop at a local fix if GitHub-side reply/resolve is authorized
-10. after completing reply/resolve for a pass, verify `unresolvedThreadCount === 0` via `capture-review-threads.mjs` before proceeding
+11. after completing reply/resolve for a pass, verify `unresolvedThreadCount === 0` via `capture-review-threads.mjs` before proceeding
    - if the refreshed snapshot reports a non-zero unresolved thread count, re-enter the reply/resolve loop for the missed threads
-11. only after GitHub-side reply/resolve work is done for the addressed threads and the refreshed thread snapshot proves `unresolvedThreadCount === 0`, decide whether another Copilot pass is desired
+12. only after GitHub-side reply/resolve work is done for the addressed threads and the refreshed thread snapshot proves `unresolvedThreadCount === 0`, decide whether another Copilot pass is desired
    - resolve the review-round cap from config via `resolveRefinementConfig(config, "maxCopilotRounds")` from `@pi-dev-loops/core/config`; default config ships `maxCopilotRounds: 5`
    - use `snapshot.copilotReviewRoundCount` from `detect-copilot-loop-state.mjs` / `copilot-pr-handoff.mjs` as the completed Copilot review-round count for the current PR
    - if `snapshot.copilotReviewRoundCount >= maxCopilotRounds`, do **not** re-request Copilot review
    - when the round cap is reached, reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note, then stop and report that the Copilot round limit was reached
    - if yes and the round cap has not been reached, run the smallest honest local validation for the accepted fix scope
    - if that local validation is still known red, continue remediation instead of re-requesting Copilot
-   - after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for any CI-dependent follow-up decision
+   - after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for any CI-dependent follow-up decision and immediately re-run `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` for the new head
    - refresh/re-read current-head CI/check data before advancing and apply the contract in [Copilot CI Status Contract](../docs/copilot-ci-status-contract.md) (wait for `pending`/`none`, stop for `failure`, proceed only on `success`)
    - passing local validation alone does not satisfy a step that still requires GitHub CI/check readiness for the current head
    - only results for the current head SHA may satisfy a CI-dependent follow-up step; older-head results must not unblock the new head
+   - if the current-head detector output still says `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`, wait only via `gh run watch <run-id> --repo <owner/name>` for a known run id or else stop/resume later after the single detector refresh; do not use shell polling while waiting for CI to become green
    - if GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot
    - only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head rather than assuming it remains requested
    - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
+   - for `requested` / `already-requested`, immediately re-baseline with `detect-copilot-loop-state.mjs`; if the returned state is `waiting_for_copilot_review`, use `run-copilot-watch-cycle.mjs` or stop/resume later, and if the returned state is `waiting_for_ci`, use `gh run watch` for a known run id or stop/resume later after that single detector refresh
    - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
    - if the request command fails unexpectedly, stop and report the error rather than sleeping and hoping for a new review
-12. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
-13. if scope has broadened, stop and ask before continuing
+13. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at "review requested"
+14. if scope has broadened, stop and ask before continuing
 
 Do not treat "fix applied locally" as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 
@@ -809,7 +845,8 @@ Useful examples in this repository:
 
 When GitHub Actions runs already exist and the next step is to wait for them rather than rerun them locally, prefer native GitHub CLI watch support where available:
 - use `gh run watch` for a known workflow run ID
-- fall back to snapshot inspection when no watchable run ID is known yet
+- otherwise refresh once with `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` and report the current wait state from that detector snapshot
+- do not add `sleep`-based retries around `gh pr checks`, `gh pr view`, or `gh api`
 
 When reporting status, distinguish between:
 - locally validated narrowly
@@ -883,7 +920,7 @@ Do not:
 - create a separate local backlog
 - broaden a Copilot PR into multiple issue scopes
 - resolve threads without checking whether the current branch actually fixes them
-- use inline `gh api` to post thread replies without the resolve mutation
+- use ad hoc inline `gh api` or `gh api graphql` thread-mutation commands instead of the deterministic `reply-resolve-review-thread.mjs` / `reply-resolve-review-threads.mjs` helpers
 - submit a merge-ready verdict without first summarizing the pending thread state
 - declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA
 - declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence

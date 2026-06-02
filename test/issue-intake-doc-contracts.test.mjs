@@ -32,8 +32,8 @@ test("issue-intake skill requires github reply/resolve follow-up and gates waiti
   assert.match(content, /if GitHub CI\/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot/);
   assert.match(content, /only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head/);
   assert.match(content, /wait\/watch loop if the request result is confirmed as `requested` or `already-requested`/);
-  assert.match(content, /`requested`: if another Copilot pass is actually desired/);
-  assert.match(content, /`already-requested`: if another Copilot pass is actually desired/);
+  assert.match(content, /`requested`: if another Copilot pass is actually desired, immediately re-baseline/i);
+  assert.match(content, /`already-requested`: apply the same detector-first rebasing and wait branching as `requested`/i);
   assert.match(content, /`unavailable`: report the limitation and stop/);
   assert.match(content, /stop and report the error rather than (?:entering a sleep\/watch loop|sleeping and hoping for a new review)/);
   assert.match(content, /keep commit SHAs and issue\/PR refs as plain text/i);
@@ -53,7 +53,8 @@ test("issue-intake skill forbids detached bash watcher loops for async follow-up
   const content = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
   assert.match(content, /Pi async subagent|designated async follow-up skill/);
-  assert.match(content, /do not use `nohup`, detached shell jobs, tmux\/screen sessions, or ad hoc `while`\/`sleep` bash loops/);
+  assert.match(content, /do not use `nohup`, detached shell jobs, `tmux`, `screen`, or ad hoc `for i in \$\(seq \.\.\.\)`, `while true`, `until \.\.\.; do sleep \.\.\.; done`, or `sleep`-retry bash loops/);
+  assert.match(content, /agent-authored shell polling is forbidden/i);
   assert.match(content, /stop and report rather than improvising a shell watcher/);
 });
 
