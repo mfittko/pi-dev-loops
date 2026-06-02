@@ -652,6 +652,7 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
 
     const healthcheckCall = fetchCalls.find((c) => String(c.url).includes('4311'));
     assert.ok(healthcheckCall, 'healthcheck should call fetch');
+    assert.equal(healthcheckCall.options?.method, 'GET');
     assert.ok(!healthcheckCall.options?.signal, 'fetch must not receive an AbortSignal');
   } finally {
     globalThis.fetch = originalFetch;
