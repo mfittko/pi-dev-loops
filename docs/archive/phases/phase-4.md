@@ -19,7 +19,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 
 ## Roadmap alignment note
 
-[Project Plan](PLAN.md) still describes a broader aspirational Phase 4 bundle. For implementation and review of `phase-4`, this durable phase doc intentionally narrows that roadmap wording and is the acceptance-criteria / definition-of-done source of truth. Any broader roadmap bullets not listed as in-scope here are explicitly deferred to later phases unless this document is revised.
+[Project Plan](../../../PLAN.md) still describes a broader aspirational Phase 4 bundle. For implementation and review of `phase-4`, this durable phase doc intentionally narrows that roadmap wording and is the acceptance-criteria / definition-of-done source of truth. Any broader roadmap bullets not listed as in-scope here are explicitly deferred to later phases unless this document is revised.
 
 ## In scope
 
@@ -98,7 +98,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 
 ## Definition of done
 
-- [Phase 4 Plan](docs/phases/phase-4.md) records the final objective, scope, non-goals, tests-first plan, acceptance criteria, definition of done, validation steps, durable decisions, and unresolved questions
+- [Phase 4 Plan](phase-4.md) records the final objective, scope, non-goals, tests-first plan, acceptance criteria, definition of done, validation steps, durable decisions, and unresolved questions
 - [Phase 4 Summary](tmp/phases/phase-4/summary.md) and the durable phase doc record the prioritized skill-scan findings for realistic deterministic extraction candidates
 - failing package tests for `phase-files` parity and review-thread parsing are added before implementation is considered complete
 - `packages/core/src/loop/phase-files.mjs` is the shared source of truth for phase-file behavior
@@ -148,7 +148,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 - the existing `bash-exit-one` helper remains an established regression guard, but it does not by itself satisfy the requirement to prove new shared package value in Phase 4
 - timeout policy, workflow/check normalization, watcher behavior, and broader restart/cleanup mechanics are deferred until a later phase with a concrete consumer and clearer boundary
 - the current source-loaded workspace/package contract from Phase 3 remains the operative package mode for Phase 4
-- the durable phase doc intentionally supersedes the broader roadmap wording in [Project Plan](PLAN.md) for Phase 4 implementation acceptance until the roadmap is updated
+- the durable phase doc intentionally supersedes the broader roadmap wording in [Project Plan](../../../PLAN.md) for Phase 4 implementation acceptance until the roadmap is updated
 - the dev-mode follow-up for this phase tightened planning expectations around bounded audits/scans and malformed-argument/error-contract coverage for new CLIs
 
 ## Risks / watchpoints
@@ -168,7 +168,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 ## Bounded skill-scan findings
 
 Bounded scan scope for this phase:
-- [Dev Loop Skill](skills/dev-loop/SKILL.md)
+- [Dev Loop Skill](../../../skills/dev-loop/SKILL.md)
 - `skills/dev-loop/scripts/*.mjs`
 - [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md)
 

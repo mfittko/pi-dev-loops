@@ -15,7 +15,7 @@ This repository is building reusable Pi development loops, not just consuming th
 ## In scope
 
 - adopt a docs-first phase convention where [Phase Plan](docs/phases/phase-<n>.md) is the durable plan for each phase
-- keep [Project Plan](PLAN.md) as the strategic cross-phase roadmap
+- keep [Project Plan](../../../PLAN.md) as the strategic cross-phase roadmap
 - keep `tmp/phases/phase-<n>/` for execution artifacts and machine-friendly logs
 - update the local `dev-loop` skill and helper scaffolding to reflect that convention
 - define the initial boundary for a shared npm support package usable by Pi skills, repo-local scripts, and GitHub Actions
@@ -41,19 +41,19 @@ This repository is building reusable Pi development loops, not just consuming th
 
 Phase 0 is complete when all of the following are true:
 
-- [Project Plan](PLAN.md) and [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md) both describe the docs-first phase convention consistently
-- [Implementation State](docs/IMPLEMENTATION_STATE.md) points a fresh session at [Phase 0 Plan](docs/phases/phase-0.md) as the active durable phase plan
-- [Phase 0 Plan](docs/phases/phase-0.md) clearly states scope, non-goals, acceptance criteria, and open questions for the phase
-- [Dev Loop Skill](skills/dev-loop/SKILL.md) treats [Phase Plan](docs/phases/phase-<n>.md) as a first-class durable artifact
+- [Project Plan](../../../PLAN.md) and [Implementation Workflow](../../IMPLEMENTATION_WORKFLOW.md) both describe the docs-first phase convention consistently
+- [Implementation State](../../IMPLEMENTATION_STATE.md) points a fresh session at [Phase 0 Plan](phase-0.md) as the active durable phase plan
+- [Phase 0 Plan](phase-0.md) clearly states scope, non-goals, acceptance criteria, and open questions for the phase
+- [Dev Loop Skill](../../../skills/dev-loop/SKILL.md) treats [Phase Plan](docs/phases/phase-<n>.md) as a first-class durable artifact
 - the phase scaffold helper can generate [Phase Plan](docs/phases/phase-<n>.md) plus the expected tmp artifacts in a temp repo smoke test
-- the expected durable support files for this workflow contract exist in the repository, including [Agent Instructions](AGENTS.md), [Implementation State](docs/IMPLEMENTATION_STATE.md), [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md), and the active [Phase 0 Plan](docs/phases/phase-0.md)
+- the expected durable support files for this workflow contract exist in the repository, including [Agent Instructions](../../../AGENTS.md), [Implementation State](../../IMPLEMENTATION_STATE.md), [Implementation Workflow](../../IMPLEMENTATION_WORKFLOW.md), and the active [Phase 0 Plan](phase-0.md)
 - no additional broad helper extraction work is required to claim the workflow convention is established
 - the phase has passed the required review/fix and validation steps
 - the resulting branch state has been committed and merged back to local `main`, or the phase is explicitly marked `awaiting-finalization` pending authorization for that last step
 
 ## Deliverables
 
-- [Agent Instructions](AGENTS.md)
+- [Agent Instructions](../../../AGENTS.md)
 - durable workflow docs under `docs/`
 - a durable Phase 0 doc under `docs/phases/`
 - aligned `dev-loop` skill instructions and templates
@@ -68,7 +68,7 @@ Phase 0 is complete when all of the following are true:
 
 ## Durable decisions
 
-- [Project Plan](PLAN.md) remains the cross-phase roadmap and product-truth document
+- [Project Plan](../../../PLAN.md) remains the cross-phase roadmap and product-truth document
 - [Phase Plan](docs/phases/phase-<n>.md) is the durable per-phase plan
 - `tmp/phases/phase-<n>/` remains the temporary local execution-artifact surface
 - shared deterministic logic should move toward a package-first support layer

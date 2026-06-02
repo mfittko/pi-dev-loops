@@ -11,13 +11,13 @@ Codifying the sub-loop once as a shared contract avoids inconsistent execution.
 
 This contract owns the **execution shape** of gate-review work. It does not own:
 - which review angles a specific gate runs (that stays in the skill)
-- the visible gate-review PR comment format (owned by [Gate Review Comment Contract](docs/gate-review-comment-contract.md))
-- the broader PR lifecycle sequencing (owned by the workflow skill and [PR Lifecycle Contract](skills/docs/pr-lifecycle-contract.md))
+- the visible gate-review PR comment format (owned by [Gate Review Comment Contract](gate-review-comment-contract.md))
+- the broader PR lifecycle sequencing (owned by the workflow skill and [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md))
 
 ## Relationship to the gate-review comment contract
 
 The sub-loop executes the review work. The gate-review comment contract
-([Gate Review Comment Contract](docs/gate-review-comment-contract.md)) defines the visible PR comment evidence that
+([Gate Review Comment Contract](gate-review-comment-contract.md)) defines the visible PR comment evidence that
 proves the sub-loop completed for a specific head SHA. Both are required for a gate to
 be satisfied, but they address different concerns:
 - this contract = **how** the review work is structured and executed
@@ -40,8 +40,8 @@ on an isolated checkout:
   scope, acceptance criteria, touched files, validation posture)
 - reference the pi-subagents `parallel context-build` technique when applicable:
   run parallel `context-builder` agents from fresh context with distinct output paths
-  (e.g. [Request and Scope Context](context-build/request-and-scope.md), [Codebase and Patterns Context](context-build/codebase-and-patterns.md),
-  [Validation and Risks Context](context-build/validation-and-risks.md)) and synthesize the outputs into the review
+  (e.g. `context-build/request-and-scope.md`, `context-build/codebase-and-patterns.md`,
+  `context-build/validation-and-risks.md`) and synthesize the outputs into the review
   handoff artifacts
 
 ### Phase 2 — Fork fan-out: parallel reviewers
@@ -109,8 +109,8 @@ identical; only the review angles differ.
 
 | Gate | Review angles | Owned by |
 |---|---|---|
-| `draft_gate` | Resolved from config (`resolveGateAngles(config, "draft")`) | [Copilot PR Follow-up Skill](skills/copilot-pr-followup/SKILL.md) |
-| `pre_approval_gate` | Resolved from config (`resolveGateAngles(config, "preApproval")`) | [Copilot PR Follow-up Skill](skills/copilot-pr-followup/SKILL.md) |
+| `draft_gate` | Resolved from config (`resolveGateAngles(config, "draft")`) | [Copilot PR Follow-up Skill](../skills/copilot-pr-followup/SKILL.md) |
+| `pre_approval_gate` | Resolved from config (`resolveGateAngles(config, "preApproval")`) | [Copilot PR Follow-up Skill](../skills/copilot-pr-followup/SKILL.md) |
 
 ## Non-substitution rule
 

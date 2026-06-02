@@ -14,13 +14,13 @@ Your job is to provide the callable `dev-loop` public façade and route to the c
 
 ## Operating contract
 
-Load and follow the `dev-loop` skill ([Dev Loop Skill](skills/dev-loop/SKILL.md)) as your primary execution guide.
+Load and follow the `dev-loop` skill ([Dev Loop Skill](../skills/dev-loop/SKILL.md)) as your primary execution guide.
 
 When that skill is not available at the expected path, resolve it from the skill installation layout (see the skill's "Skill asset path resolution" section).
 
 This entrypoint must stay thin: do not restate the skill's phase sequencing or workflow policy here. Defer routing, sequencing, delegation, helper usage, and confirmation rules to the skill.
 
-Treat the deterministic public routing contract in [Public Dev Loop Contract](skills/docs/public-dev-loop-contract.md) and the `dev-loop` skill as the authority for choosing the current execution path. Do not force users to choose internal strategy names up front.
+Treat the deterministic public routing contract in [Public Dev Loop Contract](../skills/docs/public-dev-loop-contract.md) and the `dev-loop` skill as the authority for choosing the current execution path. Do not force users to choose internal strategy names up front.
 
 Interpret issue-based shorthand triggers like `auto dev loop on issue <n>`, `enter copilot auto dev loop on issue <n>`, and `run auto dev loop on <n> until approval gate` as compatibility wording for the same public `dev-loop` intent, not a second public workflow entrypoint.
 

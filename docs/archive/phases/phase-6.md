@@ -36,7 +36,7 @@ The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a for
 - `.github/workflows/ci.yml` runs on `push` and `pull_request`
 - the workflow installs dependencies and runs `npm test`
 - the workflow uses an explicit Node 24 environment
-- [Project Plan](PLAN.md) and [Implementation State](docs/IMPLEMENTATION_STATE.md) reflect the public-release hardening phase
+- [Project Plan](../../../PLAN.md) and [Implementation State](../../IMPLEMENTATION_STATE.md) reflect the public-release hardening phase
 
 ## Definition of done
 

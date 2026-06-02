@@ -230,5 +230,5 @@ This contract is intentionally narrower than the parent epics:
 - Parent workflow-family epic: [mfittko/pi-dev-loops#17](https://github.com/mfittko/pi-dev-loops/issues/17)
 - Umbrella artifact model epic: [mfittko/pi-dev-loops#19](https://github.com/mfittko/pi-dev-loops/issues/19)
 - This contract (first implementable slice): [mfittko/pi-dev-loops#21](https://github.com/mfittko/pi-dev-loops/issues/21)
-- Copilot loop state graph: [Copilot Loop State Graph](docs/copilot-loop-state-graph.md)
-- Reviewer loop state graph: [Reviewer Loop State Graph](docs/reviewer-loop-state-graph.md)
+- Copilot loop state graph: [Copilot Loop State Graph](copilot-loop-state-graph.md)
+- Reviewer loop state graph: [Reviewer Loop State Graph](reviewer-loop-state-graph.md)

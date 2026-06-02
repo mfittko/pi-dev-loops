@@ -16,7 +16,7 @@ This skill is the public `dev-loop` façade for this repository. It should resol
 
 ## Authoritative routing contract
 
-- The authoritative contract is [Public Dev Loop Contract](skills/docs/public-dev-loop-contract.md) in the source repository.
+- The authoritative contract is [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) in the source repository.
 - The executable evaluator is exported as `@pi-dev-loops/core/loop/public-dev-loop-routing`.
 - Required installed runtime contract docs for this skill are the shared bundled copies under `../docs/` from this skill directory (that is, [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) and [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md)).
   - In the source repository these live under `skills/docs/`; in installed skill copies they live next to the installed skill directories under `../docs/`.

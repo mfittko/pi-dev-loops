@@ -84,7 +84,7 @@ Read only the constitution / contract docs and runtime surface needed for the cu
 
 Before planning, review, or automation:
 
-1. [Agent Instructions](AGENTS.md) if present
+1. [Agent Instructions](../../AGENTS.md) if present
 2. [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
 3. if the current step depends on async start/resume/status or retrospective enforcement, [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md)
 4. the relevant GitHub issue or PR
@@ -547,7 +547,7 @@ When you do hand work to Copilot:
 
 ## PR description contract
 
-Follow the PR description contract (see [Agent Instructions](AGENTS.md) if present; otherwise use the structure below): detailed structured descriptions, not thin placeholders. At minimum include change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
+Follow the PR description contract (see [Agent Instructions](../../AGENTS.md) if present; otherwise use the structure below): detailed structured descriptions, not thin placeholders. At minimum include change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
 
 New PRs in this workflow must be opened as **draft** PRs first. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate review is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is even eligible.
 
@@ -736,17 +736,17 @@ Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.
 
 ### Draft gate contract (before marking PR ready for review)
 
-The canonical gate-review comment contract is [Gate Review Comment Contract](docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
+The canonical gate-review comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
 
 - **Gate name:** Draft gate
 - **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
 - **Skip rule:** before entering the draft gate, run `detect-pr-gate-coordination-state.mjs` and check `draftGateAlreadySatisfied`. If `true`, skip the draft gate entirely — the draft→ready transition was already recorded. `draft_gate` is a one-time gate; do not re-post on new heads. Only run the draft gate if `draftGateAlreadySatisfied` is `false` and no clean evidence exists.
-- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](docs/gate-review-sub-loop-contract.md) with the draft gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain: context-builder produces a shared briefing, parallel reviewers fork from it, consolidation merges findings into a fix plan.
+- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the draft gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain: context-builder produces a shared briefing, parallel reviewers fork from it, consolidation merges findings into a fix plan.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config ships `scope`, `coverage`, `correctness`; consumer repos may override.
 - **Pass criteria:** all configured draft gate angles pass; all must-fix findings are addressed; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review.
 - **Non-substitution rule:** a clean `draft_gate` comment only authorizes the draft → ready-for-review transition for that head SHA. It does **not** satisfy `pre_approval_gate`, final-approval readiness, or merge-ready requirements.
-- **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper (see Mandatory gate-comment command contract above). Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See [Gate Review Comment Contract](docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
+- **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper (see Mandatory gate-comment command contract above). Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
 - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
 - If the `draft_gate` finds issues, the comment must say that the PR stays draft and needs fixes before retrying.
 - Do not run `gh pr ready` unless a visible `clean` `draft_gate` gate-review comment exists for the current head SHA.
@@ -755,17 +755,17 @@ The canonical gate-review comment contract is [Gate Review Comment Contract](doc
 
 ### Pre-approval gate contract
 
-This is the default pre-approval gate for this workflow boundary. The canonical gate-review comment contract is [Gate Review Comment Contract](docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
+This is the default pre-approval gate for this workflow boundary. The canonical gate-review comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
 
 - **Gate name:** Pre-approval gate
 - **Trigger / boundary:** right before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff
-- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](docs/gate-review-sub-loop-contract.md) with the pre-approval gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain; only re-run reviewers that had findings in the previous pass.
+- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the pre-approval gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain; only re-run reviewers that had findings in the previous pass.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config`. Default config ships `dry`, `kiss`, `yagni`, `srp`, `soc`; consumer repos may override.
 - **Persona mapping:** each angle resolves to a reviewer persona via `resolveReviewerRole(config, angle)` from `@pi-dev-loops/core/config`. The result includes the angle-specific `prompt` — a focused review instruction. Include this prompt in each reviewer's briefing so the reviewer knows exactly what to look for. Consumers may add custom persona agents and prompts via their own config.
 - **Pass criteria:** the sub-loop completes with verdict `clean`; all configured angles pass; if parallel execution is impractical, still run all configured lenses and explicitly record the limitation.
 - **Next step after passing:** continue the Step 7 flow and then proceed to Step 8.
 - **Non-substitution rule:** a clean `pre_approval_gate` comment is separate from `draft_gate` evidence. It governs final-approval readiness for that head SHA; it does **not** replace the required `draft_gate` evidence for leaving draft.
-- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper (see Mandatory gate-comment command contract above). Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval. Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA. Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence. See [Gate Review Comment Contract](docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
+- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper (see Mandatory gate-comment command contract above). Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval. Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA. Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
 - The `pre_approval_gate` procedure must be entered and completed (visible comment posted) before any merge-ready or approval-ready declaration. Skipping the gate is not recoverable by asserting convergence.
 - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
 - If fixes advance the head SHA, post a new gate-review comment for the new head.

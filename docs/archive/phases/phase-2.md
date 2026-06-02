@@ -14,7 +14,7 @@ The next most immediate workflow gap is not extension/setup UX but refinement qu
 
 ## In scope
 
-- add a dedicated [Refiner Agent](agents/refiner.agent.md) for local phase refinement
+- add a dedicated [Refiner Agent](../../../agents/refiner.agent.md) for local phase refinement
 - require the refiner to produce:
   - complete acceptance-criteria lists
   - complete definition-of-done lists
@@ -24,7 +24,7 @@ The next most immediate workflow gap is not extension/setup UX but refinement qu
   - lead dev
   - specialized dev
   - systems architect
-- update [Dev Loop Skill](skills/dev-loop/SKILL.md) so the planning loop uses the refiner and prefers parallel fan-out/fan-in where applicable
+- update [Dev Loop Skill](../../../skills/dev-loop/SKILL.md) so the planning loop uses the refiner and prefers parallel fan-out/fan-in where applicable
 - add stable definition-of-done sections/checks to the relevant planning templates and review surfaces
 - update roadmap/state docs so Phase 2 is refiner-first and extension/setup UX is deferred
 
@@ -38,15 +38,15 @@ The next most immediate workflow gap is not extension/setup UX but refinement qu
 
 ## Acceptance criteria
 
-- a new [Refiner Agent](agents/refiner.agent.md) exists and is clearly scoped to phase refinement
+- a new [Refiner Agent](../../../agents/refiner.agent.md) exists and is clearly scoped to phase refinement
 - the refiner requires complete, testable acceptance criteria for the active phase
 - the refiner requires a complete definition-of-done list for the active phase
 - the refiner surfaces non-goals, risks, and unresolved questions instead of guessing through them
 - the refiner explicitly escalates RFC-worthy technical decisions through the coordinator
 - the coordinator-side contract names the RFC team as lead dev, specialized dev, and systems architect
-- [Dev Loop Skill](skills/dev-loop/SKILL.md) uses the refiner during phase planning and preserves parallel fan-out/fan-in where applicable
+- [Dev Loop Skill](../../../skills/dev-loop/SKILL.md) uses the refiner during phase planning and preserves parallel fan-out/fan-in where applicable
 - the relevant planning templates and review surfaces contain stable definition-of-done sections/checks
-- [Project Plan](PLAN.md) and [Implementation State](docs/IMPLEMENTATION_STATE.md) agree that the refiner-agent slice comes before extension/setup UX
+- [Project Plan](../../../PLAN.md) and [Implementation State](../../IMPLEMENTATION_STATE.md) agree that the refiner-agent slice comes before extension/setup UX
 
 ## Definition of done
 

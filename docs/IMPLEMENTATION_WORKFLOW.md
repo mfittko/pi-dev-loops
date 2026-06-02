@@ -10,7 +10,7 @@ Use these defaults unless the user explicitly asks for something else:
 - use the local implementation strategy for phase-bounded local planning/implementation only when explicitly requested
 
 Authority split:
-- [Public Dev Loop Contract](skills/docs/public-dev-loop-contract.md) owns the public routing/shorthand contract
+- [Public Dev Loop Contract](../skills/docs/public-dev-loop-contract.md) owns the public routing/shorthand contract
 - this file owns workflow layering, source-of-truth boundaries, and the local phase process
 - internal compatibility/routed strategy details stay behind that public contract rather than acting as peer public entrypoints
 
@@ -25,20 +25,20 @@ Use GitHub as the backlog and execution trail for GitHub-first work:
 
 Do not invent a parallel backlog file for active GitHub-first execution.
 
-### 2. [Project Plan](PLAN.md)
+### 2. [Project Plan](../PLAN.md)
 
 Use for durable repo/product/architecture/roadmap truth.
 
-Do not turn [Project Plan](PLAN.md) into an issue-level implementation checklist.
+Do not turn [Project Plan](../PLAN.md) into an issue-level implementation checklist.
 
-### 3. [Implementation State](docs/IMPLEMENTATION_STATE.md)
+### 3. [Implementation State](IMPLEMENTATION_STATE.md)
 
 Use for the current repo execution snapshot:
 - which phase is active
 - what a fresh session should read first
 - which workflow mode is expected next
 
-### 4. [Phase Plan](docs/phases/phase-<n>.md)
+### 4. `Phase Plan` (`docs/phases/phase-<n>.md`)
 
 Use for the durable plan for one phase-doc-backed local phase:
 - why the phase exists now
@@ -59,7 +59,7 @@ For tracker-backed local sessions, the tracker issue is the durable canonical sp
 - use the bounded GitHub-backed helper path (`scripts/github/resolve-tracker-local-spec.mjs`) or the equivalent `gh issue view <number> --repo <owner/name> --json number,title,body,url,state` call
 - treat the tracker issue title/body/acceptance content as the local spec surface
 - sync durable scope / acceptance / status changes back to the tracker issue
-- do **not** also maintain [Phase Plan](docs/phases/phase-<n>.md) for that same tracker-backed session
+- do **not** also maintain `Phase Plan` (`docs/phases/phase-<n>.md`) for that same tracker-backed session
 
 ### 5. `tmp/`
 
@@ -78,7 +78,7 @@ These files are normally local-only and do not need to be committed.
 
 For already-shipped helpers, CLIs, and extension commands:
 - shipped helper/runtime semantics stay owned by code, tests, and the relevant contract docs
-- [Scripts Documentation](scripts/README.md) summarizes those semantics for operators and maintainers; it must be kept aligned with the implementation
+- [Scripts Documentation](../scripts/README.md) summarizes those semantics for operators and maintainers; it must be kept aligned with the implementation
 - the narrower state-graph/contract docs under `docs/` remain part of the authoritative shipped contract surface for their helper families
 - skills and phase docs explain workflow procedure and durable planning intent; they must not silently redefine shipped helper behavior
 
@@ -89,12 +89,12 @@ Use workflow/phase docs to explain how to operate within the repository contract
 When a merged slice changes durable repo truth, update the affected durable docs before treating the slice as closed.
 
 Typical touched docs:
-- [README](README.md) when the shipped surface or usage contract changed
-- [Project Plan](PLAN.md) when durable roadmap/product truth changed
-- [Implementation State](docs/IMPLEMENTATION_STATE.md) when the current status, active phase, or fresh-session guidance changed
-- [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md) when workflow preference or source-of-truth rules changed
+- [README](../README.md) when the shipped surface or usage contract changed
+- [Project Plan](../PLAN.md) when durable roadmap/product truth changed
+- [Implementation State](IMPLEMENTATION_STATE.md) when the current status, active phase, or fresh-session guidance changed
+- [Implementation Workflow](IMPLEMENTATION_WORKFLOW.md) when workflow preference or source-of-truth rules changed
 - relevant contract/state-graph docs under `docs/` when a helper or workflow contract changed
-- [Scripts Documentation](scripts/README.md) when script surfaces, outputs, or supported entrypoints changed
+- [Scripts Documentation](../scripts/README.md) when script surfaces, outputs, or supported entrypoints changed
 
 Keep issue-specific execution plans in GitHub issues/PRs or `tmp/`, not in repo-level durable docs.
 
@@ -124,10 +124,10 @@ Do not mark a phase `completed` if the only thing left is “commit later” or 
 ## Bootstrap/support expectation for the local phase path
 
 The local phase workflow expects the repo to maintain:
-- [Agent Instructions](AGENTS.md)
-- [Implementation State](docs/IMPLEMENTATION_STATE.md)
-- [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md)
-- [Phase Plan](docs/phases/phase-<n>.md) for phase-doc-backed local sessions
+- [Agent Instructions](../AGENTS.md)
+- [Implementation State](IMPLEMENTATION_STATE.md)
+- [Implementation Workflow](IMPLEMENTATION_WORKFLOW.md)
+- `Phase Plan` (`docs/phases/phase-<n>.md`) for phase-doc-backed local sessions
 - `tmp/phases/index.json`
 - `tmp/phases/phase-<n>/...`
 

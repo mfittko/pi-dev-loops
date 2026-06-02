@@ -33,6 +33,6 @@ test('designer review loop doc and template define the bounded UI review handoff
   assert.match(template, /Next-iteration focus areas/i);
 
   assert.match(readme, /docs\/ui-designer-review-loop\.md/i);
-  assert.match(indexDoc, /docs\/ui-designer-review-loop\.md/i);
-  assert.match(localImplementationSkill, /docs\/ui-designer-review-loop\.md/i);
+  assert.match(indexDoc, /ui-designer-review-loop\.md/i);
+  assert.match(localImplementationSkill, /\.\.\/\.\.\/docs\/ui-designer-review-loop\.md/i);
 });

@@ -17,14 +17,14 @@ This skill is the canonical internal `local_implementation` route behind the pub
 
 Use it only after the public dispatcher has already resolved `selectedStrategy: local_implementation`. This skill owns the local phase procedure and artifact discipline for that route; it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands.
 
-Read the authoritative public routing contract at [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) and keep any repository-specific decisions grounded in [Project Plan](PLAN.md), durable phase docs, source, tests, config, and actual validation commands.
-For UI validation under `dev-loop`, see [UI Validation Contract](docs/ui-validation-contract.md), [UI Smoke Harness](docs/ui-smoke-harness.md), [UI Artifact Contract](docs/ui-artifact-contract.md), and [UI Designer Review Loop](docs/ui-designer-review-loop.md) (these are repo-level docs present in the source checkout; they are not part of the bundled `../docs/` runtime contract surface for installed skill copies).
+Read the authoritative public routing contract at [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) and keep any repository-specific decisions grounded in [Project Plan](../../PLAN.md), durable phase docs, source, tests, config, and actual validation commands.
+For UI validation under `dev-loop`, see [UI Validation Contract](../../docs/ui-validation-contract.md), [UI Smoke Harness](../../docs/ui-smoke-harness.md), [UI Artifact Contract](../../docs/ui-artifact-contract.md), and [UI Designer Review Loop](../../docs/ui-designer-review-loop.md) (these are repo-level docs present in the source checkout; they are not part of the bundled `../docs/` runtime contract surface for installed skill copies).
 
 ## Minimal required project inputs
 
 For a new project, the only required inputs are:
 
-1. [Project Plan](PLAN.md)
+1. [Project Plan](../../PLAN.md)
 2. this skill's [this skill file](SKILL.md)
 
 Everything else is optional and may be bootstrapped by this skill.
@@ -38,7 +38,7 @@ Read only what the current routed step actually needs.
 Before acting on a GitHub-first issue/PR request:
 
 1. read this skill
-2. if [Agent Instructions](AGENTS.md) exists, read it first as the repo constitution / working agreement
+2. if [Agent Instructions](../../AGENTS.md) exists, read it first as the repo constitution / working agreement
 3. read [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
 4. if the current step depends on async start/resume/status or retrospective enforcement, read [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md)
 5. read the relevant GitHub issue or PR
@@ -50,11 +50,11 @@ Before acting on a GitHub-first issue/PR request:
 Before local phase planning or coding:
 
 1. read this skill
-2. if [Agent Instructions](AGENTS.md) exists, read it
-3. read [Project Plan](PLAN.md)
-4. if [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md) exists, read it
-5. if [Implementation State](docs/IMPLEMENTATION_STATE.md) exists, read it
-6. if the active local session is phase-doc-backed and [Phase Plan](docs/phases/phase-x.md) exists for the active phase, read it
+2. if [Agent Instructions](../../AGENTS.md) exists, read it
+3. read [Project Plan](../../PLAN.md)
+4. if [Implementation Workflow](../../docs/IMPLEMENTATION_WORKFLOW.md) exists, read it
+5. if [Implementation State](../../docs/IMPLEMENTATION_STATE.md) exists, read it
+6. if the active local session is phase-doc-backed and [Phase Plan](../../docs/phases/phase-x.md) exists for the active phase, read it
 7. if the active local session is tracker-backed, deterministically resolve the tracker issue spec first via `scripts/github/resolve-tracker-local-spec.mjs` (or the equivalent `gh issue view <number> --repo <owner/name> --json number,title,body,url,state` call), then treat that tracker issue as canonical for the rest of the local session
 
 Treat missing optional files as normal bootstrap conditions, not as errors.
@@ -63,7 +63,7 @@ Treat missing optional files as normal bootstrap conditions, not as errors.
 
 Local implementation supports two durable spec inputs:
 
-- phase-doc-backed local sessions ([Phase Plan](docs/phases/phase-x.md) is canonical)
+- phase-doc-backed local sessions ([Phase Plan](../../docs/phases/phase-x.md) is canonical)
 - tracker-backed local sessions (the tracker issue is canonical)
 
 Tracker-backed local implementation stays inside the existing `local_implementation` path. It does not introduce a new routing mode.
@@ -73,7 +73,7 @@ When the local spec already lives in a tracker issue:
 - resolve the tracker reference deterministically from a GitHub issue URL or explicit `<owner/name>` + issue number
 - use the bounded GitHub helper `scripts/github/resolve-tracker-local-spec.mjs` when you need a machine-readable spec bundle
 - treat the tracker issue title/body/url/state as the durable local spec bundle
-- do not create or read [Phase Plan](docs/phases/phase-x.md) for that same tracker-backed session
+- do not create or read [Phase Plan](../../docs/phases/phase-x.md) for that same tracker-backed session
 - sync durable scope / acceptance / status changes back to the tracker issue rather than maintaining a duplicate local phase doc
 - keep `tmp/` as temporary local execution state only; it does not become a second durable spec surface
 - for tracker-backed sessions, the handoff path is always: push the working branch → open a PR → merge via GitHub
@@ -87,28 +87,28 @@ When the local spec already lives in a tracker issue:
 - Work **test-first** for all non-trivial logic.
 - Maintain **90% coverage** thresholds.
 - Log detailed iteration artifacts under `tmp/` using the required structure below.
-- For phase-doc-backed local sessions, keep durable phase intent and acceptance criteria in [Phase Plan](docs/phases/phase-x.md); for tracker-backed local sessions, keep that durable intent in the tracker issue and do not duplicate it into [Phase Plan](docs/phases/phase-x.md). Keep detailed execution artifacts in `tmp/`.
+- For phase-doc-backed local sessions, keep durable phase intent and acceptance criteria in [Phase Plan](../../docs/phases/phase-x.md); for tracker-backed local sessions, keep that durable intent in the tracker issue and do not duplicate it into [Phase Plan](../../docs/phases/phase-x.md). Keep detailed execution artifacts in `tmp/`.
 - Treat `tmp/` as temporary local execution state. Do not rely on it as durable repo history and do not force-add it to git unless the user explicitly wants checked-in examples or fixtures.
-- When a phase changes durable product truth in ways [Project Plan](PLAN.md) should express (for example command surface, accepted product decisions, resolved open questions, or scope changes), update [Project Plan](PLAN.md) before closing the phase.
+- When a phase changes durable product truth in ways [Project Plan](../../PLAN.md) should express (for example command surface, accepted product decisions, resolved open questions, or scope changes), update [Project Plan](../../PLAN.md) before closing the phase.
 - Do implementation work on a dedicated local branch, not directly on `main`.
 - If the repo has no commits yet, still create the working branch first so the first commits land off `main`; only move `main` forward after review and validation.
 - Use small atomic local commits as progress checkpoints whenever a coherent slice is green and reviewable.
 - Before a branch is considered review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate as a full review / fix loop with the review angles resolved from config (`resolveGateAngles(config, "preApproval")`), then apply accepted fixes and rerun validation.
 - A phase is only fully complete when its scoped work, required support files, artifacts, validation, review/fix pass, commit(s), and finalization (merge into local `main` for phase-doc-backed sessions; PR merge for tracker-backed sessions) are done, or when the only remaining step is an explicitly noted authorization-gated finalization action.
 - When subagents are used, log what each subagent was asked to do and what it concluded.
-- If [Project Plan](PLAN.md) is too rough or ambiguous to safely start the current phase, do not guess: run a clarification/interview step with the user first.
+- If [Project Plan](../../PLAN.md) is too rough or ambiguous to safely start the current phase, do not guess: run a clarification/interview step with the user first.
 
 ## Deterministic logging structure
 
 Treat the workflow as three layers:
-- [Project Plan](PLAN.md) = strategic product and architecture truth
-- [Phase Plan](docs/phases/phase-x.md) or the canonical tracker issue = durable per-phase plan and acceptance criteria for the active local session
+- [Project Plan](../../PLAN.md) = strategic product and architecture truth
+- [Phase Plan](../../docs/phases/phase-x.md) or the canonical tracker issue = durable per-phase plan and acceptance criteria for the active local session
 - `tmp/` = temporary local execution audit trail and machine-friendly continuation state
 
 Maintain the core paths below while the phase is active locally, and create optional artifacts only when they are actually used:
 
 Core paths:
-- for phase-doc-backed local sessions: [Phase Plan](docs/phases/phase-x.md)
+- for phase-doc-backed local sessions: [Phase Plan](../../docs/phases/phase-x.md)
 - `tmp/phases/index.json`
 - `tmp/phases/phase-x/manifest.json`
 - [Variant A](tmp/phases/phase-x/variant-a.md)
@@ -137,18 +137,18 @@ Use deterministic helper scripts from `../dev-loop/scripts/` (the sibling `skill
 
 If these files are missing, create them from the `../dev-loop/templates/` directory before continuing:
 
-- missing [Agent Instructions](AGENTS.md) -> create from [Bootstrap Agents Template](../dev-loop/templates/bootstrap-agents.md)
-- missing [Implementation State](docs/IMPLEMENTATION_STATE.md) -> create from [Bootstrap Implementation State Template](../dev-loop/templates/bootstrap-implementation-state.md)
-- missing [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md) -> create from [Bootstrap Implementation Workflow Template](../dev-loop/templates/bootstrap-implementation-workflow.md)
-- missing [Phase Plan](docs/phases/phase-x.md) for the active phase -> create from [Phase Doc Template](../dev-loop/templates/phase-doc.md)
+- missing [Agent Instructions](../../AGENTS.md) -> create from [Bootstrap Agents Template](../dev-loop/templates/bootstrap-agents.md)
+- missing [Implementation State](../../docs/IMPLEMENTATION_STATE.md) -> create from [Bootstrap Implementation State Template](../dev-loop/templates/bootstrap-implementation-state.md)
+- missing [Implementation Workflow](../../docs/IMPLEMENTATION_WORKFLOW.md) -> create from [Bootstrap Implementation Workflow Template](../dev-loop/templates/bootstrap-implementation-workflow.md)
+- missing [Phase Plan](../../docs/phases/phase-x.md) for the active phase -> create from [Phase Doc Template](../dev-loop/templates/phase-doc.md)
 - missing `tmp/phases/index.json` -> create or reinitialize it
 
-The bootstrap files are support infrastructure. [Project Plan](PLAN.md) remains the product source of truth. For phase-doc-backed local sessions, [Phase Plan](docs/phases/phase-x.md) is the durable source of truth for the current phase's plan and acceptance boundary. For tracker-backed local sessions, the tracker issue is that durable source of truth, and no duplicate local phase doc should be bootstrapped.
+The bootstrap files are support infrastructure. [Project Plan](../../PLAN.md) remains the product source of truth. For phase-doc-backed local sessions, [Phase Plan](../../docs/phases/phase-x.md) is the durable source of truth for the current phase's plan and acceptance boundary. For tracker-backed local sessions, the tracker issue is that durable source of truth, and no duplicate local phase doc should be bootstrapped.
 
 For bootstrap/setup phases, do not mark the phase `completed` or `awaiting-finalization` until the expected durable support files for the chosen workflow contract actually exist in the repository. Temporary `tmp/` execution artifacts do not need to be committed.
 ## Plan sufficiency check
 
-Before phase planning, check whether [Project Plan](PLAN.md) contains enough information to proceed safely.
+Before phase planning, check whether [Project Plan](../../PLAN.md) contains enough information to proceed safely.
 
 At minimum, the current phase needs enough information to infer:
 - the goal of the phase
@@ -166,9 +166,9 @@ When the plan is insufficient, use one of these modes:
 - ask only the missing high-value questions needed to safely refine the current phase
 - prefer a short interview or wizard-style sequence over one giant question dump
 - record the answers in [Clarification Log](tmp/phases/phase-x/clarification.md)
-- update [Phase Plan](docs/phases/phase-x.md) with clarified durable phase intent, scope, or acceptance criteria
-- update [Project Plan](PLAN.md) only if the clarified information is durable product/project truth beyond the current phase
-- update [Implementation State](docs/IMPLEMENTATION_STATE.md) if the clarification changes the next phase boundary
+- update [Phase Plan](../../docs/phases/phase-x.md) with clarified durable phase intent, scope, or acceptance criteria
+- update [Project Plan](../../PLAN.md) only if the clarified information is durable product/project truth beyond the current phase
+- update [Implementation State](../../docs/IMPLEMENTATION_STATE.md) if the clarification changes the next phase boundary
 
 ### Mode B — auto clarification
 Use this when the user explicitly asks for an auto option, says to just proceed, or is clearly optimizing for speed over discussion.
@@ -186,8 +186,8 @@ Do not begin fan-out planning until the current phase is sufficiently specified,
 
 ## Determine where to resume
 
-Read [Implementation State](docs/IMPLEMENTATION_STATE.md) and identify the next unfinished phase.
-Read [Phase Plan](docs/phases/phase-x.md) for that phase if it exists.
+Read [Implementation State](../../docs/IMPLEMENTATION_STATE.md) and identify the next unfinished phase.
+Read [Phase Plan](../../docs/phases/phase-x.md) for that phase if it exists.
 
 If `tmp/phases/index.json` exists locally, use it as a fast index for prior artifacts.
 If the durable phase doc, the state file, and the tmp index disagree, trust docs first and note the mismatch in the phase review log.
@@ -196,7 +196,7 @@ If the state file is ambiguous, resolve ambiguity conservatively:
 - prefer the earliest clearly unfinished phase
 - do not skip ahead
 - note the ambiguity in the phase review log under `tmp/`
-- if this is a first-run bootstrap, start from the earliest phase implied by [Project Plan](PLAN.md)
+- if this is a first-run bootstrap, start from the earliest phase implied by [Project Plan](../../PLAN.md)
 
 ## Phase planning loop
 
@@ -211,7 +211,7 @@ Use paths like:
 - `tmp/phases/phase-1/`
 
 Create or update:
-- [Phase Plan](docs/phases/phase-x.md)
+- [Phase Plan](../../docs/phases/phase-x.md)
 - `tmp/phases/phase-x/manifest.json`
 - `tmp/phases/index.json`
 
@@ -278,7 +278,7 @@ Update `manifest.json` with the planned artifact list and current status.
 
 Write:
 - [Merged Plan](tmp/phases/phase-x/merged-plan.md)
-- update [Phase Plan](docs/phases/phase-x.md) with the selected durable phase plan
+- update [Phase Plan](../../docs/phases/phase-x.md) with the selected durable phase plan
 
 Use the templates in [Merged Phase Plan Template](../dev-loop/templates/merged-phase-plan.md) and [Phase Doc Template](../dev-loop/templates/phase-doc.md).
 
@@ -303,7 +303,7 @@ Write:
 - [Phase Review](tmp/phases/phase-x/review.md)
 
 Use the template in [Review Template](../dev-loop/templates/review.md).
-Ensure the durable phase doc still matches the reviewed plan; update [Phase Plan](docs/phases/phase-x.md) if the review changes accepted scope or criteria.
+Ensure the durable phase doc still matches the reviewed plan; update [Phase Plan](../../docs/phases/phase-x.md) if the review changes accepted scope or criteria.
 
 The review must check for:
 - overreach beyond phase scope
@@ -360,7 +360,7 @@ When handing off a full workflow run to a subagent (draft PR → gates → Copil
 use the canonical hand-off template. Do not rely on abbreviated task summaries or operator
 memory.
 
-The canonical template is [Workflow Handoff Template](../docs/workflow-handoff-template.md) (source-tree path: [Workflow Handoff Template](skills/docs/workflow-handoff-template.md)). It includes:
+The canonical template is [Workflow Handoff Template](../docs/workflow-handoff-template.md) (source-tree path: [Workflow Handoff Template](../docs/workflow-handoff-template.md)). It includes:
 - direct contract-doc references the subagent must read before executing
 - a mandatory 8-step checklist (draft PR → draft_gate → ready → Copilot → resolve → pre_approval_gate → merge)
 - non-negotiable invariants (Copilot review loop between gates, `unresolvedThreadCount === 0`, visible gate comments)
@@ -393,12 +393,12 @@ After the phase plan passes review:
    - apply accepted fixes on the same branch
    - rerun validation after fixes
    - log review artifacts and subagent summaries under `tmp/`
-6. Update [Phase Plan](docs/phases/phase-x.md) so it reflects the phase as actually implemented, including any accepted scope or validation changes.
-7. Update [Project Plan](PLAN.md) when the phase changed durable product truth, resolved an open question, or made the shipped command/behavior surface more concrete.
+6. Update [Phase Plan](../../docs/phases/phase-x.md) so it reflects the phase as actually implemented, including any accepted scope or validation changes.
+7. Update [Project Plan](../../PLAN.md) when the phase changed durable product truth, resolved an open question, or made the shipped command/behavior surface more concrete.
 8. Write [Phase Summary](tmp/phases/phase-x/summary.md) using [Phase Summary Template](../dev-loop/templates/phase-summary.md).
 9. Write [Retrospective](tmp/phases/phase-x/retrospective.md) using [Retrospective Template](../dev-loop/templates/retrospective.md).
 10. Update `tmp/phases/phase-x/manifest.json` and `tmp/phases/index.json`.
-11. Update [Implementation State](docs/IMPLEMENTATION_STATE.md).
+11. Update [Implementation State](../../docs/IMPLEMENTATION_STATE.md).
 12. Make sure the phase branch history is captured with atomic commits once the phase is review-ready and authorized for commit.
 13. If authorized, merge the fully reviewed, locally validated phase branch back into local `main`.
 14. If authorization for commit or merge is still pending, mark the phase as `awaiting-finalization` rather than `completed`, and record exactly which finalization step is pending.
@@ -452,7 +452,7 @@ Dev mode is still phase-bounded. It improves the loop around the completed phase
 ## tmp/ logging requirements
 
 At minimum, each phase should leave behind:
-- a durable phase doc at [Phase Plan](docs/phases/phase-x.md)
+- a durable phase doc at [Phase Plan](../../docs/phases/phase-x.md)
 - local `tmp/` execution artifacts needed to resume and audit the phase, including:
   - `manifest.json`
   - [Variant A](variant-a.md)
@@ -524,14 +524,14 @@ Stop after the current phase when:
 ## Anti-patterns
 
 Do not:
-- assume a project must already have [Agent Instructions](AGENTS.md), [Implementation State](docs/IMPLEMENTATION_STATE.md), [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md), or [Phase Plan](docs/phases/phase-x.md)
+- assume a project must already have [Agent Instructions](../../AGENTS.md), [Implementation State](../../docs/IMPLEMENTATION_STATE.md), [Implementation Workflow](../../docs/IMPLEMENTATION_WORKFLOW.md), or [Phase Plan](../../docs/phases/phase-x.md)
 - guess through missing plan details when a short clarification step would resolve them
 - implement multiple future phases in one pass
 - skip the fan-out/fan-in/review loop
 - treat rough notes as implementation authorization
 - expand scope because a helper may be useful later
 - rely on Pi private internals when public hooks exist
-- skip updating [Phase Plan](docs/phases/phase-x.md) when the accepted phase plan changes
-- skip updating [Implementation State](docs/IMPLEMENTATION_STATE.md)
+- skip updating [Phase Plan](../../docs/phases/phase-x.md) when the accepted phase plan changes
+- skip updating [Implementation State](../../docs/IMPLEMENTATION_STATE.md)
 - skip writing `tmp/` artifacts
 - use subagents without leaving readable summaries of what they did

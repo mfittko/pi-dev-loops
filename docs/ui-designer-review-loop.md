@@ -6,7 +6,7 @@ This document defines the bounded designer-persona review loop introduced for is
 
 - `dev-loop` remains the single public entrypoint.
 - This review loop is an internal capability behind `dev-loop`; it does not introduce a second public workflow name.
-- The loop depends on the reusable harness from [UI Smoke Harness](docs/ui-smoke-harness.md) and the artifact contract from [UI Artifact Contract](docs/ui-artifact-contract.md).
+- The loop depends on the reusable harness from [UI Smoke Harness](ui-smoke-harness.md) and the artifact contract from [UI Artifact Contract](ui-artifact-contract.md).
 - The loop is a **consumer** of those earlier slices. It does not redefine browser capture, artifact naming, or CI promotion policy.
 
 ## Purpose

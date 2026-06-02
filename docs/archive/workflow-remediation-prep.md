@@ -12,8 +12,8 @@ It exists to capture the concrete workflow-remediation findings in-repo while ke
 
 ## What this does not change
 
-- it does **not** replace [Project Plan](PLAN.md)
-- it does **not** replace [Phase 7 Plan](docs/phases/phase-7.md)
+- it does **not** replace [Project Plan](../../PLAN.md)
+- it does **not** replace [Phase 7 Plan](../phases/phase-7.md)
 - it does **not** replace issue #70 as the execution-tracking surface for remediation chunks
 - it does **not** declare a one-shot workflow rewrite
 - it does **not** commit the raw local audit scratch artifacts under `tmp/`, `fanout/`, `fanin/`, `final/`, or `validation/`
@@ -70,8 +70,8 @@ Primary surfaces:
 - `scripts/loop/detect-reviewer-loop-state.mjs`
 - `scripts/loop/outer-loop.mjs`
 - `scripts/loop/inspect-run.mjs`
-- [Scripts Documentation](scripts/README.md)
-- [Reviewer Loop State Graph](docs/reviewer-loop-state-graph.md)
+- [Scripts Documentation](../../scripts/README.md)
+- [Reviewer Loop State Graph](../reviewer-loop-state-graph.md)
 
 Problem shape:
 - omitted reviewer identity broadens scope to all reviewers
@@ -83,7 +83,7 @@ This is a known seam, not a surprise bug.
 
 Primary surfaces:
 - `packages/core/src/loop/conductor-routing.mjs`
-- [Conductor Routing Contract](docs/conductor-routing-contract.md)
+- [Conductor Routing Contract](../conductor-routing-contract.md)
 - `scripts/loop/outer-loop.mjs`
 
 Problem shape:
@@ -95,9 +95,9 @@ Problem shape:
 This is cleanup work, not the root-cause explanation for the runtime bugs.
 
 Primary surfaces:
-- [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md)
-- [Dev Loop Skill](skills/dev-loop/SKILL.md)
-- [Scripts Documentation](scripts/README.md)
+- [Implementation Workflow](../IMPLEMENTATION_WORKFLOW.md)
+- [Dev Loop Skill](../../skills/dev-loop/SKILL.md)
+- [Scripts Documentation](../../scripts/README.md)
 - relevant state/contract docs under `docs/`
 
 Problem shape:
