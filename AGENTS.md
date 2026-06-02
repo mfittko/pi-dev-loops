@@ -29,7 +29,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Implement one phase at a time.
 - Use fan-out / fan-in / review / merge before implementing each phase.
 - Default phase and issue refinement to multiple parallel variants before converging on a merged plan; do not rely on a single-plan synthesis when fan-out is practical.
-- Standard refinement chain pattern: use the dedicated `refiner` agent for parallel fan-out and for consolidation/fan-in synthesis.
+- For refinement work, follow the dedicated **Standard refinement chain pattern** section below.
 - Never route review-only comparison, synthesis, or consolidation steps through `dev-loop` + `local_implementation` (the strategy loaded by `skills/local-implementation`); reserve that path for actual implementation/edit work only.
 - Keep logs under `tmp/` in deterministic phase-scoped paths.
 - Use feature branches and small commits only after local verification.
