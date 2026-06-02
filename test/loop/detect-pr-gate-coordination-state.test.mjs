@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
+import { parseGitStatusConflictFiles } from "../../scripts/loop/detect-pr-gate-coordination-state.mjs";
+
 const scriptPath = path.resolve("scripts/loop/detect-pr-gate-coordination-state.mjs");
 
 function runNode(args = [], options = {}) {
@@ -81,21 +83,24 @@ async function writeGhStub(tempDir, entries) {
 
 async function writeGitStub(tempDir, { stdout = "", stderr = "", exitCode = 0, assertArgs = [] } = {}) {
   const gitPath = path.join(tempDir, "git");
+  const stdoutPath = path.join(tempDir, "git-stdout.txt");
 
+  await writeFile(stdoutPath, stdout, "utf8");
   await writeFile(
     gitPath,
     [
       "#!/usr/bin/env node",
+      'import { readFileSync } from "node:fs";',
       'const actual = process.argv.slice(2);',
       'const assertArgs = JSON.parse(process.env.GIT_ASSERT_ARGS || "[]");',
       'for (const expected of assertArgs) {',
       '  if (!actual.includes(expected)) {',
-      '    process.stderr.write(`missing expected git arg: ${expected}\\nactual: ${actual.join(" ")}\\n`);',
+      '    process.stderr.write(`missing expected git arg: ${expected}\nactual: ${actual.join(" ")}\n`);',
       '    process.exit(98);',
       '  }',
       '}',
       'if (process.env.GIT_STDERR) process.stderr.write(process.env.GIT_STDERR);',
-      'if (process.env.GIT_STDOUT) process.stdout.write(process.env.GIT_STDOUT);',
+      'if (process.env.GIT_STDOUT_PATH) process.stdout.write(readFileSync(process.env.GIT_STDOUT_PATH, "utf8"));',
       'process.exit(Number(process.env.GIT_EXIT_CODE || "0"));',
       '',
     ].join("\n"),
@@ -105,7 +110,7 @@ async function writeGitStub(tempDir, { stdout = "", stderr = "", exitCode = 0, a
 
   return {
     GIT_ASSERT_ARGS: JSON.stringify(assertArgs),
-    GIT_STDOUT: stdout,
+    GIT_STDOUT_PATH: stdoutPath,
     GIT_STDERR: stderr,
     GIT_EXIT_CODE: String(exitCode),
   };
@@ -114,6 +119,19 @@ async function writeGitStub(tempDir, { stdout = "", stderr = "", exitCode = 0, a
 function jsonLine(value) {
   return `${JSON.stringify(value)}\n`;
 }
+
+test("parseGitStatusConflictFiles parses NUL-delimited porcelain output with deterministic paths", () => {
+  const parsed = parseGitStatusConflictFiles([
+    "UU config.test.mjs",
+    "AA extension/README with spaces.md",
+    " M ignored.txt",
+    "R  old-name.md",
+    "new-name.md",
+    "",
+  ].join("\0"));
+
+  assert.deepEqual(parsed, ["config.test.mjs", "extension/README with spaces.md"]);
+});
 
 test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs with clean draft_gate on a different head (one-time boundary)", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-state-"));
@@ -325,11 +343,8 @@ test("detect-pr-gate-coordination-state surfaces conflict_resolution for conflic
       },
     ]);
     const gitEnv = await writeGitStub(tempDir, {
-      assertArgs: ["status", "--porcelain=v1", "--untracked-files=no"],
-      stdout: [
-        "UU config.test.mjs",
-        "AA extension/README.md",
-      ].join("\n") + "\n",
+      assertArgs: ["-c", "core.quotepath=false", "status", "--porcelain=v1", "-z", "--untracked-files=no"],
+      stdout: "UU config.test.mjs\0AA extension/README.md\0",
     });
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "370"], {

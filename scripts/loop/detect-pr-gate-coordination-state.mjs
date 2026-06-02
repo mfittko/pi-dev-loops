@@ -134,30 +134,26 @@ function parseRequestedReviewersPayload(text) {
 }
 
 export function parseGitStatusConflictFiles(text) {
-  if (typeof text !== "string" || text.trim().length === 0) {
+  if (typeof text !== "string" || text.length === 0) {
     return [];
   }
 
+  const records = text.includes("\0")
+    ? text.split("\0")
+    : text.split(/\r?\n/);
+
   const conflictFiles = [];
-  for (const rawLine of text.split(/\r?\n/)) {
-    if (rawLine.length < 4) {
+  for (const rawRecord of records) {
+    if (rawRecord.length < 4) {
       continue;
     }
 
-    const status = rawLine.slice(0, 2);
+    const status = rawRecord.slice(0, 2);
     if (!UNMERGED_GIT_STATUS_CODES.has(status)) {
       continue;
     }
 
-    const rawPath = rawLine.slice(3).trim();
-    if (rawPath.length === 0) {
-      continue;
-    }
-
-    const normalizedPath = rawPath.includes(" -> ")
-      ? rawPath.split(" -> ").at(-1)?.trim() ?? rawPath
-      : rawPath;
-
+    const normalizedPath = rawRecord.slice(3).trim();
     if (normalizedPath.length > 0 && !conflictFiles.includes(normalizedPath)) {
       conflictFiles.push(normalizedPath);
     }
@@ -199,7 +195,7 @@ async function fetchPrFacts({ repo, pr }, { env = process.env, ghCommand = "gh" 
 async function fetchLocalConflictFiles({ env = process.env, gitCommand = "git" } = {}) {
   const result = await runChild(
     gitCommand,
-    ["status", "--porcelain=v1", "--untracked-files=no"],
+    ["-c", "core.quotepath=false", "status", "--porcelain=v1", "-z", "--untracked-files=no"],
     env,
   );
 
