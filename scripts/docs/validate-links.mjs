@@ -487,13 +487,15 @@ export async function validateMarkdownLinks({ repoRoot = resolveDefaultRepoRoot(
         line: extractedLink.line,
         rawTarget: extractedLink.rawTarget,
         resolvedPath,
-        suggestion: suggestCorrection({
-          sourceAbsolutePath,
-          attemptedName: path.basename(strippedTarget),
-          attemptedParentPath: path.dirname(resolvedAbsolutePath),
-          repoRoot: absoluteRepoRoot,
-          candidateIndex: await getCandidateIndex(),
-        }),
+        suggestion: resolvedInsideRepoRoot
+          ? suggestCorrection({
+            sourceAbsolutePath,
+            attemptedName: path.basename(strippedTarget),
+            attemptedParentPath: path.dirname(resolvedAbsolutePath),
+            repoRoot: absoluteRepoRoot,
+            candidateIndex: await getCandidateIndex(),
+          })
+          : null,
       });
     }
   }

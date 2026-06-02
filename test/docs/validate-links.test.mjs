@@ -232,6 +232,7 @@ test("validateMarkdownLinks does not let .linkcheckignore suppress outside-repo 
     assert.equal(result.brokenLinks.length, 1);
     assert.equal(result.brokenLinks[0].rawTarget, "../outside.md");
     assert.equal(result.brokenLinks[0].resolvedPath, "../outside.md");
+    assert.equal(result.brokenLinks[0].suggestion, null);
   } finally {
     await unlink(outsidePath).catch(() => {});
     await rm(repoRoot, { recursive: true, force: true });
