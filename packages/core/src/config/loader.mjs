@@ -19,8 +19,10 @@ import { BUILT_IN_DEFAULTS, DevLoopConfigSchema, FileConfigSchema } from "./sche
 // ============================================================================
 
 /**
- * Shallow-merge two config objects. Keys in `source` override keys in `target`.
- * Nested family objects are merged at one level, not deep-merged.
+ * Merge two config objects. Keys in `source` override keys in `target`.
+ * Family objects merge at one level, except `gates`, which merges one extra
+ * nested gate-object level so settings can override `draft.requireCi` without
+ * restating the shipped draft angles.
  * @param {Record<string, unknown>} target
  * @param {Record<string, unknown>} source
  * @returns {Record<string, unknown>}
@@ -37,11 +39,34 @@ function mergeConfigLayers(target, source) {
       result[key] !== null &&
       !Array.isArray(result[key])
     ) {
+      result[key] = key === "gates"
+        ? mergeNestedObject(result[key], source[key])
+        : { ...(result[key] || {}), ...(source[key] || {}) };
+    } else {
+      result[key] = source[key];
+    }
+  }
+  return result;
+}
+
+function mergeNestedObject(target, source) {
+  const result = { ...(target || {}) };
+
+  for (const key of Object.keys(source || {})) {
+    if (
+      typeof source[key] === "object" &&
+      source[key] !== null &&
+      !Array.isArray(source[key]) &&
+      typeof result[key] === "object" &&
+      result[key] !== null &&
+      !Array.isArray(result[key])
+    ) {
       result[key] = { ...(result[key] || {}), ...(source[key] || {}) };
     } else {
       result[key] = source[key];
     }
   }
+
   return result;
 }
 

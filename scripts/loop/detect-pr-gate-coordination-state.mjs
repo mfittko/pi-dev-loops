@@ -8,6 +8,7 @@ import {
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
+import { loadDevLoopConfig, resolveGateConfig } from "@pi-dev-loops/core/config";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
 import { evaluatePrGateCoordination } from "@pi-dev-loops/core/loop/pr-gate-coordination";
@@ -306,6 +307,8 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
 
 export async function detectPrGateCoordinationState(options, runtime = {}) {
   const context = await loadPrGateCoordinationContext(options, runtime);
+  const { config } = await loadDevLoopConfig({ repoRoot: runtime.repoRoot ?? process.cwd() });
+  const draftGateConfig = resolveGateConfig(config, "draft");
   return evaluatePrGateCoordination({
     repo: context.repo,
     pr: context.pr,
@@ -319,6 +322,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     loopDisposition: context.disposition.loopDisposition,
     ciStatus: context.snapshot?.ciStatus ?? null,
     sameHeadCleanConverged: context.interpretation.sameHeadCleanConverged,
+    draftGateRequireCi: draftGateConfig.requireCi,
     reviewMode: options.reviewMode ?? null,
     draftGate: context.gateEvidence.draftGate,
     draftGateMarker: context.gateEvidence.draftGateMarker,

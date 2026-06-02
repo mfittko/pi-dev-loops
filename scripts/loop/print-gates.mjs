@@ -21,7 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadDevLoopConfig } from "../../packages/core/src/config/loader.mjs";
-import { resolveGateAngles } from "../../packages/core/src/config/model-resolution.mjs";
+import { resolveGateConfig } from "../../packages/core/src/config/model-resolution.mjs";
 import { resolveReviewerRole } from "../../packages/core/src/config/roles.mjs";
 
 async function run({ stdout = process.stdout, repoRoot = process.cwd() } = {}) {
@@ -33,8 +33,13 @@ async function run({ stdout = process.stdout, repoRoot = process.cwd() } = {}) {
   ];
 
   for (const { label, gate } of gates) {
-    const angles = resolveGateAngles(config, gate);
+    const gateConfig = resolveGateConfig(config, gate);
+    const angles = gateConfig.angles;
+    const ciLabel = gate === "draft"
+      ? String(gateConfig.requireCi)
+      : "true (always enforced)";
     stdout.write(`${label}:\n`);
+    stdout.write(`  requireCi: ${ciLabel}\n`);
 
     if (!angles || angles.length === 0) {
       stdout.write("  (no angles configured)\n\n");

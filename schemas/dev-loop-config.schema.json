@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mfittko/pi-dev-loops/schemas/dev-loop-config.schema.json",
+  "title": "pi-dev-loops config",
+  "description": "Schema for .pi/dev-loop/defaults.yaml, settings.yaml, or overrides.yaml.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": { "const": 1 },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": { "enum": ["local-first", "github-first"] }
+      }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conductor": { "type": "string", "minLength": 1 },
+        "roles": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "refinement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fanOut": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "mode": { "enum": ["parallel", "sequential"] },
+        "maxCopilotRounds": { "type": "integer", "minimum": 1 },
+        "roles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "$ref": "#/$defs/gateConfig",
+          "description": "Draft gate config. `requireCi` controls whether draft gate waits for green CI."
+        },
+        "preApproval": {
+          "$ref": "#/$defs/gateConfig",
+          "description": "Pre-approval gate config. `requireCi` is accepted for parity with runtime config, but preApproval always requires CI so that field has no effect here."
+        }
+      }
+    },
+    "autonomy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stopAt": {
+          "type": "array",
+          "items": {
+            "enum": ["refinement", "draft-pr", "pre-approval", "merge"]
+          }
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requireRetrospective": { "type": "boolean" },
+        "requireDraftFirst": { "type": "boolean" },
+        "devModeDefault": { "type": "boolean" }
+      }
+    },
+    "personas": {
+      "type": "object",
+      "propertyNames": { "minLength": 1 },
+      "additionalProperties": { "$ref": "#/$defs/personaEntry" }
+    }
+  },
+  "$defs": {
+    "gateConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "angles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "required": {
+          "type": "boolean",
+          "default": true
+        },
+        "requireCi": {
+          "type": "boolean",
+          "default": true,
+          "description": "Draft gate CI prerequisite toggle. preApproval remains CI-gated regardless of this flag."
+        }
+      }
+    },
+    "personaEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "persona": { "type": "string", "minLength": 1 },
+        "prompt": { "type": "string", "minLength": 1 },
+        "defaultModel": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "default": null
+        }
+      }
+    }
+  }
+}

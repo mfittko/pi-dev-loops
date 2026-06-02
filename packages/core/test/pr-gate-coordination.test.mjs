@@ -38,6 +38,43 @@ test("draft PR only allows mark-ready after current-head clean draft gate eviden
   assert.equal(result.draftGate.currentHeadClean, true);
 });
 
+test("draft PR waits for CI before allowing draft gate when requireCi is enabled", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 10,
+    currentHeadSha: "abc123456789",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: LOOP_DISPOSITION.PENDING,
+    ciStatus: "pending",
+    draftGateRequireCi: true,
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.nextAction, PR_GATE_ACTION.WAIT_FOR_CI);
+  assert(result.allowedNextActions.includes(PR_GATE_ACTION.WAIT_FOR_CI));
+  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert.match(result.reason, /requires green current-head CI before entering `draft_gate`/i);
+});
+
+test("draft PR allows draft gate without green CI when requireCi is disabled", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 10,
+    currentHeadSha: "abc123456789",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "pending",
+    draftGateRequireCi: false,
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_DRAFT_GATE);
+  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+});
+
 test("draft PR forbids mark-ready until current-head clean draft gate evidence exists", () => {
   const result = evaluatePrGateCoordination({
     pr: 10,
@@ -45,6 +82,7 @@ test("draft PR forbids mark-ready until current-head clean draft gate evidence e
     prDraft: true,
     lifecycleState: STATE.PR_DRAFT,
     loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "success",
     draftGate: gate({ visible: true, headSha: "old1111", verdict: "clean" }),
     draftGateMarker: gate({ visible: false }),
   });

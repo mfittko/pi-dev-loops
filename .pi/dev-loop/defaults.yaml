@@ -25,6 +25,8 @@ gates:
       - coverage
       - correctness
     required: true
+    # When true, draft gate waits for green CI before the gate may run.
+    requireCi: true
   preApproval:
     # Pre-approval gate: runs before declaring merge-ready.
     # Additional SOLID angles available as opt-in (see personas section):
