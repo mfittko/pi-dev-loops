@@ -53,8 +53,6 @@ test("workflow-handoff-template includes all 8 mandatory steps in order", async 
 test("workflow-handoff-template references required contract docs by path", async () => {
   const content = await readTemplate();
 
-  assert.match(content, /gh pr create --draft --assignee @me/i);
-
   const requiredRefs = [
     "../../docs/gate-review-comment-contract.md",
     "../copilot-pr-followup/SKILL.md",
@@ -67,6 +65,12 @@ test("workflow-handoff-template references required contract docs by path", asyn
       `template must reference "${ref}"`,
     );
   }
+});
+
+test("workflow-handoff-template requires self-assigned draft PR creation", async () => {
+  const content = await readTemplate();
+
+  assert.match(content, /gh pr create --draft --assignee @me/i);
 });
 
 test("workflow-handoff-template has Copilot review loop between draft_gate and pre_approval_gate", async () => {

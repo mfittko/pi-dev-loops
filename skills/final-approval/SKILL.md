@@ -36,7 +36,7 @@ Read only what the final approval decision needs:
 - Stop at the final human approval gate by default.
 - After approval, report `waiting_for_merge_authorization` and stop again unless merge has been explicitly authorized.
 - Do not merge, push, rebase, resolve threads, or change GitHub state without explicit confirmation unless the latest user message already authorizes that exact action.
-- If an explicitly authorized recovery path needs a new GitHub issue or replacement PR, create it with `gh issue create --assignee @me ...` or `gh pr create --assignee @me ...` so the new artifact is self-assigned.
+- If an explicitly authorized recovery path needs a new GitHub issue or replacement PR, create it with `gh issue create --assignee @me ...` or `gh pr create --draft --assignee @me ...` so the new artifact is self-assigned and replacement PRs still respect the draft gate boundary.
 
 ## Stop-and-ask rules
 
