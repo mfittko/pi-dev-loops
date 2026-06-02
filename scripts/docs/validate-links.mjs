@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { isDirectCliRun } from "../_core-helpers.mjs";
+import { requireOptionValue } from "../_cli-primitives.mjs";
 
 const DEFAULT_SCAN_PATHS = Object.freeze([
   "README.md",
@@ -48,14 +49,6 @@ function resolveDefaultRepoRoot() {
 
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
-}
-
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-  return value;
 }
 
 export function parseValidateLinksCliArgs(argv) {
