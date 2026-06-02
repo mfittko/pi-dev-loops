@@ -101,7 +101,7 @@ Current Phase 3+ contract:
 - the package exposes `.pi/skills` through `package.json` `pi.skills` for install-based global skill loading
 - the shell CLI is exposed through `package.json` `bin.pi-dev-loops`
 - the extension syncs packaged `.pi/agents/*.agent.md` files into `~/.agents/` on `session_start` so user-level agents are available outside this repo
-- `/dev-loops install ...` and `/dev-loops update ...` are not part of the command surface; package install/update happens through `pi install` / `pi update`
+- package install/update happens through `pi install` / `pi update`
 - this phase does not yet claim a specific supported `gh` version; it only checks `gh` presence and authentication state
 - this phase does not require a separate compiled build or `dist/` pipeline
 
