@@ -149,7 +149,7 @@ test("missing config falls back to the built-in github-first default and emits a
     assert.equal(withFallback.selectedGate, withExplicitPreference.selectedGate);
     assert.equal(withFallback.selectedStrategy, withExplicitPreference.selectedStrategy);
     assert.equal(withFallback.routeKind, withExplicitPreference.routeKind);
-    assert.ok(warnings.some((warning) => /Committed defaults\.json not found/i.test(warning.message)));
+    assert.ok(warnings.some((warning) => /Committed defaults config not found/i.test(warning.message)));
   });
 });
 

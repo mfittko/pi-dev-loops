@@ -937,22 +937,24 @@ describe("role resolution", () => {
     assert.equal(result.fallback, false);
   });
 
-  test("R19: known angle resolves with a prompt instruction", () => {
+  test("R19: built-in fallback returns null prompt when config personas absent", () => {
     const result = resolveReviewerRole({}, "dry");
     assert.equal(result.persona, "review");
-    assert.ok(typeof result.prompt === "string" && result.prompt.length > 0, "prompt should be a non-empty string");
-    assert.match(result.prompt, /duplicat|repeat|copy-past/i);
+    assert.equal(result.prompt, null, "prompt should be null when config.personas is absent");
     assert.equal(result.fallback, false);
   });
 
-  test("R20: each configured angle has a distinct prompt", () => {
-    const prompts = new Set();
-    for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "srp", "ocp", "lsp", "isp", "dip", "soc", "yagni"]) {
-      const result = resolveReviewerRole({}, angle);
-      assert.ok(typeof result.prompt === "string" && result.prompt.length > 0, `${angle} prompt missing`);
-      prompts.add(result.prompt);
-    }
-    assert.equal(prompts.size, 12, "all twelve angles should have distinct prompts");
+  test("R20: config personas provide prompts; fallback does not duplicate them", () => {
+    // Without config: persona resolves, prompt is null (lives in config only)
+    const noConfig = resolveReviewerRole({}, "dry");
+    assert.equal(noConfig.prompt, null);
+    // With config: persona resolves with prompt from config
+    const withConfig = resolveReviewerRole(
+      { personas: { dry: { persona: "review", prompt: "Check duplication" } } },
+      "dry",
+    );
+    assert.equal(withConfig.prompt, "Check duplication");
+    assert.equal(withConfig.fallback, false);
   });
 
   test("R21: config persona prompt overrides built-in prompt", () => {
