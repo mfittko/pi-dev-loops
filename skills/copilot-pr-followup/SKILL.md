@@ -441,7 +441,7 @@ states for this narrower MVP slice.
 
 4. Branch on the detector output instead of inventing a polling loop:
    - `state=waiting_for_copilot_review` with `snapshot.copilotReviewOnCurrentHead=false`: do **not** poll manually; either run `node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent async waiting or report the wait state and resume later after the single detector call
-   - `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`: do **not** poll manually; use `gh run watch <run-id> --repo <owner/name>` when the current-head run id is already known, otherwise report pending CI and resume later after the single detector refresh
+   - `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`: do **not** poll manually by default; use `gh run watch <run-id> --repo <owner/name>` when the current-head run id is already known, otherwise report pending CI and resume later after the single detector refresh. Bounded exception: if GitHub created zero current-head check suites/statuses, the previous head rollup was green, and local `npm run verify` already passed for the same current head, rerun `detect-copilot-loop-state.mjs` with `--local-validation-head-sha <current-head-sha>` so the detector can promote that exact zero-suite case to `snapshot.ciStatus="crediblyGreen"` instead of waiting forever on raw `none`.
    - `snapshot.ciStatus="failure"` remains a stop/fix state, never a wait loop
 
 5. For reviewer-side draft-review work, run `node <resolved-skill-scripts>/loop/detect-reviewer-loop-state.mjs --repo <owner/name> --pr <number> [--reviewer-login <login>] [--local-state <path>]`.
@@ -661,7 +661,7 @@ Allowed wait tools for this PR follow-up loop:
 
 Practical rule for this repo:
 - `state=waiting_for_copilot_review` with `snapshot.copilotReviewOnCurrentHead=false`: do **not** poll manually; either run `node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent async waiting or report the wait state and resume later after the single detector call
-- `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`: do **not** poll manually; use `gh run watch <run-id> --repo <owner/name>` when the current-head run id is already known, otherwise report pending CI and resume later after the single detector refresh
+- `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`: do **not** poll manually by default; use `gh run watch <run-id> --repo <owner/name>` when the current-head run id is already known, otherwise report pending CI and resume later after the single detector refresh. Bounded exception: if GitHub created zero current-head check suites/statuses, the previous head rollup was green, and local `npm run verify` already passed for the same current head, rerun `detect-copilot-loop-state.mjs` with `--local-validation-head-sha <current-head-sha>` so the detector can promote that exact zero-suite case to `snapshot.ciStatus="crediblyGreen"` instead of waiting forever on raw `none`.
 - `snapshot.ciStatus="failure"` remains a stop/fix state, never a wait loop
 
 Preferred approach for Copilot review follow-up:
@@ -742,10 +742,10 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - if yes and the round cap has not been reached, run the smallest honest local validation for the accepted fix scope
    - if that local validation is still known red, continue remediation instead of re-requesting Copilot
    - after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for any CI-dependent follow-up decision and immediately re-run `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` for the new head
-   - refresh/re-read current-head CI/check data before advancing and apply the contract in [Copilot CI Status Contract](../docs/copilot-ci-status-contract.md) (wait for `pending`/`none`, stop for `failure`, proceed only on `success`)
+   - refresh/re-read current-head CI/check data before advancing and apply the contract in [Copilot CI Status Contract](../docs/copilot-ci-status-contract.md) (wait for `pending`/`none`, stop for `failure`, proceed on `success`, or use the bounded zero-suite `crediblyGreen` exception only after rerunning the detector with `--local-validation-head-sha <current-head-sha>` for a same-head local `npm run verify` pass)
    - passing local validation alone does not satisfy a step that still requires GitHub CI/check readiness for the current head
    - only results for the current head SHA may satisfy a CI-dependent follow-up step; older-head results must not unblock the new head
-   - if the current-head detector output still says `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`, wait only via `gh run watch <run-id> --repo <owner/name>` for a known run id or else stop/resume later after the single detector refresh; do not use shell polling while waiting for CI to become green
+   - if the current-head detector output still says `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`, wait only via `gh run watch <run-id> --repo <owner/name>` for a known run id or else stop/resume later after the single detector refresh; do not use shell polling while waiting for CI to become green. For the bounded zero-suite exception, only promote to `crediblyGreen` by rerunning the detector with `--local-validation-head-sha <current-head-sha>` after same-head local `npm run verify` has passed.
    - if GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot
    - only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head rather than assuming it remains requested
    - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`

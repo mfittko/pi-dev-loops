@@ -31,6 +31,13 @@
  *     Useful when the caller already ran request-copilot-review.mjs and wants
  *     to inject its output status without re-probing the reviewers endpoint.
  *
+ * Optional (auto-detect mode only):
+ *   --local-validation-head-sha <sha>
+ *     Assert that local `npm run verify` already passed for this exact head SHA.
+ *     This enables the bounded `none -> crediblyGreen` CI promotion when
+ *     GitHub created zero current-head suites/statuses but the previous head
+ *     rollup was green and the current head already has a clean settled review posture.
+ *
  * Success output shape (no steering file):
  *   {
  *     "ok": true,
@@ -95,7 +102,7 @@ import {
 } from "./_steering-state-file.mjs";
 
 const USAGE = `Usage:
-  detect-copilot-loop-state.mjs --repo <owner/name> --pr <number> [--review-request-status <status>]
+  detect-copilot-loop-state.mjs --repo <owner/name> --pr <number> [--review-request-status <status>] [--local-validation-head-sha <sha>]
   detect-copilot-loop-state.mjs --input <path>
 
 Detect or interpret the current Copilot-loop state.
@@ -129,6 +136,12 @@ Optional (auto-detect mode only):
 Optional (auto-detect mode only):
   --review-request-status <status>           Inject a known prior request result.
                                              Values: requested|already-requested|unavailable|none|failed
+  --local-validation-head-sha <sha>          Assert that local npm run verify
+                                             already passed for this exact head SHA.
+                                             Enables bounded none -> crediblyGreen
+                                             promotion when GitHub created zero
+                                             current-head suites/statuses and the
+                                             prior rollup was green.
 
 Output (stdout, JSON):
   { "ok": true, "snapshot": {..., "copilotReviewRoundCount": N}, "state": "...", "allowedTransitions": [...], "nextAction": "...",
@@ -165,6 +178,7 @@ export function parseDetectCliArgs(argv) {
     repo: undefined,
     pr: undefined,
     reviewRequestStatusOverride: undefined,
+    localValidationHeadSha: undefined,
     steeringStateFile: undefined,
   };
 
@@ -200,6 +214,15 @@ export function parseDetectCliArgs(argv) {
       continue;
     }
 
+    if (token === "--local-validation-head-sha") {
+      const val = requireOptionValue(args, "--local-validation-head-sha", parseError).trim();
+      if (val.length === 0) {
+        throw parseError("--local-validation-head-sha must be a non-empty SHA");
+      }
+      options.localValidationHeadSha = val;
+      continue;
+    }
+
     if (token === "--steering-state-file") {
       options.steeringStateFile = requireOptionValue(args, "--steering-state-file", parseError);
       continue;
@@ -214,6 +237,9 @@ export function parseDetectCliArgs(argv) {
     }
     if (options.reviewRequestStatusOverride !== undefined) {
       throw parseError("--review-request-status cannot be combined with --input");
+    }
+    if (options.localValidationHeadSha !== undefined) {
+      throw parseError("--local-validation-head-sha cannot be combined with --input");
     }
     if (options.steeringStateFile !== undefined) {
       throw parseError("--steering-state-file cannot be combined with --input; use --repo/--pr auto-detect when steering integration is needed");
@@ -329,7 +355,7 @@ async function fetchLatestCopilotReviewRequestAt({ repo, pr }, { env, ghCommand 
   return latestAt;
 }
 
-async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
+async function fetchCurrentHeadCiEvidence({ repo, headSha }, { env, ghCommand }) {
   const [checkRunsResult, statusesResult] = await Promise.all([
     runChild(
       ghCommand,
@@ -344,20 +370,32 @@ async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
   ]);
 
   let checkRunsSignal = null;
+  let checkRunsCount = null;
   if (checkRunsResult.code === 0) {
     try {
-      checkRunsSignal = summarizeHeadScopedCheckRunsSignal(JSON.parse(checkRunsResult.stdout));
+      const payload = JSON.parse(checkRunsResult.stdout);
+      if (Array.isArray(payload?.check_runs)) {
+        checkRunsSignal = summarizeHeadScopedCheckRunsSignal(payload);
+        checkRunsCount = payload.check_runs.length;
+      }
     } catch {
       checkRunsSignal = null;
+      checkRunsCount = null;
     }
   }
 
   let commitStatus = null;
+  let statusesCount = null;
   if (statusesResult.code === 0) {
     try {
-      commitStatus = normalizeHeadScopedCommitStatus(JSON.parse(statusesResult.stdout));
+      const payload = JSON.parse(statusesResult.stdout);
+      if (Array.isArray(payload?.statuses)) {
+        commitStatus = normalizeHeadScopedCommitStatus(payload);
+        statusesCount = payload.statuses.length;
+      }
     } catch {
       commitStatus = null;
+      statusesCount = null;
     }
   }
 
@@ -365,11 +403,45 @@ async function fetchCurrentHeadCiStatus({ repo, headSha }, { env, ghCommand }) {
     return null;
   }
 
-  return normalizeHeadScopedCiContract({
-    checkRunsStatus: checkRunsSignal?.status ?? "none",
-    commitStatus: commitStatus ?? "none",
-    checkRunsUnsupportedCompleted: checkRunsSignal?.unsupportedCompleted ?? false,
-  }).overallStatus;
+  return {
+    status: normalizeHeadScopedCiContract({
+      checkRunsStatus: checkRunsSignal?.status ?? "none",
+      commitStatus: commitStatus ?? "none",
+      checkRunsUnsupportedCompleted: checkRunsSignal?.unsupportedCompleted ?? false,
+    }).overallStatus,
+    observedZeroSuitesAndStatuses: checkRunsCount === 0 && statusesCount === 0,
+  };
+}
+
+function hasLocalValidationForCurrentHead(localValidationHeadSha, currentHeadSha) {
+  if (typeof localValidationHeadSha !== "string" || typeof currentHeadSha !== "string") {
+    return false;
+  }
+
+  const normalizedValidationHeadSha = localValidationHeadSha.trim().toLowerCase();
+  const normalizedCurrentHeadSha = currentHeadSha.trim().toLowerCase();
+
+  return normalizedValidationHeadSha.length > 0
+    && normalizedCurrentHeadSha.length > 0
+    && normalizedCurrentHeadSha.startsWith(normalizedValidationHeadSha);
+}
+
+function shouldPromoteCrediblyGreen({
+  refreshedCurrentHeadCi,
+  fallbackCiStatus,
+  localValidationHeadSha,
+  currentHeadSha,
+  reviewSummary,
+  unresolvedThreadCount,
+  actionableThreadCount,
+}) {
+  return refreshedCurrentHeadCi?.status === "none"
+    && refreshedCurrentHeadCi?.observedZeroSuitesAndStatuses === true
+    && fallbackCiStatus === "success"
+    && hasLocalValidationForCurrentHead(localValidationHeadSha, currentHeadSha)
+    && reviewSummary?.hasSubmittedReviewOnCurrentHead === true
+    && unresolvedThreadCount === 0
+    && actionableThreadCount === 0;
 }
 
 function hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, currentHeadSha) {
@@ -399,7 +471,7 @@ function hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, currentHeadSha) 
  * Auto-detect the current loop snapshot by querying GitHub.
  * Exported for use by higher-level orchestration helpers.
  */
-export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride }, { env = process.env, ghCommand = "gh" } = {}) {
+export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride, localValidationHeadSha }, { env = process.env, ghCommand = "gh" } = {}) {
   const prData = await fetchPrView({ repo, pr }, { env, ghCommand });
 
   if (prData === null) {
@@ -481,13 +553,30 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
   const shouldRefreshCurrentHeadCi =
     prHeadSha !== null
     && fallbackCiStatus === "success"
-    && !reviewSummary.hasSubmittedReviewOnCurrentHead
-    && hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, prHeadSha);
+    && (
+      hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, prHeadSha)
+      || (
+        reviewSummary.hasSubmittedReviewOnCurrentHead
+        && hasLocalValidationForCurrentHead(localValidationHeadSha, prHeadSha)
+      )
+    );
 
   let currentHeadCiStatus = fallbackCiStatus;
   if (shouldRefreshCurrentHeadCi) {
-    const refreshed = await fetchCurrentHeadCiStatus({ repo, headSha: prHeadSha }, { env, ghCommand });
-    currentHeadCiStatus = refreshed ?? "none";
+    const refreshed = await fetchCurrentHeadCiEvidence({ repo, headSha: prHeadSha }, { env, ghCommand });
+    currentHeadCiStatus = refreshed?.status ?? "none";
+
+    if (shouldPromoteCrediblyGreen({
+      refreshedCurrentHeadCi: refreshed,
+      fallbackCiStatus,
+      localValidationHeadSha,
+      currentHeadSha: prHeadSha,
+      reviewSummary,
+      unresolvedThreadCount,
+      actionableThreadCount,
+    })) {
+      currentHeadCiStatus = "crediblyGreen";
+    }
   }
 
   return buildSnapshotFromPrFacts({
@@ -525,7 +614,12 @@ export async function runCli(
     snapshot = normalizeSnapshot(parseJsonText(text));
   } else {
     snapshot = await autoDetectSnapshot(
-      { repo: options.repo, pr: options.pr, reviewRequestStatusOverride: options.reviewRequestStatusOverride },
+      {
+        repo: options.repo,
+        pr: options.pr,
+        reviewRequestStatusOverride: options.reviewRequestStatusOverride,
+        localValidationHeadSha: options.localValidationHeadSha,
+      },
       { env, ghCommand },
     );
   }

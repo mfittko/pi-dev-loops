@@ -135,6 +135,28 @@ function formatConflictResolutionReason(mergeStateStatus, conflictFiles) {
   return reason;
 }
 
+function normalizeCiStatus(value) {
+  if (typeof value !== "string") {
+    return "none";
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return "none";
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (lower === "success" || lower === "failure" || lower === "pending" || lower === "none") {
+    return lower;
+  }
+
+  if (lower === "crediblygreen") {
+    return "crediblyGreen";
+  }
+
+  return "none";
+}
+
 function buildResult({
   draftGateAlreadySatisfied = false,
   repo = null,
@@ -187,6 +209,9 @@ export function evaluatePrGateCoordination(input = {}) {
     : null;
   const mergeStateStatus = normalizeMergeStateStatus(input.mergeStateStatus);
   const conflictFiles = normalizeConflictFiles(input.conflictFiles);
+  const ciStatus = normalizeCiStatus(input.ciStatus);
+
+  const effectiveLifecycleState = lifecycleState;
 
   const draftGate = toGateStatus(input.draftGate, input.draftGateMarker, currentHeadSha);
   const preApprovalGate = toGateStatus(input.preApprovalGate, input.preApprovalGateMarker, currentHeadSha);
@@ -195,7 +220,7 @@ export function evaluatePrGateCoordination(input = {}) {
   const allowedNextActions = [];
   const forbiddenActions = [];
 
-  if (prMerged || prClosed || lifecycleState === STATE.DONE) {
+  if (prMerged || prClosed || effectiveLifecycleState === STATE.DONE) {
     pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_DONE]);
     pushUnique(forbiddenActions, [
       PR_GATE_ACTION.RUN_DRAFT_GATE,
@@ -208,7 +233,7 @@ export function evaluatePrGateCoordination(input = {}) {
       repo: input.repo ?? null,
       pr: Number.isInteger(input.pr) ? input.pr : null,
       currentHeadSha,
-      lifecycleState,
+      lifecycleState: effectiveLifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.DONE,
       gateBoundary: PR_GATE_BOUNDARY.DONE,
       draftGateAlreadySatisfied,
@@ -223,7 +248,7 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (lifecycleState === STATE.BLOCKED_NEEDS_USER_DECISION || lifecycleState === STATE.REVIEW_REQUEST_UNAVAILABLE) {
+  if (effectiveLifecycleState === STATE.BLOCKED_NEEDS_USER_DECISION || effectiveLifecycleState === STATE.REVIEW_REQUEST_UNAVAILABLE) {
     pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
     pushUnique(forbiddenActions, [
       PR_GATE_ACTION.RUN_DRAFT_GATE,
@@ -236,7 +261,7 @@ export function evaluatePrGateCoordination(input = {}) {
       repo: input.repo ?? null,
       pr: Number.isInteger(input.pr) ? input.pr : null,
       currentHeadSha,
-      lifecycleState,
+      lifecycleState: effectiveLifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.BLOCKED,
       gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
       draftGateAlreadySatisfied,
@@ -271,7 +296,7 @@ export function evaluatePrGateCoordination(input = {}) {
       repo: input.repo ?? null,
       pr: Number.isInteger(input.pr) ? input.pr : null,
       currentHeadSha,
-      lifecycleState,
+      lifecycleState: effectiveLifecycleState,
       loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
       gateBoundary: PR_GATE_BOUNDARY.CONFLICT_RESOLUTION,
       draftGateAlreadySatisfied,
@@ -286,7 +311,7 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (prDraft || lifecycleState === STATE.PR_DRAFT) {
+  if (prDraft || effectiveLifecycleState === STATE.PR_DRAFT) {
     pushUnique(allowedNextActions, [PR_GATE_ACTION.RUN_DRAFT_GATE]);
     if (draftGate.currentHeadClean) {
       pushUnique(allowedNextActions, [PR_GATE_ACTION.MARK_READY_FOR_REVIEW]);
@@ -342,7 +367,7 @@ export function evaluatePrGateCoordination(input = {}) {
       repo: input.repo ?? null,
       pr: Number.isInteger(input.pr) ? input.pr : null,
       currentHeadSha,
-      lifecycleState,
+      lifecycleState: effectiveLifecycleState,
       loopDisposition: LOOP_DISPOSITION.BLOCKED,
       gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
       draftGateAlreadySatisfied,
@@ -373,7 +398,7 @@ export function evaluatePrGateCoordination(input = {}) {
     PR_GATE_ACTION.DECLARE_MERGE_READY,
   ];
 
-  if (lifecycleState === STATE.PR_READY_NO_FEEDBACK) {
+  if (effectiveLifecycleState === STATE.PR_READY_NO_FEEDBACK) {
     if (reviewMode === "local_first") {
       // Explicitly local-first PR: skip the external Copilot review cycle
       if (preApprovalGate.currentHeadClean) {
@@ -383,7 +408,7 @@ export function evaluatePrGateCoordination(input = {}) {
           repo: input.repo ?? null,
           pr: Number.isInteger(input.pr) ? input.pr : null,
           currentHeadSha,
-          lifecycleState,
+          lifecycleState: effectiveLifecycleState,
           loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
           gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
           draftGateAlreadySatisfied,
@@ -404,7 +429,7 @@ export function evaluatePrGateCoordination(input = {}) {
         repo: input.repo ?? null,
         pr: Number.isInteger(input.pr) ? input.pr : null,
         currentHeadSha,
-        lifecycleState,
+        lifecycleState: effectiveLifecycleState,
         loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
         gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
         draftGateAlreadySatisfied,
@@ -425,7 +450,7 @@ export function evaluatePrGateCoordination(input = {}) {
       repo: input.repo ?? null,
       pr: Number.isInteger(input.pr) ? input.pr : null,
       currentHeadSha,
-      lifecycleState,
+      lifecycleState: effectiveLifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
       gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
       draftGateAlreadySatisfied,
@@ -440,8 +465,8 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (lifecycleState === STATE.WAITING_FOR_COPILOT_REVIEW || lifecycleState === STATE.WAITING_FOR_CI) {
-    const waitAction = lifecycleState === STATE.WAITING_FOR_CI
+  if (effectiveLifecycleState === STATE.WAITING_FOR_COPILOT_REVIEW || effectiveLifecycleState === STATE.WAITING_FOR_CI) {
+    const waitAction = effectiveLifecycleState === STATE.WAITING_FOR_CI
       ? PR_GATE_ACTION.WAIT_FOR_CI
       : PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW;
 
@@ -451,7 +476,7 @@ export function evaluatePrGateCoordination(input = {}) {
       repo: input.repo ?? null,
       pr: Number.isInteger(input.pr) ? input.pr : null,
       currentHeadSha,
-      lifecycleState,
+      lifecycleState: effectiveLifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.PENDING,
       gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
       draftGateAlreadySatisfied,
@@ -460,7 +485,7 @@ export function evaluatePrGateCoordination(input = {}) {
       allowedNextActions,
       forbiddenActions,
       nextAction: waitAction,
-      reason: lifecycleState === STATE.WAITING_FOR_CI
+      reason: effectiveLifecycleState === STATE.WAITING_FOR_CI
         ? "The post-draft review cycle is waiting on current-head CI, so `pre_approval_gate` remains illegal until CI settles cleanly."
         : "The post-draft review cycle is still pending on Copilot review, so `pre_approval_gate` remains illegal until the current-head review cycle settles.",
       mergeStateStatus,
@@ -468,14 +493,14 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (lifecycleState === STATE.UNRESOLVED_FEEDBACK_PRESENT) {
+  if (effectiveLifecycleState === STATE.UNRESOLVED_FEEDBACK_PRESENT) {
     pushUnique(allowedNextActions, [PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK]);
     pushUnique(forbiddenActions, postDraftForbidden);
     return buildResult({
       repo: input.repo ?? null,
       pr: Number.isInteger(input.pr) ? input.pr : null,
       currentHeadSha,
-      lifecycleState,
+      lifecycleState: effectiveLifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.UNRESOLVED_FEEDBACK,
       gateBoundary: PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
       draftGateAlreadySatisfied,
@@ -490,14 +515,14 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (lifecycleState === STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE) {
+  if (effectiveLifecycleState === STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE) {
     pushUnique(allowedNextActions, [PR_GATE_ACTION.REPLY_RESOLVE_REVIEW_THREADS]);
     pushUnique(forbiddenActions, postDraftForbidden);
     return buildResult({
       repo: input.repo ?? null,
       pr: Number.isInteger(input.pr) ? input.pr : null,
       currentHeadSha,
-      lifecycleState,
+      lifecycleState: effectiveLifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.UNRESOLVED_FEEDBACK,
       gateBoundary: PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
       draftGateAlreadySatisfied,
@@ -512,7 +537,51 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (lifecycleState === STATE.READY_TO_REREQUEST_REVIEW) {
+  if (effectiveLifecycleState === STATE.READY_TO_REREQUEST_REVIEW) {
+    if (ciStatus === "failure") {
+      pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
+      pushUnique(forbiddenActions, postDraftForbidden);
+      return buildResult({
+        repo: input.repo ?? null,
+        pr: Number.isInteger(input.pr) ? input.pr : null,
+        currentHeadSha,
+        lifecycleState: STATE.BLOCKED_NEEDS_USER_DECISION,
+        loopDisposition: LOOP_DISPOSITION.BLOCKED,
+        gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
+        draftGateAlreadySatisfied,
+        draftGate,
+        preApprovalGate,
+        allowedNextActions,
+        forbiddenActions,
+        nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
+        reason: "The current head still has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
+        mergeStateStatus,
+        conflictFiles,
+      });
+    }
+
+    if (ciStatus === "pending" || ciStatus === "none") {
+      pushUnique(allowedNextActions, [PR_GATE_ACTION.WAIT_FOR_CI]);
+      pushUnique(forbiddenActions, postDraftForbidden);
+      return buildResult({
+        repo: input.repo ?? null,
+        pr: Number.isInteger(input.pr) ? input.pr : null,
+        currentHeadSha,
+        lifecycleState: STATE.WAITING_FOR_CI,
+        loopDisposition: LOOP_DISPOSITION.PENDING,
+        gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
+        draftGateAlreadySatisfied,
+        draftGate,
+        preApprovalGate,
+        allowedNextActions,
+        forbiddenActions,
+        nextAction: PR_GATE_ACTION.WAIT_FOR_CI,
+        reason: "The current head does not yet have green or credibly green CI, so `pre_approval_gate` remains illegal until CI settles.",
+        mergeStateStatus,
+        conflictFiles,
+      });
+    }
+
     if (!sameHeadCleanConverged) {
       pushUnique(allowedNextActions, [PR_GATE_ACTION.REREQUEST_COPILOT_REVIEW]);
       pushUnique(forbiddenActions, postDraftForbidden);
@@ -520,7 +589,7 @@ export function evaluatePrGateCoordination(input = {}) {
         repo: input.repo ?? null,
         pr: Number.isInteger(input.pr) ? input.pr : null,
         currentHeadSha,
-        lifecycleState,
+        lifecycleState: effectiveLifecycleState,
         loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
         gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
         draftGateAlreadySatisfied,
@@ -547,7 +616,7 @@ export function evaluatePrGateCoordination(input = {}) {
         repo: input.repo ?? null,
         pr: Number.isInteger(input.pr) ? input.pr : null,
         currentHeadSha,
-        lifecycleState,
+        lifecycleState: effectiveLifecycleState,
         loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
         gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
         draftGateAlreadySatisfied,
@@ -556,7 +625,9 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
-        reason: "The current head has both a clean settled review cycle and clean `pre_approval_gate` evidence, so the PR is at the final approval boundary.",
+        reason: ciStatus === "crediblyGreen"
+          ? "The current head has both a clean settled review cycle and clean `pre_approval_gate` evidence, and its zero-suite CI state is accepted as credibly green, so the PR is at the final approval boundary."
+          : "The current head has both a clean settled review cycle and clean `pre_approval_gate` evidence, so the PR is at the final approval boundary.",
         mergeStateStatus,
         conflictFiles,
       });
@@ -573,7 +644,7 @@ export function evaluatePrGateCoordination(input = {}) {
       repo: input.repo ?? null,
       pr: Number.isInteger(input.pr) ? input.pr : null,
       currentHeadSha,
-      lifecycleState,
+      lifecycleState: effectiveLifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
       gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
       draftGateAlreadySatisfied,
@@ -582,7 +653,9 @@ export function evaluatePrGateCoordination(input = {}) {
       allowedNextActions,
       forbiddenActions,
       nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-      reason: "The current head has a clean settled post-draft review cycle, so `pre_approval_gate` is now the next legal boundary.",
+      reason: ciStatus === "crediblyGreen"
+        ? "The current head has a clean settled post-draft review cycle, and its zero-suite CI state is accepted as credibly green, so `pre_approval_gate` is now the next legal boundary."
+        : "The current head has a clean settled post-draft review cycle, so `pre_approval_gate` is now the next legal boundary.",
       mergeStateStatus,
       conflictFiles,
     });
@@ -600,7 +673,7 @@ export function evaluatePrGateCoordination(input = {}) {
     repo: input.repo ?? null,
     pr: Number.isInteger(input.pr) ? input.pr : null,
     currentHeadSha,
-    lifecycleState,
+    lifecycleState: effectiveLifecycleState,
     loopDisposition: loopDisposition ?? LOOP_DISPOSITION.BLOCKED,
     gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
     draftGateAlreadySatisfied,

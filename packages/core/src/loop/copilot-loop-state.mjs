@@ -116,8 +116,16 @@ const NEXT_ACTIONS = Object.freeze({
 const SAME_HEAD_CLEAN_CONVERGED_NEXT_ACTION = "Current head already has a clean submitted Copilot review; suppress automatic same-head re-request unless a meaningful remediation event occurs, or explicitly request another Copilot pass";
 
 const VALID_REVIEW_REQUEST_STATUSES = new Set(["requested", "already-requested", "unavailable", "none", "failed"]);
-const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none"]);
+const VALID_CI_STATUSES = new Set(["success", "failure", "pending", "none", "crediblyGreen"]);
 const ACTIVE_REQUEST_STATUSES = new Set(["requested", "already-requested"]);
+
+function isWaitingCiStatus(status) {
+  return status === "pending" || status === "none";
+}
+
+function isBlockedCiStatus(status) {
+  return status === "failure";
+}
 
 export function normalizeCiStatus(rollup) {
   return normalizeStatusCheckRollupContract(rollup).overallStatus;
@@ -183,7 +191,7 @@ function isAutoRerequestEligible(snapshot, state) {
  * - unresolvedThreadCount {number} — total unresolved review-thread count
  * - actionableThreadCount {number} — unresolved threads with non-bot actionable comments
  * - copilotReviewRoundCount {number} — completed Copilot review rounds observed on the PR
- * - ciStatus {"success"|"failure"|"pending"|"none"} — current CI check rollup status
+ * - ciStatus {"success"|"failure"|"pending"|"none"|"crediblyGreen"} — current CI check rollup status
  * - agentFixStatus {"applied"|null} — agent-provided input: "applied" when code has been fixed
  *
  * @param {object} raw - raw snapshot input
@@ -303,18 +311,18 @@ export function interpretLoopState(snapshot) {
     state = STATE.WAITING_FOR_COPILOT_REVIEW;
   } else if (s.copilotReviewPresent) {
     // Copilot has reviewed at least once; all threads resolved
-    if (s.ciStatus === "failure") {
+    if (isBlockedCiStatus(s.ciStatus)) {
       state = STATE.BLOCKED_NEEDS_USER_DECISION;
-    } else if (s.ciStatus === "pending" || s.ciStatus === "none") {
+    } else if (isWaitingCiStatus(s.ciStatus)) {
       state = STATE.WAITING_FOR_CI;
     } else {
       state = STATE.READY_TO_REREQUEST_REVIEW;
     }
   } else {
     // No Copilot review yet; not currently requested
-    if (s.ciStatus === "failure") {
+    if (isBlockedCiStatus(s.ciStatus)) {
       state = STATE.BLOCKED_NEEDS_USER_DECISION;
-    } else if (s.ciStatus === "pending" || s.ciStatus === "none") {
+    } else if (isWaitingCiStatus(s.ciStatus)) {
       state = STATE.WAITING_FOR_CI;
     } else {
       state = STATE.PR_READY_NO_FEEDBACK;

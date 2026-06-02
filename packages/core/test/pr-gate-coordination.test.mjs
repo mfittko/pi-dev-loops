@@ -135,6 +135,7 @@ test("clean settled current-head review opens the pre-approval gate window", () 
     lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
     loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
     sameHeadCleanConverged: true,
+    ciStatus: "success",
     draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
     draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
     preApprovalGate: gate({ visible: false }),
@@ -147,6 +148,46 @@ test("clean settled current-head review opens the pre-approval gate window", () 
   assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
+test("crediblyGreen CI allows pre-approval progression once the review loop is already settled", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
+    sameHeadCleanConverged: true,
+    ciStatus: "crediblyGreen",
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.lifecycleState, STATE.READY_TO_REREQUEST_REVIEW);
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
+  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert.match(result.reason, /credibly green/i);
+});
+
+test("missing ciStatus fails closed to wait_for_ci instead of reopening gate progression", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
+    sameHeadCleanConverged: true,
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.lifecycleState, STATE.WAITING_FOR_CI);
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_GATE_ACTION.WAIT_FOR_CI);
+});
+
 test("current-head clean pre-approval evidence advances to final approval boundary", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
@@ -155,6 +196,7 @@ test("current-head clean pre-approval evidence advances to final approval bounda
     lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
     loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
     sameHeadCleanConverged: true,
+    ciStatus: "success",
     mergeStateStatus: "CLEAN",
     draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
     draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),

@@ -104,7 +104,7 @@ test("normalizeSnapshot floors copilotReviewRoundCount and rejects negatives", (
 });
 
 test("normalizeSnapshot accepts all valid ciStatus values", () => {
-  for (const status of ["success", "failure", "pending", "none"]) {
+  for (const status of ["success", "failure", "pending", "none", "crediblyGreen"]) {
     const result = normalizeSnapshot({ ciStatus: status });
     assert.equal(result.ciStatus, status, `expected ${status}`);
   }
@@ -438,6 +438,23 @@ test("interpretLoopState returns ready_to_rerequest_review when Copilot has revi
   assert.ok(result.allowedTransitions.includes(STATE.DONE));
   assert.equal(result.autoRerequestEligible, true);
   assert.equal(result.sameHeadCleanConverged, false);
+});
+
+test("interpretLoopState treats crediblyGreen as a gate-eligible CI state", () => {
+  const result = interpretLoopState({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: true,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    ciStatus: "crediblyGreen",
+  });
+
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+  assert.equal(result.autoRerequestEligible, false);
+  assert.equal(result.sameHeadCleanConverged, true);
 });
 
 test("interpretLoopState allows clean current-head convergence once request status is settled", () => {

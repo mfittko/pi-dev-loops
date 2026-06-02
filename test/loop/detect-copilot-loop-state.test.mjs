@@ -826,6 +826,376 @@ test("detect-copilot-loop-state fails closed from old-head green to new-head non
   }
 });
 
+test("detect-copilot-loop-state promotes zero-suite current-head CI to crediblyGreen when same-head local validation is supplied", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-credibly-green-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-current",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T10:00:00Z",
+              commit: { oid: "newsha" },
+            },
+            {
+              id: "r-old",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "CHANGES_REQUESTED",
+              submittedAt: "2026-06-01T10:00:00Z",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+        stdout: '{"check_runs":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+        stdout: '{"statuses":[]}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--local-validation-head-sha", "newsha",
+    ], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.snapshot.ciStatus, "crediblyGreen");
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.sameHeadCleanConverged, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state accepts case-insensitive local-validation SHA prefixes for crediblyGreen promotion", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-credibly-green-prefix-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "abc123def456",
+          reviews: [
+            {
+              id: "r-current",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T10:00:00Z",
+              commit: { oid: "abc123def456" },
+            },
+            {
+              id: "r-old",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "CHANGES_REQUESTED",
+              submittedAt: "2026-06-01T10:00:00Z",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/abc123def456/check-runs?per_page=100"],
+        stdout: '{"check_runs":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/abc123def456/status?per_page=100"],
+        stdout: '{"statuses":[]}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--local-validation-head-sha", "ABC123D",
+    ], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.snapshot.ciStatus, "crediblyGreen");
+    assert.equal(output.state, "ready_to_rerequest_review");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state keeps zero-suite current-head CI at none without same-head local validation", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-no-credibly-green-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-current",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T10:00:00Z",
+              commit: { oid: "newsha" },
+            },
+            {
+              id: "r-old",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "CHANGES_REQUESTED",
+              submittedAt: "2026-06-01T10:00:00Z",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+        stdout: '{"check_runs":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+        stdout: '{"statuses":[]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.snapshot.ciStatus, "none");
+    assert.equal(output.state, "waiting_for_ci");
+    assert.equal(output.sameHeadCleanConverged, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state does not treat malformed zero-suite payloads as explicit empty arrays", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-malformed-zero-suite-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-current",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T10:00:00Z",
+              commit: { oid: "newsha" },
+            },
+            {
+              id: "r-old",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "CHANGES_REQUESTED",
+              submittedAt: "2026-06-01T10:00:00Z",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+        stdout: '{"unexpected":[]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+        stdout: '{"unexpected":[]}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--local-validation-head-sha", "newsha",
+    ], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.snapshot.ciStatus, "none");
+    assert.equal(output.state, "waiting_for_ci");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state keeps pending and failure current-head CI ahead of crediblyGreen promotion", async () => {
+  for (const scenario of [
+    {
+      name: "pending",
+      checkRuns: '{"check_runs":[{"status":"IN_PROGRESS","conclusion":null}]}\n',
+      statuses: '{"statuses":[]}\n',
+      expectedCiStatus: "pending",
+      expectedState: "waiting_for_ci",
+    },
+    {
+      name: "failure",
+      checkRuns: '{"check_runs":[{"status":"COMPLETED","conclusion":"FAILURE"}]}\n',
+      statuses: '{"statuses":[]}\n',
+      expectedCiStatus: "failure",
+      expectedState: "blocked_needs_user_decision",
+    },
+  ]) {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), `pi-dev-loops-detect-credibly-green-${scenario.name}-`));
+
+    try {
+      const emptyThreads = JSON.stringify({
+        data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+      });
+
+      const { env } = await writeGhStub(tempDir, [
+        {
+          assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+          stdout: JSON.stringify({
+            isDraft: false,
+            state: "OPEN",
+            number: 17,
+            headRefOid: "newsha",
+            reviews: [
+              {
+                id: "r-current",
+                author: { login: "copilot-pull-request-reviewer[bot]" },
+                state: "COMMENTED",
+                submittedAt: "2026-06-02T10:00:00Z",
+                commit: { oid: "newsha" },
+              },
+              {
+                id: "r-old",
+                author: { login: "copilot-pull-request-reviewer[bot]" },
+                state: "CHANGES_REQUESTED",
+                submittedAt: "2026-06-01T10:00:00Z",
+                commit: { oid: "oldsha" },
+              },
+            ],
+            statusCheckRollup: [
+              { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+            ],
+          }) + "\n",
+        },
+        {
+          assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+          stdout: '{"users":[],"teams":[]}\n',
+        },
+        {
+          assertArgs: ["api", "graphql"],
+          stdout: emptyThreads + "\n",
+        },
+        {
+          assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+          stdout: scenario.checkRuns,
+        },
+        {
+          assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+          stdout: scenario.statuses,
+        },
+      ]);
+
+      const result = await runNode([
+        "--repo", "owner/repo",
+        "--pr", "17",
+        "--local-validation-head-sha", "newsha",
+      ], { env });
+
+      assert.equal(result.code, 0, `scenario=${scenario.name} stderr=${result.stderr}`);
+
+      const output = JSON.parse(result.stdout);
+      assert.equal(output.snapshot.ciStatus, scenario.expectedCiStatus);
+      assert.equal(output.state, scenario.expectedState);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  }
+});
+
 test("detect-copilot-loop-state auto-detect ignores stale pending Copilot reviews from older commits", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-stale-pending-copilot-review-"));
 
@@ -1938,10 +2308,24 @@ test("parseDetectCliArgs accepts --steering-state-file flag in auto-detect mode"
   assert.equal(opts.pr, 17);
 });
 
+test("parseDetectCliArgs accepts --local-validation-head-sha in auto-detect mode", () => {
+  const opts = parseDetectCliArgs(["--repo", "owner/repo", "--pr", "17", "--local-validation-head-sha", "abc123"]);
+  assert.equal(opts.localValidationHeadSha, "abc123");
+  assert.equal(opts.repo, "owner/repo");
+  assert.equal(opts.pr, 17);
+});
+
 test("parseDetectCliArgs rejects --steering-state-file in snapshot mode", () => {
   assert.throws(
     () => parseDetectCliArgs(["--input", "/tmp/snap.json", "--steering-state-file", "/tmp/st.json"]),
     /--steering-state-file cannot be combined with --input/,
+  );
+});
+
+test("parseDetectCliArgs rejects --local-validation-head-sha in snapshot mode", () => {
+  assert.throws(
+    () => parseDetectCliArgs(["--input", "/tmp/snap.json", "--local-validation-head-sha", "abc123"]),
+    /--local-validation-head-sha cannot be combined with --input/,
   );
 });
 
