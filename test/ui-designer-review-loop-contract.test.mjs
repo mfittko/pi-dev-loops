@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 
 const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), 'utf8');
 
-test('designer review loop doc and template define the bounded UI review handoff contract', async () => {
-  const [doc, template, readme, indexDoc, localImplementationSkill] = await Promise.all([
+test('designer review loop doc remains the canonical bounded UI review handoff contract and the stale template is gone', async () => {
+  const [doc, readme, indexDoc, localImplementationSkill] = await Promise.all([
     readRepo('docs/ui-designer-review-loop.md'),
-    readRepo('skills/dev-loop/templates/ui-designer-review.md'),
     readRepo('README.md'),
     readRepo('docs/index.md'),
     readRepo('skills/local-implementation/SKILL.md'),
@@ -27,10 +26,7 @@ test('designer review loop doc and template define the bounded UI review handoff
   assert.match(doc, /fails closed/i);
   assert.match(doc, /does not trigger for non-UI work/i);
 
-  assert.match(template, /continue_ui_fix_loop/i);
-  assert.match(template, /ui_review_satisfied/i);
-  assert.match(template, /blocked_needs_human_decision/i);
-  assert.match(template, /Next-iteration focus areas/i);
+  await assert.rejects(stat(fromRepoRoot('skills/dev-loop/templates/ui-designer-review.md')), /ENOENT/);
 
   assert.match(readme, /docs\/ui-designer-review-loop\.md/i);
   assert.match(indexDoc, /ui-designer-review-loop\.md/i);

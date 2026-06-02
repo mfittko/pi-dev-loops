@@ -9,6 +9,15 @@ import {
   USER_FACING_AGENT_SURFACE,
 } from "./imported-assets-helpers.mjs";
 
+async function readCopilotFollowupSurface() {
+  const [skill, operationsDoc, intakeDoc] = await Promise.all([
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
+    readRepo("skills/docs/copilot-loop-operations.md"),
+    readRepo("skills/docs/issue-intake-procedure.md"),
+  ]);
+  return [skill, operationsDoc, intakeDoc].join("\n\n");
+}
+
 test("installed skill guidance owns packaging guarantees and contract docs stay contract-focused", async () => {
   const [devLoopSkill, copilotFollowupSkill, publicContract, retrospectiveContract] = await Promise.all([
     readRepo(".pi/skills/dev-loop/SKILL.md"),
@@ -97,7 +106,7 @@ test("repo docs define dev-loop as the public façade and keep internal routed l
     readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("extension/README.md"),
     readRepo("skills/dev-loop/SKILL.md"),
-    readRepo("skills/copilot-pr-followup/SKILL.md"),
+    readCopilotFollowupSurface(),
   ]);
 
   assert.match(publicContract, /single public entrypoint/i);
@@ -203,7 +212,7 @@ test("workflow-surface taxonomy stays explicit and guards the entrypoint asset s
     }
   }
   assert.deepEqual(userInvocableSkillEntrypoints, ["dev-loop"]);
-  for (const internalSkillPath of ["skills/copilot-pr-followup/SKILL.md", "skills/issue-intake/SKILL.md", "skills/local-implementation/SKILL.md", "skills/final-approval/SKILL.md"]) {
+  for (const internalSkillPath of ["skills/copilot-pr-followup/SKILL.md", "skills/local-implementation/SKILL.md", "skills/final-approval/SKILL.md"]) {
     assert.match(await readRepo(internalSkillPath), /^user-invocable:\s*false\s*$/m);
   }
   assert.equal((await readdir(fromRepoRoot("skills"))).includes("copilot-autopilot"), false);
@@ -213,7 +222,7 @@ test("status reporting contract requires authoritative state-first resolution an
   const [publicContract, devLoopSkill, copilotFollowupSkill] = await Promise.all([
     readRepo("skills/docs/public-dev-loop-contract.md"),
     readRepo("skills/dev-loop/SKILL.md"),
-    readRepo("skills/copilot-pr-followup/SKILL.md"),
+    readCopilotFollowupSurface(),
   ]);
 
   assert.match(publicContract, /Authoritative-state-first status reporting contract/i);
@@ -328,7 +337,7 @@ test("gate-review sub-loop contract exists and is referenced by both gates", asy
 
 test("skill docs enforce self-assignment and draft-first rules for create commands", async () => {
   const [copilotFollowupSkill, localImplementationSkill, finalApprovalSkill, agents, workflowHandoffTemplate, trackerStoryPrContract] = await Promise.all([
-    readRepo("skills/copilot-pr-followup/SKILL.md"),
+    readCopilotFollowupSurface(),
     readRepo("skills/local-implementation/SKILL.md"),
     readRepo("skills/final-approval/SKILL.md"),
     readRepo("AGENTS.md"),
@@ -350,8 +359,9 @@ test("skill docs enforce self-assignment and draft-first rules for create comman
   assert.match(localImplementationSkill, /Do not create a fresh PR directly in ready-for-review state/i);
   assert.match(localImplementationSkill, /draft gate review is a real workflow boundary/i);
 
-  assert.match(finalApprovalSkill, /gh issue create --assignee @me \.\.\./i);
-  assert.match(finalApprovalSkill, /gh pr create --draft --assignee @me \.\.\./i);
+  assert.match(finalApprovalSkill, /redirect/i);
+  assert.match(finalApprovalSkill, /Final approval gate/i);
+  assert.match(finalApprovalSkill, /Do not restate merge-ready preconditions/i);
   assert.match(agents, /gh issue create` or `gh pr create`, always include `--assignee @me`/i);
   assert.match(workflowHandoffTemplate, /gh pr create --draft --assignee @me/i);
   assert.match(trackerStoryPrContract, /gh pr create --draft --assignee @me/);

@@ -54,7 +54,7 @@ const STRATEGY_REQUIRED_READS = {
     SHARED_PUBLIC_CONTRACT,
     SHARED_RETROSPECTIVE_CONTRACT,
     "skills/copilot-pr-followup/SKILL.md",
-    "skills/issue-intake/SKILL.md",
+    "skills/docs/issue-intake-procedure.md",
   ],
   copilot_pr_followup: [
     SHARED_PUBLIC_CONTRACT,
@@ -79,8 +79,8 @@ const STRATEGY_REQUIRED_READS = {
   final_approval: [
     SHARED_PUBLIC_CONTRACT,
     SHARED_RETROSPECTIVE_CONTRACT,
-    "skills/final-approval/SKILL.md",
     "skills/copilot-pr-followup/SKILL.md",
+    "skills/final-approval/SKILL.md",
   ],
   none: [SHARED_PUBLIC_CONTRACT],
 };

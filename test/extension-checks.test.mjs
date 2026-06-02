@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { collectDevLoopChecks, renderCheckLines, summarizeChecks } from "../extension/checks.ts";
+import { collectDevLoopChecks } from "../extension/checks.ts";
+import { renderCheckLines, summarizeChecks } from "../lib/dev-loops-core.mjs";
 
 function createFakePi({ commandResults = new Map(), tools = [], commands = [] } = {}) {
   return {

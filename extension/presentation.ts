@@ -1,6 +1,5 @@
 import type { DevLoopCheck, DevLoopCheckId } from './checks.ts';
-import { DEV_LOOP_CHECK_IDS, summarizeChecks, renderCheckLines } from './checks.ts';
-import { describeReadiness } from '../lib/dev-loops-core.mjs';
+import { describeReadiness, DEV_LOOP_CHECK_IDS, summarizeChecks, renderCheckLines } from '../lib/dev-loops-core.mjs';
 
 export type DevLoopsAction = 'doctor' | 'help' | 'status' | 'hide';
 export type InspectAction = 'open' | 'resume' | 'status' | 'stop' | 'restart';

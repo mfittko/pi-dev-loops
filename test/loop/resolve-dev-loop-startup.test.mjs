@@ -170,8 +170,8 @@ test("resolve-dev-loop-startup CLI emits stable JSON for a final-approval route"
     assert.deepEqual(parsed.requiredReads, [
       "skills/docs/public-dev-loop-contract.md",
       "skills/docs/retrospective-checkpoint-contract.md",
-      "skills/final-approval/SKILL.md",
       "skills/copilot-pr-followup/SKILL.md",
+      "skills/final-approval/SKILL.md",
     ]);
     assert.equal(parsed.canonicalStateSummary.target.kind, "pr");
     assert.equal(parsed.canonicalStateSummary.selectedGate, "final_approval");

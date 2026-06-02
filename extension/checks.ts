@@ -1,14 +1,7 @@
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
 
-import {
-  collectDevLoopChecks as collectSharedDevLoopChecks,
-  DEV_LOOP_CHECK_IDS,
-  renderCheckLines,
-  summarizeChecks,
-} from '../lib/dev-loops-core.mjs';
+import { collectDevLoopChecks as collectSharedDevLoopChecks, DEV_LOOP_CHECK_IDS } from '../lib/dev-loops-core.mjs';
 import { createInspectRunViewerLifecycleManager } from '../scripts/loop/inspect-run-viewer/managed-instance.mjs';
-
-export { DEV_LOOP_CHECK_IDS, renderCheckLines, summarizeChecks };
 
 export type DevLoopCheckId = (typeof DEV_LOOP_CHECK_IDS)[number];
 
