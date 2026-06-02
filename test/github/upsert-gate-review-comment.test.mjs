@@ -447,7 +447,7 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
           {
             id: 101,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `abc1234`",
             "**Verdict:** clean",
@@ -520,7 +520,7 @@ test("upsert-gate-review-comment noop still warns when a stale comment exists on
           {
             id: 101,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `abc1234`",
             "**Verdict:** clean",
@@ -535,7 +535,7 @@ test("upsert-gate-review-comment noop still warns when a stale comment exists on
           {
             id: 202,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `def5678`",
             "**Verdict:** clean",
@@ -601,7 +601,7 @@ test("upsert-gate-review-comment updates an incomplete same-head marker in place
           {
             id: 101,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `abc1234`",
             "**Verdict:** clean",
@@ -674,7 +674,7 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
           {
             id: 101,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `abc1234`",
             "**Verdict:** clean",
@@ -686,7 +686,7 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
           {
             id: 202,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `def5678`",
             "**Verdict:** clean",
@@ -763,7 +763,7 @@ test("upsert-gate-review-comment prefers the latest same-head marker when it dif
           {
             id: 101,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `abc1234`",
             "**Verdict:** clean",
@@ -778,7 +778,7 @@ test("upsert-gate-review-comment prefers the latest same-head marker when it dif
           {
             id: 202,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `abc1234`",
             "**Verdict:** clean",
@@ -851,7 +851,7 @@ test("upsert-gate-review-comment expands an abbreviated current-head SHA before 
           {
             id: 101,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `abcdef1234567890abcdef1234567890abcdef12`",
             "**Verdict:** clean",
@@ -967,7 +967,7 @@ test("upsert-gate-review-comment warns when a gate comment exists on a different
           {
             id: 99,
             body: [
-              "### Gate review: `draft_gate`",
+            "### Gate review: `draft_gate`",
             "",
             "**Reviewed head SHA:** `abc1234`",
             "**Verdict:** clean",
