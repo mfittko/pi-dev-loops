@@ -313,6 +313,10 @@ async function buildCandidateIndex(repoRoot) {
       const absoluteEntryPath = path.join(absoluteDir, entry.name);
       const repoRelativePath = normalizeRepoRelative(path.join(repoRelativeDir, entry.name));
 
+      if (shouldSkipSource(repoRelativePath)) {
+        continue;
+      }
+
       if (entry.isDirectory()) {
         candidates.push({
           repoRelativePath,
@@ -440,13 +444,24 @@ export async function validateMarkdownLinks({ repoRoot = resolveDefaultRepoRoot(
   const scannedFiles = await collectMarkdownFiles(absoluteRepoRoot);
   const ignoredResolvedPaths = await loadIgnoreList(absoluteRepoRoot);
   let candidateIndex = null;
+  let candidateIndexUnavailable = false;
   const brokenLinks = [];
   let checkedLinkCount = 0;
 
   async function getCandidateIndex() {
-    if (candidateIndex === null) {
-      candidateIndex = await buildCandidateIndex(absoluteRepoRoot);
+    if (candidateIndexUnavailable) {
+      return [];
     }
+
+    if (candidateIndex === null) {
+      try {
+        candidateIndex = await buildCandidateIndex(absoluteRepoRoot);
+      } catch {
+        candidateIndexUnavailable = true;
+        return [];
+      }
+    }
+
     return candidateIndex;
   }
 

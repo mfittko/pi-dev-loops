@@ -178,6 +178,44 @@ test("validateMarkdownLinks skips candidate-index traversal on clean trees", asy
   }
 });
 
+
+test("validateMarkdownLinks does not suggest archived-doc candidates", async () => {
+  const repoRoot = await createRepo({
+    "README.md": "See [Guide](./docs/guid.md).\n",
+    "docs/archive/guide.md": "# Archived guide\n",
+  });
+
+  try {
+    const result = await validateMarkdownLinks({ repoRoot });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.brokenLinks.length, 1);
+    assert.equal(result.brokenLinks[0].suggestion, null);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("validateMarkdownLinks degrades to no suggestions when candidate indexing fails", async () => {
+  const repoRoot = await createRepo({
+    "README.md": "See [Guide](./docs/guid.md).\n",
+    "sandbox/": null,
+  });
+  const blockedDir = path.join(repoRoot, "sandbox");
+
+  try {
+    await chmod(blockedDir, 0o000);
+    const result = await validateMarkdownLinks({ repoRoot });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.brokenLinks.length, 1);
+    assert.equal(result.brokenLinks[0].suggestion, null);
+  } finally {
+    await chmod(blockedDir, 0o755).catch(() => {});
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("validate-links CLI exits 1 for broken links and 0 for a clean tree", async () => {
   const brokenRepo = await createRepo({
     "README.md": "See [Missing](./docs/missing.md).\n",
