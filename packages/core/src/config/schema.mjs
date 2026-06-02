@@ -13,13 +13,13 @@ const StrategyConfig = z.strictObject({
 
 const ModelsConfig = z.strictObject({
   conductor: z.string().trim().min(1).optional(),
-  roles: z.record(z.string(), z.string().min(1)).optional(),
+  roles: z.record(z.string(), z.string().trim().min(1)).optional(),
 });
 
 const RefinementConfig = z.strictObject({
   fanOut: z.number().int().min(1).max(10),
   mode: z.enum(["parallel", "sequential"]),
-  roles: z.array(z.string().min(1)).optional(),
+  roles: z.array(z.string().trim().min(1)).optional(),
 });
 
 const GateConfig = z.strictObject({

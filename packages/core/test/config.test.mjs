@@ -765,43 +765,31 @@ describe("role resolution", () => {
   });
 
   describe("conductor model resolution", () => {
-  test("resolveConductorModel returns model when present in config", () => {
-    const result = resolveConductorModel({ version: 1, models: { conductor: "gpt-5" } });
-    assert.equal(result, "gpt-5");
-  });
+    test("resolveConductorModel returns model when present in config", () => {
+      const result = resolveConductorModel({ version: 1, models: { conductor: "gpt-5" } });
+      assert.equal(result, "gpt-5");
+    });
 
-  test("resolveConductorModel returns null when models key is missing", () => {
-    const result = resolveConductorModel({ version: 1 });
-    assert.equal(result, null);
-  });
+    test("resolveConductorModel returns null when models key is missing", () => {
+      const result = resolveConductorModel({ version: 1 });
+      assert.equal(result, null);
+    });
 
-  test("resolveConductorModel returns null when models.conductor is absent", () => {
-    const result = resolveConductorModel({ version: 1, models: { roles: { security: "gpt-5" } } });
-    assert.equal(result, null);
-  });
+    test("resolveConductorModel returns null when models.conductor is absent", () => {
+      const result = resolveConductorModel({ version: 1, models: { roles: { security: "gpt-5" } } });
+      assert.equal(result, null);
+    });
 
-  test("resolveConductorModel returns null for empty string", () => {
-    const result = resolveConductorModel({ version: 1, models: { conductor: "" } });
-    assert.equal(result, null);
-  });
-
-
-  test("resolveConductorModel returns trimmed value for whitespace-padded string", () => {
-    const result = resolveConductorModel({ version: 1, models: { conductor: "  gpt-5  " } });
-    assert.equal(result, "gpt-5");
-  });
-
-  test("resolveConductorModel returns null for whitespace-only string", () => {
-    const result = resolveConductorModel({ version: 1, models: { conductor: "   " } });
-    assert.equal(result, null);
-  });
+    test("resolveConductorModel returns null for empty string", () => {
+      const result = resolveConductorModel({ version: 1, models: { conductor: "" } });
+      assert.equal(result, null);
+    });
 
 
-
-  test("resolveConductorModel returns null when models is empty object", () => {
-    const result = resolveConductorModel({ version: 1, models: {} });
-    assert.equal(result, null);
-  });
+    test("resolveConductorModel returns null when models is empty object", () => {
+      const result = resolveConductorModel({ version: 1, models: {} });
+      assert.equal(result, null);
+    });
   });
 
 });
