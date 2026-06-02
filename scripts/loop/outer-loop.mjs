@@ -538,8 +538,10 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   let conductorModel = null;
   if (!isSnapshotMode) {
     // Only load real config; skip for snapshot/test input mode
-    const { config: devLoopConfig } = await loadDevLoopConfig();
-    conductorModel = resolveConductorModel(devLoopConfig);
+    const { config: devLoopConfig, errors = [] } = await loadDevLoopConfig();
+    if (errors.length === 0) {
+      conductorModel = resolveConductorModel(devLoopConfig);
+    }
   }
 
   return {

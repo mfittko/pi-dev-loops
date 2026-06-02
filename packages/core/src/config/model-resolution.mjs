@@ -12,7 +12,7 @@
  */
 export function resolveConductorModel(config) {
   if (config?.models?.conductor && typeof config.models.conductor === "string" && config.models.conductor.trim().length > 0) {
-    return config.models.conductor;
+    return config.models.conductor.trim();
   }
   return null;
 }
