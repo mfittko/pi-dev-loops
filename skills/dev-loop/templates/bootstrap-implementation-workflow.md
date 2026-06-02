@@ -8,7 +8,7 @@ Use this file for repo-specific workflow notes that complement the skill.
 
 - one phase at a time
 - [Project Plan](../../../PLAN.md) holds roadmap/product truth
-- [Phase Plan](../../../docs/phases/) holds the durable plan for the active phase
+- `docs/phases/phase-<n>.md` holds the durable plan for the active phase
 - `tmp/phases/phase-<n>/` holds temporary local execution artifacts, reviews, and logs
 - fan-out / fan-in / review / merge before coding
 - test-first

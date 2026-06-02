@@ -101,7 +101,7 @@ Failure behavior:
 
 Resolve the canonical spec bundle for tracker-backed local implementation from one
 GitHub issue reference. This is the bounded GitHub-backed path for tracker-backed
-local spec resolution; it does not create or read [Phase Plan](../docs/phases/).
+local spec resolution; it does not create or read `docs/phases/phase-<n>.md`.
 
 Allowed inputs:
 - `--repo <owner/name>` with `--issue <number>`

@@ -6,13 +6,13 @@ The durable goal is to ship a reusable toolkit for Pi-based local and GitHub-fir
 
 ## What this plan is for
 
-Use [Project Plan](./PLAN.md) for **durable repo-level truth**:
+Use `PLAN.md` for **durable repo-level truth**:
 - product intent
 - architecture direction
 - workflow contract
 - medium-term roadmap
 
-Do **not** use [Project Plan](PLAN.md) for one-off issue execution plans, PR-specific checklists, or temporary implementation notes. Those belong in:
+Do **not** use `PLAN.md` for one-off issue execution plans, PR-specific checklists, or temporary implementation notes. Those belong in:
 - GitHub issues / PRs
 - `Phase Plan` (`docs/phases/phase-<n>.md`) for active local-phase planning
 - `tmp/` artifacts for transient execution detail
@@ -103,7 +103,7 @@ For new ideas that are not already anchored to an existing issue, keep the propo
 
 Whenever a merged slice changes durable project truth, update the affected durable docs before considering the slice closed. In practice this usually means checking some combination of:
 - [README](./README.md)
-- [Project Plan](PLAN.md)
+- `PLAN.md`
 - [Implementation State](./docs/IMPLEMENTATION_STATE.md)
 - [Implementation Workflow](./docs/IMPLEMENTATION_WORKFLOW.md)
 - relevant contract/state-graph docs under `docs/`

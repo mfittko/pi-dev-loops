@@ -22,9 +22,9 @@ Read only what the final approval decision needs:
 
 1. [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
 2. [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md) when the current step depends on async start/resume/status or retrospective enforcement
-4. [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md)
-5. the active GitHub issue / PR, current review comments, and current-head CI/check status
-6. task-relevant source files, tests, and config
+3. [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md)
+4. the active GitHub issue / PR, current review comments, and current-head CI/check status
+5. task-relevant source files, tests, and config
 
 ## Final approval contract
 
