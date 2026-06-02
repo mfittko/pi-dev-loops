@@ -2,15 +2,19 @@
 
 ## Status
 
-slice-1-implemented (schema, loader, roles, tests — no workflow wiring)
+active (slice-1-implemented; additional Phase 8 closure work pending)
+
+## Reconciliation note
+
+Phase 8 is the active durable phase on `main`. Phase 8 was pulled forward ahead of the deferred Phase 7 pilot, so this document now owns the active phase truth until the repo either closes Phase 8 or deliberately reprioritizes again.
 
 ## Objective
 
-Define a durable, inspectable configuration contract for `dev-loop` / routed workflow behavior so repo/operator defaults move from implicit prompt/skill/chat-memory seams into one canonical, validated configuration surface with clear precedence, fail-closed semantics, and a clean durable-vs-session split.
+Define a durable, inspectable configuration contract for `dev-loop` / routed workflow behavior so repo/operator defaults move from implicit prompt/skill/chat-memory seams into one canonical, validated configuration surface with clear precedence, fail-closed semantics, and explicit shipped-defaults vs repo-local-settings ownership.
 
 ## Why this phase exists now
 
-Workflow policy decisions are accumulating in too many scattered places:
+Workflow policy decisions are accumulating in too many scattered places, and enough of the config-contract surface has already shipped on `main` that the durable docs need to treat Phase 8 as the active phase rather than a future idea:
 - operator instructions in chat
 - issue-specific overrides
 - skill text / prompt wording
@@ -30,8 +34,8 @@ Without a configuration contract, behavior drifts between runs, repo policy and 
 
 - define the canonical config surface and schema for dev-loop / routed workflow defaults
 - define the canonical home for workflow-policy contract definitions (`.pi/dev-loop/`)
-- define config precedence: built-in defaults → repo defaults → session overrides → per-run flags
-- split durable (committed) from session (gitignored) config
+- define loader precedence for config files: built-in defaults → shipped defaults → repo-local settings (preferred `settings.*`, with legacy `overrides.*` fallback); higher-level per-run flags remain above this loader contract
+- distinguish shipped defaults from repo-local settings and higher-level per-run overrides without inventing a second gitignored session-only layer
 - define validation with fail-closed behavior for unknown or contradictory config
 - support at minimum these config families:
   1. **Execution strategy** — local-first vs GitHub-first default, plus per-workflow overrides
@@ -60,9 +64,9 @@ These reflect the brainstorming session on 2026-06-01 and serve as the starting 
 
 ### Config home
 
-- Durable defaults: `.pi/dev-loop/defaults.json` (committed, tracked)
-- Session overrides: `.pi/dev-loop/overrides.json` (gitignored)
-- Precedence: per-run CLI flags/env vars > session overrides > repo defaults > built-in defaults
+- Shipped defaults: `.pi/dev-loop/defaults.yaml` (committed, tracked with the package)
+- Repo-local override surface: `.pi/dev-loop/settings.yaml` (preferred); the loader also accepts `.pi/dev-loop/settings.yml` and `.pi/dev-loop/settings.json`, and legacy `overrides.*` still load as fallbacks
+- Precedence: per-run CLI flags/env vars > repo-local settings > shipped defaults > built-in defaults
 - Merge is shallow (missing keys fall through, no deep merging)
 
 ### Schema shape
@@ -118,9 +122,9 @@ This means angles are lenses first, optionally backed by dedicated agent persona
 
 ## Acceptance criteria
 
-- `.pi/dev-loop/defaults.json` schema is defined and validated via zod
-- `.pi/dev-loop/overrides.json` uses the same schema, sparsely applied
-- config loader resolves precedence correctly: per-run → session → repo → built-in
+- `.pi/dev-loop/defaults.yaml` is defined and validated through the same zod-backed config contract
+- `.pi/dev-loop/settings.yaml` (plus accepted `.yml` / `.json` forms) uses the same schema as the shipped defaults
+- config loader resolves file-surface precedence correctly: `settings.*` → legacy `overrides.*` → `defaults.*` → built-in defaults
 - unknown keys cause fail-closed rejection (zod `.strict()`)
 - contradictory values (e.g. unknown enum member) cause clear parse errors
 - role resolution follows the documented 3-step order
@@ -136,8 +140,8 @@ This means angles are lenses first, optionally backed by dedicated agent persona
 - zod schema committed under `packages/core/src/config/` (or equivalent canonical path)
 - config loader committed with precedence merging
 - contract tests pass with ≥ 90% coverage on the config module
-- `.pi/dev-loop/defaults.json` exists in the repo with sensible defaults
-- `.pi/dev-loop/overrides.json` is gitignored
+- `.pi/dev-loop/defaults.yaml` exists in the repo with sensible defaults
+- `.pi/dev-loop/settings.yaml` is the preferred repo-local override surface (with `.yml` / `.json` accepted by the loader)
 - one real workflow entrypoint reads the config and applies it (conductor model or strategy)
 - [Phase 8 Plan](phase-8.md) is updated to reflect the shipped surface
 - [Project Plan](../../PLAN.md) acknowledges the config contract as the canonical source for workflow defaults

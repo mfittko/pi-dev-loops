@@ -62,6 +62,14 @@ Key configurable surfaces:
 
 Full details: [Extension Documentation](extension/README.md) and `.pi/dev-loop/defaults.yaml`.
 
+## Current phase status
+
+Phase 8 is the active durable phase. It owns the workflow-configuration contract and its first shipped wiring slices, and `main` already includes a slice-1-implemented Phase 8 surface.
+
+Phase 7 second-repo pilot is deferred, not completed. Its bounded pilot plan remains in [Phase 7 Plan](./docs/phases/phase-7.md), but Phase 8 was pulled forward ahead of it as an explicit exception to the repo's normal one-phase-at-a-time posture.
+
+See [Docs Index](./docs/index.md) for the current execution snapshot and [Phase 8 Plan](./docs/phases/phase-8.md) for the active durable phase plan.
+
 ## Requirements and assumptions
 
 Current code and docs assume:
