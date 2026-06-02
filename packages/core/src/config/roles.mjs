@@ -1,13 +1,25 @@
 // ============================================================================
 // Built-in persona registry
 //
-// Initially empty — no dedicated reviewer agent personas exist yet.
-// Resolution falls back to default-reviewer for all angles.
-// Add entries when persona agents are created:
-//   { "security": { persona: "security-reviewer", defaultModel: null } }
+// Maps gate-review angle names to reviewer personas. Each entry defines:
+//   persona       — agent persona name (must exist in .pi/agents/)
+//   defaultModel  — optional model override (null = use persona default)
+//
+// Consumers can extend this by adding custom persona agents and mapping
+// them to new or existing angle names in their project config.
+//
+// Angle names come from the gate-angle config (gates.draft.angles /
+// gates.preApproval.angles in .pi/dev-loop/defaults.json).
 // ============================================================================
 
-const BUILTIN_PERSONAS = Object.freeze({});
+const BUILTIN_PERSONAS = Object.freeze({
+  scope:       { persona: "review", defaultModel: null },
+  coverage:    { persona: "review", defaultModel: null },
+  correctness: { persona: "review", defaultModel: null },
+  dry:         { persona: "review", defaultModel: null },
+  kiss:        { persona: "review", defaultModel: null },
+  yagni:       { persona: "review", defaultModel: null },
+});
 
 const DEFAULT_REVIEWER_PERSONA = "default-reviewer";
 

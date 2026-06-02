@@ -5,7 +5,18 @@
   },
   "refinement": {
     "fanOut": 3,
-    "mode": "parallel"
+    "mode": "parallel",
+    "roles": ["scope", "coverage", "dry", "kiss"]
+  },
+  "gates": {
+    "draft": {
+      "angles": ["scope", "coverage", "correctness"],
+      "required": true
+    },
+    "preApproval": {
+      "angles": ["dry", "kiss", "yagni"],
+      "required": true
+    }
   },
   "autonomy": {
     "stopAt": ["merge"]

@@ -764,6 +764,40 @@ describe("role resolution", () => {
     assert.equal(result.model, null);
   });
 
+  // --- Known angles (populated registry) ---
+
+  test("R10: known draft-gate angle resolves to review persona", () => {
+    const result = resolveReviewerRole({}, "scope");
+    assert.equal(result.persona, "review");
+    assert.equal(result.model, null);
+    assert.equal(result.fallback, false);
+  });
+
+  test("R11: known pre-approval angle resolves to review persona", () => {
+    const result = resolveReviewerRole({}, "dry");
+    assert.equal(result.persona, "review");
+    assert.equal(result.model, null);
+    assert.equal(result.fallback, false);
+  });
+
+  test("R12: all six known angles resolve without fallback", () => {
+    for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "yagni"]) {
+      const result = resolveReviewerRole({}, angle);
+      assert.equal(result.persona, "review", `angle ${angle}`);
+      assert.equal(result.fallback, false, `angle ${angle}`);
+    }
+  });
+
+  test("R13: known angle with model override applies override", () => {
+    const result = resolveReviewerRole(
+      { models: { roles: { dry: "gpt-5" } } },
+      "dry",
+    );
+    assert.equal(result.persona, "review");
+    assert.equal(result.model, "gpt-5");
+    assert.equal(result.fallback, false);
+  });
+
   describe("model and config resolution", () => {
     test("resolveConductorModel returns model when present in config", () => {
       const result = resolveConductorModel({ version: 1, models: { conductor: "gpt-5" } });
