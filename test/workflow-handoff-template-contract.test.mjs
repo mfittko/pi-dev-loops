@@ -53,6 +53,8 @@ test("workflow-handoff-template includes all 8 mandatory steps in order", async 
 test("workflow-handoff-template references required contract docs by path", async () => {
   const content = await readTemplate();
 
+  assert.match(content, /gh pr create --draft --assignee @me/i);
+
   const requiredRefs = [
     "../../docs/gate-review-comment-contract.md",
     "../copilot-pr-followup/SKILL.md",
