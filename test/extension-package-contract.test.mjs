@@ -16,6 +16,7 @@ test("package metadata exposes the extension entrypoint and root extension test 
   assert.equal(typeof packageJson.scripts["test:extension"], "string");
   assert.match(packageJson.scripts["test:extension"], /--import tsx/);
   assert.match(packageJson.scripts["test:extension"], /extension-checks/);
+  assert.match(packageJson.scripts["test:extension"], /extension-post-merge-update/);
   assert.match(packageJson.scripts["test:extension"], /extension-command-contract/);
   assert.match(packageJson.scripts["test:extension"], /extension-package-contract/);
   assert.equal(packageJson.dependencies.mermaid, "11.15.0");
