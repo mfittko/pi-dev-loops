@@ -8,7 +8,7 @@ import {
   DevLoopConfigSchema,
   BUILT_IN_DEFAULTS,
 } from "../src/config/schema.mjs";
-import { resolveConductorModel, resolveAutonomyStopAt } from "../src/config/model-resolution.mjs";
+import { resolveConductorModel, resolveAutonomyStopAt, resolveRefinement, resolveGateAngles } from "../src/config/model-resolution.mjs";
 // ============================================================================
 // Schema validation tests (S1–S26)
 // ============================================================================
@@ -764,7 +764,7 @@ describe("role resolution", () => {
     assert.equal(result.model, null);
   });
 
-  describe("conductor model resolution", () => {
+  describe("model and config resolution", () => {
     test("resolveConductorModel returns model when present in config", () => {
       const result = resolveConductorModel({ version: 1, models: { conductor: "gpt-5" } });
       assert.equal(result, "gpt-5");
@@ -830,6 +830,81 @@ describe("role resolution", () => {
         autonomy: { stopAt: ["refinement", "draft-pr", "pre-approval", "merge"] },
       });
       assert.deepEqual(result, ["refinement", "draft-pr", "pre-approval", "merge"]);
+    });
+
+    // Refinement resolution
+    test("resolveRefinement returns defaults when config is absent", () => {
+      const result = resolveRefinement({ version: 1 });
+      assert.equal(result.fanOut, 3);
+      assert.equal(result.mode, "parallel");
+      assert.equal(result.roles, null);
+    });
+
+    test("resolveRefinement returns configured values", () => {
+      const result = resolveRefinement({
+        version: 1,
+        refinement: { fanOut: 5, mode: "sequential", roles: ["security", "style"] }
+      });
+      assert.equal(result.fanOut, 5);
+      assert.equal(result.mode, "sequential");
+      assert.deepEqual(result.roles, ["security", "style"]);
+    });
+
+    test("resolveRefinement returns empty roles array when explicitly empty", () => {
+      const result = resolveRefinement({ version: 1, refinement: { fanOut: 2, mode: "parallel", roles: [] } });
+      assert.deepEqual(result.roles, []);
+    });
+
+    // Gate angles resolution
+    test("resolveGateAngles returns null when gates config is absent", () => {
+      const result = resolveGateAngles({ version: 1 }, "draft");
+      assert.deepEqual(result, null);
+    });
+
+    test("resolveGateAngles returns configured draft angles", () => {
+      const result = resolveGateAngles({
+        version: 1,
+        gates: { draft: { angles: ["scope", "coverage"], required: true } }
+      }, "draft");
+      assert.deepEqual(result, ["scope", "coverage"]);
+    });
+
+    test("resolveGateAngles returns configured preApproval angles", () => {
+      const result = resolveGateAngles({
+        version: 1,
+        gates: { preApproval: { angles: ["dry", "kiss"], required: false } }
+      }, "preApproval");
+      assert.deepEqual(result, ["dry", "kiss"]);
+    });
+
+    test("resolveGateAngles returns null for missing gate config", () => {
+      const result = resolveGateAngles({
+        version: 1,
+        gates: { draft: { angles: ["scope"], required: true } }
+      }, "preApproval");
+      assert.deepEqual(result, null);
+    });
+
+    test("resolveGateAngles returns empty array when angles explicitly empty", () => {
+      const result = resolveGateAngles({
+        version: 1,
+        gates: { draft: { angles: [], required: true } }
+      }, "draft");
+      assert.deepEqual(result, []);
+    });
+
+    test("resolveGateAngles returns new array (not reference to config)", () => {
+      const config = { version: 1, gates: { draft: { angles: ["scope"] } } };
+      const result = resolveGateAngles(config, "draft");
+      result.push("coverage");
+      assert.deepEqual(config.gates.draft.angles, ["scope"]);
+    });
+
+    test("resolveRefinement returns new roles array (not reference to config)", () => {
+      const config = { version: 1, refinement: { fanOut: 2, mode: "parallel", roles: ["security"] } };
+      const result = resolveRefinement(config);
+      result.roles.push("style");
+      assert.deepEqual(config.refinement.roles, ["security"]);
     });
   });
 
