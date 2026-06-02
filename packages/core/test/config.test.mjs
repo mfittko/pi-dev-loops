@@ -864,7 +864,7 @@ describe("role resolution", () => {
     assert.equal(result.fallback, false);
   });
 
-  test("R12: all six known angles resolve without fallback", () => {
+  test("R12: all 12 known angles resolve without fallback", () => {
     for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "srp", "ocp", "lsp", "isp", "dip", "soc", "yagni"]) {
       const result = resolveReviewerRole({}, angle);
       assert.equal(result.persona, "review", `angle ${angle}`);

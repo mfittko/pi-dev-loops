@@ -122,7 +122,7 @@ async function applyLayer(merged, basePath, layer, warnings, errors, options = {
     filePath = found.path;
     data = found.data;
   } catch (err) {
-    errors.push({ path: basePath + ".yaml", message: err.message, layer });
+    errors.push({ path: err.path ?? basePath + ".yaml", message: err.message, layer });
     return merged;
   }
 
