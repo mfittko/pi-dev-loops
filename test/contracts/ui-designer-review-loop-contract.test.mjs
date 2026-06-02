@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
+const fromRepoRoot = (relativePath) => new URL(`../../${relativePath}`, import.meta.url);
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), 'utf8');
 
 test('designer review loop doc and template define the bounded UI review handoff contract', async () => {

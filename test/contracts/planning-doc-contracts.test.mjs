@@ -4,7 +4,7 @@ import {
   parseFrontmatter,
   readRepo,
   test,
-} from "./imported-assets-helpers.mjs";
+} from "../imported-assets-helpers.mjs";
 
 const SUB_ISSUE_TREE_GUIDANCE = [
   /prefer real GitHub sub-issue trees as the durable execution structure/i,

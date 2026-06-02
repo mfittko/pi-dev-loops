@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, access } from "node:fs/promises";
 
-const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
+const fromRepoRoot = (relativePath) => new URL(`../../${relativePath}`, import.meta.url);
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), "utf8");
 
 test("ui validation contract doc exists at the expected path", async () => {

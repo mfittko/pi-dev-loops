@@ -7,7 +7,7 @@ import {
   stat,
   test,
   USER_FACING_AGENT_SURFACE,
-} from "./imported-assets-helpers.mjs";
+} from "../imported-assets-helpers.mjs";
 test("copilot review gates keep phase-specific angle ownership in one canonical internal skill", async () => {
   const [copilotPrFollowupSkill, gateContract] = await Promise.all([
     readRepo("skills/copilot-pr-followup/SKILL.md"),

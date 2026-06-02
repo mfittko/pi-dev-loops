@@ -7,7 +7,7 @@ import {
   stat,
   test,
   USER_FACING_AGENT_SURFACE,
-} from "./imported-assets-helpers.mjs";
+} from "../imported-assets-helpers.mjs";
 
 test("copilot skill does not contain known imported blocker phrases", async () => {
   const content = await readRepo("skills/copilot-pr-followup/SKILL.md");
