@@ -8,7 +8,8 @@ import { upsertGateReviewComment } from "./upsert-gate-review-comment.mjs";
 
 const USAGE = `Usage: reconcile-draft-gate.mjs --repo <owner/name> --pr <number> [--skip-checks]
 
-Recovery path for non-draft PRs that bypassed the required draft_gate.
+Optional/manual recovery tool for an already non-draft PR when you want to
+retroactively record clean \`draft_gate\` evidence.
 Converts the PR to draft, validates the head, posts a reconciling clean
 draft_gate comment, then marks the PR ready for review again.
 

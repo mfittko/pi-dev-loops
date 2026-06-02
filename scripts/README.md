@@ -513,7 +513,7 @@ Success output shape:
 - when `mergeStateStatus` is conflicted or `conflictFiles` is non-empty, the evaluator emits `gateBoundary=conflict_resolution`, `nextAction=resolve_merge_conflicts`, and forbids gate/approval/merge progression until reconciliation completes
 - `draftGateAlreadySatisfied` — true when the draft→ready transition was already recorded (non-draft + clean evidence exists); callers must skip draft gate when this is true
 - `forbiddenActions` includes `run_pre_approval_gate` whenever the post-draft review cycle has not yet settled for the current head, and conflicted PRs keep it forbidden until reconciliation is complete
-- if a PR is already non-draft but lacks current-head clean `draft_gate` evidence, the evaluator fails closed (`gateBoundary=blocked`, `nextAction=report_blocked`) until draft-gate evidence is reconciled
+- non-draft PRs do not need visible `draft_gate` evidence to progress through post-draft review or `pre_approval_gate`; `draftGateAlreadySatisfied` is informational only, and downstream legality comes from `gateBoundary`, `allowedNextActions`, and `forbiddenActions`
 - if the PR head changes while gate/conflict facts are loading, the helper still fails closed rather than evaluating mixed-head evidence
 
 Failure behavior:

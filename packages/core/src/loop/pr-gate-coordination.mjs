@@ -402,45 +402,6 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (!draftGate.cleanEvidenceExists) {
-    if (!draftGate.anyVisible) {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.RECONCILE_DRAFT_GATE]);
-    }
-    pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
-    pushUnique(forbiddenActions, [
-      PR_GATE_ACTION.RUN_DRAFT_GATE,
-      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-      PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
-      PR_GATE_ACTION.WAIT_FOR_CI,
-      PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK,
-      PR_GATE_ACTION.REPLY_RESOLVE_REVIEW_THREADS,
-      PR_GATE_ACTION.REREQUEST_COPILOT_REVIEW,
-      PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-      PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
-      PR_GATE_ACTION.DECLARE_MERGE_READY,
-    ]);
-    return buildResult({
-      repo: input.repo ?? null,
-      pr: Number.isInteger(input.pr) ? input.pr : null,
-      currentHeadSha,
-      lifecycleState: effectiveLifecycleState,
-      loopDisposition: LOOP_DISPOSITION.BLOCKED,
-      gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
-      draftGateAlreadySatisfied,
-      draftGate,
-      preApprovalGate,
-      allowedNextActions,
-      forbiddenActions,
-      nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
-      reason: draftGate.anyVisible
-        ? `The PR is already non-draft, but visible \`draft_gate\` evidence already exists (verdict: ${draftGate.verdict ?? "unknown"}). The auto-reconcile helper intentionally fails closed rather than overwriting existing evidence, so reconcile manually or clear/supersede the visible draft-gate evidence before re-evaluating.`
-        : "The PR is already non-draft and no `draft_gate` evidence is visible at all, so no draft-gate transition was ever recorded; use `scripts/github/reconcile-draft-gate.mjs` to auto-reconcile (convert to draft → post draft_gate comment → mark ready) and then re-evaluate.",
-      mergeStateStatus,
-      conflictFiles,
-    });
-  }
-
   const postDraftForbidden = [
     PR_GATE_ACTION.RUN_DRAFT_GATE,
     PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
