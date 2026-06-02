@@ -80,7 +80,7 @@ test("review workflow resolves pre-approval gate angles from config with explici
   assert.match(copilotFollowupSkill, /if parallel execution is impractical[\s\S]*still run all configured lenses and explicitly record the limitation/i);
   assert.match(reviewAgent, /if parallel execution is impractical[\s\S]*still cover all configured angles and explicitly record the limitation/i);
   assert.match(reviewAgent, /run those configured angle-focused passes in fresh context and in parallel when practical/i);
-  assert.match(coordinatorAgent, /resolve angles from config[\s\S]*run them in parallel when practical/i);
+  assert.match(coordinatorAgent, /resolve angles from config[\s\S]*run [a-z ]+ in parallel when practical/i);
   assert.match(coordinatorAgent, /if parallel execution is impractical[\s\S]*still run all configured angles and record that limitation explicitly/i);
   assert.match(reviewerGraph, /workflow lenses that reviewer\s+runs must cover for the change/i);
   assert.match(reviewerGraph, /do not replace the state machine's supported\s+review-angle taxonomy/i);

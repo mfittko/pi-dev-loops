@@ -761,7 +761,7 @@ This is the default pre-approval gate for this workflow boundary. The canonical 
 - **Trigger / boundary:** right before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff
 - **Execution directive:** run the gate-review sub-loop defined in `docs/gate-review-sub-loop-contract.md` with the pre-approval gate review angles resolved from config.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config`. Default config ships `dry`, `kiss`, `yagni`; consumer repos may override.
-- **Persona mapping:** each angle resolves to a reviewer persona via `resolveReviewerRole(config, angle)` from `@pi-dev-loops/core/config`. Default personas map all six angles to `review`; consumers may add custom persona agents and mappings.
+- **Persona mapping:** each angle resolves to a reviewer persona via `resolveReviewerRole(config, angle)` from `@pi-dev-loops/core/config`. The result includes the angle-specific `prompt` — a focused review instruction. Include this prompt in each reviewer's briefing so the reviewer knows exactly what to look for. Consumers may add custom persona agents and prompts via their own config.
 - **Pass criteria:** the sub-loop completes with verdict `clean`; all configured angles pass; if parallel execution is impractical, still run all configured lenses and explicitly record the limitation.
 - **Next step after passing:** continue the Step 7 flow and then proceed to Step 8.
 - **Non-substitution rule:** a clean `pre_approval_gate` comment is separate from `draft_gate` evidence. It governs final-approval readiness for that head SHA; it does **not** replace the required `draft_gate` evidence for leaving draft.
