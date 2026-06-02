@@ -57,6 +57,7 @@ import {
   buildAsyncStartRejection,
   validateAsyncStartContext,
 } from "@pi-dev-loops/core/loop/async-start-contract";
+import { loadDevLoopConfig, resolveConductorModel } from "@pi-dev-loops/core/config";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 
@@ -533,6 +534,14 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
 
   await writeCheckpoint(checkpointDir, checkpoint);
 
+  // Resolve conductor model override from config
+  let conductorModel = null;
+  if (!copilotInputProvided && !reviewerInputProvided) {
+    // Only load real config; skip for snapshot/test input mode
+    const { config: devLoopConfig } = await loadDevLoopConfig();
+    conductorModel = resolveConductorModel(devLoopConfig);
+  }
+
   return {
     ok: true,
     outerAction,
@@ -546,6 +555,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
     ...(branchIdentity !== null ? { branchIdentity } : {}),
     conductorRouting,
     checkpoint,
+    conductorModel,
   };
 }
 
