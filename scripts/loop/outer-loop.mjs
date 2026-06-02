@@ -536,7 +536,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
 
   // Resolve conductor model override from config
   let conductorModel = null;
-  if (!copilotInputProvided && !reviewerInputProvided) {
+  if (!isSnapshotMode) {
     // Only load real config; skip for snapshot/test input mode
     const { config: devLoopConfig } = await loadDevLoopConfig();
     conductorModel = resolveConductorModel(devLoopConfig);
