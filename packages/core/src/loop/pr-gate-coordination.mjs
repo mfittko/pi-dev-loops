@@ -83,6 +83,7 @@ function pushUnique(values, additions) {
 }
 
 function buildResult({
+  draftGateAlreadySatisfied = false,
   repo = null,
   pr = null,
   currentHeadSha = null,
@@ -110,6 +111,7 @@ function buildResult({
     forbiddenActions,
     nextAction,
     reason,
+    draftGateAlreadySatisfied,
   };
 }
 
@@ -129,6 +131,7 @@ export function evaluatePrGateCoordination(input = {}) {
 
   const draftGate = toGateStatus(input.draftGate, input.draftGateMarker, currentHeadSha);
   const preApprovalGate = toGateStatus(input.preApprovalGate, input.preApprovalGateMarker, currentHeadSha);
+  const draftGateAlreadySatisfied = !prDraft && (draftGate?.cleanEvidenceExists ?? false);
 
   const allowedNextActions = [];
   const forbiddenActions = [];
@@ -149,6 +152,7 @@ export function evaluatePrGateCoordination(input = {}) {
       lifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.DONE,
       gateBoundary: PR_GATE_BOUNDARY.DONE,
+      draftGateAlreadySatisfied,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -174,6 +178,7 @@ export function evaluatePrGateCoordination(input = {}) {
       lifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.BLOCKED,
       gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
+      draftGateAlreadySatisfied,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -203,6 +208,7 @@ export function evaluatePrGateCoordination(input = {}) {
       lifecycleState: lifecycleState || STATE.PR_DRAFT,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
       gateBoundary: PR_GATE_BOUNDARY.DRAFT_REVIEW,
+      draftGateAlreadySatisfied,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -236,6 +242,7 @@ export function evaluatePrGateCoordination(input = {}) {
       lifecycleState,
       loopDisposition: LOOP_DISPOSITION.BLOCKED,
       gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
+      draftGateAlreadySatisfied,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -272,6 +279,7 @@ export function evaluatePrGateCoordination(input = {}) {
           lifecycleState,
           loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
           gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+          draftGateAlreadySatisfied,
           draftGate,
           preApprovalGate,
           allowedNextActions,
@@ -290,6 +298,7 @@ export function evaluatePrGateCoordination(input = {}) {
         lifecycleState,
         loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
         gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
+        draftGateAlreadySatisfied,
         draftGate,
         preApprovalGate,
         allowedNextActions,
@@ -308,6 +317,7 @@ export function evaluatePrGateCoordination(input = {}) {
       lifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
       gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
+      draftGateAlreadySatisfied,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -331,6 +341,7 @@ export function evaluatePrGateCoordination(input = {}) {
       lifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.PENDING,
       gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
+      draftGateAlreadySatisfied,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -352,6 +363,7 @@ export function evaluatePrGateCoordination(input = {}) {
       lifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.UNRESOLVED_FEEDBACK,
       gateBoundary: PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
+      draftGateAlreadySatisfied,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -371,6 +383,7 @@ export function evaluatePrGateCoordination(input = {}) {
       lifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.UNRESOLVED_FEEDBACK,
       gateBoundary: PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
+      draftGateAlreadySatisfied,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -391,6 +404,7 @@ export function evaluatePrGateCoordination(input = {}) {
         lifecycleState,
         loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
         gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
+        draftGateAlreadySatisfied,
         draftGate,
         preApprovalGate,
         allowedNextActions,
@@ -415,6 +429,7 @@ export function evaluatePrGateCoordination(input = {}) {
         lifecycleState,
         loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
         gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+        draftGateAlreadySatisfied,
         draftGate,
         preApprovalGate,
         allowedNextActions,
@@ -438,6 +453,7 @@ export function evaluatePrGateCoordination(input = {}) {
       lifecycleState,
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
       gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
+      draftGateAlreadySatisfied,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -462,6 +478,7 @@ export function evaluatePrGateCoordination(input = {}) {
     lifecycleState,
     loopDisposition: loopDisposition ?? LOOP_DISPOSITION.BLOCKED,
     gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
+    draftGateAlreadySatisfied,
     draftGate,
     preApprovalGate,
     allowedNextActions,

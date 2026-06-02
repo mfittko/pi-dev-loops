@@ -270,14 +270,14 @@ describe("loader — graceful degradation", () => {
     assert.ok(schema.DevLoopConfigSchema);
   });
 
-  test("L1: both defaults.json and overrides.json missing", async () => {
+  test("L1: both config files missing", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L1-"));
     try {
       const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.version, 1);
-      assert.ok(result.warnings.length > 0, "should warn about missing defaults.json");
+      assert.ok(result.warnings.length > 0, "should warn about missing config");
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -377,6 +377,57 @@ describe("loader — graceful degradation", () => {
       assert.ok(result.config);
       assert.equal(result.config.strategy.default, "local-first");
       assert.ok(result.errors.length > 0, "should error for broken overrides");
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("Y1: defaults.yaml loads with YAML comments and parses correctly", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L7-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.yaml"), [
+        "version: 1",
+        "# This is a comment",
+        "strategy:",
+        "  default: local-first",
+        "gates:",
+        "  draft:",
+        "    angles:",
+        "      - scope",
+        "      - coverage",
+        "    required: true",
+        "personas:",
+        "  scope:",
+        "    persona: review",
+        "    prompt: Check scope",
+        "    defaultModel: null",
+      ].join("\n"));
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.ok(result.config);
+      assert.equal(result.config.strategy.default, "local-first");
+      assert.deepEqual(result.config.gates.draft.angles, ["scope", "coverage"]);
+      assert.equal(result.config.personas.scope.prompt, "Check scope");
+      assert.equal(result.warnings.length, 0);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("Y2: YAML preferred over JSON when both exist", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L8-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.json"),
+        JSON.stringify({ version: 1, strategy: { default: "local-first" } }));
+      await writeFile(path.join(piDir, "defaults.yaml"),
+        "version: 1\nstrategy:\n  default: github-first");
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.equal(result.config.strategy.default, "github-first", "YAML should take priority over JSON");
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -684,6 +735,39 @@ describe("loader — precedence", () => {
       await rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  test("M7: persona override may omit prompt without failing merged validation", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-M7-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(
+        path.join(piDir, "defaults.json"),
+        JSON.stringify({
+          version: 1,
+          personas: {
+            dry: { persona: "review", prompt: "Built-in DRY prompt", defaultModel: null },
+          },
+        }),
+      );
+      await writeFile(
+        path.join(piDir, "overrides.json"),
+        JSON.stringify({
+          version: 1,
+          personas: {
+            dry: { persona: "custom-dry-reviewer" },
+          },
+        }),
+      );
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.deepEqual(result.errors, []);
+      assert.equal(result.config.personas.dry.persona, "custom-dry-reviewer");
+      assert.equal(result.config.personas.dry.prompt, undefined);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 // ============================================================================
@@ -762,6 +846,141 @@ describe("role resolution", () => {
     );
     assert.equal(result.persona, "default-reviewer");
     assert.equal(result.model, null);
+  });
+
+  // --- Known angles (populated registry) ---
+
+  test("R10: known draft-gate angle resolves to review persona", () => {
+    const result = resolveReviewerRole({}, "scope");
+    assert.equal(result.persona, "review");
+    assert.equal(result.model, null);
+    assert.equal(result.fallback, false);
+  });
+
+  test("R11: known pre-approval angle resolves to review persona", () => {
+    const result = resolveReviewerRole({}, "dry");
+    assert.equal(result.persona, "review");
+    assert.equal(result.model, null);
+    assert.equal(result.fallback, false);
+  });
+
+  test("R12: all 12 known angles resolve without fallback", () => {
+    for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "srp", "ocp", "lsp", "isp", "dip", "soc", "yagni"]) {
+      const result = resolveReviewerRole({}, angle);
+      assert.equal(result.persona, "review", `angle ${angle}`);
+      assert.equal(result.fallback, false, `angle ${angle}`);
+    }
+  });
+
+  test("R13: known angle with model override applies override", () => {
+    const result = resolveReviewerRole(
+      { models: { roles: { dry: "gpt-5" } } },
+      "dry",
+    );
+    assert.equal(result.persona, "review");
+    assert.equal(result.model, "gpt-5");
+    assert.equal(result.fallback, false);
+  });
+
+  // --- Config-driven persona overrides ---
+
+  test("R14: config personas override built-in persona for same angle", () => {
+    const result = resolveReviewerRole(
+      { personas: { dry: { persona: "custom-dry-reviewer", defaultModel: null } } },
+      "dry",
+    );
+    assert.equal(result.persona, "custom-dry-reviewer");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R15: config personas add new angle not in built-in registry", () => {
+    const result = resolveReviewerRole(
+      { personas: { security: { persona: "security-reviewer", defaultModel: "claude-opus" } } },
+      "security",
+    );
+    assert.equal(result.persona, "security-reviewer");
+    assert.equal(result.model, "claude-opus");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R16: model override in models.roles takes priority over config persona defaultModel", () => {
+    const result = resolveReviewerRole(
+      {
+        personas: { dry: { persona: "review", defaultModel: "gpt-4" } },
+        models: { roles: { dry: "gpt-5" } },
+      },
+      "dry",
+    );
+    assert.equal(result.persona, "review");
+    assert.equal(result.model, "gpt-5");
+  });
+
+  test("R17: unknown angle without config personas still falls back to BUILTIN_PERSONAS", () => {
+    // Empty personas map — should fall back to built-in for known angles
+    const result = resolveReviewerRole(
+      { personas: {} },
+      "scope",
+    );
+    assert.equal(result.persona, "review");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R18: consumer overrides built-in persona and replaces model", () => {
+    const result = resolveReviewerRole(
+      {
+        personas: { correctness: { persona: "my-correctness-agent", defaultModel: "claude-sonnet" } },
+      },
+      "correctness",
+    );
+    assert.equal(result.persona, "my-correctness-agent");
+    assert.equal(result.model, "claude-sonnet");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R19: built-in fallback returns null prompt when config personas absent", () => {
+    const result = resolveReviewerRole({}, "dry");
+    assert.equal(result.persona, "review");
+    assert.equal(result.prompt, null, "prompt should be null when config.personas is absent");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R20: config personas provide prompts; fallback does not duplicate them", () => {
+    // Without config: persona resolves, prompt is null (lives in config only)
+    const noConfig = resolveReviewerRole({}, "dry");
+    assert.equal(noConfig.prompt, null);
+    // With config: persona resolves with prompt from config
+    const withConfig = resolveReviewerRole(
+      { personas: { dry: { persona: "review", prompt: "Check duplication" } } },
+      "dry",
+    );
+    assert.equal(withConfig.prompt, "Check duplication");
+    assert.equal(withConfig.fallback, false);
+  });
+
+  test("R21: config persona prompt overrides built-in prompt", () => {
+    const result = resolveReviewerRole(
+      { personas: { dry: { persona: "review", prompt: "Custom DRY prompt for this project" } } },
+      "dry",
+    );
+    assert.equal(result.prompt, "Custom DRY prompt for this project");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R22: fallback angles return null prompt", () => {
+    const result = resolveReviewerRole({}, "unknown-angle");
+    assert.equal(result.persona, "default-reviewer");
+    assert.equal(result.prompt, null);
+    assert.equal(result.fallback, true);
+  });
+
+  test("R23: config persona without prompt resolves with null prompt", () => {
+    const result = resolveReviewerRole(
+      { personas: { dry: { persona: "custom-dry-reviewer" } } },
+      "dry",
+    );
+    assert.equal(result.persona, "custom-dry-reviewer");
+    assert.equal(result.prompt, null);
+    assert.equal(result.fallback, false);
   });
 
   describe("model and config resolution", () => {

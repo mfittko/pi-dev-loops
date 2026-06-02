@@ -30,10 +30,14 @@ This contract covers exactly two gates with distinct lifecycle semantics:
 
 These gates are related but **not interchangeable**.
 
-| Gate | Boundary it governs | Review-angle ownership | What a clean comment authorizes | What it does **not** authorize |
+Each gate's review angles are defined in the project config (`gates.draft.angles` and `gates.preApproval.angles` in `.pi/dev-loop/defaults.yaml`). The reviewer persona for each angle is resolved via `resolveReviewerRole` from the persona registry (`packages/core/src/config/roles.mjs`). Consumer repos may override angles and map custom personas via their own config.
+
+Resolve angles at runtime with `resolveGateAngles(config, "draft")` and `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config`. Do not hardcode angle names in skill procedures or review prompts.
+
+| Gate | Boundary it governs | Review angles | What a clean comment authorizes | What it does **not** authorize |
 |---|---|---|---|---|
-| `draft_gate` | Draft → ready for review | correctness vs acceptance criteria, scope compliance, test coverage adequacy, CI/check status, no unrelated files | `gh pr ready` / leaving draft for the reviewed head SHA | final-approval readiness, merge-ready claims, or satisfaction of `pre_approval_gate` |
-| `pre_approval_gate` | Final approval / merge readiness | DRY, KISS, YAGNI | approval-ready / final-human-approval readiness for the reviewed head SHA | draft-stage `gh pr ready` decisions for a different gate run |
+| `draft_gate` | Draft → ready for review | Resolved from `gates.draft.angles` in config | `gh pr ready` / leaving draft for the reviewed head SHA | final-approval readiness, merge-ready claims, or satisfaction of `pre_approval_gate` |
+| `pre_approval_gate` | Final approval / merge readiness | Resolved from `gates.preApproval.angles` in config | approval-ready / final-human-approval readiness for the reviewed head SHA | draft-stage `gh pr ready` decisions for a different gate run |
 
 A clean `draft_gate` comment does **not** satisfy `pre_approval_gate` requirements.
 A clean `pre_approval_gate` comment does **not** retroactively replace the required `draft_gate` evidence for leaving draft.
@@ -84,8 +88,12 @@ clean `draft_gate` comment exists on the PR and the PR leaves draft, later head
 changes must not trigger new `draft_gate` comments. Post-draft follow-up relies on
 normal review/fix loops and the recurring per-head `pre_approval_gate`.
 
-- When the `draft_gate` runs (while the PR is still draft), the PR must receive a
-  visible gate-review comment.
+- **Skip rule:** before posting a `draft_gate` comment, check whether a clean `draft_gate`
+  comment already exists on the PR (any head). If a clean draft-gate comment exists
+  anywhere on the PR, skip the draft gate entirely — the draft→ready transition was
+  already recorded. Do not re-post draft gate on new heads. This is a one-time gate.
+- When the `draft_gate` runs (while the PR is still draft and no clean evidence exists),
+  the PR must receive a visible gate-review comment.
 - If the `draft_gate` verdict is `findings_present` or `blocked`, the comment must
   state that the PR stays draft and fixes are required before retrying.
 - The PR must not leave draft (`gh pr ready`) unless a visible `clean` `draft_gate`

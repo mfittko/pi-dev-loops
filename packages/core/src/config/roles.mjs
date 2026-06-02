@@ -1,13 +1,32 @@
 // ============================================================================
-// Built-in persona registry
+// Built-in persona registry — fallback when config.personas is absent
 //
-// Initially empty — no dedicated reviewer agent personas exist yet.
-// Resolution falls back to default-reviewer for all angles.
-// Add entries when persona agents are created:
-//   { "security": { persona: "security-reviewer", defaultModel: null } }
+// Maps gate-review angle names to reviewer personas. Only the persona name
+// is defined here; prompts and per-angle model defaults live in the config
+// (.pi/dev-loop/defaults.yaml personas section).
+//
+// Consumers can extend or override these by adding personas entries to
+// their .pi/dev-loop/defaults.yaml or overrides.yaml. Config-resolved
+// personas take priority over this built-in registry.
+//
+// Angle names come from the gate-angle config (gates.draft.angles /
+// gates.preApproval.angles in .pi/dev-loop/defaults.yaml).
 // ============================================================================
 
-const BUILTIN_PERSONAS = Object.freeze({});
+const BUILTIN_PERSONAS = Object.freeze({
+  scope:       { persona: "review", defaultModel: null },
+  coverage:    { persona: "review", defaultModel: null },
+  correctness: { persona: "review", defaultModel: null },
+  dry:         { persona: "review", defaultModel: null },
+  kiss:        { persona: "review", defaultModel: null },
+  srp:         { persona: "review", defaultModel: null },
+  ocp:         { persona: "review", defaultModel: null },
+  lsp:         { persona: "review", defaultModel: null },
+  isp:         { persona: "review", defaultModel: null },
+  dip:         { persona: "review", defaultModel: null },
+  soc:         { persona: "review", defaultModel: null },
+  yagni:       { persona: "review", defaultModel: null },
+});
 
 const DEFAULT_REVIEWER_PERSONA = "default-reviewer";
 
@@ -19,6 +38,7 @@ const DEFAULT_REVIEWER_PERSONA = "default-reviewer";
  * @typedef {object} RoleResolutionResult
  * @property {string} persona - Agent persona name to use
  * @property {string|null} model - Effective model (null = use persona default)
+ * @property {string|null} prompt - Focused review instruction for this angle (null when fallback)
  * @property {boolean} fallback - True when no specialized persona was found
  */
 
@@ -26,12 +46,13 @@ const DEFAULT_REVIEWER_PERSONA = "default-reviewer";
  * Resolve a gate angle name to a reviewer persona and model.
  *
  * Resolution order:
- * 1. Look up angle in built-in persona registry
- * 2. If found, apply model override from config.models.roles[angle] if present
- * 3. If not found, fall back to default reviewer with angle as focus lens,
+ * 1. Look up angle in config.personas[angle] (consumer overrides)
+ * 2. If not found in config, look up in BUILTIN_PERSONAS
+ * 3. If found in either, apply model override from config.models.roles[angle] if present
+ * 4. If not found anywhere, fall back to default reviewer with angle as focus lens,
  *    still applying any model override from config
  *
- * @param {object} config - DevLoopConfig (or partial with models.roles)
+ * @param {object} config - DevLoopConfig (or partial with personas, models.roles)
  * @param {string|null|undefined} angle - Gate angle / lens name
  * @returns {RoleResolutionResult}
  */
@@ -41,17 +62,22 @@ export function resolveReviewerRole(config, angle) {
     return {
       persona: DEFAULT_REVIEWER_PERSONA,
       model: null,
+      prompt: null,
       fallback: true,
     };
   }
 
-  const persona = BUILTIN_PERSONAS[angle] ?? null;
+  // Resolution: config.personas > BUILTIN_PERSONAS > default-reviewer
+  const configPersona = config?.personas?.[angle] ?? null;
+  const builtinPersona = BUILTIN_PERSONAS[angle] ?? null;
+  const persona = configPersona ?? builtinPersona;
   const modelOverride = config?.models?.roles?.[angle] || null;
 
   if (persona) {
     return {
       persona: persona.persona,
       model: modelOverride || persona.defaultModel || null,
+      prompt: persona.prompt || null,
       fallback: false,
     };
   }
@@ -60,6 +86,7 @@ export function resolveReviewerRole(config, angle) {
   return {
     persona: DEFAULT_REVIEWER_PERSONA,
     model: modelOverride || null,
+    prompt: null,
     fallback: true,
   };
 }
