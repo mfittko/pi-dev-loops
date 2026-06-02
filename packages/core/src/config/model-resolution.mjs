@@ -11,9 +11,10 @@
  * @returns {string|null}
  */
 export function resolveConductorModel(config) {
-  const model = config?.models?.conductor;
-  if (typeof model === "string" && model.length > 0) {
-    return model;
+  const raw = config?.models?.conductor;
+  if (typeof raw !== "string") {
+    return null;
   }
-  return null;
+  const model = raw.trim();
+  return model.length > 0 ? model : null;
 }
