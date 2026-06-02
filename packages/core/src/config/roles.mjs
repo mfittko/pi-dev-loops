@@ -1,12 +1,13 @@
 // ============================================================================
-// Built-in persona registry
+// Built-in persona registry — fallback when config.personas is absent
 //
 // Maps gate-review angle names to reviewer personas. Each entry defines:
 //   persona       — agent persona name (must exist in .pi/agents/)
 //   defaultModel  — optional model override (null = use persona default)
 //
-// Consumers can extend this by adding custom persona agents and mapping
-// them to new or existing angle names in their project config.
+// Consumers can extend or override these by adding personas entries to
+// their .pi/dev-loop/defaults.json or overrides.json. Config-resolved
+// personas take priority over this built-in registry.
 //
 // Angle names come from the gate-angle config (gates.draft.angles /
 // gates.preApproval.angles in .pi/dev-loop/defaults.json).
@@ -38,12 +39,13 @@ const DEFAULT_REVIEWER_PERSONA = "default-reviewer";
  * Resolve a gate angle name to a reviewer persona and model.
  *
  * Resolution order:
- * 1. Look up angle in built-in persona registry
- * 2. If found, apply model override from config.models.roles[angle] if present
- * 3. If not found, fall back to default reviewer with angle as focus lens,
+ * 1. Look up angle in config.personas[angle] (consumer overrides)
+ * 2. If not found in config, look up in BUILTIN_PERSONAS
+ * 3. If found in either, apply model override from config.models.roles[angle] if present
+ * 4. If not found anywhere, fall back to default reviewer with angle as focus lens,
  *    still applying any model override from config
  *
- * @param {object} config - DevLoopConfig (or partial with models.roles)
+ * @param {object} config - DevLoopConfig (or partial with personas, models.roles)
  * @param {string|null|undefined} angle - Gate angle / lens name
  * @returns {RoleResolutionResult}
  */
@@ -57,7 +59,10 @@ export function resolveReviewerRole(config, angle) {
     };
   }
 
-  const persona = BUILTIN_PERSONAS[angle] ?? null;
+  // Resolution: config.personas > BUILTIN_PERSONAS > default-reviewer
+  const configPersona = config?.personas?.[angle] ?? null;
+  const builtinPersona = BUILTIN_PERSONAS[angle] ?? null;
+  const persona = configPersona ?? builtinPersona;
   const modelOverride = config?.models?.roles?.[angle] || null;
 
   if (persona) {

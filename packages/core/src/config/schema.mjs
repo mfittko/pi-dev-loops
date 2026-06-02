@@ -38,6 +38,16 @@ const AutonomyConfig = z.strictObject({
   ),
 });
 
+const PersonaEntry = z.strictObject({
+  persona: z.string().min(1),
+  defaultModel: z.string().trim().min(1).nullable().default(null),
+});
+
+const PersonasConfig = z.record(z.string().min(1), PersonaEntry);
+
+// Partial persona entries for file-level config (allows omitting fields)
+const FilePersonasConfig = z.record(z.string().min(1), PersonaEntry.partial());
+
 // ============================================================================
 // Full schema — families are optional (BUILT_IN_DEFAULTS provides fallback)
 // ============================================================================
@@ -53,6 +63,7 @@ export const DevLoopConfigSchema = z.strictObject({
   refinement: RefinementConfig.optional(),
   gates: GatesConfig.optional(),
   autonomy: AutonomyConfig.optional(),
+  personas: PersonasConfig.optional(),
 });
 
 // ============================================================================
@@ -66,6 +77,7 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
   refinement: Object.freeze({ fanOut: 3, mode: "parallel" }),
   gates: Object.freeze({}),
   autonomy: Object.freeze({ stopAt: Object.freeze(["merge"]) }),
+  personas: Object.freeze({}),
 });
 
 // ============================================================================
@@ -79,4 +91,5 @@ export const FileConfigSchema = z.strictObject({
   refinement: RefinementConfig.partial().optional(),
   gates: GatesConfig.partial().optional(),
   autonomy: AutonomyConfig.partial().optional(),
+  personas: FilePersonasConfig.optional(),
 });

@@ -31,7 +31,7 @@ test("copilot review gates keep phase-specific angle ownership in one canonical 
   assert.match(copilotPrFollowupSkill, /canonical internal owner of the shared post-PR mechanics/i);
   assert.match(gateContract, /visible gate-review comment evidence contract only/i);
 
-  const expectedDevLoopShape = [/Gate name:/i, /Trigger \/ boundary:/i, /Review angles \(owned by this gate\):/i, /Pass criteria:/i, /Next step after passing:/i];
+  const expectedDevLoopShape = [/Gate name:/i, /Trigger \/ boundary:/i, /Review angles:/i, /Pass criteria:/i, /Next step after passing:/i];
   for (const [label, section] of [
     ["copilot-pr-followup draft gate", devLoopDraftGate],
     ["copilot-pr-followup pre-approval gate", devLoopPreApproval],
@@ -42,12 +42,12 @@ test("copilot review gates keep phase-specific angle ownership in one canonical 
     assert.doesNotMatch(section, /Gate role:/i, `${label} should not introduce extra template-only fields that drift across gates`);
   }
 
-  const draftAnglePatterns = [/correctness.*acceptance criteria/i, /scope compliance/i, /test coverage/i, /ci.*check|check.*status/i, /no unrelated files/i];
-  const preApprovalAnglePatterns = [/\bDRY\b/, /\bKISS\b/, /\bYAGNI\b/];
+  const draftAnglePatterns = [/resolveGateAngles\(config, "draft"\)/i, /scope.*coverage.*correctness/i];
+  const preApprovalAnglePatterns = [/resolveGateAngles\(config, "preApproval"\)/];
 
-  const devLoopDraftOwnedAnglesMatch = devLoopDraftGate.match(/Review angles \(owned by this gate\):[\s\S]*?(?=\n- \*\*Pass criteria)/i);
+  const devLoopDraftOwnedAnglesMatch = devLoopDraftGate.match(/Review angles:[\s\S]*?(?=\n- \*\*Pass criteria)/i);
   const devLoopDraftOwnedAngles = devLoopDraftOwnedAnglesMatch ? devLoopDraftOwnedAnglesMatch[0] : "";
-  const devLoopPreApprovalOwnedAnglesMatch = devLoopPreApproval.match(/Review angles \(owned by this gate\):[\s\S]*?(?=\n- \*\*Pass criteria)/i);
+  const devLoopPreApprovalOwnedAnglesMatch = devLoopPreApproval.match(/Review angles:[\s\S]*?(?=\n- \*\*Pass criteria)/i);
   const devLoopPreApprovalOwnedAngles = devLoopPreApprovalOwnedAnglesMatch ? devLoopPreApprovalOwnedAnglesMatch[0] : "";
 
   for (const pattern of draftAnglePatterns) {
@@ -56,8 +56,8 @@ test("copilot review gates keep phase-specific angle ownership in one canonical 
   for (const pattern of preApprovalAnglePatterns) {
     assert.match(devLoopPreApprovalOwnedAngles, pattern);
   }
-
-  for (const pattern of preApprovalAnglePatterns) {
+  // Pre-approval angles must NOT appear in draft gate section
+  for (const pattern of [/\bDRY\b/, /\bKISS\b/, /\bYAGNI\b/]) {
     assert.doesNotMatch(devLoopDraftOwnedAngles, pattern);
   }
   for (const pattern of draftAnglePatterns) {

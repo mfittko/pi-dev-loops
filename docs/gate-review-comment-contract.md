@@ -30,16 +30,14 @@ This contract covers exactly two gates with distinct lifecycle semantics:
 
 These gates are related but **not interchangeable**.
 
-Each gate's review angles are defined in the project config (`gates.draft.angles` and `gates.preApproval.angles` in `.pi/dev-loop/defaults.json`). The defaults shipped with the repo are:
-- `draft_gate`: `scope`, `coverage`, `correctness`
-- `pre_approval_gate`: `dry`, `kiss`, `yagni`
+Each gate's review angles are defined in the project config (`gates.draft.angles` and `gates.preApproval.angles` in `.pi/dev-loop/defaults.json`). The reviewer persona for each angle is resolved via `resolveReviewerRole` from the persona registry (`packages/core/src/config/roles.mjs`). Consumer repos may override angles and map custom personas via their own config.
 
-Consumer repos may override these via their own config.
+Resolve angles at runtime with `resolveGateAngles(config, "draft")` and `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config`. Do not hardcode angle names in skill procedures or review prompts.
 
-| Gate | Boundary it governs | Default review angles | What a clean comment authorizes | What it does **not** authorize |
+| Gate | Boundary it governs | Review angles | What a clean comment authorizes | What it does **not** authorize |
 |---|---|---|---|---|
-| `draft_gate` | Draft → ready for review | `scope`, `coverage`, `correctness` | `gh pr ready` / leaving draft for the reviewed head SHA | final-approval readiness, merge-ready claims, or satisfaction of `pre_approval_gate` |
-| `pre_approval_gate` | Final approval / merge readiness | `dry`, `kiss`, `yagni` | approval-ready / final-human-approval readiness for the reviewed head SHA | draft-stage `gh pr ready` decisions for a different gate run |
+| `draft_gate` | Draft → ready for review | Resolved from `gates.draft.angles` in config | `gh pr ready` / leaving draft for the reviewed head SHA | final-approval readiness, merge-ready claims, or satisfaction of `pre_approval_gate` |
+| `pre_approval_gate` | Final approval / merge readiness | Resolved from `gates.preApproval.angles` in config | approval-ready / final-human-approval readiness for the reviewed head SHA | draft-stage `gh pr ready` decisions for a different gate run |
 
 A clean `draft_gate` comment does **not** satisfy `pre_approval_gate` requirements.
 A clean `pre_approval_gate` comment does **not** retroactively replace the required `draft_gate` evidence for leaving draft.

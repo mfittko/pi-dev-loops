@@ -104,8 +104,8 @@ identical; only the review angles differ.
 
 | Gate | Review angles | Owned by |
 |---|---|---|
-| `draft_gate` | correctness vs acceptance criteria, scope compliance, test coverage adequacy, CI/check status, no unrelated files | `skills/copilot-pr-followup/SKILL.md` |
-| `pre_approval_gate` | DRY, KISS, YAGNI | `skills/copilot-pr-followup/SKILL.md` |
+| `draft_gate` | Resolved from config (`resolveGateAngles(config, "draft")`) | `skills/copilot-pr-followup/SKILL.md` |
+| `pre_approval_gate` | Resolved from config (`resolveGateAngles(config, "preApproval")`) | `skills/copilot-pr-followup/SKILL.md` |
 
 ## Non-substitution rule
 

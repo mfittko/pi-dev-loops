@@ -32,7 +32,7 @@ It does not redefine helper transport mechanics, reviewer-loop internals, conduc
 | `docs/conductor-routing-contract.md` | Downstream consumer of family-local lifecycle outcomes |
 | issue #29 | Reviewer-loop boundary semantics |
 | issue #34 | Copilot request / re-request / watch helper mechanics |
-| issue #43 | DRY/KISS/YAGNI policy for the final local pre-approval gate |
+| issue #43 | Review-angle policy for the final local pre-approval gate (now config-driven via `gates.preApproval.angles` and `resolveGateAngles`) |
 | issue #61 | Conductor routing and loop-family handoff above this family-local lifecycle |
 | issue #32 | Ownership/idempotency truth for active runs |
 
@@ -64,7 +64,7 @@ Boundary note:
 
 Applies after Copilot convergence and before final approval / merge claims.
 
-This gate uses the DRY/KISS/YAGNI review policy from #43.
+This gate uses review angles resolved from config (`resolveGateAngles(config, "preApproval")`). Originally defined by #43; now config-driven.
 
 Boundary note:
 - `pre_approval_gate` governs only final approval readiness for the reviewed head
@@ -83,7 +83,7 @@ The family-local lifecycle should be modeled in this vocabulary. These state ide
 | `copilot_feedback_remediation` | actionable Copilot feedback exists; fixes are the next active step |
 | `copilot_reply_resolve_pending` | fixes were applied, but GitHub thread reply/resolve work still remains |
 | `final_local_preapproval_gate` | current-head post-Copilot convergence is ready for the final local gate |
-| `final_gate_remediation` | DRY/KISS/YAGNI findings require more remediation after the final gate |
+| `final_gate_remediation` | Pre-approval gate findings require more remediation after the final gate |
 | `waiting_for_human_pr_approval` | local gates are satisfied; waiting for explicit human approval |
 | `waiting_for_merge` | approval exists; waiting for merge / merge-triggering external action |
 | `terminal_slice_complete` | merged/closed and no further owned step remains |
@@ -114,7 +114,7 @@ At minimum, the lifecycle must enforce these transitions:
 - `waiting_for_copilot_review` -> `final_local_preapproval_gate`
   - the current-head request/re-review cycle has settled cleanly with no actionable feedback and no further Copilot pass is needed
 - `final_local_preapproval_gate` -> `final_gate_remediation`
-  - DRY/KISS/YAGNI findings require changes
+  - pre-approval gate findings require changes
 - `final_local_preapproval_gate` -> `waiting_for_human_pr_approval`
   - clean current-head `pre_approval_gate` evidence exists
 - `waiting_for_human_pr_approval` -> `waiting_for_merge`
@@ -137,7 +137,7 @@ The lifecycle must keep the next action class explicit:
 - draft-stage local findings route to `draft_local_remediation`
 - actionable Copilot feedback routes to `copilot_feedback_remediation`
 - fixes applied but unresolved GitHub reply/resolve work remains route to `copilot_reply_resolve_pending`
-- final DRY/KISS/YAGNI findings route to `final_gate_remediation`
+- pre-approval gate findings route to `final_gate_remediation`
 - human approval / merge remain explicit external waits
 
 Reviewer-loop reminder:

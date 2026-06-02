@@ -61,7 +61,7 @@ For each Copilot review pass:
 ### 7. Pre-approval gate review
 
 - Confirm legality: `node scripts/loop/detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number>`
-- Run parallel subagent reviews (DRY, KISS, YAGNI lenses)
+- Run parallel subagent reviews with angles resolved from config (`resolveGateAngles(config, "preApproval")`)
 - Post visible `pre_approval_gate` comment on the PR
 - If findings → fix, push new head, re-run pre-approval gate
 

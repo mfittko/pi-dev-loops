@@ -20,5 +20,13 @@
   },
   "autonomy": {
     "stopAt": ["merge"]
+  },
+  "personas": {
+    "scope":       { "persona": "review", "defaultModel": null },
+    "coverage":    { "persona": "review", "defaultModel": null },
+    "correctness": { "persona": "review", "defaultModel": null },
+    "dry":         { "persona": "review", "defaultModel": null },
+    "kiss":        { "persona": "review", "defaultModel": null },
+    "yagni":       { "persona": "review", "defaultModel": null }
   }
 }

@@ -798,6 +798,61 @@ describe("role resolution", () => {
     assert.equal(result.fallback, false);
   });
 
+  // --- Config-driven persona overrides ---
+
+  test("R14: config personas override built-in persona for same angle", () => {
+    const result = resolveReviewerRole(
+      { personas: { dry: { persona: "custom-dry-reviewer", defaultModel: null } } },
+      "dry",
+    );
+    assert.equal(result.persona, "custom-dry-reviewer");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R15: config personas add new angle not in built-in registry", () => {
+    const result = resolveReviewerRole(
+      { personas: { security: { persona: "security-reviewer", defaultModel: "claude-opus" } } },
+      "security",
+    );
+    assert.equal(result.persona, "security-reviewer");
+    assert.equal(result.model, "claude-opus");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R16: model override in models.roles takes priority over config persona defaultModel", () => {
+    const result = resolveReviewerRole(
+      {
+        personas: { dry: { persona: "review", defaultModel: "gpt-4" } },
+        models: { roles: { dry: "gpt-5" } },
+      },
+      "dry",
+    );
+    assert.equal(result.persona, "review");
+    assert.equal(result.model, "gpt-5");
+  });
+
+  test("R17: unknown angle without config personas still falls back to BUILTIN_PERSONAS", () => {
+    // Empty personas map — should fall back to built-in for known angles
+    const result = resolveReviewerRole(
+      { personas: {} },
+      "scope",
+    );
+    assert.equal(result.persona, "review");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R18: consumer overrides built-in persona and replaces model", () => {
+    const result = resolveReviewerRole(
+      {
+        personas: { correctness: { persona: "my-correctness-agent", defaultModel: "claude-sonnet" } },
+      },
+      "correctness",
+    );
+    assert.equal(result.persona, "my-correctness-agent");
+    assert.equal(result.model, "claude-sonnet");
+    assert.equal(result.fallback, false);
+  });
+
   describe("model and config resolution", () => {
     test("resolveConductorModel returns model when present in config", () => {
       const result = resolveConductorModel({ version: 1, models: { conductor: "gpt-5" } });

@@ -33,7 +33,7 @@ test("coordinator agent does not contain stale docs/plans path and requires fres
   assert.match(content, /fresh context/i);
 });
 
-test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with explicit fallback requirement", async () => {
+test("review workflow resolves pre-approval gate angles from config with explicit fallback requirement", async () => {
   const [localImplementationSkill, copilotFollowupSkill, subLoopContract, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph] = await Promise.all([
     readRepo("skills/local-implementation/SKILL.md"),
     readRepo("skills/copilot-pr-followup/SKILL.md"),
@@ -45,12 +45,12 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
   ]);
 
   const gateDocuments = [
-    ["skills/local-implementation/SKILL.md", localImplementationSkill, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
-    ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
-    ["agents/review.agent.md", reviewAgent, /default pre-approval gate contract:[\s\S]{0,160}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
-    ["agents/coordinator.agent.md", coordinatorAgent, /default pre-approval review fan-out must use the [\s\S]{0,40}\bDRY\b[\s\S]{0,40}\bKISS\b[\s\S]{0,40}\bYAGNI\b lenses/i],
-    ["skills/dev-loop/templates/review.md", reviewTemplate, /^## Default pre-approval gate \(DRY \/ KISS \/ YAGNI\)$/m],
-    ["docs/reviewer-loop-state-graph.md", reviewerGraph, /default pre-approval gate[\s\S]{0,200}\bDRY\b[\s\S]{0,80}\bKISS\b[\s\S]{0,80}\bYAGNI\b/i],
+    ["skills/local-implementation/SKILL.md", localImplementationSkill, /default pre-approval gate[\s\S]{0,200}resolveGateAngles/i],
+    ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill, /default pre-approval gate[\s\S]{0,600}resolveGateAngles/i],
+    ["agents/review.agent.md", reviewAgent, /default pre-approval gate contract:[\s\S]{0,200}resolveGateAngles/i],
+    ["agents/coordinator.agent.md", coordinatorAgent, /review fan-out must use the [\s\S]{0,200}resolveGateAngles/i],
+    ["skills/dev-loop/templates/review.md", reviewTemplate, /Default pre-approval gate/i],
+    ["docs/reviewer-loop-state-graph.md", reviewerGraph, /default pre-approval gate[\s\S]{0,200}resolveGateAngles/i],
   ];
 
   for (const [label, content, gatePhraseWithLenses] of gateDocuments) {
@@ -71,15 +71,15 @@ test("review workflow documents DRY/KISS/YAGNI as default pre-approval gate with
     );
   }
 
-  assert.match(reviewTemplate, /fallback note:[^\n]*if parallel execution of the three review lenses is impractical/i);
-  assert.match(localImplementationSkill, /if parallel execution is impractical[\s\S]*run all three lenses sequentially and explicitly record why parallel execution was impractical/i);
+  assert.match(reviewTemplate, /resolveGateAngles/i);
+  assert.match(localImplementationSkill, /if parallel execution is impractical[\s\S]*run all angles sequentially and explicitly record why parallel execution was impractical/i);
   assert.match(copilotFollowupSkill, /gate-review-sub-loop-contract\.md.*pre-approval/i);
   assert.match(subLoopContract, /fresh context/i);
   assert.match(subLoopContract, /in parallel when practical/i);
-  assert.match(copilotFollowupSkill, /if parallel execution is impractical[\s\S]*still run all three lenses and explicitly record the limitation/i);
+  assert.match(copilotFollowupSkill, /if parallel execution is impractical[\s\S]*still run all configured lenses and explicitly record the limitation/i);
   assert.match(reviewAgent, /if parallel execution is impractical[\s\S]*still cover all three lenses and explicitly record the limitation/i);
-  assert.match(coordinatorAgent, /default to three focused lenses \(DRY, KISS, YAGNI\) and run them in parallel when practical/i);
-  assert.match(coordinatorAgent, /if parallel execution is impractical[\s\S]*still run all three lenses and record that limitation explicitly/i);
+  assert.match(coordinatorAgent, /resolve angles from config[\s\S]*run them in parallel when practical/i);
+  assert.match(coordinatorAgent, /if parallel execution is impractical[\s\S]*still run all configured angles and record that limitation explicitly/i);
   assert.match(reviewerGraph, /workflow lenses that reviewer\s+runs must cover for the change/i);
   assert.match(reviewerGraph, /do not replace the state machine's supported\s+review-angle taxonomy/i);
 });

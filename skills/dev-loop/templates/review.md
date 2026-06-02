@@ -4,7 +4,8 @@
 
 ## Scope overreach check
 
-## Default pre-approval gate (DRY / KISS / YAGNI)
+## Default pre-approval gate
+<!-- Resolve angles from config: resolveGateAngles(config, "preApproval") -->
 - DRY check:
 - KISS check:
 - YAGNI check:
