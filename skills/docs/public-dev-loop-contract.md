@@ -256,12 +256,12 @@ The public router currently maps to these deterministic internal strategies:
 | Strategy | Used for | Public workflow entrypoint exposure |
 |---|---|---|
 | `local_implementation` | local branch/phase work and explicit local starts | `dev-loop` |
-| `issue_intake` | issue-first normalization/intake before PR follow-up | none (internal-only via `dev-loop` routing) |
+| `issue_intake` | issue-first normalization/intake before PR follow-up | none (internal-only via `dev-loop` routing; implemented by [Copilot PR Follow-up](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](./copilot-loop-operations.md) + [Issue Intake Procedure](./issue-intake-procedure.md)) |
 | `copilot_pr_followup` | Copilot-owned PR follow-up | none (internal-only via `dev-loop` routing) |
 | `external_pr_followup` | external-human contributor PR follow-up | none |
 | `reviewer_fixer` | reviewer/fixer passes on the current PR | none |
 | `wait_watch` | waiting/watch states | `dev-loop` |
-| `final_approval` | approval-ready gate, or merge-ready with explicit merge authorization | none |
+| `final_approval` | approval-ready gate, or merge-ready with explicit merge authorization | none (canonical procedure lives in [Copilot PR Follow-up](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](./copilot-loop-operations.md) Final approval gate; [Final Approval](../final-approval/SKILL.md) is a thin redirect) |
 
 `waiting_for_merge_authorization` is part of the gate contract below as a stop gate rather than an internal strategy.
 

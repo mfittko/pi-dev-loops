@@ -1,0 +1,192 @@
+# Copilot loop operations
+
+This document is the canonical operational reference for the deterministic Copilot PR follow-up state machine used by the routed `copilot_pr_followup`, `wait_watch`, `reviewer_fixer`, and `final_approval` paths behind `dev-loop`.
+
+Use it together with:
+- [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md)
+- [Public Dev Loop Contract](./public-dev-loop-contract.md)
+- [Retrospective Checkpoint Contract](./retrospective-checkpoint-contract.md) when the current step depends on async start/resume/status or retrospective enforcement
+
+## Deterministic orchestration authority
+
+When operating in PR follow-up or async watch mode, use the deterministic state machines
+as the authoritative source for:
+
+- Copilot follow-up loop: `detect-copilot-loop-state.mjs` from the resolved skill scripts directory
+- reviewer-side PR review loop: `detect-reviewer-loop-state.mjs` from the resolved skill scripts directory
+
+Resolve those helper paths from the skill asset layout described by the main skill. In the `pi-dev-loops`
+source repository the skill scripts directory is `../../scripts/` relative to `skills/copilot-pr-followup/SKILL.md`; in normalized
+installed copies it may instead be `scripts/` inside the installed skill directory when that layout bundles the helper scripts.
+
+Use the machines to answer:
+- what state the PR/loop is in right now
+- what transitions are currently allowed
+- what the next required action is
+- when to stop instead of guessing
+
+Each machine captures an observable snapshot from GitHub facts (plus explicit bounded local loop
+metadata when required) and interprets it into exactly one current state plus allowed next
+transitions. In the `pi-dev-loops` source repository, the supporting source-authority references are [Copilot Loop State Graph](../../docs/copilot-loop-state-graph.md) and [Reviewer Loop State Graph](../../docs/reviewer-loop-state-graph.md) under `../../docs/` relative to `skills/copilot-pr-followup/SKILL.md`. Treat those links as source-repo references, not bundled installed-skill docs.
+
+For tracker-first MVP `story -> PR -> tracker sync` work, the source-repo reference is [Tracker-First MVP State Graph](../../docs/tracker-first-mvp-state-graph.md). That source doc inherits source-of-truth ownership, the required work item <-> PR link, and reverse-sync semantics from `#21`; it only adds the mutually exclusive workflow-family states and post-merge sync-verification states for this narrower MVP slice.
+
+## Key guarantees from the state machine
+
+- `unresolvedThreadCount > 0` always routes to fix/reply-resolve — never to a wait/watch state
+- `snapshot.copilotReviewRequestStatus === "unavailable"` or `snapshot.copilotReviewRequestStatus === "failed"` routes to a terminal stop state — never to sleep or watch
+- `agentFixStatus === "applied"` with unresolved threads routes to `already_fixed_needs_reply_resolve` — reply/resolve on GitHub is required before re-requesting review
+- Copilot being in `requested_reviewers` (`"requested"` or `"already-requested"`) routes to `waiting_for_copilot_review`
+
+## How to use the state machine in practice
+
+1. Run `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>`
+   to get the current Copilot-loop state, decisive snapshot fields, and recommended next action.
+
+2. If you already ran `<resolved-skill-scripts>/github/request-copilot-review.mjs` and got a known status,
+   inject it without re-probing: add `--review-request-status <status>`.
+
+3. When the agent has applied a fix and wants to signal reply/resolve is next, build a snapshot
+   with `agentFixStatus: "applied"` and use `--input <snapshot.json>` for interpretation.
+
+4. Branch on the detector output instead of inventing a polling loop:
+   - `state=waiting_for_copilot_review` with `snapshot.copilotReviewOnCurrentHead=false`: do **not** poll manually; either run `node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent async waiting or report the wait state and resume later after the single detector call
+   - `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`: do **not** poll manually by default; use `gh run watch <run-id> --repo <owner/name>` when the current-head run id is already known, otherwise report pending CI and resume later after the single detector refresh. Bounded exception: if GitHub created zero current-head check suites/statuses, the previous head rollup was green, and local `npm run verify` already passed for the same current head, rerun `detect-copilot-loop-state.mjs` with `--local-validation-head-sha <current-head-sha>` so the detector can promote that exact zero-suite case to `snapshot.ciStatus="crediblyGreen"` instead of waiting forever on raw `none`.
+   - `snapshot.ciStatus="failure"` remains a stop/fix state, never a wait loop
+
+5. For reviewer-side draft-review work, run `node <resolved-skill-scripts>/loop/detect-reviewer-loop-state.mjs --repo <owner/name> --pr <number> [--reviewer-login <login>] [--local-state <path>]`.
+   If the state reaches `draft_review_ready`, stage the pending review with
+   `node <resolved-skill-scripts>/github/stage-reviewer-draft.mjs --repo <owner/name> --pr <number> --review-file <merged-review.json> --local-state-output <state.json>`,
+   then re-run the detector with `--local-state <state.json>`.
+
+6. Follow the `nextAction` from the machine output. For stop states (`review_request_unavailable`,
+   `blocked_needs_user_decision`), report to the user and do not proceed.
+
+## Judgment calls that remain in the agent layer
+
+- Whether a comment should be accepted, deferred, or disagreed with
+- Whether the code change is already sufficient (→ sets `agentFixStatus: "applied"`)
+- What the narrowest valid fix is
+- Whether another Copilot pass is desired (→ triggers re-request or selects `done`)
+
+## Workflow overview
+
+```text
+ready issue -> confirm scope -> Copilot branch/PR -> async review/watch -> Pi follow-up fixes -> validation -> confirm verdict/action -> merge when authorized
+```
+
+Use the resolved `detect-copilot-loop-state.mjs` helper from the skill scripts directory at each
+decision point in this flow to determine the current state and route to the correct next step
+deterministically.
+
+## Pre-follow-up working rules
+
+### Step 1: Choose the work item
+
+Prefer a GitHub issue over an ad hoc local TODO.
+
+When selecting the next item:
+- prefer `type:task` issues under the relevant epic
+- prefer `status:ready`
+- inspect milestone, labels, and acceptance criteria
+- confirm whether a PR already exists for the issue before proposing new execution
+
+Useful checks:
+- `gh issue list --state open`
+- `gh issue view <number>`
+- `gh pr list --state open`
+
+If the user asks for status/progress/readiness/merge-state/next-step (including “what is next”):
+- resolve authoritative active artifact identity first (issue/PR, plus branch/head SHA when useful)
+- for issue targets, do not assert "no open PR" until authoritative issue↔PR linkage is resolved (for example via `detect-linked-issue-pr.mjs` timeline-linkage checks)
+- resolve artifact state (`open`/`closed`/`merged`/`not_applicable`)
+- resolve current loop state and next action from deterministic helper/state output
+- include explicit resolved artifact identity in the answer
+- if identity/state cannot be resolved confidently, stop with reconcile/unknown instead of guessing from chat context
+
+### Step 2: Confirm issue scope before execution
+
+Before handing work to Copilot or doing follow-up fixes, summarize:
+- issue number and title
+- parent epic if present
+- milestone
+- labels
+- exact acceptance criteria
+- intended narrow scope
+- non-goals inferred from the issue and plan
+
+If the work item is phase-like, ambiguous, or likely to shape more than one downstream step, default to a short fan-out / fan-in refinement pass before implementation:
+- generate 2-3 plan variants in parallel when practical
+- compare the variants explicitly
+- merge them into one bounded execution plan
+- only then proceed with GitHub execution
+
+If the issue text is too vague, stop and ask a short clarification question rather than guessing.
+
+### Step 3: Decide whether Copilot or Pi should act next
+
+Use this heuristic:
+
+#### Prefer Copilot when
+- there is a ready implementation issue with clear acceptance criteria
+- no PR exists yet for that issue
+- the user wants the repository's normal GitHub/Copilot path
+- the next step is “start work” rather than “finish this already-open PR right now”
+
+#### Prefer Pi follow-up when
+- a PR already exists
+- Copilot has already pushed work and now needs review/fix follow-up
+- there are unresolved comments or failing checks
+- the user wants async in-session watching and response
+
+#### Prefer plain analysis only when
+- the user is asking what should happen next
+- authorization for GitHub state changes has not been given yet
+- the issue/PR state is unclear and needs inspection first
+
+### Step 4: Copilot handoff rules
+
+When preparing work for Copilot:
+- use the GitHub issue as the source of truth
+- preserve the issue's acceptance criteria
+- keep the requested scope narrow
+- do not broaden into adjacent backlog items
+- prefer one issue per PR unless the user explicitly wants bundling
+
+Before any GitHub mutation such as assigning the issue, posting instructions, or changing labels, confirm first unless explicitly authorized.
+
+When you do hand work to Copilot:
+- assign `copilot-swe-agent`
+- reference the issue number and acceptance criteria clearly
+- keep instructions implementation-focused and test-aware
+
+## PR description contract
+
+Follow the PR description contract (see [Agent Instructions](../../AGENTS.md) if present; otherwise use the structure below): detailed structured descriptions, not thin placeholders. At minimum include change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
+
+New PRs in this workflow must be opened as **draft** PRs first when the repository enables `.pi/dev-loop/settings.yaml` `workflow.requireDraftFirst`. The built-in shipped default remains permissive; this repo opts in. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate review is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is even eligible.
+
+Only use `gh pr create` when authoritative issue↔PR resolution says there is no already-open linked PR. If a PR already exists, reuse/update that canonical PR instead of opening another one.
+
+MUST use `gh pr create --draft --repo <owner/name> --assignee @me --base <base> --head <head> --title "..." --body-file <body-file>`.
+
+## Timeout and watch policy
+
+This workflow is intentionally long-lived.
+
+Do not rely on short default timeouts for unattended Copilot loops.
+
+Preferred defaults for this repo:
+- poll interval for review/activity watchers: **1 minute** (`--poll-interval-ms 60000`)
+- unattended watch timeout: **24 hours** (`--timeout-ms 86400000`)
+- if the user says to stay on it until done or avoid near-term timeout, prefer **72 hours** (`--timeout-ms 259200000`)
+- parent/subagent no-activity threshold for watcher-style runs: at least **15 minutes**
+- active-long-running notice threshold for watcher-style runs: about **30 minutes**
+
+These are the defaults built into `watch-copilot-review.mjs`, `run-copilot-watch-cycle.mjs`, and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Pass them explicitly when overriding.
+
+Helper-owned sleep inside `run-copilot-watch-cycle.mjs`, `watch-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed. Agent-authored shell polling is not allowed.
+
+A watcher sleeping between polls is expected behavior, not a blocker.
+
+If the polling interval is 1 minute, do not treat silence shorter than one full poll interval as suspicious, and do not configure needs-attention thresholds close to a few seconds for this loop.
