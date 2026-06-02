@@ -874,6 +874,3 @@ test("parseInspectRunCliArgs: invalid repo slug throws", () => {
   );
 });
 
-// ---------------------------------------------------------------------------
-// CLI integration tests: happy path with snapshot input files
-// ---------------------------------------------------------------------------

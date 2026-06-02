@@ -663,54 +663,54 @@ test('defaultHealthcheck fetches without AbortSignal (Node v24 compatibility)', 
   }
 });
 
-test("isInspectRunViewerRelevantPath matches the bounded inspect-run viewer smoke surface", () => {
-  assert.equal(isInspectRunViewerRelevantPath(".github/workflows/ci.yml"), true);
-  assert.equal(isInspectRunViewerRelevantPath("package.json"), true);
-  assert.equal(isInspectRunViewerRelevantPath("package-lock.json"), true);
-  assert.equal(isInspectRunViewerRelevantPath("scripts/loop/inspect-run-viewer/rendering.mjs"), true);
-  assert.equal(isInspectRunViewerRelevantPath("scripts/loop/inspect-run-viewer-ci-changes.mjs"), true);
-  assert.equal(isInspectRunViewerRelevantPath("test/playwright/harness/webkit-smoke-harness.mjs"), true);
-  assert.equal(isInspectRunViewerRelevantPath("test/playwright/inspect-run-viewer.spec.mjs"), true);
-  assert.equal(isInspectRunViewerRelevantPath("test/playwright/fixtures/inspect-run-viewer-fixture.mjs"), true);
-  assert.equal(isInspectRunViewerRelevantPath("test/playwright/some-other-ui.spec.mjs"), false);
+test('isInspectRunViewerRelevantPath matches the bounded inspect-run viewer smoke surface', () => {
+  assert.equal(isInspectRunViewerRelevantPath('.github/workflows/ci.yml'), true);
+  assert.equal(isInspectRunViewerRelevantPath('package.json'), true);
+  assert.equal(isInspectRunViewerRelevantPath('package-lock.json'), true);
+  assert.equal(isInspectRunViewerRelevantPath('scripts/loop/inspect-run-viewer/rendering.mjs'), true);
+  assert.equal(isInspectRunViewerRelevantPath('scripts/loop/inspect-run-viewer-ci-changes.mjs'), true);
+  assert.equal(isInspectRunViewerRelevantPath('test/playwright/harness/webkit-smoke-harness.mjs'), true);
+  assert.equal(isInspectRunViewerRelevantPath('test/playwright/inspect-run-viewer.spec.mjs'), true);
+  assert.equal(isInspectRunViewerRelevantPath('test/playwright/fixtures/inspect-run-viewer-fixture.mjs'), true);
+  assert.equal(isInspectRunViewerRelevantPath('test/playwright/some-other-ui.spec.mjs'), false);
 
-  assert.equal(isInspectRunViewerRelevantPath("README.md"), false);
-  assert.equal(isInspectRunViewerRelevantPath("docs/index.md"), false);
-  assert.equal(isInspectRunViewerRelevantPath("test/loop/inspect-run-viewer.test.mjs"), false);
+  assert.equal(isInspectRunViewerRelevantPath('README.md'), false);
+  assert.equal(isInspectRunViewerRelevantPath('docs/index.md'), false);
+  assert.equal(isInspectRunViewerRelevantPath('test/loop/inspect-run-viewer.test.mjs'), false);
 });
 
-test("classifyInspectRunViewerCiChanges only requests browser smoke when relevant paths changed", () => {
+test('classifyInspectRunViewerCiChanges only requests browser smoke when relevant paths changed', () => {
   const relevant = classifyInspectRunViewerCiChanges([
-    "README.md",
-    "scripts/loop/inspect-run-viewer/server.mjs",
-    "test/playwright/fixtures/inspect-run-viewer-fixture.mjs",
-    "docs/index.md",
+    'README.md',
+    'scripts/loop/inspect-run-viewer/server.mjs',
+    'test/playwright/fixtures/inspect-run-viewer-fixture.mjs',
+    'docs/index.md',
   ]);
   assert.equal(relevant.shouldRun, true);
   assert.deepEqual(relevant.relevantPaths, [
-    "scripts/loop/inspect-run-viewer/server.mjs",
-    "test/playwright/fixtures/inspect-run-viewer-fixture.mjs",
+    'scripts/loop/inspect-run-viewer/server.mjs',
+    'test/playwright/fixtures/inspect-run-viewer-fixture.mjs',
   ]);
   const irrelevant = classifyInspectRunViewerCiChanges([
-    "README.md",
-    "docs/IMPLEMENTATION_WORKFLOW.md",
+    'README.md',
+    'docs/IMPLEMENTATION_WORKFLOW.md',
   ]);
   assert.equal(irrelevant.shouldRun, false);
   assert.deepEqual(irrelevant.relevantPaths, []);
 });
 
-test("runCli emits github output entries for inspect-run viewer smoke gating", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "inspect-run-viewer-ci-changes-"));
-  const pathsFile = path.join(tempDir, "changed-files.txt");
-  const githubOutputFile = path.join(tempDir, "github-output.txt");
+test('runCli emits github output entries for inspect-run viewer smoke gating', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-ci-changes-'));
+  const pathsFile = path.join(tempDir, 'changed-files.txt');
+  const githubOutputFile = path.join(tempDir, 'github-output.txt');
   const writes = [];
 
   try {
     await writeFile(pathsFile, [
-      "README.md",
-      "playwright.inspect-run-viewer.config.mjs",
-      "test/playwright/harness/webkit-smoke-harness.mjs",
-    ].join("\n"), "utf8");
+      'README.md',
+      'playwright.inspect-run-viewer.config.mjs',
+      'test/playwright/harness/webkit-smoke-harness.mjs',
+    ].join('\n'), 'utf8');
 
     const result = await runInspectRunViewerCiChangesCli([
       pathsFile,
@@ -727,13 +727,13 @@ test("runCli emits github output entries for inspect-run viewer smoke gating", a
     });
 
     assert.equal(result.shouldRun, true);
-    assert.deepEqual(result.relevantPaths, ["playwright.inspect-run-viewer.config.mjs", "test/playwright/harness/webkit-smoke-harness.mjs"]);
+    assert.deepEqual(result.relevantPaths, ['playwright.inspect-run-viewer.config.mjs', 'test/playwright/harness/webkit-smoke-harness.mjs']);
 
-    const payload = JSON.parse(writes.join(""));
+    const payload = JSON.parse(writes.join(''));
     assert.equal(payload.ok, true);
     assert.equal(payload.shouldRun, true);
 
-    const githubOutput = await readFile(githubOutputFile, "utf8");
+    const githubOutput = await readFile(githubOutputFile, 'utf8');
     assert.match(githubOutput, /^inspect_run_viewer=true$/m);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
