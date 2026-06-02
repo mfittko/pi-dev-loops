@@ -117,3 +117,10 @@ identical; only the review angles differ.
 A clean sub-loop pass for one gate does not satisfy the other gate. Each gate requires
 its own complete sub-loop execution with its own review angles and its own visible
 gate-review comment on the PR for the reviewed head SHA.
+
+## See also
+
+- [Gate-Review Comment Contract](docs/gate-review-comment-contract.md) — visible PR comment evidence format
+- [PR Lifecycle Contract](skills/docs/pr-lifecycle-contract.md) — broader lifecycle state machine
+- [Copilot PR Follow-up](skills/copilot-pr-followup/SKILL.md) — skill that owns gate execution
+- [Local Implementation](skills/local-implementation/SKILL.md) — uses chain pattern for local phase reviews
