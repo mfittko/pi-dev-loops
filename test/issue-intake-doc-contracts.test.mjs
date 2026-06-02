@@ -18,7 +18,7 @@ async function readIssueIntakeSurface() {
   return [skill, intakeDoc, operationsDoc].join("\n\n");
 }
 
-test("issue-intake skill still contains its core workflow guidance", async () => {
+test("issue-intake surface still contains its core workflow guidance", async () => {
   const content = await readIssueIntakeSurface();
 
   assert.match(content, /Before planning, review, or automation:/);
@@ -33,7 +33,7 @@ test("issue-intake skill still contains its core workflow guidance", async () =>
   assert.match(content, /do not fork the parent session/i);
 });
 
-test("issue-intake skill requires github reply/resolve follow-up and gates waiting on confirmed review-request state", async () => {
+test("issue-intake surface requires github reply/resolve follow-up and gates waiting on confirmed review-request state", async () => {
   const content = await readIssueIntakeSurface();
 
   assert.match(content, /reply\/resolve work is done for the addressed threads/);
@@ -58,7 +58,7 @@ test("fixer agent documentation includes GitHub autolink guidance", async () => 
   assert.match(content, /reserve backticks for actual code\/path\/CLI literals/i);
 });
 
-test("issue-intake skill forbids detached bash watcher loops for async follow-up", async () => {
+test("issue-intake surface forbids detached bash watcher loops for async follow-up", async () => {
   const content = await readIssueIntakeSurface();
 
   assert.match(content, /Pi async subagent|designated async follow-up skill/);
@@ -67,7 +67,7 @@ test("issue-intake skill forbids detached bash watcher loops for async follow-up
   assert.match(content, /stop and report rather than improvising a shell watcher/);
 });
 
-test("issue-intake skill requires unattended resume-from-state behavior when authorized", async () => {
+test("issue-intake surface requires unattended resume-from-state behavior when authorized", async () => {
   const content = await readIssueIntakeSurface();
 
   assert.match(content, /unattended execution/i);
@@ -155,7 +155,7 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(devLoopAgent, /not a second public workflow entrypoint/i);
 });
 
-test("issue-intake skill keeps issue refinement separate from the phase-scoped refiner and explains thin entrypoint agents", async () => {
+test("issue-intake surface keeps issue refinement separate from the phase-scoped refiner and explains thin entrypoint agents", async () => {
   const skillContent = await readIssueIntakeSurface();
   const planContent = await readRepo("PLAN.md");
   const agentFiles = (await readdir(fromRepoRoot("agents")))
