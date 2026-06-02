@@ -409,12 +409,12 @@ installed copies it may instead be `scripts/` inside the installed skill directo
 
 Each machine captures an observable snapshot from GitHub facts (plus explicit bounded local loop
 metadata when required) and interprets it into exactly one current state plus allowed next
-transitions. See [Copilot Loop State Graph](copilot-loop-state-graph.md) and [Reviewer Loop State Graph](reviewer-loop-state-graph.md) in the resolved
+transitions. See [Copilot Loop State Graph](../../docs/copilot-loop-state-graph.md) and [Reviewer Loop State Graph](../../docs/reviewer-loop-state-graph.md) in the resolved
 skill docs directory; in the `pi-dev-loops` source repository those source-authority docs live under
 `../../docs/` relative to this file.
 
 For tracker-first MVP `story -> PR -> tracker sync` work, also use
-[Tracker-First MVP State Graph](tracker-first-mvp-state-graph.md) in that same docs directory as the bounded workflow-family
+[Tracker-First MVP State Graph](../../docs/tracker-first-mvp-state-graph.md) in that same docs directory as the bounded workflow-family
 contract (under `#17`, complementary to `#21`, narrower than `#19`). That document inherits
 source-of-truth ownership, the required work item <-> PR link, and reverse-sync semantics from
 `#21`; it only adds the mutually exclusive workflow-family states and post-merge sync-verification

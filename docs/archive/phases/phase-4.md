@@ -170,19 +170,19 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 Bounded scan scope for this phase:
 - [Dev Loop Skill](../../../skills/dev-loop/SKILL.md)
 - `skills/dev-loop/scripts/*.mjs`
-- [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md)
+- [Copilot PR Follow-up Skill](../../../skills/copilot-pr-followup/SKILL.md)
 
 Prioritized deterministic extraction candidates recorded for later phases:
 1. **P1 — GitHub review baseline diffing and fresh-activity detection for Copilot PR follow-up**
-   - Source signals: [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md) sections covering async watch behavior, baseline capture, and waiting for new Copilot-authored review bodies/comments.
+   - Source signals: [Copilot PR Follow-up Skill](../../../skills/copilot-pr-followup/SKILL.md) sections covering async watch behavior, baseline capture, and waiting for new Copilot-authored review bodies/comments.
    - Why it is realistic: this is adjacent to the new Phase 4 fixture-backed review-thread parser and can stay deterministic if it compares stored snapshots instead of live orchestration state.
    - Deferred boundary: no watcher/polling loop implementation in Phase 4; only the future snapshot-diff helper/CLI is a candidate.
 2. **P1 — GitHub check-run / workflow snapshot normalization**
-   - Source signals: [Copilot Dev Loop Skill](../../../skills/copilot-dev-loop/SKILL.md) guidance around `gh pr checks`, `gh run watch`, CI interpretation, and merge-readiness reporting.
+   - Source signals: [Copilot PR Follow-up Skill](../../../skills/copilot-pr-followup/SKILL.md) guidance around `gh pr checks`, `gh run watch`, CI interpretation, and merge-readiness reporting.
    - Why it is realistic: the skill currently relies on prose around repeated GitHub status interpretation, which is a strong fit for fixture-backed normalization before Phase 5 watcher entrypoints.
    - Deferred boundary: no timeout policy or native-watch orchestration was added in Phase 4.
 3. **P2 — dev-loop phase artifact summarization for dev-mode review inputs**
-   - Source signals: `skills/dev-loop/scripts/dev-mode-context.mjs` plus the [this skill file](SKILL.md) dev-mode retrospective flow.
+   - Source signals: `skills/dev-loop/scripts/dev-mode-context.mjs` plus the [Dev Loop Skill](../../../skills/dev-loop/SKILL.md) dev-mode retrospective flow.
    - Why it is realistic: it already consumes deterministic phase paths and machine-readable artifacts; now that phase-file/path logic lives in `packages/core`, the context collector is a plausible later package helper after the artifact schema is proven across more than one consumer.
    - Deferred boundary: keep current dev-mode logic skill-local until a second consumer or stronger shared schema need appears.
 4. **P3 — keep skill-local for now: template rendering/materialization**

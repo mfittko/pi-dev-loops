@@ -205,9 +205,9 @@ For the **current phase only**, run this loop before implementation.
 ### 1. Create or update the durable phase doc and tmp scaffold
 
 Use paths like:
-- [Phase 0 Plan](docs/phases/phase-0.md)
+- `docs/phases/phase-0.md`
 - `tmp/phases/phase-0/`
-- [Phase 1 Plan](docs/phases/phase-1.md)
+- `docs/phases/phase-1.md`
 - `tmp/phases/phase-1/`
 
 Create or update:
@@ -223,8 +223,8 @@ Use `../dev-loop/scripts/phase-files.mjs` only when you need a narrower manifest
 ### 2. Read the previous phase's learning before planning the next one
 
 If a previous phase exists, read:
-- its [Phase Summary](summary.md)
-- its [Retrospective](retrospective.md)
+- its `summary.md`
+- its `retrospective.md`
 - any relevant subagent summaries
 
 Use those lessons to improve the current phase plan.
@@ -336,10 +336,10 @@ Create one summary file per subagent run under:
 - `tmp/phases/phase-x/subagents/`
 
 Recommended naming:
-- [Planner Summary](001-planner.md)
-- [Correctness Reviewer Summary](002-reviewer-correctness.md)
-- [Maintainability Reviewer Summary](003-reviewer-maintainability.md)
-- [Worker Follow-up Summary](004-worker-followup.md)
+- `001-planner.md`
+- `002-reviewer-correctness.md`
+- `003-reviewer-maintainability.md`
+- `004-worker-followup.md`
 
 Each summary should record:
 - agent name
@@ -457,17 +457,17 @@ At minimum, each phase should leave behind:
   - `manifest.json`
   - `Variant A` (`tmp/phases/phase-x/variant-a.md`)
   - `Variant B` (`tmp/phases/phase-x/variant-b.md`)
-  - [Merged Plan](merged-plan.md)
-  - [Phase Review](review.md)
-  - [Phase Summary](summary.md)
-  - [Retrospective](retrospective.md)
+  - `merged-plan.md`
+  - `review.md`
+  - `summary.md`
+  - `retrospective.md`
   - optional `Variant C` (`tmp/phases/phase-x/variant-c.md`) when a third variant was actually useful
   - `bash-exit-1.jsonl` when any bash call during the phase exited with code `1`
-  - [Clarification Log](clarification.md) when a plan-sufficiency interview or auto-clarification step was needed
+  - `clarification.md` when a plan-sufficiency interview or auto-clarification step was needed
   - subagent summaries when subagents were used
   - raw subagent outputs only when they were saved separately on purpose
-  - in dev mode: `dev-mode-context.json`, [Dev Mode Retrospective](dev-mode-retrospective.md), and [Dev Mode Skill Changes](dev-mode-skill-changes.md)
-  - optional in dev mode: [Dev Mode Review](dev-mode-review.md) when separate analytical notes were useful
+  - in dev mode: `dev-mode-context.json`, `dev-mode-retrospective.md`, and `dev-mode-skill-changes.md`
+  - optional in dev mode: `dev-mode-review.md` when separate analytical notes were useful
 
 These `tmp/` artifacts are normally temporary and do not need to be checked into git.
 
