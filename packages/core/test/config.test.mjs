@@ -8,7 +8,7 @@ import {
   DevLoopConfigSchema,
   BUILT_IN_DEFAULTS,
 } from "../src/config/schema.mjs";
-import { resolveConductorModel, resolveAutonomyStopAt } from "../src/config/model-resolution.mjs";
+import { resolveConductorModel, resolveAutonomyStopAt, resolveRefinement, resolveGateAngles } from "../src/config/model-resolution.mjs";
 // ============================================================================
 // Schema validation tests (S1–S26)
 // ============================================================================
@@ -830,6 +830,59 @@ describe("role resolution", () => {
         autonomy: { stopAt: ["refinement", "draft-pr", "pre-approval", "merge"] },
       });
       assert.deepEqual(result, ["refinement", "draft-pr", "pre-approval", "merge"]);
+    });
+
+    // Refinement resolution
+    test("resolveRefinement returns defaults when config is absent", () => {
+      const result = resolveRefinement({ version: 1 });
+      assert.equal(result.fanOut, 3);
+      assert.equal(result.mode, "parallel");
+      assert.equal(result.roles, null);
+    });
+
+    test("resolveRefinement returns configured values", () => {
+      const result = resolveRefinement({
+        version: 1,
+        refinement: { fanOut: 5, mode: "sequential", roles: ["security", "style"] }
+      });
+      assert.equal(result.fanOut, 5);
+      assert.equal(result.mode, "sequential");
+      assert.deepEqual(result.roles, ["security", "style"]);
+    });
+
+    test("resolveRefinement returns null roles for empty array", () => {
+      const result = resolveRefinement({ version: 1, refinement: { fanOut: 2, mode: "parallel", roles: [] } });
+      assert.equal(result.roles, null);
+    });
+
+    // Gate angles resolution
+    test("resolveGateAngles returns null when gates config is absent", () => {
+      const result = resolveGateAngles({ version: 1 }, "draft");
+      assert.equal(result, null);
+    });
+
+    test("resolveGateAngles returns configured draft angles", () => {
+      const result = resolveGateAngles({
+        version: 1,
+        gates: { draft: { angles: ["scope", "coverage"], required: true } }
+      }, "draft");
+      assert.deepEqual(result, ["scope", "coverage"]);
+    });
+
+    test("resolveGateAngles returns configured preApproval angles", () => {
+      const result = resolveGateAngles({
+        version: 1,
+        gates: { preApproval: { angles: ["dry", "kiss"], required: false } }
+      }, "preApproval");
+      assert.deepEqual(result, ["dry", "kiss"]);
+    });
+
+    test("resolveGateAngles returns null for unknown gate", () => {
+      const result = resolveGateAngles({
+        version: 1,
+        gates: { draft: { angles: ["scope"], required: true } }
+      }, "preApproval");
+      assert.equal(result, null);
     });
   });
 
