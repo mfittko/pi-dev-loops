@@ -11,6 +11,11 @@ Recovery path for non-draft PRs that bypassed the required draft_gate.
 Converts the PR to draft, validates the head, posts a reconciling clean
 draft_gate comment, then marks the PR ready for review again.
 
+Fail-closed guards:
+  - Refuses to reconcile if any draft_gate evidence already exists on the PR.
+  - When --skip-checks is not set, requires CI to be green on the current head
+    SHA before posting the reconciling gate comment.
+
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
@@ -92,25 +97,81 @@ export function parseReconcileDraftGateCliArgs(argv) {
   return options;
 }
 
-async function convertPrToDraft({ repo, pr }, { env, ghCommand }) {
+const CONVERT_TO_DRAFT_MUTATION = [
+  "mutation($pullRequestId:ID!) {",
+  "  convertPullRequestToDraft(input: {pullRequestId: $pullRequestId}) {",
+  "    pullRequest {",
+  "      id",
+  "      isDraft",
+  "    }",
+  "  }",
+  "}",
+].join("\n");
+
+const PR_ID_QUERY = [
+  "query($owner:String!, $name:String!, $number:Int!) {",
+  "  repository(owner: $owner, name: $name) {",
+  "    pullRequest(number: $number) {",
+  "      id",
+  "      isDraft",
+  "    }",
+  "  }",
+  "}",
+].join("\n");
+
+async function resolvePrNodeId({ repo, pr }, { env, ghCommand }) {
+  const [owner, name] = repo.split("/");
   const result = await runChild(ghCommand, [
-    "api",
-    "-X", "PATCH",
-    `repos/${repo}/pulls/${pr}`,
-    "-f", "draft=true",
+    "api", "graphql",
+    "-f", "query=" + PR_ID_QUERY,
+    "-f", `owner=${owner}`,
+    "-f", `name=${name}`,
+    "-F", `number=${pr}`,
   ], env);
 
   if (result.code !== 0) {
-    throw new Error(`Failed to convert PR #${pr} to draft: ${result.stderr.trim() || `exit code ${result.code}`}`);
+    throw new Error(
+      `Failed to resolve PR node ID for #${pr}: ${result.stderr.trim() || `exit code ${result.code}`}`
+    );
   }
 
-  const payload = parseJsonText(result.stdout, { label: `gh api repos/${repo}/pulls/${pr} (draft=true)` });
+  const payload = parseJsonText(result.stdout, {
+    label: `gh api graphql (resolvePrNodeId for #${pr})`,
+  });
 
-  if (payload.draft !== true) {
+  const prData = payload?.data?.repository?.pullRequest;
+  if (!prData?.id) {
+    throw new Error(`Could not resolve PR node ID for #${pr}`);
+  }
+
+  return { id: prData.id, isDraft: prData.isDraft };
+}
+
+async function convertPrToDraft({ repo, pr }, { env, ghCommand }) {
+  const { id } = await resolvePrNodeId({ repo, pr }, { env, ghCommand });
+
+  const result = await runChild(ghCommand, [
+    "api", "graphql",
+    "-f", "query=" + CONVERT_TO_DRAFT_MUTATION,
+    "-F", `pullRequestId=${id}`,
+  ], env);
+
+  if (result.code !== 0) {
+    throw new Error(
+      `Failed to convert PR #${pr} to draft: ${result.stderr.trim() || `exit code ${result.code}`}`
+    );
+  }
+
+  const payload = parseJsonText(result.stdout, {
+    label: `gh api graphql (convertPullRequestToDraft #${pr})`,
+  });
+
+  const converted = payload?.data?.convertPullRequestToDraft?.pullRequest;
+  if (converted?.isDraft !== true) {
     throw new Error(`PR #${pr} was not set to draft state after mutation`);
   }
 
-  return payload;
+  return converted;
 }
 
 async function markPrReady({ repo, pr }, { env, ghCommand }) {
@@ -120,18 +181,57 @@ async function markPrReady({ repo, pr }, { env, ghCommand }) {
   ], env);
 
   if (result.code !== 0) {
-    throw new Error(`Failed to mark PR #${pr} ready: ${result.stderr.trim() || `exit code ${result.code}`}`);
+    throw new Error(
+      `Failed to mark PR #${pr} ready: ${result.stderr.trim() || `exit code ${result.code}`}`
+    );
   }
 
   return true;
 }
 
+async function checkCiStatus({ repo, pr, headSha }, { env, ghCommand }) {
+  const result = await runChild(ghCommand, [
+    "pr", "checks", String(pr),
+    "--repo", repo,
+  ], env);
+
+  if (result.code !== 0) {
+    throw new Error(
+      `Failed to check PR #${pr} CI status: ${result.stderr.trim() || `exit code ${result.code}`}`
+    );
+  }
+
+  const output = result.stdout.trim();
+  if (!output) {
+    return { status: "none" };
+  }
+
+  // Parse gh pr checks output: each line is "<check-name>\t<conclusion>\t..."
+  const lines = output.split("\n");
+  let anyFailure = false;
+
+  for (const line of lines) {
+    const parts = line.split("\t");
+    const conclusion = parts[1]?.trim()?.toLowerCase();
+    if (conclusion === "fail") {
+      anyFailure = true;
+    }
+  }
+
+  return { status: anyFailure ? "failure" : "success", raw: output };
+}
+
 export async function reconcileDraftGate(options, { env = process.env, ghCommand = "gh" } = {}) {
   // Step 1: Inspect current PR state
-  const initialEvidence = await detectGateReviewEvidence({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+  const initialEvidence = await detectGateReviewEvidence(
+    { repo: options.repo, pr: options.pr },
+    { env, ghCommand }
+  );
 
   if (!initialEvidence.ok) {
-    throw new Error(`Failed to inspect PR #${options.pr} evidence: ${initialEvidence.error || "unknown error"}`);
+    throw new Error(
+      `Failed to inspect PR #${options.pr} evidence: ${initialEvidence.error || "unknown error"}`
+    );
   }
 
   const headSha = initialEvidence.currentHeadSha;
@@ -139,7 +239,38 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
     throw new Error(`Could not resolve current head SHA for PR #${options.pr}`);
   }
 
-  // Step 2: Convert PR to draft
+  // Fail-closed guard: refuse to reconcile if any draft_gate evidence already exists.
+  if (initialEvidence.draftGate?.visible) {
+    throw new Error(
+      `PR #${options.pr} already has a visible draft_gate comment (verdict: ` +
+      `${initialEvidence.draftGate.verdict || "unknown"}). Refusing to overwrite existing ` +
+      `evidence. Reconcile manually or clear the existing comment first.`
+    );
+  }
+
+  if (initialEvidence.draftGateMarker?.visible) {
+    throw new Error(
+      `PR #${options.pr} already has a visible draft_gate marker. Refusing to overwrite ` +
+      `existing evidence. Reconcile manually or clear the existing marker first.`
+    );
+  }
+
+  // Check CI status unless --skip-checks is set
+  if (!options.skipChecks) {
+    const { status } = await checkCiStatus(
+      { repo: options.repo, pr: options.pr, headSha },
+      { env, ghCommand }
+    );
+
+    if (status === "failure") {
+      throw new Error(
+        `PR #${options.pr} CI is failing on head ${headSha.slice(0, 7)}. ` +
+        `Refusing to post a clean draft_gate comment. Fix CI or use --skip-checks.`
+      );
+    }
+  }
+
+  // Step 2: Convert PR to draft using GraphQL mutation
   await convertPrToDraft({ repo: options.repo, pr: options.pr }, { env, ghCommand });
 
   // Step 3: Post a reconciling clean draft_gate comment
@@ -151,7 +282,7 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
     verdict: "clean",
     findingsSummary: options.skipChecks
       ? "Reconciled non-draft PR — draft gate auto-reconciled (checks skipped)."
-      : "Reconciled non-draft PR — draft gate auto-reconciled.",
+      : "Reconciled non-draft PR — draft gate auto-reconciled (CI green).",
     nextAction: "Mark ready for review (auto-reconciled).",
   }, { env, ghCommand });
 
@@ -162,7 +293,9 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
     } catch {
       // Best-effort revert
     }
-    throw new Error(`Failed to post reconciling draft_gate comment: ${gateResult.error || "unknown error"}`);
+    throw new Error(
+      `Failed to post reconciling draft_gate comment: ${gateResult.error || "unknown error"}`
+    );
   }
 
   // Step 4: Mark PR ready for review
@@ -199,7 +332,9 @@ async function main() {
     const result = await reconcileDraftGate(options);
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
-    process.stderr.write(`${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`);
+    process.stderr.write(
+      `${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`
+    );
     process.exitCode = 1;
   }
 }
