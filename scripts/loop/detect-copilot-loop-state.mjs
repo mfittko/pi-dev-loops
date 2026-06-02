@@ -374,8 +374,10 @@ async function fetchCurrentHeadCiEvidence({ repo, headSha }, { env, ghCommand })
   if (checkRunsResult.code === 0) {
     try {
       const payload = JSON.parse(checkRunsResult.stdout);
-      checkRunsSignal = summarizeHeadScopedCheckRunsSignal(payload);
-      checkRunsCount = Array.isArray(payload?.check_runs) ? payload.check_runs.length : 0;
+      if (Array.isArray(payload?.check_runs)) {
+        checkRunsSignal = summarizeHeadScopedCheckRunsSignal(payload);
+        checkRunsCount = payload.check_runs.length;
+      }
     } catch {
       checkRunsSignal = null;
       checkRunsCount = null;
@@ -387,8 +389,10 @@ async function fetchCurrentHeadCiEvidence({ repo, headSha }, { env, ghCommand })
   if (statusesResult.code === 0) {
     try {
       const payload = JSON.parse(statusesResult.stdout);
-      commitStatus = normalizeHeadScopedCommitStatus(payload);
-      statusesCount = Array.isArray(payload?.statuses) ? payload.statuses.length : 0;
+      if (Array.isArray(payload?.statuses)) {
+        commitStatus = normalizeHeadScopedCommitStatus(payload);
+        statusesCount = payload.statuses.length;
+      }
     } catch {
       commitStatus = null;
       statusesCount = null;
