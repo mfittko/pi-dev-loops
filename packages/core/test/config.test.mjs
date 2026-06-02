@@ -8,7 +8,7 @@ import {
   DevLoopConfigSchema,
   BUILT_IN_DEFAULTS,
 } from "../src/config/schema.mjs";
-import { resolveConductorModel, resolveAutonomyStopAt, resolveRefinement, resolveGateAngles } from "../src/config/model-resolution.mjs";
+import { resolveConductorModel, resolveAutonomyStopAt, resolveRefinementConfig, resolveRefinement, resolveGateAngles } from "../src/config/model-resolution.mjs";
 // ============================================================================
 // Schema validation tests (S1–S26)
 // ============================================================================
@@ -151,6 +151,14 @@ describe("schema validation", () => {
     assert.ok(!result.success);
   });
 
+  test("S17b: refinement.maxCopilotRounds must be a positive integer", () => {
+    const result = DevLoopConfigSchema.safeParse({
+      version: 1,
+      refinement: { fanOut: 3, mode: "parallel", maxCopilotRounds: 0 },
+    });
+    assert.ok(!result.success);
+  });
+
   test("S18: autonomy.stopAt contains unknown gate name", () => {
     const result = DevLoopConfigSchema.safeParse({
       version: 1,
@@ -246,9 +254,10 @@ describe("BUILT_IN_DEFAULTS", () => {
     assert.equal(BUILT_IN_DEFAULTS.strategy.default, "github-first");
   });
 
-  test("refinement.fanOut is 3 and mode is parallel", () => {
+  test("refinement defaults include fanOut 3, mode parallel, and maxCopilotRounds 5", () => {
     assert.equal(BUILT_IN_DEFAULTS.refinement.fanOut, 3);
     assert.equal(BUILT_IN_DEFAULTS.refinement.mode, "parallel");
+    assert.equal(BUILT_IN_DEFAULTS.refinement.maxCopilotRounds, 5);
   });
 
   test("autonomy.stopAt is [merge]", () => {
@@ -410,7 +419,28 @@ describe("loader — graceful degradation", () => {
       assert.equal(result.config.strategy.default, "local-first");
       assert.deepEqual(result.config.gates.draft.angles, ["scope", "coverage"]);
       assert.equal(result.config.personas.scope.prompt, "Check scope");
+      assert.equal(result.config.refinement.maxCopilotRounds, 5);
       assert.equal(result.warnings.length, 0);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("Y1b: loader fills default maxCopilotRounds when refinement omits it", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-max-rounds-default-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.yaml"), [
+        "version: 1",
+        "refinement:",
+        "  fanOut: 2",
+        "  mode: parallel",
+      ].join("\n"));
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.equal(result.errors.length, 0);
+      assert.equal(result.config.refinement.maxCopilotRounds, 5);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -1057,21 +1087,31 @@ describe("role resolution", () => {
       assert.equal(result.fanOut, 3);
       assert.equal(result.mode, "parallel");
       assert.equal(result.roles, null);
+      assert.equal(result.maxCopilotRounds, 5);
     });
 
     test("resolveRefinement returns configured values", () => {
       const result = resolveRefinement({
         version: 1,
-        refinement: { fanOut: 5, mode: "sequential", roles: ["security", "style"] }
+        refinement: { fanOut: 5, mode: "sequential", maxCopilotRounds: 7, roles: ["security", "style"] }
       });
       assert.equal(result.fanOut, 5);
       assert.equal(result.mode, "sequential");
+      assert.equal(result.maxCopilotRounds, 7);
       assert.deepEqual(result.roles, ["security", "style"]);
     });
 
     test("resolveRefinement returns empty roles array when explicitly empty", () => {
       const result = resolveRefinement({ version: 1, refinement: { fanOut: 2, mode: "parallel", roles: [] } });
       assert.deepEqual(result.roles, []);
+    });
+
+    test("resolveRefinementConfig resolves maxCopilotRounds with a default of 5", () => {
+      assert.equal(resolveRefinementConfig({ version: 1 }, "maxCopilotRounds"), 5);
+      assert.equal(resolveRefinementConfig({
+        version: 1,
+        refinement: { fanOut: 3, mode: "parallel", maxCopilotRounds: 9 },
+      }, "maxCopilotRounds"), 9);
     });
 
     // Gate angles resolution

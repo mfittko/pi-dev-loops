@@ -392,6 +392,7 @@ Snapshot schema (`--input` mode or `snapshot` field in success output):
 - `copilotReviewOnCurrentHead` {boolean} — whether a submitted (non-PENDING) Copilot review exists for the current head commit
 - `unresolvedThreadCount` {number} — total unresolved review-thread count
 - `actionableThreadCount` {number} — unresolved threads with non-bot actionable comments
+- `copilotReviewRoundCount` {number} — completed Copilot review rounds observed on the PR
 - `ciStatus` {"success"|"failure"|"pending"|"none"} — contract-owned current-head CI/check rollup
   from [Copilot CI Status Contract](../skills/docs/copilot-ci-status-contract.md); `none` means no usable readiness signal yet
 - `agentFixStatus` {"applied"|null} — agent-provided: "applied" when code has been fixed

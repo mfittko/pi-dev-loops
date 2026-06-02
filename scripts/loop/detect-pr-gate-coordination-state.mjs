@@ -190,6 +190,7 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
     unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
     actionableThreadCount: parsedThreads.summary.actionableThreads,
+    copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
   });
 
   const interpretation = interpretLoopState(snapshot);

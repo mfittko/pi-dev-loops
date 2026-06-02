@@ -142,6 +142,7 @@ function parseReviewsPayload(text) {
     copilotReviewPresent: reviewSummary.copilotReviewPresent,
     hasCopilotPendingReviewOnCurrentHead: reviewSummary.hasPendingReviewOnCurrentHead,
     hasCopilotSubmittedReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
+    completedCopilotReviewRounds: reviewSummary.completedCopilotReviewRounds,
   };
 }
 
@@ -186,6 +187,7 @@ async function fetchCopilotReviewState(options, runtime) {
     copilotReviewPresent: reviews.copilotReviewPresent,
     hasPendingReviewOnCurrentHead: reviews.hasCopilotPendingReviewOnCurrentHead,
     hasSubmittedReviewOnCurrentHead: reviews.hasCopilotSubmittedReviewOnCurrentHead,
+    completedCopilotReviewRounds: reviews.completedCopilotReviewRounds,
   };
 }
 
@@ -220,6 +222,7 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
       copilotReviewOnCurrentHead: hasSubmittedReviewOnCurrentHead,
       unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
       actionableThreadCount: parsedThreads.summary.actionableThreads,
+      copilotReviewRoundCount: priorReviewState.completedCopilotReviewRounds ?? 0,
     });
     const interpretation = interpretLoopState(snapshot);
     return interpretation.sameHeadCleanConverged;

@@ -1,3 +1,5 @@
+import { BUILT_IN_DEFAULTS } from "./schema.mjs";
+
 /**
  * Resolve the conductor model from the merged dev-loop config.
  *
@@ -40,24 +42,58 @@ export function resolveAutonomyStopAt(config) {
   return ["merge"];
 }
 
+const DEFAULT_REFINEMENT_CONFIG = BUILT_IN_DEFAULTS.refinement;
+
+/**
+ * Resolve one refinement configuration value from the merged dev-loop config.
+ *
+ * Returns the configured value when present, or the built-in default for the
+ * requested key.
+ *
+ * @param {import("./schema.mjs").DevLoopConfig} config
+ * @param {"fanOut"|"mode"|"roles"|"maxCopilotRounds"} key
+ * @returns {number|"parallel"|"sequential"|string[]|null}
+ */
+export function resolveRefinementConfig(config, key) {
+  if (key === "roles") {
+    return config?.refinement?.roles && Array.isArray(config.refinement.roles)
+      ? [...config.refinement.roles]
+      : null;
+  }
+
+  if (key === "fanOut") {
+    return config?.refinement?.fanOut ?? DEFAULT_REFINEMENT_CONFIG.fanOut;
+  }
+
+  if (key === "mode") {
+    return config?.refinement?.mode ?? DEFAULT_REFINEMENT_CONFIG.mode;
+  }
+
+  if (key === "maxCopilotRounds") {
+    return config?.refinement?.maxCopilotRounds ?? DEFAULT_REFINEMENT_CONFIG.maxCopilotRounds;
+  }
+
+  throw new Error(`Unknown refinement config key: ${key}`);
+}
+
 /**
  * Resolve the refinement configuration from the merged dev-loop config.
  *
- * Returns `{ fanOut, mode, roles }` with sensible built-in defaults
- * (`fanOut: 3`, `mode: "parallel"`, `roles: null`).
+ * Returns `{ fanOut, mode, roles, maxCopilotRounds }` with sensible built-in
+ * defaults (`fanOut: 3`, `mode: "parallel"`, `roles: null`,
+ * `maxCopilotRounds: 5`).
  *
  * Accepts the validated DevLoopConfig from {@link loadDevLoopConfig}.
  *
  * @param {import("./schema.mjs").DevLoopConfig} config
- * @returns {{ fanOut: number, mode: "parallel"|"sequential", roles: string[]|null }}
+ * @returns {{ fanOut: number, mode: "parallel"|"sequential", roles: string[]|null, maxCopilotRounds: number }}
  */
 export function resolveRefinement(config) {
-  const fanOut = config?.refinement?.fanOut ?? 3;
-  const mode = config?.refinement?.mode ?? "parallel";
-  const roles = config?.refinement?.roles && Array.isArray(config.refinement.roles)
-    ? [...config.refinement.roles]
-    : null;
-  return { fanOut, mode, roles };
+  const fanOut = /** @type {number} */ (resolveRefinementConfig(config, "fanOut"));
+  const mode = /** @type {"parallel"|"sequential"} */ (resolveRefinementConfig(config, "mode"));
+  const roles = /** @type {string[]|null} */ (resolveRefinementConfig(config, "roles"));
+  const maxCopilotRounds = /** @type {number} */ (resolveRefinementConfig(config, "maxCopilotRounds"));
+  return { fanOut, mode, roles, maxCopilotRounds };
 }
 
 /**

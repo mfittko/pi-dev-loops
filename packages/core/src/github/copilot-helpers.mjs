@@ -244,11 +244,16 @@ export function summarizeCopilotReviews(reviews, { headSha } = {}) {
   let hasPendingReviewOnCurrentHead = false;
   let hasSubmittedReviewOnCurrentHead = false;
   let latestSubmittedReviewOnCurrentHeadAt = null;
+  let completedCopilotReviewRounds = 0;
 
   for (const review of copilotReviews) {
     const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
     const reviewCommitSha = extractReviewCommitSha(review);
     const reviewOnCurrentHead = headSha !== null && reviewCommitSha === headSha;
+
+    if (SUBMITTED_REVIEW_STATES.has(state)) {
+      completedCopilotReviewRounds += 1;
+    }
 
     if (!reviewOnCurrentHead) {
       continue;
@@ -275,6 +280,7 @@ export function summarizeCopilotReviews(reviews, { headSha } = {}) {
       .filter((id) => id !== null && id !== undefined)
       .map((id) => String(id)),
     copilotReviewPresent: copilotReviews.length > 0,
+    completedCopilotReviewRounds,
     hasPendingReviewOnCurrentHead,
     hasSubmittedReviewOnCurrentHead,
     latestSubmittedReviewOnCurrentHeadAt,
