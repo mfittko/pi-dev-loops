@@ -50,7 +50,7 @@ Each named-state directory currently contains:
 - `screenshot.png`
 - `state.json`
 
-These paths are the local proving ground for the reusable artifact contract in [UI Artifact Contract](ui-artifact-contract.md) and for later designer-review-loop work.
+These paths are the local proving ground for the reusable artifact contract in [UI Artifact Contract](./ui-artifact-contract.md) and for later designer-review-loop work.
 
 ## Reference example
 

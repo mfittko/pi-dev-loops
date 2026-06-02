@@ -59,7 +59,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 
 ## Definition of done
 
-- [Phase 5 Plan](phase-5.md) records the narrowed objective, exact scope, non-goals, tests-first plan, AC, DoD, validation steps, durable decisions, and unresolved questions
+- [Phase 5 Plan](./phase-5.md) records the narrowed objective, exact scope, non-goals, tests-first plan, AC, DoD, validation steps, durable decisions, and unresolved questions
 - failing tests for all three scripts exist before implementation is considered complete
 - script success and malformed-argument/error JSON contracts are explicit and tested
 - the live capture contract is explicit: live mode requires both `--repo` and `--pr`

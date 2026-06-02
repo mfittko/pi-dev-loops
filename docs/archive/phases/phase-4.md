@@ -98,7 +98,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 
 ## Definition of done
 
-- [Phase 4 Plan](phase-4.md) records the final objective, scope, non-goals, tests-first plan, acceptance criteria, definition of done, validation steps, durable decisions, and unresolved questions
+- [Phase 4 Plan](./phase-4.md) records the final objective, scope, non-goals, tests-first plan, acceptance criteria, definition of done, validation steps, durable decisions, and unresolved questions
 - [Phase 4 Summary](tmp/phases/phase-4/summary.md) and the durable phase doc record the prioritized skill-scan findings for realistic deterministic extraction candidates
 - failing package tests for `phase-files` parity and review-thread parsing are added before implementation is considered complete
 - `packages/core/src/loop/phase-files.mjs` is the shared source of truth for phase-file behavior

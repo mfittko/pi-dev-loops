@@ -74,7 +74,7 @@ Phase 2 improved local phase refinement and clarified RFC boundaries. The next i
 
 ## Definition of done
 
-- [Phase 3 Plan](phase-3.md) fully documents the objective, scope, AC, DoD, validation, and non-goals
+- [Phase 3 Plan](./phase-3.md) fully documents the objective, scope, AC, DoD, validation, and non-goals
 - root failing tests for extension behavior and package contract are added before implementation completion
 - `extension/index.ts` remains thin and primarily handles Pi registration and UI glue
 - `extension/checks.ts` exposes a stable, testable check-result shape

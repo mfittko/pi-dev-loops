@@ -31,7 +31,7 @@ Use for durable repo/product/architecture/roadmap truth.
 
 Do not turn [Project Plan](../PLAN.md) into an issue-level implementation checklist.
 
-### 3. [Implementation State](IMPLEMENTATION_STATE.md)
+### 3. [Implementation State](./IMPLEMENTATION_STATE.md)
 
 Use for the current repo execution snapshot:
 - which phase is active
@@ -92,7 +92,7 @@ Typical touched docs:
 - [README](../README.md) when the shipped surface or usage contract changed
 - [Project Plan](../PLAN.md) when durable roadmap/product truth changed
 - [Implementation State](IMPLEMENTATION_STATE.md) when the current status, active phase, or fresh-session guidance changed
-- [Implementation Workflow](IMPLEMENTATION_WORKFLOW.md) when workflow preference or source-of-truth rules changed
+- [Implementation Workflow](./IMPLEMENTATION_WORKFLOW.md) when workflow preference or source-of-truth rules changed
 - relevant contract/state-graph docs under `docs/` when a helper or workflow contract changed
 - [Scripts Documentation](../scripts/README.md) when script surfaces, outputs, or supported entrypoints changed
 

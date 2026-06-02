@@ -129,7 +129,7 @@ This means angles are lenses first, optionally backed by dedicated agent persona
 - `npm test` passes locally
 - GitHub Actions Node 24 CI passes
 - [Project Plan](../../PLAN.md) updated to reference the config surface
-- [Phase 8 Plan](phase-8.md) updated to reflect as-implemented reality
+- [Phase 8 Plan](./phase-8.md) updated to reflect as-implemented reality
 
 ## Definition of done
 

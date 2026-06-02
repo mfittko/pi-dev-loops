@@ -6,7 +6,7 @@ This document defines the bounded screenshot/state artifact contract introduced 
 
 - `dev-loop` remains the single public entrypoint for UI validation work.
 - This contract documents the internal artifact shape behind `dev-loop`; it does not introduce a second public workflow name.
-- The contract is intentionally small and reusable for opted-in UI slices that use the local Playwright/WebKit smoke harness from [UI Smoke Harness](ui-smoke-harness.md).
+- The contract is intentionally small and reusable for opted-in UI slices that use the local Playwright/WebKit smoke harness from [UI Smoke Harness](./ui-smoke-harness.md).
 
 ## What a named UI state means here
 
@@ -134,4 +134,4 @@ When a slice is CI-promoted:
 - [UI Smoke Harness](ui-smoke-harness.md) defines how the local harness captures these artifacts
 - this document defines the reusable artifact contract and when CI should start requiring it
 - later review-loop work should consume this artifact bundle rather than redefine the artifact shape from scratch
-- the current designer-review-loop consumer contract lives in [UI Designer Review Loop](ui-designer-review-loop.md)
+- the current designer-review-loop consumer contract lives in [UI Designer Review Loop](./ui-designer-review-loop.md)

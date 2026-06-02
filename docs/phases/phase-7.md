@@ -62,7 +62,7 @@ This phase exists to answer, in one real non-bootstrap repo:
   - the chosen target repo
   - the preferred pilot path
   - the thin override being exercised
-- [Phase 7 Plan](phase-7.md) records the same target repo, path, and boundary
+- [Phase 7 Plan](./phase-7.md) records the same target repo, path, and boundary
 - the pilot uses source-loaded / GitHub-checkout consumption only; no npm publication is required
 - in the target repo, packaged skill discovery works well enough to confirm the install is visible outside this bootstrap repo
 - in the target repo, `/dev-loops doctor` or equivalent readiness output clearly shows whether install/discovery succeeded

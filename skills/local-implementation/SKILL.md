@@ -25,7 +25,7 @@ For UI validation under `dev-loop`, see [UI Validation Contract](../../docs/ui-v
 For a new project, the only required inputs are:
 
 1. [Project Plan](../../PLAN.md)
-2. this skill's [this skill file](SKILL.md)
+2. this skill's [this skill file](./SKILL.md)
 
 Everything else is optional and may be bootstrapped by this skill.
 

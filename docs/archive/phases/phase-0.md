@@ -42,7 +42,7 @@ This repository is building reusable Pi development loops, not just consuming th
 Phase 0 is complete when all of the following are true:
 
 - [Project Plan](../../../PLAN.md) and [Implementation Workflow](../../IMPLEMENTATION_WORKFLOW.md) both describe the docs-first phase convention consistently
-- [Implementation State](../../IMPLEMENTATION_STATE.md) points a fresh session at [Phase 0 Plan](phase-0.md) as the active durable phase plan
+- [Implementation State](../../IMPLEMENTATION_STATE.md) points a fresh session at [Phase 0 Plan](./phase-0.md) as the active durable phase plan
 - [Phase 0 Plan](phase-0.md) clearly states scope, non-goals, acceptance criteria, and open questions for the phase
 - [Dev Loop Skill](../../../skills/dev-loop/SKILL.md) treats [Phase Plan](docs/phases/phase-<n>.md) as a first-class durable artifact
 - the phase scaffold helper can generate [Phase Plan](docs/phases/phase-<n>.md) plus the expected tmp artifacts in a temp repo smoke test
