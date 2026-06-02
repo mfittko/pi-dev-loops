@@ -44,6 +44,23 @@ Legacy `/dev-loops install` and `/dev-loops update` commands are removed; use `p
 
 See `extension/README.md` for the full command and package-install contract.
 
+## Configuration
+
+Gate review angles, refinement settings, persona mappings, and review prompts are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos can override any value through `.pi/dev-loop/overrides.yaml`.
+
+```bash
+# See what reviewers will check before handing off code
+pi-dev-loops gates
+```
+
+Key configurable surfaces:
+- **Gate angles** — which review lenses run at draft and pre-approval gates
+- **Persona prompts** — focused instructions per angle (e.g. DRY, KISS, YAGNI, SRP, SoC)
+- **Refinement** — fan-out count and mode for parallel review variants
+- **Autonomy** — which gates require operator confirmation
+
+Full details: `extension/README.md` and `.pi/dev-loop/defaults.yaml`.
+
 ## Requirements and assumptions
 
 Current code and docs assume:
