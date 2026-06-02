@@ -14,7 +14,7 @@ const USAGE = `Usage: audit-copilot-comments.mjs --repo <owner/name> [--output-d
 
 Scan all pull-request review comments in a repository via the GitHub REST API,
 filter to Copilot-authored comments, classify them into workflow categories, and
-write both a JSON summary and a Markdown report under tmp/investigation/.
+write both a JSON summary and a Markdown report under the requested output directory.
 
 Required:
   --repo <owner/name>     Repository slug (e.g. owner/repo)
@@ -42,13 +42,13 @@ Output (stdout, JSON summary):
       { "id": 101, "prNumber": 12, "primaryCategoryId": "grammar" }
     ],
     "files": {
-      "jsonSummaryPath": "tmp/investigation/copilot-comment-summary.json",
-      "markdownReportPath": "tmp/investigation/copilot-comment-categories.md"
+      "jsonSummaryPath": "<output-dir>/copilot-comment-summary.json",
+      "markdownReportPath": "<output-dir>/copilot-comment-categories.md"
     }
   }
 
   Stdout emits the same full summary object that is written to
-  tmp/investigation/copilot-comment-summary.json.
+  <output-dir>/copilot-comment-summary.json (default output dir: tmp/investigation).
 
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }

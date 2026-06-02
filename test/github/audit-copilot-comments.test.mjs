@@ -68,7 +68,7 @@ async function writeGhStub(tempDir, entries) {
     ghPath,
     [
       "#!/usr/bin/env node",
-      'import { readFileSync, writeFileSync } from "node:fs";',
+      'const { readFileSync, writeFileSync } = require("node:fs");',
       "const sequencePath = process.env.GH_SEQUENCE_PATH;",
       "const counterPath = process.env.GH_COUNTER_PATH;",
       'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
@@ -165,6 +165,7 @@ test("audit-copilot-comments help text describes the full summary output", async
   assert.match(result.stdout, /Output \(stdout, JSON summary\)/);
   assert.match(result.stdout, /"categories"/);
   assert.match(result.stdout, /same full summary object/i);
+  assert.match(result.stdout, /<output-dir>\/copilot-comment-summary\.json/);
 });
 
 test("classifyCopilotComment assigns representative categories", () => {
