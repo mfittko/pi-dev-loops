@@ -764,7 +764,7 @@ describe("role resolution", () => {
     assert.equal(result.model, null);
   });
 
-  describe("conductor model resolution", () => {
+  describe("model and config resolution", () => {
     test("resolveConductorModel returns model when present in config", () => {
       const result = resolveConductorModel({ version: 1, models: { conductor: "gpt-5" } });
       assert.equal(result, "gpt-5");
@@ -891,6 +891,20 @@ describe("role resolution", () => {
         gates: { draft: { angles: [], required: true } }
       }, "draft");
       assert.deepEqual(result, []);
+    });
+
+    test("resolveGateAngles returns new array (not reference to config)", () => {
+      const config = { version: 1, gates: { draft: { angles: ["scope"] } } };
+      const result = resolveGateAngles(config, "draft");
+      result.push("coverage");
+      assert.deepEqual(config.gates.draft.angles, ["scope"]);
+    });
+
+    test("resolveRefinement returns new roles array (not reference to config)", () => {
+      const config = { version: 1, refinement: { fanOut: 2, mode: "parallel", roles: ["security"] } };
+      const result = resolveRefinement(config);
+      result.roles.push("style");
+      assert.deepEqual(config.refinement.roles, ["security"]);
     });
   });
 
