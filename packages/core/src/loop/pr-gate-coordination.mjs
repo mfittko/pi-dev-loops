@@ -109,9 +109,8 @@ function normalizeConflictFiles(value) {
       continue;
     }
 
-    const trimmed = entry.trim();
-    if (trimmed.length > 0 && !normalized.includes(trimmed)) {
-      normalized.push(trimmed);
+    if (entry.trim().length > 0 && !normalized.includes(entry)) {
+      normalized.push(entry);
     }
   }
 

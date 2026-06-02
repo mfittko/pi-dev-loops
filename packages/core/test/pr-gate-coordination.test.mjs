@@ -310,6 +310,24 @@ test("local git conflict files trigger the conflict-resolution boundary even wit
   assert.deepEqual(result.conflictFiles, [".pi/dev-loop/defaults.yaml"]);
 });
 
+test("normalizeConflictFiles preserves opaque path strings while still rejecting blank entries", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 370,
+    currentHeadSha: "deadbeef1234",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    mergeStateStatus: "CLEAN",
+    conflictFiles: ["  spaced-path.txt  ", "   ", "  spaced-path.txt  "],
+    draftGate: gate({ visible: true, headSha: "deadbee", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "deadbee", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  assert.deepEqual(result.conflictFiles, ["  spaced-path.txt  "]);
+});
+
 test("local-first PR with explicit reviewMode skips to pre-approval gate after draft→ready", () => {
   const result = evaluatePrGateCoordination({
     pr: 298,

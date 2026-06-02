@@ -499,14 +499,14 @@ Failure behavior:
 
 ### `scripts/loop/detect-pr-gate-coordination-state.mjs`
 
-Fetches the live PR facts needed to answer which gate/transition is legal next for a pull request. It combines the shared Copilot loop-state machine with visible `draft_gate` / `pre_approval_gate` evidence, GitHub `mergeStateStatus`, and local `git status --porcelain=v1 --untracked-files=no` conflict detection, then emits one explicit gate boundary, allowed/forbidden next actions, and a single recommended next step. Use this before entering `pre_approval_gate` and when deciding whether a ready PR should request Copilot review, keep waiting, stay in feedback resolution, or stop for conflict resolution.
+Fetches the live PR facts needed to answer which gate/transition is legal next for a pull request. It combines the shared Copilot loop-state machine with visible `draft_gate` / `pre_approval_gate` evidence, GitHub `mergeStateStatus`, and local `git -c core.quotepath=false status --porcelain=v1 -z --untracked-files=no` conflict detection, then emits one explicit gate boundary, allowed/forbidden next actions, and a single recommended next step. Use this before entering `pre_approval_gate` and when deciding whether a ready PR should request Copilot review, keep waiting, stay in feedback resolution, or stop for conflict resolution.
 
 Required:
 - `--repo <owner/name>`
 - `--pr <number>`
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/repo", "pr": 266, "currentHeadSha": "...", "mergeStateStatus": string|null, "conflictFiles": ["path"]|[], "lifecycleState": "pr_ready_no_feedback", "loopDisposition": "action_required", "gateBoundary": "post_draft_external_review"|"conflict_resolution", "draftGate": { ... }, "preApprovalGate": { ... }, "draftGateAlreadySatisfied": true, "allowedNextActions": [ ... ], "forbiddenActions": [ ... ], "nextAction": "request_copilot_review"|"resolve_merge_conflicts", "reason": "..." }`
+- `{ "ok": true, "repo": "owner/repo", "pr": 266, "currentHeadSha": "...", "mergeStateStatus": string|null, "conflictFiles": ["path"]|[], "lifecycleState": string, "loopDisposition": string, "gateBoundary": string, "draftGate": { ... }, "preApprovalGate": { ... }, "draftGateAlreadySatisfied": true, "allowedNextActions": [ ... ], "forbiddenActions": [ ... ], "nextAction": string, "reason": "..." }`
 - `draftGate` / `preApprovalGate` report both latest visible evidence (`visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`) and whether the evidence is current-head + contract-complete (`currentHead`, `contractComplete`, `currentHeadClean`)
 - `mergeStateStatus` preserves the current GitHub `gh pr view` signal in helper output even when the PR is not in the conflict boundary; `DIRTY` and explicit `CONFLICTING` inputs are treated as conflict-required states
 - `conflictFiles` lists unmerged local paths from `git -c core.quotepath=false status --porcelain=v1 -z --untracked-files=no` when local conflict reconciliation is already in progress
