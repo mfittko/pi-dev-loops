@@ -8,7 +8,7 @@ import test, { describe } from "node:test";
 import {
   DevLoopConfigSchema,
   BUILT_IN_DEFAULTS,
-} from "../src/config/schema.mjs";
+} from "../src/config/config.mjs";
 import {
   resolveConductorModel,
   resolveAutonomyStopAt,
@@ -17,7 +17,7 @@ import {
   resolveGateConfig,
   resolveGateAngles,
   resolveWorkflowConfig,
-} from "../src/config/model-resolution.mjs";
+} from "../src/config/config.mjs";
 // ============================================================================
 // Schema validation tests (S1–S26)
 // ============================================================================
@@ -320,19 +320,19 @@ describe("BUILT_IN_DEFAULTS", () => {
 // ============================================================================
 
 describe("loader — graceful degradation", () => {
-  /** @type {import("../src/config/loader.mjs").loadDevLoopConfig} */
+  /** @type {import("../src/config/config.mjs").loadDevLoopConfig} */
   let loadDevLoopConfig;
 
   test("loader module imports without I/O", async () => {
     // Schema module must not throw on import
-    const schema = await import("../src/config/schema.mjs");
+    const schema = await import("../src/config/config.mjs");
     assert.ok(schema.DevLoopConfigSchema);
   });
 
   test("L1: both config files missing", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L1-"));
     try {
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.version, 1);
@@ -351,7 +351,7 @@ describe("loader — graceful degradation", () => {
         path.join(piDir, "defaults.json"),
         JSON.stringify({ version: 1, strategy: { default: "local-first" } }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.strategy.default, "local-first");
@@ -375,7 +375,7 @@ describe("loader — graceful degradation", () => {
         path.join(piDir, "overrides.json"),
         JSON.stringify({ version: 1, strategy: { default: "github-first" } }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       // overrides.json beats defaults.json for strategy, but refinement falls through
@@ -392,7 +392,7 @@ describe("loader — graceful degradation", () => {
       const piDir = path.join(tmpDir, ".pi", "dev-loop");
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.json"), "not json {{{");
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.version, 1);
@@ -411,7 +411,7 @@ describe("loader — graceful degradation", () => {
         path.join(piDir, "defaults.json"),
         JSON.stringify({ version: 1, unknownKey: true }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.version, 1);
@@ -431,7 +431,7 @@ describe("loader — graceful degradation", () => {
         JSON.stringify({ version: 1, strategy: { default: "local-first" } }),
       );
       await writeFile(path.join(piDir, "overrides.json"), "broken json [[[");
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.strategy.default, "local-first");
@@ -463,7 +463,7 @@ describe("loader — graceful degradation", () => {
         "    prompt: Check scope",
         "    defaultModel: null",
       ].join("\n"));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.strategy.default, "local-first");
@@ -487,7 +487,7 @@ describe("loader — graceful degradation", () => {
         "  fanOut: 2",
         "  mode: parallel",
       ].join("\n"));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.equal(result.errors.length, 0);
       assert.equal(result.config.refinement.maxCopilotRounds, 5);
@@ -513,7 +513,7 @@ describe("loader — graceful degradation", () => {
         "workflow:",
         "  requireDraftFirst: true",
       ].join("\n"));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.deepEqual(result.config.workflow, {
@@ -536,7 +536,7 @@ describe("loader — graceful degradation", () => {
         "strategy:",
         "  default: local-first",
       ].join("\n"));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.equal(result.config.strategy.default, "local-first");
@@ -560,7 +560,7 @@ describe("loader — graceful degradation", () => {
         "strategy:",
         "  default: local-first",
       ].join("\n"));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.equal(result.config.strategy.default, "github-first");
@@ -590,7 +590,7 @@ describe("loader — graceful degradation", () => {
         "  draft:",
         "    requireCi: false",
       ].join("\n"));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.deepEqual(result.config.gates?.draft?.angles, ["scope", "coverage"]);
@@ -614,7 +614,7 @@ describe("loader — graceful degradation", () => {
         path.join(piDir, "overrides.json"),
         JSON.stringify({ version: 1, strategy: { default: "local-first" } }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.equal(result.config.strategy.default, "github-first");
@@ -632,7 +632,7 @@ describe("loader — graceful degradation", () => {
         JSON.stringify({ version: 1, strategy: { default: "local-first" } }));
       await writeFile(path.join(piDir, "defaults.yml"),
         "version: 1\nstrategy:\n  default: github-first");
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.equal(result.config.strategy.default, "github-first", ".yml should take priority over JSON");
     } finally {
@@ -653,7 +653,7 @@ describe("loader — graceful degradation", () => {
         path.join(piDir, "overrides.json"),
         JSON.stringify({ version: 1, unknownKey: true }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.strategy.default, "local-first");
@@ -670,7 +670,7 @@ describe("loader — graceful degradation", () => {
       await mkdir(piDir, { recursive: true });
       // create a directory where defaults.json should be
       await mkdir(path.join(piDir, "defaults.json"));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.version, 1);
@@ -686,7 +686,7 @@ describe("loader — graceful degradation", () => {
       const piDir = path.join(tmpDir, ".pi", "dev-loop");
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.json"), "");
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.version, 1);
@@ -702,7 +702,7 @@ describe("loader — graceful degradation", () => {
       const piDir = path.join(tmpDir, ".pi", "dev-loop");
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.json"), JSON.stringify({ version: 1 }));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.strategy.default, "github-first");
@@ -724,7 +724,7 @@ describe("loader — graceful degradation", () => {
         path.join(piDir, "overrides.json"),
         JSON.stringify({ version: 1, refinement: { fanOut: 7 } }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.refinement.fanOut, 7);
@@ -741,7 +741,7 @@ describe("loader — graceful degradation", () => {
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.json"), "bad json");
       await writeFile(path.join(piDir, "overrides.json"), "also bad");
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.version, 1);
@@ -765,7 +765,7 @@ describe("loader — graceful degradation", () => {
         path.join(piDir, "overrides.json"),
         JSON.stringify({ version: 2, strategy: { default: "github-first" } }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       // overrides.json rejected, defaults.json applied
@@ -780,7 +780,7 @@ describe("loader — graceful degradation", () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L16-"));
     try {
       await mkdir(path.join(tmpDir, ".pi"));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.version, 1);
@@ -796,7 +796,7 @@ describe("loader — graceful degradation", () => {
       const piDir = path.join(tmpDir, ".pi", "dev-loop");
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.json"), JSON.stringify({ version: 1 }));
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.ok(result.config);
       assert.equal(result.config.strategy.default, "github-first");
@@ -823,7 +823,7 @@ describe("loader — precedence", () => {
         path.join(piDir, "defaults.json"),
         JSON.stringify({ version: 1, strategy: { default: "local-first" } }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.equal(result.config.strategy.default, "local-first");
     } finally {
@@ -844,7 +844,7 @@ describe("loader — precedence", () => {
         path.join(piDir, "overrides.json"),
         JSON.stringify({ version: 1, refinement: { fanOut: 7 } }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.equal(result.config.refinement.fanOut, 7);
     } finally {
@@ -865,7 +865,7 @@ describe("loader — precedence", () => {
         path.join(piDir, "overrides.json"),
         JSON.stringify({ version: 1, refinement: { fanOut: 7 } }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.equal(result.config.refinement.fanOut, 7);
       assert.equal(result.config.refinement.mode, "sequential");
@@ -883,7 +883,7 @@ describe("loader — precedence", () => {
         path.join(piDir, "defaults.json"),
         JSON.stringify({ version: 1 }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.config.autonomy.stopAt, ["merge"]);
     } finally {
@@ -904,7 +904,7 @@ describe("loader — precedence", () => {
         path.join(piDir, "overrides.json"),
         JSON.stringify({ version: 1, models: { conductor: "gpt-5" } }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.equal(result.config.models.conductor, "gpt-5");
     } finally {
@@ -931,7 +931,7 @@ describe("loader — precedence", () => {
           models: { roles: { correctness: "gpt-4" } },
         }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       const roles = result.config.models.roles;
       // Shallow merge: overrides replaces entire models.roles
@@ -966,7 +966,7 @@ describe("loader — precedence", () => {
           },
         }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.equal(result.config.personas.dry.persona, "custom-dry-reviewer");
@@ -1001,7 +1001,7 @@ describe("loader — precedence", () => {
           },
         }),
       );
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.deepEqual(result.config.workflow, {
@@ -1020,11 +1020,11 @@ describe("loader — precedence", () => {
 // ============================================================================
 
 describe("role resolution", () => {
-  /** @type {import("../src/config/roles.mjs").resolveReviewerRole} */
+  /** @type {import("../src/config/config.mjs").resolveReviewerRole} */
   let resolveReviewerRole;
 
   test("roles module imports without error", async () => {
-    const mod = await import("../src/config/roles.mjs");
+    const mod = await import("../src/config/config.mjs");
     resolveReviewerRole = mod.resolveReviewerRole;
     assert.ok(typeof resolveReviewerRole === "function");
   });
@@ -1472,8 +1472,8 @@ describe("shipped defaults docs angle wiring", () => {
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.yaml"), sourceDefaults);
 
-      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
-      const { resolveReviewerRole } = await import("../src/config/roles.mjs");
+      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
+      const { resolveReviewerRole } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       const preApprovalAngles = resolveGateAngles(result.config, "preApproval");
       const docsRole = resolveReviewerRole(result.config, "docs");

@@ -8,10 +8,7 @@ test("packages/core exports the sanctioned runtime boundary and de-exports unuse
   const packageJson = JSON.parse(await readFile(packageJsonUrl, "utf8"));
 
   assert.equal(packageJson.exports["./bash-exit-one"], "./src/bash-exit-one.mjs");
-  assert.equal(packageJson.exports["./config"], "./src/config/index.mjs");
-  assert.equal(packageJson.exports["./config/schema"], "./src/config/schema.mjs");
-  assert.equal(packageJson.exports["./config/loader"], "./src/config/loader.mjs");
-  assert.equal(packageJson.exports["./config/roles"], "./src/config/roles.mjs");
+  assert.equal(packageJson.exports["./config"], "./src/config/config.mjs");
   assert.equal(packageJson.exports["./github/copilot-helpers"], "./src/github/copilot-helpers.mjs");
   assert.equal(packageJson.exports["./github/repo-slug"], "./src/github/repo-slug.mjs");
   assert.equal(packageJson.exports["./github/review-threads"], "./src/github/review-threads.mjs");
@@ -20,11 +17,11 @@ test("packages/core exports the sanctioned runtime boundary and de-exports unuse
   assert.equal(packageJson.exports["./loop/copilot-ci-status"], "./src/loop/copilot-ci-status.mjs");
   assert.equal(packageJson.exports["./loop/copilot-loop-iterations"], "./src/loop/copilot-loop-iterations.mjs");
   assert.equal(packageJson.exports["./loop/copilot-loop-state"], "./src/loop/copilot-loop-state.mjs");
-  assert.equal(packageJson.exports["./loop/outer-loop-state"], "./src/loop/outer-loop-state.mjs");
+  assert.equal(packageJson.exports["./loop/outer-loop-state"], undefined);
   assert.equal(packageJson.exports["./loop/phase-files"], "./src/loop/phase-files.mjs");
   assert.equal(packageJson.exports["./loop/pr-gate-coordination"], "./src/loop/pr-gate-coordination.mjs");
   assert.equal(packageJson.exports["./loop/public-dev-loop-routing"], "./src/loop/public-dev-loop-routing.mjs");
-  assert.equal(packageJson.exports["./loop/retrospective-checkpoint"], "./src/loop/retrospective-checkpoint.mjs");
+  assert.equal(packageJson.exports["./loop/retrospective-checkpoint"], undefined);
   assert.equal(packageJson.exports["./loop/reviewer-loop-state"], "./src/loop/reviewer-loop-state.mjs");
   assert.equal(packageJson.exports["./loop/run-inspection"], "./src/loop/run-inspection.mjs");
   assert.equal(packageJson.exports["./loop/steering"], "./src/loop/steering.mjs");

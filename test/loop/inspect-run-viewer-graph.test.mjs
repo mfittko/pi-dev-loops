@@ -14,7 +14,7 @@ import {
 import {
   OUTER_STATE,
   OUTER_TRANSITIONS,
-} from "../../packages/core/src/loop/outer-loop-state.mjs";
+} from "../../packages/core/src/loop/conductor-routing.mjs";
 import {
   REVIEWER_STATE,
   REVIEWER_TRANSITIONS,

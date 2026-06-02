@@ -124,7 +124,7 @@ The checkpoint file is written by `.pi/extensions/dev-loop-behavioral-review.ts`
 
 | Artifact | Location |
 |---|---|
-| Checkpoint state machine | `packages/core/src/loop/retrospective-checkpoint.mjs` (`@pi-dev-loops/core/loop/retrospective-checkpoint`) |
+| Checkpoint state machine | `packages/core/src/loop/retrospective-checkpoint.mjs` (internal core module; not part of the public package exports surface) |
 | Tests | `packages/core/test/retrospective-checkpoint.test.mjs` |
 | Extension (writes required marker, fires review prompt) | `.pi/extensions/dev-loop-behavioral-review.ts` |
 | Checkpoint file | `.pi/dev-loop-retrospective-checkpoint.json` |

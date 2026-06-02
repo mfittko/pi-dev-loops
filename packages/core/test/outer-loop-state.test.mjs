@@ -4,8 +4,6 @@ import test from "node:test";
 import {
   ROUTING_OUTCOME,
   STOP_REASON,
-} from "../src/loop/conductor-routing.mjs";
-import {
   OUTER_GRAPH,
   OUTER_NEXT_ACTIONS,
   OUTER_NONTERMINAL_STATES,
@@ -15,7 +13,7 @@ import {
   OUTER_TRANSITIONS,
   getAllowedOuterTransitions,
   interpretOuterLoopState,
-} from "../src/loop/outer-loop-state.mjs";
+} from "../src/loop/conductor-routing.mjs";
 
 function makeBaseInput(overrides = {}) {
   return {

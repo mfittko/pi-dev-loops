@@ -24,7 +24,7 @@
  */
 
 import { summarizeLoopInterpretation } from "./copilot-loop-state.mjs";
-import { isKnownOuterState } from "./outer-loop-state.mjs";
+import { isKnownOuterState } from "./conductor-routing.mjs";
 
 // ---------------------------------------------------------------------------
 // Constants
