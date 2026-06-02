@@ -13,7 +13,7 @@ the latest head — without relying on local or session-only artifacts.
 This document owns the visible gate-review comment evidence contract only. It does
 not restate the full PR follow-up procedure; that remains owned by the relevant
 workflow skill. The broader family-local PR lifecycle that consumes this evidence
-is defined in `skills/docs/pr-lifecycle-contract.md`.
+is defined in [PR Lifecycle Contract](skills/docs/pr-lifecycle-contract.md).
 
 ## Scope
 

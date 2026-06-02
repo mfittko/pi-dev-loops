@@ -43,7 +43,7 @@ Without a configuration contract, behavior drifts between runs, repo policy and 
 - implement the zod schema, config loader with precedence merging, and validation
 - write contract tests for schema validation and precedence
 - wire the config into at least one real workflow entrypoint (conductor model or strategy routing) to prove it integrates
-- update `PLAN.md` and contract docs to reference the config surface as the canonical source of truth for workflow defaults
+- update [Project Plan](PLAN.md) and contract docs to reference the config surface as the canonical source of truth for workflow defaults
 
 ## Explicit non-goals
 
@@ -128,8 +128,8 @@ This means angles are lenses first, optionally backed by dedicated agent persona
 - contract tests cover: valid configs, precedence merging, unknown keys, bad enums, missing version
 - `npm test` passes locally
 - GitHub Actions Node 24 CI passes
-- `PLAN.md` updated to reference the config surface
-- `docs/phases/phase-8.md` updated to reflect as-implemented reality
+- [Project Plan](PLAN.md) updated to reference the config surface
+- [Phase 8 Plan](docs/phases/phase-8.md) updated to reflect as-implemented reality
 
 ## Definition of done
 
@@ -139,8 +139,8 @@ This means angles are lenses first, optionally backed by dedicated agent persona
 - `.pi/dev-loop/defaults.json` exists in the repo with sensible defaults
 - `.pi/dev-loop/overrides.json` is gitignored
 - one real workflow entrypoint reads the config and applies it (conductor model or strategy)
-- `docs/phases/phase-8.md` is updated to reflect the shipped surface
-- `PLAN.md` acknowledges the config contract as the canonical source for workflow defaults
+- [Phase 8 Plan](docs/phases/phase-8.md) is updated to reflect the shipped surface
+- [Project Plan](PLAN.md) acknowledges the config contract as the canonical source for workflow defaults
 - issue #286 is closed or updated with a pointer to the landed phase
 - PR body is structured per the PR description contract
 

@@ -4,7 +4,7 @@
 
 This repository uses `dev-loop` as the single public workflow entrypoint.
 
-For the canonical public routing and shorthand contract, see `skills/docs/public-dev-loop-contract.md`.
+For the canonical public routing and shorthand contract, see [Public Dev Loop Contract](skills/docs/public-dev-loop-contract.md).
 
 Canonical skill-required docs rule:
 - any contract doc that is required by skills, read by skills, or intended to ship as part of the installed skill/runtime surface must live canonically under `skills/docs/`
@@ -49,12 +49,12 @@ These are related but distinct requirements:
 
 | Requirement | Scope | Enforcement |
 |---|---|---|
-| **Formal local dev mode** | Local implementation/self-improvement phases; explicitly scoped in `skills/dev-loop/SKILL.md` | Skill procedure; operator choice |
+| **Formal local dev mode** | Local implementation/self-improvement phases; explicitly scoped in [Dev Loop Skill](skills/dev-loop/SKILL.md) | Skill procedure; operator choice |
 | **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo (copilot PR follow-up, issue intake) | Machine-checkable enforcement seam |
 
 Routed GitHub-first async `dev-loop` runs in this repo do **not** need to be in full formal local dev mode, but they **do** require the post-run behavioral retrospective checkpoint.
 
-Authoritative checkpoint details live in `skills/docs/retrospective-checkpoint-contract.md`.
+Authoritative checkpoint details live in [Retrospective Checkpoint Contract](skills/docs/retrospective-checkpoint-contract.md).
 
 Practical rule:
 - qualifying async `dev-loop` completions write `.pi/dev-loop-retrospective-checkpoint.json`

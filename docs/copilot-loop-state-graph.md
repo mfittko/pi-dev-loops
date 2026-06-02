@@ -6,7 +6,7 @@ This document defines the deterministic state machine for the async Copilot revi
 
 The state machine captures observable PR/GitHub/worktree facts (the **snapshot**) and maps them to exactly one **current state**, a list of **allowed next transitions**, and a **recommended next action**.
 
-This document is the Copilot-family inner-loop state machine. The broader family-local PR lifecycle that consumes this machine is defined in `skills/docs/pr-lifecycle-contract.md`.
+This document is the Copilot-family inner-loop state machine. The broader family-local PR lifecycle that consumes this machine is defined in [PR Lifecycle Contract](skills/docs/pr-lifecycle-contract.md).
 
 The implementation lives in:
 

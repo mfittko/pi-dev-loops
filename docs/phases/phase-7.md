@@ -62,7 +62,7 @@ This phase exists to answer, in one real non-bootstrap repo:
   - the chosen target repo
   - the preferred pilot path
   - the thin override being exercised
-- `docs/phases/phase-7.md` records the same target repo, path, and boundary
+- [Phase 7 Plan](docs/phases/phase-7.md) records the same target repo, path, and boundary
 - the pilot uses source-loaded / GitHub-checkout consumption only; no npm publication is required
 - in the target repo, packaged skill discovery works well enough to confirm the install is visible outside this bootstrap repo
 - in the target repo, `/dev-loops doctor` or equivalent readiness output clearly shows whether install/discovery succeeded
@@ -85,7 +85,7 @@ This phase exists to answer, in one real non-bootstrap repo:
 - the thin local override example is documented, including what it proves and what it does not prove
 - all discovered portability issues are either fixed now or explicitly deferred by name
 - any landed fixes in this repo are validated locally and by existing Node 24 CI
-- the GitHub issue, PR, and `docs/phases/phase-7.md` preserve the same bounded truth:
+- the GitHub issue, PR, and [Phase 7 Plan](docs/phases/phase-7.md) preserve the same bounded truth:
   - one repo only
   - source-loaded only
   - one bounded skill path only

@@ -10,13 +10,13 @@ user-invocable: false
 
 # Issue Intake (redirect)
 
-This skill has been merged into `../copilot-pr-followup/SKILL.md`.
+This skill has been merged into [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md).
 
 The public `dev-loop` router still maps `issue_intake` to this skill name, but all
 issue-first intake procedure now lives in `copilot-pr-followup` under the
 **Issue-first intake and durable-auto overlays** section.
 
-When this skill is loaded, immediately redirect to `../copilot-pr-followup/SKILL.md`
+When this skill is loaded, immediately redirect to [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md)
 and follow its procedure. The `issue_intake` routing still differentiates from
 `copilot_pr_followup` in the public router; this redirect preserves that contract
 while keeping the procedure text canonical in one file.

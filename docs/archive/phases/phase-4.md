@@ -19,7 +19,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 
 ## Roadmap alignment note
 
-`PLAN.md` still describes a broader aspirational Phase 4 bundle. For implementation and review of `phase-4`, this durable phase doc intentionally narrows that roadmap wording and is the acceptance-criteria / definition-of-done source of truth. Any broader roadmap bullets not listed as in-scope here are explicitly deferred to later phases unless this document is revised.
+[Project Plan](PLAN.md) still describes a broader aspirational Phase 4 bundle. For implementation and review of `phase-4`, this durable phase doc intentionally narrows that roadmap wording and is the acceptance-criteria / definition-of-done source of truth. Any broader roadmap bullets not listed as in-scope here are explicitly deferred to later phases unless this document is revised.
 
 ## In scope
 
@@ -98,8 +98,8 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 
 ## Definition of done
 
-- `docs/phases/phase-4.md` records the final objective, scope, non-goals, tests-first plan, acceptance criteria, definition of done, validation steps, durable decisions, and unresolved questions
-- `tmp/phases/phase-4/summary.md` and the durable phase doc record the prioritized skill-scan findings for realistic deterministic extraction candidates
+- [Phase 4 Plan](docs/phases/phase-4.md) records the final objective, scope, non-goals, tests-first plan, acceptance criteria, definition of done, validation steps, durable decisions, and unresolved questions
+- [Phase 4 Summary](tmp/phases/phase-4/summary.md) and the durable phase doc record the prioritized skill-scan findings for realistic deterministic extraction candidates
 - failing package tests for `phase-files` parity and review-thread parsing are added before implementation is considered complete
 - `packages/core/src/loop/phase-files.mjs` is the shared source of truth for phase-file behavior
 - `packages/core/src/github/review-threads.mjs` exists with fixture-backed normalized parsing and actionable-comment detection
@@ -113,7 +113,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 - `npm test` passes
 - `npm run test:dev-loop` is run as the repo-level dev-loop script
 - `git diff --check` passes
-- changed deterministic logic has explicit coverage evidence against the repo coverage contract when local tooling is available; otherwise a bounded coverage-tooling gap is recorded under `tmp/phases/phase-4/coverage.md` and coverage is not marked as validated implicitly
+- changed deterministic logic has explicit coverage evidence against the repo coverage contract when local tooling is available; otherwise a bounded coverage-tooling gap is recorded under [Coverage Report](tmp/phases/phase-4/coverage.md) and coverage is not marked as validated implicitly
 - no timeout-policy module, check-status normalization module, watcher script suite, second-repo pilot, or package-strategy work is partially implemented under the Phase 4 banner
 
 ## Validation approach
@@ -124,8 +124,8 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 - run `npm run test:core`
 - run `npm test`
 - probe for reusable local coverage tooling with `npx --no-install c8 --version`
-- if `c8` is available locally, run `NODE_V8_COVERAGE=tmp/phases/phase-4/coverage/raw npx --no-install c8 --reporter=text-summary node --test packages/core/test/*.test.mjs` and capture the summary under `tmp/phases/phase-4/coverage.md`
-- if `c8` is not available locally, write `tmp/phases/phase-4/coverage.md` recording the attempted command, the missing-tooling limitation, the changed files that still require coverage confidence, and that coverage remains a tracked validation gap rather than a passed check
+- if `c8` is available locally, run `NODE_V8_COVERAGE=tmp/phases/phase-4/coverage/raw npx --no-install c8 --reporter=text-summary node --test packages/core/test/*.test.mjs` and capture the summary under [Coverage Report](tmp/phases/phase-4/coverage.md)
+- if `c8` is not available locally, write [Coverage Report](tmp/phases/phase-4/coverage.md) recording the attempted command, the missing-tooling limitation, the changed files that still require coverage confidence, and that coverage remains a tracked validation gap rather than a passed check
 - run `npm run test:dev-loop`
 - run `git diff --check`
 - do a focused read-through of:
@@ -148,7 +148,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 - the existing `bash-exit-one` helper remains an established regression guard, but it does not by itself satisfy the requirement to prove new shared package value in Phase 4
 - timeout policy, workflow/check normalization, watcher behavior, and broader restart/cleanup mechanics are deferred until a later phase with a concrete consumer and clearer boundary
 - the current source-loaded workspace/package contract from Phase 3 remains the operative package mode for Phase 4
-- the durable phase doc intentionally supersedes the broader roadmap wording in `PLAN.md` for Phase 4 implementation acceptance until the roadmap is updated
+- the durable phase doc intentionally supersedes the broader roadmap wording in [Project Plan](PLAN.md) for Phase 4 implementation acceptance until the roadmap is updated
 - the dev-mode follow-up for this phase tightened planning expectations around bounded audits/scans and malformed-argument/error-contract coverage for new CLIs
 
 ## Risks / watchpoints
@@ -168,21 +168,21 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 ## Bounded skill-scan findings
 
 Bounded scan scope for this phase:
-- `skills/dev-loop/SKILL.md`
+- [Dev Loop Skill](skills/dev-loop/SKILL.md)
 - `skills/dev-loop/scripts/*.mjs`
-- `skills/copilot-dev-loop/SKILL.md`
+- [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md)
 
 Prioritized deterministic extraction candidates recorded for later phases:
 1. **P1 — GitHub review baseline diffing and fresh-activity detection for Copilot PR follow-up**
-   - Source signals: `skills/copilot-dev-loop/SKILL.md` sections covering async watch behavior, baseline capture, and waiting for new Copilot-authored review bodies/comments.
+   - Source signals: [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md) sections covering async watch behavior, baseline capture, and waiting for new Copilot-authored review bodies/comments.
    - Why it is realistic: this is adjacent to the new Phase 4 fixture-backed review-thread parser and can stay deterministic if it compares stored snapshots instead of live orchestration state.
    - Deferred boundary: no watcher/polling loop implementation in Phase 4; only the future snapshot-diff helper/CLI is a candidate.
 2. **P1 — GitHub check-run / workflow snapshot normalization**
-   - Source signals: `skills/copilot-dev-loop/SKILL.md` guidance around `gh pr checks`, `gh run watch`, CI interpretation, and merge-readiness reporting.
+   - Source signals: [Copilot Dev Loop Skill](skills/copilot-dev-loop/SKILL.md) guidance around `gh pr checks`, `gh run watch`, CI interpretation, and merge-readiness reporting.
    - Why it is realistic: the skill currently relies on prose around repeated GitHub status interpretation, which is a strong fit for fixture-backed normalization before Phase 5 watcher entrypoints.
    - Deferred boundary: no timeout policy or native-watch orchestration was added in Phase 4.
 3. **P2 — dev-loop phase artifact summarization for dev-mode review inputs**
-   - Source signals: `skills/dev-loop/scripts/dev-mode-context.mjs` plus the `SKILL.md` dev-mode retrospective flow.
+   - Source signals: `skills/dev-loop/scripts/dev-mode-context.mjs` plus the [this skill file](SKILL.md) dev-mode retrospective flow.
    - Why it is realistic: it already consumes deterministic phase paths and machine-readable artifacts; now that phase-file/path logic lives in `packages/core`, the context collector is a plausible later package helper after the artifact schema is proven across more than one consumer.
    - Deferred boundary: keep current dev-mode logic skill-local until a second consumer or stronger shared schema need appears.
 4. **P3 — keep skill-local for now: template rendering/materialization**

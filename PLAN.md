@@ -6,21 +6,21 @@ The durable goal is to ship a reusable toolkit for Pi-based local and GitHub-fir
 
 ## What this plan is for
 
-Use `PLAN.md` for **durable repo-level truth**:
+Use [Project Plan](PLAN.md) for **durable repo-level truth**:
 - product intent
 - architecture direction
 - workflow contract
 - medium-term roadmap
 
-Do **not** use `PLAN.md` for one-off issue execution plans, PR-specific checklists, or temporary implementation notes. Those belong in:
+Do **not** use [Project Plan](PLAN.md) for one-off issue execution plans, PR-specific checklists, or temporary implementation notes. Those belong in:
 - GitHub issues / PRs
-- `docs/phases/phase-<n>.md` for active local-phase planning
+- [Phase Plan](docs/phases/phase-<n>.md) for active local-phase planning
 - `tmp/` artifacts for transient execution detail
 
 ## Current repo posture
 
 - This repo is currently a **source-loaded workspace**, not a published npm-package workflow.
-- `dev-loop` is the single public workflow entrypoint; see `skills/docs/public-dev-loop-contract.md` for the canonical public routing/shorthand contract.
+- `dev-loop` is the single public workflow entrypoint; see [Public Dev Loop Contract](skills/docs/public-dev-loop-contract.md) for the canonical public routing/shorthand contract.
 - For active implementation and release work in this repo, the default routed path should still prefer the GitHub-first internal strategies when practical.
 - The local implementation strategy remains supported when the user explicitly wants local phase-bounded work.
 - GitHub issues are the backlog and GitHub PRs are the main execution trail for remote-loop work.
@@ -102,12 +102,12 @@ For new ideas that are not already anchored to an existing issue, keep the propo
 ### Durable docs must stay aligned
 
 Whenever a merged slice changes durable project truth, update the affected durable docs before considering the slice closed. In practice this usually means checking some combination of:
-- `README.md`
-- `PLAN.md`
-- `docs/IMPLEMENTATION_STATE.md`
-- `docs/IMPLEMENTATION_WORKFLOW.md`
+- [README](README.md)
+- [Project Plan](PLAN.md)
+- [Implementation State](docs/IMPLEMENTATION_STATE.md)
+- [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md)
 - relevant contract/state-graph docs under `docs/`
-- `scripts/README.md` when a script surface changes
+- [Scripts Documentation](scripts/README.md) when a script surface changes
 
 ## Current shipped surface
 
@@ -132,7 +132,7 @@ The initial foundation phases are complete:
 - Phase 5 — deterministic script surfaces
 - Phase 6 — public release hardening
 
-See `docs/IMPLEMENTATION_STATE.md` for the current execution snapshot.
+See [Implementation State](docs/IMPLEMENTATION_STATE.md) for the current execution snapshot.
 
 ### Current next phase
 
@@ -146,9 +146,9 @@ Success for Phase 7 means:
 - one thin downstream override example
 - only the smallest portability fixes required for that pilot
 
-The durable phase plan lives in `docs/phases/phase-7.md`.
+The durable phase plan lives in [Phase 7 Plan](docs/phases/phase-7.md).
 
-A separate supporting memo at `docs/archive/workflow-remediation-prep.md` records the workflow-remediation findings behind issue #70. That memo supports bounded prep chunks, but it is not a roadmap phase and does not replace Phase 7.
+A separate supporting memo at [Workflow Remediation Prep](docs/archive/workflow-remediation-prep.md) records the workflow-remediation findings behind issue #70. That memo supports bounded prep chunks, but it is not a roadmap phase and does not replace Phase 7.
 
 ### After Phase 7
 

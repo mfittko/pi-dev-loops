@@ -7,8 +7,8 @@ Use this file for repo-specific workflow notes that complement the skill.
 ## Defaults
 
 - one phase at a time
-- `PLAN.md` holds roadmap/product truth
-- `docs/phases/phase-<n>.md` holds the durable plan for the active phase
+- [Project Plan](PLAN.md) holds roadmap/product truth
+- [Phase Plan](docs/phases/phase-<n>.md) holds the durable plan for the active phase
 - `tmp/phases/phase-<n>/` holds temporary local execution artifacts, reviews, and logs
 - fan-out / fan-in / review / merge before coding
 - test-first

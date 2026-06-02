@@ -74,12 +74,12 @@ Phase 2 improved local phase refinement and clarified RFC boundaries. The next i
 
 ## Definition of done
 
-- `docs/phases/phase-3.md` fully documents the objective, scope, AC, DoD, validation, and non-goals
+- [Phase 3 Plan](docs/phases/phase-3.md) fully documents the objective, scope, AC, DoD, validation, and non-goals
 - root failing tests for extension behavior and package contract are added before implementation completion
 - `extension/index.ts` remains thin and primarily handles Pi registration and UI glue
 - `extension/checks.ts` exposes a stable, testable check-result shape
 - the new presentation helper is pure and small
-- `extension/README.md` documents the command surface, prerequisites, setup intent, and current limitations accurately
+- [Extension Documentation](extension/README.md) documents the command surface, prerequisites, setup intent, and current limitations accurately
 - `package.json` scripts and metadata reflect the actual extension/test contract used in this phase
 - targeted extension tests and existing root tests pass
 - `git diff --check` passes
@@ -94,7 +94,7 @@ Phase 2 improved local phase refinement and clarified RFC boundaries. The next i
 - run existing root tests via the updated root test script
 - run `npm run test:dev-loop` for the surviving script-level dev-loop tests, and use the relevant root smoke/contract tests when the touched surface is primarily template-driven
 - run `git diff --check`
-- do a focused read-through of `extension/index.ts`, `extension/checks.ts`, any new presentation helper, `extension/README.md`, and `package.json`
+- do a focused read-through of `extension/index.ts`, `extension/checks.ts`, any new presentation helper, [Extension Documentation](extension/README.md), and `package.json`
 
 ## Durable decisions
 

@@ -2,7 +2,7 @@
 
 This document is the canonical authority for the public `dev-loop` entrypoint, its routed semantics, accepted shorthand, and the rule that internal strategy names stay behind that public façade.
 
-This canonical owner lives in the shipped `skills/docs/` surface because installed skill/runtime consumers reliably own the skills subtree. In installed layouts, read the same contract via `../docs/public-dev-loop-contract.md` from the installed skill directory.
+This canonical owner lives in the shipped `skills/docs/` surface because installed skill/runtime consumers reliably own the skills subtree. In installed layouts, read the same contract via [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) from the installed skill directory.
 
 Other repo docs may summarize or link this contract, but they should not redefine it.
 
@@ -271,7 +271,7 @@ Internal strategy naming is implementation detail; normal orchestration always s
 
 Tracker-backed local implementation is an input-source addition to the existing `local_implementation` strategy. It does **not** create a new routing mode, strategy family, or public workflow entrypoint.
 
-For tracker-backed local sessions, the tracker issue is canonical. `docs/phases/phase-<n>.md` must not exist for that same session, and local execution must not maintain a second durable phase-doc copy of the same spec.
+For tracker-backed local sessions, the tracker issue is canonical. [Phase Plan](docs/phases/phase-<n>.md) must not exist for that same session, and local execution must not maintain a second durable phase-doc copy of the same spec.
 
 Deterministic GitHub-backed spec resolution:
 
@@ -289,7 +289,7 @@ State-sync expectations for this slice:
 
 Non-duplication rule:
 
-- do not create, read, or update `docs/phases/phase-<n>.md` for the same tracker-backed session
+- do not create, read, or update [Phase Plan](docs/phases/phase-<n>.md) for the same tracker-backed session
 - if a duplicate local phase doc already exists for the same tracker-backed session, reconcile that conflict explicitly before continuing; do not silently keep two durable spec surfaces alive
 
 ## Copilot-first issue-assignment seam (unassigned issues)

@@ -16,9 +16,9 @@ This skill is the public `dev-loop` façade for this repository. It should resol
 
 ## Authoritative routing contract
 
-- The authoritative contract is `skills/docs/public-dev-loop-contract.md` in the source repository.
+- The authoritative contract is [Public Dev Loop Contract](skills/docs/public-dev-loop-contract.md) in the source repository.
 - The executable evaluator is exported as `@pi-dev-loops/core/loop/public-dev-loop-routing`.
-- Required installed runtime contract docs for this skill are the shared bundled copies under `../docs/` from this skill directory (that is, `../docs/public-dev-loop-contract.md` and `../docs/retrospective-checkpoint-contract.md`).
+- Required installed runtime contract docs for this skill are the shared bundled copies under `../docs/` from this skill directory (that is, [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) and [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md)).
   - In the source repository these live under `skills/docs/`; in installed skill copies they live next to the installed skill directories under `../docs/`.
 - For installed packaged copies of this skill, read those bundled `../docs/` files from the installed skill layout instead of assuming a source checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
 
@@ -52,13 +52,13 @@ Load only the route-specific internal skill required by `selectedStrategy`:
 
 | Strategy | Route pack to load |
 | --- | --- |
-| `local_implementation` | `../local-implementation/SKILL.md` |
-| `issue_intake` | `../issue-intake/SKILL.md` |
-| `copilot_pr_followup` | `../copilot-pr-followup/SKILL.md` |
-| `external_pr_followup` | `../copilot-pr-followup/SKILL.md` |
-| `reviewer_fixer` | `../copilot-pr-followup/SKILL.md` |
-| `wait_watch` | `../copilot-pr-followup/SKILL.md` |
-| `final_approval` | `../final-approval/SKILL.md` |
+| `local_implementation` | [Local Implementation Skill](../local-implementation/SKILL.md) |
+| `issue_intake` | [Issue Intake Skill](../issue-intake/SKILL.md) |
+| `copilot_pr_followup` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) |
+| `external_pr_followup` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) |
+| `reviewer_fixer` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) |
+| `wait_watch` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) |
+| `final_approval` | [Final Approval Skill](../final-approval/SKILL.md) |
 
 Do not preload local implementation, issue intake, PR follow-up, or final approval procedure before the resolver selects that route.
 

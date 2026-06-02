@@ -8,7 +8,7 @@ Formal local dev mode and the required post-run behavioral retrospective are rel
 
 | Requirement | Scope |
 |---|---|
-| **Formal local dev mode** | Local implementation/self-improvement work; explicitly scoped in `skills/dev-loop/SKILL.md` |
+| **Formal local dev mode** | Local implementation/self-improvement work; explicitly scoped in [Dev Loop Skill](skills/dev-loop/SKILL.md) |
 | **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo |
 
 Routed GitHub-first async `dev-loop` runs do **not** need to be in full formal local dev mode, but they **do** require the retrospective checkpoint.
@@ -128,4 +128,4 @@ The checkpoint file is written by `.pi/extensions/dev-loop-behavioral-review.ts`
 | Tests | `packages/core/test/retrospective-checkpoint.test.mjs` |
 | Extension (writes required marker, fires review prompt) | `.pi/extensions/dev-loop-behavioral-review.ts` |
 | Checkpoint file | `.pi/dev-loop-retrospective-checkpoint.json` |
-| AGENTS.md section | `AGENTS.md` — "Formal dev mode vs required post-run retrospective" |
+| AGENTS.md section | [Agent Instructions](AGENTS.md) — "Formal dev mode vs required post-run retrospective" |

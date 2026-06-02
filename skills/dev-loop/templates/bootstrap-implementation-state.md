@@ -6,21 +6,21 @@ Preparation is in place. Implementation has not started.
 
 ## Current source of truth
 
-- Product plan: `PLAN.md`
-- Durable phase plans: `docs/phases/phase-<n>.md`
+- Product plan: [Project Plan](PLAN.md)
+- Durable phase plans: [Phase Plan](docs/phases/phase-<n>.md)
 - Execution skill: `dev-loop`
-- Repo contract: `AGENTS.md`
-- Workflow explainer: `docs/IMPLEMENTATION_WORKFLOW.md`
+- Repo contract: [Agent Instructions](AGENTS.md)
+- Workflow explainer: [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md)
 - tmp index for fresh-context inspection if present locally: `tmp/phases/index.json`
 
 ## Next action for a fresh session
 
 If the user says **"start implementation"**:
 
-1. read `PLAN.md`
+1. read [Project Plan](PLAN.md)
 2. load the `dev-loop` skill
-3. read `AGENTS.md` if it exists
-4. read `docs/IMPLEMENTATION_WORKFLOW.md`
+3. read [Agent Instructions](AGENTS.md) if it exists
+4. read [Implementation Workflow](docs/IMPLEMENTATION_WORKFLOW.md)
 5. read the current durable phase plan under `docs/phases/` if it exists
 6. inspect `tmp/phases/` only if it exists locally and is relevant
 7. read this file
