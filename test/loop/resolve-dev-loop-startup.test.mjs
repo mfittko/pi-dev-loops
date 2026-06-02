@@ -76,7 +76,8 @@ test("buildResolveDevLoopStartupResult maps linked Copilot follow-up to the PR f
 
   assert.equal(result.bundleKind, "resolved");
   assert.equal(result.selectedStrategy, "copilot_pr_followup");
-  assert.equal(result.requiredReads.at(-1), "skills/copilot-pr-followup/SKILL.md");
+  assert.ok(result.requiredReads.includes("skills/copilot-pr-followup/SKILL.md"));
+  assert.ok(result.requiredReads.includes("skills/docs/copilot-loop-operations.md"));
   assert.equal(result.canonicalStateSummary.target.kind, "pr");
   assert.equal(result.canonicalStateSummary.target.pr, 92);
 });
@@ -171,6 +172,7 @@ test("resolve-dev-loop-startup CLI emits stable JSON for a final-approval route"
       "skills/docs/public-dev-loop-contract.md",
       "skills/docs/retrospective-checkpoint-contract.md",
       "skills/copilot-pr-followup/SKILL.md",
+      "skills/docs/copilot-loop-operations.md",
       "skills/final-approval/SKILL.md",
     ]);
     assert.equal(parsed.canonicalStateSummary.target.kind, "pr");
