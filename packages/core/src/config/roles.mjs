@@ -6,7 +6,7 @@
 // (.pi/dev-loop/defaults.yaml personas section).
 //
 // Consumers can extend or override these by adding personas entries to
-// their .pi/dev-loop/defaults.yaml or settings.yaml (with legacy overrides.yaml/overrides.json fallback). Config-resolved
+// their .pi/dev-loop/defaults.* or settings.* config files (with legacy overrides.* fallback). Config-resolved
 // personas take priority over this built-in registry.
 //
 // Angle names come from the gate-angle config (gates.draft.angles /
