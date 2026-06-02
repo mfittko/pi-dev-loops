@@ -25,7 +25,9 @@
  *       "stopReason": null|"...", "handoffEnvelope": { ... } },
  *     "checkpoint": { "pr": N, "repo": "...", "outerAction": "...",
  *       "copilotState": "...", "reviewerState": "...", "reason": null|"...",
- *       "timestamp": "...", "waitCycles": N, "headSha": "..."|null } }
+ *       "timestamp": "...", "waitCycles": N, "headSha": "..."|null },
+ *     "conductorModel": "..."|null,
+ *     ...(branchIdentity for reenter actions) }
  *
  * Failure behavior:
  *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
@@ -92,7 +94,8 @@ Output (stdout, JSON):
       "copilotState": "...", "reviewerState": "...",
       "reviewerScope": "...", "reviewerLogin": "..."|null,
       "reason": null|"...", "timestamp": "...", "waitCycles": N,
-      "headSha": "..."|null } }
+      "headSha": "..."|null },
+    "conductorModel": "..."|null }
 
 Outer actions:
   continue_wait          Durable outer-loop wait state; re-run after bounded wait

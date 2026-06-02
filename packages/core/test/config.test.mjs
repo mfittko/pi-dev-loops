@@ -785,7 +785,7 @@ describe("role resolution", () => {
     assert.equal(result, null);
   });
 
-  
+
   test("resolveConductorModel returns trimmed value for whitespace-padded string", () => {
     const result = resolveConductorModel({ version: 1, models: { conductor: "  gpt-5  " } });
     assert.equal(result, "gpt-5");
