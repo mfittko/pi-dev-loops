@@ -8,7 +8,7 @@ import {
   DevLoopConfigSchema,
   BUILT_IN_DEFAULTS,
 } from "../src/config/schema.mjs";
-import { resolveConductorModel } from "../src/config/model-resolution.mjs";
+import { resolveConductorModel, resolveAutonomyStopAt } from "../src/config/model-resolution.mjs";
 // ============================================================================
 // Schema validation tests (S1–S26)
 // ============================================================================
@@ -799,6 +799,37 @@ describe("role resolution", () => {
     test("resolveConductorModel returns null when models is empty object", () => {
       const result = resolveConductorModel({ version: 1, models: {} });
       assert.equal(result, null);
+    });
+
+    // Autonomy stop-at resolution
+    test("resolveAutonomyStopAt returns configured gates when present", () => {
+      const result = resolveAutonomyStopAt({ version: 1, autonomy: { stopAt: ["draft-pr", "merge"] } });
+      assert.deepEqual(result, ["draft-pr", "merge"]);
+    });
+
+    test("resolveAutonomyStopAt defaults to ['merge'] when autonomy key is missing", () => {
+      const result = resolveAutonomyStopAt({ version: 1 });
+      assert.deepEqual(result, ["merge"]);
+    });
+
+    test("resolveAutonomyStopAt returns empty array when stopAt is explicitly empty", () => {
+      const result = resolveAutonomyStopAt({ version: 1, autonomy: { stopAt: [] } });
+      assert.deepEqual(result, []);
+    });
+
+    test("resolveAutonomyStopAt returns new array (not reference to config)", () => {
+      const config = { version: 1, autonomy: { stopAt: ["merge"] } };
+      const result = resolveAutonomyStopAt(config);
+      result.push("draft-pr");
+      assert.deepEqual(config.autonomy.stopAt, ["merge"]);
+    });
+
+    test("resolveAutonomyStopAt returns all four gates when configured", () => {
+      const result = resolveAutonomyStopAt({
+        version: 1,
+        autonomy: { stopAt: ["refinement", "draft-pr", "pre-approval", "merge"] },
+      });
+      assert.deepEqual(result, ["refinement", "draft-pr", "pre-approval", "merge"]);
     });
   });
 
