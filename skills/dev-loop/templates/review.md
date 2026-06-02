@@ -6,10 +6,8 @@
 
 ## Default pre-approval gate
 <!-- Resolve angles from config: resolveGateAngles(config, "preApproval") -->
-- DRY check:
-- KISS check:
-- YAGNI check:
-- fallback note: if parallel execution of the three review lenses is impractical, record why and confirm all three lenses were still covered
+- configured angle checks: add one bullet per configured pre-approval angle (for example `dry`, `kiss`, `yagni` when defaults apply)
+- fallback note: if parallel execution of the configured review angles is impractical, record why and confirm all configured angles were still covered
 
 ## Additional design-principle check (SRP, etc.)
 
