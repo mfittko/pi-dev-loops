@@ -877,12 +877,20 @@ describe("role resolution", () => {
       assert.deepEqual(result, ["dry", "kiss"]);
     });
 
-    test("resolveGateAngles returns null for unknown gate", () => {
+    test("resolveGateAngles returns null for missing gate config", () => {
       const result = resolveGateAngles({
         version: 1,
         gates: { draft: { angles: ["scope"], required: true } }
       }, "preApproval");
       assert.equal(result, null);
+    });
+
+    test("resolveGateAngles returns empty array when angles explicitly empty", () => {
+      const result = resolveGateAngles({
+        version: 1,
+        gates: { draft: { angles: [], required: true } }
+      }, "draft");
+      assert.deepEqual(result, []);
     });
   });
 

@@ -73,7 +73,7 @@ export function resolveRefinement(config) {
  */
 export function resolveGateAngles(config, gate) {
   const gateConfig = config?.gates?.[gate];
-  if (gateConfig?.angles && Array.isArray(gateConfig.angles) && gateConfig.angles.length > 0) {
+  if (gateConfig?.angles && Array.isArray(gateConfig.angles)) {
     return [...gateConfig.angles];
   }
   return null;
