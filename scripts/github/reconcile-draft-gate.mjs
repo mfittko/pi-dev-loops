@@ -32,6 +32,7 @@ Output (stdout, JSON):
     "repo": "owner/repo",
     "pr": 17,
     "headSha": "abc1234",
+    "currentHeadSha": "abc1234",
     "commentId": 101,
     "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101"
   }
