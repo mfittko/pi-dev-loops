@@ -158,10 +158,28 @@ export function normalizeGitHubRepoSlug(remoteUrl: string): string | null {
     if (!match) {
       continue;
     }
-    return trimToNull(match[1]);
+    return trimToNull(match[1])?.toLowerCase() ?? null;
   }
 
   return null;
+}
+
+function isGhPrMergeCommand(segment: string): boolean {
+  return /^gh\s+pr\s+merge(?:\s|$)/i.test(segment);
+}
+
+function isGitMergeCompletionCommand(segment: string): boolean {
+  if (!/^git\s+merge(?:\s|$)/i.test(segment)) {
+    return false;
+  }
+
+  const remainder = segment.replace(/^git\s+merge(?:\s|$)/i, '').trim();
+  if (!remainder) {
+    return true;
+  }
+
+  const firstArg = remainder.match(/^(\S+)/)?.[1]?.toLowerCase() ?? '';
+  return !['--abort', '--continue', '--quit'].includes(firstArg);
 }
 
 export function isMergeCapableCommand(command: string): boolean {
@@ -170,7 +188,9 @@ export function isMergeCapableCommand(command: string): boolean {
     return false;
   }
 
-  return /(?:^|[;&|]\s*|&&\s*)(?:gh\s+pr\s+merge|git\s+merge)\b/i.test(normalized);
+  return normalized
+    .split(/\s*(?:&&|\|\||;|\|)\s*/)
+    .some((segment) => isGhPrMergeCommand(segment) || isGitMergeCompletionCommand(segment));
 }
 
 export function createPostMergeUpdateHook(

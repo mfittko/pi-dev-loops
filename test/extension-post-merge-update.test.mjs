@@ -46,6 +46,7 @@ function createPiDouble() {
 test("normalizeGitHubRepoSlug recognizes GitHub remote variants", () => {
   assert.equal(normalizeGitHubRepoSlug("git@github.com:mfittko/pi-dev-loops.git"), TARGET_REPO_SLUG);
   assert.equal(normalizeGitHubRepoSlug("https://github.com/mfittko/pi-dev-loops.git"), TARGET_REPO_SLUG);
+  assert.equal(normalizeGitHubRepoSlug("git@github.com:Mfittko/Pi-Dev-Loops.git"), TARGET_REPO_SLUG);
   assert.equal(normalizeGitHubRepoSlug("ssh://git@github.com/mfittko/pi-dev-loops.git"), TARGET_REPO_SLUG);
   assert.equal(normalizeGitHubRepoSlug("git:github.com/mfittko/pi-dev-loops"), TARGET_REPO_SLUG);
   assert.equal(normalizeGitHubRepoSlug("https://gitlab.com/mfittko/pi-dev-loops.git"), null);
@@ -55,6 +56,11 @@ test("isMergeCapableCommand only matches bounded merge commands", () => {
   assert.equal(isMergeCapableCommand("gh pr merge 373 --squash --delete-branch"), true);
   assert.equal(isMergeCapableCommand("git merge origin/main"), true);
   assert.equal(isMergeCapableCommand("npm test && gh pr merge 373"), true);
+  assert.equal(isMergeCapableCommand("git merge --abort"), false);
+  assert.equal(isMergeCapableCommand("git merge --continue"), false);
+  assert.equal(isMergeCapableCommand("git merge --quit"), false);
+  assert.equal(isMergeCapableCommand("git merge-base HEAD origin/main"), false);
+  assert.equal(isMergeCapableCommand("git merge-tree HEAD origin/main"), false);
   assert.equal(isMergeCapableCommand("git status"), false);
   assert.equal(isMergeCapableCommand("echo gh pr merge"), false);
 });
