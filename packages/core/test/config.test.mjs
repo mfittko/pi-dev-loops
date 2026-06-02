@@ -684,6 +684,39 @@ describe("loader — precedence", () => {
       await rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  test("M7: persona override may omit prompt without failing merged validation", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-M7-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(
+        path.join(piDir, "defaults.json"),
+        JSON.stringify({
+          version: 1,
+          personas: {
+            dry: { persona: "review", prompt: "Built-in DRY prompt", defaultModel: null },
+          },
+        }),
+      );
+      await writeFile(
+        path.join(piDir, "overrides.json"),
+        JSON.stringify({
+          version: 1,
+          personas: {
+            dry: { persona: "custom-dry-reviewer" },
+          },
+        }),
+      );
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.deepEqual(result.errors, []);
+      assert.equal(result.config.personas.dry.persona, "custom-dry-reviewer");
+      assert.equal(result.config.personas.dry.prompt, undefined);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 // ============================================================================
@@ -885,6 +918,16 @@ describe("role resolution", () => {
     assert.equal(result.persona, "default-reviewer");
     assert.equal(result.prompt, null);
     assert.equal(result.fallback, true);
+  });
+
+  test("R23: config persona without prompt resolves with null prompt", () => {
+    const result = resolveReviewerRole(
+      { personas: { dry: { persona: "custom-dry-reviewer" } } },
+      "dry",
+    );
+    assert.equal(result.persona, "custom-dry-reviewer");
+    assert.equal(result.prompt, null);
+    assert.equal(result.fallback, false);
   });
 
   describe("model and config resolution", () => {
