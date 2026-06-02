@@ -20,7 +20,8 @@ When this skill is loaded, immediately redirect to [Copilot PR Follow-up Skill](
 and follow its procedure. For issue-refinement chains on that path, the `refiner`
 agent is the preferred tool for both the parallel fan-out variants and the
 review-only consolidation/fan-in step. Never route review-only consolidation
-through `dev-loop` or `local-implementation`, because those routes imply
+through `dev-loop` + `local-implementation` (the
+`local_implementation` route), because that route implies
 implementation/edit work. The `issue_intake` routing still differentiates from
 `copilot_pr_followup` in the public router; this redirect preserves that
 contract while keeping the procedure text canonical in one file.
