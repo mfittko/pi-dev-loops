@@ -61,6 +61,7 @@ For each Copilot review pass:
 ### 7. Pre-approval gate review
 
 - Confirm legality: `node scripts/loop/detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number>`
+- If legality returns `gateBoundary=conflict_resolution`, stop the gate, resolve conflicts on the PR branch, rerun validation, re-detect gate state for the new head, and only then rerun `pre_approval_gate`
 - Run parallel subagent reviews with angles resolved from config (`resolveGateAngles(config, "preApproval")`)
 - Post visible `pre_approval_gate` comment on the PR
 - If findings → fix, push new head, re-run pre-approval gate

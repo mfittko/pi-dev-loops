@@ -810,6 +810,22 @@ This is the default pre-approval gate for this workflow boundary. The canonical 
 - A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
 - If fixes advance the head SHA, post a new gate-review comment for the new head.
 
+### Conflict-resolution gate
+
+Before any merge-ready or final-approval claim, run `detect-pr-gate-coordination-state.mjs` for the current PR. If it reports `gateBoundary=conflict_resolution` or `mergeStateStatus` is conflicted, stop the normal gate path immediately and use this recovery flow:
+
+1. fetch fresh `origin/main`, confirm the current PR head SHA, and summarize the conflict scope from `mergeStateStatus` plus any reported `conflictFiles`
+2. ask for explicit authorization before any rebase or other branch-state-changing reconciliation command
+3. after authorization, reconcile locally on the PR branch; default to rebase onto latest `origin/main`, unless the operator explicitly chooses another conflict-resolution command
+4. auto-resolve simple conflicts when the correct fix is mechanical and clearly in scope; report complex ones explicitly and fix them manually only for in-scope files
+5. rerun the smallest honest local validation for the touched conflict slice
+6. rerun `detect-pr-gate-coordination-state.mjs` for the new head
+7. because the head changed, rerun `pre_approval_gate` for the new head before any approval-ready or merge-ready claim
+8. wait for current-head CI again before retrying merge evaluation
+9. if the chosen reconciliation rewrote branch history (for example rebase), ask for explicit authorization before `git push --force-with-lease`, then continue the loop on the updated head
+
+`mergeStateStatus: CLEAN` alone is not enough to resume approval or merge claims. The existing merge-ready preconditions still apply: `unresolvedThreadCount === 0`, a clean current-head `pre_approval_gate`, and green current-head CI.
+
 ### Merge-ready preconditions
 
 Do not declare merge-ready unless all of these checks pass in order:
@@ -924,6 +940,7 @@ Do not:
 - submit a merge-ready verdict without first summarizing the pending thread state
 - declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA
 - declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence
+- do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when the helper says the PR is conflicted
 - suggest approval, approve and merge, or any approval-ready statement without explicit current-head `pre_approval_gate` gate-review evidence
 - treat CI green + resolved review threads + clean Copilot rereview as sufficient for approval or merge without an explicit current-head `pre_approval_gate` gate-review comment
 - dispatch an async dev-loop task that omits the pre-approval gate requirement

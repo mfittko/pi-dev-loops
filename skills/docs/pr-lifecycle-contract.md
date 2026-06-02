@@ -82,6 +82,7 @@ The family-local lifecycle should be modeled in this vocabulary. These state ide
 | `waiting_for_copilot_review` | Copilot request/re-review is observably in progress for the current head |
 | `copilot_feedback_remediation` | actionable Copilot feedback exists; fixes are the next active step |
 | `copilot_reply_resolve_pending` | fixes were applied, but GitHub thread reply/resolve work still remains |
+| `merge_conflict_resolution` | current PR head conflicts with base or local reconcile is in progress; resolve conflicts before any further gate progression |
 | `final_local_preapproval_gate` | current-head post-Copilot convergence is ready for the final local gate |
 | `final_gate_remediation` | Pre-approval gate findings require more remediation after the final gate |
 | `waiting_for_human_pr_approval` | local gates are satisfied; waiting for explicit human approval |
@@ -111,6 +112,10 @@ At minimum, the lifecycle must enforce these transitions:
   - fixes applied but reply/resolve still remains
 - `copilot_reply_resolve_pending` -> `ready_state_needs_copilot_request`
   - reply/resolve complete and another Copilot pass is required
+- any open non-terminal lifecycle slice -> `merge_conflict_resolution`
+  - current-head merge state is conflicted (`DIRTY` / `CONFLICTING`) or local conflict reconciliation is already in progress
+- `merge_conflict_resolution` -> normal lifecycle re-entry state
+  - only after local conflict resolution produces a new head, validation is rerun for the touched conflict slice, and gate state is re-detected for that new head
 - `waiting_for_copilot_review` -> `final_local_preapproval_gate`
   - the current-head request/re-review cycle has settled cleanly with no actionable feedback and no further Copilot pass is needed
 - `final_local_preapproval_gate` -> `final_gate_remediation`
@@ -129,6 +134,7 @@ At minimum, the lifecycle must enforce these transitions:
 - no Copilot request before clean current-head `draft_gate` evidence
 - no direct skip from fix-applied to Copilot re-request while reply/resolve remains incomplete
 - no reuse of ready-side or gate evidence after ready -> draft
+- a conflicted PR must not be treated as `waiting_for_human_pr_approval`, `waiting_for_merge`, or merge-ready, even if older gate comments and CI were previously green
 - no implicit fallthrough from approval/merge waits into remediation without a triggering event
 
 ## Remediation ownership boundary
@@ -138,6 +144,7 @@ The lifecycle must keep the next action class explicit:
 - actionable Copilot feedback routes to `copilot_feedback_remediation`
 - fixes applied but unresolved GitHub reply/resolve work remains route to `copilot_reply_resolve_pending`
 - pre-approval gate findings route to `final_gate_remediation`
+- merge conflicts route to `merge_conflict_resolution` and must be reconciled locally on the PR branch before lifecycle re-entry
 - human approval / merge remain explicit external waits
 
 Reviewer-loop reminder:
@@ -175,6 +182,7 @@ The lifecycle must stop or reconcile rather than advance when:
 - review-thread capture failed or is incomplete, so unresolved feedback cannot safely be treated as zero
 - Copilot request status is failed, unavailable without in-progress evidence, or otherwise ambiguous for the current head
 - a required current-head wait cannot be confirmed settled
+- the current head reports conflicted merge state (`DIRTY` / `CONFLICTING`) or local git conflict markers are present; enter `merge_conflict_resolution` instead of progressing
 - a boundary that is already CI/validation-dependent cannot confirm current-head freshness because the relevant status is pending, none, unknown, or stale
 - a required visible gate comment could not be confirmed posted
 

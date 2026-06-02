@@ -204,12 +204,63 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
     /If any check fails, do not declare merge-ready\./i,
     "merge-ready preconditions should be a hard gate",
   );
+  assert.match(
+    step7,
+    /### Conflict-resolution gate/i,
+    "Step 7 should include a conflict-resolution subsection",
+  );
+  assert.match(
+    step7,
+    /`gateBoundary=conflict_resolution`|`mergeStateStatus` is conflicted/i,
+    "conflict-resolution subsection should key off the deterministic helper boundary",
+  );
+  assert.match(
+    step7,
+    /fetch fresh `origin\/main`/i,
+    "conflict-resolution flow should refresh origin/main first",
+  );
+  assert.match(
+    step7,
+    /ask for explicit authorization before any rebase/i,
+    "conflict-resolution flow should require explicit rebase authorization",
+  );
+  assert.match(
+    step7,
+    /rebase onto latest `origin\/main`/i,
+    "conflict-resolution flow should document the default rebase path",
+  );
+  assert.match(
+    step7,
+    /auto-resolve simple conflicts/i,
+    "conflict-resolution flow should allow simple auto-resolution",
+  );
+  assert.match(
+    step7,
+    /report complex ones|report complex conflicts/i,
+    "conflict-resolution flow should surface complex conflicts for manual handling",
+  );
+  assert.match(
+    step7,
+    /rerun `detect-pr-gate-coordination-state\.mjs`/i,
+    "conflict-resolution flow should require gate re-detection",
+  );
+  assert.match(
+    step7,
+    /rerun `pre_approval_gate` for the new head/i,
+    "conflict-resolution flow should require a fresh pre-approval gate on the new head",
+  );
+  assert.match(
+    step7,
+    /wait for current-head CI again/i,
+    "conflict-resolution flow should require fresh CI on the new head",
+  );
   const antiPatternsMatch = skillContent.match(/## Anti-patterns[\s\S]*?(?=\n## Recommended companion skills|$)/);
   const antiPatterns = antiPatternsMatch ? antiPatternsMatch[0] : "";
   assert.ok(antiPatterns.length > 0, "copilot-pr-followup anti-patterns section not found");
   assert.match(antiPatterns, /use ad hoc inline `gh api` or `gh api graphql` thread-mutation commands instead of the deterministic `reply-resolve-review-thread\.mjs` \/ `reply-resolve-review-threads\.mjs` helpers/i);
   assert.match(antiPatterns, /declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA/i);
   assert.match(antiPatterns, /declare merge-ready based solely on `mergeable_state: clean` \+ CI green without gate evidence/i);
+  assert.match(antiPatterns, /do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when the helper says the PR is conflicted/i);
   assert.match(antiPatterns, /dispatch an async dev-loop task that omits the pre-approval gate requirement/i);
 });
 

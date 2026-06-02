@@ -4,6 +4,7 @@ export const PR_GATE_BOUNDARY = Object.freeze({
   DRAFT_REVIEW: "draft_review",
   POST_DRAFT_EXTERNAL_REVIEW: "post_draft_external_review",
   FEEDBACK_RESOLUTION: "feedback_resolution",
+  CONFLICT_RESOLUTION: "conflict_resolution",
   PRE_APPROVAL_GATE_WINDOW: "pre_approval_gate_window",
   FINAL_APPROVAL_READY: "final_approval_ready",
   BLOCKED: "blocked",
@@ -19,6 +20,7 @@ export const PR_GATE_ACTION = Object.freeze({
   ADDRESS_REVIEW_FEEDBACK: "address_review_feedback",
   REPLY_RESOLVE_REVIEW_THREADS: "reply_resolve_review_threads",
   REREQUEST_COPILOT_REVIEW: "rerequest_copilot_review",
+  RESOLVE_MERGE_CONFLICTS: "resolve_merge_conflicts",
   RUN_PRE_APPROVAL_GATE: "run_pre_approval_gate",
   AWAIT_FINAL_HUMAN_APPROVAL: "await_final_human_approval",
   DECLARE_MERGE_READY: "declare_merge_ready",
@@ -86,6 +88,53 @@ function pushUnique(values, additions) {
   }
 }
 
+const CONFLICTING_MERGE_STATE_STATUSES = new Set(["DIRTY", "CONFLICTING"]);
+
+function normalizeMergeStateStatus(value) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return null;
+  }
+
+  return value.trim().toUpperCase();
+}
+
+function normalizeConflictFiles(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const normalized = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+
+    if (entry.trim().length > 0 && !normalized.includes(entry)) {
+      normalized.push(entry);
+    }
+  }
+
+  return normalized;
+}
+
+function hasConflictStatus(mergeStateStatus) {
+  return mergeStateStatus !== null && CONFLICTING_MERGE_STATE_STATUSES.has(mergeStateStatus);
+}
+
+function formatConflictResolutionReason(mergeStateStatus, conflictFiles) {
+  let reason = "The current branch conflicts with the base branch, so resolve the conflict locally on the PR branch, rerun validation, rerun gate detection, and only then resume the normal gate path.";
+
+  if (mergeStateStatus !== null) {
+    reason += ` GitHub mergeStateStatus: ${mergeStateStatus}.`;
+  }
+
+  if (conflictFiles.length > 0) {
+    reason += ` Conflicting files: ${conflictFiles.join(", ")}.`;
+  }
+
+  return reason;
+}
+
 function buildResult({
   draftGateAlreadySatisfied = false,
   repo = null,
@@ -100,6 +149,8 @@ function buildResult({
   forbiddenActions,
   nextAction,
   reason,
+  mergeStateStatus = null,
+  conflictFiles = [],
 }) {
   return {
     ok: true,
@@ -115,6 +166,8 @@ function buildResult({
     forbiddenActions,
     nextAction,
     reason,
+    mergeStateStatus,
+    conflictFiles,
     draftGateAlreadySatisfied,
   };
 }
@@ -132,6 +185,8 @@ export function evaluatePrGateCoordination(input = {}) {
   const reviewMode = typeof input.reviewMode === "string"
     ? input.reviewMode.trim().toLowerCase()
     : null;
+  const mergeStateStatus = normalizeMergeStateStatus(input.mergeStateStatus);
+  const conflictFiles = normalizeConflictFiles(input.conflictFiles);
 
   const draftGate = toGateStatus(input.draftGate, input.draftGateMarker, currentHeadSha);
   const preApprovalGate = toGateStatus(input.preApprovalGate, input.preApprovalGateMarker, currentHeadSha);
@@ -163,6 +218,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REPORT_DONE,
       reason: "The pull request is already closed or merged, so no further gate entry is legal.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -189,6 +246,43 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
       reason: "The PR is in a blocked lifecycle state, so gate progression must stop for a user decision.",
+      mergeStateStatus,
+      conflictFiles,
+    });
+  }
+
+  if (hasConflictStatus(mergeStateStatus) || conflictFiles.length > 0) {
+    pushUnique(allowedNextActions, [PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS]);
+    pushUnique(forbiddenActions, [
+      PR_GATE_ACTION.RUN_DRAFT_GATE,
+      PR_GATE_ACTION.RECONCILE_DRAFT_GATE,
+      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
+      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
+      PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
+      PR_GATE_ACTION.WAIT_FOR_CI,
+      PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK,
+      PR_GATE_ACTION.REPLY_RESOLVE_REVIEW_THREADS,
+      PR_GATE_ACTION.REREQUEST_COPILOT_REVIEW,
+      PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
+      PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
+      PR_GATE_ACTION.DECLARE_MERGE_READY,
+    ]);
+    return buildResult({
+      repo: input.repo ?? null,
+      pr: Number.isInteger(input.pr) ? input.pr : null,
+      currentHeadSha,
+      lifecycleState,
+      loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+      gateBoundary: PR_GATE_BOUNDARY.CONFLICT_RESOLUTION,
+      draftGateAlreadySatisfied,
+      draftGate,
+      preApprovalGate,
+      allowedNextActions,
+      forbiddenActions,
+      nextAction: PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS,
+      reason: formatConflictResolutionReason(mergeStateStatus, conflictFiles),
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -221,6 +315,8 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: draftGate.currentHeadClean
         ? "The PR is still draft, and current-head clean `draft_gate` evidence exists, so `gh pr ready` is now legal."
         : "The PR is still draft, so `draft_gate` is the only legal gate boundary before `gh pr ready`.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -258,6 +354,8 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: draftGate.anyVisible
         ? `The PR is already non-draft, but visible \`draft_gate\` evidence already exists (verdict: ${draftGate.verdict ?? "unknown"}). The auto-reconcile helper intentionally fails closed rather than overwriting existing evidence, so reconcile manually or clear/supersede the visible draft-gate evidence before re-evaluating.`
         : "The PR is already non-draft and no `draft_gate` evidence is visible at all, so no draft-gate transition was ever recorded; use `scripts/github/reconcile-draft-gate.mjs` to auto-reconcile (convert to draft → post draft_gate comment → mark ready) and then re-evaluate.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -295,6 +393,8 @@ export function evaluatePrGateCoordination(input = {}) {
           forbiddenActions,
           nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
           reason: "This is an explicitly local-first PR with clean draft_gate evidence and current-head clean pre_approval_gate, so it is ready for final human approval.",
+          mergeStateStatus,
+          conflictFiles,
         });
       }
 
@@ -314,6 +414,8 @@ export function evaluatePrGateCoordination(input = {}) {
         forbiddenActions,
         nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
         reason: "This is an explicitly local-first PR, so `pre_approval_gate` is the next legal boundary instead of an external Copilot review cycle.",
+        mergeStateStatus,
+        conflictFiles,
       });
     }
 
@@ -333,6 +435,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
       reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -359,6 +463,8 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: lifecycleState === STATE.WAITING_FOR_CI
         ? "The post-draft review cycle is waiting on current-head CI, so `pre_approval_gate` remains illegal until CI settles cleanly."
         : "The post-draft review cycle is still pending on Copilot review, so `pre_approval_gate` remains illegal until the current-head review cycle settles.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -379,6 +485,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK,
       reason: "Actionable unresolved feedback exists, so follow-up work must stay in the review/fix cycle and cannot enter `pre_approval_gate` yet.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -399,6 +507,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REPLY_RESOLVE_REVIEW_THREADS,
       reason: "Fixes were applied, but unresolved threads still need reply/resolve handling before another gate boundary is legal.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -420,6 +530,8 @@ export function evaluatePrGateCoordination(input = {}) {
         forbiddenActions,
         nextAction: PR_GATE_ACTION.REREQUEST_COPILOT_REVIEW,
         reason: "The review loop is between passes, but the current head does not yet have a clean settled Copilot convergence point, so `pre_approval_gate` is still forbidden.",
+        mergeStateStatus,
+        conflictFiles,
       });
     }
 
@@ -445,6 +557,8 @@ export function evaluatePrGateCoordination(input = {}) {
         forbiddenActions,
         nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
         reason: "The current head has both a clean settled review cycle and clean `pre_approval_gate` evidence, so the PR is at the final approval boundary.",
+        mergeStateStatus,
+        conflictFiles,
       });
     }
 
@@ -469,6 +583,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
       reason: "The current head has a clean settled post-draft review cycle, so `pre_approval_gate` is now the next legal boundary.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -494,5 +610,7 @@ export function evaluatePrGateCoordination(input = {}) {
     forbiddenActions,
     nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
     reason: "The PR gate-boundary evaluator could not map this lifecycle state to a legal gate transition; reconcile before continuing.",
+    mergeStateStatus,
+    conflictFiles,
   });
 }
