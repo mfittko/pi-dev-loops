@@ -67,10 +67,14 @@ test("workflow-handoff-template references required contract docs by path", asyn
   }
 });
 
-test("workflow-handoff-template requires self-assigned draft PR creation", async () => {
+test("workflow-handoff-template requires self-assigned draft PR creation in the mandatory sequence", async () => {
   const content = await readTemplate();
 
-  assert.match(content, /gh pr create --draft --assignee @me/i);
+  const seqStart = content.indexOf("## Mandatory sequence");
+  const nextSection = content.indexOf("## Non-negotiable");
+  const sequenceSection = content.slice(seqStart, nextSection);
+
+  assert.match(sequenceSection, /gh pr create --draft --assignee @me/i);
 });
 
 test("workflow-handoff-template has Copilot review loop between draft_gate and pre_approval_gate", async () => {
