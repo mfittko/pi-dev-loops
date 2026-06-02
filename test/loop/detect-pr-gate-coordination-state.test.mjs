@@ -154,6 +154,8 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       gateBoundary: "post_draft_external_review",
       draftGate: {
         visible: true,
+        markerVisible: false,
+        anyVisible: true,
         currentHead: false,
         headSha: "c94679e",
         verdict: "clean",
@@ -165,6 +167,8 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       },
       preApprovalGate: {
         visible: false,
+        markerVisible: false,
+        anyVisible: false,
         currentHead: false,
         headSha: null,
         verdict: null,

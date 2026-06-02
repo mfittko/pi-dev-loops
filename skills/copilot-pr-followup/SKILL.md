@@ -553,7 +553,7 @@ New PRs in this workflow must be opened as **draft** PRs first. Do not create a 
 
 Only use `gh pr create` when authoritative issue↔PR resolution says there is no already-open linked PR. If a PR already exists, reuse/update that canonical PR instead of opening another one.
 
-Prefer `gh pr create --draft --repo <owner/name> --base <base> --head <head> --title "..." --body-file <body-file>`.
+MUST use `gh pr create --draft --repo <owner/name> --base <base> --head <head> --title "..." --body-file <body-file>`.
 
 ## Timeout and watch policy
 

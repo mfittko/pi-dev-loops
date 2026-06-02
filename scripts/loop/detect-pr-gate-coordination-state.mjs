@@ -33,6 +33,8 @@ Output (stdout, JSON):
     "gateBoundary": "post_draft_external_review",
     "draftGate": {
       "visible": true,
+      "markerVisible": false,
+      "anyVisible": true,
       "currentHead": false,
       "contractComplete": false,
       "currentHeadClean": false,
@@ -41,6 +43,8 @@ Output (stdout, JSON):
     },
     "preApprovalGate": {
       "visible": false,
+      "markerVisible": false,
+      "anyVisible": false,
       "currentHead": false,
       "contractComplete": false,
       "currentHeadClean": false,
