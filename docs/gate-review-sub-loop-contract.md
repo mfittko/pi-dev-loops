@@ -52,15 +52,20 @@ Fan out one fresh-context reviewer per gate-specific review angle. Each reviewer
 - receives a concise briefing summary from the preamble handoff artifacts
 - is scoped to exactly one review angle
 - runs in an isolated worktree when worktrees are available
-- produces a focused findings artifact
+- produces a focused findings artifact with verdict (clean/findings_present) and file references
 
 Reviewers run in parallel when practical. If parallel execution is impractical
 (for example due to tooling or resource constraints), run all reviewers sequentially
 and explicitly record why parallel execution was impractical.
 
-### Phase 3 — Fan-in: synthesis
+**Re-run rule:** In subsequent retry cycles (Phase 5), only re-run reviewers that
+produced `findings_present` in the previous pass. Reviewers that returned `clean`
+don't need re-review unless their angle's scope overlaps with the fix changes.
 
-Merge the parallel reviewer findings into one synthesis:
+### Phase 3 — Consolidation: fan-in synthesis
+
+Merge the parallel reviewer findings into one consolidated fix plan using a
+consolidation pass (not manual concatenation):
 
 - collate findings from all review angles
 - classify each finding: `must-fix`, `worth-fixing-now`, `defer`

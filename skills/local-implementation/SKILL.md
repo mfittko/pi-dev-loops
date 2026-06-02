@@ -385,6 +385,8 @@ After the phase plan passes review:
    - run the resolved angle-focused passes in parallel with fresh context when practical
    - if parallel execution is impractical (for example due to tooling or resource constraints), run all angles sequentially and explicitly record why parallel execution was impractical in `tmp/phases/phase-x/review.md` (or the equivalent merged review artifact)
    - for each angle, resolve its persona and prompt via `resolveReviewerRole(config, angle)` — start each reviewer in fresh context with a concise briefing including the angle-specific prompt, the branch/phase, intended behavior, acceptance criteria, relevant files or artifacts, and current validation status
+   - use a context→fork→consolidate chain: context-builder produces shared briefing, parallel reviewers fork from context, consolidation merges findings into a fix plan
+   - in retry cycles, only re-run reviewers that had findings in the previous pass
    - do not fork the parent session for parallel reviewers; if more context is needed, write a compact handoff artifact under `tmp/` and point the reviewer at it
    - when reviewer subagents stumble on raw source-tree reads (for example unresolved build artifacts or import assumptions), generate a deterministic diff/review artifact under `tmp/` and have reviewers inspect that artifact instead of the raw file set
    - synthesize actionable findings
