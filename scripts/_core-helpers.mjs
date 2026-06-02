@@ -24,6 +24,12 @@ export {
   summarizeGateReviewComments,
 } from "@pi-dev-loops/core/github/copilot-helpers";
 
+export function buildParseError(usage) {
+  return function parseError(message) {
+    return Object.assign(new Error(message), { usage });
+  };
+}
+
 export function isDirectCliRun(importMetaUrl, argv1 = process.argv[1]) {
   if (typeof argv1 !== "string" || argv1.length === 0) {
     return false;

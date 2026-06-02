@@ -3,19 +3,11 @@ import {
   DEFAULT_PORT,
   USAGE,
 } from "./constants.mjs";
+import { requireOptionValue } from "../../_cli-primitives.mjs";
 import { normalizeInspectionTarget } from "../_inspect-run-viewer-adapter.mjs";
 
 export function parseInspectRunViewerCliError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
-}
-
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-  const missing = typeof value !== "string" || value.length === 0 || value.startsWith("--");
-  if (missing) {
-    throw parseInspectRunViewerCliError(`Missing value for ${flag}`);
-  }
-  return value;
 }
 
 function parsePort(rawPort) {
@@ -84,18 +76,18 @@ export function parseInspectRunViewerCliArgs(argv) {
       return options;
     }
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo");
+      options.repo = requireOptionValue(args, "--repo", parseInspectRunViewerCliError);
       continue;
     }
     if (token === "--pr") {
       throw parseInspectRunViewerCliError("--pr is no longer supported on the CLI; choose a PR with ?pr=<number> in the viewer URL");
     }
     if (token === "--host") {
-      options.host = parseHost(requireOptionValue(args, "--host"));
+      options.host = parseHost(requireOptionValue(args, "--host", parseInspectRunViewerCliError));
       continue;
     }
     if (token === "--port") {
-      options.port = parsePort(requireOptionValue(args, "--port"));
+      options.port = parsePort(requireOptionValue(args, "--port", parseInspectRunViewerCliError));
       continue;
     }
     if (token === "--allow-non-localhost") {
@@ -107,19 +99,19 @@ export function parseInspectRunViewerCliArgs(argv) {
       continue;
     }
     if (token === "--steering-state-file") {
-      options.steeringStateFile = requireOptionValue(args, "--steering-state-file");
+      options.steeringStateFile = requireOptionValue(args, "--steering-state-file", parseInspectRunViewerCliError);
       continue;
     }
     if (token === "--reviewer-login") {
-      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login"));
+      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login", parseInspectRunViewerCliError));
       continue;
     }
     if (token === "--copilot-input") {
-      options.copilotInputPath = requireOptionValue(args, "--copilot-input");
+      options.copilotInputPath = requireOptionValue(args, "--copilot-input", parseInspectRunViewerCliError);
       continue;
     }
     if (token === "--reviewer-input") {
-      options.reviewerInputPath = requireOptionValue(args, "--reviewer-input");
+      options.reviewerInputPath = requireOptionValue(args, "--reviewer-input", parseInspectRunViewerCliError);
       continue;
     }
     throw parseInspectRunViewerCliError(`Unknown argument: ${token}`);

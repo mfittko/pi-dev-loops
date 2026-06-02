@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { loadDevLoopConfig, resolveGateConfig } from "@pi-dev-loops/core/config";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
@@ -47,9 +47,8 @@ Exit codes:
   0  Success — PR was reconciled and gate evidence posted
   1  Argument error, gh failure, or unrecoverable state`.trim();
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 export function parseReconcileDraftGateCliArgs(argv) {
   const args = [...argv];

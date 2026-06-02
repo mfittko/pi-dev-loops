@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { requireOptionValue, runChild } from "../_cli-primitives.mjs";
+import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 const USAGE = `Usage: manage-sub-issues.mjs <command> --repo <owner/name> --issue <number> [options]
@@ -51,17 +51,8 @@ Error output (stderr, JSON):
   gh/runtime failures:
     { "ok": false, "error": "..." }`.trim();
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
 
-function parseIssueNumber(value) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw parseError("Issue number must be a positive integer");
-  }
-
-  return Number(value);
-}
 
 function parseIssueList(value) {
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -128,12 +119,12 @@ export function parseManageSubIssuesCliArgs(argv) {
     }
 
     if (token === "--issue") {
-      options.issue = parseIssueNumber(requireOptionValue(args, "--issue", parseError));
+      options.issue = parsePositiveInteger(requireOptionValue(args, "--issue", parseError), "Issue number", parseError);
       continue;
     }
 
     if (token === "--child") {
-      options.child = parseIssueNumber(requireOptionValue(args, "--child", parseError));
+      options.child = parsePositiveInteger(requireOptionValue(args, "--child", parseError), "Issue number", parseError);
       continue;
     }
 

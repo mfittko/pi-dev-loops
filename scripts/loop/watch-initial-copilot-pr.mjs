@@ -38,7 +38,8 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { spawn } from "node:child_process";
 
-import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { parseIssueNumber, parseNonNegativeInteger, parsePositiveInteger, requireOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectInitialCopilotPrState, LINKED_PR_STATE } from "./detect-initial-copilot-pr-state.mjs";
 import { enforcePersistentInternalWaitTimeout } from "@pi-dev-loops/core/loop/timeout-policy";
@@ -97,43 +98,8 @@ const DEFAULT_POLL_INTERVAL_MS = 60_000;
 /** Default watch budget: 1 hour — Copilot-first durable-wait seam */
 const DEFAULT_TIMEOUT_MS = 3_600_000;
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
 
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parsePositiveInteger(value, flag) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw parseError(`${flag} must be a positive integer`);
-  }
-
-  return Number(value);
-}
-
-function parseNonNegativeInteger(value, flag) {
-  if (!/^\d+$/.test(value)) {
-    throw parseError(`${flag} must be a non-negative integer`);
-  }
-
-  return Number(value);
-}
-
-function parseIssueNumber(value) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw parseError("--issue must be a positive integer");
-  }
-
-  return Number(value);
-}
 
 export async function watchCopilotRunUntilComplete(
   { repo, runId, timeoutMs = null },
@@ -202,27 +168,29 @@ export function parseWatchInitialCopilotPrCliArgs(argv) {
     }
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo").trim();
+      options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
 
     if (token === "--issue") {
-      options.issue = parseIssueNumber(requireOptionValue(args, "--issue"));
+      options.issue = parseIssueNumber(requireOptionValue(args, "--issue", parseError), parseError);
       continue;
     }
 
     if (token === "--poll-interval-ms") {
       options.pollIntervalMs = parsePositiveInteger(
-        requireOptionValue(args, "--poll-interval-ms"),
+        requireOptionValue(args, "--poll-interval-ms", parseError),
         "--poll-interval-ms",
+        parseError,
       );
       continue;
     }
 
     if (token === "--timeout-ms") {
       options.timeoutMs = parseNonNegativeInteger(
-        requireOptionValue(args, "--timeout-ms"),
+        requireOptionValue(args, "--timeout-ms", parseError),
         "--timeout-ms",
+        parseError,
       );
       continue;
     }

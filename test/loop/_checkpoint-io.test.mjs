@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import { readExistingCheckpoint } from "../../scripts/loop/_checkpoint-io.mjs";
 
@@ -21,10 +22,7 @@ async function withTempDir(fn) {
   }
 }
 
-async function writeJson(filePath, data) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-}
+const writeJson = writeJsonHelper;
 
 // ---------------------------------------------------------------------------
 // readExistingCheckpoint: default path resolution

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
+import { parseNonNegativeInteger, parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 const USAGE = `Usage: watch-copilot-review.mjs --repo <owner/name> --pr <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
@@ -81,35 +81,8 @@ const COPILOT_ACTIVITY_QUERY = [
   "}",
 ].join("\n");
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
 
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parseNonNegativeInteger(value, flag) {
-  if (!/^\d+$/.test(value)) {
-    throw parseError(`${flag} must be a non-negative integer`);
-  }
-
-  return Number(value);
-}
-
-function parsePositiveInteger(value, flag) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw parseError(`${flag} must be a positive integer`);
-  }
-
-  return Number(value);
-}
 
 export function parseWatchCliArgs(argv) {
   const args = [...argv];
@@ -130,22 +103,22 @@ export function parseWatchCliArgs(argv) {
     }
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo").trim();
+      options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
 
     if (token === "--pr") {
-      options.pr = parsePositiveInteger(requireOptionValue(args, "--pr"), "--pr");
+      options.pr = parsePositiveInteger(requireOptionValue(args, "--pr", parseError), "--pr", parseError);
       continue;
     }
 
     if (token === "--poll-interval-ms") {
-      options.pollIntervalMs = parsePositiveInteger(requireOptionValue(args, "--poll-interval-ms"), "--poll-interval-ms");
+      options.pollIntervalMs = parsePositiveInteger(requireOptionValue(args, "--poll-interval-ms", parseError), "--poll-interval-ms", parseError);
       continue;
     }
 
     if (token === "--timeout-ms") {
-      options.timeoutMs = parseNonNegativeInteger(requireOptionValue(args, "--timeout-ms"), "--timeout-ms");
+      options.timeoutMs = parseNonNegativeInteger(requireOptionValue(args, "--timeout-ms", parseError), "--timeout-ms", parseError);
       continue;
     }
 
@@ -163,31 +136,6 @@ export function parseWatchCliArgs(argv) {
   }
 
   return options;
-}
-
-function runChild(command, args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
 }
 
 async function fetchGithubCopilotActivityPayload(

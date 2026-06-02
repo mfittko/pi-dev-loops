@@ -2,7 +2,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
@@ -60,9 +60,8 @@ Exit codes:
   0  Success
   1  Argument error, gh failure, or malformed gh JSON`.trim();
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 const CATEGORY_DEFINITIONS = [
   {

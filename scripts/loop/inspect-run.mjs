@@ -56,7 +56,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
-import { formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { readExistingCheckpoint } from "./_checkpoint-io.mjs";
@@ -145,9 +145,8 @@ Exit codes:
 // Argument parsing
 // ---------------------------------------------------------------------------
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 function parseReviewerLogin(value) {
   const normalized = value.trim();

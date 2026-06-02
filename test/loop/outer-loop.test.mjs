@@ -4,40 +4,15 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import { decideOuterAction, runOuterLoop } from "../../scripts/loop/outer-loop.mjs";
 
 const scriptPath = path.resolve("scripts/loop/outer-loop.mjs");
 
-function runNode(args = [], options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [scriptPath, ...args], {
-      cwd: options.cwd,
-      env: options.env ?? process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
 
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
-
-async function writeJson(filePath, data) {
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-}
+const writeJson = writeJsonHelper;
 
 const MINIMAL_COPILOT_SNAPSHOT = Object.freeze({
   prExists: true,
@@ -96,45 +71,35 @@ async function writeGhStub(tempDir, {
   headSha = "abc123",
   headRefName = "copilot/example-branch",
 } = {}) {
-  const ghPath = path.join(tempDir, "gh");
-  await writeFile(
-    ghPath,
-    [
-      "#!/usr/bin/env node",
-      "const args = process.argv.slice(2);",
-      "const joined = args.join(' ');",
-      `const repo = ${JSON.stringify(repo)};`,
-      `const pr = ${JSON.stringify(pr)};`,
-      `const headSha = ${JSON.stringify(headSha)};`,
-      `const headRefName = ${JSON.stringify(headRefName)};`,
-      "if (joined.includes('pr view') && joined.includes('--json')) {",
-      "  process.stdout.write(JSON.stringify({ isDraft: false, state: 'OPEN', number: pr, headRefOid: headSha, headRefName, reviews: [], statusCheckRollup: [] }));",
-      "  process.exit(0);",
-      "}",
-      "if (joined.includes('requested_reviewers')) {",
-      "  process.stdout.write(JSON.stringify({ users: [] }));",
-      "  process.exit(0);",
-      "}",
-      "if (joined.includes(`/pulls/${pr}/reviews`)) {",
-      "  process.stdout.write(JSON.stringify([]));",
-      "  process.exit(0);",
-      "}",
-      "if (joined.includes('graphql')) {",
-      "  process.stdout.write(JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }));",
-      "  process.exit(0);",
-      "}",
-      "process.stderr.write(`unexpected gh args: ${joined}\\n`);",
-      "process.exit(1);",
-      "",
-    ].join("\n"),
-    "utf8",
-  );
-  await chmod(ghPath, 0o755);
-
-  return {
-    ...process.env,
-    PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
+  const prViewEntry = {
+    assertArgs: ["pr", "view", String(pr), "--repo", repo, "--json"],
+    stdout: JSON.stringify({ isDraft: false, state: "OPEN", number: pr, headRefOid: headSha, headRefName, reviews: [], statusCheckRollup: [] }) + "\n",
   };
+  const requestedReviewersEntry = {
+    assertArgs: ["api", `repos/${repo}/pulls/${pr}/requested_reviewers`],
+    stdout: JSON.stringify({ users: [] }) + "\n",
+  };
+  const reviewsEntry = {
+    assertArgs: ["api", `repos/${repo}/pulls/${pr}/reviews`],
+    stdout: "[]\n",
+  };
+  const graphqlEntry = {
+    assertArgs: ["api", "graphql"],
+    stdout: JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }) + "\n",
+  };
+
+  const { env } = await writeGhStubHelper(
+    tempDir,
+    [
+      ...Array.from({ length: 6 }, () => prViewEntry),
+      ...Array.from({ length: 4 }, () => requestedReviewersEntry),
+      ...Array.from({ length: 4 }, () => reviewsEntry),
+      ...Array.from({ length: 6 }, () => graphqlEntry),
+    ],
+    { matchMode: "claims" },
+  );
+
+  return env;
 }
 
 // ---------------------------------------------------------------------------

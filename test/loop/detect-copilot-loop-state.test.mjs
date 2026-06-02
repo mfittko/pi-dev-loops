@@ -5,107 +5,23 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import { autoDetectSnapshot, parseDetectCliArgs } from "../../scripts/loop/detect-copilot-loop-state.mjs";
 
 const scriptPath = path.resolve("scripts/loop/detect-copilot-loop-state.mjs");
 const fixturePath = path.resolve("packages/core/test/fixtures/github/review-threads/mixed-threads.json");
 
-function runNode(args = [], options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [scriptPath, ...args], {
-      cwd: options.cwd,
-      env: options.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
 
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
-
-async function writeJson(filePath, value) {
-  const dir = path.dirname(filePath);
-  const { mkdir } = await import("node:fs/promises");
-  await mkdir(dir, { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
+const writeJson = writeJsonHelper;
 
 /**
  * Write a gh stub that matches scripted gh invocations in any order.
  * Each matching entry is claimed at most once via the claims directory.
  * Each entry: { assertArgs?, stdout?, stderr?, exitCode? }
  */
-async function writeGhStub(tempDir, entries) {
-  const sequencePath = path.join(tempDir, "gh-sequence.json");
-  const claimsDir = path.join(tempDir, "gh-claims");
-  const ghPath = path.join(tempDir, "gh");
-
-  const { mkdir } = await import("node:fs/promises");
-  await writeFile(sequencePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
-  await mkdir(claimsDir, { recursive: true });
-  await writeFile(
-    ghPath,
-    [
-      "#!/usr/bin/env node",
-      'import { mkdirSync, readFileSync } from "node:fs";',
-      'import path from "node:path";',
-      "const sequencePath = process.env.GH_SEQUENCE_PATH;",
-      "const claimsDir = process.env.GH_CLAIMS_DIR;",
-      'const entries = JSON.parse(readFileSync(sequencePath, "utf8"));',
-      'const actual = process.argv.slice(2);',
-      'let selected = null;',
-      'for (let index = 0; index < entries.length; index += 1) {',
-      '  const entry = entries[index] ?? { stdout: "{}\\n" };',
-      '  const expectedArgs = Array.isArray(entry.assertArgs) ? entry.assertArgs : [];',
-      '  if (!expectedArgs.every((expected) => actual.includes(expected))) continue;',
-      '  try {',
-      '    mkdirSync(path.join(claimsDir, String(index)));',
-      '    selected = entry;',
-      '    break;',
-      '  } catch {',
-      '    continue;',
-      '  }',
-      '}',
-      'if (selected == null) {',
-      '  process.stderr.write("unexpected gh args: " + actual.join(" ") + "\\n");',
-      '  process.exit(97);',
-      '}',
-      'if (selected.stderr) {',
-      '  process.stderr.write(selected.stderr);',
-      '}',
-      'if (selected.stdout) {',
-      '  process.stdout.write(selected.stdout);',
-      '}',
-      'process.exit(selected.exitCode ?? 0);',
-      "",
-    ].join("\n"),
-    "utf8",
-  );
-  await chmod(ghPath, 0o755);
-
-  return {
-    env: {
-      ...process.env,
-      PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
-      GH_SEQUENCE_PATH: sequencePath,
-      GH_CLAIMS_DIR: claimsDir,
-    },
-  };
-}
+const writeGhStub = (tempDir, entries) => writeGhStubHelper(tempDir, entries, { matchMode: "claims" });
 
 function makeReviewThreadsPayload(nodes = []) {
   return {

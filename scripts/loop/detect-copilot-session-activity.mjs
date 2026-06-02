@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
-
-import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 const USAGE = `Usage: detect-copilot-session-activity.mjs --repo <owner/name> --branch <name> [--limit <number>]
@@ -49,27 +48,8 @@ const COPILOT_RUN_NAME_PATTERNS = Object.freeze([
   /^addressing review on pr\b/i,
 ]);
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
 
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parsePositiveInteger(value, flag) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw parseError(`${flag} must be a positive integer`);
-  }
-
-  return Number(value);
-}
 
 export function parseDetectCopilotSessionActivityCliArgs(argv) {
   const args = [...argv];
@@ -89,17 +69,17 @@ export function parseDetectCopilotSessionActivityCliArgs(argv) {
     }
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo").trim();
+      options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
 
     if (token === "--branch") {
-      options.branch = requireOptionValue(args, "--branch").trim();
+      options.branch = requireOptionValue(args, "--branch", parseError).trim();
       continue;
     }
 
     if (token === "--limit") {
-      options.limit = parsePositiveInteger(requireOptionValue(args, "--limit"), "--limit");
+      options.limit = parsePositiveInteger(requireOptionValue(args, "--limit", parseError), "--limit", parseError);
       continue;
     }
 
@@ -117,31 +97,6 @@ export function parseDetectCopilotSessionActivityCliArgs(argv) {
   }
 
   return options;
-}
-
-function runChild(command, args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
 }
 
 function isCopilotRunName(name) {

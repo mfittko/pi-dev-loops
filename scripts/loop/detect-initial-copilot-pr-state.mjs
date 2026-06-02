@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
-
-import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { parseIssueNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectLinkedIssuePr } from "../github/detect-linked-issue-pr.mjs";
 import { detectCopilotSessionActivity } from "./detect-copilot-session-activity.mjs";
@@ -87,27 +86,8 @@ const INITIAL_COPILOT_PR_FACTS_QUERY = [
   "}",
 ].join("\n");
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
 
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parseIssueNumber(value) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw parseError("--issue must be a positive integer");
-  }
-
-  return Number(value);
-}
 
 export function parseDetectInitialCopilotPrStateCliArgs(argv) {
   const args = [...argv];
@@ -126,12 +106,12 @@ export function parseDetectInitialCopilotPrStateCliArgs(argv) {
     }
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo").trim();
+      options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
 
     if (token === "--issue") {
-      options.issue = parseIssueNumber(requireOptionValue(args, "--issue"));
+      options.issue = parseIssueNumber(requireOptionValue(args, "--issue", parseError), parseError);
       continue;
     }
 
@@ -149,31 +129,6 @@ export function parseDetectInitialCopilotPrStateCliArgs(argv) {
   }
 
   return options;
-}
-
-function runChild(command, args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
 }
 
 function buildQueryArgs({ owner, name, pr }) {

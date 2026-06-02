@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { resolveAuthoritativeStartupResumeBundle } from "../../packages/core/src/loop/public-dev-loop-routing.mjs";
-import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { requireOptionValue } from "../_cli-primitives.mjs";
 
 const USAGE = `Usage:
   resolve-dev-loop-startup.mjs --input <path>
@@ -95,17 +96,8 @@ const STRATEGY_ASYNC_DISPATCH = {
   none: false,
 };
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
 
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-  return value;
-}
 
 export function parseResolveDevLoopStartupCliArgs(argv) {
   const args = [...argv];
@@ -123,7 +115,7 @@ export function parseResolveDevLoopStartupCliArgs(argv) {
     }
 
     if (token === "--input") {
-      options.inputPath = requireOptionValue(args, "--input");
+      options.inputPath = requireOptionValue(args, "--input", parseError);
       continue;
     }
 

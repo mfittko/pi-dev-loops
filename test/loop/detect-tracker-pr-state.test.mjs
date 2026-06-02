@@ -4,36 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import { parseDetectTrackerPrCliArgs } from "../../scripts/loop/detect-tracker-pr-state.mjs";
 
 const scriptPath = path.resolve("scripts/loop/detect-tracker-pr-state.mjs");
 
-function runNode(args = [], options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [scriptPath, ...args], {
-      cwd: options.cwd,
-      env: options.env ?? process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
 
 async function writeTempJson(tempDir, name, value) {
   const filePath = path.join(tempDir, name);

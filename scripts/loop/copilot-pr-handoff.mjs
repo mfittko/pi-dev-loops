@@ -39,7 +39,8 @@
  *   on stderr and exit non-zero.
  *   gh failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
-import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
+import { parsePrNumber, requireOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
@@ -166,27 +167,8 @@ function summarizeRequestWatchContract({
   };
 }
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
 
-function requireOptionValue(args, flag) {
-  const value = args.shift();
-
-  if (typeof value !== "string" || value.length === 0 || value.startsWith("--")) {
-    throw parseError(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
-function parsePrNumber(value) {
-  if (!/^\d+$/.test(value) || Number(value) === 0) {
-    throw parseError("--pr must be a positive integer");
-  }
-
-  return Number(value);
-}
 
 export function parseHandoffCliArgs(argv) {
   const args = [...argv];
@@ -207,12 +189,12 @@ export function parseHandoffCliArgs(argv) {
     }
 
     if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo").trim();
+      options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
 
     if (token === "--pr") {
-      options.pr = parsePrNumber(requireOptionValue(args, "--pr"));
+      options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
       continue;
     }
 
@@ -222,7 +204,7 @@ export function parseHandoffCliArgs(argv) {
     }
 
     if (token === "--watch-status") {
-      const watchStatus = requireOptionValue(args, "--watch-status").trim().toLowerCase();
+      const watchStatus = requireOptionValue(args, "--watch-status", parseError).trim().toLowerCase();
       if (!VALID_WATCH_STATUSES.has(watchStatus)) {
         throw parseError(`--watch-status must be one of: ${[...VALID_WATCH_STATUSES].join(", ")}`);
       }

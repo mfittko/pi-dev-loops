@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { loadDevLoopConfig, resolveGateConfig } from "@pi-dev-loops/core/config";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { truncateText } from "@pi-dev-loops/core/bash-exit-one";
@@ -61,9 +61,8 @@ Exit codes:
   0  Success
   1  Argument error, gh failure, or contradictory gate evidence`.trim();
 
-function parseError(message) {
-  return Object.assign(new Error(message), { usage: USAGE });
-}
+const parseError = buildParseError(USAGE);
+
 
 function normalizeGateName(value) {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
