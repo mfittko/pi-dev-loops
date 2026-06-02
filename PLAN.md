@@ -134,26 +134,37 @@ The initial foundation phases are complete:
 
 See [Implementation State](docs/IMPLEMENTATION_STATE.md) for the current execution snapshot.
 
-### Current next phase
+### Current active phase
 
-#### Phase 7 — bounded second-repo pilot
+#### Phase 8 — workflow configuration contract stabilization
 
-The next durable phase is a single bounded second-repo pilot to prove that the current source-loaded GitHub-first workflow actually works outside this repository.
+Phase 8 is the current active durable phase. `main` already includes a partial Phase 8 implementation: the dev-loop config schema/loader, reviewer-role resolution, strategy-default routing integration, conductor model wiring, and the supporting contract tests.
 
-Success for Phase 7 means:
+The durable phase plan lives in [Phase 8 Plan](./docs/phases/phase-8.md).
+
+This ordering is an explicit deviation from the repo's normal one-phase-at-a-time posture: Phase 8 was pulled forward before the planned Phase 7 pilot executed. The durable docs now record that deviation directly instead of leaving contradictory claims about which phase is current.
+
+### Deferred earlier phase
+
+#### Phase 7 — bounded second-repo pilot (deferred)
+
+Phase 7 is still a valid planned pilot, but it is currently deferred rather than completed. No target repository has been chosen yet and the bounded second-repo portability proof has not run.
+
+Success for Phase 7 still means:
 - one real non-bootstrap target repo
 - one bounded non-mutating pilot path
 - one thin downstream override example
 - only the smallest portability fixes required for that pilot
 
-The durable phase plan lives in [Phase 7 Plan](./docs/phases/phase-7.md).
+Keep the durable plan parked at [Phase 7 Plan](./docs/phases/phase-7.md) until the repo is ready to resume that portability proof.
 
-A separate supporting memo at [Workflow Remediation Prep](./docs/archive/workflow-remediation-prep.md) records the workflow-remediation findings behind issue #70. That memo supports bounded prep chunks, but it is not a roadmap phase and does not replace Phase 7.
+A separate supporting memo at [Workflow Remediation Prep](./docs/archive/workflow-remediation-prep.md) records the workflow-remediation findings behind issue #70. That memo supports bounded prep chunks, but it is not a roadmap phase and does not replace the deferred Phase 7 pilot.
 
-### After Phase 7
+### After Phase 8
 
-Do not lock later phases in detail until Phase 7 produces real evidence. Likely follow-up areas include:
-- downstream portability fixes revealed by the pilot
+Once Phase 8 closes, either resume the deferred Phase 7 pilot or deliberately replan from current GitHub evidence instead of letting both phases stay half-active in durable docs. Likely follow-up areas still include:
+- finishing any remaining Phase 8 closure work
+- the downstream portability proof preserved in Phase 7
 - further shrinkage of markdown-owned operational logic
 - clearer operator-facing inspection / steering / projection surfaces
 - broader multi-repo and tracker-first adoption only after the bounded pilot proves the basics

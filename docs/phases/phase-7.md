@@ -2,7 +2,11 @@
 
 ## Status
 
-planning
+deferred
+
+## Reconciliation note
+
+Phase 7 remains a valid planned second-repo pilot, but it is not the active phase. No target repository has been chosen yet and the bounded external pilot has not started. Phase 8 was pulled forward ahead of this pilot, so this document is now a deferred plan rather than an in-progress phase.
 
 ## Objective
 
@@ -129,11 +133,11 @@ This phase exists to answer, in one real non-bootstrap repo:
 
 ## Operational closure status
 
-Phase 7 refinement has started and the merged bounded plan is recorded here.
+Phase 7 is currently deferred before execution. The merged bounded plan remains recorded here for later reuse, but the pilot itself has not started and no target repository has been selected.
 
 Bounded workflow-remediation prep slices under issue #70 may land independently to improve shared workflow footing. They are not part of this phase and do not replace it.
 
-Implementation should not begin until the target repository is chosen and the GitHub issue is opened with the selected pilot path.
+Do not treat this plan as the active phase again unless the repo explicitly reprioritizes back to the second-repo pilot.
 
 ## Links to execution artifacts
 

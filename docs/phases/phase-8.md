@@ -2,7 +2,11 @@
 
 ## Status
 
-slice-1-implemented (schema, loader, roles, tests — no workflow wiring)
+active (slice-1-implemented; additional Phase 8 closure work pending)
+
+## Reconciliation note
+
+Phase 8 is the active durable phase on `main`. Phase 8 was pulled forward ahead of the deferred Phase 7 pilot, so this document now owns the active phase truth until the repo either closes Phase 8 or deliberately reprioritizes again.
 
 ## Objective
 
@@ -10,7 +14,7 @@ Define a durable, inspectable configuration contract for `dev-loop` / routed wor
 
 ## Why this phase exists now
 
-Workflow policy decisions are accumulating in too many scattered places:
+Workflow policy decisions are accumulating in too many scattered places, and enough of the config-contract surface has already shipped on `main` that the durable docs need to treat Phase 8 as the active phase rather than a future idea:
 - operator instructions in chat
 - issue-specific overrides
 - skill text / prompt wording

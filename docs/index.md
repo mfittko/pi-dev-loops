@@ -22,7 +22,11 @@ Start here for repository documentation.
 
 ## Active local phase doc
 
-- [Phase 7 Plan](./phases/phase-7.md) — active phase plan
+- [Phase 8 Plan](./phases/phase-8.md) — active phase plan
+
+## Deferred local phase docs
+
+- [Phase 7 Plan](./phases/phase-7.md) — deferred second-repo pilot plan
 
 ## Archived history
 

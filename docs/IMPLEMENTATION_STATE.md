@@ -2,11 +2,15 @@
 
 ## Status
 
-Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is complete, merged, and synced back to local `main`. Phase 7 second-repo pilot refinement shipped ahead of schedule (the code landed before the formal Phase 7 doc was started). Phase 8 (current) is the post-pilot stabilization and cleanup pass.
+Phase 1 imported-asset normalization is complete, locally validated, committed, and merged. Phase 2 dedicated refiner-agent work is complete, locally validated, committed, and merged. Phase 3 package extension and setup UX work is complete, locally validated, committed, and merged. Phase 4 shared deterministic library and npm support package work is complete, locally validated, committed, and merged. Phase 5 deterministic scripts work is complete, locally validated, committed, and merged. Phase 6 public release hardening is complete, merged, and synced back to local `main`.
 
-Separately, issue #70 tracks a bounded workflow-remediation preparation chain. Those chunks harden the current workflow foundation before later improvements continue. They do **not** replace Phase 7 or the existing roadmap.
+Phase 7 second-repo pilot is deferred, not completed. No target repository has been chosen yet and the bounded external portability proof has not run.
 
-Current `main` also includes the current conductor-adjacent ownership/routing contracts plus the inspection and steering surfaces. The next durable repo-level execution phase is still the bounded Phase 7 pilot rather than a new architecture expansion.
+Phase 8 is the active durable phase. `main` already includes slice 1 of Phase 8: the dev-loop config schema/loader, reviewer-role resolution, strategy-default routing integration, conductor model wiring, and supporting tests. Additional Phase 8 closure work is still pending.
+
+This is an explicit deviation from the repo's normal one-phase-at-a-time guidance: Phase 8 was pulled forward ahead of the planned Phase 7 pilot. The repo now documents that deviation directly instead of leaving contradictory phase claims in multiple files.
+
+Separately, issue #70 tracks a bounded workflow-remediation preparation chain. Those chunks harden the current workflow foundation before later improvements continue. They do **not** replace the deferred Phase 7 pilot or the active Phase 8 work.
 
 ## Current source of truth
 
@@ -14,7 +18,8 @@ Current `main` also includes the current conductor-adjacent ownership/routing co
 - Product/repo roadmap: [Project Plan](../PLAN.md)
 - Repo contract: [Agent Instructions](../AGENTS.md)
 - Workflow explainer: [Implementation Workflow](./IMPLEMENTATION_WORKFLOW.md)
-- Durable local phase plan: [Phase 7 Plan](./phases/phase-7.md)
+- Active durable local phase plan: [Phase 8 Plan](./phases/phase-8.md)
+- Deferred earlier phase plan: [Phase 7 Plan](./phases/phase-7.md)
 - tmp index for fresh-context inspection if present locally: `tmp/phases/index.json`
 
 ## Supporting context
@@ -23,9 +28,11 @@ Current `main` also includes the current conductor-adjacent ownership/routing co
 
 ## Current phase
 
-- Active phase: `phase-7`
-- Durable phase plan: [Phase 7 Plan](phases/phase-7.md)
-- Status: `planning`
+- Active phase: `phase-8`
+- Durable phase plan: [Phase 8 Plan](phases/phase-8.md)
+- Status: `active (slice-1-implemented; additional Phase 8 closure work pending)`
+- Deferred earlier phase: `phase-7`
+- Deviation note: Phase 8 was pulled forward ahead of the planned Phase 7 pilot and that exception is now documented explicitly.
 
 ## Next action for a fresh session
 
@@ -36,19 +43,22 @@ If the user says **"continue implementation"**:
 3. read [Agent Instructions](../AGENTS.md)
 4. read [Implementation Workflow](IMPLEMENTATION_WORKFLOW.md)
 5. read this file
-6. read [Phase 7 Plan](phases/phase-7.md)
+6. read [Phase 8 Plan](phases/phase-8.md)
 7. start from the public `dev-loop` entrypoint and let routing choose the right internal path
 8. inspect `tmp/phases/index.json` and any useful prior artifacts only if prior context helps
 9. if durable repo truth changed during the work, sync [README](../README.md), [Project Plan](../PLAN.md), [Implementation State](./IMPLEMENTATION_STATE.md), and any affected contract docs before closing the slice
 10. if the request is about workflow-remediation preparation, read [Workflow Remediation Prep](archive/workflow-remediation-prep.md) and work the next bounded #70 chunk without widening scope
-11. for Phase 7 specifically, clarify the target repository and pilot path if they are still unset before implementation starts
+11. if the request reopens the deferred Phase 7 pilot, explicitly confirm that reprioritization before treating [Phase 7 Plan](phases/phase-7.md) as the active phase again
 
 ## Next unfinished phase
 
-Phase 7 — second-repo pilot.
+Phase 8 — workflow configuration contract stabilization.
+
+After Phase 8 closes, revisit the deferred Phase 7 second-repo pilot deliberately rather than assuming it already happened.
 
 ## Phase summary
 
 - Completed: `phase-0` through `phase-6`
-- Active: `phase-7` (`planning`)
-- Later phases remain intentionally undescribed here until Phase 7 is settled
+- Deferred: `phase-7` (`not started; Phase 8 pulled forward ahead of it`)
+- Active: `phase-8` (`slice-1-implemented; additional Phase 8 closure work pending`)
+- Later phases remain intentionally undescribed here until Phase 8 closes and the deferred Phase 7 pilot is either resumed or formally replanned

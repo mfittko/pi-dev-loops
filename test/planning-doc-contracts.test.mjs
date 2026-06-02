@@ -194,3 +194,36 @@ test("worktree guidance docs define the canonical checkout-isolation contract", 
   assert.doesNotMatch(coordinatorAgent, /ONLY use worktrees when they improve isolation/i);
   assert.doesNotMatch(coordinatorAgent, /Prefer the current working tree for a single small task/i);
 });
+
+
+test("phase-truth docs agree that Phase 8 is active and Phase 7 is deferred", async () => {
+  const [plan, readme, docsIndex, implementationState, phase7, phase8] = await Promise.all([
+    readRepo("PLAN.md"),
+    readRepo("README.md"),
+    readRepo("docs/index.md"),
+    readRepo("docs/IMPLEMENTATION_STATE.md"),
+    readRepo("docs/phases/phase-7.md"),
+    readRepo("docs/phases/phase-8.md"),
+  ]);
+
+  assert.match(plan, /Current active phase[\s\S]*Phase 8/i);
+  assert.match(plan, /Phase 7[\s\S]*deferred/i);
+
+  assert.match(readme, /Phase 8 is the active durable phase/i);
+  assert.match(readme, /Phase 7 second-repo pilot is deferred/i);
+
+  assert.match(docsIndex, /Active local phase doc[\s\S]*phase-8\.md/i);
+
+  assert.match(implementationState, /Phase 7 second-repo pilot is deferred, not completed/i);
+  assert.match(implementationState, /Phase 8 is the active durable phase/i);
+  assert.match(implementationState, /explicit deviation from the repo's normal one-phase-at-a-time guidance/i);
+  assert.match(implementationState, /Active phase: `phase-8`/i);
+  assert.match(implementationState, /Status: `active \(slice-1-implemented; additional Phase 8 closure work pending\)`/i);
+  assert.doesNotMatch(implementationState, /Active phase: `phase-7`/i);
+
+  assert.match(phase7, /## Status[\s\S]*deferred/i);
+  assert.match(phase7, /Phase 8 was pulled forward ahead of this pilot/i);
+
+  assert.match(phase8, /## Status[\s\S]*active \(slice-1-implemented; additional Phase 8 closure work pending\)/i);
+  assert.match(phase8, /Phase 8 was pulled forward ahead of the deferred Phase 7 pilot/i);
+});
