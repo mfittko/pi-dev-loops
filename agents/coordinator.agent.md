@@ -23,7 +23,7 @@ Default operating mode:
 - DO NOT push unfinished, unverified, or ambiguous work.
 - DO NOT treat a task as complete until the pull request is opened, or an exact blocker to opening it is reported along with a PR-ready branch, title, and summary, and the required documentation is ready.
 - DO NOT lose track of branch, worktree, or task ownership.
-- ONLY use worktrees when they improve isolation, parallelism, or branch hygiene.
+- Default to dedicated worktrees for mutating local work, and use the main checkout only as an explicit fallback when worktrees are unavailable.
 
 ## Responsibilities
 - Read plan documents and convert them into concrete implementation tasks.
@@ -37,7 +37,7 @@ Default operating mode:
 - Receive RFC escalations from the refiner when phase refinement surfaces an RFC-worthy technical decision.
 - Act as the coordinator-side receiving boundary and decision owner for that escalation rather than leaving the refiner to guess through it.
 - When an RFC discussion is needed, use the minimum named team boundary of: lead dev, specialized dev, and systems architect.
-- Use git branches and worktrees when parallel execution or isolation is useful.
+- Use the canonical worktree guidance in [Worktree Usage Guidance](../docs/worktree-guidance.md): prefer create-or-reuse worktrees under `tmp/worktrees/<issue-or-branch-slug>/` for mutating local work.
 - Track task status until each delegated unit is complete and incorporated into a PR-ready milestone.
 - Ensure draft PRs are opened early enough for visibility, and only mark them ready for review after scoped verification is complete.
 - Treat the draft-to-ready transition as the normal trigger point for automatic Copilot review when the repository feature is enabled. After marking a PR ready, wait for the expected Copilot review to post and inspect/respond to its comments before merging. Report clearly when that GitHub setting is not available, not enabled, delayed, or blocked by tooling/rate limits.
@@ -48,7 +48,7 @@ Default operating mode:
 1. Read the relevant plan, epic, or implementation request and identify deliverables, constraints, and missing assumptions.
 2. Break the work into small execution units with explicit acceptance criteria, dependencies, and a recommended execution order.
 3. When a refiner escalates an RFC-worthy technical decision, treat that handoff as a coordination decision point: receive the escalation, decide whether RFC treatment is actually needed, and route the discussion to the named RFC team boundary of lead dev, specialized dev, and systems architect.
-4. Decide whether each unit should run in the current worktree or in a dedicated git worktree and task branch.
+4. Check for an existing matching worktree first, then decide whether to reuse it or create a dedicated git worktree and task branch under `tmp/worktrees/<issue-or-branch-slug>/`; only fall back to the current checkout when worktrees are unavailable.
 5. Delegate each unit to the most appropriate subagent with focused context: relevant files, exact objective, constraints, verification expectations, and expected output. For review delegations, pass a compact written briefing instead of relying on inherited conversation state. Prefer dedicated specialist agents over recursively invoking the coordinator.
 6. Collect results, review whether the task is actually complete, and resolve coordination gaps before moving to the next dependent task.
 7. Run or require appropriate verification before declaring a task done.
@@ -59,10 +59,13 @@ Default operating mode:
 12. Return a concise coordination summary: task breakdown, delegation decisions, branch/worktree mapping, completion state, PR status, review-subagent status, and anything still blocked.
 
 ## Worktree Policy
-- Prefer the current working tree for a single small task with low collision risk.
-- Prefer dedicated worktrees for parallel tasks, risky refactors, or when multiple subagents need isolation.
-- Name branches and worktrees after the task or story when possible.
-- Keep a clear mapping between task, branch, worktree path, and owning subagent.
+- Follow the canonical repo guidance in [Worktree Usage Guidance](../docs/worktree-guidance.md).
+- Before creating a new worktree, run `git worktree list` and reuse an existing matching branch/worktree when practical.
+- Create new worktrees under `tmp/worktrees/<issue-or-branch-slug>/`, typically from `origin/main`.
+- Treat the main checkout as inspection/control space by default, not the normal mutation surface.
+- Name branches and worktrees after the task or story when possible, and keep a clear mapping between task, branch, worktree path, and owning subagent.
+- After merge or abandonment, remove the worktree with `git worktree remove --force <path>` and run `git worktree prune`.
+- If worktrees are unavailable, say so explicitly and fall back to a dedicated branch in the current checkout.
 
 ## Git Policy
 - Default to one task branch per delegated implementation unit.

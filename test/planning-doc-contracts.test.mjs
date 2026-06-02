@@ -152,3 +152,45 @@ test("local workflow docs define tracker-backed local canonicality and no-dup ru
     /localPhaseDocAllowed: false/i,
   ], "scripts/README.md");
 });
+
+test("worktree guidance docs define the canonical checkout-isolation contract", async () => {
+  const [worktreeGuidance, agentsDoc, docsIndex, coordinatorAgent] = await Promise.all([
+    readRepo("docs/worktree-guidance.md"),
+    readRepo("AGENTS.md"),
+    readRepo("docs/index.md"),
+    readRepo("agents/coordinator.agent.md"),
+  ]);
+
+  assertMatchesAll(worktreeGuidance, [
+    /## Purpose and scope/i,
+    /## Canonical location and naming/i,
+    /## Default rule: use a worktree for mutating local work/i,
+    /## Create or reuse flow/i,
+    /## Dependency and install expectations/i,
+    /## Coordination and collision checks/i,
+    /## Cleanup and prune flow/i,
+    /## Fallback when worktrees are unavailable/i,
+    /## Non-goals/i,
+    /tmp\/worktrees\//i,
+    /git worktree list/i,
+    /origin\/main/i,
+    /npm install|npm ci/i,
+    /git worktree remove --force/i,
+    /git worktree prune/i,
+    /worktrees are unavailable/i,
+  ], "docs/worktree-guidance.md");
+
+  assert.match(agentsDoc, /docs\/worktree-guidance\.md/i);
+  assert.match(docsIndex, /worktree-guidance\.md/i);
+
+  assertMatchesAll(coordinatorAgent, [
+    /docs\/worktree-guidance\.md/i,
+    /tmp\/worktrees\/<issue-or-branch-slug>\//i,
+    /git worktree list/i,
+    /git worktree remove --force/i,
+    /git worktree prune/i,
+    /worktrees are unavailable/i,
+  ], "agents/coordinator.agent.md");
+  assert.doesNotMatch(coordinatorAgent, /ONLY use worktrees when they improve isolation/i);
+  assert.doesNotMatch(coordinatorAgent, /Prefer the current working tree for a single small task/i);
+});
