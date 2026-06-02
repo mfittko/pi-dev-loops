@@ -88,8 +88,12 @@ clean `draft_gate` comment exists on the PR and the PR leaves draft, later head
 changes must not trigger new `draft_gate` comments. Post-draft follow-up relies on
 normal review/fix loops and the recurring per-head `pre_approval_gate`.
 
-- When the `draft_gate` runs (while the PR is still draft), the PR must receive a
-  visible gate-review comment.
+- **Skip rule:** before posting a `draft_gate` comment, check whether a clean `draft_gate`
+  comment already exists on the PR (any head). If a clean draft-gate comment exists
+  anywhere on the PR, skip the draft gate entirely — the draft→ready transition was
+  already recorded. Do not re-post draft gate on new heads. This is a one-time gate.
+- When the `draft_gate` runs (while the PR is still draft and no clean evidence exists),
+  the PR must receive a visible gate-review comment.
 - If the `draft_gate` verdict is `findings_present` or `blocked`, the comment must
   state that the PR stays draft and fixes are required before retrying.
 - The PR must not leave draft (`gh pr ready`) unless a visible `clean` `draft_gate`

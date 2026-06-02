@@ -740,6 +740,7 @@ The canonical gate-review comment contract is `docs/gate-review-comment-contract
 
 - **Gate name:** Draft gate
 - **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
+- **Skip rule:** before entering the draft gate, check whether a clean `draft_gate` comment already exists anywhere on the PR. If one exists, skip the draft gate entirely — the draft→ready transition was already recorded. `draft_gate` is a one-time gate; do not re-post on new heads. Only run the draft gate if no clean evidence exists.
 - **Execution directive:** run the gate-review sub-loop defined in `docs/gate-review-sub-loop-contract.md` with the draft gate review angles resolved from config.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config ships `scope`, `coverage`, `correctness`; consumer repos may override.
 - **Pass criteria:** all configured draft gate angles pass; all must-fix findings are addressed; validation passes; no unrelated files are included.

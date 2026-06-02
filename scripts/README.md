@@ -452,8 +452,9 @@ Required:
 - `--pr <number>`
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/repo", "pr": 266, "currentHeadSha": "...", "lifecycleState": "pr_ready_no_feedback", "loopDisposition": "action_required", "gateBoundary": "post_draft_external_review", "draftGate": { ... }, "preApprovalGate": { ... }, "allowedNextActions": [ ... ], "forbiddenActions": [ ... ], "nextAction": "request_copilot_review", "reason": "..." }`
+- `{ "ok": true, "repo": "owner/repo", "pr": 266, "currentHeadSha": "...", "lifecycleState": "pr_ready_no_feedback", "loopDisposition": "action_required", "gateBoundary": "post_draft_external_review", "draftGate": { ... }, "preApprovalGate": { ... }, "draftGateAlreadySatisfied": true, "allowedNextActions": [ ... ], "forbiddenActions": [ ... ], "nextAction": "request_copilot_review", "reason": "..." }`
 - `draftGate` / `preApprovalGate` report both latest visible evidence (`visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`) and whether the evidence is current-head + contract-complete (`currentHead`, `contractComplete`, `currentHeadClean`)
+- `draftGateAlreadySatisfied` — true when the draft→ready transition was already recorded (non-draft + clean evidence exists); callers must skip draft gate when this is true
 - `forbiddenActions` includes `run_pre_approval_gate` whenever the post-draft review cycle has not yet settled for the current head
 - if a PR is already non-draft but lacks current-head clean `draft_gate` evidence, the evaluator fails closed (`gateBoundary=blocked`, `nextAction=report_blocked`) until draft-gate evidence is reconciled
 
