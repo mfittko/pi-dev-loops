@@ -33,6 +33,11 @@ gates:
       - kiss
       - yagni
       - srp
+      - ocp
+      - lsp
+      - isp
+      - dip
+      - soc
     required: true
 
 # Autonomy: which gates require operator confirmation (stop points)
@@ -94,6 +99,49 @@ personas:
       class, and function has exactly one reason to change.
       Flag multi-concern files, god objects, mixed abstractions,
       and modules that own unrelated responsibilities.
+    defaultModel: null
+
+  ocp:
+    persona: review
+    prompt: >-
+      Open/Closed Principle: flag code that requires modifying existing
+      modules to add new behavior. Prefer extension points, plugin
+      architectures, and config-driven dispatch over patching internals.
+    defaultModel: null
+
+  lsp:
+    persona: review
+    prompt: >-
+      Liskov Substitution Principle: flag subtypes or implementations
+      that weaken base contracts, throw unexpected errors, or require
+      special-casing in callers. Subtypes must be fully substitutable
+      for their base types.
+    defaultModel: null
+
+  isp:
+    persona: review
+    prompt: >-
+      Interface Segregation Principle: flag fat interfaces and modules
+      that force consumers to depend on methods or exports they never
+      use. Prefer narrow, role-specific interfaces.
+    defaultModel: null
+
+  dip:
+    persona: review
+    prompt: >-
+      Dependency Inversion Principle: flag high-level modules depending
+      on low-level implementation details. Check that abstractions are
+      owned by the consumer, not the implementation. Flag concrete
+      imports where an interface/contract should exist.
+    defaultModel: null
+
+  soc:
+    persona: review
+    prompt: >-
+      Separation of Concerns: flag modules that mix distinct concerns
+      (e.g., business logic + I/O, data access + presentation,
+      orchestration + implementation). Each concern should live in
+      its own module with a clear boundary.
     defaultModel: null
 
   yagni:

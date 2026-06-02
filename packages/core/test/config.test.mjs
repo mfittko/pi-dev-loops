@@ -952,7 +952,7 @@ describe("role resolution", () => {
       assert.ok(typeof result.prompt === "string" && result.prompt.length > 0, `${angle} prompt missing`);
       prompts.add(result.prompt);
     }
-    assert.equal(prompts.size, 7, "all seven angles should have distinct prompts");
+    assert.equal(prompts.size, 12, "all seven angles should have distinct prompts");
   });
 
   test("R21: config persona prompt overrides built-in prompt", () => {
