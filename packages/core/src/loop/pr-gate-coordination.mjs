@@ -22,6 +22,7 @@ export const PR_GATE_ACTION = Object.freeze({
   RUN_PRE_APPROVAL_GATE: "run_pre_approval_gate",
   AWAIT_FINAL_HUMAN_APPROVAL: "await_final_human_approval",
   DECLARE_MERGE_READY: "declare_merge_ready",
+  RECONCILE_DRAFT_GATE: "reconcile_draft_gate",
   REPORT_BLOCKED: "report_blocked",
   REPORT_DONE: "report_done",
 });
@@ -83,6 +84,7 @@ function pushUnique(values, additions) {
 }
 
 function buildResult({
+  draftGateReconciled = false,
   draftGateAlreadySatisfied = false,
   repo = null,
   pr = null,
@@ -112,6 +114,7 @@ function buildResult({
     nextAction,
     reason,
     draftGateAlreadySatisfied,
+    draftGateReconciled,
   };
 }
 
@@ -125,6 +128,7 @@ export function evaluatePrGateCoordination(input = {}) {
   const prClosed = input.prClosed === true;
   const prMerged = input.prMerged === true;
   const sameHeadCleanConverged = input.sameHeadCleanConverged === true;
+  const draftGateReconciled = input.draftGateReconciled === true;
   const reviewMode = typeof input.reviewMode === "string"
     ? input.reviewMode.trim().toLowerCase()
     : null;
@@ -153,6 +157,7 @@ export function evaluatePrGateCoordination(input = {}) {
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.DONE,
       gateBoundary: PR_GATE_BOUNDARY.DONE,
       draftGateAlreadySatisfied,
+      draftGateReconciled,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -179,6 +184,7 @@ export function evaluatePrGateCoordination(input = {}) {
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.BLOCKED,
       gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
       draftGateAlreadySatisfied,
+      draftGateReconciled,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -209,6 +215,7 @@ export function evaluatePrGateCoordination(input = {}) {
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
       gateBoundary: PR_GATE_BOUNDARY.DRAFT_REVIEW,
       draftGateAlreadySatisfied,
+      draftGateReconciled,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -221,6 +228,7 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (!draftGate.cleanEvidenceExists) {
+    pushUnique(allowedNextActions, [PR_GATE_ACTION.RECONCILE_DRAFT_GATE]);
     pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
     pushUnique(forbiddenActions, [
       PR_GATE_ACTION.RUN_DRAFT_GATE,
@@ -243,12 +251,13 @@ export function evaluatePrGateCoordination(input = {}) {
       loopDisposition: LOOP_DISPOSITION.BLOCKED,
       gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
       draftGateAlreadySatisfied,
+      draftGateReconciled,
       draftGate,
       preApprovalGate,
       allowedNextActions,
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
-      reason: "The PR is already non-draft and no clean `draft_gate` evidence exists at all, so no draft-gate transition was ever recorded; fail closed and reconcile draft-stage evidence before continuing.",
+      reason: "The PR is already non-draft and no clean `draft_gate` evidence exists at all, so no draft-gate transition was ever recorded; Use `scripts/github/reconcile-draft-gate.mjs` to auto-reconcile (convert to draft → post draft_gate comment → mark ready) and then re-evaluate.",
     });
   }
 
@@ -280,6 +289,7 @@ export function evaluatePrGateCoordination(input = {}) {
           loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
           gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
           draftGateAlreadySatisfied,
+          draftGateReconciled,
           draftGate,
           preApprovalGate,
           allowedNextActions,
@@ -299,6 +309,7 @@ export function evaluatePrGateCoordination(input = {}) {
         loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
         gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
         draftGateAlreadySatisfied,
+        draftGateReconciled,
         draftGate,
         preApprovalGate,
         allowedNextActions,
@@ -318,6 +329,7 @@ export function evaluatePrGateCoordination(input = {}) {
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
       gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
       draftGateAlreadySatisfied,
+      draftGateReconciled,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -342,6 +354,7 @@ export function evaluatePrGateCoordination(input = {}) {
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.PENDING,
       gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
       draftGateAlreadySatisfied,
+      draftGateReconciled,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -364,6 +377,7 @@ export function evaluatePrGateCoordination(input = {}) {
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.UNRESOLVED_FEEDBACK,
       gateBoundary: PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
       draftGateAlreadySatisfied,
+      draftGateReconciled,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -384,6 +398,7 @@ export function evaluatePrGateCoordination(input = {}) {
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.UNRESOLVED_FEEDBACK,
       gateBoundary: PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
       draftGateAlreadySatisfied,
+      draftGateReconciled,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -405,6 +420,7 @@ export function evaluatePrGateCoordination(input = {}) {
         loopDisposition: loopDisposition ?? LOOP_DISPOSITION.ACTION_REQUIRED,
         gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
         draftGateAlreadySatisfied,
+        draftGateReconciled,
         draftGate,
         preApprovalGate,
         allowedNextActions,
@@ -430,6 +446,7 @@ export function evaluatePrGateCoordination(input = {}) {
         loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
         gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
         draftGateAlreadySatisfied,
+        draftGateReconciled,
         draftGate,
         preApprovalGate,
         allowedNextActions,
@@ -454,6 +471,7 @@ export function evaluatePrGateCoordination(input = {}) {
       loopDisposition: loopDisposition ?? LOOP_DISPOSITION.CLEAN_CONVERGED,
       gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
       draftGateAlreadySatisfied,
+      draftGateReconciled,
       draftGate,
       preApprovalGate,
       allowedNextActions,
@@ -479,6 +497,7 @@ export function evaluatePrGateCoordination(input = {}) {
     loopDisposition: loopDisposition ?? LOOP_DISPOSITION.BLOCKED,
     gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
     draftGateAlreadySatisfied,
+    draftGateReconciled,
     draftGate,
     preApprovalGate,
     allowedNextActions,

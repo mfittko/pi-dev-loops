@@ -328,3 +328,45 @@ test("draft PR with clean current-head draft_gate sets cleanEvidenceExists", () 
   assert.equal(result.draftGate.cleanEvidenceExists, true);
   assert.equal(result.draftGate.currentHeadClean, true);
 });
+
+test("non-draft PR without clean evidence suggests reconcile_draft_gate as recovery action", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
+  assert.equal(result.nextAction, PR_GATE_ACTION.REPORT_BLOCKED);
+  assert(result.allowedNextActions.includes(PR_GATE_ACTION.REPORT_BLOCKED));
+  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RECONCILE_DRAFT_GATE));
+  assert.match(result.reason, /reconcile-draft-gate\.mjs/i);
+  assert.equal(result.draftGateReconciled, false);
+});
+
+test("draftGateReconciled flag is passed through to output when set", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+    draftGateReconciled: true,
+  });
+
+  assert.equal(result.draftGateReconciled, true);
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
+  assert.equal(result.draftGate.cleanEvidenceExists, true);
+  assert.equal(result.draftGateAlreadySatisfied, true);
+});
