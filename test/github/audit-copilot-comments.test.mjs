@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 
 import {
+  auditCopilotComments,
   buildCopilotAuditSummary,
   classifyCopilotComment,
   parseAuditCopilotCommentsCliArgs,
@@ -57,10 +58,10 @@ function runNode(args = [], options = {}) {
   });
 }
 
-async function writeGhStub(tempDir, entries) {
+async function writeGhStub(tempDir, entries, { commandName = "gh" } = {}) {
   const sequencePath = path.join(tempDir, "gh-sequence.json");
   const counterPath = path.join(tempDir, "gh-counter.txt");
-  const ghPath = path.join(tempDir, "gh");
+  const ghPath = path.join(tempDir, commandName);
 
   await writeFile(sequencePath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
   await writeFile(counterPath, "0\n", "utf8");
@@ -162,9 +163,10 @@ test("audit-copilot-comments help text describes the full summary output", async
   const result = await runNode(["--help"]);
 
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /Output \(stdout, JSON summary\)/);
+  assert.match(result.stdout, /Output \(stdout, JSON summary; abbreviated example\)/);
   assert.match(result.stdout, /"categories"/);
-  assert.match(result.stdout, /same full summary object/i);
+  assert.match(result.stdout, /abbreviated/i);
+  assert.match(result.stdout, /same full\s+summary object/i);
   assert.match(result.stdout, /<output-dir>\/copilot-comment-summary\.json/);
 });
 
@@ -285,6 +287,27 @@ test("audit-copilot-comments surfaces malformed gh JSON with command context", a
     const stderr = JSON.parse(result.stderr);
     assert.equal(stderr.ok, false);
     assert.match(stderr.error, /Invalid JSON from gh api --paginate --slurp repos\/owner\/repo\/pulls\/comments\?per_page=100/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+test("auditCopilotComments includes the configured gh command in parse errors", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-copilot-comments-custom-gh-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/comments?per_page=100"],
+        stdout: "not-json\n",
+      },
+    ], { commandName: "pi-gh" });
+
+    await assert.rejects(
+      auditCopilotComments({ repo: "owner/repo", outputDir: path.join(tempDir, "out") }, { env, ghCommand: "pi-gh" }),
+      /Invalid JSON from pi-gh api --paginate --slurp repos\/owner\/repo\/pulls\/comments\?per_page=100/,
+    );
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

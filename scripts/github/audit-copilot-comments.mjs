@@ -22,7 +22,7 @@ Required:
 Optional:
   --output-dir <path>     Output directory (default: tmp/investigation)
 
-Output (stdout, JSON summary):
+Output (stdout, JSON summary; abbreviated example):
   {
     "ok": true,
     "repo": "owner/repo",
@@ -47,8 +47,10 @@ Output (stdout, JSON summary):
     }
   }
 
-  Stdout emits the same full summary object that is written to
-  <output-dir>/copilot-comment-summary.json (default output dir: tmp/investigation).
+  This example is abbreviated; the real summary includes additional fields on
+  categories, recommendations, comments, and files. Stdout emits the same full
+  summary object that is written to <output-dir>/copilot-comment-summary.json
+  (default output dir: tmp/investigation).
 
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
@@ -666,7 +668,7 @@ async function runGhJson(args, { env, ghCommand }) {
     throw new Error(`gh command failed: ${detail}`);
   }
 
-  const commandLabel = `gh ${args.join(" ")}`;
+  const commandLabel = `${ghCommand} ${args.join(" ")}`;
   try {
     return parseJsonText(result.stdout);
   } catch (error) {
