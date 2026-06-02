@@ -128,6 +128,8 @@ describe("schema validation", () => {
       version: 1,
       workflow: {
         requireRetrospective: true,
+        requireDraftFirst: false,
+        devModeDefault: true,
         unknownKey: true,
       },
     });

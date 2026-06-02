@@ -41,9 +41,9 @@ A fresh session can determine the status of the required retrospective by readin
 
 ## Enforcement gate
 
-The enforcement seam is the pure function `evaluateRetrospectiveGate` in `packages/core/src/loop/retrospective-checkpoint.mjs`. The checkpoint artifact may still exist even when enforcement is disabled; the workflow config controls whether callers should block the next qualifying routed start/resume on that artifact.
+The enforcement seam is the pure function `evaluateRetrospectiveGate` in `packages/core/src/loop/retrospective-checkpoint.mjs`. The checkpoint artifact may still exist even when enforcement is disabled; callers must first consult `workflow.requireRetrospective` to decide whether the checkpoint should block the next qualifying routed start/resume or remain advisory-only.
 
-For convenience, the public routing helpers in `packages/core/src/loop/public-dev-loop-routing.mjs` also accept an optional `retrospectiveCheckpointState` input and apply the same gate internally before returning routed start/resume/status results.
+For convenience, the public routing helpers in `packages/core/src/loop/public-dev-loop-routing.mjs` also accept an optional `retrospectiveCheckpointState` input and apply the same gate internally before returning routed start/resume/status results. Callers should only pass that input when `workflow.requireRetrospective` is enabled for the active repo/workflow posture.
 
 ### Inputs
 
@@ -75,7 +75,7 @@ Callers have two supported integration options:
    - `evaluatePublicDevLoopRouting(...)`
    - `resolveAuthoritativeStartupResumeBundle(...)`
    - `resolveAuthoritativeDevLoopStatus(...)`
-4. Use the returned result directly. When the checkpoint is missing, these helpers fail closed to `needs_reconcile`.
+4. Use the returned result directly. When enforcement is enabled and the checkpoint is missing, these helpers fail closed to `needs_reconcile`.
 
 #### Option B — explicit manual gate composition
 
@@ -83,7 +83,7 @@ Callers have two supported integration options:
 2. Map the file contents to a `RETROSPECTIVE_CHECKPOINT_STATE` value.
 3. Call `evaluatePublicDevLoopRouting(...)` to get the proposed routing.
 4. Call `evaluateRetrospectiveGate({ checkpointState, proposedRouting })`.
-5. Use the gate result (not the raw routing result) as the effective routing decision.
+5. Use the gate result (not the raw routing result) as the effective routing decision when enforcement is enabled; otherwise keep the raw routing result and treat the checkpoint artifact as advisory context only.
 
 If the gate result is `needs_reconcile`, the caller must not proceed with the proposed routing. The `nextAction` field instructs the operator to complete or explicitly skip the retrospective.
 
