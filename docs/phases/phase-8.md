@@ -34,7 +34,7 @@ Without a configuration contract, behavior drifts between runs, repo policy and 
 
 - define the canonical config surface and schema for dev-loop / routed workflow defaults
 - define the canonical home for workflow-policy contract definitions (`.pi/dev-loop/`)
-- define config precedence: built-in defaults → repo defaults → session overrides → per-run flags
+- define loader precedence for config files: built-in defaults → shipped defaults → repo-local settings (preferred `settings.*`, with legacy `overrides.*` fallback); higher-level per-run flags remain above this loader contract
 - split durable (committed) from session (gitignored) config
 - define validation with fail-closed behavior for unknown or contradictory config
 - support at minimum these config families:
@@ -124,7 +124,7 @@ This means angles are lenses first, optionally backed by dedicated agent persona
 
 - `.pi/dev-loop/defaults.yaml` is defined and validated through the same zod-backed config contract
 - `.pi/dev-loop/settings.yaml` (plus accepted `.yml` / `.json` forms) uses the same schema as the shipped defaults
-- config loader resolves precedence correctly: per-run → session → repo → built-in
+- config loader resolves file-surface precedence correctly: `settings.*` → legacy `overrides.*` → `defaults.*` → built-in defaults
 - unknown keys cause fail-closed rejection (zod `.strict()`)
 - contradictory values (e.g. unknown enum member) cause clear parse errors
 - role resolution follows the documented 3-step order
