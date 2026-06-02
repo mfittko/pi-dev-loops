@@ -22,7 +22,7 @@ Required:
 Optional:
   --output-dir <path>     Output directory (default: tmp/investigation)
 
-Output (stdout, JSON):
+Output (stdout, JSON summary):
   {
     "ok": true,
     "repo": "owner/repo",
@@ -32,11 +32,23 @@ Output (stdout, JSON):
       "prsWithCopilotComments": 17,
       "uncategorizedComments": 5
     },
+    "categories": [
+      { "id": "grammar", "count": 92 }
+    ],
+    "recommendations": [
+      { "key": "coverage-angle", "priorityOrder": 1 }
+    ],
+    "comments": [
+      { "id": 101, "prNumber": 12, "primaryCategoryId": "grammar" }
+    ],
     "files": {
       "jsonSummaryPath": "tmp/investigation/copilot-comment-summary.json",
       "markdownReportPath": "tmp/investigation/copilot-comment-categories.md"
     }
   }
+
+  Stdout emits the same full summary object that is written to
+  tmp/investigation/copilot-comment-summary.json.
 
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
@@ -589,8 +601,8 @@ export function renderMarkdownReport(summary) {
   lines.push("");
   lines.push("## Top categories");
   lines.push("");
-  lines.push("| Category | Comments | PRs | Catch earlier with | Fit |",);
-  lines.push("| --- | ---: | ---: | --- | --- |",);
+  lines.push("| Category | Comments | PRs | Catch earlier with | Fit |");
+  lines.push("| --- | ---: | ---: | --- | --- |");
   for (const category of topCategories) {
     lines.push(`| ${category.label} | ${category.count} | ${category.prCount} | ${category.recommendedLens} | ${category.automationFit} |`);
   }
@@ -654,7 +666,12 @@ async function runGhJson(args, { env, ghCommand }) {
     throw new Error(`gh command failed: ${detail}`);
   }
 
-  return parseJsonText(result.stdout, { label: `gh ${args.slice(0, 2).join(" ")}` });
+  const commandLabel = `gh ${args.join(" ")}`;
+  try {
+    return parseJsonText(result.stdout);
+  } catch (error) {
+    throw new Error(`Invalid JSON from ${commandLabel}`);
+  }
 }
 
 async function fetchAllReviewComments(repo, { env, ghCommand }) {

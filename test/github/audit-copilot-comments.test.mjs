@@ -157,6 +157,16 @@ test("parseAuditCopilotCommentsCliArgs rejects malformed arguments deterministic
   );
 });
 
+
+test("audit-copilot-comments help text describes the full summary output", async () => {
+  const result = await runNode(["--help"]);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Output \(stdout, JSON summary\)/);
+  assert.match(result.stdout, /"categories"/);
+  assert.match(result.stdout, /same full summary object/i);
+});
+
 test("classifyCopilotComment assigns representative categories", () => {
   assert.equal(
     classifyCopilotComment(sampleReviewComment({
@@ -256,6 +266,29 @@ test("buildCopilotAuditSummary counts categories and ranks recommendations", () 
   assert.match(markdown, /Priority order for missing lenses/i);
   assert.match(markdown, /Categories Copilot should still own/i);
 });
+
+test("audit-copilot-comments surfaces malformed gh JSON with command context", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-copilot-comments-json-error-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/comments?per_page=100"],
+        stdout: "not-json\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo"], { env });
+
+    assert.equal(result.code, 1);
+    const stderr = JSON.parse(result.stderr);
+    assert.equal(stderr.ok, false);
+    assert.match(stderr.error, /Invalid JSON from gh api --paginate --slurp repos\/owner\/repo\/pulls\/comments\?per_page=100/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 
 test("audit-copilot-comments CLI writes JSON summary and markdown report", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-copilot-comments-"));
