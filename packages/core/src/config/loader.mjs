@@ -84,7 +84,7 @@ async function readConfigFile(filePath) {
 
 /**
  * Find a config file by trying one or more base names in order.
- * Each base name prefers YAML before JSON.
+ * Each base name prefers YAML (.yaml, then .yml) before JSON.
  * @param {string|string[]} basePaths - Path(s) without extension (e.g. .../defaults)
  * @returns {Promise<{ path: string, data: object|null }>}
  */
@@ -92,7 +92,7 @@ async function findConfigFile(basePaths) {
   const candidates = Array.isArray(basePaths) ? basePaths : [basePaths];
 
   for (const basePath of candidates) {
-    for (const ext of [".yaml", ".json"]) {
+    for (const ext of [".yaml", ".yml", ".json"]) {
       const filePath = basePath + ext;
       const data = await readConfigFile(filePath);
       if (data !== null) return { path: filePath, data };

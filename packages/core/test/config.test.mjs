@@ -568,6 +568,28 @@ describe("loader — graceful degradation", () => {
     }
   });
 
+  test("Y1f: settings.json takes precedence over legacy overrides.json", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-settings-preferred-json-"));
+    try {
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(
+        path.join(piDir, "settings.json"),
+        JSON.stringify({ version: 1, strategy: { default: "github-first" } }),
+      );
+      await writeFile(
+        path.join(piDir, "overrides.json"),
+        JSON.stringify({ version: 1, strategy: { default: "local-first" } }),
+      );
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      assert.deepEqual(result.errors, []);
+      assert.equal(result.config.strategy.default, "github-first");
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   test("Y2: YAML preferred over JSON when both exist", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-L8-"));
     try {

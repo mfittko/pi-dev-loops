@@ -46,7 +46,7 @@ See [Extension Documentation](./extension/README.md) for the full command and pa
 
 ## Configuration
 
-Gate review angles, refinement settings, persona mappings, workflow defaults, and review prompts are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos can override any value through `.pi/dev-loop/settings.yaml` (legacy `.pi/dev-loop/overrides.yaml` still loads as a fallback).
+Gate review angles, refinement settings, persona mappings, workflow defaults, and review prompts are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos can override any value through `.pi/dev-loop/settings.yaml` (legacy `.pi/dev-loop/overrides.yaml` and `.pi/dev-loop/overrides.json` still load as fallbacks).
 
 ```bash
 # See what reviewers will check before handing off code

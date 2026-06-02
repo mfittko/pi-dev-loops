@@ -98,7 +98,7 @@ The messaging distinguishes between local loop readiness and remote GitHub/Copil
 
 ## Configuration
 
-The dev-loop workflow is driven by a YAML config at `.pi/dev-loop/defaults.yaml` (shipped with the package) and an optional consumer settings file at `.pi/dev-loop/settings.yaml` (legacy `.pi/dev-loop/overrides.yaml` still loads as a fallback).
+The dev-loop workflow is driven by a YAML config at `.pi/dev-loop/defaults.yaml` (shipped with the package) and an optional consumer settings file at `.pi/dev-loop/settings.yaml` (legacy `.pi/dev-loop/overrides.yaml` and `.pi/dev-loop/overrides.json` still load as fallbacks).
 
 ### How consumers customize config
 
@@ -179,7 +179,7 @@ workflow:
 
 1. Built-in defaults (`packages/core/src/config/schema.mjs` `BUILT_IN_DEFAULTS`)
 2. Shipped defaults (`.pi/dev-loop/defaults.yaml` — committed in source repo)
-3. Consumer settings (`.pi/dev-loop/settings.yaml` — preferred repo-local policy surface; legacy `.pi/dev-loop/overrides.yaml` still loads as a fallback)
+3. Consumer settings (`.pi/dev-loop/settings.yaml` — preferred repo-local policy surface; legacy `.pi/dev-loop/overrides.yaml` and `.pi/dev-loop/overrides.json` still load as fallbacks)
 
 ### Adding custom review angles
 
