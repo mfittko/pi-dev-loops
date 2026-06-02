@@ -148,12 +148,18 @@ async function resolvePrNodeId({ repo, pr }, { env, ghCommand }) {
 }
 
 async function convertPrToDraft({ repo, pr }, { env, ghCommand }) {
-  const { id } = await resolvePrNodeId({ repo, pr }, { env, ghCommand });
+  const resolvedPr = await resolvePrNodeId({ repo, pr }, { env, ghCommand });
+  if (resolvedPr.isDraft === true) {
+    return {
+      ...resolvedPr,
+      alreadyDraft: true,
+    };
+  }
 
   const result = await runChild(ghCommand, [
     "api", "graphql",
     "-f", "query=" + CONVERT_TO_DRAFT_MUTATION,
-    "-F", `pullRequestId=${id}`,
+    "-F", `pullRequestId=${resolvedPr.id}`,
   ], env);
 
   if (result.code !== 0) {
@@ -171,7 +177,10 @@ async function convertPrToDraft({ repo, pr }, { env, ghCommand }) {
     throw new Error(`PR #${pr} was not set to draft state after mutation`);
   }
 
-  return converted;
+  return {
+    ...converted,
+    alreadyDraft: false,
+  };
 }
 
 async function markPrReady({ repo, pr }, { env, ghCommand }) {
@@ -323,28 +332,27 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
   await convertPrToDraft({ repo: options.repo, pr: options.pr }, { env, ghCommand });
 
   // Step 3: Post a reconciling clean draft_gate comment
-  const gateResult = await upsertGateReviewComment({
-    repo: options.repo,
-    pr: options.pr,
-    gate: "draft_gate",
-    headSha,
-    verdict: "clean",
-    findingsSummary: options.skipChecks
-      ? "Reconciled non-draft PR — draft gate auto-reconciled (checks skipped)."
-      : "Reconciled non-draft PR — draft gate auto-reconciled (CI green).",
-    nextAction: "Mark ready for review (auto-reconciled).",
-  }, { env, ghCommand });
-
-  if (!gateResult.ok) {
+  let gateResult;
+  try {
+    gateResult = await upsertGateReviewComment({
+      repo: options.repo,
+      pr: options.pr,
+      gate: "draft_gate",
+      headSha,
+      verdict: "clean",
+      findingsSummary: options.skipChecks
+        ? "Reconciled non-draft PR — draft gate auto-reconciled (checks skipped)."
+        : "Reconciled non-draft PR — draft gate auto-reconciled (CI green).",
+      nextAction: "Mark ready for review (auto-reconciled).",
+    }, { env, ghCommand });
+  } catch (error) {
     // Revert: mark PR ready again before throwing
     try {
       await markPrReady({ repo: options.repo, pr: options.pr }, { env, ghCommand });
     } catch {
       // Best-effort revert
     }
-    throw new Error(
-      `Failed to post reconciling draft_gate comment: ${gateResult.error || "unknown error"}`
-    );
+    throw error;
   }
 
   // Step 4: Mark PR ready for review
