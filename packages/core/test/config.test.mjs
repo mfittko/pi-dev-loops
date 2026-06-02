@@ -785,6 +785,11 @@ describe("role resolution", () => {
     assert.equal(result, null);
   });
 
+  test("resolveConductorModel returns null for whitespace-only string", () => {
+    const result = resolveConductorModel({ version: 1, models: { conductor: "   " } });
+    assert.equal(result, null);
+  });
+
   test("resolveConductorModel returns null when models is empty object", () => {
     const result = resolveConductorModel({ version: 1, models: {} });
     assert.equal(result, null);

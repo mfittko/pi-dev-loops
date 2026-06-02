@@ -11,7 +11,7 @@
  * @returns {string|null}
  */
 export function resolveConductorModel(config) {
-  if (config?.models?.conductor && typeof config.models.conductor === "string" && config.models.conductor.length > 0) {
+  if (config?.models?.conductor && typeof config.models.conductor === "string" && config.models.conductor.trim().length > 0) {
     return config.models.conductor;
   }
   return null;
