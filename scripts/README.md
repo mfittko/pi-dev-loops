@@ -506,9 +506,9 @@ Required:
 - `--pr <number>`
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/repo", "pr": 266, "currentHeadSha": "...", "mergeStateStatus": "DIRTY"|null, "conflictFiles": ["path"]|[], "lifecycleState": "pr_ready_no_feedback", "loopDisposition": "action_required", "gateBoundary": "post_draft_external_review"|"conflict_resolution", "draftGate": { ... }, "preApprovalGate": { ... }, "draftGateAlreadySatisfied": true, "allowedNextActions": [ ... ], "forbiddenActions": [ ... ], "nextAction": "request_copilot_review"|"resolve_merge_conflicts", "reason": "..." }`
+- `{ "ok": true, "repo": "owner/repo", "pr": 266, "currentHeadSha": "...", "mergeStateStatus": "CLEAN"|"DIRTY"|"BLOCKED"|"BEHIND"|null, "conflictFiles": ["path"]|[], "lifecycleState": "pr_ready_no_feedback", "loopDisposition": "action_required", "gateBoundary": "post_draft_external_review"|"conflict_resolution", "draftGate": { ... }, "preApprovalGate": { ... }, "draftGateAlreadySatisfied": true, "allowedNextActions": [ ... ], "forbiddenActions": [ ... ], "nextAction": "request_copilot_review"|"resolve_merge_conflicts", "reason": "..." }`
 - `draftGate` / `preApprovalGate` report both latest visible evidence (`visible`, `headSha`, `verdict`, `findingsSummary`, `nextAction`) and whether the evidence is current-head + contract-complete (`currentHead`, `contractComplete`, `currentHeadClean`)
-- `mergeStateStatus` preserves the current GitHub merge-conflict signal from `gh pr view`; `DIRTY` and explicit `CONFLICTING` inputs are treated as conflict-required states
+- `mergeStateStatus` preserves the current GitHub `gh pr view` signal in helper output even when the PR is not in the conflict boundary; `DIRTY` and explicit `CONFLICTING` inputs are treated as conflict-required states
 - `conflictFiles` lists unmerged local paths from `git status --porcelain=v1 --untracked-files=no` when local conflict reconciliation is already in progress
 - when `mergeStateStatus` is conflicted or `conflictFiles` is non-empty, the evaluator emits `gateBoundary=conflict_resolution`, `nextAction=resolve_merge_conflicts`, and forbids gate/approval/merge progression until reconciliation completes
 - `draftGateAlreadySatisfied` — true when the draft→ready transition was already recorded (non-draft + clean evidence exists); callers must skip draft gate when this is true

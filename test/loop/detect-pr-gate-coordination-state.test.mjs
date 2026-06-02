@@ -228,6 +228,68 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
   }
 });
 
+test("detect-pr-gate-coordination-state preserves non-conflict mergeStateStatus values in helper output", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-merge-state-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 266,
+          state: "OPEN",
+          isDraft: false,
+          headRefOid: "fedcba987654",
+          mergeStateStatus: "CLEAN",
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [],
+        }),
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/266/requested_reviewers"],
+        stdout: jsonLine({ users: [], teams: [] }),
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=266"],
+        stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }),
+      },
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: jsonLine({ headRefOid: "fedcba987654" }),
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"],
+        stdout: jsonLine([[
+          {
+            id: 21,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: fedcba9",
+              "Verdict: clean",
+              "Findings summary: no issues found",
+              "Next action: request Copilot review",
+            ].join("\n"),
+            html_url: "https://example.test/comment/21",
+            updated_at: "2026-05-31T20:00:00Z",
+          },
+        ]]),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "266"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.gateBoundary, "post_draft_external_review");
+    assert.equal(parsed.nextAction, "request_copilot_review");
+    assert.equal(parsed.mergeStateStatus, "CLEAN");
+    assert.deepEqual(parsed.conflictFiles, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-pr-gate-coordination-state surfaces conflict_resolution for conflicted PRs and reports conflict files", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-conflict-"));
 

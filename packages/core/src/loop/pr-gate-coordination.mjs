@@ -219,6 +219,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REPORT_DONE,
       reason: "The pull request is already closed or merged, so no further gate entry is legal.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -314,6 +316,8 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: draftGate.currentHeadClean
         ? "The PR is still draft, and current-head clean `draft_gate` evidence exists, so `gh pr ready` is now legal."
         : "The PR is still draft, so `draft_gate` is the only legal gate boundary before `gh pr ready`.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -351,6 +355,8 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: draftGate.anyVisible
         ? `The PR is already non-draft, but visible \`draft_gate\` evidence already exists (verdict: ${draftGate.verdict ?? "unknown"}). The auto-reconcile helper intentionally fails closed rather than overwriting existing evidence, so reconcile manually or clear/supersede the visible draft-gate evidence before re-evaluating.`
         : "The PR is already non-draft and no `draft_gate` evidence is visible at all, so no draft-gate transition was ever recorded; use `scripts/github/reconcile-draft-gate.mjs` to auto-reconcile (convert to draft → post draft_gate comment → mark ready) and then re-evaluate.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -388,6 +394,8 @@ export function evaluatePrGateCoordination(input = {}) {
           forbiddenActions,
           nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
           reason: "This is an explicitly local-first PR with clean draft_gate evidence and current-head clean pre_approval_gate, so it is ready for final human approval.",
+          mergeStateStatus,
+          conflictFiles,
         });
       }
 
@@ -407,6 +415,8 @@ export function evaluatePrGateCoordination(input = {}) {
         forbiddenActions,
         nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
         reason: "This is an explicitly local-first PR, so `pre_approval_gate` is the next legal boundary instead of an external Copilot review cycle.",
+        mergeStateStatus,
+        conflictFiles,
       });
     }
 
@@ -426,6 +436,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
       reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -452,6 +464,8 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: lifecycleState === STATE.WAITING_FOR_CI
         ? "The post-draft review cycle is waiting on current-head CI, so `pre_approval_gate` remains illegal until CI settles cleanly."
         : "The post-draft review cycle is still pending on Copilot review, so `pre_approval_gate` remains illegal until the current-head review cycle settles.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -472,6 +486,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK,
       reason: "Actionable unresolved feedback exists, so follow-up work must stay in the review/fix cycle and cannot enter `pre_approval_gate` yet.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -492,6 +508,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.REPLY_RESOLVE_REVIEW_THREADS,
       reason: "Fixes were applied, but unresolved threads still need reply/resolve handling before another gate boundary is legal.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -513,6 +531,8 @@ export function evaluatePrGateCoordination(input = {}) {
         forbiddenActions,
         nextAction: PR_GATE_ACTION.REREQUEST_COPILOT_REVIEW,
         reason: "The review loop is between passes, but the current head does not yet have a clean settled Copilot convergence point, so `pre_approval_gate` is still forbidden.",
+        mergeStateStatus,
+        conflictFiles,
       });
     }
 
@@ -538,6 +558,8 @@ export function evaluatePrGateCoordination(input = {}) {
         forbiddenActions,
         nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
         reason: "The current head has both a clean settled review cycle and clean `pre_approval_gate` evidence, so the PR is at the final approval boundary.",
+        mergeStateStatus,
+        conflictFiles,
       });
     }
 
@@ -562,6 +584,8 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
       reason: "The current head has a clean settled post-draft review cycle, so `pre_approval_gate` is now the next legal boundary.",
+      mergeStateStatus,
+      conflictFiles,
     });
   }
 
@@ -587,5 +611,7 @@ export function evaluatePrGateCoordination(input = {}) {
     forbiddenActions,
     nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
     reason: "The PR gate-boundary evaluator could not map this lifecycle state to a legal gate transition; reconcile before continuing.",
+    mergeStateStatus,
+    conflictFiles,
   });
 }

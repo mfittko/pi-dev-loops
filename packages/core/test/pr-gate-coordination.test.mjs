@@ -155,6 +155,7 @@ test("current-head clean pre-approval evidence advances to final approval bounda
     lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
     loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
     sameHeadCleanConverged: true,
+    mergeStateStatus: "CLEAN",
     draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
     draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
     preApprovalGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
@@ -165,6 +166,8 @@ test("current-head clean pre-approval evidence advances to final approval bounda
   assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
   assert.equal(result.preApprovalGate.currentHead, true);
   assert.equal(result.preApprovalGate.currentHeadClean, true);
+  assert.equal(result.mergeStateStatus, "CLEAN");
+  assert.deepEqual(result.conflictFiles, []);
 });
 
 test("non-draft PR with clean draft_gate on a different head still allows post-draft flow (one-time boundary)", () => {
