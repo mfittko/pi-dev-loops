@@ -137,12 +137,12 @@ function formatConflictResolutionReason(mergeStateStatus, conflictFiles) {
 
 function normalizeCiStatus(value) {
   if (typeof value !== "string") {
-    return null;
+    return "none";
   }
 
   const trimmed = value.trim();
   if (trimmed.length === 0) {
-    return null;
+    return "none";
   }
 
   const lower = trimmed.toLowerCase();
@@ -154,7 +154,7 @@ function normalizeCiStatus(value) {
     return "crediblyGreen";
   }
 
-  return null;
+  return "none";
 }
 
 function ciAllowsGateProgression(status) {

@@ -13,16 +13,26 @@ import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretati
 import { evaluatePrGateCoordination } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { detectGateReviewEvidence } from "../github/detect-gate-review-evidence.mjs";
+import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 
 const UNMERGED_GIT_STATUS_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
 
-const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number> [--review-mode local_first]
+const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number> [--review-mode local_first] [--local-validation-head-sha <sha>]
 
 Determine which PR gate/transition is legal next for a pull request.
 
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
+
+Optional:
+  --review-mode local_first
+  --local-validation-head-sha <sha>
+                        Assert that local npm run verify already passed for
+                        this exact head SHA so gate coordination can reuse the
+                        bounded crediblyGreen CI exception from the Copilot
+                        loop detector when GitHub created zero current-head
+                        suites/statuses.
 
 Output (stdout, JSON):
   {
@@ -80,6 +90,7 @@ export function parseDetectPrGateCoordinationCliArgs(argv) {
     repo: undefined,
     pr: undefined,
     reviewMode: undefined,
+    localValidationHeadSha: undefined,
   };
 
   while (args.length > 0) {
@@ -107,6 +118,15 @@ export function parseDetectPrGateCoordinationCliArgs(argv) {
         continue;
       }
       throw parseError(`--review-mode must be "local_first", got: ${raw}`);
+    }
+
+    if (token === "--local-validation-head-sha") {
+      const value = requireOptionValue(args, "--local-validation-head-sha", parseError).trim();
+      if (value.length === 0) {
+        throw parseError("--local-validation-head-sha must be a non-empty SHA");
+      }
+      options.localValidationHeadSha = value;
+      continue;
     }
 
     throw parseError(`Unknown argument: ${token}`);
@@ -235,16 +255,22 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     ? "requested"
     : (reviewSummary.hasPendingReviewOnCurrentHead ? "already-requested" : "none");
 
-  const snapshot = buildSnapshotFromPrFacts({
-    prData,
-    prNumber: options.pr,
-    copilotReviewRequestStatus: reviewRequestStatus,
-    copilotReviewPresent: reviewSummary.copilotReviewPresent,
-    copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
-    unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
-    actionableThreadCount: parsedThreads.summary.actionableThreads,
-    copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
-  });
+  const snapshot = options.localValidationHeadSha === undefined
+    ? buildSnapshotFromPrFacts({
+        prData,
+        prNumber: options.pr,
+        copilotReviewRequestStatus: reviewRequestStatus,
+        copilotReviewPresent: reviewSummary.copilotReviewPresent,
+        copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
+        unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
+        actionableThreadCount: parsedThreads.summary.actionableThreads,
+        copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
+      })
+    : await autoDetectSnapshot({
+        repo: options.repo,
+        pr: options.pr,
+        localValidationHeadSha: options.localValidationHeadSha,
+      }, runtime);
 
   const interpretation = interpretLoopState(snapshot);
   const disposition = summarizeLoopInterpretation(interpretation);

@@ -12,7 +12,7 @@ const GATE_VERDICTS = new Set(["clean", "findings_present", "blocked"]);
 const MAX_GATE_COMMENT_TEXT_LENGTH = 2000;
 const MAX_GATE_COMMENT_EXCERPT_LENGTH = 120;
 
-const USAGE = `Usage: upsert-gate-review-comment.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text>
+const USAGE = `Usage: upsert-gate-review-comment.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text> [--local-validation-head-sha <sha>]
 
 Create or update the visible gate-review PR comment for a gate/head pair.
 Same-head reruns are idempotent: if a visible marker already exists for the same
@@ -27,6 +27,14 @@ Required:
   --verdict <clean|findings_present|blocked>
   --findings-summary <text>
   --next-action <text>
+
+Optional:
+  --local-validation-head-sha <sha>          Assert that local npm run verify
+                                             already passed for this exact head
+                                             SHA so pre_approval gate legality can
+                                             reuse the bounded crediblyGreen CI
+                                             exception when GitHub created zero
+                                             current-head suites/statuses.
 
 Output (stdout, JSON):
   {
@@ -214,6 +222,7 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
     verdict: undefined,
     findingsSummary: undefined,
     nextAction: undefined,
+    localValidationHeadSha: undefined,
   };
 
   while (args.length > 0) {
@@ -268,6 +277,15 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
 
     if (token === "--next-action") {
       options.nextAction = normalizeRequiredText(requireOptionValue(args, "--next-action", parseError), "--next-action");
+      continue;
+    }
+
+    if (token === "--local-validation-head-sha") {
+      const localValidationHeadSha = normalizeHeadSha(requireOptionValue(args, "--local-validation-head-sha", parseError));
+      if (!localValidationHeadSha) {
+        throw parseError("--local-validation-head-sha must be a 7-64 character hexadecimal SHA");
+      }
+      options.localValidationHeadSha = localValidationHeadSha;
       continue;
     }
 
@@ -412,7 +430,7 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
 }
 
 export async function upsertGateReviewComment(options, { env = process.env, ghCommand = "gh" } = {}) {
-  const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+  const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr, localValidationHeadSha: options.localValidationHeadSha }, { env, ghCommand });
   const coordination = evaluatePrGateCoordination({
     repo: coordinationContext.repo,
     pr: coordinationContext.pr,
