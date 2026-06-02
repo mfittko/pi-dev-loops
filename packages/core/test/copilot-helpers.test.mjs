@@ -75,6 +75,43 @@ test("parseGateReviewCommentMarkerBody accepts gate+headSha even with partial co
   assert.equal(result.contractComplete, false);
 });
 
+test("parseGateReviewCommentBody parses the new Markdown template format", () => {
+  const body = [
+    "### Gate review: `draft_gate`",
+    "",
+    "**Reviewed head SHA:** `abc1234`",
+    "**Verdict:** clean",
+    "",
+    "**Findings summary:** no issues found",
+    "",
+    "**Next action:** mark ready for review",
+  ].join("\n");
+
+  const result = parseGateReviewCommentBody(body);
+  assert.ok(result !== null, "should parse the new template format");
+  assert.equal(result.gate, "draft_gate");
+  assert.equal(result.headSha, "abc1234");
+  assert.equal(result.verdict, "clean");
+  assert.equal(result.findingsSummary, "no issues found");
+  assert.equal(result.nextAction, "mark ready for review");
+});
+
+test("parseGateReviewCommentMarkerBody parses partial new-format markers", () => {
+  const body = [
+    "### Gate review: `pre_approval_gate`",
+    "",
+    "**Reviewed head SHA:** `def5678`",
+    "**Verdict:** clean",
+  ].join("\n");
+
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.ok(result !== null, "should parse partial new-format marker");
+  assert.equal(result.gate, "pre_approval_gate");
+  assert.equal(result.headSha, "def5678");
+  assert.equal(result.contractComplete, false);
+});
+
+
 test("summarizeGateReviewComments picks the most-recently-updated entry per gate", () => {
   const comments = [
     {

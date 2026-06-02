@@ -38,6 +38,16 @@ function stripOptionalCodeTicks(value) {
   return trimmed;
 }
 
+function stripGateCommentMarkdown(rawLine) {
+  let line = rawLine.trim();
+  if (line.length === 0) {
+    return "";
+  }
+  line = line.replace(/^#{1,6}\s+/u, "");
+  line = line.replace(/\*\*/gu, "");
+  return line.trim();
+}
+
 function normalizeGateReviewName(value) {
   const normalized = stripOptionalCodeTicks(value).toLowerCase();
   return GATE_REVIEW_NAMES.has(normalized) ? normalized : null;
@@ -67,10 +77,11 @@ function parseGateReviewCommentFields(body) {
   };
 
   for (const rawLine of body.split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (line.length === 0) {
+    const stripped = stripGateCommentMarkdown(rawLine);
+    if (stripped.length === 0) {
       continue;
     }
+    const line = stripped;
 
     let match = line.match(/^(?:[-*]\s*)?(?:gate(?:\s+name)?|gate\s+review)\s*:\s*(.+)$/iu);
     if (match) {
