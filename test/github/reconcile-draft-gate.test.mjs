@@ -12,7 +12,7 @@ import {
 const scriptPath = path.resolve("scripts/github/reconcile-draft-gate.mjs");
 
 function runNode(args = [], options = {}) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [scriptPath, ...args], {
       cwd: options.cwd,
       env: options.env,
@@ -29,6 +29,8 @@ function runNode(args = [], options = {}) {
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk);
     });
+
+    child.on("error", reject);
 
     child.on("close", (code) => {
       resolve({ code, stdout, stderr });

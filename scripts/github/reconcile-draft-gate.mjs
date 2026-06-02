@@ -290,12 +290,6 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
     { env, ghCommand }
   );
 
-  if (!initialEvidence.ok) {
-    throw new Error(
-      `Failed to inspect PR #${options.pr} evidence: ${initialEvidence.error || "unknown error"}`
-    );
-  }
-
   const headSha = initialEvidence.currentHeadSha;
   if (!headSha) {
     throw new Error(`Could not resolve current head SHA for PR #${options.pr}`);
