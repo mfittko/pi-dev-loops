@@ -148,13 +148,13 @@ test("clean settled current-head review opens the pre-approval gate window", () 
   assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
-test("crediblyGreen CI reopens gate progression from waiting_for_ci once review convergence is already clean", () => {
+test("crediblyGreen CI allows pre-approval progression once the review loop is already settled", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
     currentHeadSha: "fedcba987654",
     prDraft: false,
-    lifecycleState: STATE.WAITING_FOR_CI,
-    loopDisposition: LOOP_DISPOSITION.PENDING,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
     sameHeadCleanConverged: true,
     ciStatus: "crediblyGreen",
     draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),

@@ -233,11 +233,6 @@ async function fetchLocalConflictFiles({ env = process.env, gitCommand = "git" }
 
 export async function loadPrGateCoordinationContext(options, runtime = {}) {
   const prData = await fetchPrFacts(options, runtime);
-  const requestedReviewers = await fetchRequestedReviewers(options, runtime);
-  const threadsPayload = await fetchGithubReviewThreadsPayload(options, runtime);
-  const parsedThreads = parseReviewThreads(threadsPayload);
-  const gateEvidence = await detectGateReviewEvidence(options, runtime);
-  const conflictFiles = await fetchLocalConflictFiles(runtime);
 
   const currentHeadSha = typeof prData?.headRefOid === "string" && prData.headRefOid.trim().length > 0
     ? prData.headRefOid.trim()
@@ -246,32 +241,48 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     throw new Error("Invalid gh pr view payload: missing headRefOid");
   }
 
+  let snapshot;
+  let gateEvidence;
+  if (options.localValidationHeadSha === undefined) {
+    const requestedReviewers = await fetchRequestedReviewers(options, runtime);
+    const threadsPayload = await fetchGithubReviewThreadsPayload(options, runtime);
+    const parsedThreads = parseReviewThreads(threadsPayload);
+    gateEvidence = await detectGateReviewEvidence(options, runtime);
+    const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
+    const reviewRequestStatus = requestedReviewers.requested
+      ? "requested"
+      : (reviewSummary.hasPendingReviewOnCurrentHead ? "already-requested" : "none");
+
+    snapshot = buildSnapshotFromPrFacts({
+      prData,
+      prNumber: options.pr,
+      copilotReviewRequestStatus: reviewRequestStatus,
+      copilotReviewPresent: reviewSummary.copilotReviewPresent,
+      copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
+      unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
+      actionableThreadCount: parsedThreads.summary.actionableThreads,
+      copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
+    });
+  } else {
+    const requestedReviewers = await fetchRequestedReviewers(options, runtime);
+    gateEvidence = await detectGateReviewEvidence(options, runtime);
+    const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
+    const reviewRequestStatus = requestedReviewers.requested
+      ? "requested"
+      : (reviewSummary.hasPendingReviewOnCurrentHead ? "already-requested" : "none");
+    snapshot = await autoDetectSnapshot({
+      repo: options.repo,
+      pr: options.pr,
+      reviewRequestStatusOverride: reviewRequestStatus,
+      localValidationHeadSha: options.localValidationHeadSha,
+    }, runtime);
+  }
+
+  const conflictFiles = await fetchLocalConflictFiles(runtime);
+
   if (gateEvidence.currentHeadSha !== currentHeadSha) {
     throw new Error(`PR head changed while loading gate coordination facts for ${options.repo}#${options.pr}; refuse to evaluate mixed-head gate state.`);
   }
-
-  const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
-  const reviewRequestStatus = requestedReviewers.requested
-    ? "requested"
-    : (reviewSummary.hasPendingReviewOnCurrentHead ? "already-requested" : "none");
-
-  const snapshot = options.localValidationHeadSha === undefined
-    ? buildSnapshotFromPrFacts({
-        prData,
-        prNumber: options.pr,
-        copilotReviewRequestStatus: reviewRequestStatus,
-        copilotReviewPresent: reviewSummary.copilotReviewPresent,
-        copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
-        unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
-        actionableThreadCount: parsedThreads.summary.actionableThreads,
-        copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
-      })
-    : await autoDetectSnapshot({
-        repo: options.repo,
-        pr: options.pr,
-        reviewRequestStatusOverride: reviewRequestStatus,
-        localValidationHeadSha: options.localValidationHeadSha,
-      }, runtime);
 
   const interpretation = interpretLoopState(snapshot);
   const disposition = summarizeLoopInterpretation(interpretation);

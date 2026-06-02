@@ -157,10 +157,6 @@ function normalizeCiStatus(value) {
   return "none";
 }
 
-function ciAllowsGateProgression(status) {
-  return status === "success" || status === "crediblyGreen";
-}
-
 function buildResult({
   draftGateAlreadySatisfied = false,
   repo = null,
@@ -215,10 +211,7 @@ export function evaluatePrGateCoordination(input = {}) {
   const conflictFiles = normalizeConflictFiles(input.conflictFiles);
   const ciStatus = normalizeCiStatus(input.ciStatus);
 
-  let effectiveLifecycleState = lifecycleState;
-  if (lifecycleState === STATE.WAITING_FOR_CI && sameHeadCleanConverged && ciAllowsGateProgression(ciStatus)) {
-    effectiveLifecycleState = STATE.READY_TO_REREQUEST_REVIEW;
-  }
+  const effectiveLifecycleState = lifecycleState;
 
   const draftGate = toGateStatus(input.draftGate, input.draftGateMarker, currentHeadSha);
   const preApprovalGate = toGateStatus(input.preApprovalGate, input.preApprovalGateMarker, currentHeadSha);
