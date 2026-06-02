@@ -853,6 +853,40 @@ describe("role resolution", () => {
     assert.equal(result.fallback, false);
   });
 
+  test("R19: known angle resolves with a prompt instruction", () => {
+    const result = resolveReviewerRole({}, "dry");
+    assert.equal(result.persona, "review");
+    assert.ok(typeof result.prompt === "string" && result.prompt.length > 0, "prompt should be a non-empty string");
+    assert.match(result.prompt, /duplicat|repeat|copy-past/i);
+    assert.equal(result.fallback, false);
+  });
+
+  test("R20: each configured angle has a distinct prompt", () => {
+    const prompts = new Set();
+    for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "yagni"]) {
+      const result = resolveReviewerRole({}, angle);
+      assert.ok(typeof result.prompt === "string" && result.prompt.length > 0, `${angle} prompt missing`);
+      prompts.add(result.prompt);
+    }
+    assert.equal(prompts.size, 6, "all six angles should have distinct prompts");
+  });
+
+  test("R21: config persona prompt overrides built-in prompt", () => {
+    const result = resolveReviewerRole(
+      { personas: { dry: { persona: "review", prompt: "Custom DRY prompt for this project" } } },
+      "dry",
+    );
+    assert.equal(result.prompt, "Custom DRY prompt for this project");
+    assert.equal(result.fallback, false);
+  });
+
+  test("R22: fallback angles return null prompt", () => {
+    const result = resolveReviewerRole({}, "unknown-angle");
+    assert.equal(result.persona, "default-reviewer");
+    assert.equal(result.prompt, null);
+    assert.equal(result.fallback, true);
+  });
+
   describe("model and config resolution", () => {
     test("resolveConductorModel returns model when present in config", () => {
       const result = resolveConductorModel({ version: 1, models: { conductor: "gpt-5" } });

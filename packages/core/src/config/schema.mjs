@@ -40,6 +40,7 @@ const AutonomyConfig = z.strictObject({
 
 const PersonaEntry = z.strictObject({
   persona: z.string().min(1),
+  prompt: z.string().min(1).describe("Short focused instruction for the reviewer agent — what to look for and how to judge this angle"),
   defaultModel: z.string().trim().min(1).nullable().default(null),
 });
 
