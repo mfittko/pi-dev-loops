@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test, { describe } from "node:test";
 
 import {
@@ -894,10 +895,33 @@ describe("role resolution", () => {
     assert.equal(result.fallback, false);
   });
 
-  test("R12: all 12 known angles resolve without fallback", () => {
-    for (const angle of ["scope", "coverage", "correctness", "dry", "kiss", "srp", "ocp", "lsp", "isp", "dip", "soc", "yagni"]) {
+  test("R11b: known opt-in docs angle resolves to docs persona", () => {
+    const result = resolveReviewerRole({}, "docs");
+    assert.equal(result.persona, "docs");
+    assert.equal(result.model, null);
+    assert.equal(result.fallback, false);
+  });
+
+  test("R12: all 13 known angles resolve without fallback", () => {
+    const expectedPersonas = {
+      scope: "review",
+      coverage: "review",
+      correctness: "review",
+      docs: "docs",
+      dry: "review",
+      kiss: "review",
+      srp: "review",
+      ocp: "review",
+      lsp: "review",
+      isp: "review",
+      dip: "review",
+      soc: "review",
+      yagni: "review",
+    };
+
+    for (const [angle, expectedPersona] of Object.entries(expectedPersonas)) {
       const result = resolveReviewerRole({}, angle);
-      assert.equal(result.persona, "review", `angle ${angle}`);
+      assert.equal(result.persona, expectedPersona, `angle ${angle}`);
       assert.equal(result.fallback, false, `angle ${angle}`);
     }
   });
@@ -1167,4 +1191,33 @@ describe("role resolution", () => {
     });
   });
 
+});
+
+describe("shipped defaults docs angle wiring", () => {
+  test("D1: shipped defaults keep docs opt-in and resolve the packaged docs persona prompt", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D1-"));
+    try {
+      const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+      const sourceDefaults = await readFile(path.join(repoRoot, ".pi", "dev-loop", "defaults.yaml"), "utf8");
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.yaml"), sourceDefaults);
+
+      const { loadDevLoopConfig } = await import("../src/config/loader.mjs");
+      const { resolveReviewerRole } = await import("../src/config/roles.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      const preApprovalAngles = resolveGateAngles(result.config, "preApproval");
+      const docsRole = resolveReviewerRole(result.config, "docs");
+
+      assert.deepEqual(result.errors, []);
+      assert.equal(result.config.personas.docs.persona, "docs");
+      assert.match(result.config.personas.docs.prompt, /Review documentation correctness/i);
+      assert.ok(!preApprovalAngles.includes("docs"), "docs must stay opt-in for pre-approval");
+      assert.equal(docsRole.persona, "docs");
+      assert.equal(docsRole.prompt, result.config.personas.docs.prompt);
+      assert.equal(docsRole.fallback, false);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
