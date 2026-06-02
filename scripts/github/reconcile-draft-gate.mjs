@@ -240,7 +240,7 @@ async function checkCiStatus({ repo, pr, headSha }, { env, ghCommand }) {
     "--json", "bucket,state,name,workflow",
   ], env);
 
-  if (result.code !== 0 && result.code !== 8) {
+  if (result.code !== 0 && result.code !== 1 && result.code !== 8) {
     throw new Error(
       `Failed to check PR #${pr} CI status: ${result.stderr.trim() || `exit code ${result.code}`}`
     );

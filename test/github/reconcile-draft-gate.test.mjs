@@ -167,10 +167,7 @@ test("reconcile-draft-gate fails closed when visible draft_gate evidence already
       },
     ]);
 
-    const result = await runNode([
-      "--repo", "owner/repo",
-      "--pr", "17",
-    ], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
@@ -201,16 +198,46 @@ test("reconcile-draft-gate blocks while CI is still pending", async () => {
       },
     ]);
 
-    const result = await runNode([
-      "--repo", "owner/repo",
-      "--pr", "17",
-    ], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
     const error = JSON.parse(result.stderr).error;
     assert.match(error, /CI is not green/i);
     assert.match(error, /pending/i);
+    assert.equal(await readGhCallCount(tempDir), 3);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reconcile-draft-gate treats failing gh pr checks JSON output as blocked even on exit code 1", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reconcile-draft-gate-failing-ci-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc123456789"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["pr", "checks", "17", "--repo", "owner/repo", "--json", "bucket,state,name,workflow"],
+        stdout: '[{"bucket":"fail","state":"FAILURE","name":"verify","workflow":"CI"}]\n',
+        exitCode: 1,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const error = JSON.parse(result.stderr).error;
+    assert.match(error, /CI is not green/i);
+    assert.match(error, /verify=fail/i);
     assert.equal(await readGhCallCount(tempDir), 3);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -236,10 +263,7 @@ test("reconcile-draft-gate blocks when no CI checks are reported", async () => {
       },
     ]);
 
-    const result = await runNode([
-      "--repo", "owner/repo",
-      "--pr", "17",
-    ], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
@@ -305,10 +329,7 @@ test("reconcile-draft-gate skips the draft conversion mutation when the PR is al
       },
     ]);
 
-    const result = await runNode([
-      "--repo", "owner/repo",
-      "--pr", "17",
-    ], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
@@ -387,10 +408,7 @@ test("reconcile-draft-gate marks the PR ready again if gate-comment upsert throw
       },
     ]);
 
-    const result = await runNode([
-      "--repo", "owner/repo",
-      "--pr", "17",
-    ], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
@@ -465,10 +483,7 @@ test("reconcile-draft-gate converts to draft, posts clean evidence, and marks re
       },
     ]);
 
-    const result = await runNode([
-      "--repo", "owner/repo",
-      "--pr", "17",
-    ], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
