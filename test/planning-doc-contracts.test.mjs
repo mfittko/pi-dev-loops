@@ -229,5 +229,8 @@ test("phase-truth docs agree that Phase 8 is active and Phase 7 is deferred", as
   assert.match(phase8, /\.pi\/dev-loop\/defaults\.yaml/i);
   assert.match(phase8, /\.pi\/dev-loop\/settings\.yaml/i);
   assert.match(phase8, /settings\.\*`?[^\n]*overrides\.\*`?[^\n]*defaults\.\*`?[^\n]*built-in defaults/i);
+  assert.match(phase8, /shipped-defaults vs repo-local-settings ownership/i);
+  assert.doesNotMatch(phase8, /durable-vs-session split/i);
+  assert.doesNotMatch(phase8, /session \(gitignored\) config/i);
   assert.doesNotMatch(phase8, /defaults\.json|overrides\.json/i);
 });

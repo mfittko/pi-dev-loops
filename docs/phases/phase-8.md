@@ -10,7 +10,7 @@ Phase 8 is the active durable phase on `main`. Phase 8 was pulled forward ahead 
 
 ## Objective
 
-Define a durable, inspectable configuration contract for `dev-loop` / routed workflow behavior so repo/operator defaults move from implicit prompt/skill/chat-memory seams into one canonical, validated configuration surface with clear precedence, fail-closed semantics, and a clean durable-vs-session split.
+Define a durable, inspectable configuration contract for `dev-loop` / routed workflow behavior so repo/operator defaults move from implicit prompt/skill/chat-memory seams into one canonical, validated configuration surface with clear precedence, fail-closed semantics, and explicit shipped-defaults vs repo-local-settings ownership.
 
 ## Why this phase exists now
 
@@ -35,7 +35,7 @@ Without a configuration contract, behavior drifts between runs, repo policy and 
 - define the canonical config surface and schema for dev-loop / routed workflow defaults
 - define the canonical home for workflow-policy contract definitions (`.pi/dev-loop/`)
 - define loader precedence for config files: built-in defaults → shipped defaults → repo-local settings (preferred `settings.*`, with legacy `overrides.*` fallback); higher-level per-run flags remain above this loader contract
-- split durable (committed) from session (gitignored) config
+- distinguish shipped defaults from repo-local settings and higher-level per-run overrides without inventing a second gitignored session-only layer
 - define validation with fail-closed behavior for unknown or contradictory config
 - support at minimum these config families:
   1. **Execution strategy** — local-first vs GitHub-first default, plus per-workflow overrides
