@@ -7,7 +7,7 @@ import {
   stat,
   test,
   USER_FACING_AGENT_SURFACE,
-} from "./imported-assets-helpers.mjs";
+} from "../imported-assets-helpers.mjs";
 
 async function readCopilotSkillSurface() {
   const [skill, operationsDoc, intakeDoc] = await Promise.all([

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
 
-const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta.url);
+const fromRepoRoot = (relativePath) => new URL(`../../${relativePath}`, import.meta.url);
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), 'utf8');
 
 test('designer review loop doc remains the canonical bounded UI review handoff contract and the stale template is gone', async () => {
