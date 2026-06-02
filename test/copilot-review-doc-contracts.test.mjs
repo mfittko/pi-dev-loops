@@ -198,13 +198,21 @@ test("public dev-loop agent is a thin executable entrypoint that defers to the p
   assert.match(skillContent, /public `dev-loop` façade/i);
 });
 
-test("tracker-first MVP state graph symlinks to canonical tracker story-PR contract", async () => {
-  const content = await readRepo("docs/tracker-first-mvp-state-graph.md");
-  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+test("thin pointer docs symlink to canonical contract content", async () => {
+  const [trackerContent, conductorContent, ciContent, skillContent] = await Promise.all([
+    readRepo("docs/tracker-first-mvp-state-graph.md"),
+    readRepo("docs/outer-loop-state-graph.md"),
+    readRepo("docs/copilot-ci-status-contract.md"),
+    readRepo("skills/copilot-pr-followup/SKILL.md"),
+  ]);
 
-  // Symlink resolves to tracker-story-pr-contract.md content
-  assert.match(content, /Tracker-First Story-to-PR Contract/i);
-  assert.match(content, /MVP invariant: one tracker work item → one GitHub PR/i);
+  // Symlink reads resolve to each canonical target's content.
+  assert.match(trackerContent, /Tracker-First Story-to-PR Contract/i);
+  assert.match(trackerContent, /MVP invariant: one tracker work item → one GitHub PR/i);
+  assert.match(conductorContent, /Conductor Routing Contract/i);
+  assert.match(conductorContent, /conductor routing contract/i);
+  assert.match(ciContent, /Copilot PR CI\/check normalization contract/i);
+  assert.match(ciContent, /canonical bundled contract/i);
 
   assert.match(skillContent, /inherits[\s\S]*source-of-truth ownership[\s\S]*work item <-> PR link[\s\S]*reverse-sync semantics from\s*`#21`/i);
 });
