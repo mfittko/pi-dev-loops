@@ -350,7 +350,7 @@ The canonical gate-review comment contract is [Gate Review Comment Contract](../
   3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).
   4. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
   5. **Fix cycle:** apply only accepted must-fix changes on the same branch.
-  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the full chain (steps 1–4) on the new head before crossing the gate boundary.
+  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config enables all 14 draft gate angle families; consumer repos may opt out individual angles via `excludeAngles`. Do **not** apply angles from the other gate; each gate owns its own angle list from config.
 - **CI prerequisite:** resolve the draft gate config first (`resolveGateConfig(config, "draft")`). When `requireCi=true` (default), wait for green current-head CI before entering `draft_gate`. When `requireCi=false`, the draft gate may proceed without green CI. This draft-only override does **not** relax `pre_approval_gate`; final approval and merge readiness still require green current-head CI.
 - **Pass criteria:** all configured draft gate angles pass; all must-fix findings are addressed; validation passes; no unrelated files are included.
@@ -374,7 +374,7 @@ This is the default pre-approval gate for this workflow boundary. The canonical 
   3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).
   4. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
   5. **Fix cycle:** apply only accepted must-fix changes on the same branch.
-  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the full chain (steps 1–4) on the new head before crossing the gate boundary.
+  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
   7. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced `findings_present` in the previous pass.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config`. Default config enables all 11 pre-approval gate angle families; consumer repos may opt out individual angles via `excludeAngles`.
 - **Persona mapping:** each angle resolves to a reviewer persona via `resolveReviewerRole(config, angle)` from `@pi-dev-loops/core/config`. Include this prompt in each reviewer's briefing so the reviewer knows exactly what to look for.

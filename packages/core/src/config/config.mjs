@@ -601,10 +601,10 @@ export function resolveGateConfig(config, gate) {
   const gateConfig = config?.gates?.[gate];
   return {
     angles: gateConfig?.angles && Array.isArray(gateConfig.angles)
-      ? gateConfig.angles.map(a => (typeof a === 'string' ? a.trim() : '')).filter(a => a.length > 0)
+      ? gateConfig.angles.map(a => (typeof a === "string" ? a.trim() : "")).filter(a => a.length > 0)
       : null,
     excludeAngles: gateConfig?.excludeAngles && Array.isArray(gateConfig.excludeAngles)
-      ? gateConfig.excludeAngles.map(a => (typeof a === 'string' ? a.trim() : '')).filter(a => a.length > 0)
+      ? gateConfig.excludeAngles.map(a => (typeof a === "string" ? a.trim() : "")).filter(a => a.length > 0)
       : [],
     required: gateConfig?.required ?? true,
     requireCi: gateConfig?.requireCi ?? true,

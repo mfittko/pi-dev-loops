@@ -416,7 +416,7 @@ After the phase plan passes review:
   3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).
   4. **Post findings first:** document findings before any fix code is applied.
   5. **Fix cycle:** apply only accepted must-fix changes on the same branch.
-  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the full chain (steps 1–4) on the new head before calling the phase review-complete or approval-ready.
+  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → document findings) on the new head before calling the phase review-complete or approval-ready. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
   7. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced findings in the previous pass
    - do not fork the parent session for parallel reviewers; if more context is needed, write a compact handoff artifact under `tmp/` and point the reviewer at it
    - when reviewer subagents stumble on raw source-tree reads (for example unresolved build artifacts or import assumptions), generate a deterministic diff/review artifact under `tmp/` and have reviewers inspect that artifact instead of the raw file set
