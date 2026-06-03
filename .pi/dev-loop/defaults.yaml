@@ -23,31 +23,31 @@ refinement:
 gates:
   draft:
     # Draft gate: runs before marking PR ready for review.
-    # Default angles: scope, coverage, correctness, ci-guard, contract-surface.
-    # `contract-surface` covers public schema/runtime/doc drift plus CLI help/stdout/stderr contract drift.
-    # Opt-in angles (uncomment to add based on touched surface):
-    #   - link-check           # Markdown links, anchors, doc paths, placeholder URLs
-    #   - config-drift         # Config/schema/docs/runtime disagreement
-    #   - gate-evidence        # Missing or stale gate-review PR evidence
-    #   - no-op                # Tool calls/commands whose effects are discarded
-    #   - input-validation     # CLI/API argument parsing, identifiers, sentinels
-    #   - packaging-runtime    # Installers, runtime bundles, copied assets
-    #   - state-concurrency    # State files, locks, polling/process cleanup
-    #   - renderer-security    # HTML/attribute/URL escaping and user content
-    #   - determinism          # Ordering, tie-breakers, stubs, env/time dependence
+    # All angle families enabled by default.
+    # Opt out of individual angles via `excludeAngles`.
     angles:
       - scope
       - coverage
       - correctness
       - ci-guard
       - contract-surface
+      - link-check
+      - config-drift
+      - gate-evidence
+      - no-op
+      - input-validation
+      - packaging-runtime
+      - state-concurrency
+      - renderer-security
+      - determinism
+    excludeAngles: []
     required: true
     # When true, draft gate waits for green CI before the gate may run.
     requireCi: true
   preApproval:
     # Pre-approval gate: runs before declaring merge-ready.
-    # Additional opt-in angles available (see personas section):
-    #   ocp, lsp, isp, dip, docs
+    # All angle families enabled by default.
+    # Opt out of individual angles via `excludeAngles`.
     angles:
       - dry
       - kiss
@@ -55,6 +55,12 @@ gates:
       - srp
       - soc
       - deep
+      - ocp
+      - lsp
+      - isp
+      - dip
+      - docs
+    excludeAngles: []
     required: true
 
 # Autonomy: which gates require operator confirmation (stop points)
