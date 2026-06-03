@@ -337,7 +337,7 @@ test("public dev-loop agent is a thin executable entrypoint that defers to the p
   assert.match(agentContent, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
   assert.match(skillContent, /public `dev-loop` façade/i);
 });
-test("thin pointer docs symlink to canonical contract content", async () => {
+test("thin pointer docs reference canonical contract content", async () => {
   const [trackerPointer, trackerCanonical, conductorContent, ciContent, skillContent] = await Promise.all([
     readRepo("docs/tracker-first-mvp-state-graph.md"),
     readRepo("skills/docs/tracker-first-loop-state.md"),

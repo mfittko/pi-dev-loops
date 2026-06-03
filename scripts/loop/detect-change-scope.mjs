@@ -14,8 +14,7 @@
  *     "threshold": { "maxFiles": 3, "maxLines": 200 }
  *   }
  *
- * When --base/--head not given, defaults to git diff against HEAD~1
- * (for committed scope) or git diff HEAD (for working tree).
+ * When --base/--head not given, defaults to HEAD~1..HEAD (committed scope).
  *
  * `eligibleForLightMode` is only computed when light mode is enabled in config
  * and config loading has no validation errors (fail-closed).
@@ -34,6 +33,35 @@ function parseArgs() {
   return opts;
 }
 
+/**
+ * Parse `git diff --stat` output into { filesChanged, linesChanged }.
+ * Exported as a pure function for testability.
+ *
+ * @param {string} output - Raw stdout from `git diff --stat`
+ * @returns {{ filesChanged: number, linesChanged: number }}
+ */
+export function parseGitDiffStat(output) {
+  const trimmed = output.trim();
+  if (trimmed.length === 0) {
+    return { filesChanged: 0, linesChanged: 0 };
+  }
+
+  const lines = trimmed.split("\n");
+  // Last line is the summary: "N files changed, M insertions(+), K deletions(-)"
+  const summaryLine = lines[lines.length - 1];
+  const fileCount = lines.length - 1;
+
+  let insertions = 0;
+  let deletions = 0;
+  // Summary may be absent for binary-only diffs or zero-change diffs
+  const insMatch = summaryLine.match(/(\d+)\s+insertion/);
+  const delMatch = summaryLine.match(/(\d+)\s+deletion/);
+  if (insMatch) insertions = parseInt(insMatch[1], 10);
+  if (delMatch) deletions = parseInt(delMatch[1], 10);
+
+  return { filesChanged: fileCount, linesChanged: insertions + deletions };
+}
+
 function detectScope({ base, head } = {}) {
   let diffArgs = ["diff", "--stat"];
   if (base && head) {
@@ -41,7 +69,7 @@ function detectScope({ base, head } = {}) {
   } else if (base) {
     diffArgs.push(base);
   } else {
-    diffArgs.push("HEAD~1");
+    diffArgs.push("HEAD~1..HEAD");
   }
 
   let output;
@@ -51,23 +79,8 @@ function detectScope({ base, head } = {}) {
     return { ok: true, filesChanged: 0, linesChanged: 0 };
   }
 
-  const lines = output.trim().split("\n");
-  // Last line of git diff --stat is the summary line: "N files changed, M insertions(+), K deletions(-)"
-  const summaryLine = lines[lines.length - 1];
-  const fileCount = lines.length - 1; // all lines except the summary
-
-  let insertions = 0;
-  let deletions = 0;
-  const insMatch = summaryLine.match(/(\d+)\s+insertion/);
-  const delMatch = summaryLine.match(/(\d+)\s+deletion/);
-  if (insMatch) insertions = parseInt(insMatch[1], 10);
-  if (delMatch) deletions = parseInt(delMatch[1], 10);
-
-  return {
-    ok: true,
-    filesChanged: fileCount,
-    linesChanged: insertions + deletions,
-  };
+  const parsed = parseGitDiffStat(output);
+  return { ok: true, ...parsed };
 }
 
 function isEligibleForLightMode(scope, threshold) {
@@ -108,10 +121,6 @@ async function main() {
       threshold,
     }) + "\n"
   );
-
-  if (!eligible && opts.base && opts.head) {
-    process.exitCode = 0; // not an error, just not eligible
-  }
 }
 
 const isDirectRun =

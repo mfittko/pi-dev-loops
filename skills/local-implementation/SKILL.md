@@ -85,9 +85,9 @@ When the local spec already lives in a tracker issue:
 
 Apply [Structural Quality](../docs/structural-quality.md) from the `deep` review angle.
 
-## Light mode (small changes)
+## Light mode (small changes) — config-only
 
-When scope is small enough, skip fan-out/fan-in and use a single review pass instead. Light mode still requires validation and pre-approval gate.
+Light mode is currently **config-only**: the schema, resolver, and scope detector are implemented, but no functional wiring exists yet in the local-implementation flow. When scope is small enough, the intent is to skip fan-out/fan-in and use a single review pass instead. Light mode will still require validation and pre-approval gate once wired.
 
 **Eligibility:** ≤3 files AND ≤200 lines changed (configurable via `.pi/dev-loop/settings.yaml` `localImplementation.lightMode`).
 
@@ -96,7 +96,7 @@ Use `scripts/loop/detect-change-scope.mjs` to determine eligibility:
 node scripts/loop/detect-change-scope.mjs
 ```
 
-**Light mode path:**
+**Planned light mode path (not yet wired):**
 1. Validation (`npm run verify`)
 2. Single review pass (not multi-angle fan-out)
 3. Pre-approval gate

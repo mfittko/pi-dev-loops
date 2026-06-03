@@ -9,6 +9,8 @@
  *   { ok, state, snapshot, allowedTransitions, nextAction }
  *
  * Unknown/ambiguous tracker state emits `needs_triage` (fail-closed).
+ * Command failures (gh not found, auth missing, network error, etc.)
+ * emit `ok: false` instead of silently fabricating a valid-looking result.
  */
 import process from "node:process";
 import { execFileSync } from "node:child_process";
@@ -56,8 +58,15 @@ async function main() {
     } catch {
       // No linked PR — that's fine
     }
-  } catch {
-    // Leave rawState empty so the interpreter fail-closes to needs_triage
+  } catch (err) {
+    // Command failure (gh not found, auth missing, network, etc.) — fail closed.
+    // Do not fabricate a valid-looking ok:true result.
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(
+      JSON.stringify({ ok: false, error: `gh command failed: ${message}` }) + "\n"
+    );
+    process.exitCode = 1;
+    return;
   }
 
   const result = interpretTrackerLoopState({ trackerState: rawState, prContext });

@@ -627,18 +627,6 @@ export function resolveGateConfig(config, gate) {
 }
 
 /**
- * Resolve review angles for a specific gate from the merged dev-loop config.
- *
- * Returns the configured angle names for the given gate, or null when the
- * config does not specify angles for that gate (caller falls back to its
- * skill-defined defaults).
- *
- * @param {DevLoopConfig} config
- * @param {"draft"|"preApproval"} gate
- * @returns {string[]|null}
- */
-
-/**
  * Resolve local implementation light mode config.
  *
  * Returns null when light mode is disabled (config absent or enabled=false).
@@ -650,9 +638,27 @@ export function resolveGateConfig(config, gate) {
 export function resolveLightMode(config) {
   const cfg = config?.localImplementation?.lightMode;
   if (!cfg || cfg.enabled === false) return null;
-  return { maxFiles: cfg.maxFiles, maxLines: cfg.maxLines };
+  return {
+    maxFiles: typeof cfg.maxFiles === "number" && Number.isFinite(cfg.maxFiles) && cfg.maxFiles > 0
+      ? cfg.maxFiles
+      : 3,
+    maxLines: typeof cfg.maxLines === "number" && Number.isFinite(cfg.maxLines) && cfg.maxLines > 0
+      ? cfg.maxLines
+      : 200,
+  };
 }
 
+/**
+ * Resolve review angles for a specific gate from the merged dev-loop config.
+ *
+ * Returns the configured angle names for the given gate, or null when the
+ * config does not specify angles for that gate (caller falls back to its
+ * skill-defined defaults).
+ *
+ * @param {DevLoopConfig} config
+ * @param {"draft"|"preApproval"} gate
+ * @returns {string[]|null}
+ */
 export function resolveGateAngles(config, gate) {
   const gateConfig = resolveGateConfig(config, gate);
   if (gateConfig.angles === null) return null;
