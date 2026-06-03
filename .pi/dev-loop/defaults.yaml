@@ -29,8 +29,8 @@ gates:
     requireCi: true
   preApproval:
     # Pre-approval gate: runs before declaring merge-ready.
-    # Additional SOLID angles available as opt-in (see personas section):
-    #   ocp, lsp, isp, dip, docs
+    # Additional opt-in angles available (see personas section):
+    #   ocp, lsp, isp, dip, docs, deep
     angles:
       - dry
       - kiss
@@ -110,6 +110,42 @@ personas:
       When the repo provides `scripts/docs/validate-links.mjs`, use it for the
       mechanical link pass; otherwise keep the review scoped to the touched doc
       surface and current change only.
+    defaultModel: null
+
+  deep:
+    persona: review
+    prompt: >-
+      Perform a structural code quality audit of this PR.
+
+      Bring the same rigor as a full-codebase deslop audit, scoped to this
+      change:
+      - Question whether every new file, export, layer, or abstraction is
+        genuinely necessary. Prefer deletion over addition.
+      - Flag files crossing 1000 lines without strong justification.
+      - Flag new conditionals bolted onto unrelated paths. Push logic into its
+        own boundary instead of scattering special cases.
+      - Flag thin wrappers, re-export-only files, and identity abstractions
+        that add indirection without buying clarity.
+      - Flag feature logic leaking into shared or general-purpose modules.
+      - Question cast-heavy, optionality-heavy, or any-typed contracts that
+        obscure the real invariant.
+
+      Be ambitious about simplification:
+      - Look for "code judo" moves: restructurings that preserve behavior while
+        deleting whole categories of complexity.
+      - Prefer the simpler model. If the change adds moving parts, ask whether
+        fewer would achieve the same result.
+
+      Do not rubber-stamp working-but-messier code.
+      Approval bar:
+      - no structural regression
+      - no missed simplification opportunity
+      - no unjustified file-size explosion
+      - no spaghetti branching growth
+      - no unnecessary abstraction or indirection
+
+      This persona complements full-repo deslop audits: same rigor,
+      applied per-PR.
     defaultModel: null
 
   dry:

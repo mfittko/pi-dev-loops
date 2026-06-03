@@ -1116,12 +1116,20 @@ describe("role resolution", () => {
     assert.equal(result.fallback, false);
   });
 
-  test("R12: all 13 known angles resolve without fallback", () => {
+  test("R11c: known opt-in deep angle resolves to review persona", () => {
+    const result = resolveReviewerRole({}, "deep");
+    assert.equal(result.persona, "review");
+    assert.equal(result.model, null);
+    assert.equal(result.fallback, false);
+  });
+
+  test("R12: all 14 known angles resolve without fallback", () => {
     const expectedPersonas = {
       scope: "review",
       coverage: "review",
       correctness: "review",
       docs: "docs",
+      deep: "review",
       dry: "review",
       kiss: "review",
       srp: "review",
@@ -1462,8 +1470,8 @@ describe("role resolution", () => {
 
 });
 
-describe("shipped defaults docs angle wiring", () => {
-  test("D1: shipped defaults keep docs opt-in and resolve the packaged docs persona prompt", async () => {
+describe("shipped defaults docs and deep angle wiring", () => {
+  test("D1: shipped defaults keep docs and deep opt-in and resolve the packaged persona prompts", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D1-"));
     try {
       const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
@@ -1477,14 +1485,22 @@ describe("shipped defaults docs angle wiring", () => {
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       const preApprovalAngles = resolveGateAngles(result.config, "preApproval");
       const docsRole = resolveReviewerRole(result.config, "docs");
+      const deepRole = resolveReviewerRole(result.config, "deep");
 
       assert.deepEqual(result.errors, []);
       assert.equal(result.config.personas.docs.persona, "docs");
       assert.match(result.config.personas.docs.prompt, /Review documentation correctness/i);
+      assert.equal(result.config.personas.deep.persona, "review");
+      assert.match(result.config.personas.deep.prompt, /Perform a structural code quality audit of this PR/i);
+      assert.match(result.config.personas.deep.prompt, /deslop audit/i);
       assert.ok(!preApprovalAngles.includes("docs"), "docs must stay opt-in for pre-approval");
+      assert.ok(!preApprovalAngles.includes("deep"), "deep must stay opt-in for pre-approval");
       assert.equal(docsRole.persona, "docs");
       assert.equal(docsRole.prompt, result.config.personas.docs.prompt);
       assert.equal(docsRole.fallback, false);
+      assert.equal(deepRole.persona, "review");
+      assert.equal(deepRole.prompt, result.config.personas.deep.prompt);
+      assert.equal(deepRole.fallback, false);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
