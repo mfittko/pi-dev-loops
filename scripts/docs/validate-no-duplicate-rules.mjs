@@ -79,8 +79,13 @@ export async function* collectMarkdownFiles(dir, repoRoot = REPO_ROOT) {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return;
+  } catch (err) {
+    // Ignore ENOENT (missing directory) silently; other errors must fail loudly
+    // so the CI guardrail doesn't silently pass with 0 files scanned.
+    if (err?.code === "ENOENT") {
+      return;
+    }
+    throw err;
   }
 
   for (const entry of entries) {
