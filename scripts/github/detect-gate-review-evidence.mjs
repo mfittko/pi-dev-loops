@@ -219,7 +219,7 @@ function normalizeGateMarkerSummary(summary) {
   };
 }
 
-function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null) {
+export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null) {
   const failures = [];
 
   if (!(evidence.draftGate.visible && evidence.draftGate.verdict === "clean")) {
@@ -239,7 +239,7 @@ function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null) {
   // #443: verify zero unresolved review threads before pre-merge gate passes
   if (typeof unresolvedThreadCount === "number" && unresolvedThreadCount !== 0) {
     if (unresolvedThreadCount === -1) {
-      failures.push("unresolved review thread check failed (could not fetch threads); must resolve before merge");
+      failures.push("could not fetch review thread state from GitHub API; re-run gate evidence check when API connectivity is restored");
     } else {
       failures.push(`unresolved review threads present (${unresolvedThreadCount}); must resolve all threads before merge`);
     }

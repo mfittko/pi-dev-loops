@@ -14,6 +14,7 @@ import {
 } from "../../scripts/_core-helpers.mjs";
 import {
   parseDetectGateReviewEvidenceCliArgs,
+  buildPreMergeGateCheck,
 } from "../../scripts/github/detect-gate-review-evidence.mjs";
 
 const scriptPath = path.resolve("scripts/github/detect-gate-review-evidence.mjs");
@@ -243,11 +244,6 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
           },
         ])}\n`,
       },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
-`,
-      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -347,11 +343,6 @@ test("detect-gate-review-evidence fails pre-merge check when only draft gate exi
           ],
         ])}\n`,
       },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
-`,
-      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -393,11 +384,6 @@ test("detect-gate-review-evidence fails pre-merge check when only partial draft 
           },
         ])}\n`,
       },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
-`,
-      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -429,11 +415,6 @@ test("detect-gate-review-evidence always fails before merge when gate comments a
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
         stdout: "[]\n",
-      },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
-`,
       },
     ]);
 
@@ -491,11 +472,6 @@ test("detect-gate-review-evidence always passes pre-merge check with clean draft
           },
         ])}\n`,
       },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
-`,
-      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -547,11 +523,6 @@ test("detect-gate-review-evidence fails pre-merge check when pre-approval gate i
           },
         ])}\n`,
       },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
-`,
-      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -579,11 +550,6 @@ test("detect-gate-review-evidence reports gh failures deterministically", async 
         stderr: "boom\n",
         exitCode: 1,
       },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
-`,
-      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -594,4 +560,44 @@ test("detect-gate-review-evidence reports gh failures deterministically", async 
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("buildPreMergeGateCheck fails with non-zero unresolved thread count", () => {
+  const evidence = {
+    currentHeadSha: "abc1234",
+    draftGate: { visible: true, verdict: "clean" },
+    preApprovalGateMarker: { visible: true, contractComplete: true, verdict: "clean", headSha: "abc1234" },
+  };
+
+  const result = buildPreMergeGateCheck(evidence, 3);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.failures, [
+    "unresolved review threads present (3); must resolve all threads before merge",
+  ]);
+});
+
+test("buildPreMergeGateCheck fails with sentinel -1 (API fetch failure)", () => {
+  const evidence = {
+    currentHeadSha: "abc1234",
+    draftGate: { visible: true, verdict: "clean" },
+    preApprovalGateMarker: { visible: true, contractComplete: true, verdict: "clean", headSha: "abc1234" },
+  };
+
+  const result = buildPreMergeGateCheck(evidence, -1);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.failures, [
+    "could not fetch review thread state from GitHub API; re-run gate evidence check when API connectivity is restored",
+  ]);
+});
+
+test("buildPreMergeGateCheck passes with zero unresolved threads", () => {
+  const evidence = {
+    currentHeadSha: "abc1234",
+    draftGate: { visible: true, verdict: "clean" },
+    preApprovalGateMarker: { visible: true, contractComplete: true, verdict: "clean", headSha: "abc1234" },
+  };
+
+  const result = buildPreMergeGateCheck(evidence, 0);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.failures, []);
 });
