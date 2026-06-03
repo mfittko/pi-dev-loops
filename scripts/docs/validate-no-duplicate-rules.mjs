@@ -231,8 +231,7 @@ async function main(argv = process.argv.slice(2)) {
 }
 
 // Only run main() when executed directly, not when imported for testing.
-const isDirect = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
-if (isDirect) {
+if (isDirectCliRun(import.meta.url)) {
   const exitCode = await main();
   process.exitCode = exitCode;
 }
