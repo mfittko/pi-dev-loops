@@ -58,6 +58,7 @@ const KNOWN_INTENTIONAL_DUPLICATES = new Set([
   "5. **Fix cycle:** apply only accepted must-fix changes on the same branch.",
   "- remains a stop/fix state, never a wait loop",
   "Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope.",
+  "Each reviewer starts in fresh context (subagent({context:\"fresh\"}) mandatory), inspects the diff, returns findings via output artifacts only, and never edits files. **Before starting:** run to self-verify fresh context; refuse to proceed on contamination.",
 ]);
 
 const IMPERATIVE_PATTERNS = [
