@@ -454,7 +454,6 @@ function createRunRecord(runId, childIndex = 0) {
     resultPath: null,
     resultSummaryPath: null,
     resultSummaryText: null,
-    outputArtifactMissing: false,
     timestampMs: null,
     evidence: {},
   };
