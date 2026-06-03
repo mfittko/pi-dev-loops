@@ -71,7 +71,7 @@ Key behavior:
 - `--model` is required; no default model is inferred.
 - API key comes from `--api-key`, `LLM_API_KEY`, or provider-specific `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`.
 - `--base-url` may point OpenAI-compatible or Anthropic requests at another valid `http(s)` endpoint.
-- Default input is `tmp/investigation/uncategorized-comments.json`; if absent, the script falls back to `tmp/investigation/copilot-comment-summary.json` and filters `primaryCategoryId === null`.
+- Default input is `<output-dir>/uncategorized-comments.json`; if absent, the script falls back to `<output-dir>/copilot-comment-summary.json` and filters `primaryCategoryId === null`. With the default output dir, those paths are under `tmp/investigation`.
 - Default prompt mode sends `excerpt`; `--use-full-body` sends full `body`.
 - Deduplication by comment body/excerpt is on by default; `--no-dedup` disables it.
 - 429/5xx LLM responses retry with exponential backoff. Malformed LLM JSON retries once with stricter JSON-only instructions.

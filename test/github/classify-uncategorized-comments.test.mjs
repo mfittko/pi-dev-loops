@@ -71,6 +71,29 @@ test("buildClassificationPrompt uses excerpts by default and full bodies when re
   assert.match(excerptPrompt.system, /existing categories/i);
 });
 
+test("validateLlmPayload uses unique fallback names for unnamed clusters", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-classify-unnamed-"));
+
+  try {
+    const input = path.join(tempDir, "uncategorized-comments.json");
+    await writeJson(input, comments.slice(0, 1));
+
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ choices: [{ message: { content: JSON.stringify(responseBody([
+        { name: "", frequency: 1, examples: [] },
+        { frequency: 1, examples: [] },
+      ])) } }] }),
+    });
+
+    const result = await classifyUncategorizedComments({ input, outputDir: path.join(tempDir, "out"), model: "gpt-test", apiKey: "key", provider: "openai-compatible" }, { fetchImpl });
+    assert.deepEqual(result.clusters.map((cluster) => cluster.name), ["unnamed-cluster-1", "unnamed-cluster-2"]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("classifyUncategorizedComments reads input, retries malformed JSON once, and writes JSON and Markdown", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-classify-uncategorized-"));
 

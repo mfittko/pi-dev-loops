@@ -44,8 +44,8 @@ Optional:
   --provider <provider>     openai-compatible (default) or anthropic
   --api-key <key>           LLM API key. Falls back to LLM_API_KEY, then provider-specific env.
   --base-url <url>          Provider base URL (defaults to OpenAI/Anthropic public API)
-  --input <path>            Input JSON. Defaults to tmp/investigation/uncategorized-comments.json,
-                            then falls back to tmp/investigation/copilot-comment-summary.json
+  --input <path>            Input JSON. Defaults to <output-dir>/uncategorized-comments.json,
+                            then falls back to <output-dir>/copilot-comment-summary.json
   --output-dir <path>       Output directory (default: tmp/investigation)
   --use-full-body           Send full comment bodies instead of excerpts
   --no-dedup                Disable default body/excerpt deduplication
@@ -328,9 +328,13 @@ function validateLlmPayload(payload) {
     throw new Error("LLM JSON must include clusters[]");
   }
   return {
-    clusters: payload.clusters.map((cluster) => ({
-      name: typeof cluster?.name === "string" ? cluster.name : "unnamed-cluster",
-      label: typeof cluster?.label === "string" ? cluster.label : String(cluster?.name ?? "Unnamed cluster"),
+    clusters: payload.clusters.map((cluster, index) => {
+      const normalizedName = typeof cluster?.name === "string" && cluster.name.trim().length > 0
+        ? cluster.name.trim()
+        : `unnamed-cluster-${index + 1}`;
+      return {
+      name: normalizedName,
+      label: typeof cluster?.label === "string" && cluster.label.trim().length > 0 ? cluster.label.trim() : normalizedName,
       description: typeof cluster?.description === "string" ? cluster.description : "",
       frequency: Number.isInteger(cluster?.frequency) ? cluster.frequency : 0,
       priority: ["high", "medium", "low"].includes(cluster?.priority) ? cluster.priority : "low",
@@ -341,7 +345,8 @@ function validateLlmPayload(payload) {
         path: typeof example?.path === "string" ? example.path : null,
         excerpt: typeof example?.excerpt === "string" ? example.excerpt : "",
       })) : [],
-    })),
+    };
+    }),
     unclustered: {
       frequency: Number.isInteger(payload?.unclustered?.frequency) ? payload.unclustered.frequency : 0,
       examples: Array.isArray(payload?.unclustered?.examples) ? payload.unclustered.examples : [],
