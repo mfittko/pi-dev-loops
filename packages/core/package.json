@@ -23,12 +23,14 @@
     "./loop/timeout-policy": "./src/loop/timeout-policy.mjs",
     "./loop/tracker-pr-state": "./src/loop/tracker-pr-state.mjs",
     "./debt/signal": "./src/debt/debt-signal.mjs",
-    "./debt/finding": "./src/debt/debt-finding.mjs"
+    "./debt/finding": "./src/debt/debt-finding.mjs",
+    "./debt/signals": "./src/debt/deep-persona-signals.mjs"
   },
   "bin": {
     "pi-dev-loops-log-bash-exit-1": "./bin/log-bash-exit-1.mjs",
     "pi-dev-loops-ensure-phase-files": "./bin/ensure-phase-files.mjs",
-    "pi-dev-loops-parse-review-threads": "./bin/parse-review-threads.mjs"
+    "pi-dev-loops-parse-review-threads": "./bin/parse-review-threads.mjs",
+    "pi-dev-loops-capture-deep-persona-signals": "./bin/capture-deep-persona-signals.mjs"
   },
   "scripts": {
     "test": "node --test ./test/*.test.mjs"
