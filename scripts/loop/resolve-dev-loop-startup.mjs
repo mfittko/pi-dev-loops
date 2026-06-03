@@ -185,27 +185,40 @@ export function summarizeCanonicalState(bundle) {
  * @param {Record<string,string|undefined>} [options.env] — for async-start check
  * @returns {{ ok: true, ... } | { ok: false, error: string, asyncStartContract: "rejected" }}
  */
-export function buildResolveDevLoopStartupResult(input, { env = process.env, config = null } = {}) {
-  // #462: Auto-read retrospective checkpoint state when caller omitted it.
-  // This prevents callers from silently bypassing the retrospective gate.
-  if (!input.retrospectiveCheckpointState) {
-    try {
-      const checkpointText = readFileSync(
-        path.join(process.cwd(), ".pi", "dev-loop-retrospective-checkpoint.json"),
-        "utf8",
-      );
-      const checkpoint = JSON.parse(checkpointText);
-      const rawState = checkpoint?.state;
-      // Normalize to match the known RETROSPECTIVE_CHECKPOINT_STATE values
-      // accepted by the core router: "none", "complete", "skipped", "missing".
-      const VALID_STATES = new Set(["none", "complete", "skipped", "missing"]);
-      const state = (typeof rawState === "string" && VALID_STATES.has(rawState.trim().toLowerCase()))
-        ? rawState.trim().toLowerCase()
-        : null;
-      input = { ...input, retrospectiveCheckpointState: state };
-    } catch {
-      // No checkpoint file or unreadable — pass through.
+export function buildResolveDevLoopStartupResult(input, { env = process.env, config = null, cwd = process.cwd() } = {}) {
+  // #462: Always read the retrospective checkpoint file. When the durable
+  // artifact says the retrospective is required, override the caller-provided
+  // value to prevent bypass. Also maps the durable-artifact "required" state
+  // to the core router's "missing" checkpoint state.
+  try {
+    const checkpointText = readFileSync(
+      path.join(cwd, ".pi", "dev-loop-retrospective-checkpoint.json"),
+      "utf8",
+    );
+    const checkpoint = JSON.parse(checkpointText);
+    const rawState = checkpoint?.state;
+
+    // Map durable-artifact states to core-router RETROSPECTIVE_CHECKPOINT_STATE values.
+    const DURABLE_STATE_MAP = {
+      none: "none",
+      complete: "complete",
+      skipped: "skipped",
+      missing: "missing",
+      required: "missing",  // durable artifact uses "required" to mean pending retrospective
+    };
+
+    const normalizedRaw = typeof rawState === "string" ? rawState.trim().toLowerCase() : null;
+    const mappedState = DURABLE_STATE_MAP[normalizedRaw] ?? null;
+
+    if (mappedState) {
+      // Always apply the on-disk state. This prevents callers from bypassing
+      // the gate by supplying a value like "complete" when the durable
+      // artifact says the retrospective is still required.
+      input = { ...input, retrospectiveCheckpointState: mappedState };
     }
+  } catch {
+    // No checkpoint file or unreadable — pass through with whatever the
+    // caller provided (or undefined).
   }
 
   const bundle = resolveAuthoritativeStartupResumeBundle(input);

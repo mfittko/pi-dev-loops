@@ -251,6 +251,84 @@ test("buildResolveDevLoopStartupResult passes through when no checkpoint file ex
   }
 });
 
+
+
+test("buildResolveDevLoopStartupResult maps durable-artifact 'required' to checkpoint state 'missing'", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "required" }),
+      "utf8",
+    );
+
+    // Use the programmatic API with env bypass to test the state mapping
+    // without triggering async-start rejection.
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_branch", branch: "feature/local-route" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "needs_confirmation",
+        },
+        artifactState: "not_applicable",
+        loopState: "active",
+      },
+      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+    );
+
+    // The resolver auto-reads the checkpoint file and maps "required" → "missing".
+    // A missing retrospective checkpoint causes the resolver to return needs_reconcile
+    // regardless of the route type — the retrospective must be completed first.
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "needs_reconcile");
+    assert.equal(result.selectedStrategy, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildResolveDevLoopStartupResult overrides caller-provided state with on-disk 'required'", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "required" }),
+      "utf8",
+    );
+
+    // Caller tries to provide "complete" — should be overridden by on-disk "required".
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_branch", branch: "feature/local-route" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "needs_confirmation",
+        },
+        artifactState: "not_applicable",
+        loopState: "active",
+        retrospectiveCheckpointState: "complete",
+      },
+      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+    );
+
+    // On-disk "required" overrides caller-provided "complete". The resolver
+    // returns needs_reconcile because the retrospective is still pending.
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "needs_reconcile");
+    assert.equal(result.selectedStrategy, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 test("buildResolveDevLoopStartupResult rejects async-required strategy without PI_SUBAGENT_RUN_ID", () => {
   const result = buildResolveDevLoopStartupResult(
     {

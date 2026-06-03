@@ -46,7 +46,7 @@ The resolver wraps `resolveAuthoritativeStartupResumeBundle` and returns:
 
 If the resolver reports `selectedStrategy: none` / reconcile, stop and reconcile the authoritative startup state before loading any route pack.
 
-**Retrospective checkpoint gate (#462):** the resolver auto-reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and `requireRetrospective: true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
+**Retrospective checkpoint gate (#462):** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
 
 ## Route table
 
