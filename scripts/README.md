@@ -65,6 +65,25 @@ Failure behavior:
 - malformed arguments, invalid JSON, and `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - live capture is only allowed when both `--repo` and `--pr` are present
 
+### `scripts/github/create-draft-pr.mjs`
+
+Thin wrapper around `gh pr create` for draft-first PR creation.
+
+Usage:
+- `node scripts/github/create-draft-pr.mjs [gh pr create args...]`
+- `node <resolved-skill-scripts>/github/create-draft-pr.mjs [gh pr create args...]`
+
+Contract:
+- injects exactly one `--draft` when the caller did not already supply it
+- rejects `--ready` before invoking `gh`; use `gh pr ready` later after draft-gate approval
+- forwards every other argument to `gh pr create` unchanged and in order
+- preserves the underlying `gh pr create` stdout, stderr, and exit code without wrapping success output
+- stays intentionally narrow: this is the prevention layer for draft-first creation, while `scripts/github/reconcile-draft-gate.mjs` remains the separate recovery path for already-open non-draft PRs
+
+Failure behavior:
+- wrapper-owned validation failures emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- when `gh pr create` itself exits non-zero, this wrapper preserves the original stdout/stderr and propagates the same exit code
+
 ### `scripts/github/request-copilot-review.mjs`
 
 Request Copilot review on a PR and verify the request deterministically.

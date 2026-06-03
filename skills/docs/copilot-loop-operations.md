@@ -166,9 +166,9 @@ Follow the PR description contract (see [Agent Instructions](../../AGENTS.md) if
 
 New PRs in this workflow must be opened as **draft** PRs first when the repository enables `.pi/dev-loop/settings.yaml` `workflow.requireDraftFirst`. The built-in shipped default remains permissive; this repo opts in. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate review is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is even eligible.
 
-Only use `gh pr create` when authoritative issue↔PR resolution says there is no already-open linked PR. If a PR already exists, reuse/update that canonical PR instead of opening another one.
+Only use `node <resolved-skill-scripts>/github/create-draft-pr.mjs` when authoritative issue↔PR resolution says there is no already-open linked PR. If a PR already exists, reuse/update that canonical PR instead of opening another one. This wrapper preserves the underlying `gh pr create` output contract while enforcing draft-first mechanically.
 
-MUST use `gh pr create --draft --repo <owner/name> --assignee @me --base <base> --head <head> --title "..." --body-file <body-file>`.
+MUST use `node <resolved-skill-scripts>/github/create-draft-pr.mjs --repo <owner/name> --assignee @me --base <base> --head <head> --title "..." --body-file <body-file>`.
 
 ## Timeout and watch policy
 
