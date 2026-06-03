@@ -66,8 +66,6 @@ Output (stdout, JSON; always includes preMergeGateCheck):
     }
   }
 
-When --require-before-merge is omitted, the same evidence summary is emitted without preMergeGateCheck.
-
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
   { "ok": false, "error": "..." }

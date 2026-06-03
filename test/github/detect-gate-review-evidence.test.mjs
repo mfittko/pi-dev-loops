@@ -484,6 +484,60 @@ test("detect-gate-review-evidence always passes pre-merge check with clean draft
   }
 });
 
+test("detect-gate-review-evidence fails pre-merge check when pre-approval gate is for a stale head SHA", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-stale-head-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"feed99999999"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: `${JSON.stringify([
+          {
+            id: 80,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: abcdef12345",
+              "Verdict: clean",
+              "Findings summary: no issues found",
+              "Next action: mark ready for review",
+            ].join("\n"),
+            updated_at: "2026-05-29T21:00:00Z",
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-80",
+          },
+          {
+            id: 81,
+            body: [
+              "Gate review: pre_approval_gate",
+              "Reviewed head SHA: abcdef12345",
+              "Verdict: clean",
+              "Findings summary: no issues found",
+              "Next action: await final human approval",
+            ].join("\n"),
+            updated_at: "2026-05-29T22:00:00Z",
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-81",
+          },
+        ])}\n`,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 1);
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Pre-merge gate evidence check failed/i);
+    assert.deepEqual(payload.preMergeGateCheck.failures, [
+      "missing visible clean current-head pre_approval_gate comment",
+    ]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 
 test("detect-gate-review-evidence reports gh failures deterministically", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-fail-"));
