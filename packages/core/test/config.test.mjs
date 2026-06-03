@@ -17,6 +17,7 @@ import {
   resolveGateConfig,
   resolveGateAngles,
   resolveWorkflowConfig,
+  resolveLightMode,
 } from "../src/config/config.mjs";
 // ============================================================================
 // Schema validation tests (S1–S26)
@@ -1785,4 +1786,180 @@ test("resolveGateAngles filters excluded angles (unit integration)", async () =>
   assert.deepStrictEqual(angles, ["deep", "scope"]);
   // "dry" should be excluded
   assert.ok(!angles.includes("dry"));
+// ── LocalImplementation light mode ────────────────────────────────────────
+
+test("resolveLightMode returns null when config has no localImplementation", () => {
+  const result = resolveLightMode({ version: 1 });
+  assert.equal(result, null);
+});
+
+test("resolveLightMode returns null when lightMode.enabled is false", () => {
+  const result = resolveLightMode({
+    version: 1,
+    localImplementation: { lightMode: { enabled: false, maxFiles: 5, maxLines: 100 } },
+  });
+  assert.equal(result, null);
+});
+
+test("resolveLightMode returns null when lightMode is absent", () => {
+  const result = resolveLightMode({
+    version: 1,
+    localImplementation: {},
+  });
+  assert.equal(result, null);
+});
+
+test("resolveLightMode returns threshold when enabled", () => {
+  const result = resolveLightMode({
+    version: 1,
+    localImplementation: { lightMode: { enabled: true, maxFiles: 5, maxLines: 100 } },
+  });
+  assert.deepStrictEqual(result, { maxFiles: 5, maxLines: 100 });
+});
+
+test("resolveLightMode uses built-in defaults when enabled with no overrides", () => {
+  const result = resolveLightMode({
+    version: 1,
+    localImplementation: { lightMode: { enabled: true, maxFiles: 3, maxLines: 200 } },
+  });
+  assert.deepStrictEqual(result, { maxFiles: 3, maxLines: 200 });
+});
+
+test("resolveLightMode with built-in defaults (disabled)", () => {
+  const result = resolveLightMode({ version: 1 });
+  assert.equal(result, null);
+});
+
+// ── Light mode eligibility ───────────────────────────────────────────────
+
+test("detectChangeScope eligible: 2 files, 50 lines ≤ 3/200", async () => {
+  const { isEligibleForLightMode } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  assert.equal(
+    isEligibleForLightMode(
+      { filesChanged: 2, linesChanged: 50 },
+      { maxFiles: 3, maxLines: 200 }
+    ),
+    true
+  );
+});
+
+test("detectChangeScope not eligible: 4 files, 50 lines (files > 3)", async () => {
+  const { isEligibleForLightMode } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  assert.equal(
+    isEligibleForLightMode(
+      { filesChanged: 4, linesChanged: 50 },
+      { maxFiles: 3, maxLines: 200 }
+    ),
+    false
+  );
+});
+
+test("detectChangeScope not eligible: 2 files, 250 lines (lines > 200)", async () => {
+  const { isEligibleForLightMode } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  assert.equal(
+    isEligibleForLightMode(
+      { filesChanged: 2, linesChanged: 250 },
+      { maxFiles: 3, maxLines: 200 }
+    ),
+    false
+  );
+});
+
+test("detectChangeScope eligible at boundary: exactly 3 files, 200 lines", async () => {
+  const { isEligibleForLightMode } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  assert.equal(
+    isEligibleForLightMode(
+      { filesChanged: 3, linesChanged: 200 },
+      { maxFiles: 3, maxLines: 200 }
+    ),
+    true
+  );
+});
+
+test("detectChangeScope eligible with custom threshold: 5 files ≤ 5/300", async () => {
+  const { isEligibleForLightMode } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  assert.equal(
+    isEligibleForLightMode(
+      { filesChanged: 5, linesChanged: 250 },
+      { maxFiles: 5, maxLines: 300 }
+    ),
+    true
+  );
+});
+
+// ── parseGitDiffStat ─────────────────────────────────────────────────────
+
+test("parseGitDiffStat: normal output", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const output = ` file1.js | 10 +++++
+ file2.js |  5 -----
+ 2 files changed, 10 insertions(+), 5 deletions(-)`;
+  const result = parseGitDiffStat(output);
+  assert.equal(result.filesChanged, 2);
+  assert.equal(result.linesChanged, 15);
+});
+
+test("parseGitDiffStat: single file", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const output = ` file1.js | 3 +++
+ 1 file changed, 3 insertions(+)`;
+  const result = parseGitDiffStat(output);
+  assert.equal(result.filesChanged, 1);
+  assert.equal(result.linesChanged, 3);
+});
+
+test("parseGitDiffStat: empty output", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const result = parseGitDiffStat("");
+  assert.equal(result.filesChanged, 0);
+  assert.equal(result.linesChanged, 0);
+});
+
+test("parseGitDiffStat: only deletions", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const output = ` file1.js | 10 ----------
+ 1 file changed, 10 deletions(-)`;
+  const result = parseGitDiffStat(output);
+  assert.equal(result.filesChanged, 1);
+  assert.equal(result.linesChanged, 10);
+});
+
+test("parseGitDiffStat: no insertions/deletions summary (binary)", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const output = ` img.png | Bin 0 -> 1024 bytes`;
+  const result = parseGitDiffStat(output);
+  assert.equal(result.filesChanged, 1);
+  assert.equal(result.linesChanged, 0);
+});
+
+test("parseGitDiffStat: whitespace-only output", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const result = parseGitDiffStat("   \n  ");
+  assert.equal(result.filesChanged, 0);
+  assert.equal(result.linesChanged, 0);
+});
+
+// Close the integration tests describe block
 });

@@ -337,16 +337,19 @@ test("public dev-loop agent is a thin executable entrypoint that defers to the p
   assert.match(agentContent, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
   assert.match(skillContent, /public `dev-loop` façade/i);
 });
-test("thin pointer docs symlink to canonical contract content", async () => {
-  const [trackerContent, conductorContent, ciContent, skillContent] = await Promise.all([
+test("thin pointer docs reference canonical contract content", async () => {
+  const [trackerPointer, trackerCanonical, conductorContent, ciContent, skillContent] = await Promise.all([
     readRepo("docs/tracker-first-mvp-state-graph.md"),
+    readRepo("skills/docs/tracker-first-loop-state.md"),
     readRepo("docs/outer-loop-state-graph.md"),
     readRepo("docs/copilot-ci-status-contract.md"),
     readCopilotSkillSurface(),
   ]);
-  // Symlink reads resolve to each canonical target's content.
-  assert.match(trackerContent, /Tracker-First Story-to-PR Contract/i);
-  assert.match(trackerContent, /MVP invariant: one tracker work item → one GitHub PR/i);
+  // Pointer file references canonical location; content verified from canonical file.
+  assert.match(trackerPointer, /Canonical location:/i);
+  assert.match(trackerPointer, /tracker-first-loop-state.md/i);
+  assert.match(trackerCanonical, /Tracker-First Story-to-PR Contract/i);
+  assert.match(trackerCanonical, /MVP invariant: one tracker work item → one GitHub PR/i);
   assert.match(conductorContent, /Conductor Routing Contract/i);
   assert.match(conductorContent, /conductor routing contract/i);
   assert.match(ciContent, /Copilot PR CI\/check normalization contract/i);

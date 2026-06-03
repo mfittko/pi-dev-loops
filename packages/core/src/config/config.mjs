@@ -56,6 +56,16 @@ const WorkflowConfig = z.strictObject({
   devModeDefault: z.boolean(),
 });
 
+const LocalImplementationConfig = z.strictObject({
+  /** Opt into light mode for small scoped changes */
+  lightMode: z.strictObject({
+    enabled: z.boolean(),
+    maxFiles: z.number().int().min(1),
+    maxLines: z.number().int().min(1),
+  }).optional(),
+});
+
+
 const PersonaEntry = z.strictObject({
   persona: z.string().min(1),
   // Optional in the merged/full schema so consumer overrides can replace
@@ -93,6 +103,7 @@ export const DevLoopConfigSchema = z.strictObject({
   gates: GatesConfig.optional(),
   autonomy: AutonomyConfig.optional(),
   workflow: WorkflowConfig.optional(),
+  localImplementation: LocalImplementationConfig.optional(),
   personas: PersonasConfig.optional(),
 });
 
@@ -112,6 +123,9 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
     requireDraftFirst: false,
     devModeDefault: false,
   }),
+  localImplementation: Object.freeze({
+    lightMode: Object.freeze({ enabled: false, maxFiles: 3, maxLines: 200 }),
+  }),
   personas: Object.freeze({}),
 });
 
@@ -127,6 +141,7 @@ export const FileConfigSchema = z.strictObject({
   gates: FileGatesConfig.optional(),
   autonomy: AutonomyConfig.partial().optional(),
   workflow: WorkflowConfig.partial().optional(),
+  localImplementation: LocalImplementationConfig.partial().optional(),
   personas: FilePersonasConfig.optional(),
 });
 
@@ -608,6 +623,28 @@ export function resolveGateConfig(config, gate) {
       : [],
     required: gateConfig?.required ?? true,
     requireCi: gateConfig?.requireCi ?? true,
+  };
+}
+
+/**
+ * Resolve local implementation light mode config.
+ *
+ * Returns null when light mode is disabled (config absent or enabled=false).
+ * Returns { maxFiles, maxLines } when enabled.
+ *
+ * @param {DevLoopConfig} config
+ * @returns {{ maxFiles: number, maxLines: number } | null}
+ */
+export function resolveLightMode(config) {
+  const cfg = config?.localImplementation?.lightMode;
+  if (!cfg || cfg.enabled === false) return null;
+  return {
+    maxFiles: typeof cfg.maxFiles === "number" && Number.isFinite(cfg.maxFiles) && cfg.maxFiles > 0
+      ? cfg.maxFiles
+      : 3,
+    maxLines: typeof cfg.maxLines === "number" && Number.isFinite(cfg.maxLines) && cfg.maxLines > 0
+      ? cfg.maxLines
+      : 200,
   };
 }
 

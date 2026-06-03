@@ -369,6 +369,8 @@ test("skill docs enforce self-assignment and draft-first rules for create comman
   assert.doesNotMatch(agents, /gh issue create` or `gh pr create`/i);
   assert.match(workflowHandoffTemplate, /node scripts\/github\/create-draft-pr\.mjs --assignee @me/i);
   assert.doesNotMatch(workflowHandoffTemplate, /gh pr create --draft --assignee @me/i);
-  assert.match(trackerStoryPrContract, /Draft PR creation succeeds \| `draft_pr_open` \| Apply `set_in_progress` to tracker/i);
+  // tracker-story-pr-contract.md is now a thin pointer; verify pointer, content in copilot-review-doc-contracts
+  assert.match(trackerStoryPrContract, /Canonical location:/i);
+  assert.match(trackerStoryPrContract, /tracker-first-loop-state\.md/i);
   assert.doesNotMatch(trackerStoryPrContract, /gh pr create --draft --assignee @me/i);
 });
