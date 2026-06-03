@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -205,7 +205,6 @@ test("parseBranchGuardCliArgs rejects single-dash flag-like value for --expected
 
 // ── Worktree isolation tests ──────────────────────────────────────────────
 
-import { mkdir } from "node:fs/promises";
 import {
   isUnderWorktreePath,
   parseMainWorktreePath,
@@ -601,6 +600,6 @@ test("parseMainWorktreePath: handles multiple spaces between path and sha", () =
 });
 
 test("parseMainWorktreePath: handles only one worktree listed", () => {
-  const out = "/only/path  sha123 [main]\n";
+  const out = "/only/path  abc1234 [main]\n";
   assert.equal(parseMainWorktreePath(out), "/only/path");
 });
