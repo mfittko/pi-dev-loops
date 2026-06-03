@@ -464,7 +464,10 @@ function parseRunIdFromArtifactName(name) {
 }
 
 async function scanSessionArtifactRoot(artifactsDir, records) {
-  const entries = await readdir(artifactsDir, { withFileTypes: true });
+  const entries = await readdir(artifactsDir, { withFileTypes: true }).catch(() => null);
+  if (entries === null) {
+    return;
+  }
 
   for (const entry of entries) {
     if (!entry.isFile()) {
@@ -543,7 +546,14 @@ async function scanSessionRunRoot(root, records) {
         const sessionPath = path.join(runRoot, runDirectory.name, "session.jsonl");
         const headerText = await readTextIfExists(sessionPath);
         const firstLine = headerText?.split(/\r?\n/u, 1)[0] ?? null;
-        const header = firstLine ? parseJsonText(firstLine) : null;
+        let header = null;
+        if (firstLine) {
+          try {
+            header = parseJsonText(firstLine);
+          } catch {
+            header = null;
+          }
+        }
         const key = recordKey(runId, childIndex);
         const record = records.get(key) ?? createRunRecord(runId, childIndex);
 
@@ -1277,12 +1287,38 @@ export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
 
   const selected = sorted[0];
   const selectedTimestamp = selected.run.timestampMs;
-  const newerActiveRuns = activeMatch.filter((candidate) => {
-    const activeTimestamp = candidate.run.timestampMs;
-    return typeof activeTimestamp === "number"
-      && typeof selectedTimestamp === "number"
-      && activeTimestamp > selectedTimestamp;
-  });
+  if (activeMatch.length > 0) {
+    const indeterminateActiveRuns = activeMatch.filter((candidate) => (
+      typeof candidate.run.timestampMs !== "number"
+      || typeof selectedTimestamp !== "number"
+    ));
+
+    if (indeterminateActiveRuns.length > 0) {
+      return {
+        kind: "manual_attention",
+        reason: MANUAL_REASON.ARTIFACT_LIVE_STATE_CONFLICT,
+        runs: [
+          {
+            runId: selected.run.runId,
+            childIndex: selected.run.childIndex,
+            timestampMs: selected.run.timestampMs,
+            outputArtifactPath: selected.run.outputArtifactPath,
+            sessionPath: selected.run.sessionPath,
+          },
+          ...indeterminateActiveRuns.map((candidate) => ({
+            runId: candidate.run.runId,
+            childIndex: candidate.run.childIndex,
+            timestampMs: candidate.run.timestampMs,
+            outputArtifactPath: candidate.run.outputArtifactPath,
+            sessionPath: candidate.run.sessionPath,
+            runState: candidate.run.runState,
+          })),
+        ],
+      };
+    }
+  }
+
+  const newerActiveRuns = activeMatch.filter((candidate) => candidate.run.timestampMs > selectedTimestamp);
 
   if (newerActiveRuns.length > 0) {
     return {
@@ -1409,6 +1445,7 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
 }
 
 async function analyzeAutoResume({ repo, reports }, options) {
+  const openPrNumbers = new Set(reports.map((report) => report.number));
   const runs = await listRepoAsyncRuns({ repo }, options);
   const childCounts = runs.reduce((map, run) => {
     map.set(run.runId, (map.get(run.runId) ?? 0) + 1);
@@ -1444,7 +1481,12 @@ async function analyzeAutoResume({ repo, reports }, options) {
         continue;
       }
 
-      if (run.runState === RUN_STATE.UNKNOWN || isExitedState(run.runState)) {
+      const parsedNumbers = Array.isArray(parsedArtifact.evidence?.prNumbers)
+        ? parsedArtifact.evidence.prNumbers.filter((value) => Number.isInteger(value))
+        : [];
+      const touchesOpenPr = openPrNumbers.has(parsedArtifact.pr)
+        || parsedNumbers.some((value) => openPrNumbers.has(value));
+      if ((run.runState === RUN_STATE.UNKNOWN || isExitedState(run.runState)) && touchesOpenPr) {
         manualAttention.push(buildManualAttentionEntry({
           pr: Number.isInteger(parsedArtifact.pr) ? parsedArtifact.pr : null,
           runId: run.runId,

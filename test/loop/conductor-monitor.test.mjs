@@ -400,6 +400,114 @@ test("conductor-monitor flags unresolved-feedback PRs as needing attention while
   }
 });
 
+test("conductor-monitor --auto-resume ignores malformed session headers instead of crashing the scan", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-invalid-session-json-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const badSessionRoot = path.join(sessionsRoot, "2026-06-03T00-00-00-000Z_session", "run-bad-session-41", "run-0");
+    const badArtifactsDir = path.join(sessionsRoot, "2026-06-03T00-00-00-000Z_session", "subagent-artifacts");
+    await mkdir(badSessionRoot, { recursive: true });
+    await mkdir(badArtifactsDir, { recursive: true });
+    await writeFile(path.join(badSessionRoot, "session.jsonl"), "{bad session header\n", "utf8");
+    await writeFile(
+      path.join(badArtifactsDir, "run-bad-session-41_dev-loop_0_meta.json"),
+      `${JSON.stringify({ runId: "run-bad-session-41", agent: "dev-loop", exitCode: 0, timestamp: 1700000009000 }, null, 2)}
+`,
+      "utf8",
+    );
+    await writeFile(path.join(badArtifactsDir, "run-bad-session-41_dev-loop_0_output.md"), "Active PR: owner/repo#41\n", "utf8");
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 41, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.queueStatus, "monitoring");
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 0);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume ignores parse-failed artifacts that do not match the live open PR set", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-nonopen-manual-ignore-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const { sessionPath } = await writeSessionRun({
+      sessionsRoot,
+      runId: "run-missing-99",
+      cwd: repoRoot,
+      timestampMs: 1700000010000,
+      outputText: "Active PR: owner/repo#99\n",
+      writeOutputArtifact: false,
+    });
+    await writeAsyncRun({
+      asyncRunsRoot,
+      runId: "run-missing-99",
+      state: "complete",
+      cwd: repoRoot,
+      sessionPath,
+      timestampMs: 1700000010500,
+      outputText: "Active PR: owner/repo#99\n",
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 42, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.queueStatus, "monitoring");
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 0);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume fails closed when an active matching run cannot be proven newer by timestamp", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-indeterminate-active-run-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const { sessionPath } = await writeSessionRun({
+      sessionsRoot,
+      runId: "run-complete-43",
+      cwd: repoRoot,
+      timestampMs: 1700000011000,
+      outputText: "Active PR: owner/repo#43\nArtifact state: open\nLoop state: waiting_for_copilot_review\n",
+    });
+    const { statusPath } = await writeAsyncRun({
+      asyncRunsRoot,
+      runId: "run-active-43",
+      state: "running",
+      cwd: repoRoot,
+      sessionPath,
+      timestampMs: 1700000012000,
+      outputText: "Active PR: owner/repo#43\nLoop state: waiting_for_copilot_review\n",
+    });
+    const activeStatus = JSON.parse(await readFile(statusPath, "utf8"));
+    delete activeStatus.lastUpdate;
+    delete activeStatus.startedAt;
+    await writeFile(statusPath, `${JSON.stringify(activeStatus, null, 2)}
+`, "utf8");
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 43, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 1);
+    assert.equal(payload.needsManualAttention[0].pr, 43);
+    assert.equal(payload.needsManualAttention[0].reason, "artifact_live_state_conflict");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("conductor-monitor --auto-resume emits a feedback-fix resume plan for an orphaned unresolved-feedback PR", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-fix-"));
   const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");
