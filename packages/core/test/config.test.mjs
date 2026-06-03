@@ -301,7 +301,7 @@ describe("BUILT_IN_DEFAULTS", () => {
     assert.equal(BUILT_IN_DEFAULTS.refinement.fanOut, 3);
     assert.equal(BUILT_IN_DEFAULTS.refinement.mode, "parallel");
     assert.equal(BUILT_IN_DEFAULTS.refinement.maxCopilotRounds, 5);
-    assert.equal(BUILT_IN_DEFAULTS.refinement.stopOnLowSignal, false);
+    assert.equal(BUILT_IN_DEFAULTS.refinement.stopOnLowSignal, true);
     assert.equal(BUILT_IN_DEFAULTS.refinement.lowSignalRoundThreshold, 3);
     assert.equal(BUILT_IN_DEFAULTS.refinement.lowSignalMaxComments, 2);
   });
@@ -1344,7 +1344,7 @@ describe("role resolution", () => {
       assert.equal(result.mode, "parallel");
       assert.equal(result.roles, null);
       assert.equal(result.maxCopilotRounds, 5);
-      assert.equal(result.stopOnLowSignal, false);
+      assert.equal(result.stopOnLowSignal, true);
       assert.equal(result.lowSignalRoundThreshold, 3);
       assert.equal(result.lowSignalMaxComments, 2);
     });
@@ -1377,7 +1377,7 @@ describe("role resolution", () => {
     });
 
     test("resolveRefinementConfig resolves low-signal keys with defaults", () => {
-      assert.equal(resolveRefinementConfig({ version: 1 }, "stopOnLowSignal"), false);
+      assert.equal(resolveRefinementConfig({ version: 1 }, "stopOnLowSignal"), true);
       assert.equal(resolveRefinementConfig({ version: 1 }, "lowSignalRoundThreshold"), 3);
       assert.equal(resolveRefinementConfig({ version: 1 }, "lowSignalMaxComments"), 2);
     });
