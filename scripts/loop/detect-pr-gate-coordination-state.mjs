@@ -12,7 +12,7 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
-import { evaluatePrGateCoordination } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { evaluatePrGateCoordination, PR_GATE_BOUNDARY, PR_GATE_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { detectGateReviewEvidence } from "../github/detect-gate-review-evidence.mjs";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
@@ -310,7 +310,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   const { config } = await loadDevLoopConfig({ repoRoot: runtime.repoRoot ?? process.cwd() });
   const draftGateConfig = resolveGateConfig(config, "draft");
   const maxCopilotRounds = resolveRefinementConfig(config, "maxCopilotRounds");
-  return evaluatePrGateCoordination({
+  const result = evaluatePrGateCoordination({
     repo: context.repo,
     pr: context.pr,
     currentHeadSha: context.currentHeadSha,
@@ -332,6 +332,24 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     preApprovalGate: context.gateEvidence.preApprovalGate,
     preApprovalGateMarker: context.gateEvidence.preApprovalGateMarker,
   });
+
+  // #442: pre_approval_gate detector — if pre_approval_gate was never entered
+  // for the current head (no visible contract-complete marker), force the
+  // PRE_APPROVAL_GATE_NEEDED boundary regardless of what the state machine says.
+  const preApprovalNeverEntered = !(result.preApprovalGate?.contractComplete === true);
+  const gateBoundariesExpectingPreApproval = new Set([
+    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
+    PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+  ]);
+
+  if (preApprovalNeverEntered && gateBoundariesExpectingPreApproval.has(result.gateBoundary)) {
+    result.gateBoundary = PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED;
+    result.nextAction = PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE;
+    result.reason = "Pre-approval gate was never entered for the current head SHA; run pre_approval_gate before proceeding.";
+    result.allowedNextActions = [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE];
+  }
+
+  return result;
 }
 
 async function main() {

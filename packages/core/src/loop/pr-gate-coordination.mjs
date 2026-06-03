@@ -7,6 +7,7 @@ export const PR_GATE_BOUNDARY = Object.freeze({
   CONFLICT_RESOLUTION: "conflict_resolution",
   PRE_APPROVAL_GATE_WINDOW: "pre_approval_gate_window",
   FINAL_APPROVAL_READY: "final_approval_ready",
+  PRE_APPROVAL_GATE_NEEDED: "pre_approval_gate_needed",
   BLOCKED: "blocked",
   DONE: "done",
 });

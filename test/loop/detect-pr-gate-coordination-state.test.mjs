@@ -269,7 +269,20 @@ test("detect-pr-gate-coordination-state allows pre-approval flow for converged n
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"],
-        stdout: jsonLine([[]]),
+        stdout: jsonLine([[
+          {
+            id: 30,
+            body: [
+              "Gate review: pre_approval_gate",
+              "Reviewed head SHA: def56789abcdef",
+              "Verdict: findings_present",
+              "Findings summary: lint warnings in 3 files",
+              "Next action: fix findings and rerun gate",
+            ].join("\n"),
+            html_url: "https://example.test/comment/30",
+            updated_at: "2026-05-31T20:00:00Z",
+          },
+        ]]),
       },
     ]);
 
@@ -349,7 +362,20 @@ test("detect-pr-gate-coordination-state allows pre-approval fallback when the Co
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"],
-        stdout: jsonLine([[]]),
+        stdout: jsonLine([[
+          {
+            id: 31,
+            body: [
+              "Gate review: pre_approval_gate",
+              "Reviewed head SHA: def56789abcdef",
+              "Verdict: findings_present",
+              "Findings summary: lint warnings in 3 files",
+              "Next action: fix findings and rerun gate",
+            ].join("\n"),
+            html_url: "https://example.test/comment/31",
+            updated_at: "2026-05-31T20:00:00Z",
+          },
+        ]]),
       },
     ]);
 
@@ -583,13 +609,25 @@ test("detect-pr-gate-coordination-state with --review-mode internal_only skips C
             id: 12,
             body: [
               "Gate review: draft_gate",
-              "Reviewed head SHA: ccc1234",
+              "Reviewed head SHA: ccc1234567890",
               "Verdict: clean",
               "Findings summary: no issues found",
               "Next action: mark ready for review",
             ].join("\n"),
             html_url: "https://example.test/comment/12",
             updated_at: "2026-05-31T20:00:00Z",
+          },
+          {
+            id: 13,
+            body: [
+              "Gate review: pre_approval_gate",
+              "Reviewed head SHA: ccc1234567890",
+              "Verdict: findings_present",
+              "Findings summary: lint warnings in 3 files",
+              "Next action: fix findings and rerun gate",
+            ].join("\n"),
+            html_url: "https://example.test/comment/13",
+            updated_at: "2026-05-31T20:01:00Z",
           },
         ]]),
       },
@@ -604,6 +642,62 @@ test("detect-pr-gate-coordination-state with --review-mode internal_only skips C
     assert.equal(parsed.nextAction, "run_pre_approval_gate");
     assert(parsed.forbiddenActions.includes("request_copilot_review"));
     assert(parsed.allowedNextActions.includes("run_pre_approval_gate"));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+test("pre-approval-gate-detector overrides to pre_approval_gate_needed when never entered", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-never-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "268", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 268,
+          state: "OPEN",
+          isDraft: false,
+          headRefOid: "fedcba987654",
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "fedcba987654" },
+              submittedAt: "2026-05-31T20:00:00Z",
+            },
+          ],
+        }),
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/268/requested_reviewers"],
+        stdout: jsonLine({ users: [], teams: [] }),
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=268"],
+        stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }),
+      },
+      {
+        assertArgs: ["pr", "view", "268", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: jsonLine({ headRefOid: "fedcba987654" }),
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/268/comments?per_page=100"],
+        // No pre_approval_gate comment at all
+        stdout: jsonLine([[]]),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "268"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.gateBoundary, "pre_approval_gate_needed");
+    assert.equal(parsed.nextAction, "run_pre_approval_gate");
+    assert.match(parsed.reason, /pre-approval gate was never entered/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
