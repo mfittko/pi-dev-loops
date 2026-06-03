@@ -1471,7 +1471,7 @@ describe("role resolution", () => {
 });
 
 describe("shipped defaults docs and deep angle wiring", () => {
-  test("D1: shipped defaults keep docs and deep opt-in and resolve the packaged persona prompts", async () => {
+  test("D1: shipped defaults keep docs opt-in, deep enabled by default, and resolve packaged persona prompts", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D1-"));
     try {
       const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
@@ -1494,7 +1494,7 @@ describe("shipped defaults docs and deep angle wiring", () => {
       assert.match(result.config.personas.deep.prompt, /Perform a structural code quality audit of this PR/i);
       assert.match(result.config.personas.deep.prompt, /deslop audit/i);
       assert.ok(!preApprovalAngles.includes("docs"), "docs must stay opt-in for pre-approval");
-      assert.ok(!preApprovalAngles.includes("deep"), "deep must stay opt-in for pre-approval");
+      assert.ok(preApprovalAngles.includes("deep"), "deep must run by default for pre-approval");
       assert.equal(docsRole.persona, "docs");
       assert.equal(docsRole.prompt, result.config.personas.docs.prompt);
       assert.equal(docsRole.fallback, false);

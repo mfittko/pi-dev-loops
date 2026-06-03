@@ -37,13 +37,14 @@ gates:
   preApproval:
     # Pre-approval gate: runs before declaring merge-ready.
     # Additional opt-in angles available (see personas section):
-    #   ocp, lsp, isp, dip, docs, deep
+    #   ocp, lsp, isp, dip, docs
     angles:
       - dry
       - kiss
       - yagni
       - srp
       - soc
+      - deep
     required: true
 
 # Autonomy: which gates require operator confirmation (stop points)
