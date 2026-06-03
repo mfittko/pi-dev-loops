@@ -21,6 +21,9 @@
  * Exclusion list:
  *   Canonical contract docs that own their content by design are excluded
  *   from cross-file duplicate detection.
+ *   Known intentional duplicates (mirrored skill procedure text) are also
+ *   excluded so that the guardrail enforces new duplication without failing
+ *   on deliberate mirrors.
  *
  * Exit 0 when clean, exit 1 when duplicates found.
  */
@@ -36,6 +39,20 @@ const SKILLS_DIR = path.join(REPO_ROOT, "skills");
 const CANONICAL_CONTRACT_DOCS = new Set([
   "skills/docs/copilot-loop-operations.md",
   "skills/docs/public-dev-loop-contract.md",
+]);
+
+/**
+ * Known intentional duplicates: text that appears in multiple skill files
+ * because it is deliberately mirrored (shared procedure sections, template
+ * mirrors, etc.). These are excluded from cross-file duplicate reporting so
+ * the guardrail stays fatal for new duplicates without noise from mirrors.
+ */
+const KNOWN_INTENTIONAL_DUPLICATES = new Set([
+  "- **PERSISTENCE RULE: Do not exit your session until the PR is merged or you hit a hard stop that requires conductor authorization.**",
+  "If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.",
+  "Each reviewer starts in fresh context with the briefing artifact, inspects the diff, returns findings via output artifacts only, and never edits files.",
+  "3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).",
+  "5. **Fix cycle:** apply only accepted must-fix changes on the same branch.",
 ]);
 
 const IMPERATIVE_PATTERNS = [
@@ -85,6 +102,15 @@ export function isImperativeSentence(sentence) {
 
 export function normalizeSentence(text) {
   return text.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Normalize a repo-relative path to POSIX separators.
+ * On Windows, path.relative() produces backslashes, which would break
+ * comparisons against CANONICAL_CONTRACT_DOCS and report formatting.
+ */
+function toPosixPath(p) {
+  return p.replace(/\\/g, "/");
 }
 
 export function extractSentences(content) {
@@ -141,9 +167,11 @@ export function extractSentences(content) {
 
 export async function scanSkills(skillsDir = SKILLS_DIR, repoRoot = REPO_ROOT) {
   const fileMap = new Map();
+  let totalFilesScanned = 0;
 
   for await (const filePath of collectMarkdownFiles(skillsDir, repoRoot)) {
-    const relativePath = path.relative(repoRoot, filePath);
+    totalFilesScanned++;
+    const relativePath = toPosixPath(path.relative(repoRoot, filePath));
 
     if (CANONICAL_CONTRACT_DOCS.has(relativePath)) {
       continue;
@@ -162,13 +190,16 @@ export async function scanSkills(skillsDir = SKILLS_DIR, repoRoot = REPO_ROOT) {
 
   const duplicates = new Map();
   for (const [text, occurrences] of fileMap) {
+    if (KNOWN_INTENTIONAL_DUPLICATES.has(text)) {
+      continue;
+    }
     const uniqueFiles = new Set(occurrences.map((o) => o.file));
     if (uniqueFiles.size > 1) {
       duplicates.set(text, occurrences);
     }
   }
 
-  return { fileMap, duplicates };
+  return { fileMap, duplicates, totalFilesScanned };
 }
 
 async function main(argv = process.argv.slice(2)) {
@@ -177,16 +208,7 @@ async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  const { fileMap, duplicates } = await scanSkills();
-
-  let totalFilesScanned = 0;
-  const seenFiles = new Set();
-  for (const [, occurrences] of fileMap) {
-    for (const { file } of occurrences) {
-      seenFiles.add(file);
-    }
-  }
-  totalFilesScanned = seenFiles.size;
+  const { fileMap, duplicates, totalFilesScanned } = await scanSkills();
 
   if (duplicates.size === 0) {
     process.stdout.write(`No duplicate imperative rules found across skill docs.\n`);
@@ -210,5 +232,5 @@ async function main(argv = process.argv.slice(2)) {
 const isDirect = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isDirect) {
   const exitCode = await main();
-  process.exit(exitCode);
+  process.exitCode = exitCode;
 }

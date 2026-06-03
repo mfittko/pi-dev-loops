@@ -81,7 +81,7 @@ test("extractSentences skips markdown link URLs", () => {
     "See [the guide about required steps](https://example.com/must-read) for details. You must read the full documentation guide."
   );
   // Both sentences contain imperative keywords; link URLs removed
-  assert.ok(result.length >= 1);
+  assert.equal(result.length, 2);
   assert.ok(result.some((s) => s.text.includes("must read")));
 });
 
