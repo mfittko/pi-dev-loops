@@ -663,6 +663,11 @@ export async function runCli(
     };
   } else {
     const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) });
+    if (config.errors.length > 0) {
+      // Fail closed when config validation detects errors that could produce
+      // incorrect refinement values (e.g. non-numeric thresholds).
+      throw new Error('Dev-loop config validation failed: ' + config.errors.map(e => e.message).join('; '));
+    }
     const refinementConfig = resolveRefinement(config.config);
     interpretation = interpretLoopState(snapshot, refinementConfig);
   }
