@@ -44,7 +44,7 @@ export function buildCreateDraftPrArgs(argv) {
 
   return {
     help: false,
-    ghArgs: ["pr", "create", ...(args.includes("--draft") ? [] : ["--draft"]), ...args],
+    ghArgs: ["pr", "create", ...args, ...(args.includes("--draft") ? [] : ["--draft"])],
   };
 }
 

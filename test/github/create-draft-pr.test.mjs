@@ -31,7 +31,7 @@ test("buildCreateDraftPrArgs injects --draft when absent", () => {
     buildCreateDraftPrArgs(["--repo", "owner/repo", "--assignee", "@me"]),
     {
       help: false,
-      ghArgs: ["pr", "create", "--draft", "--repo", "owner/repo", "--assignee", "@me"],
+      ghArgs: ["pr", "create", "--repo", "owner/repo", "--assignee", "@me", "--draft"],
     },
   );
 });
@@ -50,6 +50,16 @@ test("buildCreateDraftPrArgs rejects --ready before gh is invoked", () => {
   assert.throws(
     () => buildCreateDraftPrArgs(["--repo", "owner/repo", "--ready"]),
     /rejects --ready/i,
+  );
+});
+
+test("buildCreateDraftPrArgs appends --draft after a false-valued draft token", () => {
+  assert.deepEqual(
+    buildCreateDraftPrArgs(["--repo", "owner/repo", "--draft=false"]),
+    {
+      help: false,
+      ghArgs: ["pr", "create", "--repo", "owner/repo", "--draft=false", "--draft"],
+    },
   );
 });
 
@@ -88,7 +98,7 @@ test("create-draft-pr forwards args in order and preserves gh stdout on success"
     assert.equal(result.stderr, "");
     assert.equal(result.stdout, "https://github.com/owner/repo/pull/17\n");
     assert.deepEqual(await readGhCalls(ghLogPath), [[
-      "pr", "create", "--draft",
+      "pr", "create",
       "--repo", "owner/repo",
       "--assignee", "@me",
       "--base", "main",
@@ -96,6 +106,7 @@ test("create-draft-pr forwards args in order and preserves gh stdout on success"
       "--title", "Add draft wrapper",
       "--body-file", "tmp/pr-body.md",
       "positional-token",
+      "--draft",
     ]]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -123,6 +134,29 @@ test("create-draft-pr preserves an existing --draft without adding another copy"
     assert.equal(result.stdout, "https://github.com/owner/repo/pull/17\n");
     assert.deepEqual(await readGhCalls(ghLogPath), [[
       "pr", "create", "--draft", "--repo", "owner/repo", "--assignee", "@me",
+    ]]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("create-draft-pr appends --draft after --draft=false so draft-first still wins", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-create-draft-pr-false-draft-"));
+
+  try {
+    const { env, ghLogPath } = await writeGhStub(tempDir, [
+      {
+        stdout: "https://github.com/owner/repo/pull/17\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--draft=false"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.equal(result.stdout, "https://github.com/owner/repo/pull/17\n");
+    assert.deepEqual(await readGhCalls(ghLogPath), [[
+      "pr", "create", "--repo", "owner/repo", "--draft=false", "--draft",
     ]]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -166,7 +200,7 @@ test("create-draft-pr preserves gh stdout, stderr, and exit code on failure", as
     assert.equal(result.stdout, "partial gh stdout\n");
     assert.equal(result.stderr, "gh create failed\n");
     assert.deepEqual(await readGhCalls(ghLogPath), [[
-      "pr", "create", "--draft", "--repo", "owner/repo", "--assignee", "@me",
+      "pr", "create", "--repo", "owner/repo", "--assignee", "@me", "--draft",
     ]]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
