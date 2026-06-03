@@ -334,7 +334,7 @@ Contract:
 - keeps the current implementation human-in-the-loop; fully autonomous monitor ownership is a follow-up slice
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/name", "queueStatus": "queue_complete"|"monitoring"|"attention_needed", "needsAttentionCount": 0, "summary": { "waiting": 0, "needsAttention": 0, "blocked": 0, "done": 0 }, "prs": [...] }`
+- `{ "ok": true, "repo": "owner/name", "checkedAt": "...", "prCount": 2, "queueStatus": "queue_complete"|"monitoring"|"attention_needed", "needsAttentionCount": 0, "summary": { "waiting": 0, "needsAttention": 0, "blocked": 0, "done": 0 }, "prs": [...] }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
