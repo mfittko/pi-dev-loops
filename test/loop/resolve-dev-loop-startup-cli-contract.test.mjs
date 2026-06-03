@@ -55,6 +55,7 @@ test("resolve-dev-loop-startup success stdout keeps documented JSON shape", asyn
     const result = spawnSync(process.execPath, [cliPath, "--input", inputPath], {
       cwd: repoRoot,
       encoding: "utf8",
+      env: { ...process.env, PI_ASYNC_START_BYPASS: "1" },
     });
 
     assert.equal(result.status, 0);
