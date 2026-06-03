@@ -344,8 +344,14 @@ The canonical gate-review comment contract is [Gate Review Comment Contract](../
 - **Gate name:** Draft gate
 - **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
 - **Skip rule:** before entering the draft gate, run `detect-pr-gate-coordination-state.mjs` and check `draftGateAlreadySatisfied`. If `true`, skip the draft gate entirely — the draft→ready transition was already recorded. `draft_gate` is a one-time gate; do not re-post on new heads. This skip rule applies only to the draft boundary.
-- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the draft gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain: context-builder produces a shared briefing, parallel reviewers fork from it, consolidation merges findings into a fix plan.
-- **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config ships `scope`, `coverage`, `correctness`, `ci-guard`, and `contract-surface`; consumer repos may override.
+- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the draft gate review angles resolved from config. The sub-loop follows a mandatory chain:
+  1. **Context-builder (mandatory):** produce a shared briefing artifact covering the git diff, adjacent code, current CI/test status, and acceptance criteria. No reviewer runs without this briefing.
+  2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context with the briefing artifact, inspects the diff, returns findings via output artifacts only, and never edits files.
+  3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).
+  4. **Post findings first:** post the findings as a PR review comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
+  5. **Fix cycle:** apply only accepted must-fix changes on the same branch.
+  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the full chain (steps 1–4) on the new head before crossing the gate boundary.
+- **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config ships `scope`, `coverage`, `correctness`, `ci-guard`, and `contract-surface`; consumer repos may override. Do **not** apply angles from the other gate; each gate owns its own angle list from config.
 - **CI prerequisite:** resolve the draft gate config first (`resolveGateConfig(config, "draft")`). When `requireCi=true` (default), wait for green current-head CI before entering `draft_gate`. When `requireCi=false`, the draft gate may proceed without green CI. This draft-only override does **not** relax `pre_approval_gate`; final approval and merge readiness still require green current-head CI.
 - **Pass criteria:** all configured draft gate angles pass; all must-fix findings are addressed; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review.
@@ -355,7 +361,6 @@ The canonical gate-review comment contract is [Gate Review Comment Contract](../
 - If the `draft_gate` finds issues, the comment must say that the PR stays draft and needs fixes before retrying.
 - Do not run `gh pr ready` unless a visible `clean` `draft_gate` gate-review comment exists for the current head SHA.
 - If fixes advance the head SHA **while the PR is still draft**, post a new gate-review comment for the new head.
-- Do **not** apply angles from the other gate; each gate owns its own angle list from config.
 
 ### Pre-approval gate contract
 
@@ -363,7 +368,14 @@ This is the default pre-approval gate for this workflow boundary. The canonical 
 
 - **Gate name:** Pre-approval gate
 - **Trigger / boundary:** right before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff
-- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the pre-approval gate review angles resolved from config. The sub-loop uses a context→fork→consolidate chain; only re-run reviewers that had findings in the previous pass.
+- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the pre-approval gate review angles resolved from config. The sub-loop follows a mandatory chain:
+  1. **Context-builder (mandatory):** produce a shared briefing artifact covering the git diff, adjacent code, current CI/test status, and acceptance criteria. No reviewer runs without this briefing.
+  2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context with the briefing artifact, inspects the diff, returns findings via output artifacts only, and never edits files.
+  3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).
+  4. **Post findings first:** post the findings as a PR review comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
+  5. **Fix cycle:** apply only accepted must-fix changes on the same branch.
+  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the full chain (steps 1–4) on the new head before crossing the gate boundary.
+  7. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced `findings_present` in the previous pass.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config`. Default config ships `dry`, `kiss`, `yagni`, `srp`, `soc`, `deep`; consumer repos may override.
 - **Persona mapping:** each angle resolves to a reviewer persona via `resolveReviewerRole(config, angle)` from `@pi-dev-loops/core/config`. Include this prompt in each reviewer's briefing so the reviewer knows exactly what to look for.
 - **Pass criteria:** the sub-loop completes with verdict `clean`; all configured angles pass; if parallel execution is impractical, still run all configured lenses and explicitly record the limitation.
