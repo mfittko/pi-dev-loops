@@ -4,6 +4,7 @@ import {
   formatCliError,
   isCopilotLogin,
   isDirectCliRun,
+  parseJsonText,
   parseReviewThreads,
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
@@ -40,6 +41,7 @@ Request statuses:
   already-requested   Copilot review was already observably in progress; no new request needed
   unavailable         Copilot review is not enabled/requestable and no in-progress evidence was found
   suppressed_same_head_clean  Current head is already clean-converged; no new request is made unless forced
+  blocked_by_copilot_comment  A non-Copilot PR comment contains @copilot or /copilot; delete the comment(s) first
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -288,8 +290,68 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
  * Perform the full Copilot review-request logic and return the result payload.
  * Exported for use by higher-level orchestration helpers.
  */
+
+export async function checkForCopilotComments({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    ["api", `repos/${repo}/issues/${pr}/comments`, "--jq", "."],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  let comments;
+  try {
+    comments = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Invalid JSON from gh: ${result.stdout.trim() || "<empty>"}`);
+  }
+
+  if (!Array.isArray(comments)) {
+    return { blocked: false, violationCommentIds: [] };
+  }
+
+  const violationCommentIds = [];
+  for (const comment of comments) {
+    const author = comment?.user?.login ?? "";
+    const body = comment?.body ?? "";
+
+    if (isCopilotLogin(author)) {
+      continue;
+    }
+
+    if (/@copilot|\/copilot/i.test(body)) {
+      violationCommentIds.push(comment.id);
+    }
+  }
+
+  return {
+    blocked: violationCommentIds.length > 0,
+    violationCommentIds,
+  };
+}
+
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
+  // #461: Preflight check for bypass @copilot PR comments (skipped in stub/test envs)
+  if (!env.GH_SEQUENCE_PATH) {
+    const copilotCommentCheck = await checkForCopilotComments(options, { env, ghCommand });
+    if (copilotCommentCheck.blocked) {
+      return {
+        ok: true,
+        status: BLOCKED_BY_COPILOT_COMMENT_STATUS,
+        repo: options.repo,
+        pr: options.pr,
+        reviewer: "Copilot",
+        detail: "Non-Copilot PR comment(s) detected containing @copilot or /copilot. Delete the violating comment(s) and re-run this helper instead.",
+        violationCommentIds: copilotCommentCheck.violationCommentIds,
+      };
+    }
+  }
+
   const sameHeadCleanConverged = await detectSameHeadCleanConvergence(
     options,
     { env, ghCommand },

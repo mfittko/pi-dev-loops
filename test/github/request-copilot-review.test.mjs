@@ -625,3 +625,96 @@ test("request-copilot-review --help prints usage and exits 0", async () => {
   assert.equal(helpShort.stderr, "");
   assert.equal(helpShort.stdout, helpLong.stdout);
 });
+
+test("checkForCopilotComments blocks when @copilot comment found from non-Copilot author", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-blocked-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--jq", "."],
+        stdout: JSON.stringify([
+          { id: 1001, body: "@copilot Please re-review this PR", user: { login: "human-dev" } },
+        ]),
+      },
+    ]);
+
+    const { checkForCopilotComments } = await import("../../scripts/github/request-copilot-review.mjs");
+    const result = await checkForCopilotComments({ repo: "owner/repo", pr: 17 }, { env });
+
+    assert.equal(result.blocked, true);
+    assert.deepEqual(result.violationCommentIds, [1001]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("checkForCopilotComments passes when no @copilot comments found", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-noblock-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--jq", "."],
+        stdout: JSON.stringify([
+          { id: 1001, body: "LGTM!", user: { login: "human-dev" } },
+        ]),
+      },
+    ]);
+
+    const { checkForCopilotComments } = await import("../../scripts/github/request-copilot-review.mjs");
+    const result = await checkForCopilotComments({ repo: "owner/repo", pr: 17 }, { env });
+
+    assert.equal(result.blocked, false);
+    assert.deepEqual(result.violationCommentIds, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("checkForCopilotComments ignores @copilot in Copilot-authored comments", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-copilot-author-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--jq", "."],
+        stdout: JSON.stringify([
+          { id: 2001, body: "I see you mentioned @copilot in your message", user: { login: "copilot-pull-request-reviewer[bot]" } },
+        ]),
+      },
+    ]);
+
+    const { checkForCopilotComments } = await import("../../scripts/github/request-copilot-review.mjs");
+    const result = await checkForCopilotComments({ repo: "owner/repo", pr: 17 }, { env });
+
+    assert.equal(result.blocked, false);
+    assert.deepEqual(result.violationCommentIds, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("checkForCopilotComments reports all violation comments when multiple found", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-multiviolation-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--jq", "."],
+        stdout: JSON.stringify([
+          { id: 3001, body: "@copilot review please", user: { login: "dev-a" } },
+          { id: 3002, body: "/copilot re-review", user: { login: "dev-b" } },
+        ]),
+      },
+    ]);
+
+    const { checkForCopilotComments } = await import("../../scripts/github/request-copilot-review.mjs");
+    const result = await checkForCopilotComments({ repo: "owner/repo", pr: 17 }, { env });
+
+    assert.equal(result.blocked, true);
+    assert.deepEqual(result.violationCommentIds, [3001, 3002]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
