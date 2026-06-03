@@ -37,6 +37,11 @@ export const STATE = Object.freeze({
    */
   READY_TO_REREQUEST_REVIEW: "ready_to_rerequest_review",
   /**
+   * Low-signal heuristic stopped the re-request loop. Round count exceeded
+   * threshold with only minimal actionable feedback per round.
+   */
+  LOW_SIGNAL_CONVERGED: "low_signal_converged",
+  /**
    * Copilot review request returned `unavailable`. Must stop/report.
    * Do not sleep or watch as if review were requested.
    */
@@ -49,6 +54,7 @@ export const STATE = Object.freeze({
    */
   BLOCKED_NEEDS_USER_DECISION: "blocked_needs_user_decision",
   /** PR has been merged or closed. Loop is complete. */
+  LOW_SIGNAL_CONVERGED: "low_signal_converged",
   DONE: "done",
 });
 
@@ -96,6 +102,7 @@ export const TRANSITIONS = Object.freeze({
   ],
   [STATE.BLOCKED_NEEDS_USER_DECISION]: [],
   [STATE.DONE]: [],
+  [STATE.LOW_SIGNAL_CONVERGED]: [],
 });
 
 /** Recommended next action for each state. */
@@ -110,6 +117,7 @@ const NEXT_ACTIONS = Object.freeze({
   [STATE.REVIEW_REQUEST_UNAVAILABLE]: "Report that Copilot review is unavailable and stop; do not sleep or watch as if review were requested",
   [STATE.WAITING_FOR_CI]: "Wait for CI checks to complete or become available",
   [STATE.BLOCKED_NEEDS_USER_DECISION]: "Report the blocked state to the user and stop; do not proceed without explicit authorization",
+  [STATE.LOW_SIGNAL_CONVERGED]: "Low-signal heuristic stopped re-request loop: round count exceeded threshold with only minimal actionable feedback; treat as converged",
   [STATE.DONE]: "Loop is complete; confirm merge-readiness or close",
 });
 
@@ -277,6 +285,10 @@ export function applyConfirmedReviewRequest(snapshot, reviewRequestStatus) {
  *   routes into waiting_for_copilot_review until that request is conclusively settled for this head
  *
  * @param {object} snapshot - raw or normalized snapshot
+ * @param {object} [refinementConfig] - optional refinement config with low-signal heuristic fields
+ * @param {boolean} [refinementConfig.stopOnLowSignal]
+ * @param {number} [refinementConfig.lowSignalRoundThreshold]
+ * @param {number} [refinementConfig.lowSignalMaxComments]
  * @returns {{
  *   state: string,
  *   allowedTransitions: string[],
@@ -285,7 +297,7 @@ export function applyConfirmedReviewRequest(snapshot, reviewRequestStatus) {
  *   sameHeadCleanConverged: boolean
  * }}
  */
-export function interpretLoopState(snapshot) {
+export function interpretLoopState(snapshot, refinementConfig) {
   const s = normalizeSnapshot(snapshot);
 
   let state;
@@ -329,6 +341,18 @@ export function interpretLoopState(snapshot) {
     }
   }
 
+  // Low-signal heuristic: when configured, stop re-requesting if round count
+  // exceeds threshold and actionable comment count is at or below the limit.
+  const lowSignalApplied =
+    refinementConfig?.stopOnLowSignal === true
+    && state === STATE.READY_TO_REREQUEST_REVIEW
+    && s.copilotReviewRoundCount > (refinementConfig.lowSignalRoundThreshold ?? 3)
+    && s.actionableThreadCount <= (refinementConfig.lowSignalMaxComments ?? 2);
+
+  if (lowSignalApplied) {
+    state = STATE.LOW_SIGNAL_CONVERGED;
+  }
+
   const autoRerequestEligible = isAutoRerequestEligible(s, state);
   const sameHeadCleanConverged = state === STATE.READY_TO_REREQUEST_REVIEW
     && s.copilotReviewOnCurrentHead
@@ -356,12 +380,12 @@ export function interpretLoopState(snapshot) {
  * @param {object} snapshotOrInterpretation - raw snapshot, normalized snapshot, or interpretLoopState() output
  * @returns {{ loopDisposition: string, terminal: boolean }}
  */
-export function summarizeLoopInterpretation(snapshotOrInterpretation) {
+export function summarizeLoopInterpretation(snapshotOrInterpretation, refinementConfig) {
   const interpretation = Array.isArray(snapshotOrInterpretation?.allowedTransitions)
     && typeof snapshotOrInterpretation?.state === "string"
     && typeof snapshotOrInterpretation?.nextAction === "string"
     ? snapshotOrInterpretation
-    : interpretLoopState(snapshotOrInterpretation);
+    : interpretLoopState(snapshotOrInterpretation, refinementConfig);
 
   let loopDisposition;
 
@@ -378,6 +402,7 @@ export function summarizeLoopInterpretation(snapshotOrInterpretation) {
     case STATE.BLOCKED_NEEDS_USER_DECISION:
       loopDisposition = LOOP_DISPOSITION.BLOCKED;
       break;
+    case STATE.LOW_SIGNAL_CONVERGED:
     case STATE.DONE:
       loopDisposition = LOOP_DISPOSITION.DONE;
       break;
@@ -395,6 +420,7 @@ export function summarizeLoopInterpretation(snapshotOrInterpretation) {
     loopDisposition,
     terminal: loopDisposition === LOOP_DISPOSITION.CLEAN_CONVERGED
       || loopDisposition === LOOP_DISPOSITION.BLOCKED
-      || loopDisposition === LOOP_DISPOSITION.DONE,
+      || loopDisposition === LOOP_DISPOSITION.DONE
+      || interpretation.state === STATE.LOW_SIGNAL_CONVERGED,
   };
 }

@@ -67,6 +67,7 @@
  *   { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import {
@@ -80,6 +81,7 @@ import {
 } from "../_core-helpers.mjs";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
 import {
   buildSnapshotFromPrFacts,
   interpretLoopState,
@@ -656,7 +658,9 @@ export async function runCli(
       effectiveConstraints: resolved.effectiveConstraints,
     };
   } else {
-    interpretation = interpretLoopState(snapshot);
+    const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) });
+    const refinementConfig = resolveRefinement(config.config);
+    interpretation = interpretLoopState(snapshot, refinementConfig);
   }
 
   const interpretationSummary = summarizeLoopInterpretation(interpretation);

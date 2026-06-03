@@ -623,3 +623,189 @@ test("summarizeLoopInterpretation marks blocked states as terminal", () => {
     terminal: true,
   });
 });
+
+// ---------------------------------------------------------------------------
+// Low-signal heuristic
+// ---------------------------------------------------------------------------
+
+test("interpretLoopState applies low-signal heuristic when conditions met", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 1,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = {
+    stopOnLowSignal: true,
+    lowSignalRoundThreshold: 3,
+    lowSignalMaxComments: 2,
+  };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.LOW_SIGNAL_CONVERGED);
+  assert.deepEqual(result.allowedTransitions, []);
+  assert.match(result.nextAction, /Low-signal/i);
+  assert.equal(result.autoRerequestEligible, false);
+  assert.equal(result.sameHeadCleanConverged, false);
+});
+
+test("interpretLoopState does not apply low-signal when stopOnLowSignal is false", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 1,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = {
+    stopOnLowSignal: false,
+    lowSignalRoundThreshold: 3,
+    lowSignalMaxComments: 2,
+  };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+});
+
+test("interpretLoopState does not apply low-signal when round count below threshold", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 2,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = {
+    stopOnLowSignal: true,
+    lowSignalRoundThreshold: 3,
+    lowSignalMaxComments: 2,
+  };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+});
+
+test("interpretLoopState does not apply low-signal when actionable threads exceed limit", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 5,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = {
+    stopOnLowSignal: true,
+    lowSignalRoundThreshold: 3,
+    lowSignalMaxComments: 2,
+  };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+});
+
+test("interpretLoopState does not apply low-signal without refinement config", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 10,
+    ciStatus: "success",
+  };
+
+  const result = interpretLoopState(snapshot);
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+});
+
+test("interpretLoopState does not apply low-signal to non-READY_TO_REREQUEST_REVIEW states", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    unresolvedThreadCount: 2,
+    actionableThreadCount: 2,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = {
+    stopOnLowSignal: true,
+    lowSignalRoundThreshold: 3,
+    lowSignalMaxComments: 2,
+  };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.UNRESOLVED_FEEDBACK_PRESENT);
+});
+
+test("LOW_SIGNAL_CONVERGED state is terminal", () => {
+  assert.deepEqual(TRANSITIONS[STATE.LOW_SIGNAL_CONVERGED], []);
+  assert.ok(Object.prototype.hasOwnProperty.call(TRANSITIONS, STATE.LOW_SIGNAL_CONVERGED),
+    "LOW_SIGNAL_CONVERGED must have a TRANSITIONS entry");
+});
+
+test("summarizeLoopInterpretation marks LOW_SIGNAL_CONVERGED as terminal", () => {
+  const summary = summarizeLoopInterpretation({
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 1,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  }, {
+    stopOnLowSignal: true,
+    lowSignalRoundThreshold: 3,
+    lowSignalMaxComments: 2,
+  });
+
+  assert.equal(summary.loopDisposition, LOOP_DISPOSITION.DONE);
+  assert.equal(summary.terminal, true);
+});
+
+test("interpretLoopState uses config default thresholds when not provided", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 4,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = { stopOnLowSignal: true };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.LOW_SIGNAL_CONVERGED,
+    "should use default lowSignalRoundThreshold=3 and lowSignalMaxComments=2");
+});
