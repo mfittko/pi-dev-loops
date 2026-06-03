@@ -85,7 +85,7 @@ Read the canonical entrypoint briefing first: [Entrypoint Briefing (Copilot PR F
 - Active GitHub issue/PR
 - Task-relevant source, tests, config, and CI
 
-Route-dependent: see [Copilot Loop Operations](../docs/copilot-loop-operations.md) and [Issue Intake Procedure](../docs/issue-intake-procedure.md) when relevant.`
+Route-dependent: see [Copilot Loop Operations](../docs/copilot-loop-operations.md) and [Issue Intake Procedure](../docs/issue-intake-procedure.md) when relevant.
 Verify all material claims against source, tests, configuration, and CI.
 
 ## Skill asset path resolution

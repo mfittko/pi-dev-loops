@@ -296,7 +296,6 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   assert.match(antiPatterns, /declare merge-ready without visible.*pre_approval_gate/i);
   assert.match(antiPatterns, /declare merge-ready based solely.*mergeable_state.*clean.*CI green/i);
   assert.match(antiPatterns, /Do not blind-run.*gh pr merge.*gh pr update-branch.*unapproved rebase/i);
-  assert.match(antiPatterns, /Do not blind-run.*gh pr merge.*gh pr update-branch.*unapproved rebase/i);
   assert.match(antiPatterns, /Do not dispatch async dev-loop.*omit.*pre-approval gate/i);
 });
 
