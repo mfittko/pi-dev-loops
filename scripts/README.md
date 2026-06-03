@@ -516,7 +516,7 @@ Optional:
 
 Success output shape:
 - standard path: `{ "ok": true, "action": "created"|"updated"|"noop", "repo": "owner/repo", "pr": 17, "gate": "draft_gate", "headSha": "abc1234", "currentHeadSha": "abc1234", "commentId": 101, "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101" }`
-- forced CI-override path: the same shape plus `{ "forced": true, "forceReason": "CI cancelled due to infrastructure", "forceBypass": "ci_blocked_needs_user_decision" }`
+- forced CI-override path: the same shape plus `{ "forced": true, "forceReason": "CI failed due to transient infrastructure", "forceBypass": "ci_blocked_needs_user_decision" }`
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
