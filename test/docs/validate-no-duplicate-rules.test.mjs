@@ -217,17 +217,34 @@ test("scanSkills handles empty skills tree", async () => {
   }
 });
 
-test("scanSkills skips canonical contract docs", async () => {
+test("scanSkills detects duplicate when non-canonical file restates canonical rule", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-validate-rules-"));
   try {
     const skillsDir = await writeSkillsDir(tempDir, {
-      "docs/copilot-loop-operations.md": "You must run tests before every push to main.",
-      "doc-a/SKILL.md": "You must run tests before every push to main.",
+      "docs/copilot-loop-operations.md": "You must run tests before every push to main and also verify the build output is correct.",
+      "doc-a/SKILL.md": "You must run tests before every push to main and also verify the build output is correct.",
     });
     const repoRoot = tempDir;
     const { duplicates } = await scanSkills(skillsDir, repoRoot);
 
-    // canonical contract doc is excluded, so no cross-file duplicate detected
+    // Non-canonical file duplicated a canonical rule: cross-file duplicate detected
+    assert.equal(duplicates.size, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("scanSkills suppresses duplicates when all occurrences are canonical", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-validate-rules-"));
+  try {
+    const skillsDir = await writeSkillsDir(tempDir, {
+      "docs/copilot-loop-operations.md": "You must run tests before every push to main and also verify the build output is correct.",
+      "docs/public-dev-loop-contract.md": "You must run tests before every push to main and also verify the build output is correct.",
+    });
+    const repoRoot = tempDir;
+    const { duplicates } = await scanSkills(skillsDir, repoRoot);
+
+    // Both occurrences are in canonical contract docs — suppressed
     assert.equal(duplicates.size, 0);
   } finally {
     await rm(tempDir, { recursive: true, force: true });

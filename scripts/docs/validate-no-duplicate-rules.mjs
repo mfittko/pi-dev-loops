@@ -19,8 +19,9 @@
  *   - Only cross-file duplicates reported (same-file dupes are intentional)
  *
  * Exclusion list:
- *   Canonical contract docs that own their content by design are excluded
- *   from cross-file duplicate detection.
+ *   Duplicates where all occurrences are within canonical contract docs
+ *   (which own their content by design) are suppressed. Duplicates involving
+ *   any non-canonical file are still reported.
  *   Known intentional duplicates (mirrored skill procedure text) are also
  *   excluded so that the guardrail enforces new duplication without failing
  *   on deliberate mirrors.
@@ -177,13 +178,9 @@ export async function scanSkills(skillsDir = SKILLS_DIR, repoRoot = REPO_ROOT) {
   let totalFilesScanned = 0;
 
   for await (const filePath of collectMarkdownFiles(skillsDir, repoRoot)) {
-    totalFilesScanned++;
     const relativePath = toPosixPath(path.relative(repoRoot, filePath));
 
-    if (CANONICAL_CONTRACT_DOCS.has(relativePath)) {
-      continue;
-    }
-
+    totalFilesScanned++;
     const content = await readFile(filePath, "utf8");
     const sentences = extractSentences(content);
 
@@ -202,7 +199,14 @@ export async function scanSkills(skillsDir = SKILLS_DIR, repoRoot = REPO_ROOT) {
     }
     const uniqueFiles = new Set(occurrences.map((o) => o.file));
     if (uniqueFiles.size > 1) {
-      duplicates.set(text, occurrences);
+      // Suppress duplicates where all occurrences are within canonical
+      // contract docs (these own their content by design and may mirror
+      // each other).  Duplicates that involve any non-canonical file
+      // are still reported.
+      const allCanonical = [...uniqueFiles].every((f) => CANONICAL_CONTRACT_DOCS.has(f));
+      if (!allCanonical) {
+        duplicates.set(text, occurrences);
+      }
     }
   }
 
