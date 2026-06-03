@@ -338,13 +338,6 @@ The canonical gate-review comment contract is [Gate Review Comment Contract](../
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config ships `scope`, `coverage`, `correctness`, `ci-guard`, and `contract-surface`; consumer repos may override.
 - **CI prerequisite:** resolve the draft gate config first (`resolveGateConfig(config, "draft")`). When `requireCi=true` (default), wait for green current-head CI before entering `draft_gate`. When `requireCi=false`, the draft gate may proceed without green CI. This draft-only override does **not** relax `pre_approval_gate`; final approval and merge readiness still require green current-head CI.
 - **Pass criteria:** all configured draft gate angles pass; all must-fix findings are addressed; validation passes; no unrelated files are included.
-- **Acceptance criteria verification:** before posting the `pre_approval_gate` comment, verify every acceptance criteria checklist item in the linked issue body:
-  1. read the issue body via `gh issue view <number> --repo <owner/name> --json body`
-  2. extract all `- [ ]` checklist items from the issue body
-  3. for each AC item, verify whether the merged code satisfies it; if any item cannot be verified or is not satisfied, treat the gate as blocked and do not post a `clean` verdict
-  4. mark each verified item as done by updating the issue body (`- [ ]` → `- [x]`) via `gh issue edit <number> --body "<updated-body>" --repo <owner/name>`
-  5. only post the `pre_approval_gate` comment with a note that all AC checklist items are verified and checked
-  When the issue body has no AC checklist items, note that explicitly in the gate comment rather than assuming satisfaction.
 - **Next step after passing:** mark the PR ready for review.
 - **Non-substitution rule:** a clean `draft_gate` comment only authorizes the draft → ready-for-review transition for that head SHA. It does **not** satisfy `pre_approval_gate`, final-approval readiness, or merge-ready requirements.
 - **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
@@ -366,9 +359,9 @@ This is the default pre-approval gate for this workflow boundary. The canonical 
 - **Pass criteria:** the sub-loop completes with verdict `clean`; all configured angles pass; if parallel execution is impractical, still run all configured lenses and explicitly record the limitation.
 - **Acceptance criteria verification:** before posting the `pre_approval_gate` comment, verify every acceptance criteria checklist item in the linked issue body:
   1. read the issue body via `gh issue view <number> --repo <owner/name> --json body`
-  2. extract all `- [ ]` checklist items from the issue body
+  2. extract checklist items from the **Acceptance criteria** section of the issue body (both `- [ ]` unchecked and `- [x]` already-checked items); ignore checklist items from other sections (DoD, tasks, non-goals) that are not acceptance criteria
   3. for each AC item, verify whether the merged code satisfies it; if any item cannot be verified or is not satisfied, treat the gate as blocked and do not post a `clean` verdict
-  4. mark each verified item as done by updating the issue body (`- [ ]` → `- [x]`) via `gh issue edit <number> --body "<updated-body>" --repo <owner/name>`
+  4. mark each verified item as done by writing the updated issue body to a temporary file and using `gh issue edit <number> --body-file <tmp-file> --repo <owner/name>` (prefer `--body-file` over inline `--body` to avoid shell quoting/escaping hazards)
   5. only post the `pre_approval_gate` comment with a note that all AC checklist items are verified and checked
   When the issue body has no AC checklist items, note that explicitly in the gate comment rather than assuming satisfaction.
 - **Next step after passing:** continue the Step 7 flow and then proceed to the final approval gate below.
