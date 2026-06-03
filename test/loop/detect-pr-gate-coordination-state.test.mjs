@@ -360,7 +360,7 @@ test("detect-pr-gate-coordination-state allows pre-approval fallback when the Co
     assert.equal(parsed.lifecycleState, "ready_to_rerequest_review");
     assert.equal(parsed.gateBoundary, "pre_approval_gate_window");
     assert.equal(parsed.nextAction, "run_pre_approval_gate");
-    assert.equal(parsed.gateEvidenceNote, "Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.");
+    assert.equal(parsed.gateEvidenceNote, "Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.");
     assert.match(parsed.reason, /round limit/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });

@@ -174,7 +174,7 @@ function normalizePositiveInteger(value) {
 }
 
 function buildRoundExhaustionGateEvidenceNote({ copilotReviewRoundCount, maxCopilotRounds }) {
-  return `Copilot review rounds exhausted (${copilotReviewRoundCount}/${maxCopilotRounds}); current head has zero unresolved threads and green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.`;
+  return `Copilot review rounds exhausted (${copilotReviewRoundCount}/${maxCopilotRounds}); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.`;
 }
 
 function buildResult({

@@ -310,7 +310,7 @@ test("upsert-gate-review-comment appends the round-cap fallback note to pre-appr
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
         assertArgContains: [
           "body=### Gate review: `pre_approval_gate`",
-          "**Findings summary:** no issues found; Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.",
+          "**Findings summary:** no issues found; Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.",
         ],
         stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
       },
