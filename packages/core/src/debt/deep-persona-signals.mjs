@@ -91,7 +91,7 @@ const FLAG_PATTERNS = [
   },
 ];
 
-const FILE_PATH_RE = /[\w/\-]+\.(?:m?js|ts|tsx|jsx|mjs)/i;
+const FILE_PATH_RE = /[\w/\-.]+\.(?:m?js|ts|tsx|jsx|mjs)/i;
 
 // ============================================================================
 // Helpers
