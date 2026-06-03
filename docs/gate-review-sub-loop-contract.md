@@ -33,7 +33,7 @@ but the execution phases are identical.
 Before fanning out reviewers, run a preamble pass that produces review handoff context
 on an isolated checkout:
 
-- fresh context (do not fork the parent session just to share chat history). **Mandatory:** every gate-review subagent must run `scripts/github/verify-fresh-review-context.mjs` at startup and refuse to proceed on contamination.
+- fresh context (do not fork the parent session just to share chat history). **Mandatory:** every gate-review subagent must run `scripts/github/verify-fresh-review-context.mjs` at startup and refuse to proceed on contamination. Use `--scope <angle>` so each reviewer writes its own sentinel.
 - `worktree: true` recommended per reviewer/subagent for filesystem isolation; prescribe it but
   do not fail closed if worktrees are unavailable in the current environment
 - the preamble produces one or more review handoff artifacts (branch, head SHA, PR/issue
@@ -48,7 +48,7 @@ on an isolated checkout:
 
 Fan out one fresh-context reviewer per gate-specific review angle. Each reviewer:
 
-- starts in fresh context (do not inherit prior conversation state) **Mandatory:** run `scripts/github/verify-fresh-review-context.mjs` at startup; refuse to proceed on contamination.
+- starts in fresh context (do not inherit prior conversation state). **Mandatory:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` at startup; refuse to proceed on contamination. Use `--scope` so parallel reviewers in the same working directory do not trigger false contamination from each other's sentinels.
 - receives a concise briefing summary from the preamble handoff artifacts
 - is scoped to exactly one review angle
 - is **read-only**: inspects the diff and returns findings via output artifacts only; never edits files

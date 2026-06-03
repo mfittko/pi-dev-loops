@@ -6,8 +6,12 @@
  * the subagent inherits a prior session's context (contaminated) and the
  * script fails closed.
  *
- * Lock-file: tmp/gate-review-context-sentinel.json (relative to CWD, which
- * should be the repo root when run inside a Pi subagent).
+ * Lock-file: tmp/gate-review-context-sentinel[-<scope>].json (relative to CWD,
+ * which should be the repo root when run inside a Pi subagent).
+ *
+ * Use --scope <name> when multiple reviewers share the same working directory
+ * (parallel fan-out) so each reviewer writes its own sentinel and false
+ * contamination is avoided.
  *
  * Exit 0 on clean (first run), exit 1 on contamination (prior run detected).
  */
@@ -16,11 +20,15 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isDirectCliRun, formatCliError } from "../_core-helpers.mjs";
 
-const SENTINEL_RELATIVE = path.join("tmp", "gate-review-context-sentinel.json");
-
-const USAGE = `Usage: verify-fresh-review-context.mjs [--help]
+const USAGE = `Usage: verify-fresh-review-context.mjs [--help] [--scope <name>]
 
 Verify that the current subagent session has fresh context.
+
+Options:
+  --scope <name>  Unique reviewer scope (e.g. "draft-gate-coverage").
+                  When provided, the sentinel is scoped so parallel
+                  reviewers in the same working directory do not
+                  trigger false contamination.
 
 Output (stdout, JSON):
   { "ok": true, "fresh": true, "sentinelCreated": true }
@@ -34,19 +42,33 @@ Exit codes:
   1  Contaminated (prior session detected)
   2  Internal error`.trim();
 
+function resolveScope(argv) {
+  const idx = argv.indexOf("--scope");
+  if (idx === -1) return null;
+  const val = argv[idx + 1];
+  if (!val || val.startsWith("-")) return null;
+  return val;
+}
+
+function sentinelRelative(scope) {
+  const suffix = scope ? `-${scope}` : "";
+  return path.join("tmp", `gate-review-context-sentinel${suffix}.json`);
+}
+
 async function main(argv = process.argv.slice(2)) {
   if (argv.includes("--help") || argv.includes("-h")) {
     process.stdout.write(`${USAGE}\n`);
     return 0;
   }
 
-  const sentinelPath = path.resolve(process.cwd(), SENTINEL_RELATIVE);
+  const scope = resolveScope(argv);
+  const sentinelPath = path.resolve(process.cwd(), sentinelRelative(scope));
 
   // Ensure tmp/ exists
   try {
     await mkdir(path.dirname(sentinelPath), { recursive: true });
   } catch (err) {
-    process.stderr.write(`${formatCliError(err, { prefix: "verify-fresh-review-context: " })}\n`);
+    process.stderr.write(`${formatCliError(err)}\n`);
     return 2;
   }
 
@@ -73,6 +95,7 @@ async function main(argv = process.argv.slice(2)) {
   const sentinel = {
     createdAt: new Date().toISOString(),
     pid: process.pid,
+    ...(scope ? { scope } : {}),
   };
 
   try {
@@ -90,7 +113,7 @@ async function main(argv = process.argv.slice(2)) {
       }) + "\n");
       return 1;
     }
-    process.stderr.write(`${formatCliError(err, { prefix: "verify-fresh-review-context: " })}\n`);
+    process.stderr.write(`${formatCliError(err)}\n`);
     return 2;
   }
 
@@ -107,7 +130,7 @@ if (isDirectCliRun(import.meta.url)) {
     const exitCode = await main();
     process.exit(exitCode);
   } catch (err) {
-    process.stderr.write(`${formatCliError(err, { prefix: "verify-fresh-review-context: " })}\n`);
+    process.stderr.write(`${formatCliError(err)}\n`);
     process.exit(2);
   }
 }

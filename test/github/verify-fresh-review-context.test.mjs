@@ -82,3 +82,37 @@ test("verify-fresh-review-context second run in same dir detects contamination",
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
 });
+
+test("verify-fresh-review-context --scope isolates parallel reviewers in same CWD", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-verify-fresh-"));
+  try {
+    await mkdir(path.join(tmpDir, "tmp"), { recursive: true });
+
+    const r1 = runScript(["--scope", "angle-coverage"], { cwd: tmpDir });
+    assert.equal(r1.status, 0, r1.stderr);
+    assert.equal(JSON.parse(r1.stdout.trim()).fresh, true);
+
+    const r2 = runScript(["--scope", "angle-correctness"], { cwd: tmpDir });
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.equal(JSON.parse(r2.stdout.trim()).fresh, true);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+test("verify-fresh-review-context --scope re-run with same scope detects contamination", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-verify-fresh-"));
+  try {
+    await mkdir(path.join(tmpDir, "tmp"), { recursive: true });
+
+    const r1 = runScript(["--scope", "angle-correctness"], { cwd: tmpDir });
+    assert.equal(r1.status, 0);
+    assert.equal(JSON.parse(r1.stdout.trim()).fresh, true);
+
+    const r2 = runScript(["--scope", "angle-correctness"], { cwd: tmpDir });
+    assert.equal(r2.status, 1);
+    assert.equal(JSON.parse(r2.stdout.trim()).fresh, false);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+});
