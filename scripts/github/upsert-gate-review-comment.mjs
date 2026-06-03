@@ -323,7 +323,7 @@ function appendGateEvidenceNote(summary, note) {
     return normalizedSummary;
   }
 
-  return smartTruncate(`${normalizedSummary} ${normalizedNote}`, MAX_GATE_COMMENT_TEXT_LENGTH);
+  return smartTruncate(`${normalizedSummary}; ${normalizedNote}`, MAX_GATE_COMMENT_TEXT_LENGTH);
 }
 
 export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction }) {
