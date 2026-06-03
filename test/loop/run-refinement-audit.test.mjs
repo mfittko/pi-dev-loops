@@ -103,6 +103,17 @@ test("missing scope args fail closed", async () => {
   assert.match(parsed.usage, /run-refinement-audit\.mjs/);
 });
 
+test("unreadable --paths-file input fails closed with usage", async () => {
+  const missingFile = path.join(os.tmpdir(), `missing-audit-paths-${Date.now()}.txt`);
+  const result = await runAudit(["--paths-file", missingFile]);
+
+  assert.equal(result.code, 1);
+  const parsed = JSON.parse(result.stderr.trim());
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /Unreadable --paths-file input/i);
+  assert.match(parsed.usage, /run-refinement-audit\.mjs/);
+});
+
 test("untracked-only scope fails closed after expansion", async () => {
   const repoRoot = await initTrackedRepo([["tracked.md", "tracked\n"]]);
 

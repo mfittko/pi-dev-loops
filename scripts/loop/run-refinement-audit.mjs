@@ -178,7 +178,16 @@ async function loadConfiguredPaths(options, cwd) {
   }
 
   const filePath = path.resolve(cwd, options.pathsFile);
-  const raw = await readFile(filePath, "utf8");
+  let raw;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch (error) {
+    const detail = error instanceof Error && typeof error.message === "string"
+      ? error.message
+      : String(error);
+    throw parseError(`Unreadable --paths-file input: ${detail}`);
+  }
+
   const entries = raw.split(/\r?\n/u);
   if (entries.at(-1) === "") {
     entries.pop();
