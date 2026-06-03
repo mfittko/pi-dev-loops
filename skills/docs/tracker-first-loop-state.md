@@ -244,10 +244,38 @@ This contract is intentionally narrower than the parent epics:
 
 ## State machine integration
 
-This document is also the canonical state-graph doc for the tracker-first loop state machine. See:
-- `packages/core/src/loop/tracker-first-loop-state.mjs` — pure logic layer
+This document is also the canonical state-graph doc for the tracker-first loop state machine.
+
+### Loop state machine (distinct from PR-level machine above)
+
+Implementation:
+- `packages/core/src/loop/tracker-first-loop-state.mjs` — pure logic layer (`interpretTrackerLoopState`)
 - `scripts/loop/detect-tracker-first-loop-state.mjs` — CLI wrapper (same interface as `detect-copilot-loop-state.mjs`)
 
-State vocabulary: `drafting`, `needs_triage`, `in_progress`, `in_review`, `merge_ready`, `blocked`, `completed`, `unknown`
+**Loop state vocabulary:** `drafting`, `needs_triage`, `in_progress`, `in_review`, `merge_ready`, `blocked`, `completed`, `unknown`
 
-Interface contract: `{ ok, state, snapshot, allowedTransitions, nextAction }`
+**Loop interface contract:** `{ ok, state, snapshot, allowedTransitions, nextAction }`
+
+**Loop snapshot fields:**
+| Field | Type | Description |
+|---|---|---|
+| `trackerState` | `string` | Canonical loop state |
+| `rawTrackerState` | `string` | Raw input state string |
+| `prLinked` | `boolean` | Whether a linked PR was found |
+| `prContext` | `object \| null` | Linked PR context (number, state, headRefName) |
+
+**Loop nextAction mapping:**
+| State | nextAction |
+|---|---|
+| `drafting` | `triage_or_block` |
+| `needs_triage` | `start_work` |
+| `in_progress` | `review` |
+| `in_review` | `merge_or_fix` |
+| `merge_ready` | `merge` |
+| `blocked` | `resolve_blocker` |
+| `completed` | `done` |
+| `unknown` | `reconcile` |
+
+**Fail-closed contract:** Unrecognized/empty/garbage tracker state → `needs_triage`. Only explicit `"unknown"` → canonical `unknown` state.
+
+**PR-level state machine** (sections 1-5 above) uses a separate vocabulary (`ready_no_pr`, `draft_pr_open`, `pr_reviewable`, `pr_merged`, `pr_closed_unmerged`, `no_tracker_item`, `blocked_needs_user_decision`) with its own snapshot schema and reverse-sync actions.

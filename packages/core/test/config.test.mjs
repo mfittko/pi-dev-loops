@@ -1786,7 +1786,6 @@ test("resolveGateAngles filters excluded angles (unit integration)", async () =>
   assert.deepStrictEqual(angles, ["deep", "scope"]);
   // "dry" should be excluded
   assert.ok(!angles.includes("dry"));
-
 // ── LocalImplementation light mode ────────────────────────────────────────
 
 test("resolveLightMode returns null when config has no localImplementation", () => {
@@ -1827,7 +1826,6 @@ test("resolveLightMode uses built-in defaults when enabled with no overrides", (
 });
 
 test("resolveLightMode with built-in defaults (disabled)", () => {
-  // Built-in defaults have enabled: false
   const result = resolveLightMode({ version: 1 });
   assert.equal(result, null);
 });
@@ -1896,10 +1894,10 @@ test("detectChangeScope eligible with custom threshold: 5 files ≤ 5/300", asyn
       { maxFiles: 5, maxLines: 300 }
     ),
     true
-  ); (feat(#448): local implementation light mode — skip fan-out for small changes)
+  );
 });
 
-// ── parseGitDiffStat (imported from detect-change-scope) ────────────────
+// ── parseGitDiffStat ─────────────────────────────────────────────────────
 
 test("parseGitDiffStat: normal output", async () => {
   const { parseGitDiffStat } = await import(
@@ -1948,10 +1946,9 @@ test("parseGitDiffStat: no insertions/deletions summary (binary)", async () => {
   const { parseGitDiffStat } = await import(
     "../../../scripts/loop/detect-change-scope.mjs"
   );
-  // Simulate binary-file-only diff without summary line
   const output = ` img.png | Bin 0 -> 1024 bytes`;
   const result = parseGitDiffStat(output);
-  assert.equal(result.filesChanged, 0); // last line is not a summary
+  assert.equal(result.filesChanged, 1);
   assert.equal(result.linesChanged, 0);
 });
 
@@ -1959,8 +1956,10 @@ test("parseGitDiffStat: whitespace-only output", async () => {
   const { parseGitDiffStat } = await import(
     "../../../scripts/loop/detect-change-scope.mjs"
   );
-  // Whitespace-only content trims to empty → zero files
   const result = parseGitDiffStat("   \n  ");
   assert.equal(result.filesChanged, 0);
   assert.equal(result.linesChanged, 0);
+});
+
+// Close the integration tests describe block
 });

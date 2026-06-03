@@ -47,17 +47,20 @@ export function parseGitDiffStat(output) {
   }
 
   const lines = trimmed.split("\n");
-  // Last line is the summary: "N files changed, M insertions(+), K deletions(-)"
-  const summaryLine = lines[lines.length - 1];
-  const fileCount = lines.length - 1;
+  // Last line may or may not be a summary line.
+  // Detect summary: matches "N file(s) changed" pattern.
+  const lastLine = lines[lines.length - 1];
+  const isSummary = /\d+\s+files?\s+changed/.test(lastLine) || /\d+\s+insertion/.test(lastLine) || /\d+\s+deletion/.test(lastLine);
+  const fileCount = isSummary ? lines.length - 1 : lines.length;
 
   let insertions = 0;
   let deletions = 0;
-  // Summary may be absent for binary-only diffs or zero-change diffs
-  const insMatch = summaryLine.match(/(\d+)\s+insertion/);
-  const delMatch = summaryLine.match(/(\d+)\s+deletion/);
-  if (insMatch) insertions = parseInt(insMatch[1], 10);
-  if (delMatch) deletions = parseInt(delMatch[1], 10);
+  if (isSummary) {
+    const insMatch = lastLine.match(/(\d+)\s+insertion/);
+    const delMatch = lastLine.match(/(\d+)\s+deletion/);
+    if (insMatch) insertions = parseInt(insMatch[1], 10);
+    if (delMatch) deletions = parseInt(delMatch[1], 10);
+  }
 
   return { filesChanged: fileCount, linesChanged: insertions + deletions };
 }
@@ -105,7 +108,7 @@ async function main() {
       // Config validation errors → fail-closed, eligible stays false
     } else {
       const lightMode = resolveLightMode(config);
-      if (lightMode) {
+      if (lightMode && scope.ok !== false) {
         threshold = { maxFiles: lightMode.maxFiles, maxLines: lightMode.maxLines };
         eligible = isEligibleForLightMode(scope, threshold);
       }

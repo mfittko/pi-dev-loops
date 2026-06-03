@@ -1,5 +1,37 @@
 version: 1
 
+gates:
+  draft:
+    angles:
+      - scope
+      - coverage
+      - correctness
+      - ci-guard
+      - contract-surface
+      - input-validation
+      - determinism
+      - no-op
+      - link-check
+      - packaging-runtime
+      - state-concurrency
+      - config-drift
+      - gate-evidence
+    requireCi: true
+  preApproval:
+    angles:
+      - dry
+      - kiss
+      - yagni
+      - srp
+      - soc
+      - deep
+      - docs
+      - ocp
+      - lsp
+      - isp
+      - dip
+      - renderer-security
+
 workflow:
   requireRetrospective: true
   requireDraftFirst: true
