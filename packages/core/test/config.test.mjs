@@ -1769,7 +1769,7 @@ test("existing wired scripts: reconcile-draft-gate imports loadDevLoopConfig", a
   assert.match(source, /loadDevLoopConfig/);
 });
 
-test("print-gates resolves excluded angles correctly via resolveGateAngles", async () => {
+test("resolveGateAngles filters excluded angles (unit integration)", async () => {
   // Unit-level integration: resolveGateAngles with excludeAngles
   const config = {
     version: 1,

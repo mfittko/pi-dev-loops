@@ -48,7 +48,7 @@ Local implementation supports two durable spec inputs:
 - phase-doc-backed local sessions ([Phase Plan](../../docs/phases/phase-x.md) is canonical)
 - tracker-backed local sessions (the tracker issue is canonical)
 
-Tracker-backed local implementation stays inside the existing `local_implementation` path. For sub-issue tree decomposition, see [Sub-Issue Tree Contract](../../docs/sub-issue-tree-contract.md). It does not introduce a new routing mode.
+Tracker-backed local implementation stays inside the existing `local_implementation` path. For sub-issue tree decomposition, see [Sub-Issue Tree Contract](../../docs/sub-issue-tree-contract.md) (this is a source-repo reference; it is not part of the bundled `../docs/` runtime contract surface for installed skill copies). It does not introduce a new routing mode.
 
 When the local spec already lives in a tracker issue:
 
