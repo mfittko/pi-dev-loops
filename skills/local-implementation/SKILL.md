@@ -83,7 +83,7 @@ When the local spec already lives in a tracker issue:
 
 ## Structural quality
 
-Apply [Structural Quality](../docs/structural-quality.md) from the `deep` review angle: prefer deletion over addition, keep files under ~1k lines, avoid leaky abstractions and spaghetti branching.
+Apply [Structural Quality](../docs/structural-quality.md) from the `deep` review angle.
 
 ## Deterministic logging structure
 

@@ -19,6 +19,16 @@ Apply these during implementation (not just review):
 4. **Testability**: Every public function is independently testable; no hidden state
 5. **Naming**: Names describe what, not how; consistent vocabulary across codebase
 
+## Implementation self-check rules
+
+Apply these during implementation (not just at review time):
+
+- **Prefer deletion over addition**: Question every new file, export, layer, and moving part. If it does not earn its keep, remove it.
+- **File size ceiling**: Files over ~1k lines need extraction or an explicit justification kept in a code comment or doc reference.
+- **Logic placement**: Do not bolt conditionals onto unrelated paths; push logic into its own dedicated boundary.
+- **Avoid thin abstractions**: No thin wrappers, re-export-only files, or identity abstractions that add indirection without clarity.
+- **No leaky abstractions**: Do not leak feature-specific logic into shared or general-purpose modules.
+
 ## Anti-patterns to avoid
 
 - Over-engineering: adding abstraction layers "just in case"

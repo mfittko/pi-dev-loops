@@ -112,7 +112,7 @@ Source code, tests, CI, and config are authoritative. Generated wiki is navigati
 
 ## Structural quality
 
-Apply [Structural Quality](../docs/structural-quality.md) standards from the `deep` review angle during implementation and follow-up fixes. Core: prefer deletion over addition, keep files under ~1k lines, avoid leaky abstractions and spaghetti branching.
+Apply [Structural Quality](../docs/structural-quality.md) standards from the `deep` review angle during implementation and follow-up fixes.
 
 ## Step 5: PR discovery and interpretation
 

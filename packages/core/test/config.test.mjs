@@ -1719,6 +1719,8 @@ test("print-gates uses resolveGateAngles (not raw gateConfig.angles)", async () 
   assert.match(source, /resolveGateAngles/);
   // Must use resolveGateAngles to get angles, not gateConfig.angles directly
   assert.match(source, /resolveGateAngles\(config,\s*gate\)/);
+  // Negative: gateConfig.angles must not be used directly
+  assert.ok(!/gateConfig\.angles/.test(source), "print-gates.mjs should not use gateConfig.angles directly");
 });
 
 test("existing wired scripts: outer-loop uses resolveAutonomyStopAt", async () => {
