@@ -1,16 +1,25 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
+import { access, open, readFile, readdir } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { runChild, requireOptionValue } from "../_cli-primitives.mjs";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
 
-const USAGE = `Usage: conductor-monitor.mjs --repo <owner/name>
+const USAGE = `Usage: conductor-monitor.mjs --repo <owner/name> [--auto-resume]
 
 Aggregate Copilot-loop status across all open PRs in one repo.
 
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
+
+Optional:
+  --auto-resume         Inspect documented async run artifacts, detect orphaned
+                        PR follow-up runs, and emit deterministic resume plans.
 
 Success output (stdout, JSON):
   {
@@ -51,6 +60,16 @@ Success output (stdout, JSON):
     ]
   }
 
+Additional success fields when --auto-resume is present:
+  {
+    "autoResumeRequested": true,
+    "orphanedPrCount": 1,
+    "resumePlanCount": 1,
+    "manualAttentionCount": 0,
+    "resumePlans": [...],
+    "needsManualAttention": [...]
+  }
+
 Queue status values:
   queue_complete   No open PRs remain in the repo queue
   monitoring       Open PRs exist, but all are in healthy wait states
@@ -68,12 +87,41 @@ Exit codes:
 
 const parseError = buildParseError(USAGE);
 const OPEN_PR_LIST_LIMIT = 1000;
+const DEFAULT_SESSION_ROOT = path.join(os.homedir(), ".pi", "agent", "sessions");
+const RUN_STATE = {
+  COMPLETED: "completed",
+  FAILED: "failed",
+  PAUSED: "paused",
+  RUNNING: "running",
+  QUEUED: "queued",
+  UNKNOWN: "unknown",
+};
+const RESUME_ACTION = {
+  NEEDS_FEEDBACK_FIX: "needs_feedback_fix",
+  NEEDS_REPLY_RESOLVE: "needs_reply_resolve",
+  NEEDS_REREQUEST_OR_WATCH: "needs_rerequest_or_watch",
+  AWAIT_FINAL_APPROVAL: "await_final_approval",
+  AWAIT_MERGE_AUTHORIZATION: "await_merge_authorization",
+  AWAIT_READY_FOR_REVIEW_AUTHORIZATION: "await_ready_for_review_authorization",
+  DONE_OR_MERGED: "done_or_merged",
+  NEEDS_MANUAL_ATTENTION: "needs_manual_attention",
+};
+const MANUAL_REASON = {
+  AMBIGUOUS_PR_IDENTITY: "ambiguous_pr_identity",
+  MISSING_PR_IDENTITY: "missing_pr_identity",
+  ARTIFACT_LIVE_STATE_CONFLICT: "artifact_live_state_conflict",
+  MISSING_OUTPUT_ARTIFACT: "missing_output_artifact",
+  UNCLASSIFIED_ARTIFACT_STATE: "unclassified_artifact_state",
+  MULTIPLE_CANDIDATE_RUNS: "multiple_candidate_runs",
+  STALE_WORKTREE_MISSING_RESUME_INPUTS: "stale_worktree_missing_resume_inputs",
+};
 
 function parseCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
     repo: undefined,
+    autoResume: false,
   };
 
   while (args.length > 0) {
@@ -86,6 +134,11 @@ function parseCliArgs(argv) {
 
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
+      continue;
+    }
+
+    if (token === "--auto-resume") {
+      options.autoResume = true;
       continue;
     }
 
@@ -190,28 +243,9 @@ function buildPrReport(pr, interpretation, interpretationSummary, snapshot) {
   };
 }
 
-export async function runConductorMonitor({ repo }, { env = process.env, ghCommand = "gh" } = {}) {
-  const prs = await listOpenPrs({ repo }, { env, ghCommand });
-
-  if (prs.length === 0) {
-    return {
-      ok: true,
-      repo,
-      checkedAt: new Date().toISOString(),
-      prCount: 0,
-      queueStatus: "queue_complete",
-      needsAttentionCount: 0,
-      summary: {
-        waiting: 0,
-        needsAttention: 0,
-        blocked: 0,
-        done: 0,
-      },
-      prs: [],
-    };
-  }
-
+async function buildPrReports(prs, { repo, env, ghCommand }) {
   const reports = [];
+
   for (const pr of prs) {
     const snapshot = await autoDetectSnapshot({ repo, pr: pr.number }, { env, ghCommand });
     const interpretation = interpretLoopState(snapshot);
@@ -219,7 +253,11 @@ export async function runConductorMonitor({ repo }, { env = process.env, ghComma
     reports.push(buildPrReport(pr, interpretation, interpretationSummary, snapshot));
   }
 
-  const summary = reports.reduce((accumulator, pr) => {
+  return reports;
+}
+
+function buildQueueSummary(reports) {
+  return reports.reduce((accumulator, pr) => {
     accumulator[pr.bucket] += 1;
     return accumulator;
   }, {
@@ -228,9 +266,14 @@ export async function runConductorMonitor({ repo }, { env = process.env, ghComma
     blocked: 0,
     done: 0,
   });
+}
 
+function buildBaseResult(repo, reports) {
+  const summary = buildQueueSummary(reports);
   const needsAttentionCount = summary.needsAttention + summary.blocked;
-  const queueStatus = needsAttentionCount > 0 ? "attention_needed" : "monitoring";
+  const queueStatus = reports.length === 0
+    ? "queue_complete"
+    : (needsAttentionCount > 0 ? "attention_needed" : "monitoring");
 
   return {
     ok: true,
@@ -244,9 +287,1467 @@ export async function runConductorMonitor({ repo }, { env = process.env, ghComma
   };
 }
 
+function splitPathList(value) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return [];
+  }
+
+  return value
+    .split(path.delimiter)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+}
+
+async function pathExists(filePath) {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function listDirectoriesIfExists(root) {
+  try {
+    const entries = await readdir(root, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(root, entry.name));
+  } catch {
+    return [];
+  }
+}
+
+async function readTextIfExists(filePath) {
+  if (typeof filePath !== "string" || filePath.length === 0) {
+    return null;
+  }
+
+  try {
+    return await readFile(filePath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+
+async function readFirstLineIfExists(filePath, chunkSize = 4096) {
+  if (typeof filePath !== "string" || filePath.length === 0) {
+    return null;
+  }
+
+  let handle;
+  try {
+    handle = await open(filePath, "r");
+    let position = 0;
+    let collected = "";
+
+    while (true) {
+      const buffer = Buffer.alloc(chunkSize);
+      const { bytesRead } = await handle.read(buffer, 0, chunkSize, position);
+      if (bytesRead === 0) {
+        return collected.length > 0 ? collected : null;
+      }
+
+      const chunk = buffer.toString("utf8", 0, bytesRead);
+      const newlineIndex = chunk.search(/\r?\n/u);
+      if (newlineIndex >= 0) {
+        return `${collected}${chunk.slice(0, newlineIndex)}`;
+      }
+
+      collected += chunk;
+      position += bytesRead;
+    }
+  } catch {
+    return null;
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+}
+
+async function readJsonIfExists(filePath) {
+  const text = await readTextIfExists(filePath);
+  if (text === null) {
+    return null;
+  }
+
+  try {
+    return parseJsonText(text);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRunState(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  switch (normalized) {
+    case "complete":
+    case "completed":
+      return RUN_STATE.COMPLETED;
+    case "failed":
+    case "failure":
+    case "error":
+      return RUN_STATE.FAILED;
+    case "paused":
+    case "interrupted":
+      return RUN_STATE.PAUSED;
+    case "running":
+      return RUN_STATE.RUNNING;
+    case "queued":
+    case "pending":
+      return RUN_STATE.QUEUED;
+    default:
+      return RUN_STATE.UNKNOWN;
+  }
+}
+
+function normalizeRunStateForPlan(value) {
+  const normalized = normalizeRunState(value);
+  if (normalized === RUN_STATE.UNKNOWN) {
+    return RUN_STATE.COMPLETED;
+  }
+  return normalized;
+}
+
+function isRunningLikeState(value) {
+  const normalized = normalizeRunState(value);
+  return normalized === RUN_STATE.RUNNING || normalized === RUN_STATE.QUEUED;
+}
+
+function isExitedState(value) {
+  const normalized = normalizeRunState(value);
+  return normalized === RUN_STATE.COMPLETED
+    || normalized === RUN_STATE.FAILED
+    || normalized === RUN_STATE.PAUSED;
+}
+
+function runStatePriority(value) {
+  switch (normalizeRunState(value)) {
+    case RUN_STATE.RUNNING:
+      return 5;
+    case RUN_STATE.QUEUED:
+      return 4;
+    case RUN_STATE.FAILED:
+      return 3;
+    case RUN_STATE.PAUSED:
+      return 2;
+    case RUN_STATE.COMPLETED:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function createRunRecord(runId, childIndex = 0) {
+  return {
+    runId,
+    childIndex,
+    agent: null,
+    runState: RUN_STATE.UNKNOWN,
+    cwd: null,
+    sessionPath: null,
+    statusPath: null,
+    eventsPath: null,
+    outputLogPath: null,
+    outputArtifactPath: null,
+    metaPath: null,
+    resultPath: null,
+    resultSummaryPath: null,
+    resultSummaryText: null,
+    timestampMs: null,
+    evidence: {},
+  };
+}
+
+function mergeRunRecord(target, patch) {
+  const merged = { ...target };
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+
+    if (key === "evidence") {
+      merged.evidence = { ...merged.evidence, ...value };
+      continue;
+    }
+
+    if (key === "timestampMs") {
+      const numeric = Number.isFinite(value) ? value : null;
+      if (numeric !== null) {
+        merged.timestampMs = merged.timestampMs === null
+          ? numeric
+          : Math.max(merged.timestampMs, numeric);
+      }
+      continue;
+    }
+
+    if (key === "runState") {
+      const normalized = normalizeRunState(value);
+      if (runStatePriority(normalized) > runStatePriority(merged.runState)) {
+        merged.runState = normalized;
+      }
+      continue;
+    }
+
+    merged[key] = value;
+  }
+
+  return merged;
+}
+
+function recordKey(runId, childIndex) {
+  return `${runId}:${childIndex}`;
+}
+
+function parseArtifactFileName(name) {
+  const match = name.match(/^(?<runId>.+)_(?<agent>[^_]+)_(?<index>\d+)_(?<kind>meta\.json|output\.md|input\.md)$/u);
+  if (!match?.groups) {
+    return null;
+  }
+
+  return {
+    runId: match.groups.runId,
+    agent: match.groups.agent,
+    childIndex: Number(match.groups.index),
+    kind: match.groups.kind,
+  };
+}
+
+async function scanSessionArtifactRoot(artifactsDir, records) {
+  const entries = await readdir(artifactsDir, { withFileTypes: true }).catch(() => null);
+  if (entries === null) {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const parsedName = parseArtifactFileName(entry.name);
+    if (parsedName === null) {
+      continue;
+    }
+
+    const { runId, childIndex, agent } = parsedName;
+    const key = recordKey(runId, childIndex);
+    const record = records.get(key) ?? createRunRecord(runId, childIndex);
+    const filePath = path.join(artifactsDir, entry.name);
+
+    if (entry.name.endsWith("_meta.json")) {
+      const meta = await readJsonIfExists(filePath);
+      if (meta && typeof meta === "object") {
+        records.set(key, mergeRunRecord(record, {
+          agent: typeof meta.agent === "string" ? meta.agent : (record.agent ?? agent),
+          metaPath: filePath,
+          ...(Number.isInteger(meta.exitCode) ? {
+            runState: meta.exitCode === 0 ? RUN_STATE.COMPLETED : RUN_STATE.FAILED,
+          } : {}),
+          timestampMs: typeof meta.timestamp === "number" ? meta.timestamp : null,
+          evidence: {
+            metaPath: filePath,
+            exitCode: Number.isInteger(meta.exitCode) ? meta.exitCode : null,
+          },
+        }));
+      }
+      continue;
+    }
+
+    if (entry.name.endsWith("_output.md")) {
+      records.set(key, mergeRunRecord(record, {
+        outputArtifactPath: filePath,
+        agent: record.agent ?? agent,
+        evidence: { outputArtifactPath: filePath },
+      }));
+    }
+  }
+}
+
+async function scanSessionRunRoot(root, records) {
+  const topLevelEntries = await readdir(root, { withFileTypes: true }).catch(() => null);
+  if (topLevelEntries === null) {
+    return;
+  }
+
+  for (const topLevelEntry of topLevelEntries) {
+    if (!topLevelEntry.isDirectory()) {
+      continue;
+    }
+
+    if (topLevelEntry.name === "subagent-artifacts") {
+      await scanSessionArtifactRoot(path.join(root, topLevelEntry.name), records);
+      continue;
+    }
+
+    const topLevelPath = path.join(root, topLevelEntry.name);
+    await scanSessionArtifactRoot(path.join(topLevelPath, "subagent-artifacts"), records).catch(() => {});
+    const runIdEntries = await readdir(topLevelPath, { withFileTypes: true }).catch(() => []);
+
+    for (const runIdEntry of runIdEntries) {
+      if (!runIdEntry.isDirectory() || runIdEntry.name === "subagent-artifacts") {
+        continue;
+      }
+
+      const runId = runIdEntry.name;
+      const runRoot = path.join(topLevelPath, runId);
+      const runDirectories = await readdir(runRoot, { withFileTypes: true }).catch(() => []);
+
+      for (const runDirectory of runDirectories) {
+        const indexMatch = runDirectory.name.match(/^run-(\d+)$/u);
+        if (!runDirectory.isDirectory() || indexMatch === null) {
+          continue;
+        }
+
+        const childIndex = Number(indexMatch[1]);
+        const sessionPath = path.join(runRoot, runDirectory.name, "session.jsonl");
+        const firstLine = await readFirstLineIfExists(sessionPath);
+        let header = null;
+        if (firstLine) {
+          try {
+            header = parseJsonText(firstLine);
+          } catch {
+            header = null;
+          }
+        }
+        const key = recordKey(runId, childIndex);
+        const record = records.get(key) ?? createRunRecord(runId, childIndex);
+
+        records.set(key, mergeRunRecord(record, {
+          sessionPath,
+          cwd: typeof header?.cwd === "string" ? header.cwd : null,
+          evidence: { sessionPath },
+        }));
+      }
+    }
+  }
+}
+
+async function scanAsyncRunRoot(asyncRoot, records) {
+  const runDirs = await readdir(asyncRoot, { withFileTypes: true }).catch(() => []);
+
+  for (const runDirEntry of runDirs) {
+    if (!runDirEntry.isDirectory()) {
+      continue;
+    }
+
+    const asyncDir = path.join(asyncRoot, runDirEntry.name);
+    const statusPath = path.join(asyncDir, "status.json");
+    const eventsPath = path.join(asyncDir, "events.jsonl");
+    const status = await readJsonIfExists(statusPath);
+    if (!status || typeof status !== "object") {
+      continue;
+    }
+
+    const runId = typeof status.runId === "string" && status.runId.trim().length > 0
+      ? status.runId.trim()
+      : runDirEntry.name;
+    const rootState = normalizeRunState(status.state);
+    const cwd = typeof status.cwd === "string" ? status.cwd : null;
+    const defaultSessionPath = typeof status.sessionFile === "string" ? status.sessionFile : null;
+    const baseTimestamp = [status.endedAt, status.lastUpdate, status.lastActivityAt, status.startedAt]
+      .find((value) => typeof value === "number");
+
+    const steps = Array.isArray(status.steps) && status.steps.length > 0
+      ? status.steps
+      : [{
+        agent: typeof status.agent === "string" ? status.agent : null,
+        status: status.state,
+        sessionFile: status.sessionFile,
+      }];
+
+    steps.forEach((step, index) => {
+      if (typeof step?.agent !== "string" || step.agent !== "dev-loop") {
+        return;
+      }
+
+      const key = recordKey(runId, index);
+      const record = records.get(key) ?? createRunRecord(runId, index);
+      const explicitOutputFile = typeof status.outputFile === "string"
+        ? status.outputFile
+        : path.join(asyncDir, `output-${index}.log`);
+
+      records.set(key, mergeRunRecord(record, {
+        agent: step.agent,
+        runState: step.status ?? rootState,
+        cwd,
+        sessionPath: typeof step.sessionFile === "string" ? step.sessionFile : defaultSessionPath,
+        statusPath,
+        eventsPath,
+        outputLogPath: explicitOutputFile,
+        timestampMs: typeof baseTimestamp === "number" ? baseTimestamp : null,
+        evidence: {
+          asyncDir,
+          statusPath,
+          eventsPath,
+          outputLogPath: explicitOutputFile,
+        },
+      }));
+    });
+  }
+}
+
+function extractResultOutputArtifactPath(result) {
+  const value = result?.artifactPaths;
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  if (typeof value.outputPath === "string") {
+    return value.outputPath;
+  }
+
+  if (typeof value.output === "string") {
+    return value.output;
+  }
+
+  for (const entry of Object.values(value)) {
+    if (typeof entry === "string" && entry.endsWith("_output.md")) {
+      return entry;
+    }
+  }
+
+  return null;
+}
+
+function parseRunIdFromTextSummary(text, fallbackName) {
+  const runLine = text.match(/^Run(?: ID)?:\s*(.+)$/imu);
+  if (runLine && typeof runLine[1] === "string" && runLine[1].trim().length > 0) {
+    return runLine[1].trim();
+  }
+
+  return fallbackName;
+}
+
+function parseSummaryPointers(text) {
+  const outputArtifactMatch = text.match(/^Output artifact:\s*(.+)$/imu);
+  const sessionMatch = text.match(/^Session:\s*(.+)$/imu);
+  const stateMatch = text.match(/^State:\s*(.+)$/imu);
+  const agentMatch = text.match(/^Agent:\s*(.+)$/imu);
+
+  return {
+    outputArtifactPath: outputArtifactMatch?.[1]?.trim() || null,
+    sessionPath: sessionMatch?.[1]?.trim() || null,
+    runState: stateMatch?.[1]?.trim() || null,
+    agent: agentMatch?.[1]?.trim() || null,
+  };
+}
+
+async function scanAsyncResultRoot(resultsRoot, records) {
+  const entries = await readdir(resultsRoot, { withFileTypes: true }).catch(() => []);
+
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const filePath = path.join(resultsRoot, entry.name);
+    if (entry.name.endsWith(".json")) {
+      const result = await readJsonIfExists(filePath);
+      if (!result || typeof result !== "object") {
+        continue;
+      }
+
+      const runId = typeof result.runId === "string" && result.runId.trim().length > 0
+        ? result.runId.trim()
+        : (typeof result.id === "string" && result.id.trim().length > 0 ? result.id.trim() : null);
+      if (runId === null) {
+        continue;
+      }
+
+      const resultEntries = Array.isArray(result.results) && result.results.length > 0
+        ? result.results
+        : [{
+          agent: typeof result.agent === "string" ? result.agent : null,
+          sessionFile: typeof result.sessionFile === "string" ? result.sessionFile : null,
+          artifactPaths: result.artifactPaths,
+          output: typeof result.summary === "string" ? result.summary : undefined,
+        }];
+      const baseTimestamp = typeof result.timestamp === "number" ? result.timestamp : null;
+      const cwd = typeof result.cwd === "string" ? result.cwd : null;
+
+      resultEntries.forEach((child, index) => {
+        if (typeof child?.agent !== "string" || child.agent !== "dev-loop") {
+          return;
+        }
+
+        const key = recordKey(runId, index);
+        const record = records.get(key) ?? createRunRecord(runId, index);
+        records.set(key, mergeRunRecord(record, {
+          agent: child.agent,
+          runState: result.state,
+          cwd,
+          sessionPath: typeof child.sessionFile === "string" ? child.sessionFile : (typeof result.sessionFile === "string" ? result.sessionFile : null),
+          outputArtifactPath: extractResultOutputArtifactPath(child),
+          resultPath: filePath,
+          resultSummaryText: typeof child.output === "string" ? child.output : (typeof result.summary === "string" ? result.summary : null),
+          timestampMs: baseTimestamp,
+          evidence: { resultPath: filePath },
+        }));
+      });
+
+      continue;
+    }
+
+    if (!/\.(md|txt)$/iu.test(entry.name)) {
+      continue;
+    }
+
+    const text = await readTextIfExists(filePath);
+    if (text === null || (!text.includes("Output artifact:") && !text.includes("Session:"))) {
+      continue;
+    }
+
+    const runId = parseRunIdFromTextSummary(text, path.parse(entry.name).name);
+    const childIndex = 0;
+    const key = recordKey(runId, childIndex);
+    const record = records.get(key) ?? createRunRecord(runId, childIndex);
+    const pointers = parseSummaryPointers(text);
+
+    records.set(key, mergeRunRecord(record, {
+      agent: pointers.agent,
+      runState: pointers.runState,
+      sessionPath: pointers.sessionPath,
+      outputArtifactPath: pointers.outputArtifactPath,
+      resultSummaryPath: filePath,
+      resultSummaryText: text,
+      evidence: { resultSummaryPath: filePath },
+    }));
+  }
+}
+
+function collectConfiguredRoots(explicitRoots, envValue, fallbackRoots) {
+  if (Array.isArray(explicitRoots) && explicitRoots.length > 0) {
+    return [...new Set(explicitRoots.map((root) => path.resolve(root)))];
+  }
+
+  const fromEnv = splitPathList(envValue);
+  if (fromEnv.length > 0) {
+    return [...new Set(fromEnv.map((root) => path.resolve(root)))];
+  }
+
+  return [...new Set((fallbackRoots ?? []).map((root) => path.resolve(root)))];
+}
+
+async function detectDefaultAsyncRoots(kind) {
+  const tempDir = os.tmpdir();
+  const entries = await readdir(tempDir, { withFileTypes: true }).catch(() => []);
+  return entries
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith("pi-subagents-"))
+    .map((entry) => path.join(tempDir, entry.name, kind))
+    .filter((candidate) => existsSync(candidate));
+}
+
+async function resolveRepoIsolation(repoRoot) {
+  const normalizedRepoRoot = path.resolve(repoRoot);
+  const worktreeRoot = path.join(normalizedRepoRoot, "tmp", "worktrees");
+  const existingWorktrees = await listDirectoriesIfExists(worktreeRoot);
+
+  return {
+    repoRoot: normalizedRepoRoot,
+    worktreeRoot,
+    worktrees: existingWorktrees.map((entry) => path.resolve(entry)),
+  };
+}
+
+function isPathWithinRoot(candidate, root) {
+  if (typeof candidate !== "string" || typeof root !== "string") {
+    return false;
+  }
+
+  const normalizedCandidate = path.resolve(candidate);
+  const normalizedRoot = path.resolve(root);
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${path.sep}`);
+}
+
+function recordMatchesRepo(record, repoIsolation) {
+  if (typeof record.cwd !== "string" || record.cwd.trim().length === 0) {
+    return false;
+  }
+
+  if (isPathWithinRoot(record.cwd, repoIsolation.repoRoot)) {
+    return true;
+  }
+
+  if (isPathWithinRoot(record.cwd, repoIsolation.worktreeRoot)) {
+    return true;
+  }
+
+  return repoIsolation.worktrees.some((worktree) => isPathWithinRoot(record.cwd, worktree));
+}
+
+function isStaleWorktreePath(filePath, repoIsolation) {
+  if (typeof filePath !== "string" || filePath.trim().length === 0) {
+    return false;
+  }
+
+  if (!isPathWithinRoot(filePath, repoIsolation.worktreeRoot)) {
+    return false;
+  }
+
+  return !existsSync(filePath);
+}
+
+export async function listRepoAsyncRuns(
+  { repo },
+  {
+    repoRoot = process.cwd(),
+    env = process.env,
+    sessionRoots,
+    asyncRunRoots,
+    asyncResultRoots,
+  } = {},
+) {
+  parseRepoSlug(repo);
+  const repoIsolation = await resolveRepoIsolation(repoRoot);
+  const resolvedSessionRoots = collectConfiguredRoots(
+    sessionRoots,
+    env.PI_AGENT_SESSIONS_DIR ?? env.PI_SUBAGENT_SESSIONS_DIR,
+    [DEFAULT_SESSION_ROOT],
+  );
+  const resolvedAsyncRunRoots = collectConfiguredRoots(
+    asyncRunRoots,
+    env.PI_SUBAGENT_ASYNC_RUNS_DIR,
+    await detectDefaultAsyncRoots("async-subagent-runs"),
+  );
+  const resolvedAsyncResultRoots = collectConfiguredRoots(
+    asyncResultRoots,
+    env.PI_SUBAGENT_ASYNC_RESULTS_DIR,
+    await detectDefaultAsyncRoots("async-subagent-results"),
+  );
+
+  const records = new Map();
+
+  for (const sessionRoot of resolvedSessionRoots) {
+    if (await pathExists(sessionRoot)) {
+      await scanSessionRunRoot(sessionRoot, records);
+    }
+  }
+
+  for (const asyncRoot of resolvedAsyncRunRoots) {
+    if (await pathExists(asyncRoot)) {
+      await scanAsyncRunRoot(asyncRoot, records);
+    }
+  }
+
+  for (const resultsRoot of resolvedAsyncResultRoots) {
+    if (await pathExists(resultsRoot)) {
+      await scanAsyncResultRoot(resultsRoot, records);
+    }
+  }
+
+  return [...records.values()]
+    .filter((record) => record.agent === "dev-loop")
+    .filter((record) => recordMatchesRepo(record, repoIsolation))
+    .map((record) => ({
+      ...record,
+      staleWorktree: isStaleWorktreePath(record.cwd, repoIsolation),
+      repoRoot: repoIsolation.repoRoot,
+      worktreeRoot: repoIsolation.worktreeRoot,
+    }));
+}
+
+function stripFormatting(value) {
+  return value
+    .replace(/`/gu, "")
+    .replace(/^\*+|\*+$/gu, "")
+    .trim();
+}
+
+function extractPrNumberFromLine(line) {
+  const trimmed = stripFormatting(line);
+  if (/\bActive PR:\s*none\b/i.test(trimmed)) {
+    return null;
+  }
+
+  const urlMatch = trimmed.match(/\/pull\/(\d+)\b/u);
+  if (urlMatch) {
+    return Number(urlMatch[1]);
+  }
+
+  const hashMatch = trimmed.match(/\bPR\s*#(\d+)\b/u);
+  if (hashMatch) {
+    return Number(hashMatch[1]);
+  }
+
+  const activePrMatch = trimmed.match(/^Active PR:\s*.+#(\d+)\b/ui);
+  if (activePrMatch) {
+    return Number(activePrMatch[1]);
+  }
+
+  const prLineMatch = trimmed.match(/^PR:\s*.+#(\d+)\b/ui);
+  if (prLineMatch) {
+    return Number(prLineMatch[1]);
+  }
+
+  const artifactMatch = trimmed.match(/^[-*]\s*Artifact(?:\/state)? inspected:\s*PR\s*#(\d+)\b/ui);
+  if (artifactMatch) {
+    return Number(artifactMatch[1]);
+  }
+
+  const mergedMatch = trimmed.match(/^PR merged:\s*#(\d+)\b/ui);
+  if (mergedMatch) {
+    return Number(mergedMatch[1]);
+  }
+
+  const statusMatch = trimmed.match(/^Status:.*\bPR\s*#(\d+)\b/ui);
+  if (statusMatch) {
+    return Number(statusMatch[1]);
+  }
+
+  return null;
+}
+
+function extractPrNumbersFromArtifactText(text) {
+  const numbers = new Set();
+  const lines = text.split(/\r?\n/u);
+
+  for (const line of lines) {
+    const number = extractPrNumberFromLine(line);
+    if (Number.isInteger(number)) {
+      numbers.add(number);
+    }
+  }
+
+  return [...numbers].sort((left, right) => left - right);
+}
+
+function parseArtifactState(text) {
+  const artifactStateLine = text.match(/^\**Artifact state:\**\s*(.+)$/imu)?.[1];
+  const statusLine = text.match(/^Status:\s*(.+)$/imu)?.[1];
+  const normalizedArtifact = stripFormatting(artifactStateLine ?? "").toLowerCase();
+  const normalizedStatus = stripFormatting(statusLine ?? "").toLowerCase();
+
+  const combined = `${normalizedArtifact}\n${normalizedStatus}`;
+  if (/\bmerged\b/u.test(combined)) {
+    return "merged";
+  }
+  if (/\bclosed\b/u.test(combined)) {
+    return "closed";
+  }
+  if (/\bopen\b/u.test(combined)) {
+    return "open";
+  }
+  if (/final human approval|waiting_for_merge_authorization|advanced to the final human approval boundary|inspected and advanced/u.test(combined)) {
+    return "open";
+  }
+
+  return null;
+}
+
+function parseLoopState(text) {
+  const patterns = [
+    /^\**Loop state:\**\s*(.+)$/imu,
+    /^Current routed state:\s*(.+)$/imu,
+    /^-?\s*Copilot loop state:\s*(.+)$/imu,
+    /^-?\s*Routed strategy:\s*(.+)$/imu,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      return stripFormatting(match[1]);
+    }
+  }
+
+  return null;
+}
+
+function parseNextActionText(text) {
+  const match = text.match(/^(?:Next action|Next recommended action):\s*(.+)$/imu);
+  if (match?.[1]) {
+    return stripFormatting(match[1]);
+  }
+
+  return null;
+}
+
+function classifyResumeBucket(text, parsedArtifactState) {
+  const normalized = text.toLowerCase();
+
+  if (
+    parsedArtifactState === "merged"
+    || /\bpr merged:\s*#\d+\b/u.test(normalized)
+    || /\bartifact state:\s*merged\b/u.test(normalized)
+  ) {
+    return RESUME_ACTION.DONE_OR_MERGED;
+  }
+
+  if (
+    /\bstop(?:ped)? at waiting_for_merge_authorization\b/u.test(normalized)
+    || /\bcurrent stop boundary:\s*waiting_for_merge_authorization\b/u.test(normalized)
+    || /\bstopping at waiting_for_merge_authorization\b/u.test(normalized)
+    || /\basking for explicit merge authorization\b/u.test(normalized)
+  ) {
+    return RESUME_ACTION.AWAIT_MERGE_AUTHORIZATION;
+  }
+
+  if (
+    /\bfinal human approval boundary\b/u.test(normalized)
+    || /\bfinal human approval readiness\b/u.test(normalized)
+    || /\brouted strategy:\s*`?final_approval`?/u.test(normalized)
+    || /\bhuman reviews\/approves pr\b/u.test(normalized)
+    || /\bawait final human approval\b/u.test(normalized)
+  ) {
+    return RESUME_ACTION.AWAIT_FINAL_APPROVAL;
+  }
+
+  if (
+    /\balready_fixed_needs_reply_resolve\b/u.test(normalized)
+    || /\breply(?:ing)? to and resolving the addressed github threads\b/u.test(normalized)
+    || /\breply to and resolve each github thread\b/u.test(normalized)
+  ) {
+    return RESUME_ACTION.NEEDS_REPLY_RESOLVE;
+  }
+
+  if (
+    /\bunresolved_feedback_present\b/u.test(normalized)
+    || /\baddress(?:ing)? review feedback\b/u.test(normalized)
+    || /\bfix(?:ing)? the remaining review feedback\b/u.test(normalized)
+    || /\bremaining review feedback\b/u.test(normalized)
+  ) {
+    return RESUME_ACTION.NEEDS_FEEDBACK_FIX;
+  }
+
+  if (
+    /\bwaiting_for_copilot_review\b/u.test(normalized)
+    || /\bready_to_rerequest_review\b/u.test(normalized)
+    || /\brequest(?:ing)? another copilot pass\b/u.test(normalized)
+    || /\bwatch(?:ing)? the next copilot review cycle\b/u.test(normalized)
+    || /\bcopilot review cycle\b/u.test(normalized)
+  ) {
+    return RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH;
+  }
+
+  if (
+    /\bauthorization boundary\b/u.test(normalized)
+    || /\bdo not perform the next mutation without explicit approval\b/u.test(normalized)
+    || /\bready-for-review\b/u.test(normalized)
+    || /\bdraft review\b/u.test(normalized)
+    || /\bdraft_gate\b/u.test(normalized)
+  ) {
+    return RESUME_ACTION.AWAIT_READY_FOR_REVIEW_AUTHORIZATION;
+  }
+
+  return null;
+}
+
+function buildSourceSelection(record, outputArtifactText, resultSummaryText, outputLogText) {
+  if (outputArtifactText !== null) {
+    return {
+      primaryText: outputArtifactText,
+      primarySource: "output_artifact",
+      fallbackText: resultSummaryText,
+      weakFallbackText: outputLogText,
+    };
+  }
+
+  if (record.outputArtifactPath) {
+    return {
+      primaryText: null,
+      primarySource: "missing_output_artifact",
+      fallbackText: resultSummaryText,
+      weakFallbackText: outputLogText,
+    };
+  }
+
+  if (resultSummaryText !== null) {
+    return {
+      primaryText: resultSummaryText,
+      primarySource: "grouped_result_summary",
+      fallbackText: null,
+      weakFallbackText: outputLogText,
+    };
+  }
+
+  return {
+    primaryText: null,
+    primarySource: "weak_fallback_only",
+    fallbackText: null,
+    weakFallbackText: outputLogText,
+  };
+}
+
+function parseWeakFallbackPr(text) {
+  if (typeof text !== "string" || text.trim().length === 0) {
+    return null;
+  }
+
+  const prNumbers = extractPrNumbersFromArtifactText(text);
+  return prNumbers.length === 1 ? prNumbers[0] : null;
+}
+
+export async function parseDevLoopArtifact(record) {
+  const outputArtifactText = await readTextIfExists(record.outputArtifactPath);
+  const resultSummaryText = record.resultSummaryText ?? await readTextIfExists(record.resultSummaryPath);
+  const outputLogText = await readTextIfExists(record.outputLogPath);
+  const selection = buildSourceSelection(record, outputArtifactText, resultSummaryText, outputLogText);
+
+  if (selection.primaryText === null) {
+    const weakFallbackPr = parseWeakFallbackPr(selection.weakFallbackText);
+    return {
+      ok: false,
+      reason: MANUAL_REASON.MISSING_OUTPUT_ARTIFACT,
+      ...(Number.isInteger(weakFallbackPr) ? { pr: weakFallbackPr } : {}),
+      evidence: {
+        outputArtifactPath: record.outputArtifactPath,
+        resultSummaryPath: record.resultSummaryPath,
+        outputLogPath: record.outputLogPath,
+        sessionPath: record.sessionPath,
+      },
+      weakFallbackText: selection.weakFallbackText,
+      source: selection.primarySource,
+    };
+  }
+
+  const prNumbers = extractPrNumbersFromArtifactText(selection.primaryText);
+  if (prNumbers.length > 1) {
+    return {
+      ok: false,
+      reason: MANUAL_REASON.AMBIGUOUS_PR_IDENTITY,
+      evidence: {
+        prNumbers,
+        source: selection.primarySource,
+        outputArtifactPath: record.outputArtifactPath,
+        resultSummaryPath: record.resultSummaryPath,
+      },
+      source: selection.primarySource,
+    };
+  }
+
+  if (prNumbers.length === 0) {
+    return {
+      ok: false,
+      reason: MANUAL_REASON.MISSING_PR_IDENTITY,
+      evidence: {
+        source: selection.primarySource,
+        outputArtifactPath: record.outputArtifactPath,
+        resultSummaryPath: record.resultSummaryPath,
+      },
+      source: selection.primarySource,
+    };
+  }
+
+  const parsedArtifactState = parseArtifactState(selection.primaryText);
+  const parsedLoopState = parseLoopState(selection.primaryText);
+  const nextAction = parseNextActionText(selection.primaryText);
+  if (parsedArtifactState === null) {
+    return {
+      ok: false,
+      reason: MANUAL_REASON.UNCLASSIFIED_ARTIFACT_STATE,
+      pr: prNumbers[0],
+      evidence: {
+        source: selection.primarySource,
+        parsedLoopState,
+        nextAction,
+        outputArtifactPath: record.outputArtifactPath,
+        resultSummaryPath: record.resultSummaryPath,
+      },
+      source: selection.primarySource,
+    };
+  }
+  const resumeBucket = classifyResumeBucket(selection.primaryText, parsedArtifactState);
+
+  if (resumeBucket === null) {
+    return {
+      ok: false,
+      reason: MANUAL_REASON.UNCLASSIFIED_ARTIFACT_STATE,
+      pr: prNumbers[0],
+      evidence: {
+        source: selection.primarySource,
+        parsedArtifactState,
+        parsedLoopState,
+        nextAction,
+        outputArtifactPath: record.outputArtifactPath,
+        resultSummaryPath: record.resultSummaryPath,
+      },
+      source: selection.primarySource,
+    };
+  }
+
+  return {
+    ok: true,
+    pr: prNumbers[0],
+    parsedArtifactState,
+    parsedLoopState,
+    nextAction,
+    resumeBucket,
+    source: selection.primarySource,
+    text: selection.primaryText,
+  };
+}
+
+function buildResumeMessage({ pr, runId, resumeAction, livePrState }) {
+  switch (resumeAction) {
+    case RESUME_ACTION.NEEDS_FEEDBACK_FIX:
+      return `PR #${pr} is orphaned. Live state: unresolved_feedback_present. Resume the prior dev-loop from run ${runId}. Continue by fixing the remaining review feedback, then reply to and resolve each GitHub thread. Do not merge.`;
+    case RESUME_ACTION.NEEDS_REPLY_RESOLVE:
+      return `PR #${pr} is orphaned. Live state: already_fixed_needs_reply_resolve. Resume the prior dev-loop from run ${runId}. Continue by replying to and resolving the addressed GitHub threads before requesting another Copilot pass. Do not merge.`;
+    case RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH:
+      return `PR #${pr} is orphaned. Live state: ${livePrState}. Resume the prior dev-loop from run ${runId}. Continue by requesting or watching the next Copilot review cycle on the current head. Do not enter gate or merge until the review settles.`;
+    case RESUME_ACTION.AWAIT_FINAL_APPROVAL:
+      return `PR #${pr} is orphaned. Live state: final_approval_ready. Resume the prior dev-loop from run ${runId}. Continue by summarizing the clean current-head evidence and stop at final human approval. Do not merge without explicit authorization.`;
+    case RESUME_ACTION.AWAIT_MERGE_AUTHORIZATION:
+      return `PR #${pr} is orphaned. Live state: clean current-head gate evidence + green CI. Resume the prior dev-loop from run ${runId}. Continue by stopping at waiting_for_merge_authorization and asking for explicit merge authorization. Do not merge automatically.`;
+    case RESUME_ACTION.AWAIT_READY_FOR_REVIEW_AUTHORIZATION:
+      return `PR #${pr} is orphaned. Live state: ${livePrState}. Resume the prior dev-loop from run ${runId}. Continue by staying at the current authorization boundary (assignment, ready-for-review, or draft review) and do not perform the next mutation without explicit approval.`;
+    default:
+      return `PR #${pr} is orphaned. Resume the prior dev-loop from run ${runId}. Continue from the last deterministic state and do not merge.`;
+  }
+}
+
+function buildResumeCommandPreview({ runId, childIndex, childCount, resumeMessage }) {
+  if (childCount > 1 || childIndex !== 0) {
+    return `subagent({ action: "resume", id: "${runId}", index: ${childIndex}, message: ${JSON.stringify(resumeMessage)} })`;
+  }
+
+  return `subagent({ action: "resume", id: "${runId}", message: ${JSON.stringify(resumeMessage)} })`;
+}
+
+function buildManualAttentionEntry({
+  pr = null,
+  runId = null,
+  reason,
+  evidence,
+  suggestedNextStep,
+}) {
+  return {
+    ...(Number.isInteger(pr) ? { pr } : {}),
+    ...(typeof runId === "string" && runId.length > 0 ? { runId } : {}),
+    reason,
+    evidence,
+    suggestedNextStep,
+  };
+}
+
+export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
+  const activeMatch = activeRuns.filter((candidate) => candidate.parsedArtifact?.ok && candidate.parsedArtifact.pr === pr.number);
+  const matches = exitedRuns.filter((candidate) => candidate.parsedArtifact?.ok && candidate.parsedArtifact.pr === pr.number);
+  if (matches.length === 0) {
+    return { kind: "none" };
+  }
+
+  const sorted = [...matches].sort((left, right) => {
+    const leftTs = left.run.timestampMs ?? Number.NEGATIVE_INFINITY;
+    const rightTs = right.run.timestampMs ?? Number.NEGATIVE_INFINITY;
+    return rightTs - leftTs;
+  });
+
+  if (sorted.length > 1) {
+    const firstTimestamp = sorted[0].run.timestampMs;
+    const secondTimestamp = sorted[1].run.timestampMs;
+    if (firstTimestamp === null || secondTimestamp === null || firstTimestamp === secondTimestamp) {
+      return {
+        kind: "manual_attention",
+        reason: MANUAL_REASON.MULTIPLE_CANDIDATE_RUNS,
+        runs: sorted.map((candidate) => ({
+          runId: candidate.run.runId,
+          childIndex: candidate.run.childIndex,
+          timestampMs: candidate.run.timestampMs,
+          outputArtifactPath: candidate.run.outputArtifactPath,
+          sessionPath: candidate.run.sessionPath,
+        })),
+      };
+    }
+  }
+
+  const selected = sorted[0];
+  const selectedTimestamp = selected.run.timestampMs;
+  if (activeMatch.length > 0) {
+    const indeterminateActiveRuns = activeMatch.filter((candidate) => (
+      typeof candidate.run.timestampMs !== "number"
+      || typeof selectedTimestamp !== "number"
+    ));
+
+    if (indeterminateActiveRuns.length > 0) {
+      return {
+        kind: "manual_attention",
+        reason: MANUAL_REASON.ARTIFACT_LIVE_STATE_CONFLICT,
+        runs: [
+          {
+            runId: selected.run.runId,
+            childIndex: selected.run.childIndex,
+            timestampMs: selected.run.timestampMs,
+            outputArtifactPath: selected.run.outputArtifactPath,
+            sessionPath: selected.run.sessionPath,
+          },
+          ...indeterminateActiveRuns.map((candidate) => ({
+            runId: candidate.run.runId,
+            childIndex: candidate.run.childIndex,
+            timestampMs: candidate.run.timestampMs,
+            outputArtifactPath: candidate.run.outputArtifactPath,
+            sessionPath: candidate.run.sessionPath,
+            runState: candidate.run.runState,
+          })),
+        ],
+      };
+    }
+  }
+
+  const sameTimestampActiveRuns = activeMatch.filter((candidate) => candidate.run.timestampMs === selectedTimestamp);
+  if (sameTimestampActiveRuns.length > 0) {
+    return {
+      kind: "manual_attention",
+      reason: MANUAL_REASON.ARTIFACT_LIVE_STATE_CONFLICT,
+      runs: [
+        {
+          runId: selected.run.runId,
+          childIndex: selected.run.childIndex,
+          timestampMs: selected.run.timestampMs,
+          outputArtifactPath: selected.run.outputArtifactPath,
+          sessionPath: selected.run.sessionPath,
+        },
+        ...sameTimestampActiveRuns.map((candidate) => ({
+          runId: candidate.run.runId,
+          childIndex: candidate.run.childIndex,
+          timestampMs: candidate.run.timestampMs,
+          outputArtifactPath: candidate.run.outputArtifactPath,
+          sessionPath: candidate.run.sessionPath,
+          runState: candidate.run.runState,
+        })),
+      ],
+    };
+  }
+
+  const newerActiveRuns = activeMatch.filter((candidate) => candidate.run.timestampMs > selectedTimestamp);
+
+  if (newerActiveRuns.length > 0) {
+    return {
+      kind: "suppressed_by_active_run",
+      runIds: newerActiveRuns.map((candidate) => candidate.run.runId),
+    };
+  }
+
+  return { kind: "selected", candidate: selected };
+}
+
+function classifyLiveStateForResume(resumeAction, prReport) {
+  switch (resumeAction) {
+    case RESUME_ACTION.NEEDS_FEEDBACK_FIX:
+      return "unresolved_feedback_present";
+    case RESUME_ACTION.NEEDS_REPLY_RESOLVE:
+      return "already_fixed_needs_reply_resolve";
+    case RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH:
+      return prReport.state;
+    case RESUME_ACTION.AWAIT_FINAL_APPROVAL:
+      return "final_approval_ready";
+    case RESUME_ACTION.AWAIT_MERGE_AUTHORIZATION:
+      return "clean current-head gate evidence + green CI";
+    case RESUME_ACTION.AWAIT_READY_FOR_REVIEW_AUTHORIZATION:
+      return prReport.isDraft ? "pr_draft" : prReport.state;
+    default:
+      return prReport.state;
+  }
+}
+
+function hasMaterialConflict(resumeAction, prReport, parsedArtifact) {
+  if (parsedArtifact.parsedArtifactState === "merged" || resumeAction === RESUME_ACTION.DONE_OR_MERGED) {
+    return true;
+  }
+
+  if (resumeAction === RESUME_ACTION.AWAIT_FINAL_APPROVAL) {
+    return prReport.snapshot.unresolvedThreadCount > 0 || prReport.snapshot.ciStatus === "failure";
+  }
+
+  if (resumeAction === RESUME_ACTION.AWAIT_MERGE_AUTHORIZATION) {
+    return prReport.snapshot.unresolvedThreadCount > 0 || prReport.snapshot.ciStatus !== "success";
+  }
+
+  if (resumeAction === RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH) {
+    return prReport.state === "unresolved_feedback_present" && parsedArtifact.resumeBucket !== RESUME_ACTION.NEEDS_REPLY_RESOLVE;
+  }
+
+  return false;
+}
+
+export function buildResumePlan({ prReport, candidate, childCounts }) {
+  const { run, parsedArtifact } = candidate;
+  const resumeAction = parsedArtifact.resumeBucket;
+
+  if (hasMaterialConflict(resumeAction, prReport, parsedArtifact)) {
+    return {
+      kind: "manual_attention",
+      entry: buildManualAttentionEntry({
+        pr: prReport.number,
+        runId: run.runId,
+        reason: MANUAL_REASON.ARTIFACT_LIVE_STATE_CONFLICT,
+        evidence: {
+          parsedArtifactState: parsedArtifact.parsedArtifactState,
+          parsedLoopState: parsedArtifact.parsedLoopState,
+          resumeAction,
+          livePrState: prReport.state,
+          outputArtifactPath: run.outputArtifactPath,
+          sessionPath: run.sessionPath,
+        },
+        suggestedNextStep: "Reconcile the live PR state against the exited run artifact before resuming.",
+      }),
+    };
+  }
+
+  if (run.staleWorktree && !run.sessionPath && !run.outputArtifactPath && !run.resultSummaryPath && !run.resultPath) {
+    return {
+      kind: "manual_attention",
+      entry: buildManualAttentionEntry({
+        pr: prReport.number,
+        runId: run.runId,
+        reason: MANUAL_REASON.STALE_WORKTREE_MISSING_RESUME_INPUTS,
+        evidence: {
+          cwd: run.cwd,
+          sessionPath: run.sessionPath,
+          outputArtifactPath: run.outputArtifactPath,
+          resultSummaryPath: run.resultSummaryPath,
+        },
+        suggestedNextStep: "Recover or recreate the missing worktree/session inputs before attempting resume.",
+      }),
+    };
+  }
+
+  const livePrState = classifyLiveStateForResume(resumeAction, prReport);
+  const resumeMessage = buildResumeMessage({
+    pr: prReport.number,
+    runId: run.runId,
+    resumeAction,
+    livePrState,
+  });
+  const childCount = childCounts.get(run.runId) ?? 1;
+
+  return {
+    kind: "resume_plan",
+    entry: {
+      pr: prReport.number,
+      runId: run.runId,
+      runState: normalizeRunStateForPlan(run.runState),
+      artifactPath: run.outputArtifactPath ?? run.resultSummaryPath ?? run.resultPath ?? null,
+      ...(run.sessionPath ? { sessionPath: run.sessionPath } : {}),
+      parsedArtifactState: parsedArtifact.parsedArtifactState,
+      parsedLoopState: parsedArtifact.parsedLoopState,
+      livePrState,
+      resumeAction,
+      resumeMessage,
+      resumeCommandPreview: buildResumeCommandPreview({
+        runId: run.runId,
+        childIndex: run.childIndex,
+        childCount,
+        resumeMessage,
+      }),
+      staleWorktree: run.staleWorktree,
+    },
+  };
+}
+
+async function analyzeAutoResume({ repo, reports }, options) {
+  const openPrNumbers = new Set(reports.map((report) => report.number));
+  const runs = await listRepoAsyncRuns({ repo }, options);
+  const childCounts = runs.reduce((map, run) => {
+    map.set(run.runId, (map.get(run.runId) ?? 0) + 1);
+    return map;
+  }, new Map());
+
+  const activeRuns = [];
+  const exitedRuns = [];
+  const manualAttention = [];
+
+  for (const run of runs) {
+    const parsedArtifact = await parseDevLoopArtifact(run);
+    let candidate = { run, parsedArtifact };
+
+    if (!parsedArtifact.ok) {
+      if (isRunningLikeState(run.runState)) {
+        const runningPr = parseWeakFallbackPr(parsedArtifact.weakFallbackText ?? null);
+        if (Number.isInteger(runningPr)) {
+          activeRuns.push({
+            run,
+            parsedArtifact: {
+              ok: true,
+              pr: runningPr,
+              parsedArtifactState: "open",
+              parsedLoopState: null,
+              nextAction: null,
+              resumeBucket: RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH,
+              source: "weak_fallback_output_log",
+              text: parsedArtifact.weakFallbackText,
+            },
+          });
+        }
+        continue;
+      }
+
+      const parsedNumbers = Array.isArray(parsedArtifact.evidence?.prNumbers)
+        ? parsedArtifact.evidence.prNumbers.filter((value) => Number.isInteger(value))
+        : [];
+      const touchesOpenPr = openPrNumbers.has(parsedArtifact.pr)
+        || parsedNumbers.some((value) => openPrNumbers.has(value));
+      if ((run.runState === RUN_STATE.UNKNOWN || isExitedState(run.runState)) && touchesOpenPr) {
+        manualAttention.push(buildManualAttentionEntry({
+          pr: Number.isInteger(parsedArtifact.pr) ? parsedArtifact.pr : null,
+          runId: run.runId,
+          reason: parsedArtifact.reason,
+          evidence: {
+            ...parsedArtifact.evidence,
+            cwd: run.cwd,
+            sessionPath: run.sessionPath,
+            outputLogPath: run.outputLogPath,
+          },
+          suggestedNextStep: parsedArtifact.reason === MANUAL_REASON.MISSING_OUTPUT_ARTIFACT
+            ? "Locate the missing output artifact or inspect the saved session before attempting resume."
+            : "Inspect the saved artifact/session manually and reconcile the PR identity/state before resuming.",
+        }));
+      }
+      continue;
+    }
+
+    candidate = { run, parsedArtifact };
+    if (isRunningLikeState(run.runState)) {
+      activeRuns.push(candidate);
+      continue;
+    }
+
+    if (isExitedState(run.runState)) {
+      exitedRuns.push(candidate);
+      continue;
+    }
+
+    if (run.runState === RUN_STATE.UNKNOWN && openPrNumbers.has(parsedArtifact.pr)) {
+      manualAttention.push(buildManualAttentionEntry({
+        pr: parsedArtifact.pr,
+        runId: run.runId,
+        reason: MANUAL_REASON.ARTIFACT_LIVE_STATE_CONFLICT,
+        evidence: {
+          runState: run.runState,
+          outputArtifactPath: run.outputArtifactPath,
+          sessionPath: run.sessionPath,
+        },
+        suggestedNextStep: "Resolve the run state for this candidate before preparing a resume plan.",
+      }));
+    }
+  }
+
+  const resumePlans = [];
+  for (const prReport of reports) {
+    const selection = selectLatestExitedRunForPr({ pr: prReport, exitedRuns, activeRuns });
+
+    if (selection.kind === "manual_attention") {
+      manualAttention.push(buildManualAttentionEntry({
+        pr: prReport.number,
+        reason: selection.reason,
+        evidence: { runs: selection.runs },
+        suggestedNextStep: "Choose the correct exited run manually before attempting resume.",
+      }));
+      continue;
+    }
+
+    if (selection.kind !== "selected") {
+      continue;
+    }
+
+    const built = buildResumePlan({
+      prReport,
+      candidate: selection.candidate,
+      childCounts,
+    });
+
+    if (built.kind === "manual_attention") {
+      manualAttention.push(built.entry);
+      continue;
+    }
+
+    resumePlans.push(built.entry);
+  }
+
+  const orphanedPrs = new Set();
+  resumePlans.forEach((plan) => orphanedPrs.add(plan.pr));
+  manualAttention.forEach((entry) => {
+    if (Number.isInteger(entry.pr)) {
+      orphanedPrs.add(entry.pr);
+    }
+  });
+
+  return {
+    orphanedPrCount: orphanedPrs.size,
+    resumePlanCount: resumePlans.length,
+    manualAttentionCount: manualAttention.length,
+    resumePlans,
+    needsManualAttention: manualAttention,
+  };
+}
+
+function applyAutoResumeToBaseResult(baseResult, autoResume) {
+  const orphanAttentionPrs = new Set();
+  autoResume.resumePlans.forEach((entry) => orphanAttentionPrs.add(entry.pr));
+  autoResume.needsManualAttention.forEach((entry) => {
+    if (Number.isInteger(entry.pr)) {
+      orphanAttentionPrs.add(entry.pr);
+    }
+  });
+
+  const queueNeedsAttention = baseResult.queueStatus === "attention_needed"
+    || autoResume.resumePlanCount > 0
+    || autoResume.manualAttentionCount > 0;
+  const queueStatus = baseResult.prCount === 0
+    ? "queue_complete"
+    : (queueNeedsAttention ? "attention_needed" : "monitoring");
+  const liveAttentionPrs = new Set(baseResult.prs.filter((pr) => pr.needsAttention).map((pr) => pr.number));
+  const needsAttentionCount = new Set([...liveAttentionPrs, ...orphanAttentionPrs]).size;
+
+  return {
+    ...baseResult,
+    queueStatus,
+    needsAttentionCount,
+    autoResumeRequested: true,
+    orphanedPrCount: autoResume.orphanedPrCount,
+    resumePlanCount: autoResume.resumePlanCount,
+    manualAttentionCount: autoResume.manualAttentionCount,
+    resumePlans: autoResume.resumePlans,
+    needsManualAttention: autoResume.needsManualAttention,
+  };
+}
+
+export async function runConductorMonitor(
+  { repo, autoResume = false },
+  {
+    env = process.env,
+    ghCommand = "gh",
+    repoRoot = process.cwd(),
+    sessionRoots,
+    asyncRunRoots,
+    asyncResultRoots,
+  } = {},
+) {
+  const prs = await listOpenPrs({ repo }, { env, ghCommand });
+  if (prs.length === 0) {
+    const baseResult = buildBaseResult(repo, []);
+    if (!autoResume) {
+      return baseResult;
+    }
+
+    return applyAutoResumeToBaseResult(baseResult, {
+      orphanedPrCount: 0,
+      resumePlanCount: 0,
+      manualAttentionCount: 0,
+      resumePlans: [],
+      needsManualAttention: [],
+    });
+  }
+
+  const reports = await buildPrReports(prs, { repo, env, ghCommand });
+  const baseResult = buildBaseResult(repo, reports);
+  if (!autoResume) {
+    return baseResult;
+  }
+
+  const autoResumeResult = await analyzeAutoResume({ repo, reports }, {
+    env,
+    repoRoot,
+    sessionRoots,
+    asyncRunRoots,
+    asyncResultRoots,
+  });
+  return applyAutoResumeToBaseResult(baseResult, autoResumeResult);
+}
+
 export async function runCli(
   argv = process.argv.slice(2),
-  { stdout = process.stdout, env = process.env, ghCommand = "gh" } = {},
+  { stdout = process.stdout, env = process.env, ghCommand = "gh", cwd = process.cwd() } = {},
 ) {
   const options = parseCliArgs(argv);
 
@@ -255,7 +1756,11 @@ export async function runCli(
     return;
   }
 
-  const result = await runConductorMonitor(options, { env, ghCommand });
+  const result = await runConductorMonitor(options, {
+    env,
+    ghCommand,
+    repoRoot: cwd,
+  });
   stdout.write(`${JSON.stringify(result)}\n`);
 }
 
