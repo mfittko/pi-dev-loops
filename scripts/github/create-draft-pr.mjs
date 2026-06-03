@@ -76,9 +76,9 @@ export async function main(argv = process.argv.slice(2), runtime = {}) {
 if (isDirectCliRun(import.meta.url)) {
   try {
     const exitCode = await main();
-    process.exit(exitCode);
+    process.exitCode = exitCode;
   } catch (error) {
     process.stderr.write(`${formatCliError(error)}\n`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
