@@ -415,6 +415,60 @@ test("upsert-gate-review-comment keeps CI-blocked gate upserts fail-closed witho
   }
 });
 
+test("upsert-gate-review-comment forced update includes forced metadata", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-update-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      ...buildGateCoordinationEntries({
+        isDraft: true,
+        statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }],
+        issueComments: [buildGateComment({
+          gate: "draft_gate",
+          verdict: "blocked",
+          findingsSummary: "older forced summary",
+          nextAction: "wait for explicit CI bypass decision",
+        })],
+      }),
+      {
+        assertArgs: ["api", "-X", "PATCH", "repos/owner/repo/issues/comments/101", "-f"],
+        stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "blocked",
+      "--findings-summary", "CI failed on the current head",
+      "--next-action", "wait for explicit CI bypass decision",
+      "--force",
+      "--force-reason", "CI failed due to transient infrastructure",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      action: "updated",
+      repo: "owner/repo",
+      pr: 17,
+      gate: "draft_gate",
+      headSha: "abc1234",
+      currentHeadSha: "abc1234",
+      commentId: 101,
+      commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      forced: true,
+      forceReason: "CI failed due to transient infrastructure",
+      forceBypass: "ci_blocked_needs_user_decision",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("upsert-gate-review-comment forced noop includes forced metadata", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-noop-"));
 

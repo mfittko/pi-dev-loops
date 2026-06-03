@@ -7,6 +7,7 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectGateReviewEvidence } from "./detect-gate-review-evidence.mjs";
 import { loadPrGateCoordinationContext } from "../loop/detect-pr-gate-coordination-state.mjs";
 import { evaluatePrGateCoordination, PR_GATE_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { STATE } from "@pi-dev-loops/core/loop/copilot-loop-state";
 
 const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
 const GATE_VERDICTS = new Set(["clean", "findings_present", "blocked"]);
@@ -428,7 +429,7 @@ function resolveGateAction(gate) {
 }
 
 function isCiBlockedGateOverrideEligible({ coordination, coordinationContext, gate }) {
-  return coordination.lifecycleState === "blocked_needs_user_decision"
+  return coordination.lifecycleState === STATE.BLOCKED_NEEDS_USER_DECISION
     && coordinationContext.snapshot?.ciStatus === "failure"
     && coordination.forbiddenActions.includes(resolveGateAction(gate));
 }
