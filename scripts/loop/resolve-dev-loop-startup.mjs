@@ -185,7 +185,7 @@ export function summarizeCanonicalState(bundle) {
  * @param {Record<string,string|undefined>} [options.env] — for async-start check
  * @returns {{ ok: true, ... } | { ok: false, error: string, asyncStartContract: "rejected" }}
  */
-export function buildResolveDevLoopStartupResult(input, { env = process.env, config = null, cwd = process.cwd() } = {}) {
+export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd = process.cwd() } = {}) {
   // #462: Always read the retrospective checkpoint file. When the durable
   // artifact says the retrospective is required, override the caller-provided
   // value to prevent bypass. Also maps the durable-artifact "required" state
@@ -220,10 +220,18 @@ export function buildResolveDevLoopStartupResult(input, { env = process.env, con
       // contract (unrecognized checkpoint state maps to "missing").
       input = { ...input, retrospectiveCheckpointState: "missing" };
     }
-  } catch {
-    // No checkpoint file — pass through with whatever the caller provided.
-    // (A missing file is not a bypass; it means no qualifying completion
-    // has been recorded yet, so no retrospective is pending.)
+  } catch (err) {
+    // Distinguish file-not-found (no checkpoint artifact exists — pass through)
+    // from malformed/unreadable (file exists but is corrupt — fail closed).
+    if (err?.code === "ENOENT") {
+      // No checkpoint file — pass through with whatever the caller provided.
+      // (A missing file is not a bypass; it means no qualifying completion
+      // has been recorded yet, so no retrospective is pending.)
+    } else {
+      // File exists but is malformed/unreadable — fail closed per the
+      // retrospective checkpoint contract.
+      input = { ...input, retrospectiveCheckpointState: "missing" };
+    }
   }
 
   const bundle = resolveAuthoritativeStartupResumeBundle(input);

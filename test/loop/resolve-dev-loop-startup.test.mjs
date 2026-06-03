@@ -330,6 +330,77 @@ test("buildResolveDevLoopStartupResult overrides caller-provided state with on-d
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+test("buildResolveDevLoopStartupResult fails closed when checkpoint file is malformed", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    // Write malformed JSON (not valid JSON at all)
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      "this is not valid json {{{{{",
+      "utf8",
+    );
+
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_branch", branch: "feature/local-route" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "needs_confirmation",
+        },
+        artifactState: "not_applicable",
+        loopState: "active",
+      },
+      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+    );
+
+    // Malformed file -> fail closed with missing checkpoint state -> needs_reconcile.
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "needs_reconcile");
+    assert.equal(result.selectedStrategy, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildResolveDevLoopStartupResult fails closed when checkpoint file has unrecognized state", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "bogus_unknown_state" }),
+      "utf8",
+    );
+
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_branch", branch: "feature/local-route" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "needs_confirmation",
+        },
+        artifactState: "not_applicable",
+        loopState: "active",
+      },
+      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+    );
+
+    // Unrecognized state -> fail closed with missing -> needs_reconcile.
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "needs_reconcile");
+    assert.equal(result.selectedStrategy, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("buildResolveDevLoopStartupResult rejects async-required strategy without PI_SUBAGENT_RUN_ID", () => {
   const result = buildResolveDevLoopStartupResult(
     {
