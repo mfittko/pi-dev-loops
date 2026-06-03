@@ -128,7 +128,6 @@ describe("debt e2e synthetic", () => {
 
     const { outcome, artifact } = shapeFinding(findings[0]);
     // Low severity info signal should score low → dismiss
-    assert.ok(["dismiss", "watch"].includes(outcome),
-      `expected dismiss or watch for low-severity orphan, got ${outcome}`);
+    assert.equal(outcome, "dismiss");
   });
 });

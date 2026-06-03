@@ -22,11 +22,21 @@ describe("debt-cluster", () => {
   describe("file clustering (pass 1)", () => {
     test("signals sharing same filePath form a cluster", () => {
       const signals = [
+        sig(uuid(1), { location: { filePath: "src/a.mjs" }, signalKind: "file_size" }),
+        sig(uuid(2), { location: { filePath: "src/a.mjs" }, signalKind: "spaghetti_branching" }),
+      ];
+      const findings = clusterSignals(signals);
+      assert.equal(findings.length, 1);
+      assert.equal(findings[0].signalIds.length, 2);
+      assert.ok(findings[0].title.startsWith("file:"));
+    });
+
+    test("signals on different files stay separate when no other dimension matches", () => {
+      const signals = [
         sig(uuid(1), { location: { filePath: "src/auth/a.mjs" }, signalKind: "file_size" }),
         sig(uuid(2), { location: { filePath: "scripts/b.mjs" }, signalKind: "thin_wrapper" }),
       ];
       const findings = clusterSignals(signals);
-      // Different files, different themes → singletons
       assert.equal(findings.length, 2);
       for (const f of findings) {
         assert.equal(f.signalIds.length, 1);
