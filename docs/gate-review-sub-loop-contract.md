@@ -95,7 +95,7 @@ After applying fixes and advancing the head SHA:
 - **Re-gate is mandatory:** a new head SHA always requires a fresh full-chain gate pass. Never skip the gate because a previous head was clean.
 - rerun the sub-loop from Phase 1 (context-builder preamble for the new head SHA)
 - continue the fix-then-retry cycle until the synthesis verdict is `clean`
-- each retry produces a complete fresh pass through all phases
+- on retry, only re-invoke reviewers that previously returned `findings_present`; the context-builder and consolidation always run fresh
 - a clean pass means all gate-specific review angles pass and no must-fix findings remain
 
 ## Machine-parseable fields

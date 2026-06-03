@@ -44,7 +44,7 @@ test("copilot review gates keep phase-specific angle ownership in one canonical 
     }
     assert.doesNotMatch(section, /Gate role:/i, `${label} should not introduce extra template-only fields that drift across gates`);
   }
-  const draftAnglePatterns = [/resolveGateAngles\(config, "draft"\)/i, /scope.*coverage.*correctness/i];
+  const draftAnglePatterns = [/resolveGateAngles\(config, "draft"\)/i, /all 14 draft gate angle families/i];
   const preApprovalAnglePatterns = [/resolveGateAngles\(config, "preApproval"\)/];
   const devLoopDraftOwnedAnglesMatch = devLoopDraftGate.match(/Review angles:[\s\S]*?(?=\n- \*\*Pass criteria)/i);
   const devLoopDraftOwnedAngles = devLoopDraftOwnedAnglesMatch ? devLoopDraftOwnedAnglesMatch[0] : "";

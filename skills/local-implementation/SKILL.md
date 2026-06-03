@@ -406,7 +406,7 @@ After the phase plan passes review:
    - for user-facing HTML/UI/component slices when the user opts in, add a bounded deterministic browser smoke harness (prefer fixture-backed Playwright WebKit plus screenshot capture); use `npm run test:playwright:viewer` when that viewer/browser surface is part of the slice, and wire it into CI once it becomes required validation for that slice
 4. Review the implementation against the merged phase plan.
 5. Run the default pre-approval gate as a full review / fix loop on the branch before calling it review-complete, approval-ready, merge-ready, or ready for final handoff:
-   - resolve review angles from config: `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config` (shipped defaults include `deep`); run via the chain prescription below
+   - resolve review angles from config: `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config` (shipped defaults enable all 11 pre-approval gate angle families; consumer repos may opt out individual angles via `excludeAngles`); run via the chain prescription below
    - run the resolved angle-focused passes in parallel with fresh context when practical
    - if parallel execution is impractical (for example due to tooling or resource constraints), run all angles sequentially and explicitly record why parallel execution was impractical in `Phase Review` (`tmp/phases/phase-x/review.md`) (or the equivalent merged review artifact)
    - for each angle, resolve its persona and prompt via `resolveReviewerRole(config, angle)` — start each reviewer in fresh context with a concise briefing including the angle-specific prompt, the branch/phase, intended behavior, acceptance criteria, relevant files or artifacts, and current validation status
@@ -417,8 +417,7 @@ After the phase plan passes review:
   4. **Post findings first:** document findings before any fix code is applied.
   5. **Fix cycle:** apply only accepted must-fix changes on the same branch.
   6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the full chain (steps 1–4) on the new head before calling the phase review-complete or approval-ready.
-  7. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced findings in the previous pass.
-   - in retry cycles, only re-run reviewers that had findings in the previous pass
+  7. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced findings in the previous pass
    - do not fork the parent session for parallel reviewers; if more context is needed, write a compact handoff artifact under `tmp/` and point the reviewer at it
    - when reviewer subagents stumble on raw source-tree reads (for example unresolved build artifacts or import assumptions), generate a deterministic diff/review artifact under `tmp/` and have reviewers inspect that artifact instead of the raw file set
    - synthesize actionable findings
