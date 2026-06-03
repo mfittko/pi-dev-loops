@@ -1410,6 +1410,7 @@ describe("role resolution", () => {
       const result = resolveGateConfig({ version: 1 }, "draft");
       assert.deepEqual(result, {
         angles: null,
+        excludeAngles: [],
         required: true,
         requireCi: true,
       });
@@ -1424,6 +1425,7 @@ describe("role resolution", () => {
       result.angles.push("correctness");
       assert.deepEqual(result, {
         angles: ["scope", "coverage", "correctness"],
+        excludeAngles: [],
         required: false,
         requireCi: false,
       });
@@ -1459,6 +1461,131 @@ describe("role resolution", () => {
       const result = resolveGateAngles(config, "draft");
       result.push("coverage");
       assert.deepEqual(config.gates.draft.angles, ["scope"]);
+    });
+
+    test("resolveGateAngles filters excluded angles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope", "coverage", "correctness", "dry"],
+            excludeAngles: ["dry"],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, ["scope", "coverage", "correctness"]);
+    });
+
+    test("resolveGateAngles filters multiple excluded angles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          preApproval: {
+            angles: ["dry", "kiss", "yagni", "deep", "docs"],
+            excludeAngles: ["docs", "kiss"],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "preApproval");
+      assert.deepEqual(result, ["dry", "yagni", "deep"]);
+    });
+
+    test("resolveGateAngles with empty excludeAngles returns all angles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope", "coverage"],
+            excludeAngles: [],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, ["scope", "coverage"]);
+    });
+
+    test("resolveGateAngles with all angles excluded returns empty array", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope", "coverage"],
+            excludeAngles: ["scope", "coverage"],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, []);
+    });
+
+    test("resolveGateAngles handles non-string entries gracefully", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope", 42, null, "coverage"],
+            excludeAngles: [true, "scope"],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      // Non-strings are coerced to "" and filtered out; "scope" excluded
+      assert.deepEqual(result, ["coverage"]);
+    });
+
+    test("resolveGateAngles handles all non-string angles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: [null, 123, undefined],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, []);
+    });
+
+    test("resolveGateAngles trims whitespace from angles and excludeAngles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: [" scope ", "  coverage  ", "correctness"],
+            excludeAngles: [" scope  "],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, ["coverage", "correctness"]);
+    });
+
+    test("resolveGateConfig trims whitespace and filters empty strings from angles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: [" scope ", "  ", "coverage"],
+          },
+        },
+      };
+      const result = resolveGateConfig(config, "draft");
+      assert.deepEqual(result.angles, ["scope", "coverage"]);
+    });
+
+    test("resolveGateAngles filters when excludeAngles has angles not in angles list", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope", "coverage"],
+            excludeAngles: ["dry", "kiss"],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, ["scope", "coverage"]);
     });
 
     test("resolveRefinement returns new roles array (not reference to config)", () => {
@@ -1567,7 +1694,7 @@ describe("shipped defaults docs and deep angle wiring", () => {
       assert.equal(result.config.personas.deep.persona, "review");
       assert.match(result.config.personas.deep.prompt, /Perform a structural code quality audit of this PR/i);
       assert.match(result.config.personas.deep.prompt, /deslop audit/i);
-      assert.ok(!preApprovalAngles.includes("docs"), "docs must stay opt-in for pre-approval");
+      assert.ok(preApprovalAngles.includes("docs"), "docs must be enabled by default for pre-approval");
       assert.ok(preApprovalAngles.includes("deep"), "deep must run by default for pre-approval");
       assert.equal(docsRole.persona, "docs");
       assert.equal(docsRole.prompt, result.config.personas.docs.prompt);

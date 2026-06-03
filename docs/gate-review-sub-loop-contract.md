@@ -51,6 +51,7 @@ Fan out one fresh-context reviewer per gate-specific review angle. Each reviewer
 - starts in fresh context (do not inherit prior conversation state)
 - receives a concise briefing summary from the preamble handoff artifacts
 - is scoped to exactly one review angle
+- is **read-only**: inspects the diff and returns findings via output artifacts only; never edits files
 - runs in an isolated worktree when worktrees are available
 - produces a focused findings artifact with verdict (clean/findings_present) and file references
 
@@ -73,6 +74,11 @@ consolidation pass (not manual concatenation):
 - determine the overall gate verdict: `clean` (no must-fix findings),
   `findings_present` (must-fix findings remain), or `blocked` (the gate could not complete or a hard blocker prevented a verdict)
 
+**Post-findings rule:** The consolidated findings must be posted as a visible
+PR comment (via the gate-review comment contract) **before** the fix cycle in
+Phase 4 begins. Fixes must not be applied until the auditable trail exists on
+the PR.
+
 ### Phase 4 — Fix
 
 If must-fix findings are present:
@@ -84,11 +90,12 @@ If must-fix findings are present:
 
 ### Phase 5 — Repeat until clean
 
-After applying fixes:
+After applying fixes and advancing the head SHA:
 
+- **Re-gate is mandatory:** a new head SHA always requires a fresh full-chain gate pass. Never skip the gate because a previous head was clean.
 - rerun the sub-loop from Phase 1 (context-builder preamble for the new head SHA)
 - continue the fix-then-retry cycle until the synthesis verdict is `clean`
-- each retry produces a complete fresh pass through all phases
+- on retry, only re-invoke reviewers that previously returned `findings_present`; the context-builder and consolidation always run fresh
 - a clean pass means all gate-specific review angles pass and no must-fix findings remain
 
 ## Machine-parseable fields

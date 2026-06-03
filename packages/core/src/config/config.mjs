@@ -31,7 +31,8 @@ const RefinementConfig = z.strictObject({
 });
 
 const GateConfig = z.strictObject({
-  angles: z.array(z.string().min(1)),
+  angles: z.array(z.string().trim().min(1)),
+  excludeAngles: z.array(z.string().trim().min(1)).default([]),
   required: z.boolean().default(true),
   requireCi: z.boolean().default(true),
 });
@@ -594,14 +595,17 @@ export function resolveRefinement(config) {
  *
  * @param {DevLoopConfig} config
  * @param {"draft"|"preApproval"} gate
- * @returns {{ angles: string[]|null, required: boolean, requireCi: boolean }}
+ * @returns {{ angles: string[]|null, excludeAngles: string[], required: boolean, requireCi: boolean }}
  */
 export function resolveGateConfig(config, gate) {
   const gateConfig = config?.gates?.[gate];
   return {
     angles: gateConfig?.angles && Array.isArray(gateConfig.angles)
-      ? [...gateConfig.angles]
+      ? gateConfig.angles.map(a => (typeof a === "string" ? a.trim() : "")).filter(a => a.length > 0)
       : null,
+    excludeAngles: gateConfig?.excludeAngles && Array.isArray(gateConfig.excludeAngles)
+      ? gateConfig.excludeAngles.map(a => (typeof a === "string" ? a.trim() : "")).filter(a => a.length > 0)
+      : [],
     required: gateConfig?.required ?? true,
     requireCi: gateConfig?.requireCi ?? true,
   };
@@ -619,7 +623,10 @@ export function resolveGateConfig(config, gate) {
  * @returns {string[]|null}
  */
 export function resolveGateAngles(config, gate) {
-  return resolveGateConfig(config, gate).angles;
+  const gateConfig = resolveGateConfig(config, gate);
+  if (gateConfig.angles === null) return null;
+  const excluded = new Set(gateConfig.excludeAngles);
+  return gateConfig.angles.filter(a => !excluded.has(a));
 }
 
 /**

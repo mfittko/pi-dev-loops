@@ -80,6 +80,10 @@ Every gate-review PR comment must include:
 
 ## Behavior requirements
 
+**Post-before-fix ordering rule:** Gate-review findings must be posted as a
+visible PR comment **before** the fix cycle begins. Fixes must not be applied
+until the auditable trail exists on the PR. This applies to both gate boundaries.
+
 ### Draft gate (`draft_gate`) comment requirements
 
 **One-time transition boundary.** `draft_gate` is not a recurring per-head gate — it
