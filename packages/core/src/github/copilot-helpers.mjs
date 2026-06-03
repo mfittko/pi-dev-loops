@@ -114,6 +114,43 @@ function parseGateReviewCommentFields(body) {
     }
   }
 
+  // Lenient fallback: detect gate name and head SHA anywhere in body
+  // Handles comments posted via other tools without structured field format
+  if (!fields.gate || !fields.headSha) {
+    const flatBody = body.replace(/\*\*/gu, "").replace(/`/gu, "");
+
+    if (!fields.gate) {
+      const canonicalGateNames = [...GATE_REVIEW_NAMES].join("|");
+      const gateMatch = flatBody.match(
+        new RegExp(`\\b(${canonicalGateNames})\\b`, "iu")
+      );
+      if (gateMatch) {
+        fields.gate = normalizeGateReviewName(gateMatch[1]);
+      }
+    }
+
+    if (!fields.headSha) {
+      // Prefer SHA following a "head" context marker to avoid false
+      // matches on plain-text numeric IDs (issue/comment IDs, etc.)
+      // Example: "pre_approval_gate for head e284c2e341" or "commit abc1234def"
+      const ctxShaMatch = flatBody.match(
+        /\b(?:head|sha|commit)\b\s*(?:sha)?\s*[:=]?\s*`?\b([0-9a-f]{7,64})\b`?/iu
+      );
+      if (ctxShaMatch) {
+        fields.headSha = normalizeGateReviewHeadSha(ctxShaMatch[1]);
+      } else {
+        // Fallback: any hex token, strip known URL/id noise first
+        const cleanBody = flatBody.replace(
+          /https:\/\/github\.com\/[^\s]+#issuecomment-\d+/g, ""
+        );
+        const shaMatch = cleanBody.match(/\b([0-9a-f]{7,64})\b/iu);
+        if (shaMatch) {
+          fields.headSha = normalizeGateReviewHeadSha(shaMatch[1]);
+        }
+      }
+    }
+  }
+
   if (!fields.gate || !fields.headSha) {
     return null;
   }

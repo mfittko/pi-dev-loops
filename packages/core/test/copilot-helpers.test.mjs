@@ -178,3 +178,142 @@ test("summarizeCopilotReviews ignores non-Copilot reviews", () => {
   assert.equal(result.copilotReviewPresent, false);
   assert.equal(result.hasSubmittedReviewOnCurrentHead, false);
 });
+
+// ── Lenient gate comment parsing (#451) ───────────────────────────────────
+
+test("parseGateReviewCommentMarkerBody detects gate+head in non-standard format", () => {
+  const body = "pre_approval_gate check for head e284c2e341: all clear!";
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.notEqual(result, null);
+  assert.equal(result.gate, "pre_approval_gate");
+  assert.equal(result.headSha, "e284c2e341");
+  assert.equal(result.contractComplete, false); // no verdict/next-action fields
+});
+
+test("parseGateReviewCommentMarkerBody detects draft_gate in loose format", () => {
+  const body = "draft_gate passed for abc1234def";
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.notEqual(result, null);
+  assert.equal(result.gate, "draft_gate");
+  assert.equal(result.headSha, "abc1234def");
+  assert.equal(result.contractComplete, false);
+});
+
+test("parseGateReviewCommentMarkerBody returns null when no gate or SHA found", () => {
+  const body = "just a regular comment with no gate references";
+  assert.equal(parseGateReviewCommentMarkerBody(body), null);
+});
+
+test("parseGateReviewCommentMarkerBody returns null when gate found but no SHA", () => {
+  const body = "draft_gate check passed";
+  assert.equal(parseGateReviewCommentMarkerBody(body), null);
+});
+
+test("parseGateReviewCommentMarkerBody returns null when SHA found but no gate", () => {
+  const body = "commit abc1234def5678 looks good";
+  assert.equal(parseGateReviewCommentMarkerBody(body), null);
+});
+
+test("parseGateReviewCommentBody still returns null for lenient match (needs all fields)", () => {
+  const body = "pre_approval_gate for abc1234def all clear";
+  // parseGateReviewCommentBody requires verdict, findingsSummary, AND nextAction
+  assert.equal(parseGateReviewCommentBody(body), null);
+});
+
+test("parseGateReviewCommentMarkerBody lenient fallback does not break structured format", () => {
+  const body = [
+    "### Gate review: `pre_approval_gate`",
+    "",
+    "**Reviewed head SHA:** `e284c2e341`",
+    "**Verdict:** clean",
+    "**Findings summary:** all good",
+    "**Next action:** await approval",
+  ].join("\n");
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.notEqual(result, null);
+  assert.equal(result.gate, "pre_approval_gate");
+  assert.equal(result.headSha, "e284c2e341");
+  assert.equal(result.verdict, "clean");
+  assert.equal(result.findingsSummary, "all good");
+  assert.equal(result.nextAction, "await approval");
+  assert.equal(result.contractComplete, true);
+});
+
+test("summarizeGateReviewCommentMarkers picks up lenient gate comment", () => {
+  const comments = [
+    {
+      id: 1,
+      html_url: "https://github.com/o/r/pull/1#issuecomment-1",
+      body: "pre_approval_gate for e284c2e341: approved",
+      updated_at: "2026-06-01T10:00:00Z",
+    },
+  ];
+  const result = summarizeGateReviewCommentMarkers(comments, { headSha: "e284c2e341" });
+  assert.notEqual(result.pre_approval_gate, null);
+  assert.equal(result.pre_approval_gate.gate, "pre_approval_gate");
+  assert.equal(result.pre_approval_gate.headSha, "e284c2e341");
+  assert.equal(result.pre_approval_gate.visible, true);
+  assert.equal(result.pre_approval_gate.contractComplete, false);
+});
+
+test("summarizeGateReviewCommentMarkers prefers structured over lenient when both exist", () => {
+  const comments = [
+    {
+      id: 1,
+      html_url: "https://github.com/o/r/pull/1#issuecomment-1",
+      body: "draft_gate for abc1234",  // lenient match
+      updated_at: "2026-06-01T10:00:00Z",
+    },
+    {
+      id: 2,
+      html_url: "https://github.com/o/r/pull/1#issuecomment-2",
+      body: [
+        "### Gate review: `draft_gate`",
+        "",
+        "**Reviewed head SHA:** `abc1234`",
+        "**Verdict:** clean",
+        "**Findings summary:** good",
+        "**Next action:** mark ready",
+      ].join("\n"),
+      updated_at: "2026-06-01T11:00:00Z",  // newer
+    },
+  ];
+  const result = summarizeGateReviewCommentMarkers(comments, { headSha: "abc1234" });
+  assert.notEqual(result.draft_gate, null);
+  // Should prefer the newer structured comment
+  assert.equal(result.draft_gate.commentId, 2);
+  assert.equal(result.draft_gate.contractComplete, true);
+});
+
+test("parseGateReviewCommentMarkerBody lenient SHA ignores github comment URLs", () => {
+  // "head e284c2e341" matched by context-based parser; URL #issuecomment-4615274563 ignored
+  const body = "pre_approval_gate for head e284c2e341: all clear!\n\n" +
+    "See https://github.com/mfittko/pi-dev-loops/pull/450#issuecomment-4615274563 for details.";
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.notEqual(result, null);
+  assert.equal(result.gate, "pre_approval_gate");
+  assert.equal(result.headSha, "e284c2e341");
+  assert.equal(result.contractComplete, false);
+});
+
+test("parseGateReviewCommentMarkerBody lenient SHA ignores plain-text numeric ID before head SHA", () => {
+  // Plain-text "comment 4615274563" is 10 decimal digits that would match [0-9a-f]{7,64}
+  // Context-based parser picks SHA after "head", not the numeric ID
+  const body = "pre_approval_gate: comment 4615274563 for head e284c2e341 all clear!";
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.notEqual(result, null);
+  assert.equal(result.gate, "pre_approval_gate");
+  assert.equal(result.headSha, "e284c2e341");
+  assert.equal(result.contractComplete, false);
+});
+
+test("parseGateReviewCommentMarkerBody context matcher uses word boundaries on head/sha/commit", () => {
+  // "ahead" should NOT match the \bhead\b context matcher
+  // The real SHA follows the comma after the numeric ID
+  const body = "pre_approval_gate: ahead 4615274563, head e284c2e341 — all clear!";
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.notEqual(result, null);
+  assert.equal(result.gate, "pre_approval_gate");
+  assert.equal(result.headSha, "e284c2e341");
+  assert.equal(result.contractComplete, false);
+});
