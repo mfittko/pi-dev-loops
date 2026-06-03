@@ -287,6 +287,86 @@ test("detect-pr-gate-coordination-state allows pre-approval flow for converged n
   }
 });
 
+test("detect-pr-gate-coordination-state allows pre-approval fallback when the Copilot round cap is exhausted", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-round-cap-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 266,
+          state: "OPEN",
+          isDraft: false,
+          headRefOid: "def56789abcdef",
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "1111111111111111111111111111111111111111" },
+              submittedAt: "2026-05-31T20:00:00Z",
+            },
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "2222222222222222222222222222222222222222" },
+              submittedAt: "2026-05-31T20:05:00Z",
+            },
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "3333333333333333333333333333333333333333" },
+              submittedAt: "2026-05-31T20:10:00Z",
+            },
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "4444444444444444444444444444444444444444" },
+              submittedAt: "2026-05-31T20:15:00Z",
+            },
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "5555555555555555555555555555555555555555" },
+              submittedAt: "2026-05-31T20:20:00Z",
+            },
+          ],
+        }),
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/266/requested_reviewers"],
+        stdout: jsonLine({ users: [], teams: [] }),
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=266"],
+        stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }),
+      },
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: jsonLine({ headRefOid: "def56789abcdef" }),
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"],
+        stdout: jsonLine([[]]),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "266"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.lifecycleState, "ready_to_rerequest_review");
+    assert.equal(parsed.gateBoundary, "pre_approval_gate_window");
+    assert.equal(parsed.nextAction, "run_pre_approval_gate");
+    assert.equal(parsed.gateEvidenceNote, "Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.");
+    assert.match(parsed.reason, /round limit/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detectPrGateCoordinationState tolerates missing local git binary and falls back to GitHub-only facts", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-missing-git-"));
 

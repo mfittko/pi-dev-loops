@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { loadDevLoopConfig, resolveGateConfig } from "@pi-dev-loops/core/config";
+import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { truncateText } from "@pi-dev-loops/core/bash-exit-one";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
@@ -307,6 +307,25 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
   return options;
 }
 
+function appendGateEvidenceNote(summary, note) {
+  const normalizedSummary = summarizeGateReviewText(summary);
+  const normalizedNote = typeof note === "string" ? collapseWhitespace(note) : "";
+
+  if (normalizedNote.length === 0) {
+    return normalizedSummary;
+  }
+
+  if (normalizedSummary.length === 0) {
+    return smartTruncate(normalizedNote, MAX_GATE_COMMENT_TEXT_LENGTH);
+  }
+
+  if (normalizedSummary.includes(normalizedNote)) {
+    return normalizedSummary;
+  }
+
+  return smartTruncate(`${normalizedSummary}; ${normalizedNote}`, MAX_GATE_COMMENT_TEXT_LENGTH);
+}
+
 export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction }) {
   return [
     `### Gate review: \`${gate}\``,
@@ -435,6 +454,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
   const { config } = await loadDevLoopConfig({ repoRoot });
   const draftGateConfig = resolveGateConfig(config, "draft");
+  const maxCopilotRounds = resolveRefinementConfig(config, "maxCopilotRounds");
   const coordination = evaluatePrGateCoordination({
     repo: coordinationContext.repo,
     pr: coordinationContext.pr,
@@ -445,6 +465,8 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     lifecycleState: coordinationContext.interpretation.state,
     loopDisposition: coordinationContext.disposition.loopDisposition,
     ciStatus: coordinationContext.snapshot?.ciStatus ?? null,
+    copilotReviewRoundCount: coordinationContext.snapshot?.copilotReviewRoundCount ?? 0,
+    maxCopilotRounds,
     sameHeadCleanConverged: coordinationContext.interpretation.sameHeadCleanConverged,
     draftGateRequireCi: draftGateConfig.requireCi,
     draftGate: coordinationContext.gateEvidence.draftGate,
@@ -459,7 +481,8 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     throw new Error(`Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`);
   }
 
-  const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha });
+  const effectiveFindingsSummary = appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
+  const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha, findingsSummary: effectiveFindingsSummary });
 
   const gateEvidence = selectGateEvidence(evidence, options.gate);
   const existing = summarizeExistingComment({ ...gateEvidence, headSha: canonicalHeadSha });
@@ -469,7 +492,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     existing
     && existing.contractComplete
     && existing.verdict === options.verdict
-    && existing.findingsSummary === options.findingsSummary
+    && existing.findingsSummary === effectiveFindingsSummary
     && existing.nextAction === options.nextAction
   ) {
     return {
