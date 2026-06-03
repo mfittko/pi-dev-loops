@@ -226,10 +226,14 @@ export function classifyThreadSignal(thread) {
 
 /**
  * Determine the maximum signal level across all Copilot-authored threads.
+ *
+ * Filters threads to those containing at least one Copilot-authored comment,
+ * then classifies the signal level using all comments in those threads
+ * (including human replies in Copilot threads, which may clarify severity).
  * Returns null if no Copilot-authored threads exist.
  *
- * @param {{ threads: Array<object> }} parsedResult
- * @param {(login: string) => boolean} isCopilotLoginFn
+ * @param {{ threads: Array<object>, comments: Array<object> }} parsedResult — output of parseReviewThreads()
+ * @param {(login: string) => boolean} isCopilotLoginFn — predicate for Copilot authors
  * @returns {"high"|"mid"|"low"|null}
  */
 export function classifyReviewThreadsSignal(parsedResult, isCopilotLoginFn) {

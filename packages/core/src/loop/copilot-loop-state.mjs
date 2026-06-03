@@ -430,7 +430,6 @@ export function summarizeLoopInterpretation(snapshotOrInterpretation, refinement
     loopDisposition,
     terminal: loopDisposition === LOOP_DISPOSITION.CLEAN_CONVERGED
       || loopDisposition === LOOP_DISPOSITION.BLOCKED
-      || loopDisposition === LOOP_DISPOSITION.DONE
-      || interpretation.state === STATE.LOW_SIGNAL_CONVERGED,
+      || loopDisposition === LOOP_DISPOSITION.DONE,
   };
 }
