@@ -120,7 +120,10 @@ function parseGateReviewCommentFields(body) {
     const flatBody = body.replace(/\*\*/gu, "").replace(/`/gu, "");
 
     if (!fields.gate) {
-      const gateMatch = flatBody.match(/\b(draft_gate|pre_approval_gate)\b/iu);
+      const canonicalGateNames = [...GATE_REVIEW_NAMES].join("|");
+      const gateMatch = flatBody.match(
+        new RegExp(`\\b(${canonicalGateNames})\\b`, "iu")
+      );
       if (gateMatch) {
         fields.gate = normalizeGateReviewName(gateMatch[1]);
       }
@@ -131,7 +134,7 @@ function parseGateReviewCommentFields(body) {
       // matches on plain-text numeric IDs (issue/comment IDs, etc.)
       // Example: "pre_approval_gate for head e284c2e341" or "commit abc1234def"
       const ctxShaMatch = flatBody.match(
-        /(?:head|sha|commit)\s*(?:sha)?\s*[:=]?\s*`?\b([0-9a-f]{7,64})\b`?/iu
+        /\b(?:head|sha|commit)\b\s*(?:sha)?\s*[:=]?\s*`?\b([0-9a-f]{7,64})\b`?/iu
       );
       if (ctxShaMatch) {
         fields.headSha = normalizeGateReviewHeadSha(ctxShaMatch[1]);

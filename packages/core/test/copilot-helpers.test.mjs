@@ -306,3 +306,14 @@ test("parseGateReviewCommentMarkerBody lenient SHA ignores plain-text numeric ID
   assert.equal(result.headSha, "e284c2e341");
   assert.equal(result.contractComplete, false);
 });
+
+test("parseGateReviewCommentMarkerBody context matcher uses word boundaries on head/sha/commit", () => {
+  // "ahead" should NOT match the \bhead\b context matcher
+  // The real SHA follows the comma after the numeric ID
+  const body = "pre_approval_gate: ahead 4615274563, head e284c2e341 — all clear!";
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.notEqual(result, null);
+  assert.equal(result.gate, "pre_approval_gate");
+  assert.equal(result.headSha, "e284c2e341");
+  assert.equal(result.contractComplete, false);
+});
