@@ -51,6 +51,10 @@ These skills may be provided repo-locally or globally; this contract does not as
 
 Use this pattern whenever the work is refinement, comparison, review, or synthesis rather than implementation.
 
+- When the issue or phase has likely slop risk, structural drift risk, or adjacent cleanup risk, refinement may start with an **opt-in bounded audit pre-step**. When used, the sequence is explicitly `audit -> refine -> implement`.
+- Any audit pre-step must stay bounded to named files/areas. It must never silently widen into a full-repo scan.
+- Audit output must be prioritized and passed into refiner fan-out/fan-in as an input artifact, not pasted as an unstructured aside.
+- The audit handoff must say explicitly what the current phase will **not** rewrite or broaden.
 - Parallel fan-out uses the `refiner` agent with bounded aliases such as `{agent: "refiner", as: "refine-NNN", task: "Refine issue #NNN..."}`.
 - Consolidation/fan-in also uses the `refiner` agent, for example `{agent: "refiner", task: "Review {outputs.refine-NNN}... Report readiness."}`. Treat this as review-only consolidation; no code edits are expected from that step.
 - Keep the fan-out and consolidation chain inside the reusable `refiner` role. Do not route those refinement/review steps through `dev-loop` + `local_implementation`; that path is only for actual implementation/edit work.
