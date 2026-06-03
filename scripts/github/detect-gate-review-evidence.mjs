@@ -25,7 +25,7 @@ Optional:
   --require-before-merge  Exit 1 unless a clean draft_gate comment exists and
                           a clean current-head pre_approval_gate comment exists.
 
-Output (stdout, JSON):
+Output (stdout, JSON; --require-before-merge shape includes preMergeGateCheck):
   {
     "ok": true,
     "repo": "owner/repo",
@@ -69,7 +69,7 @@ Output (stdout, JSON):
     }
   }
 
-When --require-before-merge is omitted, preMergeGateCheck is not emitted.
+When --require-before-merge is omitted, the same evidence summary is emitted without preMergeGateCheck.
 
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
