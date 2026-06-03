@@ -538,7 +538,7 @@ test("detect-pr-gate-coordination-state surfaces conflict_resolution for conflic
   }
 });
 
-test("detect-pr-gate-coordination-state with --review-mode local_first skips Copilot review", async () => {
+test("detect-pr-gate-coordination-state with --review-mode internal_only skips Copilot review", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-local-"));
 
   try {
@@ -595,7 +595,7 @@ test("detect-pr-gate-coordination-state with --review-mode local_first skips Cop
       },
     ]);
 
-    const result = await runNode(["--repo", "owner/repo", "--pr", "267", "--review-mode", "local_first"], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "267", "--review-mode", "internal_only"], { env });
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");

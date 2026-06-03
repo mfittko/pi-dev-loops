@@ -19,7 +19,7 @@ import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 
 const UNMERGED_GIT_STATUS_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
 
-const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number> [--review-mode local_first] [--local-validation-head-sha <sha>]
+const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number> [--review-mode internal_only] [--local-validation-head-sha <sha>]
 
 Determine which PR gate/transition is legal next for a pull request.
 
@@ -28,7 +28,7 @@ Required:
   --pr <number>         Pull request number
 
 Optional:
-  --review-mode local_first
+  --review-mode internal_only
   --local-validation-head-sha <sha>
                         Assert that local npm run verify already passed for
                         this exact head SHA so gate coordination can reuse the
@@ -114,11 +114,11 @@ export function parseDetectPrGateCoordinationCliArgs(argv) {
 
     if (token === "--review-mode") {
       const raw = requireOptionValue(args, "--review-mode", parseError).trim().toLowerCase();
-      if (raw === "local_first") {
-        options.reviewMode = "local_first";
+      if (raw === "internal_only") {
+        options.reviewMode = "internal_only";
         continue;
       }
-      throw parseError(`--review-mode must be "local_first", got: ${raw}`);
+      throw parseError(`--review-mode must be "internal_only", got: ${raw}`);
     }
 
     if (token === "--local-validation-head-sha") {
