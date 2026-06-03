@@ -369,5 +369,6 @@ test("skill docs enforce self-assignment and draft-first rules for create comman
   assert.doesNotMatch(agents, /gh issue create` or `gh pr create`/i);
   assert.match(workflowHandoffTemplate, /node scripts\/github\/create-draft-pr\.mjs --assignee @me/i);
   assert.doesNotMatch(workflowHandoffTemplate, /gh pr create --draft --assignee @me/i);
-  assert.match(trackerStoryPrContract, /gh pr create --draft --assignee @me/);
+  assert.match(trackerStoryPrContract, /Draft PR creation succeeds \| `draft_pr_open` \| Apply `set_in_progress` to tracker/i);
+  assert.doesNotMatch(trackerStoryPrContract, /gh pr create --draft --assignee @me/i);
 });

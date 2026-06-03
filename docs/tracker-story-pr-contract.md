@@ -120,7 +120,7 @@ implementations map canonical action names to tracker-native field updates.
 | PR lifecycle event | Maps to canonical state | Sync trigger |
 |---|---|---|
 | No PR created yet | `ready_no_pr` | No trigger |
-| `gh pr create --draft --assignee @me` succeeds | `draft_pr_open` | Apply `set_in_progress` to tracker |
+| Draft PR creation succeeds | `draft_pr_open` | Apply `set_in_progress` to tracker |
 | PR converted from draft to ready-for-review | `pr_reviewable` | Apply `set_reviewable` to tracker |
 | PR merged | `pr_merged` | Apply `set_done` to tracker |
 | PR closed without merge | `pr_closed_unmerged` | No automatic sync; report to user |
