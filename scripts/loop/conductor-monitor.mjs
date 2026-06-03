@@ -453,14 +453,18 @@ function recordKey(runId, childIndex) {
   return `${runId}:${childIndex}`;
 }
 
-function parseChildIndexFromArtifactName(name) {
-  const match = name.match(/_(\d+)_/u);
-  return match ? Number(match[1]) : 0;
-}
+function parseArtifactFileName(name) {
+  const match = name.match(/^(?<runId>.+)_(?<agent>[^_]+)_(?<index>\d+)_(?<kind>meta\.json|output\.md|input\.md)$/u);
+  if (!match?.groups) {
+    return null;
+  }
 
-function parseRunIdFromArtifactName(name) {
-  const match = name.match(/^([^_]+)_/u);
-  return match ? match[1] : null;
+  return {
+    runId: match.groups.runId,
+    agent: match.groups.agent,
+    childIndex: Number(match.groups.index),
+    kind: match.groups.kind,
+  };
 }
 
 async function scanSessionArtifactRoot(artifactsDir, records) {
@@ -474,12 +478,12 @@ async function scanSessionArtifactRoot(artifactsDir, records) {
       continue;
     }
 
-    const runId = parseRunIdFromArtifactName(entry.name);
-    if (runId === null) {
+    const parsedName = parseArtifactFileName(entry.name);
+    if (parsedName === null) {
       continue;
     }
 
-    const childIndex = parseChildIndexFromArtifactName(entry.name);
+    const { runId, childIndex, agent } = parsedName;
     const key = recordKey(runId, childIndex);
     const record = records.get(key) ?? createRunRecord(runId, childIndex);
     const filePath = path.join(artifactsDir, entry.name);
@@ -488,7 +492,7 @@ async function scanSessionArtifactRoot(artifactsDir, records) {
       const meta = await readJsonIfExists(filePath);
       if (meta && typeof meta === "object") {
         records.set(key, mergeRunRecord(record, {
-          agent: typeof meta.agent === "string" ? meta.agent : record.agent,
+          agent: typeof meta.agent === "string" ? meta.agent : (record.agent ?? agent),
           metaPath: filePath,
           runState: Number(meta.exitCode) === 0 ? RUN_STATE.COMPLETED : RUN_STATE.FAILED,
           timestampMs: typeof meta.timestamp === "number" ? meta.timestamp : null,
@@ -504,6 +508,7 @@ async function scanSessionArtifactRoot(artifactsDir, records) {
     if (entry.name.endsWith("_output.md")) {
       records.set(key, mergeRunRecord(record, {
         outputArtifactPath: filePath,
+        agent: record.agent ?? agent,
         evidence: { outputArtifactPath: filePath },
       }));
     }
@@ -972,6 +977,9 @@ function parseArtifactState(text) {
   if (/\bopen\b/u.test(combined)) {
     return "open";
   }
+  if (/final human approval|waiting_for_merge_authorization|advanced to the final human approval boundary|inspected and advanced/u.test(combined)) {
+    return "open";
+  }
 
   return null;
 }
@@ -1177,9 +1185,24 @@ export async function parseDevLoopArtifact(record) {
     };
   }
 
-  const parsedArtifactState = parseArtifactState(selection.primaryText) ?? "open";
+  const parsedArtifactState = parseArtifactState(selection.primaryText);
   const parsedLoopState = parseLoopState(selection.primaryText);
   const nextAction = parseNextActionText(selection.primaryText);
+  if (parsedArtifactState === null) {
+    return {
+      ok: false,
+      reason: MANUAL_REASON.UNCLASSIFIED_ARTIFACT_STATE,
+      pr: prNumbers[0],
+      evidence: {
+        source: selection.primarySource,
+        parsedLoopState,
+        nextAction,
+        outputArtifactPath: record.outputArtifactPath,
+        resultSummaryPath: record.resultSummaryPath,
+      },
+      source: selection.primarySource,
+    };
+  }
   const resumeBucket = classifyResumeBucket(selection.primaryText, parsedArtifactState);
 
   if (resumeBucket === null) {
@@ -1511,8 +1534,23 @@ async function analyzeAutoResume({ repo, reports }, options) {
       continue;
     }
 
-    if (isExitedState(run.runState) || run.runState === RUN_STATE.UNKNOWN) {
+    if (isExitedState(run.runState)) {
       exitedRuns.push(candidate);
+      continue;
+    }
+
+    if (run.runState === RUN_STATE.UNKNOWN && openPrNumbers.has(parsedArtifact.pr)) {
+      manualAttention.push(buildManualAttentionEntry({
+        pr: parsedArtifact.pr,
+        runId: run.runId,
+        reason: MANUAL_REASON.ARTIFACT_LIVE_STATE_CONFLICT,
+        evidence: {
+          runState: run.runState,
+          outputArtifactPath: run.outputArtifactPath,
+          sessionPath: run.sessionPath,
+        },
+        suggestedNextStep: "Resolve the run state for this candidate before preparing a resume plan.",
+      }));
     }
   }
 
