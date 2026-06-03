@@ -566,6 +566,92 @@ test("conductor-monitor --auto-resume fails closed when run exit state cannot be
   }
 });
 
+test("conductor-monitor --auto-resume preserves the stronger failed run state when evidence conflicts", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-run-state-priority-"));
+  const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const { sessionPath } = await writeSessionRun({
+      sessionsRoot,
+      runId: "run-failed-57",
+      cwd: repoRoot,
+      timestampMs: 1700000014000,
+      exitCode: 1,
+      outputText: "Active PR: owner/repo#57\nArtifact state: open\nLoop state: unresolved_feedback_present\n",
+    });
+    await writeAsyncRun({
+      asyncRunsRoot,
+      runId: "run-failed-57",
+      state: "complete",
+      cwd: repoRoot,
+      sessionPath,
+      timestampMs: 1700000014500,
+      outputText: "Active PR: owner/repo#57\nLoop state: unresolved_feedback_present\n",
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 57,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        threadsPayload: mixedThreadsFixture,
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 1);
+    assert.equal(payload.resumePlans[0].runState, "failed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume uses grouped result summaries as the artifactPath when no output artifact exists", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-grouped-summary-path-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const summaryPath = path.join(asyncResultsRoot, "run-summary-58.json");
+    await writeFile(summaryPath, `${JSON.stringify({
+      runId: "run-summary-58",
+      agent: "dev-loop",
+      state: "complete",
+      cwd: repoRoot,
+      summary: [
+        "Run: run-summary-58",
+        "State: complete",
+        "Agent: dev-loop",
+        "Active PR: owner/repo#58",
+        "Artifact state: open",
+        "Loop state: waiting_for_copilot_review",
+      ].join("\n"),
+      results: [{
+        agent: "dev-loop",
+        output: [
+          "Run: run-summary-58",
+          "State: complete",
+          "Agent: dev-loop",
+          "Active PR: owner/repo#58",
+          "Artifact state: open",
+          "Loop state: waiting_for_copilot_review",
+        ].join("\n"),
+      }],
+    }, null, 2)}
+`, "utf8");
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 58, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 1);
+    assert.equal(payload.resumePlans[0].artifactPath, summaryPath);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("conductor-monitor --auto-resume emits a feedback-fix resume plan for an orphaned unresolved-feedback PR", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-fix-"));
   const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");

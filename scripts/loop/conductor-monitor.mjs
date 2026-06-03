@@ -386,6 +386,23 @@ function isExitedState(value) {
     || normalized === RUN_STATE.PAUSED;
 }
 
+function runStatePriority(value) {
+  switch (normalizeRunState(value)) {
+    case RUN_STATE.RUNNING:
+      return 5;
+    case RUN_STATE.QUEUED:
+      return 4;
+    case RUN_STATE.FAILED:
+      return 3;
+    case RUN_STATE.PAUSED:
+      return 2;
+    case RUN_STATE.COMPLETED:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
 function createRunRecord(runId, childIndex = 0) {
   return {
     runId,
@@ -433,11 +450,7 @@ function mergeRunRecord(target, patch) {
 
     if (key === "runState") {
       const normalized = normalizeRunState(value);
-      if (
-        merged.runState === RUN_STATE.UNKNOWN
-        || (isRunningLikeState(normalized) && !isRunningLikeState(merged.runState))
-        || (isExitedState(normalized) && !isRunningLikeState(merged.runState))
-      ) {
+      if (runStatePriority(normalized) > runStatePriority(merged.runState)) {
         merged.runState = normalized;
       }
       continue;
@@ -1452,7 +1465,7 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
       pr: prReport.number,
       runId: run.runId,
       runState: normalizeRunStateForPlan(run.runState),
-      artifactPath: run.outputArtifactPath ?? null,
+      artifactPath: run.outputArtifactPath ?? run.resultSummaryPath ?? run.resultPath ?? null,
       ...(run.sessionPath ? { sessionPath: run.sessionPath } : {}),
       parsedArtifactState: parsedArtifact.parsedArtifactState,
       parsedLoopState: parsedArtifact.parsedLoopState,
