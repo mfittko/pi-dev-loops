@@ -172,14 +172,13 @@ MUST use `gh pr create --draft --repo <owner/name> --assignee @me --base <base> 
 
 ## Timeout and watch policy
 
-This workflow is intentionally long-lived.
-
-Do not rely on short default timeouts for unattended Copilot loops.
+This workflow is intentionally long-lived, but one Copilot review watch boundary must still be capped.
 
 Preferred defaults for this repo:
 - poll interval for review/activity watchers: **1 minute** (`--poll-interval-ms 60000`)
-- unattended watch timeout: **24 hours** (`--timeout-ms 86400000`)
-- if the user says to stay on it until done or avoid near-term timeout, prefer **72 hours** (`--timeout-ms 259200000`)
+- max watch timeout per Copilot review boundary: **30 minutes** (`--timeout-ms 1800000`)
+- if that 30-minute watch budget expires, refresh authoritative state once; if the refreshed state still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention`
+- do not silently extend that 30-minute cap unless the user or conductor explicitly authorizes a longer watch budget for the active PR
 - parent/subagent no-activity threshold for watcher-style runs: at least **15 minutes**
 - active-long-running notice threshold for watcher-style runs: about **30 minutes**
 

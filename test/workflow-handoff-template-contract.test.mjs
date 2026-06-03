@@ -147,6 +147,26 @@ test("unresolvedThreadCount === 0 appears before pre_approval_gate in mandatory 
   );
 });
 
+
+
+test("workflow-handoff-template includes the persistence rule and timeout escalation", async () => {
+  const content = await readTemplate();
+
+  assert.match(
+    content,
+    /PERSISTENCE RULE: Do not exit your session until the PR is merged or you hit a hard stop that requires conductor authorization\./i,
+  );
+  assert.match(
+    content,
+    /watch → detect → if threads found, fix \+ reply \+ resolve → re-request → watch again/i,
+  );
+  assert.match(content, /30 minutes[\s\S]*1800000/i);
+  assert.match(
+    content,
+    /watch timeout\s+[—-]\s+PR #<number> needs manual attention/i,
+  );
+});
+
 test("coordinator prompt references the canonical hand-off template", async () => {
   const coordinatorPath = path.resolve("agents/coordinator.agent.md");
   const coordinatorContent = await readFile(coordinatorPath, "utf8");

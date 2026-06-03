@@ -58,8 +58,12 @@ Use this helper output as source of truth for the normal routing seam. Interpret
 node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>
 ```
 For explicit async loop entry or continuation, this is a persistent async watch/fix loop, not handoff-only behavior:
+- treat the normal PR follow-up path as one loop: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → … → pre_approval_gate → merge`
+- **PERSISTENCE RULE: Do not exit your session until the PR is merged or you hit a hard stop that requires conductor authorization.**
+- a single returned watch cycle (`changed`, `timeout`, or `idle`) is never completion by itself
 - if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary instead of reporting completion
 - after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, resume this watcher again in the same async session
+- default max watch timeout for one Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
 - if the user explicitly asks for async handoff-only behavior, say that out loud and stop after the handoff boundary; otherwise do not silently reinterpret async loop entry as handoff-only
 
 **4. Low-level helpers**
@@ -201,10 +205,13 @@ Preferred approach for Copilot review follow-up:
 - route request/re-request/watch decisions through `copilot-pr-handoff.mjs` output instead of re-implementing branch logic in markdown
 - enter watcher mode only when handoff returns `action: "watch"` with `requestWatchContract.watchEntryConfirmed=true`
 - for explicit async loop entry or continuation, prefer `run-copilot-watch-cycle.mjs` so the handoff → watch boundary stays deterministic and uses the emitted non-zero watch timeout
-- if watcher status is `timeout`/`idle`, re-run `copilot-pr-handoff.mjs --watch-status <status>` and continue unless refreshed output is terminal
+- if watcher status is `changed`, immediately re-enter the Step 7 fix / reply-resolve / validate path; do not stop at `review requested` or after one watch cycle
+- if watcher status is `timeout`/`idle`, re-run `copilot-pr-handoff.mjs --watch-status <status>` exactly once to refresh authoritative state
+- if that refreshed state is still `waiting_for_copilot_review` after the default 30-minute watch budget was exhausted, treat it as a hard stop and report `watch timeout — PR #<number> needs manual attention.` rather than pretending the loop completed cleanly
+- otherwise continue from the refreshed deterministic state instead of guessing
 - zero-timeout `idle` probes are for explicit one-shot status/reattach checks only; they are not the normal async wait mechanism
 - after a successful fix / reply-resolve / re-request cycle, returning to `waiting_for_copilot_review` is a persistence boundary: resume the watcher instead of reporting completion
-- if a child async run exits and the refreshed state remains non-terminal (for example `waiting_for_copilot_review`), treat that as early exit and automatically restart/resume the same-PR follow-up path when feasible
+- if a child async run exits and the refreshed state remains non-terminal (for example `waiting_for_copilot_review`) before merge and without a hard stop, treat that as early exit and automatically restart/resume the same-PR follow-up path when feasible
 - keep watcher and fixer flow in-session; do not replace with ad hoc detached polling
 - do not report completion while unresolved Copilot feedback remains
 
@@ -286,7 +293,8 @@ When actionable review feedback exists, use a narrow follow-up loop:
     - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
     - if the request command fails unexpectedly, stop and report the error rather than sleeping and hoping for a new review
 13. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at `review requested`
-14. if scope has broadened, stop and ask before continuing
+14. after a confirmed re-request returns the PR to `waiting_for_copilot_review`, jump back to Step 6 and keep the same session alive; do not exit on `review requested` alone
+15. if scope has broadened, stop and ask before continuing
 
 Do not treat `fix applied locally` as the end of the loop when the workflow also requires GitHub-side reviewer follow-up. If comment/reply authorization is withheld, report explicitly that the code may be fixed while the PR conversation state remains unresolved.
 

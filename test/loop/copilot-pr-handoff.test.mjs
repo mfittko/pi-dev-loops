@@ -171,7 +171,7 @@ test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_
     assert.equal(output.watchArgs.repo, "owner/repo");
     assert.equal(output.watchArgs.pr, 17);
     assert.equal(output.watchArgs.pollIntervalMs, 60_000);
-    assert.equal(output.watchArgs.timeoutMs, 86_400_000);
+    assert.equal(output.watchArgs.timeoutMs, 1_800_000);
     assert.equal(output.requestWatchContract.requestStatus, "requested");
     assert.equal(output.requestWatchContract.routingState, "copilot_request_confirmed_waiting");
     assert.equal(output.requestWatchContract.watchEntryConfirmed, true);
@@ -218,7 +218,7 @@ test("copilot-pr-handoff emits watch action when Copilot is already requested", 
     assert.deepEqual(output.watchTimeoutPolicy, EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY);
     assert.ok(output.watchArgs, "expected watchArgs");
     assert.equal(output.watchArgs.pollIntervalMs, 60_000);
-    assert.equal(output.watchArgs.timeoutMs, 86_400_000);
+    assert.equal(output.watchArgs.timeoutMs, 1_800_000);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -517,7 +517,7 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot is in requested
     assert.equal(output.watchArgs.repo, "owner/repo");
     assert.equal(output.watchArgs.pr, 17);
     assert.equal(output.watchArgs.pollIntervalMs, 60_000);
-    assert.equal(output.watchArgs.timeoutMs, 86_400_000);
+    assert.equal(output.watchArgs.timeoutMs, 1_800_000);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -583,7 +583,7 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot has a pending r
     assert.equal(output.watchArgs.repo, "owner/repo");
     assert.equal(output.watchArgs.pr, 17);
     assert.equal(output.watchArgs.pollIntervalMs, 60_000);
-    assert.equal(output.watchArgs.timeoutMs, 86_400_000);
+    assert.equal(output.watchArgs.timeoutMs, 1_800_000);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

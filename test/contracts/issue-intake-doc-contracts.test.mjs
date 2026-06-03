@@ -155,6 +155,26 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(devLoopAgent, /not a second public workflow entrypoint/i);
 });
 
+
+
+test("issue-intake surface requires persistent copilot follow-up loop and capped watch timeout", async () => {
+  const content = await readIssueIntakeSurface();
+
+  assert.match(
+    content,
+    /PERSISTENCE RULE: Do not exit your session until the PR is merged or you hit a hard stop that requires conductor authorization\./i,
+  );
+  assert.match(
+    content,
+    /watch → detect → if threads found, fix \+ reply \+ resolve → re-request → watch again/i,
+  );
+  assert.match(content, /30 minutes[\s\S]*1800000/i);
+  assert.match(
+    content,
+    /watch timeout\s+[—-]\s+PR #<number> needs manual attention/i,
+  );
+});
+
 test("issue-intake surface keeps issue refinement separate from the phase-scoped refiner and explains thin entrypoint agents", async () => {
   const skillContent = await readIssueIntakeSurface();
   const planContent = await readRepo("PLAN.md");
