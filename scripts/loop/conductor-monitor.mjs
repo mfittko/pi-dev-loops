@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, open, readFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -330,6 +330,41 @@ async function readTextIfExists(filePath) {
   }
 }
 
+
+async function readFirstLineIfExists(filePath, chunkSize = 4096) {
+  if (typeof filePath !== "string" || filePath.length === 0) {
+    return null;
+  }
+
+  let handle;
+  try {
+    handle = await open(filePath, "r");
+    let position = 0;
+    let collected = "";
+
+    while (true) {
+      const buffer = Buffer.alloc(chunkSize);
+      const { bytesRead } = await handle.read(buffer, 0, chunkSize, position);
+      if (bytesRead === 0) {
+        return collected.length > 0 ? collected : null;
+      }
+
+      const chunk = buffer.toString("utf8", 0, bytesRead);
+      const newlineIndex = chunk.search(/\r?\n/u);
+      if (newlineIndex >= 0) {
+        return `${collected}${chunk.slice(0, newlineIndex)}`;
+      }
+
+      collected += chunk;
+      position += bytesRead;
+    }
+  } catch {
+    return null;
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+}
+
 async function readJsonIfExists(filePath) {
   const text = await readTextIfExists(filePath);
   if (text === null) {
@@ -567,8 +602,7 @@ async function scanSessionRunRoot(root, records) {
 
         const childIndex = Number(indexMatch[1]);
         const sessionPath = path.join(runRoot, runDirectory.name, "session.jsonl");
-        const headerText = await readTextIfExists(sessionPath);
-        const firstLine = headerText?.split(/\r?\n/u, 1)[0] ?? null;
+        const firstLine = await readFirstLineIfExists(sessionPath);
         let header = null;
         if (firstLine) {
           try {
@@ -1160,10 +1194,11 @@ export async function parseDevLoopArtifact(record) {
   const selection = buildSourceSelection(record, outputArtifactText, resultSummaryText, outputLogText);
 
   if (selection.primaryText === null) {
+    const weakFallbackPr = parseWeakFallbackPr(selection.weakFallbackText);
     return {
       ok: false,
       reason: MANUAL_REASON.MISSING_OUTPUT_ARTIFACT,
-      ...(Number.isInteger(parseWeakFallbackPr(selection.weakFallbackText)) ? { pr: parseWeakFallbackPr(selection.weakFallbackText) } : {}),
+      ...(Number.isInteger(weakFallbackPr) ? { pr: weakFallbackPr } : {}),
       evidence: {
         outputArtifactPath: record.outputArtifactPath,
         resultSummaryPath: record.resultSummaryPath,
