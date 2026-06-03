@@ -333,19 +333,19 @@ function validateLlmPayload(payload) {
         ? cluster.name.trim()
         : `unnamed-cluster-${index + 1}`;
       return {
-      name: normalizedName,
-      label: typeof cluster?.label === "string" && cluster.label.trim().length > 0 ? cluster.label.trim() : normalizedName,
-      description: typeof cluster?.description === "string" ? cluster.description : "",
-      frequency: Number.isInteger(cluster?.frequency) ? cluster.frequency : 0,
-      priority: ["high", "medium", "low"].includes(cluster?.priority) ? cluster.priority : "low",
-      recommendedPersona: typeof cluster?.recommendedPersona === "string" && cluster.recommendedPersona.trim().length > 0 ? cluster.recommendedPersona.trim() : null,
-      personaRationale: typeof cluster?.personaRationale === "string" ? cluster.personaRationale : "",
-      examples: Array.isArray(cluster?.examples) ? cluster.examples.map((example) => ({
-        prNumber: Number.isInteger(example?.prNumber) ? example.prNumber : null,
-        path: typeof example?.path === "string" ? example.path : null,
-        excerpt: typeof example?.excerpt === "string" ? example.excerpt : "",
-      })) : [],
-    };
+        name: normalizedName,
+        label: typeof cluster?.label === "string" && cluster.label.trim().length > 0 ? cluster.label.trim() : normalizedName,
+        description: typeof cluster?.description === "string" ? cluster.description : "",
+        frequency: Number.isInteger(cluster?.frequency) ? cluster.frequency : 0,
+        priority: ["high", "medium", "low"].includes(cluster?.priority) ? cluster.priority : "low",
+        recommendedPersona: typeof cluster?.recommendedPersona === "string" && cluster.recommendedPersona.trim().length > 0 ? cluster.recommendedPersona.trim() : null,
+        personaRationale: typeof cluster?.personaRationale === "string" ? cluster.personaRationale : "",
+        examples: Array.isArray(cluster?.examples) ? cluster.examples.map((example) => ({
+          prNumber: Number.isInteger(example?.prNumber) ? example.prNumber : null,
+          path: typeof example?.path === "string" ? example.path : null,
+          excerpt: typeof example?.excerpt === "string" ? example.excerpt : "",
+        })) : [],
+      };
     }),
     unclustered: {
       frequency: Number.isInteger(payload?.unclustered?.frequency) ? payload.unclustered.frequency : 0,
