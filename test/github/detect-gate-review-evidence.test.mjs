@@ -243,6 +243,11 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
           },
         ])}\n`,
       },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
+`,
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -342,6 +347,11 @@ test("detect-gate-review-evidence fails pre-merge check when only draft gate exi
           ],
         ])}\n`,
       },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
+`,
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -383,6 +393,11 @@ test("detect-gate-review-evidence fails pre-merge check when only partial draft 
           },
         ])}\n`,
       },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
+`,
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -414,6 +429,11 @@ test("detect-gate-review-evidence always fails before merge when gate comments a
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
         stdout: "[]\n",
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
+`,
       },
     ]);
 
@@ -471,6 +491,11 @@ test("detect-gate-review-evidence always passes pre-merge check with clean draft
           },
         ])}\n`,
       },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
+`,
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -522,6 +547,11 @@ test("detect-gate-review-evidence fails pre-merge check when pre-approval gate i
           },
         ])}\n`,
       },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
+`,
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -548,6 +578,11 @@ test("detect-gate-review-evidence reports gh failures deterministically", async 
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
         stderr: "boom\n",
         exitCode: 1,
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } })}
+`,
       },
     ]);
 

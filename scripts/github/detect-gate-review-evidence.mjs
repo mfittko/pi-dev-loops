@@ -4,10 +4,12 @@ import {
   formatCliError,
   isDirectCliRun,
   parseJsonText,
+  parseReviewThreads,
   summarizeGateReviewCommentMarkers,
   summarizeGateReviewComments,
 } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
+import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 const USAGE = `Usage: detect-gate-review-evidence.mjs --repo <owner/name> --pr <number>
@@ -217,7 +219,7 @@ function normalizeGateMarkerSummary(summary) {
   };
 }
 
-function buildPreMergeGateCheck(evidence) {
+function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null) {
   const failures = [];
 
   if (!(evidence.draftGate.visible && evidence.draftGate.verdict === "clean")) {
@@ -232,6 +234,15 @@ function buildPreMergeGateCheck(evidence) {
     && preApproval.headSha === evidence.currentHeadSha
   )) {
     failures.push("missing visible clean current-head pre_approval_gate comment");
+  }
+
+  // #443: verify zero unresolved review threads before pre-merge gate passes
+  if (typeof unresolvedThreadCount === "number" && unresolvedThreadCount !== 0) {
+    if (unresolvedThreadCount === -1) {
+      failures.push("unresolved review thread check failed (could not fetch threads); must resolve before merge");
+    } else {
+      failures.push(`unresolved review threads present (${unresolvedThreadCount}); must resolve all threads before merge`);
+    }
   }
 
   return {
@@ -286,7 +297,18 @@ async function main() {
 
   try {
     const result = await detectGateReviewEvidence(options);
-    const preMergeGateCheck = buildPreMergeGateCheck(result);
+
+    // #443: fetch review threads to verify zero unresolved threads before passing
+    let unresolvedThreadCount = null;
+    try {
+      const threadsPayload = await fetchGithubReviewThreadsPayload(options);
+      const parsedThreads = parseReviewThreads(threadsPayload);
+      unresolvedThreadCount = parsedThreads?.summary?.unresolvedThreads ?? 0;
+    } catch {
+      unresolvedThreadCount = -1;
+    }
+
+    const preMergeGateCheck = buildPreMergeGateCheck(result, unresolvedThreadCount);
     const output = { ...result, preMergeGateCheck };
 
     if (!preMergeGateCheck.ok) {
