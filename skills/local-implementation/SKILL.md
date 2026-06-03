@@ -99,7 +99,7 @@ When the local spec already lives in a tracker issue:
 - When subagents are used, log what each subagent was asked to do and what it concluded.
 - If [Project Plan](../../PLAN.md) is too rough or ambiguous to safely start the current phase, do not guess: run a clarification/interview step with the user first.
 
-## Structural quality (from `deep` angle)
+## Structural quality (from `deep` review angle)
 
 Implementation agents should self-apply the `deep` review angle standards before reviewer gates:
 

@@ -132,7 +132,7 @@ Do not assume `scripts/...` is repo-local to the target codebase you are operati
 - For GitHub issue or PR comments, prefer `--body-file` / `-F` or stdin via `-F -` over inline shell strings.
 - Keep scope tight to the issue/PR at hand.
 
-## Structural quality (from `deep` angle)
+## Structural quality (from `deep` review angle)
 
 During implementation and follow-up fixes, apply the `deep` review angle standards before waiting for review:
 
