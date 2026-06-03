@@ -510,13 +510,22 @@ Required:
 - `--findings-summary <text>`
 - `--next-action <text>`
 
+Optional:
+- `--local-validation-head-sha <sha>` — reuse the bounded `crediblyGreen` exception when GitHub created zero current-head suites/statuses and local verification already passed for that exact head
+- `--force --force-reason <text>` — narrow operator-authorized CI override for the helper-local gate-entry refusal only; `--force-reason` is required with `--force`, `--force-reason` without `--force` is rejected, and the reason text is whitespace-normalized for machine-readable output
+
 Success output shape:
-- `{ "ok": true, "action": "created"|"updated"|"noop", "repo": "owner/repo", "pr": 17, "gate": "draft_gate", "headSha": "abc1234", "currentHeadSha": "abc1234", "commentId": 101, "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101" }`
+- standard path: `{ "ok": true, "action": "created"|"updated"|"noop", "repo": "owner/repo", "pr": 17, "gate": "draft_gate", "headSha": "abc1234", "currentHeadSha": "abc1234", "commentId": 101, "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101" }`
+- forced CI-override path: the same shape plus `{ "forced": true, "forceReason": "CI cancelled due to infrastructure", "forceBypass": "ci_blocked_needs_user_decision" }`
 
 Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
 - contradictory head-SHA requests or unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
-- `pre_approval_gate` upserts fail closed when `detect-pr-gate-coordination-state.mjs` reports that `run_pre_approval_gate` is still illegal for the current head
+- gate upserts still fail closed when `detect-pr-gate-coordination-state.mjs` reports that the requested gate action is illegal for the current head
+- when that refusal is specifically `lifecycleState=blocked_needs_user_decision` plus current-head `ciStatus="failure"`, the unforced error now points operators to `--force --force-reason` as the explicit CI-only escape hatch
+- `--force` does **not** bypass stale-head protection, non-draft `draft_gate` refusal, unresolved-feedback / unsettled-review `pre_approval_gate` refusal, merge-conflict handling, or closed/merged PR protection
+
+Use `--force` only after the user explicitly authorizes ignoring the current-head CI failure/cancellation for this one gate-comment upsert. Prefer the normal paths first: green current-head CI, `--local-validation-head-sha` for the bounded `crediblyGreen` case, or the draft-gate policy knob from issue #351 when the desired behavior is a durable draft-gate policy rather than a one-off override.
 
 ### `scripts/loop/detect-pr-gate-coordination-state.mjs`
 

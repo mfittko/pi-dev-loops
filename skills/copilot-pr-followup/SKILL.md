@@ -315,6 +315,8 @@ node <resolved-skill-scripts>/github/upsert-gate-review-comment.mjs \
 
 Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.
 
+`--force --force-reason` on `upsert-gate-review-comment.mjs` is a narrow operator-authorized CI override for the helper itself, not the default gate path. Use it only when the helper refuses gate entry solely because the current head is `blocked_needs_user_decision` with `ciStatus="failure"`, and only after the user explicitly authorizes ignoring that current-head CI failure/cancellation for this one gate-comment upsert. It does **not** bypass stale-head checks, unresolved-thread / unsettled-review refusal, non-draft `draft_gate` refusal, merge conflicts, or other legality checks.
+
 ### Draft gate contract (before marking PR ready for review)
 
 The canonical gate-review comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
