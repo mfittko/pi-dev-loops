@@ -10,22 +10,19 @@ import {
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
-const USAGE = `Usage: detect-gate-review-evidence.mjs --repo <owner/name> --pr <number> [--require-before-merge]
+const USAGE = `Usage: detect-gate-review-evidence.mjs --repo <owner/name> --pr <number>
 
 Fetch the live PR head SHA and visible PR issue comments, then summarize the
-latest valid draft-gate and pre-approval gate-review comments. With
---require-before-merge, fail closed unless the PR has visible clean gate
-comments required before \`gh pr merge\`.
+latest valid draft-gate and pre-approval gate-review comments. Always fail
+closed (exit 1) unless both required gate comments exist: a clean draft_gate
+comment for the one-time draft boundary and a clean current-head
+pre_approval_gate comment.
 
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
 
-Optional:
-  --require-before-merge  Exit 1 unless a clean draft_gate comment exists and
-                          a clean current-head pre_approval_gate comment exists.
-
-Output (stdout, JSON; --require-before-merge shape includes preMergeGateCheck):
+Output (stdout, JSON; always includes preMergeGateCheck):
   {
     "ok": true,
     "repo": "owner/repo",
@@ -54,14 +51,25 @@ Output (stdout, JSON; --require-before-merge shape includes preMergeGateCheck):
     },
     "draftGateSatisfied": true,
     "preApprovalGate": {
-      "visible": false,
-      "headSha": null,
-      "verdict": null,
-      "findingsSummary": null,
-      "nextAction": null,
-      "commentId": null,
-      "commentUrl": null,
-      "updatedAt": null
+      "visible": true,
+      "headSha": "abc1234",
+      "verdict": "clean",
+      "findingsSummary": "no issues found",
+      "nextAction": "await final human approval",
+      "commentId": 102,
+      "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-102",
+      "updatedAt": "2026-05-29T22:00:00Z"
+    },
+    "preApprovalGateMarker": {
+      "visible": true,
+      "headSha": "abc1234",
+      "verdict": "clean",
+      "findingsSummary": "no issues found",
+      "nextAction": "await final human approval",
+      "contractComplete": true,
+      "commentId": 102,
+      "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-102",
+      "updatedAt": "2026-05-29T22:00:00Z"
     },
     "preMergeGateCheck": {
       "ok": true,
@@ -69,15 +77,13 @@ Output (stdout, JSON; --require-before-merge shape includes preMergeGateCheck):
     }
   }
 
-When --require-before-merge is omitted, the same evidence summary is emitted without preMergeGateCheck.
-
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
   { "ok": false, "error": "..." }
 
 Exit codes:
-  0  Success
-  1  Argument error, gh failure, malformed gh JSON, or missing required pre-merge gate evidence`.trim();
+  0  Success (gate evidence is valid)
+  1  Argument error, gh failure, malformed gh JSON, or missing required pre-merge gate evidence.`.trim();
 
 const parseError = buildParseError(USAGE);
 
@@ -88,7 +94,6 @@ export function parseDetectGateReviewEvidenceCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
-    requireBeforeMerge: false,
   };
 
   while (args.length > 0) {
@@ -110,8 +115,7 @@ export function parseDetectGateReviewEvidenceCliArgs(argv) {
     }
 
     if (token === "--require-before-merge") {
-      options.requireBeforeMerge = true;
-      continue;
+      throw parseError(`--require-before-merge has been removed: gate evidence enforcement is now always-on by default. Omit the flag.`);
     }
 
     throw parseError(`Unknown argument: ${token}`);
@@ -283,11 +287,9 @@ async function main() {
   try {
     const result = await detectGateReviewEvidence(options);
     const preMergeGateCheck = buildPreMergeGateCheck(result);
-    const output = options.requireBeforeMerge
-      ? { ...result, preMergeGateCheck }
-      : result;
+    const output = { ...result, preMergeGateCheck };
 
-    if (options.requireBeforeMerge && !preMergeGateCheck.ok) {
+    if (!preMergeGateCheck.ok) {
       process.stderr.write(`${JSON.stringify({
         ok: false,
         error: `Pre-merge gate evidence check failed: ${preMergeGateCheck.failures.join("; ")}`,

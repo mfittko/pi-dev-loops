@@ -225,8 +225,13 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   );
   assert.match(
     step7,
-    /detect-gate-review-evidence\.mjs[\s\S]*--require-before-merge/i,
-    "mechanical pre-merge check should use the gate evidence helper",
+    /detect-gate-review-evidence\.mjs[\s\S]*always-on/i,
+    "mechanical pre-merge check should use the gate evidence helper with always-on enforcement",
+  );
+  assert.doesNotMatch(
+    step7,
+    /--require-before-merge/,
+    "the removed opt-in flag must not appear in the skill text",
   );
   assert.match(
     step7,
@@ -290,7 +295,7 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   assert.match(antiPatterns, /declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA/i);
   assert.match(antiPatterns, /declare merge-ready based solely on `mergeable_state: clean` \+ CI green without gate evidence/i);
   assert.match(antiPatterns, /do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when the helper says the PR is conflicted/i);
-  assert.match(antiPatterns, /run `gh pr merge` without a same-boundary successful `detect-gate-review-evidence\.mjs --require-before-merge` check/i);
+  assert.match(antiPatterns, /run `gh pr merge` without a same-boundary successful `detect-gate-review-evidence\.mjs` check \(always-on, no opt-out flag\)/i);
   assert.match(antiPatterns, /dispatch an async dev-loop task that omits the pre-approval gate requirement/i);
 });
 
