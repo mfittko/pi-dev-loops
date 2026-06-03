@@ -114,6 +114,26 @@ function parseGateReviewCommentFields(body) {
     }
   }
 
+  // Lenient fallback: detect gate name and head SHA anywhere in body
+  // Handles comments posted via other tools without structured field format
+  if (!fields.gate || !fields.headSha) {
+    const flatBody = body.replace(/\*\*/gu, "").replace(/`/gu, "");
+
+    if (!fields.gate) {
+      const gateMatch = flatBody.match(/\b(draft_gate|pre_approval_gate)\b/iu);
+      if (gateMatch) {
+        fields.gate = normalizeGateReviewName(gateMatch[1]);
+      }
+    }
+
+    if (!fields.headSha) {
+      const shaMatch = flatBody.match(/\b([0-9a-f]{7,64})\b/iu);
+      if (shaMatch) {
+        fields.headSha = normalizeGateReviewHeadSha(shaMatch[1]);
+      }
+    }
+  }
+
   if (!fields.gate || !fields.headSha) {
     return null;
   }
