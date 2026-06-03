@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { parseReviewThreads, parseCliArgs, readInput, parseJsonText, formatCliError } from "../src/github/review-threads.mjs";
+import { fileURLToPath } from "node:url";
+import { parseReviewThreads, readInput, parseJsonText, formatCliError } from "../src/github/review-threads.mjs";
 import { extractDeepPersonaSignals } from "../src/debt/deep-persona-signals.mjs";
 
-const USAGE = [
+export const USAGE = [
   "Usage: capture-deep-persona-signals.mjs --input <path> --pr-number <n> --pr-url <url> [--output-dir <path>]",
   "",
   "Arguments:",
@@ -15,10 +16,12 @@ const USAGE = [
 ].join("\n");
 
 /**
- * @param {string[]} argv
+ * Parse CLI arguments for the capture-deep-persona-signals CLI.
+ *
+ * @param {string[]} argv - Argument list (e.g. process.argv.slice(2))
  * @returns {{ inputPath: string, prNumber: string, prUrl: string, outputDir: string }}
  */
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = [...argv];
   const options = {
     inputPath: undefined,
@@ -89,12 +92,12 @@ function parseArgs(argv) {
  * @param {string} prNumber
  * @returns {string}
  */
-function outputFilename(prNumber) {
+export function outputFilename(prNumber) {
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   return `deep-persona-signals-${prNumber}-${ts}.json`;
 }
 
-async function run(argv = process.argv.slice(2)) {
+export async function run(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
 
   // Read and parse the review-thread input
@@ -127,10 +130,14 @@ async function run(argv = process.argv.slice(2)) {
   process.stdout.write(JSON.stringify({ ok: true, outputPath: outPath, signalCount: signals.length }) + "\n");
 }
 
-run().catch((error) => {
-  if (error.usage) {
-    process.stderr.write(error.usage + "\n\n");
-  }
-  process.stderr.write(formatCliError(error) + "\n");
-  process.exitCode = 1;
-});
+// Only auto-run when executed directly (not imported)
+const scriptPath = fileURLToPath(import.meta.url);
+if (process.argv[1] === scriptPath) {
+  run().catch((error) => {
+    if (error.usage) {
+      process.stderr.write(error.usage + "\n\n");
+    }
+    process.stderr.write(formatCliError(error) + "\n");
+    process.exitCode = 1;
+  });
+}

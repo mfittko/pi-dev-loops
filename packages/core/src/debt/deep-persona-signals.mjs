@@ -96,8 +96,8 @@ const FILE_PATH_RE = /[\w/\-]+\.(?:m?js|ts|tsx|jsx|mjs)/i;
 
 /**
  * Match a comment body against known deep-persona flag phrases.
- * Returns the highest-confidence match, or a general fallback when no specific
- * phrase matches but the comment body is non-empty.
+ * Returns the match when a specific pattern matches, or null when no
+ * patterns match the body.
  *
  * @param {string} body
  * @returns {{ category: string, severity: string, confidence: number, matchedPhrase: string|null }|null}
@@ -237,19 +237,18 @@ export function extractDeepPersonaSignals(parsedOutput, prMeta) {
 }
 
 /**
- * Get the known deep-persona flag phrases from the loaded dev-loop config
- * for prompt stability verification.
+ * Return the known deep-persona flag phrase regex sources for inspection.
  *
- * @returns {Promise<Array<string>>}
+ * @returns {Array<string>}
  */
-export async function getDeepPersonaFlagPhrases() {
-  const { config } = await loadDevLoopConfig();
+export function getDeepPersonaFlagPhrases() {
   return FLAG_PATTERNS.map((p) => p.phrase.source);
 }
 
 /**
- * Verify that all known flag phrases appear in the loaded deep persona prompt.
- * Returns an array of missing phrases (empty = all good).
+ * Verify that all known deep-persona flag phrase regex patterns match
+ * the loaded deep persona prompt text. Returns an array of regex sources
+ * whose patterns did not find any match in the prompt (empty = all match).
  *
  * @returns {Promise<Array<string>>}
  */
@@ -258,6 +257,6 @@ export async function verifyPromptStability() {
   const deepPrompt = config?.personas?.deep?.prompt ?? "";
 
   return FLAG_PATTERNS
-    .filter((p) => !deepPrompt.includes(p.phrase.source))
+    .filter((p) => !p.phrase.test(deepPrompt))
     .map((p) => p.phrase.source);
 }

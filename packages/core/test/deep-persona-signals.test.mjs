@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { readFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 import { DebtSignalSchema } from "../src/debt/debt-signal.mjs";
 import {
@@ -10,8 +14,14 @@ import {
   getDeepPersonaFlagPhrases,
   verifyPromptStability,
 } from "../src/debt/deep-persona-signals.mjs";
-import { parseCliArgs, parseReviewThreads, parseJsonText } from "../src/github/review-threads.mjs";
+import { parseReviewThreads, parseJsonText } from "../src/github/review-threads.mjs";
+import {
+  parseArgs,
+  outputFilename as cliOutputFilename,
+  USAGE,
+} from "../bin/capture-deep-persona-signals.mjs";
 
+const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = join(__dirname, "fixtures", "github", "review-threads", "deep-persona-threads.json");
 
@@ -238,33 +248,89 @@ describe("deep-persona signal extraction", () => {
 
   describe("CLI args parsing", () => {
     test("valid flags parse correctly", () => {
-      // Test through the parseReviewThreads export; our CLI module also exports parseArgs but it's internal
-      const options = parseCliArgs(["--input", "test.json"]);
-      assert.equal(options.inputPath, "test.json");
+      const opts = parseArgs([
+        "--input", "test.json",
+        "--pr-number", "42",
+        "--pr-url", "https://github.com/owner/repo/pull/42",
+      ]);
+      assert.equal(opts.inputPath, "test.json");
+      assert.equal(opts.prNumber, "42");
+      assert.equal(opts.prUrl, "https://github.com/owner/repo/pull/42");
+      assert.equal(opts.outputDir, ".pi/debt/signals");
     });
 
-    test("unknown flags throw", () => {
+    test("valid flags with custom output-dir parse correctly", () => {
+      const opts = parseArgs([
+        "--input", "test.json",
+        "--pr-number", "42",
+        "--pr-url", "https://github.com/owner/repo/pull/42",
+        "--output-dir", "custom/path",
+      ]);
+      assert.equal(opts.inputPath, "test.json");
+      assert.equal(opts.prNumber, "42");
+      assert.equal(opts.prUrl, "https://github.com/owner/repo/pull/42");
+      assert.equal(opts.outputDir, "custom/path");
+    });
+
+    test("missing required --input throws", () => {
       assert.throws(
-        () => parseCliArgs(["--unknown", "value"]),
+        () => parseArgs(["--pr-number", "42", "--pr-url", "https://example.com"]),
+        /--input is required/,
+      );
+    });
+
+    test("missing required --pr-number throws", () => {
+      assert.throws(
+        () => parseArgs(["--input", "test.json", "--pr-url", "https://example.com"]),
+        /--pr-number is required/,
+      );
+    });
+
+    test("missing required --pr-url throws", () => {
+      assert.throws(
+        () => parseArgs(["--input", "test.json", "--pr-number", "42"]),
+        /--pr-url is required/,
+      );
+    });
+
+    test("unknown flag throws", () => {
+      assert.throws(
+        () => parseArgs(["--input", "test.json", "--pr-number", "42", "--pr-url", "https://example.com", "--unknown"]),
         /Unknown argument/,
       );
     });
 
-    test("missing flag value throws", () => {
+    test("missing value for flagged option throws", () => {
       assert.throws(
-        () => parseCliArgs(["--input"]),
-        /Missing value/,
+        () => parseArgs(["--input", "--pr-number", "42", "--pr-url", "https://example.com"]),
+        /Missing value for --input/,
+      );
+    });
+
+    test("non-numeric pr-number throws", () => {
+      assert.throws(
+        () => parseArgs(["--input", "test.json", "--pr-number", "abc", "--pr-url", "https://example.com"]),
+        /--pr-number must be a positive integer/,
       );
     });
   });
 
   describe("output path generation", () => {
-    test("output filename includes prNumber and ISO timestamp", () => {
-      // We can verify the import works and the outputFilename function exists
-      // The actual format is deterministic: deep-persona-signals-<prNumber>-<ISO-timestamp>.json
-      assert.doesNotThrow(async () => {
-        await import("../src/debt/deep-persona-signals.mjs");
-      });
+    test("outputFilename includes prNumber", () => {
+      const filename = cliOutputFilename("42");
+      assert.ok(filename.startsWith("deep-persona-signals-42-"));
+      assert.ok(filename.endsWith(".json"));
+    });
+
+    test("outputFilename format is deterministic", () => {
+      const filename = cliOutputFilename("42");
+      const parts = filename.split("-");
+      // deep-persona-signals-<prNumber>-<timestamp>.json
+      assert.ok(parts.length >= 5);
+      assert.equal(parts[0], "deep");
+      assert.equal(parts[1], "persona");
+      assert.equal(parts[2], "signals");
+      assert.equal(parts[3], "42");
     });
   });
 
@@ -288,17 +354,20 @@ describe("deep-persona signal extraction", () => {
   });
 
   describe("persona prompt stability guard", () => {
-    test("known flag phrases are defined", async () => {
-      const phrases = await getDeepPersonaFlagPhrases();
+    test("getDeepPersonaFlagPhrases returns known phrase sources", () => {
+      const phrases = getDeepPersonaFlagPhrases();
       assert.ok(Array.isArray(phrases));
       assert.ok(phrases.length >= 13, "Should have at least 13 known flag phrases");
+      // All phrases should be non-empty strings
+      for (const phrase of phrases) {
+        assert.ok(typeof phrase === "string" && phrase.length > 0);
+      }
     });
 
     test("verifyPromptStability returns array (may be empty)", async () => {
       const missing = await verifyPromptStability();
       assert.ok(Array.isArray(missing));
-      // missing may be empty (all phrases found) or contain entries (phrases missing from prompt)
-      // Either is valid; we're asserting the function runs without error
+      // missing may be empty (all patterns match prompt) or contain entries (patterns don't match prompt)
     });
   });
 
