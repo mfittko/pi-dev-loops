@@ -13,6 +13,7 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState } from "@pi-dev-loops/core/loop/copilot-loop-state";
 
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
+const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
 
 const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number> [--force-rerequest-review]
 
@@ -31,15 +32,16 @@ Debug:
                             convergence detection falls back to unsuppressed behavior
 
 Output (stdout, JSON):
-  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean",
+  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
-    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true }
+    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true, "violationCommentIds"?: [N] }
 
 Request statuses:
   requested           Copilot review was successfully requested
   already-requested   Copilot review was already observably in progress; no new request needed
   unavailable         Copilot review is not enabled/requestable and no in-progress evidence was found
   suppressed_same_head_clean  Current head is already clean-converged; no new request is made unless forced
+  blocked_by_copilot_comment  A non-Copilot PR comment contains @copilot or /copilot; delete the comment(s) first
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -288,7 +290,68 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
  * Perform the full Copilot review-request logic and return the result payload.
  * Exported for use by higher-level orchestration helpers.
  */
+
+export async function checkForCopilotComments({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    ["api", `repos/${repo}/issues/${pr}/comments`, "--paginate", "--jq", ".[]"],
+    env,
+  );
+
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw new Error(`gh command failed: ${detail}`);
+  }
+
+  const lines = result.stdout.trim().split("\n").filter(Boolean);
+  let comments;
+  try {
+    comments = lines.map((line) => JSON.parse(line));
+  } catch (e) {
+    throw new Error(`Invalid JSON from gh: ${e.message} (${result.stdout.trim().slice(0, 200) || "<empty>"})`);
+  }
+
+  if (!Array.isArray(comments)) {
+    return { blocked: false, violationCommentIds: [] };
+  }
+
+  const violationCommentIds = [];
+  for (const comment of comments) {
+    const author = comment?.user?.login ?? "";
+    const body = comment?.body ?? "";
+
+    if (isCopilotLogin(author)) {
+      continue;
+    }
+
+    if (/(?:^|\W)(@copilot|\/copilot)(?:$|\W)/i.test(body)) {
+      violationCommentIds.push(comment.id);
+    }
+  }
+
+  return {
+    blocked: violationCommentIds.length > 0,
+    violationCommentIds,
+  };
+}
+
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
+  // #461: Preflight check for bypass @copilot PR comments (skipped in stub/test envs)
+  if (!env.GH_SEQUENCE_PATH) {
+    const copilotCommentCheck = await checkForCopilotComments(options, { env, ghCommand });
+    if (copilotCommentCheck.blocked) {
+      return {
+        ok: true,
+        status: BLOCKED_BY_COPILOT_COMMENT_STATUS,
+        repo: options.repo,
+        pr: options.pr,
+        reviewer: "Copilot",
+        detail: "Non-Copilot PR comment(s) detected containing @copilot or /copilot. Delete the violating comment(s) and re-run this helper instead.",
+        violationCommentIds: copilotCommentCheck.violationCommentIds,
+      };
+    }
+  }
+
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
   const sameHeadCleanConverged = await detectSameHeadCleanConvergence(
     options,

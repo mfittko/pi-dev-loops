@@ -148,6 +148,7 @@ node <resolved-skill-scripts>/github/request-copilot-review.mjs \
   --force-rerequest-review
 ```
 Do **not** request Copilot by posting literal `/copilot` or `/copilot re-review` PR comments.
+`request-copilot-review.mjs` now detects bypass `@copilot`/`/copilot` PR comments from non-Copilot authors and returns `blocked_by_copilot_comment` status; delete the violating comment(s) and retry through the helper.
 
 When a PR is moved from draft to ready, explicitly attempt to request Copilot review rather than assuming repository automation will do it.
 
