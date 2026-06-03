@@ -358,11 +358,12 @@ This is the default pre-approval gate for this workflow boundary. The canonical 
 - **Persona mapping:** each angle resolves to a reviewer persona via `resolveReviewerRole(config, angle)` from `@pi-dev-loops/core/config`. Include this prompt in each reviewer's briefing so the reviewer knows exactly what to look for.
 - **Pass criteria:** the sub-loop completes with verdict `clean`; all configured angles pass; if parallel execution is impractical, still run all configured lenses and explicitly record the limitation.
 - **Acceptance criteria verification:** before posting the `pre_approval_gate` comment, verify every acceptance criteria checklist item in the linked issue body:
-  1. read the issue body via `gh issue view <number> --repo <owner/name> --json body`
-  2. extract checklist items from the **Acceptance criteria** section of the issue body (both `- [ ]` unchecked and `- [x]` already-checked items); ignore checklist items from other sections (DoD, tasks, non-goals) that are not acceptance criteria
-  3. for each AC item, verify whether the merged code satisfies it; if any item cannot be verified or is not satisfied, treat the gate as blocked and do not post a `clean` verdict
-  4. mark each verified item as done by writing the updated issue body to a temporary file and using `gh issue edit <number> --body-file <tmp-file> --repo <owner/name>` (prefer `--body-file` over inline `--body` to avoid shell quoting/escaping hazards)
-  5. only post the `pre_approval_gate` comment with a note that all AC checklist items are verified and checked
+  1. resolve the linked issue number from the PR: use `gh pr view <number> --repo <owner/name> --json closingIssuesReferences` to find the linked issue; if no issue is linked or the link is ambiguous, treat the gate as blocked rather than guessing
+  2. read the issue body via `gh issue view <issue-number> --repo <owner/name> --json body`
+  3. extract checklist items from the **Acceptance criteria** section of the issue body (both `- [ ]` unchecked and `- [x]` already-checked items); ignore checklist items from other sections (DoD, tasks, non-goals) that are not acceptance criteria
+  4. for each AC item, verify whether the proposed changes on the current PR head satisfy it; if any item cannot be verified or is not satisfied, treat the gate as blocked and do not post a `clean` verdict
+  5. mark each verified item as done by writing the updated issue body to a temporary file and using `gh issue edit <issue-number> --body-file <tmp-file> --repo <owner/name>` (prefer `--body-file` over inline `--body` to avoid shell quoting/escaping hazards)
+  6. only post the `pre_approval_gate` comment with a note that all AC checklist items are verified and checked
   When the issue body has no AC checklist items, note that explicitly in the gate comment rather than assuming satisfaction.
 - **Next step after passing:** continue the Step 7 flow and then proceed to the final approval gate below.
 - **Non-substitution rule:** a clean `pre_approval_gate` comment is separate from `draft_gate` evidence. It governs final-approval readiness for that head SHA; it does **not** replace the required `draft_gate` evidence for leaving draft.
