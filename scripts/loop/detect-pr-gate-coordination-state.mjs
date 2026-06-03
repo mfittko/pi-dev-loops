@@ -345,7 +345,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   if (preApprovalNeverEntered && gateBoundariesExpectingPreApproval.has(result.gateBoundary)) {
     result.gateBoundary = PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED;
     result.nextAction = PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE;
-    result.reason = "Pre-approval gate was never entered for the current head SHA; run pre_approval_gate before proceeding.";
+    result.reason = "No contract-complete pre_approval_gate marker exists for the current head SHA; run pre_approval_gate before proceeding.";
     result.allowedNextActions = [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE];
   }
 

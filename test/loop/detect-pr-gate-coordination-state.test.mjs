@@ -697,7 +697,7 @@ test("pre-approval-gate-detector overrides to pre_approval_gate_needed when neve
     const parsed = JSON.parse(result.stdout);
     assert.equal(parsed.gateBoundary, "pre_approval_gate_needed");
     assert.equal(parsed.nextAction, "run_pre_approval_gate");
-    assert.match(parsed.reason, /pre-approval gate was never entered/i);
+    assert.match(parsed.reason, /contract-complete pre_approval_gate marker/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
