@@ -19,7 +19,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { isDirectCliRun, formatCliError } from "../_core-helpers.mjs";
+import { buildParseError, isDirectCliRun, formatCliError } from "../_core-helpers.mjs";
 
 const USAGE = `Usage: verify-fresh-review-context.mjs [--help] [--scope <name>]
 
@@ -36,15 +36,17 @@ Output (stdout, JSON):
   { "ok": true, "fresh": true, "sentinelCreated": true }
   { "ok": true, "fresh": false, "sentinelCreated": false, "reason": "..." }
 
-  On internal error (stderr, JSON):
-  { "ok": false, "error": "..." }
+  On error (stderr, JSON):
+  { "ok": false, "error": "...", "usage": "..." }
 
 Exit codes:
   0  Clean (first run)
   1  Contaminated (prior session detected)
-  2  Internal error`.trim();
+  2  Usage or internal error`.trim();
 
 const VALID_SCOPE_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
+
+const parseError = buildParseError(USAGE);
 
 /**
  * Returns the raw --scope value, or null if not provided.
@@ -61,16 +63,13 @@ function resolveScope(argv) {
   return val;
 }
 
-function usageError(message) {
-  process.stderr.write(`${formatCliError(new Error(message))}\n`);
-  process.stderr.write(`${USAGE}\n`);
-}
-
 function resolveValidatedScope(argv) {
   const raw = resolveScope(argv);
   if (raw === null) return null;
   if (raw === "" || !VALID_SCOPE_RE.test(raw)) {
-    usageError(`Invalid --scope value "${raw}": must be non-empty and contain only alphanumeric characters and hyphens.`);
+    process.stderr.write(`${formatCliError(
+      parseError(`Invalid --scope value "${raw}": must be non-empty and contain only alphanumeric characters and hyphens.`)
+    )}\n`);
     return undefined; // signals invalid
   }
   return raw;
