@@ -279,6 +279,17 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     }, runtime);
   }
 
+  // #464: Auto-detect stop-at-local-fix without GitHub reply/resolve.
+  // When unresolved threads exist AND the Copilot review was on an older
+  // commit than current HEAD, auto-set agentFixStatus = "applied" so the
+  // state machine routes to ALREADY_FIXED_NEEDS_REPLY_RESOLVE instead of
+  // UNRESOLVED_FEEDBACK_PRESENT (implying code fixes still needed).
+  if (snapshot.unresolvedThreadCount > 0
+      && !snapshot.copilotReviewOnCurrentHead
+      && snapshot.copilotReviewPresent) {
+    snapshot.agentFixStatus = "applied";
+  }
+
   const conflictFiles = await fetchLocalConflictFiles(runtime);
 
   if (gateEvidence.currentHeadSha !== currentHeadSha) {
@@ -347,6 +358,23 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     result.nextAction = PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE;
     result.reason = "No contract-complete pre_approval_gate marker exists for the current head SHA; run pre_approval_gate before proceeding.";
     result.allowedNextActions = [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE];
+  }
+  // #460: draft_gate detector — if PR is non-draft but no clean draft_gate
+  // evidence exists for any head (one-time boundary), force the
+  // DRAFT_GATE_NEEDED boundary.
+  const draftGateNeverPassed = !result.draftGateAlreadySatisfied;
+  const gateBoundariesExpectingDraftGate = new Set([
+    PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
+    PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
+    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
+    PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+  ]);
+
+  if (draftGateNeverPassed && gateBoundariesExpectingDraftGate.has(result.gateBoundary)) {
+    result.gateBoundary = PR_GATE_BOUNDARY.DRAFT_GATE_NEEDED;
+    result.nextAction = PR_GATE_ACTION.RECONCILE_DRAFT_GATE;
+    result.reason = "The PR is non-draft but no clean draft_gate comment exists for any head SHA (one-time boundary); run reconcile_draft_gate before proceeding.";
+    result.allowedNextActions = [PR_GATE_ACTION.RECONCILE_DRAFT_GATE];
   }
 
   return result;

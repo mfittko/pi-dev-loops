@@ -184,7 +184,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
   }
 });
 
-test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs with no draft_gate evidence", async () => {
+test("detect-pr-gate-coordination-state flags draft_gate_needed for non-draft PRs with no draft_gate evidence", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-no-draft-evidence-"));
 
   try {
@@ -223,16 +223,16 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
     const parsed = JSON.parse(result.stdout);
-    assert.equal(parsed.gateBoundary, "post_draft_external_review");
-    assert.equal(parsed.nextAction, "request_copilot_review");
-    assert.equal(parsed.draftGate.cleanEvidenceExists, false);
+    assert.equal(parsed.gateBoundary, "draft_gate_needed");
+    assert.equal(parsed.nextAction, "reconcile_draft_gate");
+    assert.equal(parsed.draftGateAlreadySatisfied, false);
     assert.equal(parsed.draftGateAlreadySatisfied, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("detect-pr-gate-coordination-state allows pre-approval flow for converged non-draft PRs with no draft_gate evidence", async () => {
+test("detect-pr-gate-coordination-state flags draft_gate_needed for converged non-draft PRs with no draft_gate evidence", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-no-draft-evidence-converged-"));
 
   try {
@@ -292,16 +292,16 @@ test("detect-pr-gate-coordination-state allows pre-approval flow for converged n
     assert.equal(result.stderr, "");
     const parsed = JSON.parse(result.stdout);
     assert.equal(parsed.lifecycleState, "ready_to_rerequest_review");
-    assert.equal(parsed.gateBoundary, "pre_approval_gate_window");
-    assert.equal(parsed.nextAction, "run_pre_approval_gate");
-    assert.equal(parsed.draftGate.cleanEvidenceExists, false);
+    assert.equal(parsed.gateBoundary, "draft_gate_needed");
+    assert.equal(parsed.nextAction, "reconcile_draft_gate");
+    assert.equal(parsed.draftGateAlreadySatisfied, false);
     assert.equal(parsed.draftGateAlreadySatisfied, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("detect-pr-gate-coordination-state allows pre-approval fallback when the Copilot round cap is exhausted", async () => {
+test("detect-pr-gate-coordination-state flags draft_gate_needed when Copilot round cap is exhausted without draft_gate", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-round-cap-"));
 
   try {
@@ -385,10 +385,10 @@ test("detect-pr-gate-coordination-state allows pre-approval fallback when the Co
     assert.equal(result.stderr, "");
     const parsed = JSON.parse(result.stdout);
     assert.equal(parsed.lifecycleState, "ready_to_rerequest_review");
-    assert.equal(parsed.gateBoundary, "pre_approval_gate_window");
-    assert.equal(parsed.nextAction, "run_pre_approval_gate");
+    assert.equal(parsed.gateBoundary, "draft_gate_needed");
+    assert.equal(parsed.nextAction, "reconcile_draft_gate");
     assert.equal(parsed.gateEvidenceNote, "Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.");
-    assert.match(parsed.reason, /round limit/i);
+    assert.match(parsed.reason, /no clean draft_gate/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
