@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -184,4 +184,153 @@ test("resolve-dev-loop-startup CLI emits stable JSON for a final-approval route"
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("buildResolveDevLoopStartupResult auto-injects retrospectiveCheckpointState from file", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    // Create a .pi/dev-loop-retrospective-checkpoint.json in temp dir
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "complete" }),
+      "utf8",
+    );
+
+    // Run via CLI with CWD set to temp dir
+    const inputPath = await writeTempJson(tempDir, "startup.json", {
+      currentState: {
+        target: { kind: "local_branch", branch: "feature/local-route" },
+        ownership: "local",
+        nextActor: "local",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "not_applicable",
+      loopState: "active",
+    });
+
+    const result = await runNode(["--input", inputPath], { cwd: tempDir });
+
+    assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.selectedStrategy, "local_implementation");
+    // The --input JSON didn't include retrospectiveCheckpointState, but the
+    // resolver auto-read it from the checkpoint file — route still passes
+    // because state is "complete".
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildResolveDevLoopStartupResult passes through when no checkpoint file exists", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const inputPath = await writeTempJson(tempDir, "startup.json", {
+      currentState: {
+        target: { kind: "local_branch", branch: "feature/local-route" },
+        ownership: "local",
+        nextActor: "local",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "not_applicable",
+      loopState: "active",
+    });
+
+    const result = await runNode(["--input", inputPath], { cwd: tempDir });
+
+    assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.selectedStrategy, "local_implementation");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildResolveDevLoopStartupResult rejects async-required strategy without PI_SUBAGENT_RUN_ID", () => {
+  const result = buildResolveDevLoopStartupResult(
+    {
+      currentState: {
+        target: { kind: "issue", issue: 89, linkedPr: 92 },
+        ownership: "copilot",
+        nextActor: "copilot",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "open",
+      issueLinkageResolution: "resolved_linked_pr",
+      loopState: "unresolved_feedback_present",
+    },
+    { env: {} },
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.asyncStartContract, "rejected");
+  assert.ok(result.error.includes("Pi-managed async context"));
+});
+
+test("buildResolveDevLoopStartupResult allows async-required strategy with PI_SUBAGENT_RUN_ID", () => {
+  const result = buildResolveDevLoopStartupResult(
+    {
+      currentState: {
+        target: { kind: "issue", issue: 89, linkedPr: 92 },
+        ownership: "copilot",
+        nextActor: "copilot",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "open",
+      issueLinkageResolution: "resolved_linked_pr",
+      loopState: "unresolved_feedback_present",
+    },
+    { env: { PI_SUBAGENT_RUN_ID: "test-run-123" } },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.selectedStrategy, "copilot_pr_followup");
+});
+
+test("buildResolveDevLoopStartupResult allows async-required strategy with PI_ASYNC_START_BYPASS=1", () => {
+  const result = buildResolveDevLoopStartupResult(
+    {
+      currentState: {
+        target: { kind: "issue", issue: 89, linkedPr: 92 },
+        ownership: "copilot",
+        nextActor: "copilot",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "open",
+      issueLinkageResolution: "resolved_linked_pr",
+      loopState: "unresolved_feedback_present",
+    },
+    { env: { PI_ASYNC_START_BYPASS: "1" } },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.selectedStrategy, "copilot_pr_followup");
+});
+
+test("buildResolveDevLoopStartupResult does not enforce async-start on local_implementation", () => {
+  const result = buildResolveDevLoopStartupResult(
+    {
+      currentState: {
+        target: { kind: "local_branch", branch: "feature/local-route" },
+        ownership: "local",
+        nextActor: "local",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "not_applicable",
+      loopState: "active",
+    },
+    { env: {} },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.selectedStrategy, "local_implementation");
 });
