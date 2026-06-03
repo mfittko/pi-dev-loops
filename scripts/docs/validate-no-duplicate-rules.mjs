@@ -56,6 +56,8 @@ const KNOWN_INTENTIONAL_DUPLICATES = new Set([
   "Each reviewer starts in fresh context with the briefing artifact, inspects the diff, returns findings via output artifacts only, and never edits files.",
   "3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).",
   "5. **Fix cycle:** apply only accepted must-fix changes on the same branch.",
+  "- remains a stop/fix state, never a wait loop",
+  "Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope.",
 ]);
 
 const IMPERATIVE_PATTERNS = [
