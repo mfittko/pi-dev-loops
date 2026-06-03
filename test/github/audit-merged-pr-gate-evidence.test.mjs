@@ -66,7 +66,7 @@ test("audit-merged-pr-gate-evidence reports missing gate evidence among recent m
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls?state=closed&sort=updated&direction=desc&per_page=100"],
+        assertArgs: ["api", "repos/owner/repo/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=1"],
         stdout: `${JSON.stringify([
           [
             {
@@ -130,7 +130,7 @@ test("audit-merged-pr-gate-evidence reports gh failures deterministically", asyn
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "repos/owner/repo/pulls?state=closed&sort=updated&direction=desc&per_page=100"],
+        assertArgs: ["api", "repos/owner/repo/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=1"],
         stderr: "boom\n",
         exitCode: 1,
       },

@@ -62,8 +62,14 @@ Output (stdout, JSON):
       "commentId": null,
       "commentUrl": null,
       "updatedAt": null
+    },
+    "preMergeGateCheck": {
+      "ok": true,
+      "failures": []
     }
   }
+
+When --require-before-merge is omitted, preMergeGateCheck is not emitted.
 
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }

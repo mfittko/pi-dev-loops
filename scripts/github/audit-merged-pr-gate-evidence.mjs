@@ -18,8 +18,9 @@ const DEFAULT_LIMIT = 20;
 const USAGE = `Usage: audit-merged-pr-gate-evidence.mjs --repo <owner/name> [--limit <n>] [--output <path>]
 
 Audit the most recent merged pull requests for visible dev-loop gate evidence.
-The check fetches PRs and issue comments through gh api, then reports PRs that
-lack a clean draft_gate comment or a clean current-head pre_approval_gate comment.
+The check fetches a bounded recent closed-PR window and issue comments through
+gh api, then reports PRs that lack a clean draft_gate comment or a clean
+current-head pre_approval_gate comment.
 
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
@@ -180,14 +181,30 @@ function evaluateMergedPrGateEvidence({ pr, comments }) {
   };
 }
 
+async function fetchRecentMergedPulls(options, { env, ghCommand }) {
+  const merged = [];
+  const maxPages = Math.max(1, Math.ceil(options.limit / 100) + 2);
+
+  for (let page = 1; page <= maxPages && merged.length < options.limit; page += 1) {
+    const pagePayload = await runGhJson([
+      "api",
+      `repos/${options.repo}/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=${page}`,
+    ], { env, ghCommand });
+    const pagePulls = flattenPaginatedPayload(pagePayload);
+    merged.push(...normalizeMergedPulls(pagePulls, options.limit));
+
+    if (pagePulls.length < 100) {
+      break;
+    }
+  }
+
+  return merged
+    .sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)))
+    .slice(0, options.limit);
+}
+
 export async function auditMergedPrGateEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
-  const pullsPayload = await runGhJson([
-    "api",
-    "--paginate",
-    "--slurp",
-    `repos/${options.repo}/pulls?state=closed&sort=updated&direction=desc&per_page=100`,
-  ], { env, ghCommand });
-  const prs = normalizeMergedPulls(pullsPayload, options.limit);
+  const prs = await fetchRecentMergedPulls(options, { env, ghCommand });
   const results = [];
 
   for (const pr of prs) {
