@@ -1898,3 +1898,69 @@ test("detectChangeScope eligible with custom threshold: 5 files ≤ 5/300", asyn
     true
   ); (feat(#448): local implementation light mode — skip fan-out for small changes)
 });
+
+// ── parseGitDiffStat (imported from detect-change-scope) ────────────────
+
+test("parseGitDiffStat: normal output", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const output = ` file1.js | 10 +++++
+ file2.js |  5 -----
+ 2 files changed, 10 insertions(+), 5 deletions(-)`;
+  const result = parseGitDiffStat(output);
+  assert.equal(result.filesChanged, 2);
+  assert.equal(result.linesChanged, 15);
+});
+
+test("parseGitDiffStat: single file", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const output = ` file1.js | 3 +++
+ 1 file changed, 3 insertions(+)`;
+  const result = parseGitDiffStat(output);
+  assert.equal(result.filesChanged, 1);
+  assert.equal(result.linesChanged, 3);
+});
+
+test("parseGitDiffStat: empty output", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const result = parseGitDiffStat("");
+  assert.equal(result.filesChanged, 0);
+  assert.equal(result.linesChanged, 0);
+});
+
+test("parseGitDiffStat: only deletions", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  const output = ` file1.js | 10 ----------
+ 1 file changed, 10 deletions(-)`;
+  const result = parseGitDiffStat(output);
+  assert.equal(result.filesChanged, 1);
+  assert.equal(result.linesChanged, 10);
+});
+
+test("parseGitDiffStat: no insertions/deletions summary (binary)", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  // Simulate binary-file-only diff without summary line
+  const output = ` img.png | Bin 0 -> 1024 bytes`;
+  const result = parseGitDiffStat(output);
+  assert.equal(result.filesChanged, 0); // last line is not a summary
+  assert.equal(result.linesChanged, 0);
+});
+
+test("parseGitDiffStat: whitespace-only output", async () => {
+  const { parseGitDiffStat } = await import(
+    "../../../scripts/loop/detect-change-scope.mjs"
+  );
+  // Whitespace-only content trims to empty → zero files
+  const result = parseGitDiffStat("   \n  ");
+  assert.equal(result.filesChanged, 0);
+  assert.equal(result.linesChanged, 0);
+});

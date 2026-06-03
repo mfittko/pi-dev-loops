@@ -1,9 +1,10 @@
 /**
  * Tracker-first loop state machine — pure logic layer.
  *
- * Thin wrapper over the existing detect-tracker-pr-state.mjs detector,
- * providing the same { ok, state, snapshot, allowedTransitions, nextAction }
- * interface as detect-copilot-loop-state.mjs.
+ * Standalone interpreter that maps a raw tracker/issue state string
+ * (plus optional PR context) to a canonical loop state with the same
+ * { ok, state, snapshot, allowedTransitions, nextAction } interface as
+ * detect-copilot-loop-state.mjs.
  *
  * Fail-closed contract: unknown/ambiguous tracker state maps to `needs_triage`,
  * not to the canonical `unknown` state. Only an explicit `trackerState: "unknown"`
@@ -40,7 +41,7 @@ export const TRACKER_TRANSITIONS = Object.freeze({
  * Build a tracker-first loop state snapshot from PR-level tracker data.
  *
  * @param {object} input
- * @param {string} input.trackerState - Raw state from detect-tracker-pr-state.mjs
+ * @param {string} input.trackerState - Raw tracker/issue state (e.g. from gh issue view --jq .state)
  * @param {object} [input.prContext] - Optional PR context (linked PR, CI status)
  * @returns {{ ok: true, state: TrackerState, snapshot: object, allowedTransitions: readonly TrackerState[], nextAction: string }}
  */

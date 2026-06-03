@@ -75,8 +75,8 @@ function detectScope({ base, head } = {}) {
   let output;
   try {
     output = execFileSync("git", diffArgs, { encoding: "utf8", maxBuffer: 1_000_000 });
-  } catch {
-    return { ok: true, filesChanged: 0, linesChanged: 0 };
+  } catch (err) {
+    return { ok: false, filesChanged: 0, linesChanged: 0, error: err instanceof Error ? err.message : String(err) };
   }
 
   const parsed = parseGitDiffStat(output);

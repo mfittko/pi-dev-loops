@@ -5,13 +5,20 @@ story-to-PR workflow in `pi-dev-loops`.
 
 **MVP invariant: one tracker work item → one GitHub PR.**
 
-The implementation lives in:
+This document serves dual purpose:
+1. **Story-to-PR contract** — canonical for the PR-level tracker state machine
+2. **Loop state machine doc** — canonical for the tracker-first loop state machine (#449)
 
-- **Pure logic**: `packages/core/src/loop/tracker-pr-state.mjs` — state
-  constants, transition table, `normalizeTrackerPrSnapshot`,
-  `interpretTrackerPrState`, `REVERSE_SYNC_ACTION`
-- **CLI**: `scripts/loop/detect-tracker-pr-state.mjs` — snapshot
-  interpretation (accepts `--input <path>`)
+Implementation for each:
+
+| Component | File |
+|---|---|
+| PR-level state machine (story-to-PR) | `packages/core/src/loop/tracker-pr-state.mjs` |
+| PR-level CLI detector | `scripts/loop/detect-tracker-pr-state.mjs` |
+| Loop state machine (tracker-first) | `packages/core/src/loop/tracker-first-loop-state.mjs` |
+| Loop state CLI detector | `scripts/loop/detect-tracker-first-loop-state.mjs` |
+| Loop state contract doc | this file |
+| Entrypoint briefing | `skills/docs/entrypoint-briefing-tracker-first.md` |
 
 ## 1. Artifact Subset and MVP Invariant
 
