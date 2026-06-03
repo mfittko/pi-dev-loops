@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
@@ -9,18 +9,35 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 const DEFAULT_OUTPUT_DIR = "tmp/investigation";
 const DEFAULT_JSON_NAME = "copilot-comment-summary.json";
 const DEFAULT_MARKDOWN_NAME = "copilot-comment-categories.md";
+const DEFAULT_RETRY_MAX = 5;
+const DEFAULT_RETRY_BASE_MS = 1000;
 
-const USAGE = `Usage: audit-copilot-comments.mjs --repo <owner/name> [--output-dir <path>]
+const USAGE = `Usage: audit-copilot-comments.mjs --repo <owner/name> [--output-dir <path>] [--sleep-ms <ms>] [--checkpoint-file <path>] [--resume]
 
 Scan all pull-request review comments in a repository via the GitHub REST API,
 filter to Copilot-authored comments, classify them into workflow categories, and
 write both a JSON summary and a Markdown report under the requested output directory.
 
 Required:
-  --repo <owner/name>     Repository slug (e.g. owner/repo)
+  --repo <owner/name>       Repository slug (e.g. owner/repo)
 
 Optional:
-  --output-dir <path>     Output directory (default: tmp/investigation)
+  --output-dir <path>       Output directory (default: tmp/investigation)
+  --sleep-ms <ms>           Sleep this many ms between top-level fetches (non-negative int, default: 0)
+  --checkpoint-file <path>  Save/load coarse-grain checkpoint for resume
+  --resume                  Resume from checkpoint file (requires --checkpoint-file)
+
+Checkpoint stages:
+  after-comments  — comments fetch complete, saved
+  after-prs       — PRs fetch complete, saved (full checkpoint)
+
+On --resume with a valid checkpoint:
+  - If stage is after-comments: re-fetch only PRs, then complete.
+  - If stage is after-prs: skip fetches and rebuild summary from checkpoint directly.
+
+Resilience:
+  - 403 and 429 responses trigger exponential backoff (${DEFAULT_RETRY_MAX} retries, ${DEFAULT_RETRY_BASE_MS}ms base).
+  - Auth failures (401) and other non-retryable errors fail immediately.
 
 Output (stdout, JSON summary; abbreviated example):
   {
@@ -195,7 +212,7 @@ const CATEGORY_DEFINITIONS = [
       /error-contract/i,
       /malformed-argument/i,
       /happy\s+path\s+only/i,
-      /doesn['’]t\s+exercise/i,
+      /doesn['']t\s+exercise/i,
       /should\s+test/i,
     ],
   },
@@ -213,7 +230,7 @@ const CATEGORY_DEFINITIONS = [
       /assertions?\s+match\s+very\s+long/i,
       /test\s+can\s+hang/i,
       /brittle\s+to\s+minor\s+copy\s+edits/i,
-      /doesn['’]t\s+actually\s+assert/i,
+      /doesn['']t\s+actually\s+assert/i,
       /claims?\s+.*\s+but/i,
       /confus(?:ing|e)\s+test/i,
       /helper\s+never\s+listens/i,
@@ -358,6 +375,89 @@ const RECOMMENDATION_DEFINITIONS = [
     rationale: "The workflow should flag tool invocations that look successful but do nothing or silently drop important effects.",
   },
 ];
+
+// ── Resilience helpers ──────────────────────────────────────────────
+
+function isRetryableHttpError(stderrText) {
+  return /\bHTTP 403\b/i.test(stderrText) || /\bHTTP 429\b/i.test(stderrText);
+}
+
+function isAuthError(stderrText) {
+  return /\bHTTP 401\b/i.test(stderrText);
+}
+
+/**
+ * Retry a gh JSON call with exponential backoff on 403/429.
+ * Fails immediately on 401 (auth) or other non-retryable errors.
+ */
+export async function runGhJsonWithRetry(args, { env, ghCommand, retryMax = DEFAULT_RETRY_MAX, retryBaseMs = DEFAULT_RETRY_BASE_MS } = {}) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= retryMax; attempt += 1) {
+    const result = await runChild(ghCommand, args, env);
+
+    if (result.code === 0) {
+      const commandLabel = `${ghCommand} ${args.join(" ")}`;
+      try {
+        return parseJsonText(result.stdout);
+      } catch (parseErr) {
+        throw new Error(`Invalid JSON from ${commandLabel}`);
+      }
+    }
+
+    const stderrText = result.stderr || "";
+
+    if (isAuthError(stderrText)) {
+      throw new Error(`gh command failed: ${stderrText.trim()}`);
+    }
+
+    if (!isRetryableHttpError(stderrText) || attempt === retryMax) {
+      const detail = stderrText.trim() || `exit code ${result.code}`;
+      throw new Error(`gh command failed: ${detail}`);
+    }
+
+    lastError = new Error(`gh command failed: ${stderrText.trim()}`);
+    const delay = retryBaseMs * (2 ** attempt);
+    await new Promise((resolve) => { setTimeout(resolve, delay); });
+  }
+
+  throw lastError;
+}
+
+// ── Checkpoint helpers ──────────────────────────────────────────────
+
+async function loadCheckpoint(checkpointPath) {
+  let raw;
+  try {
+    raw = await readFile(checkpointPath, "utf8");
+  } catch {
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(raw);
+    if (data && typeof data === "object" && data.stage) {
+      return data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveCheckpoint(checkpointPath, data) {
+  await writeFile(checkpointPath, `${JSON.stringify(data)}\n`, "utf8");
+}
+
+// ── Sleep helper ─────────────────────────────────────────────────────
+
+async function sleepStep(sleepMs) {
+  if (sleepMs > 0) {
+    await new Promise((resolve) => { setTimeout(resolve, sleepMs); });
+  }
+}
+
+// ── Core script functions ────────────────────────────────────────────
 
 function excerptText(body, maxLength = 200) {
   const normalized = String(body ?? "").replace(/\s+/g, " ").trim();
@@ -659,31 +759,25 @@ export function renderMarkdownReport(summary) {
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
-async function runGhJson(args, { env, ghCommand }) {
-  const result = await runChild(ghCommand, args, env);
+// ── Fetch with retry ─────────────────────────────────────────────────
 
-  if (result.code !== 0) {
-    const detail = result.stderr.trim() || `exit code ${result.code}`;
-    throw new Error(`gh command failed: ${detail}`);
-  }
-
-  const commandLabel = `${ghCommand} ${args.join(" ")}`;
-  try {
-    return parseJsonText(result.stdout);
-  } catch (error) {
-    throw new Error(`Invalid JSON from ${commandLabel}`);
-  }
-}
-
-async function fetchAllReviewComments(repo, { env, ghCommand }) {
-  const payload = await runGhJson(["api", "--paginate", "--slurp", `repos/${repo}/pulls/comments?per_page=100`], { env, ghCommand });
+async function fetchAllReviewComments(repo, { env, ghCommand, retryMax, retryBaseMs }) {
+  const payload = await runGhJsonWithRetry(
+    ["api", "--paginate", "--slurp", `repos/${repo}/pulls/comments?per_page=100`],
+    { env, ghCommand, retryMax, retryBaseMs },
+  );
   return normalizePaginatedArrayPayload(payload, "Copilot review comments");
 }
 
-async function fetchAllPullRequests(repo, { env, ghCommand }) {
-  const payload = await runGhJson(["api", "--paginate", "--slurp", `repos/${repo}/pulls?state=all&per_page=100`], { env, ghCommand });
+async function fetchAllPullRequests(repo, { env, ghCommand, retryMax, retryBaseMs }) {
+  const payload = await runGhJsonWithRetry(
+    ["api", "--paginate", "--slurp", `repos/${repo}/pulls?state=all&per_page=100`],
+    { env, ghCommand, retryMax, retryBaseMs },
+  );
   return normalizePaginatedArrayPayload(payload, "pull requests");
 }
+
+// ── Output writer ────────────────────────────────────────────────────
 
 async function writeOutputs(summary, markdown) {
   await mkdir(summary.files.outputDir, { recursive: true });
@@ -691,12 +785,17 @@ async function writeOutputs(summary, markdown) {
   await writeFile(summary.files.markdownReportPath, markdown, "utf8");
 }
 
+// ── CLI argument parsing ─────────────────────────────────────────────
+
 export function parseAuditCopilotCommentsCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
     repo: undefined,
     outputDir: DEFAULT_OUTPUT_DIR,
+    sleepMs: 0,
+    checkpointFile: undefined,
+    resume: false,
   };
 
   while (args.length > 0) {
@@ -717,6 +816,26 @@ export function parseAuditCopilotCommentsCliArgs(argv) {
       continue;
     }
 
+    if (token === "--sleep-ms") {
+      const raw = requireOptionValue(args, "--sleep-ms", parseError).trim();
+      const parsed = Number(raw);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        throw parseError("--sleep-ms must be a non-negative integer");
+      }
+      options.sleepMs = parsed;
+      continue;
+    }
+
+    if (token === "--checkpoint-file") {
+      options.checkpointFile = requireOptionValue(args, "--checkpoint-file", parseError).trim();
+      continue;
+    }
+
+    if (token === "--resume") {
+      options.resume = true;
+      continue;
+    }
+
     throw parseError(`Unknown argument: ${token}`);
   }
 
@@ -728,6 +847,10 @@ export function parseAuditCopilotCommentsCliArgs(argv) {
     throw parseError("--output-dir must be a non-empty path");
   }
 
+  if (options.resume && !options.checkpointFile) {
+    throw parseError("--resume requires --checkpoint-file");
+  }
+
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
@@ -737,9 +860,51 @@ export function parseAuditCopilotCommentsCliArgs(argv) {
   return options;
 }
 
+// ── Main orchestration ───────────────────────────────────────────────
+
 export async function auditCopilotComments(options, { env = process.env, ghCommand = "gh" } = {}) {
-  const comments = await fetchAllReviewComments(options.repo, { env, ghCommand });
-  const prs = await fetchAllPullRequests(options.repo, { env, ghCommand });
+  const sleepMs = options.sleepMs ?? 0;
+  const checkpointFile = options.checkpointFile;
+  const resume = options.resume ?? false;
+  const retryMax = options.retryMax ?? DEFAULT_RETRY_MAX;
+  const retryBaseMs = options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
+
+  let comments = null;
+  let prs = null;
+
+  // ── Resume path ──────────────────────────────────────────────────
+  if (resume && checkpointFile) {
+    const checkpoint = await loadCheckpoint(checkpointFile);
+    if (checkpoint && checkpoint.comments && checkpoint.repo === options.repo) {
+      comments = checkpoint.comments;
+
+      if (checkpoint.stage === "after-prs" && checkpoint.prs) {
+        prs = checkpoint.prs;
+      } else if (checkpoint.stage === "after-comments") {
+        await sleepStep(sleepMs);
+        prs = await fetchAllPullRequests(options.repo, { env, ghCommand, retryMax, retryBaseMs });
+        await saveCheckpoint(checkpointFile, { stage: "after-prs", repo: options.repo, comments, prs });
+      }
+    }
+
+    // If checkpoint was corrupted/absent, fall through to fresh fetch.
+  }
+
+  // ── Fresh fetch path ─────────────────────────────────────────────
+  if (comments === null) {
+    comments = await fetchAllReviewComments(options.repo, { env, ghCommand, retryMax, retryBaseMs });
+
+    if (checkpointFile) {
+      await saveCheckpoint(checkpointFile, { stage: "after-comments", repo: options.repo, comments });
+      await sleepStep(sleepMs);
+    }
+
+    prs = await fetchAllPullRequests(options.repo, { env, ghCommand, retryMax, retryBaseMs });
+
+    if (checkpointFile) {
+      await saveCheckpoint(checkpointFile, { stage: "after-prs", repo: options.repo, comments, prs });
+    }
+  }
 
   const summary = buildCopilotAuditSummary({
     repo: options.repo,
@@ -778,5 +943,7 @@ export {
   DEFAULT_JSON_NAME,
   DEFAULT_MARKDOWN_NAME,
   DEFAULT_OUTPUT_DIR,
+  DEFAULT_RETRY_BASE_MS,
+  DEFAULT_RETRY_MAX,
   RECOMMENDATION_DEFINITIONS,
 };

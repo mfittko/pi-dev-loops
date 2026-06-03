@@ -13,6 +13,7 @@ Start here for repository documentation.
 - [Copilot Loop State Graph](./copilot-loop-state-graph.md)
 - [Reviewer Loop State Graph](./reviewer-loop-state-graph.md)
 - [Gate Review Comment Contract](./gate-review-comment-contract.md)
+- [Audit Copilot Comments](./audit-copilot-comments.md) — Copilot comment audit script, taxonomy, and persona derivation
 - [Worktree Usage Guidance](./worktree-guidance.md) — canonical local checkout isolation and cleanup rules
 - [Steering Contract](./steering-contract.md)
 - [UI Validation Contract](./ui-validation-contract.md)
