@@ -517,10 +517,11 @@ async function scanSessionRunRoot(root, records) {
     }
 
     const topLevelPath = path.join(root, topLevelEntry.name);
+    await scanSessionArtifactRoot(path.join(topLevelPath, "subagent-artifacts"), records).catch(() => {});
     const runIdEntries = await readdir(topLevelPath, { withFileTypes: true }).catch(() => []);
 
     for (const runIdEntry of runIdEntries) {
-      if (!runIdEntry.isDirectory()) {
+      if (!runIdEntry.isDirectory() || runIdEntry.name === "subagent-artifacts") {
         continue;
       }
 
@@ -1241,10 +1242,6 @@ function buildManualAttentionEntry({
 
 export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
   const activeMatch = activeRuns.filter((candidate) => candidate.parsedArtifact?.ok && candidate.parsedArtifact.pr === pr.number);
-  if (activeMatch.length > 0) {
-    return { kind: "suppressed_by_active_run", runIds: activeMatch.map((candidate) => candidate.run.runId) };
-  }
-
   const matches = exitedRuns.filter((candidate) => candidate.parsedArtifact?.ok && candidate.parsedArtifact.pr === pr.number);
   if (matches.length === 0) {
     return { kind: "none" };
@@ -1274,7 +1271,23 @@ export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
     }
   }
 
-  return { kind: "selected", candidate: sorted[0] };
+  const selected = sorted[0];
+  const selectedTimestamp = selected.run.timestampMs;
+  const newerActiveRuns = activeMatch.filter((candidate) => {
+    const activeTimestamp = candidate.run.timestampMs;
+    return typeof activeTimestamp === "number"
+      && typeof selectedTimestamp === "number"
+      && activeTimestamp > selectedTimestamp;
+  });
+
+  if (newerActiveRuns.length > 0) {
+    return {
+      kind: "suppressed_by_active_run",
+      runIds: newerActiveRuns.map((candidate) => candidate.run.runId),
+    };
+  }
+
+  return { kind: "selected", candidate: selected };
 }
 
 function classifyLiveStateForResume(resumeAction, prReport) {

@@ -113,8 +113,9 @@ async function writeSessionRun({
   timestampMs = 1700000000000,
   writeOutputArtifact = true,
 }) {
-  const artifactsDir = path.join(sessionsRoot, "subagent-artifacts");
-  const sessionDir = path.join(sessionsRoot, "2026-06-03T00-00-00-000Z_session", runId, `run-${childIndex}`);
+  const sessionRoot = path.join(sessionsRoot, "2026-06-03T00-00-00-000Z_session");
+  const artifactsDir = path.join(sessionRoot, "subagent-artifacts");
+  const sessionDir = path.join(sessionRoot, runId, `run-${childIndex}`);
   const artifactBase = `${runId}_${agent}_${childIndex}`;
   const metaPath = path.join(artifactsDir, `${artifactBase}_meta.json`);
   const outputArtifactPath = path.join(artifactsDir, `${artifactBase}_output.md`);
