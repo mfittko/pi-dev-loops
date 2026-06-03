@@ -239,3 +239,19 @@ test("phase-truth docs agree that Phase 8 is active and Phase 7 is deferred", as
   assert.doesNotMatch(phase8, /session \(gitignored\) config/i);
   assert.doesNotMatch(phase8, /defaults\.json|overrides\.json/i);
 });
+
+test("AGENTS documents the conductor monitor pattern as human-in-the-loop queue oversight", async () => {
+  const agents = await readRepo("AGENTS.md");
+
+  assertMatchesAll(agents, [
+    /## Conductor monitor pattern/i,
+    /monitors all active `dev-loop` subagents and open PRs/i,
+    /subagent exits before merge[\s\S]*auto-resume/i,
+    /Copilot review threads arrive[\s\S]*auto-resume/i,
+    /when the queue completes[\s\S]*report/i,
+    /subagent\(\{action:\\?"status\\?"\}\)/i,
+    /scripts\/loop\/conductor-monitor\.mjs/i,
+    /human-in-the-loop pattern for now/i,
+    /follow-up slice/i,
+  ], "AGENTS.md");
+});

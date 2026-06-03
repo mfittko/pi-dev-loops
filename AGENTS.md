@@ -85,6 +85,17 @@ Practical rule:
 - the next qualifying `dev-loop` start/resume must honor that checkpoint gate
 - complete or explicitly skip the retrospective before starting the next qualifying run
 
+## Conductor monitor pattern
+
+Use a conductor monitor as the queue-level human-in-the-loop watcher for active `dev-loop` work:
+- the conductor monitors all active `dev-loop` subagents and open PRs
+- if a subagent exits before merge and the routed state is still non-terminal, auto-resume the same loop
+- if new Copilot review threads arrive after a watcher/fixer session exits, auto-resume the same PR follow-up loop
+- when the queue completes, report that completion instead of silently idling
+- run periodic status probes for active subagents via `subagent({action:"status"})` alongside PR-state checks
+- for open PR queue checks, prefer the aggregate helper `node scripts/loop/conductor-monitor.mjs --repo <owner/name>`
+- this is a human-in-the-loop pattern for now; fully autonomous conductor ownership is a follow-up slice
+
 ## Core guard rails
 
 - KISS
