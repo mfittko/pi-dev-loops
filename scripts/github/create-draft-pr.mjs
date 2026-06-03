@@ -27,6 +27,7 @@ Exit codes:
 
 const parseError = buildParseError(USAGE);
 const READY_FLAG_PATTERN = /^--ready(?:$|=)/u;
+const DRAFT_TRUE_FLAG_PATTERN = /^--draft(?:=(?:true|1))?$/iu;
 
 export function buildCreateDraftPrArgs(argv) {
   const args = [...argv];
@@ -42,9 +43,11 @@ export function buildCreateDraftPrArgs(argv) {
     throw parseError("create-draft-pr rejects --ready; open the PR as draft first, then run `gh pr ready` after the draft gate is satisfied");
   }
 
+  const hasExplicitDraft = args.some((token) => DRAFT_TRUE_FLAG_PATTERN.test(token));
+
   return {
     help: false,
-    ghArgs: ["pr", "create", ...args, ...(args.includes("--draft") ? [] : ["--draft"])],
+    ghArgs: ["pr", "create", ...args, ...(hasExplicitDraft ? [] : ["--draft"])],
   };
 }
 
