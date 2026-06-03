@@ -12,6 +12,7 @@ import {
   classifyCopilotComment,
   parseAuditCopilotCommentsCliArgs,
   renderMarkdownReport,
+  runGhJsonWithRetry,
 } from "../../scripts/github/audit-copilot-comments.mjs";
 
 const scriptPath = path.resolve("scripts/github/audit-copilot-comments.mjs");
@@ -58,6 +59,52 @@ test("parseAuditCopilotCommentsCliArgs parses repo and default output dir", () =
   assert.equal(options.repo, "owner/repo");
   assert.equal(options.outputDir, "tmp/investigation");
   assert.equal(options.help, false);
+  assert.equal(options.sleepMs, 0);
+  assert.equal(options.resume, false);
+  assert.equal(options.checkpointFile, undefined);
+});
+
+test("parseAuditCopilotCommentsCliArgs parses new flags", () => {
+  const options = parseAuditCopilotCommentsCliArgs([
+    "--repo", "owner/repo",
+    "--sleep-ms", "500",
+    "--checkpoint-file", "tmp/ckpt.json",
+    "--resume",
+  ]);
+
+  assert.equal(options.repo, "owner/repo");
+  assert.equal(options.sleepMs, 500);
+  assert.equal(options.checkpointFile, "tmp/ckpt.json");
+  assert.equal(options.resume, true);
+});
+
+test("parseAuditCopilotCommentsCliArgs rejects bad --sleep-ms", () => {
+  assert.throws(
+    () => parseAuditCopilotCommentsCliArgs(["--repo", "owner/repo", "--sleep-ms", "abc"]),
+    /non-negative integer/i,
+  );
+  assert.throws(
+    () => parseAuditCopilotCommentsCliArgs(["--repo", "owner/repo", "--sleep-ms", "-1"]),
+    /non-negative integer/i,
+  );
+  assert.throws(
+    () => parseAuditCopilotCommentsCliArgs(["--repo", "owner/repo", "--sleep-ms", "1.5"]),
+    /non-negative integer/i,
+  );
+});
+
+test("parseAuditCopilotCommentsCliArgs rejects empty --checkpoint-file", () => {
+  assert.throws(
+    () => parseAuditCopilotCommentsCliArgs(["--repo", "owner/repo", "--checkpoint-file", "   "]),
+    /non-empty path/i,
+  );
+});
+
+test("parseAuditCopilotCommentsCliArgs rejects --resume without --checkpoint-file", () => {
+  assert.throws(
+    () => parseAuditCopilotCommentsCliArgs(["--repo", "owner/repo", "--resume"]),
+    /--resume requires --checkpoint-file/i,
+  );
 });
 
 test("parseAuditCopilotCommentsCliArgs rejects malformed arguments deterministically", () => {
@@ -85,6 +132,9 @@ test("audit-copilot-comments help text describes the full summary output", async
   assert.match(result.stdout, /abbreviated/i);
   assert.match(result.stdout, /same full\s+summary object/i);
   assert.match(result.stdout, /<output-dir>\/copilot-comment-summary\.json/);
+  assert.match(result.stdout, /--sleep-ms/);
+  assert.match(result.stdout, /--checkpoint-file/);
+  assert.match(result.stdout, /--resume/);
 });
 
 test("classifyCopilotComment assigns representative categories", () => {
@@ -286,6 +336,310 @@ test("audit-copilot-comments CLI writes JSON summary and markdown report", async
     assert.match(reportText, /Gate evidence/);
     assert.match(reportText, /Priority order for missing lenses/i);
     assert.match(summaryText, /"copilotComments": 3/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// ── New resilience tests ────────────────────────────────────────────
+
+test("runGhJsonWithRetry retries on 403", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-403-"));
+
+  try {
+    // Sequence: 403 stderr + non-zero exit → then success
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: "",
+        exitCode: 1,
+        stderr: "HTTP 403: rate limit exceeded\n",
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: `${JSON.stringify([])}\n`,
+      },
+    ]);
+
+    const result = await runGhJsonWithRetry(
+      ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+      { env, ghCommand: "gh", retryMax: 2, retryBaseMs: 1 },
+    );
+
+    assert.deepEqual(result, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runGhJsonWithRetry retries on 429", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-429-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: "",
+        exitCode: 1,
+        stderr: "HTTP 429: secondary rate limit\n",
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: `${JSON.stringify([])}\n`,
+      },
+    ]);
+
+    const result = await runGhJsonWithRetry(
+      ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+      { env, ghCommand: "gh", retryMax: 2, retryBaseMs: 1 },
+    );
+
+    assert.deepEqual(result, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runGhJsonWithRetry throws after max retries", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-max-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: "",
+        exitCode: 1,
+        stderr: "HTTP 403\n",
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: "",
+        exitCode: 1,
+        stderr: "HTTP 403\n",
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: "",
+        exitCode: 1,
+        stderr: "HTTP 403\n",
+      },
+    ]);
+
+    await assert.rejects(
+      runGhJsonWithRetry(
+        ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        { env, ghCommand: "gh", retryMax: 2, retryBaseMs: 1 },
+      ),
+      /gh command failed: HTTP 403/,
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runGhJsonWithRetry uses default ghCommand when omitted", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-default-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: `${JSON.stringify([])}
+`,
+      },
+    ]);
+
+    // Call without explicit ghCommand to test default
+    const result = await runGhJsonWithRetry(
+      ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+      { env },
+    );
+
+    assert.deepEqual(result, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runGhJsonWithRetry fails immediately on 401", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-401-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: "",
+        exitCode: 1,
+        stderr: "HTTP 401: Bad credentials\n",
+      },
+    ]);
+
+    await assert.rejects(
+      runGhJsonWithRetry(
+        ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        { env, ghCommand: "gh", retryMax: 2, retryBaseMs: 10 },
+      ),
+      /HTTP 401/,
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// ── Checkpoint tests ────────────────────────────────────────────────
+
+test("audit-copilot-comments saves and resumes from checkpoint", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-checkpoint-"));
+
+  try {
+    const checkpointPath = path.join(tempDir, "ckpt.json");
+
+    // First run: completes full fetch, saves checkpoint
+    const env1 = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/comments?per_page=100"],
+        stdout: `${JSON.stringify([[
+          sampleReviewComment({ id: 401, prNumber: 11, path: "a.md", body: "This relative path points to a missing file." }),
+        ]])}\n`,
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls?state=all&per_page=100"],
+        stdout: `${JSON.stringify([samplePrs])}\n`,
+      },
+    ]);
+
+    const outputDir1 = path.join(tempDir, "out1");
+    const result1 = await runNode(["--repo", "owner/repo", "--output-dir", outputDir1, "--checkpoint-file", checkpointPath], { env: env1 });
+    assert.equal(result1.code, 0);
+    const summary1 = JSON.parse(result1.stdout);
+    assert.equal(summary1.totals.copilotComments, 1);
+
+    // Verify checkpoint file exists and is valid
+    const ckptRaw = await readFile(checkpointPath, "utf8");
+    const ckpt = JSON.parse(ckptRaw);
+    assert.equal(ckpt.stage, "after-prs");
+    assert.ok(Array.isArray(ckpt.comments));
+    assert.ok(Array.isArray(ckpt.prs));
+
+    // Resume: should skip fetches entirely
+    const env2 = await writeGhStub(tempDir, []); // empty — no calls expected
+    const outputDir2 = path.join(tempDir, "out2");
+    const result2 = await runNode(["--repo", "owner/repo", "--output-dir", outputDir2, "--checkpoint-file", checkpointPath, "--resume"], { env: env2 });
+    assert.equal(result2.code, 0);
+    const summary2 = JSON.parse(result2.stdout);
+    assert.equal(summary2.totals.copilotComments, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("audit-copilot-comments resume from after-comments stage re-fetches only PRs", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-checkpoint-comments-"));
+
+  try {
+    const checkpointPath = path.join(tempDir, "ckpt.json");
+
+    // Provide a checkpoint at after-comments stage with flat normalized comments
+    // (the same format as returned by fetchAllReviewComments after normalizePaginatedArrayPayload)
+    await writeFile(checkpointPath, JSON.stringify({
+      stage: "after-comments",
+      repo: "owner/repo",
+      comments: [
+        sampleReviewComment({ id: 501, prNumber: 11, path: "a.md", body: "This relative path points to a missing file." }),
+      ],
+    }));
+
+    // Resume: gh stub only needs PR fetch (one call)
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls?state=all&per_page=100"],
+        stdout: `${JSON.stringify([samplePrs])}\n`,
+      },
+    ]);
+
+    const outputDir = path.join(tempDir, "out");
+    const result = await runNode(["--repo", "owner/repo", "--output-dir", outputDir, "--checkpoint-file", checkpointPath, "--resume"], { env });
+    assert.equal(result.code, 0);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.totals.copilotComments, 1);
+
+    // Verify checkpoint was updated to after-prs
+    const ckptRaw = await readFile(checkpointPath, "utf8");
+    const ckpt = JSON.parse(ckptRaw);
+    assert.equal(ckpt.stage, "after-prs");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("audit-copilot-comments resume with after-prs checkpoint missing prs falls back to fresh fetch", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-checkpoint-noprs-"));
+
+  try {
+    const checkpointPath = path.join(tempDir, "ckpt.json");
+
+    // Checkpoint with stage after-prs but no prs field
+    await writeFile(checkpointPath, JSON.stringify({
+      stage: "after-prs",
+      repo: "owner/repo",
+      comments: [
+        sampleReviewComment({ id: 701, prNumber: 11, path: "a.md", body: "missing file" }),
+      ],
+      // prs missing deliberately
+    }));
+
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/comments?per_page=100"],
+        stdout: `${JSON.stringify([[
+          sampleReviewComment({ id: 702, prNumber: 11, path: "b.md", body: "missing file again" }),
+        ]])}
+`,
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls?state=all&per_page=100"],
+        stdout: `${JSON.stringify([samplePrs])}
+`,
+      },
+    ]);
+
+    const outputDir = path.join(tempDir, "out");
+    const result = await runNode(["--repo", "owner/repo", "--output-dir", outputDir, "--checkpoint-file", checkpointPath, "--resume"], { env });
+    assert.equal(result.code, 0);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.totals.copilotComments, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("audit-copilot-comments resume with corrupt checkpoint falls back to fresh fetch", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-checkpoint-corrupt-"));
+
+  try {
+    const checkpointPath = path.join(tempDir, "ckpt.json");
+
+    // Write garbage
+    await writeFile(checkpointPath, "not json at all");
+
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/comments?per_page=100"],
+        stdout: `${JSON.stringify([[
+          sampleReviewComment({ id: 601, prNumber: 11, path: "a.md", body: "missing file" }),
+        ]])}\n`,
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls?state=all&per_page=100"],
+        stdout: `${JSON.stringify([samplePrs])}\n`,
+      },
+    ]);
+
+    const outputDir = path.join(tempDir, "out");
+    const result = await runNode(["--repo", "owner/repo", "--output-dir", outputDir, "--checkpoint-file", checkpointPath, "--resume"], { env });
+    assert.equal(result.code, 0);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.totals.copilotComments, 1);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

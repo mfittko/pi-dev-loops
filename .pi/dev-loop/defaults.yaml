@@ -19,11 +19,18 @@ refinement:
 # Consumers can add, remove, or reorder angles per gate.
 gates:
   draft:
-    # Draft gate: runs before marking PR ready for review
+    # Draft gate: runs before marking PR ready for review.
+    # Default angles: scope, coverage, correctness, ci-guard.
+    # Opt-in angles (uncomment to add):
+    #   - link-check
+    #   - config-drift
+    #   - gate-evidence
+    #   - no-op
     angles:
       - scope
       - coverage
       - correctness
+      - ci-guard
     required: true
     # When true, draft gate waits for green CI before the gate may run.
     requireCi: true
@@ -107,6 +114,13 @@ personas:
       Check whether tests cover the changed behavior adequately.
       Look for missing edge cases, untested error paths,
       and acceptance-criteria gaps.
+      Also flag test-name quality issues: test names that misrepresent
+      what is actually asserted, overly broad names that hide gaps, and
+      names that don't match the behavior under test.
+      Flag missing negative-case coverage: malformed-argument tests,
+      error-contract tests, and edge-case coverage for boundary
+      conditions, empty inputs, and unexpected states.
+      Do not accept happy-path-only test suites.
     defaultModel: null
 
   correctness:
@@ -125,9 +139,11 @@ personas:
       navigable doc references are actual markdown links rather than bare
       backtick path mentions, command/script references still exist and use
       current names, and index/surface references match the current file tree.
-      When the repo provides `scripts/docs/validate-links.mjs`, use it for the
-      mechanical link pass; otherwise keep the review scoped to the touched doc
-      surface and current change only.
+      Also flag stale command references: removed or renamed npm scripts,
+      CLI commands, or tool invocations that no longer match the current
+      codebase. When the repo provides `scripts/docs/validate-links.mjs`,
+      use it for the mechanical link pass; otherwise keep the review scoped
+      to the touched doc surface and current change only.
     defaultModel: null
 
   deep:
@@ -240,4 +256,84 @@ personas:
       Flag speculative features, future-proofing, and compatibility shims
       not required by the current acceptance criteria.
       YAGNI = You Aren't Gonna Need It.
+    defaultModel: null
+
+  # ── Audit-derived draft-gate personas ──────────────────────────────
+
+  ci-guard:
+    persona: review
+    prompt: >-
+      Audit CI/workflow semantics for reproducibility and correctness:
+      - Verify CI configuration is deterministic (no floating version ranges
+        in install steps, lockfile is respected).
+      - Check that branch-protection rules and status-check requirements
+        match the stated merge policy.
+      - Flag non-reproducible install steps and missing lockfile enforcement.
+      - Verify that CI failure precedence is correct: a failing required check
+        must block merge regardless of other passing checks.
+      - Flag Node.js support-floor mismatches between CI matrices,
+        package.json engines, and documented requirements.
+      - Flag pending check-run states that could silently hide failures.
+    defaultModel: null
+
+  link-check:
+    persona: review
+    prompt: >-
+      Validate link and path correctness:
+      - Check that all Markdown relative links resolve to existing files
+        or sections.
+      - Flag placeholder links (e.g. href targets still using example URLs,
+        404 references, or TODO links).
+      - When the repo provides `scripts/docs/validate-links.mjs`, run it
+        for the mechanical link pass and report any failures.
+      - Flag symlink-backed doc pointers that point to missing targets.
+      - This persona complements mechanical link validation with context-aware
+        judgment for link intent and anchor correctness.
+    defaultModel: null
+
+  config-drift:
+    persona: review
+    prompt: >-
+      Cross-check config, schema, and documentation for contract drift:
+      - Verify that configuration files (.pi/dev-loop/settings.yaml,
+        package.json, CI workflows, skill manifests) agree on canonical
+        status tokens, support floors, and required flags.
+      - Flag any instance where two sources of truth disagree about the
+        supported contract (e.g. one doc says a flag is required, another
+        says it's optional).
+      - Check that the engines.node field matches CI matrix and any
+        documented Node.js support floor.
+      - Flag inconsistencies within a single doc that could confuse
+        consumers (e.g. one section says "default: true" and another
+        section implies the opposite).
+    defaultModel: null
+
+  gate-evidence:
+    persona: review
+    prompt: >-
+      Verify that required workflow gate evidence is present and valid:
+      - Check that the draft gate review comment exists and references the
+        correct head SHA.
+      - Check that the pre-approval gate review comment exists when the PR
+        is in a ready/merge state.
+      - Flag any PR that transitions to ready/merge states without visible
+        gate evidence for the current head.
+      - When draft-first enforcement is configured, verify that a draft-gate
+        comment was posted before the PR was marked ready.
+      - This persona is opt-in for the draft gate (uncomment to add).
+        On first PR it checks for any gate evidence (not only draft_gate since
+        no prior gate exists).
+    defaultModel: null
+
+  no-op:
+    persona: review
+    prompt: >-
+      Flag workflow or tool invocations that are effectively no-ops:
+      - Check that shell commands and tool calls actually affect output,
+        state, or exit behavior rather than discarding their effect.
+      - Flag tool invocations that look successful but pass arguments in
+        a way that produces no meaningful change.
+      - Flag commands whose output is generated but never consumed.
+      - Flag patterns where a tool is called in a loop but only the last
+        iteration's result is used (or none at all).
     defaultModel: null
