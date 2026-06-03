@@ -299,14 +299,14 @@ async function main() {
     const result = await detectGateReviewEvidence(options);
 
     // #443: fetch review threads to verify zero unresolved threads before passing
-    let unresolvedThreadCount = null;
+    let unresolvedThreadCount = -1;
     try {
       const threadsPayload = await fetchGithubReviewThreadsPayload(options, { env: process.env });
       const parsedThreads = parseReviewThreads(threadsPayload);
       unresolvedThreadCount = parsedThreads?.summary?.unresolvedThreads ?? 0;
     } catch {
-      // API unavailable — skip thread check (don't block on fetch failure)
-      unresolvedThreadCount = null;
+      // API unavailable — fail closed: pass -1 so buildPreMergeGateCheck rejects merge when thread state cannot be verified
+      unresolvedThreadCount = -1;
     }
 
     const preMergeGateCheck = buildPreMergeGateCheck(result, unresolvedThreadCount);
