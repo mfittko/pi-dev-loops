@@ -1488,8 +1488,7 @@ describe("shipped defaults docs and deep angle wiring", () => {
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.yaml"), sourceDefaults);
 
-      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
-      const { resolveReviewerRole } = await import("../src/config/config.mjs");
+      const { loadDevLoopConfig, resolveReviewerRole } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       const draftAngles = resolveGateAngles(result.config, "draft");
       const requiredAngles = [
@@ -1531,8 +1530,7 @@ describe("shipped defaults docs and deep angle wiring", () => {
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.yaml"), sourceDefaults);
 
-      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
-      const { resolveReviewerRole } = await import("../src/config/config.mjs");
+      const { loadDevLoopConfig, resolveReviewerRole } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       const preApprovalAngles = resolveGateAngles(result.config, "preApproval");
       const docsRole = resolveReviewerRole(result.config, "docs");
