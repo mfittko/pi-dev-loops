@@ -44,6 +44,7 @@ describe("RemediationItemSchema", () => {
       title: "Fix thing",
       description: "Fix it.",
       acceptanceCriteria: ["It works"],
+      filePaths: ["src/x.mjs"],
       score: 50,
       signalIds: [validUUID],
       createdAt: validTimestamp,
@@ -59,6 +60,7 @@ describe("RemediationItemSchema", () => {
       title: "x",
       description: "x",
       acceptanceCriteria: ["x"],
+      filePaths: ["src/x.mjs"],
       score: 50,
       signalIds: [validUUID],
       createdAt: validTimestamp,
@@ -73,6 +75,7 @@ describe("RemediationItemSchema", () => {
       findingId: validUUID,
       title: "x",
       description: "x",
+      filePaths: ["src/x.mjs"],
       score: 50,
       signalIds: [validUUID],
       createdAt: validTimestamp,
@@ -88,6 +91,22 @@ describe("RemediationItemSchema", () => {
       title: "x",
       description: "x",
       acceptanceCriteria: [],
+      filePaths: ["src/x.mjs"],
+      score: 50,
+      signalIds: [validUUID],
+      createdAt: validTimestamp,
+      updatedAt: validTimestamp,
+    };
+    assert.equal(RemediationItemSchema.safeParse(input).success, false);
+  });
+
+  test("rejects missing filePaths", () => {
+    const input = {
+      kind: "remediation_item",
+      findingId: validUUID,
+      title: "x",
+      description: "x",
+      acceptanceCriteria: ["x"],
       score: 50,
       signalIds: [validUUID],
       createdAt: validTimestamp,
@@ -103,6 +122,7 @@ describe("RemediationItemSchema", () => {
       title: "x",
       description: "x",
       acceptanceCriteria: ["x"],
+      filePaths: ["src/x.mjs"],
       score: 50,
       signalIds: [validUUID],
       createdAt: validTimestamp,
@@ -141,7 +161,9 @@ describe("DebtEpicSchema", () => {
       findingId: validUUID,
       title: "Epic",
       description: "Do it.",
+      filePaths: ["src/y.mjs"],
       score: 80,
+      estimatedItems: 1,
       signalIds: [validUUID],
       createdAt: validTimestamp,
       updatedAt: validTimestamp,
@@ -155,6 +177,23 @@ describe("DebtEpicSchema", () => {
       findingId: validUUID,
       title: "x",
       description: "x",
+      filePaths: ["src/y.mjs"],
+      score: 80,
+      estimatedItems: 1,
+      signalIds: [validUUID],
+      createdAt: validTimestamp,
+      updatedAt: validTimestamp,
+    };
+    assert.equal(DebtEpicSchema.safeParse(input).success, false);
+  });
+
+  test("rejects missing estimatedItems", () => {
+    const input = {
+      kind: "debt_epic",
+      findingId: validUUID,
+      title: "x",
+      description: "x",
+      filePaths: ["src/y.mjs"],
       score: 80,
       signalIds: [validUUID],
       createdAt: validTimestamp,
@@ -169,6 +208,7 @@ describe("DebtEpicSchema", () => {
       findingId: validUUID,
       title: "x",
       description: "x",
+      filePaths: ["src/y.mjs"],
       score: 80,
       signalIds: [validUUID],
       estimatedItems: 0,
@@ -184,7 +224,9 @@ describe("DebtEpicSchema", () => {
       findingId: validUUID,
       title: "x",
       description: "x",
+      filePaths: ["src/y.mjs"],
       score: 80,
+      estimatedItems: 1,
       signalIds: [validUUID],
       createdAt: validTimestamp,
       updatedAt: validTimestamp,

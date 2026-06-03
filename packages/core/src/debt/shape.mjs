@@ -9,10 +9,8 @@
 //   - dismiss: false positive or already fixed
 //
 // Thresholds are hardcoded constants in this slice; not configurable.
-// Shaping tests should test predicate logic, not absolute threshold values.
+// Exported for contract tests that verify predicate boundaries.
 // ============================================================================
-
-import { randomUUID } from "node:crypto";
 
 // ============================================================================
 // Threshold constants
@@ -61,14 +59,30 @@ function classifyShape(finding) {
 }
 
 /**
- * Build a remediation_item artifact from a finding.
+ * Derive deterministic timestamps from the finding's createdAt field.
+ * Uses the finding's createdAt (which is derived from min signal timestamp
+ * in cluster.mjs) for both createdAt and updatedAt.
  *
  * @param {object} finding — enriched debt_finding
+ * @returns {{ createdAt: string, updatedAt: string }}
+ */
+function deriveTimestamps(finding) {
+  const ts = finding.createdAt || new Date().toISOString();
+  return { createdAt: ts, updatedAt: ts };
+}
+
+/**
+ * Build a remediation_item artifact from a finding.
+ * Uses structured _categories from the cluster to avoid regex-parsing description strings.
+ *
+ * @param {object} finding — enriched debt_finding with _categories array
  * @returns {object} RemediationItemSchema-compatible shape
  */
 function buildRemediationItem(finding) {
-  const now = new Date().toISOString();
-  const cats = finding.description?.match(/Categories: (.+?)\./)?.[1] || "unknown";
+  const cats = (finding._categories && finding._categories.length > 0)
+    ? finding._categories.join(", ")
+    : "unknown";
+  const { createdAt, updatedAt } = deriveTimestamps(finding);
   return {
     kind: "remediation_item",
     findingId: finding.id,
@@ -84,8 +98,8 @@ function buildRemediationItem(finding) {
     filePaths: finding.locationSummary?.filePaths,
     signalIds: finding.signalIds,
     sourceType: "debt_pipeline",
-    createdAt: now,
-    updatedAt: now,
+    createdAt,
+    updatedAt,
   };
 }
 
@@ -96,7 +110,7 @@ function buildRemediationItem(finding) {
  * @returns {object} DebtEpicSchema-compatible shape
  */
 function buildDebtEpic(finding) {
-  const now = new Date().toISOString();
+  const { createdAt, updatedAt } = deriveTimestamps(finding);
   return {
     kind: "debt_epic",
     findingId: finding.id,
@@ -106,8 +120,8 @@ function buildDebtEpic(finding) {
     filePaths: finding.locationSummary?.filePaths,
     signalIds: finding.signalIds,
     estimatedItems: Math.ceil((finding._signalCount ?? 1) / 2),
-    createdAt: now,
-    updatedAt: now,
+    createdAt,
+    updatedAt,
   };
 }
 
