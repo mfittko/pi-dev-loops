@@ -324,7 +324,7 @@ export async function checkForCopilotComments({ repo, pr }, { env = process.env,
       continue;
     }
 
-    if (/@copilot|\/copilot/i.test(body)) {
+    if (/(?:^|\s)(@copilot|\/copilot)(?:$|\s)/i.test(body)) {
       violationCommentIds.push(comment.id);
     }
   }
