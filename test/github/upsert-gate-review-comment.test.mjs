@@ -9,6 +9,7 @@ import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson a
 import {
   parseUpsertGateReviewCommentCliArgs,
   summarizeGateReviewText,
+  upsertGateReviewComment,
 } from "../../scripts/github/upsert-gate-review-comment.mjs";
 
 const scriptPath = path.resolve("scripts/github/upsert-gate-review-comment.mjs");
@@ -18,6 +19,74 @@ const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, opt
 async function writeGhStub(tempDir, entries) {
   const { env } = await writeGhStubHelper(tempDir, entries, { repeatLastOnOverflow: true });
   return env;
+}
+
+function buildGateCoordinationEntries({
+  repo = "owner/repo",
+  pr = 17,
+  headSha = "abc1234",
+  isDraft = true,
+  statusCheckRollup = [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }],
+  reviews = [],
+  reviewThreadsPayload = { data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } },
+  issueComments = [],
+}) {
+  return [
+    {
+      assertArgs: ["pr", "view", String(pr), "--repo", repo, "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+      stdout: JSON.stringify({
+        number: pr,
+        state: "OPEN",
+        isDraft,
+        headRefOid: headSha,
+        reviews,
+        statusCheckRollup,
+      }) + "\n",
+    },
+    {
+      assertArgs: ["api", `repos/${repo}/pulls/${pr}/requested_reviewers`],
+      stdout: '{"users":[],"teams":[]}\n',
+    },
+    {
+      assertArgs: ["api", "graphql", `pr=${pr}`],
+      stdout: JSON.stringify(reviewThreadsPayload) + "\n",
+    },
+    {
+      assertArgs: ["pr", "view", String(pr), "--repo", repo, "--json", "headRefOid"],
+      stdout: JSON.stringify({ headRefOid: headSha }) + "\n",
+    },
+    {
+      assertArgs: ["api", "--paginate", "--slurp", `repos/${repo}/issues/${pr}/comments?per_page=100`],
+      stdout: JSON.stringify(issueComments) + "\n",
+    },
+  ];
+}
+
+function buildGateComment({
+  gate = "draft_gate",
+  headSha = "abc1234",
+  verdict = "clean",
+  findingsSummary = "no issues found",
+  nextAction = "mark ready for review",
+  commentId = 101,
+  pr = 17,
+  updatedAt = "2026-05-30T17:00:00Z",
+}) {
+  return {
+    id: commentId,
+    body: [
+      `### Gate review: \`${gate}\``,
+      "",
+      `**Reviewed head SHA:** \`${headSha}\``,
+      `**Verdict:** ${verdict}`,
+      "",
+      `**Findings summary:** ${findingsSummary}`,
+      "",
+      `**Next action:** ${nextAction}`,
+    ].join("\n"),
+    html_url: `https://github.com/owner/repo/pull/${pr}#issuecomment-${commentId}`,
+    updated_at: updatedAt,
+  };
 }
 
 test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments deterministically", () => {
@@ -48,6 +117,89 @@ test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments determinis
       "--next-action", "mark ready for review",
     ]),
     /7-64 character hexadecimal SHA/i,
+  );
+});
+
+test("parseUpsertGateReviewCommentCliArgs accepts --force with normalized --force-reason", () => {
+  const parsed = parseUpsertGateReviewCommentCliArgs([
+    "--repo", "owner/repo",
+    "--pr", "17",
+    "--gate", "draft_gate",
+    "--head-sha", "ABC1234",
+    "--verdict", "clean",
+    "--findings-summary", "no issues found",
+    "--next-action", "mark ready for review",
+    "--force",
+    "--force-reason", `  CI
+   cancelled   due   to infra  `,
+  ]);
+
+  assert.equal(parsed.force, true);
+  assert.equal(parsed.forceReason, "CI cancelled due to infra");
+});
+
+test("parseUpsertGateReviewCommentCliArgs rejects --force without --force-reason", () => {
+  assert.throws(
+    () => parseUpsertGateReviewCommentCliArgs([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+      "--force",
+    ]),
+    /--force requires --force-reason/i,
+  );
+});
+
+test("parseUpsertGateReviewCommentCliArgs rejects --force-reason without --force", () => {
+  assert.throws(
+    () => parseUpsertGateReviewCommentCliArgs([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+      "--force-reason", "CI cancelled due to infra",
+    ]),
+    /--force-reason requires --force/i,
+  );
+});
+
+test("upsertGateReviewComment rejects programmatic force without forceReason before any gh calls", async () => {
+  await assert.rejects(
+    () => upsertGateReviewComment({
+      repo: "owner/repo",
+      pr: 17,
+      gate: "draft_gate",
+      headSha: "abc1234",
+      verdict: "clean",
+      findingsSummary: "no issues found",
+      nextAction: "mark ready for review",
+      force: true,
+    }),
+    /force requires forceReason when calling upsertGateReviewComment\(\)/i,
+  );
+});
+
+test("parseUpsertGateReviewCommentCliArgs rejects blank --force-reason", () => {
+  assert.throws(
+    () => parseUpsertGateReviewCommentCliArgs([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+      "--force",
+      "--force-reason", "\n",
+    ]),
+    /--force-reason must be a non-empty string/i,
   );
 });
 
@@ -130,6 +282,335 @@ test("summarizeGateReviewText does not treat markdown headings as shell commands
     summarizeGateReviewText(narrative),
     "# Summary Validation recap passed through manual review. ## Notes This is prose, not a shell transcript.",
   );
+});
+
+test("upsert-gate-review-comment allows forced draft_gate create when current-head CI failure is the only blocker", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-draft-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      ...buildGateCoordinationEntries({
+        isDraft: true,
+        statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }],
+      }),
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+        stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+      "--force",
+      "--force-reason", "CI cancelled due to infrastructure",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      action: "created",
+      repo: "owner/repo",
+      pr: 17,
+      gate: "draft_gate",
+      headSha: "abc1234",
+      currentHeadSha: "abc1234",
+      commentId: 101,
+      commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      forced: true,
+      forceReason: "CI cancelled due to infrastructure",
+      forceBypass: "ci_blocked_needs_user_decision",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment allows forced pre_approval_gate create when current-head CI failure is the only blocker", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-preapproval-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      ...buildGateCoordinationEntries({
+        isDraft: false,
+        statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }],
+      }),
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+        stdout: '{"id":102,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-102"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "pre_approval_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "await final human approval",
+      "--force",
+      "--force-reason", "CI cancelled due to infrastructure",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      action: "created",
+      repo: "owner/repo",
+      pr: 17,
+      gate: "pre_approval_gate",
+      headSha: "abc1234",
+      currentHeadSha: "abc1234",
+      commentId: 102,
+      commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-102",
+      forced: true,
+      forceReason: "CI cancelled due to infrastructure",
+      forceBypass: "ci_blocked_needs_user_decision",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment keeps CI-blocked gate upserts fail-closed without --force and points to the escape hatch", async () => {
+  for (const scenario of [
+    { gate: "draft_gate", isDraft: true, nextAction: "mark ready for review" },
+    { gate: "pre_approval_gate", isDraft: false, nextAction: "await final human approval" },
+  ]) {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), `pi-dev-loops-upsert-gate-review-force-required-${scenario.gate}-`));
+
+    try {
+      const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+        isDraft: scenario.isDraft,
+        statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }],
+      }));
+
+      const result = await runNode([
+        "--repo", "owner/repo",
+        "--pr", "17",
+        "--gate", scenario.gate,
+        "--head-sha", "abc1234",
+        "--verdict", "clean",
+        "--findings-summary", "no issues found",
+        "--next-action", scenario.nextAction,
+      ], { env });
+
+      assert.equal(result.code, 1);
+      assert.equal(result.stdout, "");
+      const payload = JSON.parse(result.stderr);
+      assert.equal(payload.ok, false);
+      assert.match(payload.error, /Cannot enter/);
+      assert.match(payload.error, /--force --force-reason/);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("upsert-gate-review-comment forced update includes forced metadata", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-update-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      ...buildGateCoordinationEntries({
+        isDraft: true,
+        statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }],
+        issueComments: [buildGateComment({
+          gate: "draft_gate",
+          verdict: "blocked",
+          findingsSummary: "older forced summary",
+          nextAction: "wait for explicit CI bypass decision",
+        })],
+      }),
+      {
+        assertArgs: ["api", "-X", "PATCH", "repos/owner/repo/issues/comments/101", "-f"],
+        stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "blocked",
+      "--findings-summary", "CI failed on the current head",
+      "--next-action", "wait for explicit CI bypass decision",
+      "--force",
+      "--force-reason", "CI failed due to transient infrastructure",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      action: "updated",
+      repo: "owner/repo",
+      pr: 17,
+      gate: "draft_gate",
+      headSha: "abc1234",
+      currentHeadSha: "abc1234",
+      commentId: 101,
+      commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      forced: true,
+      forceReason: "CI failed due to transient infrastructure",
+      forceBypass: "ci_blocked_needs_user_decision",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment forced noop includes forced metadata", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-noop-"));
+
+  try {
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      isDraft: true,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }],
+      issueComments: [buildGateComment({
+        gate: "draft_gate",
+        verdict: "blocked",
+        findingsSummary: "CI failed on the current head",
+        nextAction: "wait for explicit CI bypass decision",
+      })],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "blocked",
+      "--findings-summary", "CI failed on the current head",
+      "--next-action", "wait for explicit CI bypass decision",
+      "--force",
+      "--force-reason", "CI cancelled due to infrastructure",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      ok: true,
+      action: "noop",
+      repo: "owner/repo",
+      pr: 17,
+      gate: "draft_gate",
+      headSha: "abc1234",
+      currentHeadSha: "abc1234",
+      commentId: 101,
+      commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      forced: true,
+      forceReason: "CI cancelled due to infrastructure",
+      forceBypass: "ci_blocked_needs_user_decision",
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment does not use --force to bypass non-CI pre_approval_gate refusal", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-non-ci-preapproval-"));
+
+  try {
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      isDraft: false,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "pre_approval_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "await final human approval",
+      "--force",
+      "--force-reason", "CI cancelled due to infrastructure",
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Cannot enter pre_approval_gate/i);
+    assert.doesNotMatch(payload.error, /--force --force-reason/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment does not use --force to bypass draft_gate refusal on a non-draft PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-non-draft-"));
+
+  try {
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      isDraft: false,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+      "--force",
+      "--force-reason", "CI cancelled due to infrastructure",
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Cannot enter draft_gate/i);
+    assert.doesNotMatch(payload.error, /--force --force-reason/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment stale-head protection still fails closed with --force", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-stale-"));
+
+  try {
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      headSha: "def5678",
+      isDraft: true,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+      "--force",
+      "--force-reason", "CI cancelled due to infrastructure",
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /does not match the current PR head SHA/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("upsert-gate-review-comment creates a new comment when no same-head marker exists", async () => {

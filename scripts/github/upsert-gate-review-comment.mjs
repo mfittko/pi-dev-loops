@@ -7,13 +7,15 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectGateReviewEvidence } from "./detect-gate-review-evidence.mjs";
 import { loadPrGateCoordinationContext } from "../loop/detect-pr-gate-coordination-state.mjs";
 import { evaluatePrGateCoordination, PR_GATE_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { STATE } from "@pi-dev-loops/core/loop/copilot-loop-state";
 
 const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
 const GATE_VERDICTS = new Set(["clean", "findings_present", "blocked"]);
 const MAX_GATE_COMMENT_TEXT_LENGTH = 2000;
 const MAX_GATE_COMMENT_EXCERPT_LENGTH = 120;
+const FORCE_BYPASS = "ci_blocked_needs_user_decision";
 
-const USAGE = `Usage: upsert-gate-review-comment.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text> [--local-validation-head-sha <sha>]
+const USAGE = `Usage: upsert-gate-review-comment.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text> [--local-validation-head-sha <sha>] [--force --force-reason <text>]
 
 Create or update the visible gate-review PR comment for a gate/head pair.
 Same-head reruns are idempotent: if a visible marker already exists for the same
@@ -36,6 +38,19 @@ Optional:
                                              reuse the bounded crediblyGreen CI
                                              exception when GitHub created zero
                                              current-head suites/statuses.
+  --force                                    Allow a narrow CI-failure gate-comment
+                                             override when the helper would otherwise
+                                             refuse a gate upsert because the current
+                                             head is blocked_needs_user_decision.
+  --force-reason <text>                      Required with --force. Records why the
+                                             operator-authorized CI-only override is
+                                             justified for machine-readable output.
+
+Use \`--force\` only after the user explicitly authorizes ignoring the current-head
+CI failure for this one gate-comment upsert. Prefer the normal paths
+first: green CI on the current head, \`--local-validation-head-sha\` for the bounded
+\`crediblyGreen\` case, or the draft-gate policy option when the desired behavior is
+a durable policy rather than a one-off override.
 
 Output (stdout, JSON):
   {
@@ -88,6 +103,42 @@ function normalizeRequiredText(value, flag) {
     return summarizeGateReviewText(normalized);
   }
   return smartTruncate(collapseWhitespace(normalized), MAX_GATE_COMMENT_TEXT_LENGTH);
+}
+
+function normalizeForceReason(value) {
+  const normalized = collapseWhitespace(value);
+  if (normalized.length === 0) {
+    throw parseError("--force-reason must be a non-empty string");
+  }
+  return normalized;
+}
+
+function normalizeOptionalForceReason(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = collapseWhitespace(value);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function resolveRuntimeForceOptions(options) {
+  const force = options.force === true;
+  const forceReason = normalizeOptionalForceReason(options.forceReason);
+
+  if (forceReason === null) {
+    throw new Error("forceReason must be a non-empty string when calling upsertGateReviewComment()");
+  }
+
+  if (force && forceReason === undefined) {
+    throw new Error("force requires forceReason when calling upsertGateReviewComment()");
+  }
+
+  if (!force && options.forceReason !== undefined) {
+    throw new Error("forceReason requires force when calling upsertGateReviewComment()");
+  }
+
+  return { force, forceReason };
 }
 
 function collapseWhitespace(value) {
@@ -223,6 +274,8 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
     findingsSummary: undefined,
     nextAction: undefined,
     localValidationHeadSha: undefined,
+    force: false,
+    forceReason: undefined,
   };
 
   while (args.length > 0) {
@@ -289,6 +342,16 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
       continue;
     }
 
+    if (token === "--force") {
+      options.force = true;
+      continue;
+    }
+
+    if (token === "--force-reason") {
+      options.forceReason = normalizeForceReason(requireOptionValue(args, "--force-reason", parseError));
+      continue;
+    }
+
     throw parseError(`Unknown argument: ${token}`);
   }
 
@@ -296,6 +359,14 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
     .filter((key) => options[key] === undefined);
   if (missing.length > 0) {
     throw parseError("upsert-gate-review-comment requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary, and --next-action");
+  }
+
+  if (options.force && options.forceReason === undefined) {
+    throw parseError("--force requires --force-reason <text>");
+  }
+
+  if (!options.force && options.forceReason !== undefined) {
+    throw parseError("--force-reason requires --force");
   }
 
   try {
@@ -349,6 +420,40 @@ function resolveRequestedHeadSha(requestedHeadSha, currentHeadSha) {
   }
 
   throw new Error(`Requested head SHA ${requestedHeadSha} does not match the current PR head SHA ${currentHeadSha}; refuse to mutate stale gate evidence.`);
+}
+
+function resolveGateAction(gate) {
+  return gate === "draft_gate"
+    ? PR_GATE_ACTION.RUN_DRAFT_GATE
+    : PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE;
+}
+
+function isCiBlockedGateOverrideEligible({ coordination, coordinationContext, gate }) {
+  return coordination.lifecycleState === STATE.BLOCKED_NEEDS_USER_DECISION
+    && coordinationContext.snapshot?.ciStatus === "failure"
+    && coordination.forbiddenActions.includes(resolveGateAction(gate));
+}
+
+function buildGateEntryRefusalError({ options, coordination, coordinationContext }) {
+  const baseMessage = `Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`;
+
+  if (!isCiBlockedGateOverrideEligible({ coordination, coordinationContext, gate: options.gate })) {
+    return baseMessage;
+  }
+
+  return `${baseMessage} Re-run with --force --force-reason "<why>" only when the user has explicitly authorized ignoring the current-head CI failure for this one gate-comment upsert.`;
+}
+
+function buildForcedResultMetadata({ forced, forceReason }) {
+  if (!forced) {
+    return {};
+  }
+
+  return {
+    forced: true,
+    forceReason,
+    forceBypass: FORCE_BYPASS,
+  };
 }
 
 function selectGateEvidence(evidence, gate) {
@@ -449,6 +554,7 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
 }
 
 export async function upsertGateReviewComment(options, { env = process.env, ghCommand = "gh", repoRoot = process.cwd() } = {}) {
+  const { force, forceReason } = resolveRuntimeForceOptions(options);
   const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr, localValidationHeadSha: options.localValidationHeadSha }, { env, ghCommand });
   const evidence = coordinationContext.gateEvidence;
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
@@ -474,12 +580,17 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     preApprovalGate: coordinationContext.gateEvidence.preApprovalGate,
     preApprovalGateMarker: coordinationContext.gateEvidence.preApprovalGateMarker,
   });
-  if (options.gate === "draft_gate" && coordination.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE)) {
-    throw new Error(`Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`);
+  const requestedGateAction = resolveGateAction(options.gate);
+  const gateActionForbidden = coordination.forbiddenActions.includes(requestedGateAction);
+  const forcedBypass = gateActionForbidden
+    && force
+    && isCiBlockedGateOverrideEligible({ coordination, coordinationContext, gate: options.gate });
+
+  if (gateActionForbidden && !forcedBypass) {
+    throw new Error(buildGateEntryRefusalError({ options, coordination, coordinationContext }));
   }
-  if (options.gate === "pre_approval_gate" && coordination.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE)) {
-    throw new Error(`Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`);
-  }
+
+  const forcedResultMetadata = buildForcedResultMetadata({ forced: forcedBypass, forceReason });
 
   const effectiveFindingsSummary = appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
   const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha, findingsSummary: effectiveFindingsSummary });
@@ -505,6 +616,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       currentHeadSha: evidence.currentHeadSha,
       commentId: existing.commentId,
       commentUrl: existing.commentUrl,
+      ...forcedResultMetadata,
       ...(warning ? { warning } : {}),
     };
   }
@@ -521,6 +633,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       currentHeadSha: evidence.currentHeadSha,
       commentId: updated.commentId,
       commentUrl: updated.commentUrl,
+      ...forcedResultMetadata,
       ...(warning ? { warning } : {}),
     };
   }
@@ -536,6 +649,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     currentHeadSha: evidence.currentHeadSha,
     commentId: created.commentId,
     commentUrl: created.commentUrl,
+    ...forcedResultMetadata,
     ...(warning ? { warning } : {}),
   };
 }
