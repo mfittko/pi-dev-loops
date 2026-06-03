@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper } from "../_helpers.mjs";
 
-import { buildCreateDraftPrArgs } from "../../scripts/github/create-draft-pr.mjs";
+import { buildCreateDraftPrArgs, detectClosingKeyword } from "../../scripts/github/create-draft-pr.mjs";
 
 const scriptPath = path.resolve("scripts/github/create-draft-pr.mjs");
 const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
@@ -25,6 +25,177 @@ async function readGhCalls(logPath) {
     .filter(Boolean);
   return lines.map((line) => JSON.parse(line));
 }
+
+// --- detectClosingKeyword unit tests ---
+
+test("detectClosingKeyword returns true for Closes #123 in body", () => {
+  assert.equal(detectClosingKeyword("Closes #123"), true);
+});
+
+test("detectClosingKeyword returns true for Fixes #456 in body", () => {
+  assert.equal(detectClosingKeyword("Summary here. Fixes #456. More text."), true);
+});
+
+test("detectClosingKeyword returns false when no closing keyword present", () => {
+  assert.equal(detectClosingKeyword("some text without keyword"), false);
+});
+
+test("detectClosingKeyword returns false for null/empty/invalid input", () => {
+  assert.equal(detectClosingKeyword(null), false);
+  assert.equal(detectClosingKeyword(undefined), false);
+  assert.equal(detectClosingKeyword(""), false);
+  assert.equal(detectClosingKeyword(123), false);
+});
+
+test("detectClosingKeyword is case-insensitive", () => {
+  assert.equal(detectClosingKeyword("closes #789"), true);
+  assert.equal(detectClosingKeyword("FIXES #1"), true);
+});
+
+test("detectClosingKeyword scans only first MAX_BODY_SCAN_BYTES", () => {
+  const prefix = "x".repeat(16 * 1024);
+  assert.equal(detectClosingKeyword(prefix + "Closes #999"), false);
+});
+
+// --- integration tests for closing-keyword warning ---
+
+test("create-draft-pr --body with closing keyword emits no stderr warning", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-create-draft-pr-body-keyword-ok-"));
+
+  try {
+    const { env, ghLogPath } = await writeGhStub(tempDir, [
+      { stdout: "https://github.com/owner/repo/pull/1\n" },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--assignee", "@me",
+      "--base", "main",
+      "--head", "feature",
+      "--title", "Add feature",
+      "--body", "Closes #123",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stdout, "https://github.com/owner/repo/pull/1\n");
+    assert.equal(result.stderr, "");
+    assert.equal((await readGhCalls(ghLogPath)).length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("create-draft-pr --body without closing keyword emits stderr warning but exits 0", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-create-draft-pr-body-no-keyword-"));
+
+  try {
+    const { env, ghLogPath } = await writeGhStub(tempDir, [
+      { stdout: "https://github.com/owner/repo/pull/1\n" },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--assignee", "@me",
+      "--base", "main",
+      "--head", "feature",
+      "--title", "Add feature",
+      "--body", "some text without keyword",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stdout, "https://github.com/owner/repo/pull/1\n");
+    assert.match(result.stderr, /Warning: PR body missing `Closes #N` or `Fixes #N`/i);
+    assert.equal((await readGhCalls(ghLogPath)).length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("create-draft-pr --body-file with closing keyword emits no stderr warning", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-create-draft-pr-bodyfile-keyword-ok-"));
+
+  try {
+    const bodyPath = path.join(tempDir, "pr-body.md");
+    await writeFile(bodyPath, "Fixes #456\n\nSome description here.", "utf8");
+
+    const { env, ghLogPath } = await writeGhStub(tempDir, [
+      { stdout: "https://github.com/owner/repo/pull/1\n" },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--assignee", "@me",
+      "--base", "main",
+      "--head", "feature",
+      "--title", "Add feature",
+      "--body-file", bodyPath,
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stdout, "https://github.com/owner/repo/pull/1\n");
+    assert.equal(result.stderr, "");
+    assert.equal((await readGhCalls(ghLogPath)).length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("create-draft-pr --body-file without closing keyword emits stderr warning but exits 0", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-create-draft-pr-bodyfile-no-keyword-"));
+
+  try {
+    const bodyPath = path.join(tempDir, "pr-body.md");
+    await writeFile(bodyPath, "Some description without any closing keyword.", "utf8");
+
+    const { env, ghLogPath } = await writeGhStub(tempDir, [
+      { stdout: "https://github.com/owner/repo/pull/1\n" },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--assignee", "@me",
+      "--base", "main",
+      "--head", "feature",
+      "--title", "Add feature",
+      "--body-file", bodyPath,
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stdout, "https://github.com/owner/repo/pull/1\n");
+    assert.match(result.stderr, /Warning: PR body missing `Closes #N` or `Fixes #N`/i);
+    assert.equal((await readGhCalls(ghLogPath)).length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("create-draft-pr --body-file with missing file emits stderr warning (non-fatal)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-create-draft-pr-bodyfile-missing-"));
+
+  try {
+    const { env, ghLogPath } = await writeGhStub(tempDir, [
+      { stdout: "https://github.com/owner/repo/pull/1\n" },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--assignee", "@me",
+      "--base", "main",
+      "--head", "feature",
+      "--title", "Add feature",
+      "--body-file", "/nonexistent/path/pr-body.md",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stdout, "https://github.com/owner/repo/pull/1\n");
+    assert.match(result.stderr, /Warning: PR body missing `Closes #N` or `Fixes #N`/i);
+    assert.equal((await readGhCalls(ghLogPath)).length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// --- existing tests continued ---
 
 test("buildCreateDraftPrArgs injects --draft when absent", () => {
   assert.deepEqual(
@@ -104,13 +275,16 @@ test("create-draft-pr forwards args in order and preserves gh stdout on success"
       },
     ]);
 
+    const bodyPath = path.join(tempDir, "pr-body.md");
+    await writeFile(bodyPath, "Closes #349\n", "utf8");
+
     const result = await runNode([
       "--repo", "owner/repo",
       "--assignee", "@me",
       "--base", "main",
       "--head", "issue-349-create-draft-pr",
       "--title", "Add draft wrapper",
-      "--body-file", "tmp/pr-body.md",
+      "--body-file", bodyPath,
       "positional-token",
     ], { env });
 
@@ -124,7 +298,7 @@ test("create-draft-pr forwards args in order and preserves gh stdout on success"
       "--base", "main",
       "--head", "issue-349-create-draft-pr",
       "--title", "Add draft wrapper",
-      "--body-file", "tmp/pr-body.md",
+      "--body-file", bodyPath,
       "positional-token",
       "--draft",
     ]]);
