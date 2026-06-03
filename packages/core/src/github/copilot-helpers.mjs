@@ -117,12 +117,7 @@ function parseGateReviewCommentFields(body) {
   // Lenient fallback: detect gate name and head SHA anywhere in body
   // Handles comments posted via other tools without structured field format
   if (!fields.gate || !fields.headSha) {
-    // Strip GitHub issue/PR comment URLs to prevent false SHA matches
-    // (e.g. #issuecomment-4615274563 where the numeric ID looks like hex)
-    const flatBody = body
-      .replace(/\*\*/gu, "")
-      .replace(/`/gu, "")
-      .replace(/https:\/\/github\.com\/[^\s]+#issuecomment-\d+/g, "");
+    const flatBody = body.replace(/\*\*/gu, "").replace(/`/gu, "");
 
     if (!fields.gate) {
       const gateMatch = flatBody.match(/\b(draft_gate|pre_approval_gate)\b/iu);
@@ -132,9 +127,23 @@ function parseGateReviewCommentFields(body) {
     }
 
     if (!fields.headSha) {
-      const shaMatch = flatBody.match(/\b([0-9a-f]{7,64})\b/iu);
-      if (shaMatch) {
-        fields.headSha = normalizeGateReviewHeadSha(shaMatch[1]);
+      // Prefer SHA following a "head" context marker to avoid false
+      // matches on plain-text numeric IDs (issue/comment IDs, etc.)
+      // Example: "pre_approval_gate for head e284c2e341" or "commit abc1234def"
+      const ctxShaMatch = flatBody.match(
+        /(?:head|sha|commit)\s*(?:sha)?\s*[:=]?\s*`?\b([0-9a-f]{7,64})\b`?/iu
+      );
+      if (ctxShaMatch) {
+        fields.headSha = normalizeGateReviewHeadSha(ctxShaMatch[1]);
+      } else {
+        // Fallback: any hex token, strip known URL/id noise first
+        const cleanBody = flatBody.replace(
+          /https:\/\/github\.com\/[^\s]+#issuecomment-\d+/g, ""
+        );
+        const shaMatch = cleanBody.match(/\b([0-9a-f]{7,64})\b/iu);
+        if (shaMatch) {
+          fields.headSha = normalizeGateReviewHeadSha(shaMatch[1]);
+        }
       }
     }
   }

@@ -286,10 +286,20 @@ test("summarizeGateReviewCommentMarkers prefers structured over lenient when bot
 });
 
 test("parseGateReviewCommentMarkerBody lenient SHA ignores github comment URLs", () => {
-  // e.g. URL contains #issuecomment-4615274563 which has 10 decimal digits
-  // that would match [0-9a-f]{7,64} — ensure we strip URLs first
+  // "head e284c2e341" matched by context-based parser; URL #issuecomment-4615274563 ignored
   const body = "pre_approval_gate for head e284c2e341: all clear!\n\n" +
     "See https://github.com/mfittko/pi-dev-loops/pull/450#issuecomment-4615274563 for details.";
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.notEqual(result, null);
+  assert.equal(result.gate, "pre_approval_gate");
+  assert.equal(result.headSha, "e284c2e341");
+  assert.equal(result.contractComplete, false);
+});
+
+test("parseGateReviewCommentMarkerBody lenient SHA ignores plain-text numeric ID before head SHA", () => {
+  // Plain-text "comment 4615274563" is 10 decimal digits that would match [0-9a-f]{7,64}
+  // Context-based parser picks SHA after "head", not the numeric ID
+  const body = "pre_approval_gate: comment 4615274563 for head e284c2e341 all clear!";
   const result = parseGateReviewCommentMarkerBody(body);
   assert.notEqual(result, null);
   assert.equal(result.gate, "pre_approval_gate");
