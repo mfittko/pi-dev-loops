@@ -377,6 +377,15 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     result.nextAction = PR_GATE_ACTION.RECONCILE_DRAFT_GATE;
     result.reason = "The PR is non-draft but no clean draft_gate comment exists for any head SHA (one-time boundary); run reconcile_draft_gate before proceeding.";
     result.allowedNextActions = [PR_GATE_ACTION.RECONCILE_DRAFT_GATE];
+    result.forbiddenActions = [
+      PR_GATE_ACTION.RUN_DRAFT_GATE,
+      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
+      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
+      PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
+      PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
+      PR_GATE_ACTION.DECLARE_MERGE_READY,
+    ];
+    result.gateEvidenceNote = null;
   }
 
   return result;

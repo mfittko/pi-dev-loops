@@ -385,7 +385,7 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed when Copilot rou
     assert.equal(parsed.lifecycleState, "ready_to_rerequest_review");
     assert.equal(parsed.gateBoundary, "draft_gate_needed");
     assert.equal(parsed.nextAction, "reconcile_draft_gate");
-    assert.equal(parsed.gateEvidenceNote, "Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.");
+    assert.equal(parsed.gateEvidenceNote, null);
     assert.match(parsed.reason, /no clean draft_gate/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
