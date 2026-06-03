@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { shapeFinding, shapeFindings, ITEM_THRESHOLD, DEFER_THRESHOLD, WATCH_THRESHOLD, EPIC_SIGNAL_COUNT_THRESHOLD } from "../src/debt/shape.mjs";
+const uuid = (n) => '00000000-0000-4000-a000-' + String(n).padStart(12, '0');
 
 // Helper: build an enriched finding shape
 function finding(opts = {}) {
@@ -13,7 +14,7 @@ function finding(opts = {}) {
     remediationShape: "watch_only",
     title: opts.title || "Test finding",
     description: opts.description || "Test description",
-    locationSummary: opts.locationSummary,
+    locationSummary: opts.locationSummary || { filePaths: ["src/default.mjs"], primaryFilePath: "src/default.mjs" },
     createdAt: "2024-06-03T12:00:00Z",
     updatedAt: "2024-06-03T12:00:00Z",
     _clusterReason: opts._clusterReason || "theme",
@@ -24,7 +25,7 @@ function finding(opts = {}) {
 describe("debt-shape", () => {
   describe("remediation_item outcome", () => {
     test("high score + few signals → remediation_item", () => {
-      const f = finding({ score: 85, signalIds: ["a".padEnd(36, "0"), "b".padEnd(36, "0")] });
+      const f = finding({ score: 85, signalIds: [uuid(1), uuid(2)] });
       const { outcome, artifact } = shapeFinding(f);
       assert.equal(outcome, "remediation_item");
       assert.ok(artifact);
@@ -34,7 +35,7 @@ describe("debt-shape", () => {
     });
 
     test("score at ITEM_THRESHOLD boundary → remediation_item", () => {
-      const f = finding({ score: ITEM_THRESHOLD, signalIds: ["a".padEnd(36, "0")] });
+      const f = finding({ score: ITEM_THRESHOLD, signalIds: [uuid(1)] });
       const { outcome } = shapeFinding(f);
       assert.equal(outcome, "remediation_item");
     });
@@ -58,7 +59,7 @@ describe("debt-shape", () => {
     test("high score + many signals → debt_epic", () => {
       const f = finding({
         score: 88,
-        signalIds: ["a".padEnd(36, "0"), "b".padEnd(36, "0"), "c".padEnd(36, "0"), "d".padEnd(36, "0")],
+        signalIds: [uuid(1), uuid(2), uuid(3), uuid(4)],
         _signalCount: 4,
       });
       const { outcome, artifact } = shapeFinding(f);
@@ -71,7 +72,7 @@ describe("debt-shape", () => {
     test("debt_epic has required fields", () => {
       const f = finding({
         score: 92,
-        signalIds: ["a".padEnd(36, "0"), "b".padEnd(36, "0"), "c".padEnd(36, "0"), "d".padEnd(36, "0")],
+        signalIds: [uuid(1), uuid(2), uuid(3), uuid(4)],
         _signalCount: 4,
         locationSummary: { filePaths: ["src/a.mjs", "src/b.mjs"] },
       });
@@ -144,11 +145,11 @@ describe("debt-shape", () => {
   describe("all five outcomes", () => {
     test("shapeFindings covers all outcome branches", () => {
       const findings = [
-        finding({ score: 90, signalIds: ["a".padEnd(36, "0")], _signalCount: 1 }), // remediation_item
-        finding({ score: 90, signalIds: ["a".padEnd(36, "0"), "b".padEnd(36, "0"), "c".padEnd(36, "0"), "d".padEnd(36, "0")], _signalCount: 4 }), // debt_epic
-        finding({ score: 60, signalIds: ["e".padEnd(36, "0")] }), // defer
-        finding({ score: 40, signalIds: ["f".padEnd(36, "0")] }), // watch
-        finding({ score: 10, signalIds: ["g".padEnd(36, "0")] }), // dismiss
+        finding({ score: 90, signalIds: [uuid(1)], _signalCount: 1 }), // remediation_item
+        finding({ score: 90, signalIds: [uuid(1), uuid(2), uuid(3), uuid(4)], _signalCount: 4 }), // debt_epic
+        finding({ score: 60, signalIds: [uuid(5)] }), // defer
+        finding({ score: 40, signalIds: [uuid(6)] }), // watch
+        finding({ score: 10, signalIds: [uuid(7)] }), // dismiss
       ];
       const results = shapeFindings(findings);
       const outcomes = results.map(r => r.outcome);

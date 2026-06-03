@@ -50,8 +50,8 @@ function deriveFindingId(signalIds, clusterReason) {
 function deriveTimestamps(signals) {
   const timestamps = signals.map(s => s.timestamp).filter(Boolean).sort();
   if (timestamps.length === 0) {
-    const now = new Date().toISOString();
-    return { createdAt: now, updatedAt: now };
+    const epoch = "1970-01-01T00:00:00.000Z";
+    return { createdAt: epoch, updatedAt: epoch };
   }
   return { createdAt: timestamps[0], updatedAt: timestamps[timestamps.length - 1] };
 }
@@ -121,13 +121,13 @@ function buildFinding(signals, clusterReason) {
   const score = scoreCluster(signals);
 
   // Build title from cluster reason + primary category
-  const categories = [...new Set(signals.map(s => s.signalKind).filter(Boolean))];
+  const categories = [...new Set(signals.map(s => s.signalKind).filter(Boolean))].sort();
   const primaryCategory = categories[0] || "unknown";
 
   // Build location summary
   const filePaths = [...new Set(
     signals.map(s => s.location?.filePath).filter(Boolean)
-  )];
+  )].sort();
 
   const title = filePaths.length === 1
     ? `${clusterReason}: ${primaryCategory} in ${filePaths[0]}`
@@ -234,5 +234,7 @@ export function clusterSignalsEnriched(signals) {
     findings.push(buildFinding([signal], "singleton"));
   }
 
+  // Stable output order: sort findings by id
+  findings.sort((a, b) => a.id.localeCompare(b.id));
   return findings;
 }

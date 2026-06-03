@@ -36,7 +36,7 @@ function severityWeight(severityHint) {
 /**
  * Compute the frequency score component (0-100).
  * Uses a logarithmic cap so the first few signals matter most.
- * 1 signal → 20, 3 signals → 50, 5 signals → 70, 10+ signals → 100.
+ * 1 signal → 20, 3 signals → 58, 5 signals → 76, 10 signals → 100.
  *
  * @param {number} signalCount
  * @returns {number}

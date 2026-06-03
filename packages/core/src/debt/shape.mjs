@@ -10,6 +10,10 @@
 //
 // Thresholds are hardcoded constants in this slice; not configurable.
 // Exported for contract tests that verify predicate boundaries.
+//
+// Actionable outcomes (remediation_item, debt_epic) are gated on having
+// at least one filePath. Theme-only clusters without file paths are
+// downgraded to watch regardless of score.
 // ============================================================================
 
 // ============================================================================
@@ -37,11 +41,49 @@ export const EPIC_SIGNAL_COUNT_THRESHOLD = 3;
 /** @typedef {"remediation_item"|"debt_epic"|"defer"|"watch"|"dismiss"} ShapeOutcome */
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Deterministic epoch constant for timestamp fallback.
+ * "1970-01-01T00:00:00.000Z"
+ */
+const EPOCH_TS = "1970-01-01T00:00:00.000Z";
+
+/**
+ * Pass through finding timestamps. Falls back to epoch when finding
+ * timestamps are missing — never uses wall-clock time.
+ *
+ * @param {object} finding — enriched debt_finding with createdAt/updatedAt
+ * @returns {{ createdAt: string, updatedAt: string }}
+ */
+function deriveTimestamps(finding) {
+  return {
+    createdAt: finding.createdAt || EPOCH_TS,
+    updatedAt: finding.updatedAt || finding.createdAt || EPOCH_TS,
+  };
+}
+
+/**
+ * Check whether a finding has actionable file paths.
+ *
+ * @param {object} finding — enriched debt_finding
+ * @returns {boolean}
+ */
+function hasFilePaths(finding) {
+  const paths = finding.locationSummary?.filePaths;
+  return Array.isArray(paths) && paths.length > 0;
+}
+
+// ============================================================================
 // Pure predicate: classify a finding into a shape outcome
 // ============================================================================
 
 /**
  * Determine the shape outcome for a debt_finding.
+ * Actionable outcomes (remediation_item, debt_epic) require at least
+ * one filePath; theme-only clusters without file paths are downgraded
+ * to watch.
  *
  * @param {object} finding — debt_finding shape with at least { score, _signalCount, signalIds }
  * @returns {ShapeOutcome}
@@ -50,30 +92,25 @@ function classifyShape(finding) {
   const score = finding.score ?? 0;
   const signalCount = finding._signalCount ?? (finding.signalIds?.length ?? 1);
 
-  if (score >= ITEM_THRESHOLD) {
+  if (score >= ITEM_THRESHOLD && hasFilePaths(finding)) {
     return signalCount > EPIC_SIGNAL_COUNT_THRESHOLD ? "debt_epic" : "remediation_item";
+  }
+  if (score >= ITEM_THRESHOLD) {
+    // High score but no file paths — downgrade to watch
+    return "watch";
   }
   if (score >= DEFER_THRESHOLD) return "defer";
   if (score >= WATCH_THRESHOLD) return "watch";
   return "dismiss";
 }
 
-/**
- * Derive deterministic timestamps from the finding's createdAt field.
- * Uses the finding's createdAt (which is derived from min signal timestamp
- * in cluster.mjs) for both createdAt and updatedAt.
- *
- * @param {object} finding — enriched debt_finding
- * @returns {{ createdAt: string, updatedAt: string }}
- */
-function deriveTimestamps(finding) {
-  const ts = finding.createdAt || new Date().toISOString();
-  return { createdAt: ts, updatedAt: ts };
-}
+// ============================================================================
+// Artifact builders
+// ============================================================================
 
 /**
  * Build a remediation_item artifact from a finding.
- * Uses structured _categories from the cluster to avoid regex-parsing description strings.
+ * Uses structured _categories from the cluster.
  *
  * @param {object} finding — enriched debt_finding with _categories array
  * @returns {object} RemediationItemSchema-compatible shape
