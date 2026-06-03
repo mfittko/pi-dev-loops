@@ -63,6 +63,16 @@ test("buildCreateDraftPrArgs appends --draft after a false-valued draft token", 
   );
 });
 
+test("buildCreateDraftPrArgs re-appends --draft when a later token disables it", () => {
+  assert.deepEqual(
+    buildCreateDraftPrArgs(["--draft", "--repo", "owner/repo", "--draft=false"]),
+    {
+      help: false,
+      ghArgs: ["pr", "create", "--draft", "--repo", "owner/repo", "--draft=false", "--draft"],
+    },
+  );
+});
+
 test("buildCreateDraftPrArgs treats --draft=true as already supplied", () => {
   assert.deepEqual(
     buildCreateDraftPrArgs(["--repo", "owner/repo", "--draft=true"]),
@@ -167,6 +177,29 @@ test("create-draft-pr appends --draft after --draft=false so draft-first still w
     assert.equal(result.stdout, "https://github.com/owner/repo/pull/17\n");
     assert.deepEqual(await readGhCalls(ghLogPath), [[
       "pr", "create", "--repo", "owner/repo", "--draft=false", "--draft",
+    ]]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("create-draft-pr re-appends --draft when a later token disables it", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-create-draft-pr-reappend-"));
+
+  try {
+    const { env, ghLogPath } = await writeGhStub(tempDir, [
+      {
+        stdout: "https://github.com/owner/repo/pull/17\n",
+      },
+    ]);
+
+    const result = await runNode(["--draft", "--repo", "owner/repo", "--draft=false"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    assert.equal(result.stdout, "https://github.com/owner/repo/pull/17\n");
+    assert.deepEqual(await readGhCalls(ghLogPath), [[
+      "pr", "create", "--draft", "--repo", "owner/repo", "--draft=false", "--draft",
     ]]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });

@@ -27,7 +27,8 @@ Exit codes:
 
 const parseError = buildParseError(USAGE);
 const READY_FLAG_PATTERN = /^--ready(?:$|=)/u;
-const DRAFT_TRUE_FLAG_PATTERN = /^--draft(?:=(?:true|1))?$/iu;
+const DRAFT_FLAG_PATTERN = /^--draft(?:=(.*))?$/iu;
+const DRAFT_TRUE_VALUE_PATTERN = /^(?:true|1)$/iu;
 
 export function buildCreateDraftPrArgs(argv) {
   const args = [...argv];
@@ -43,11 +44,13 @@ export function buildCreateDraftPrArgs(argv) {
     throw parseError("create-draft-pr rejects --ready; open the PR as draft first, then run `gh pr ready` after the draft gate is satisfied");
   }
 
-  const hasExplicitDraft = args.some((token) => DRAFT_TRUE_FLAG_PATTERN.test(token));
+  const draftTokens = args.filter((token) => DRAFT_FLAG_PATTERN.test(token));
+  const lastDraftToken = draftTokens.length > 0 ? draftTokens.at(-1) : null;
+  const lastDraftSuppliesDraft = lastDraftToken === "--draft" || (typeof lastDraftToken === "string" && DRAFT_TRUE_VALUE_PATTERN.test(lastDraftToken.slice("--draft=".length)));
 
   return {
     help: false,
-    ghArgs: ["pr", "create", ...args, ...(hasExplicitDraft ? [] : ["--draft"])],
+    ghArgs: ["pr", "create", ...args, ...(lastDraftSuppliesDraft ? [] : ["--draft"])],
   };
 }
 
