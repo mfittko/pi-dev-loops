@@ -314,7 +314,7 @@ describe("deep-persona signal extraction", () => {
       assert.ok(filename.endsWith(".json"));
     });
 
-    test("outputFilename format is deterministic", () => {
+    test("outputFilename has stable structure (prefix, prNumber, timestamp, .json)", () => {
       const filename = cliOutputFilename("42");
       const parts = filename.split("-");
       assert.ok(parts.length >= 5);
@@ -369,7 +369,7 @@ describe("deep-persona signal extraction", () => {
       assert.deepEqual(signals, []);
     });
 
-    test("null body in comment is handled", () => {
+    test("empty body in comment is handled", () => {
       const parsed = {
         comments: [
           {
