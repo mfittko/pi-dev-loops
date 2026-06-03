@@ -29,7 +29,7 @@
     "test:dev-loop": "node --test --test-reporter ./test/failure-summary-reporter.mjs skills/dev-loop/scripts/dev-mode-context.test.mjs skills/dev-loop/scripts/render-template.test.mjs",
     "playwright:install:safari": "playwright install webkit",
     "test:playwright:viewer": "playwright test -c playwright.inspect-run-viewer.config.mjs",
-    "test:docs": "node scripts/docs/validate-links.mjs"
+    "test:docs": "node scripts/docs/validate-links.mjs && node scripts/docs/validate-no-duplicate-rules.mjs"
   },
   "bin": {
     "pi-dev-loops": "./cli/index.mjs"
