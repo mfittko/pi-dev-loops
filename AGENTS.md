@@ -37,7 +37,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Use `npm run verify` as the default repo-level local verification path when a full local validation pass is warranted.
 - For public-facing or release-bound changes, prefer GitHub issues/PRs/CI over direct local-main finalization.
 - Use detailed structured PR descriptions, not thin placeholder summaries. At minimum include: change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals.
-- When creating GitHub issues or PRs via `gh issue create` or `gh pr create`, always include `--assignee @me` so the new artifact is self-assigned.
+- When creating GitHub issues via `gh issue create`, always include `--assignee @me` so the new artifact is self-assigned. When creating PRs in this repo, use `node scripts/github/create-draft-pr.mjs --assignee @me ...` so draft-first is enforced mechanically while preserving self-assignment.
 - In PR review/fix loops, do not stop at local code changes alone: after an accepted fix is pushed, reply to the addressed review comments with the resolving commit reference and resolve the corresponding threads when genuinely satisfied.
 - Do not merge directly to `main` without review when a PR-based remote loop is practical.
 

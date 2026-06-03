@@ -78,7 +78,8 @@ test("workflow-handoff-template requires self-assigned draft PR creation in the 
 
   const sequenceSection = content.slice(seqStart, nextSection);
 
-  assert.match(sequenceSection, /gh pr create --draft --assignee @me/i);
+  assert.match(sequenceSection, /node scripts\/github\/create-draft-pr\.mjs --assignee @me/i);
+  assert.doesNotMatch(sequenceSection, /gh pr create --draft --assignee @me/i);
 });
 
 test("workflow-handoff-template has Copilot review loop between draft_gate and pre_approval_gate", async () => {
