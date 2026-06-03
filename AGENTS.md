@@ -105,7 +105,7 @@ Use a conductor monitor as the queue-level human-in-the-loop watcher for active 
 - KISS
 - SRP
 - YAGNI
-- Structural quality: apply `deep` review angle standards during implementation; prefer deletion, justify files over ~1k lines, avoid spaghetti branching, thin wrappers, identity abstractions, and leaky shared-module abstractions.
+- Structural quality: apply `deep` review angle standards during implementation; see [Local Implementation](skills/local-implementation/SKILL.md#structural-quality-from-deep-review-angle).
 - for workflow surface and agent guidance decisions, YAGNI-driven simplification takes priority over preserving speculative compatibility or extra entrypoint names
 - one concise canonical version of each workflow contract, prompt surface, and operator path; delete superseded variants instead of keeping them around for comfort
 - no backwards-compatibility-by-default posture: do not add or preserve legacy names, aliases, compatibility shims, compatibility entrypoints, or duplicate docs/tests unless that compatibility is explicitly required and approved
