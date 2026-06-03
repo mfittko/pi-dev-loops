@@ -126,9 +126,11 @@ async function listOpenPrs({ repo }, { env, ghCommand }) {
   }
 
   const payload = parseJsonText(result.stdout);
-  const prs = Array.isArray(payload) ? payload : [];
+  if (!Array.isArray(payload)) {
+    throw new Error("Invalid gh pr list payload: expected an array");
+  }
 
-  return prs
+  return payload
     .map((pr) => ({
       number: Number.isInteger(pr?.number) ? pr.number : null,
       title: typeof pr?.title === "string" ? pr.title : "",
