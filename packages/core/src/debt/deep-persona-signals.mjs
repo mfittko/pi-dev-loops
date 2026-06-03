@@ -4,6 +4,9 @@ import { loadDevLoopConfig } from "../config/config.mjs";
 
 // ============================================================================
 // Flag phrase inventory — derived from personas.deep prompt in defaults.yaml
+//
+// Confidence values use the canonical DebtSignalSchema 0..1 range (0.9 = 90%).
+// This matches the schema default: z.number().min(0).max(1).default(1).
 // ============================================================================
 
 /** @type {Array<{ phrase: RegExp, category: string, severity: string, confidence: number }>} */
@@ -250,7 +253,11 @@ export function getDeepPersonaFlagPhrases() {
  * @returns {Promise<Array<string>>}
  */
 export async function verifyPromptStability() {
-  const { config } = await loadDevLoopConfig();
+  const { config, errors } = await loadDevLoopConfig();
+  if (errors.length > 0) {
+    throw new Error("Cannot verify prompt stability: config load errors: " +
+      errors.map(e => e.message).join("; "));
+  }
   const deepPrompt = config?.personas?.deep?.prompt ?? "";
 
   return FLAG_PATTERNS
