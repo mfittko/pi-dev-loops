@@ -1707,3 +1707,80 @@ describe("shipped defaults docs and deep angle wiring", () => {
     }
   });
 });
+// ── Integration: config wiring into actual consumers ──────────────────────
+
+test("print-gates uses resolveGateAngles (not raw gateConfig.angles)", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("../../../scripts/loop/print-gates.mjs", import.meta.url),
+    "utf8"
+  );
+  // Must import resolveGateAngles
+  assert.match(source, /resolveGateAngles/);
+  // Must use resolveGateAngles to get angles, not gateConfig.angles directly
+  assert.match(source, /resolveGateAngles\(config,\s*gate\)/);
+});
+
+test("existing wired scripts: outer-loop uses resolveAutonomyStopAt", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("../../../scripts/loop/outer-loop.mjs", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /resolveAutonomyStopAt/);
+  assert.match(source, /resolveAutonomyStopAt\(devLoopConfig\)/);
+});
+
+test("existing wired scripts: detect-copilot-loop-state uses resolveRefinement", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("../../../scripts/loop/detect-copilot-loop-state.mjs", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /resolveRefinement/);
+});
+
+test("existing wired scripts: upsert-gate-review-comment uses resolveRefinementConfig", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("../../../scripts/github/upsert-gate-review-comment.mjs", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /resolveRefinementConfig/);
+});
+
+test("existing wired scripts: detect-pr-gate-coordination-state uses resolveRefinementConfig", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("../../../scripts/loop/detect-pr-gate-coordination-state.mjs", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /resolveRefinementConfig/);
+});
+
+test("existing wired scripts: reconcile-draft-gate imports loadDevLoopConfig", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("../../../scripts/github/reconcile-draft-gate.mjs", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /loadDevLoopConfig/);
+});
+
+test("print-gates resolves excluded angles correctly via resolveGateAngles", async () => {
+  // Unit-level integration: resolveGateAngles with excludeAngles
+  const config = {
+    version: 1,
+    gates: {
+      preApproval: {
+        description: "pre-approval gate",
+        angles: ["deep", "dry", "scope"],
+        excludeAngles: ["dry"],
+      },
+    },
+  };
+  const angles = resolveGateAngles(config, "preApproval");
+  assert.deepStrictEqual(angles, ["deep", "scope"]);
+  // "dry" should be excluded
+  assert.ok(!angles.includes("dry"));
+});
