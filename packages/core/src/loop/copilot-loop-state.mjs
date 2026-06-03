@@ -353,10 +353,10 @@ export function interpretLoopState(snapshot, refinementConfig) {
     refinementConfig?.stopOnLowSignal === true
     && state === STATE.READY_TO_REREQUEST_REVIEW
     && s.copilotReviewRoundCount > (refinementConfig.lowSignalRoundThreshold ?? 3)
+    && s.actionableThreadCount <= (refinementConfig.lowSignalMaxComments ?? 2)
     && (
-      (s.lastCopilotRoundMaxSignal !== null && s.lastCopilotRoundMaxSignal !== "high")
-      || (s.lastCopilotRoundMaxSignal === null
-          && s.actionableThreadCount <= (refinementConfig.lowSignalMaxComments ?? 2))
+      s.lastCopilotRoundMaxSignal === null
+      || s.lastCopilotRoundMaxSignal !== "high"
     );
 
   if (lowSignalApplied) {

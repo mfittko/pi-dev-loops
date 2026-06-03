@@ -227,19 +227,22 @@ test("classifyThreadSignal: highest comment signal sets thread signal", () => {
 
 test("classifyReviewThreadsSignal: filters to Copilot-authored threads", () => {
   const isCopilot = (login) => /^copilot/i.test(login);
-  assert.equal(classifyReviewThreadsSignal({ threads: [
-    { comments: [{ body: "This bug is critical.", author: { login: "copilot-review[bot]" } }] },
-  ] }, isCopilot), "high");
+  // Use parseReviewThreads-compatible shape: flat comments with threadId, plus threads array
+  assert.equal(classifyReviewThreadsSignal({
+    threads: [{ id: "thread-1", isResolved: false, isActionable: true }],
+    comments: [{ threadId: "thread-1", body: "This bug is critical.", author: { login: "copilot-review[bot]" } }],
+  }, isCopilot), "high");
 });
 
 test("classifyReviewThreadsSignal: null when no Copilot threads", () => {
   const isCopilot = (login) => /^copilot/i.test(login);
-  assert.equal(classifyReviewThreadsSignal({ threads: [
-    { comments: [{ body: "ok", author: { login: "human" } }] },
-  ] }, isCopilot), null);
+  assert.equal(classifyReviewThreadsSignal({
+    threads: [{ id: "thread-1" }],
+    comments: [{ threadId: "thread-1", body: "ok", author: { login: "human" } }],
+  }, isCopilot), null);
 });
 
 test("classifyReviewThreadsSignal: empty result returns null", () => {
   const isCopilot = (login) => /^copilot/i.test(login);
-  assert.equal(classifyReviewThreadsSignal({ threads: [] }, isCopilot), null);
+  assert.equal(classifyReviewThreadsSignal({ threads: [], comments: [] }, isCopilot), null);
 });

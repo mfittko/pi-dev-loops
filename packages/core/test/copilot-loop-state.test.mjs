@@ -818,7 +818,7 @@ test("interpretLoopState suppresses when lastCopilotRoundMaxSignal is mid and th
     prExists: true, prNumber: 17,
     copilotReviewRequestStatus: "none", copilotReviewPresent: true,
     copilotReviewOnCurrentHead: false, unresolvedThreadCount: 0,
-    actionableThreadCount: 3, copilotReviewRoundCount: 5,
+    actionableThreadCount: 2, copilotReviewRoundCount: 5,
     lastCopilotRoundMaxSignal: "mid", ciStatus: "success",
   };
   const config = { stopOnLowSignal: true, lowSignalRoundThreshold: 3, lowSignalMaxComments: 2 };

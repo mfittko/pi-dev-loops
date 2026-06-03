@@ -275,102 +275,7 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (effectiveLifecycleState === STATE.BLOCKED_NEEDS_USER_DECISION || effectiveLifecycleState === STATE.REVIEW_REQUEST_UNAVAILABLE) {
-    if (effectiveLifecycleState === STATE.LOW_SIGNAL_CONVERGED) {
-    if (ciStatus === "failure") {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
-      pushUnique(forbiddenActions, postDraftForbidden);
-      return buildResult({
-        repo: input.repo ?? null,
-        pr: Number.isInteger(input.pr) ? input.pr : null,
-        currentHeadSha,
-        lifecycleState: STATE.BLOCKED_NEEDS_USER_DECISION,
-        loopDisposition: LOOP_DISPOSITION.BLOCKED,
-        gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
-        draftGateAlreadySatisfied,
-        draftGate,
-        preApprovalGate,
-        allowedNextActions,
-        forbiddenActions,
-        nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
-        reason: "The low-signal heuristic indicates convergence, but the current head still has failing CI.",
-        mergeStateStatus,
-        conflictFiles,
-      });
-    }
-    if (ciStatus === "pending" || ciStatus === "none") {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.WAIT_FOR_CI]);
-      pushUnique(forbiddenActions, postDraftForbidden);
-      return buildResult({
-        repo: input.repo ?? null,
-        pr: Number.isInteger(input.pr) ? input.pr : null,
-        currentHeadSha,
-        lifecycleState: STATE.WAITING_FOR_CI,
-        loopDisposition: LOOP_DISPOSITION.PENDING,
-        gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
-        draftGateAlreadySatisfied,
-        draftGate,
-        preApprovalGate,
-        allowedNextActions,
-        forbiddenActions,
-        nextAction: PR_GATE_ACTION.WAIT_FOR_CI,
-        reason: "The low-signal heuristic indicates convergence, but CI is not yet settled.",
-        mergeStateStatus,
-        conflictFiles,
-      });
-    }
-    if (preApprovalGate.currentHeadClean) {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
-      pushUnique(forbiddenActions, [
-        PR_GATE_ACTION.RUN_DRAFT_GATE,
-        PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-        PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-        PR_GATE_ACTION.DECLARE_MERGE_READY,
-      ]);
-      return buildResult({
-        repo: input.repo ?? null,
-        pr: Number.isInteger(input.pr) ? input.pr : null,
-        currentHeadSha,
-        lifecycleState: effectiveLifecycleState,
-        loopDisposition: LOOP_DISPOSITION.DONE,
-        gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
-        draftGateAlreadySatisfied,
-        draftGate,
-        preApprovalGate,
-        allowedNextActions,
-        forbiddenActions,
-        nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
-        reason: "Low-signal heuristic indicates convergence and clean pre-approval gate exists.",
-        mergeStateStatus,
-        conflictFiles,
-      });
-    }
-    pushUnique(allowedNextActions, [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE]);
-    pushUnique(forbiddenActions, [
-      PR_GATE_ACTION.RUN_DRAFT_GATE,
-      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-      PR_GATE_ACTION.DECLARE_MERGE_READY,
-    ]);
-    return buildResult({
-      repo: input.repo ?? null,
-      pr: Number.isInteger(input.pr) ? input.pr : null,
-      currentHeadSha,
-      lifecycleState: effectiveLifecycleState,
-      loopDisposition: LOOP_DISPOSITION.DONE,
-      gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
-      draftGateAlreadySatisfied,
-      draftGate,
-      preApprovalGate,
-      allowedNextActions,
-      forbiddenActions,
-      nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-      reason: "Low-signal heuristic indicates convergence (diminishing-returns signal detected), routing to pre_approval_gate.",
-      mergeStateStatus,
-      conflictFiles,
-    });
-  }
-
-  pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
+    pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
     pushUnique(forbiddenActions, [
       PR_GATE_ACTION.RUN_DRAFT_GATE,
       PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
@@ -443,102 +348,7 @@ export function evaluatePrGateCoordination(input = {}) {
 
     if (!draftGate.currentHeadClean && draftGateRequireCi) {
       if (ciStatus === "failure") {
-        if (effectiveLifecycleState === STATE.LOW_SIGNAL_CONVERGED) {
-    if (ciStatus === "failure") {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
-      pushUnique(forbiddenActions, postDraftForbidden);
-      return buildResult({
-        repo: input.repo ?? null,
-        pr: Number.isInteger(input.pr) ? input.pr : null,
-        currentHeadSha,
-        lifecycleState: STATE.BLOCKED_NEEDS_USER_DECISION,
-        loopDisposition: LOOP_DISPOSITION.BLOCKED,
-        gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
-        draftGateAlreadySatisfied,
-        draftGate,
-        preApprovalGate,
-        allowedNextActions,
-        forbiddenActions,
-        nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
-        reason: "The low-signal heuristic indicates convergence, but the current head still has failing CI.",
-        mergeStateStatus,
-        conflictFiles,
-      });
-    }
-    if (ciStatus === "pending" || ciStatus === "none") {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.WAIT_FOR_CI]);
-      pushUnique(forbiddenActions, postDraftForbidden);
-      return buildResult({
-        repo: input.repo ?? null,
-        pr: Number.isInteger(input.pr) ? input.pr : null,
-        currentHeadSha,
-        lifecycleState: STATE.WAITING_FOR_CI,
-        loopDisposition: LOOP_DISPOSITION.PENDING,
-        gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
-        draftGateAlreadySatisfied,
-        draftGate,
-        preApprovalGate,
-        allowedNextActions,
-        forbiddenActions,
-        nextAction: PR_GATE_ACTION.WAIT_FOR_CI,
-        reason: "The low-signal heuristic indicates convergence, but CI is not yet settled.",
-        mergeStateStatus,
-        conflictFiles,
-      });
-    }
-    if (preApprovalGate.currentHeadClean) {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
-      pushUnique(forbiddenActions, [
-        PR_GATE_ACTION.RUN_DRAFT_GATE,
-        PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-        PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-        PR_GATE_ACTION.DECLARE_MERGE_READY,
-      ]);
-      return buildResult({
-        repo: input.repo ?? null,
-        pr: Number.isInteger(input.pr) ? input.pr : null,
-        currentHeadSha,
-        lifecycleState: effectiveLifecycleState,
-        loopDisposition: LOOP_DISPOSITION.DONE,
-        gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
-        draftGateAlreadySatisfied,
-        draftGate,
-        preApprovalGate,
-        allowedNextActions,
-        forbiddenActions,
-        nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
-        reason: "Low-signal heuristic indicates convergence and clean pre-approval gate exists.",
-        mergeStateStatus,
-        conflictFiles,
-      });
-    }
-    pushUnique(allowedNextActions, [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE]);
-    pushUnique(forbiddenActions, [
-      PR_GATE_ACTION.RUN_DRAFT_GATE,
-      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-      PR_GATE_ACTION.DECLARE_MERGE_READY,
-    ]);
-    return buildResult({
-      repo: input.repo ?? null,
-      pr: Number.isInteger(input.pr) ? input.pr : null,
-      currentHeadSha,
-      lifecycleState: effectiveLifecycleState,
-      loopDisposition: LOOP_DISPOSITION.DONE,
-      gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
-      draftGateAlreadySatisfied,
-      draftGate,
-      preApprovalGate,
-      allowedNextActions,
-      forbiddenActions,
-      nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-      reason: "Low-signal heuristic indicates convergence (diminishing-returns signal detected), routing to pre_approval_gate.",
-      mergeStateStatus,
-      conflictFiles,
-    });
-  }
-
-  pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
+        pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
         pushUnique(forbiddenActions, [
           PR_GATE_ACTION.RUN_DRAFT_GATE,
           ...draftReviewForbidden,
@@ -772,102 +582,7 @@ export function evaluatePrGateCoordination(input = {}) {
 
   if (effectiveLifecycleState === STATE.READY_TO_REREQUEST_REVIEW) {
     if (ciStatus === "failure") {
-      if (effectiveLifecycleState === STATE.LOW_SIGNAL_CONVERGED) {
-    if (ciStatus === "failure") {
       pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
-      pushUnique(forbiddenActions, postDraftForbidden);
-      return buildResult({
-        repo: input.repo ?? null,
-        pr: Number.isInteger(input.pr) ? input.pr : null,
-        currentHeadSha,
-        lifecycleState: STATE.BLOCKED_NEEDS_USER_DECISION,
-        loopDisposition: LOOP_DISPOSITION.BLOCKED,
-        gateBoundary: PR_GATE_BOUNDARY.BLOCKED,
-        draftGateAlreadySatisfied,
-        draftGate,
-        preApprovalGate,
-        allowedNextActions,
-        forbiddenActions,
-        nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
-        reason: "The low-signal heuristic indicates convergence, but the current head still has failing CI.",
-        mergeStateStatus,
-        conflictFiles,
-      });
-    }
-    if (ciStatus === "pending" || ciStatus === "none") {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.WAIT_FOR_CI]);
-      pushUnique(forbiddenActions, postDraftForbidden);
-      return buildResult({
-        repo: input.repo ?? null,
-        pr: Number.isInteger(input.pr) ? input.pr : null,
-        currentHeadSha,
-        lifecycleState: STATE.WAITING_FOR_CI,
-        loopDisposition: LOOP_DISPOSITION.PENDING,
-        gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
-        draftGateAlreadySatisfied,
-        draftGate,
-        preApprovalGate,
-        allowedNextActions,
-        forbiddenActions,
-        nextAction: PR_GATE_ACTION.WAIT_FOR_CI,
-        reason: "The low-signal heuristic indicates convergence, but CI is not yet settled.",
-        mergeStateStatus,
-        conflictFiles,
-      });
-    }
-    if (preApprovalGate.currentHeadClean) {
-      pushUnique(allowedNextActions, [PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
-      pushUnique(forbiddenActions, [
-        PR_GATE_ACTION.RUN_DRAFT_GATE,
-        PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-        PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-        PR_GATE_ACTION.DECLARE_MERGE_READY,
-      ]);
-      return buildResult({
-        repo: input.repo ?? null,
-        pr: Number.isInteger(input.pr) ? input.pr : null,
-        currentHeadSha,
-        lifecycleState: effectiveLifecycleState,
-        loopDisposition: LOOP_DISPOSITION.DONE,
-        gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
-        draftGateAlreadySatisfied,
-        draftGate,
-        preApprovalGate,
-        allowedNextActions,
-        forbiddenActions,
-        nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
-        reason: "Low-signal heuristic indicates convergence and clean pre-approval gate exists.",
-        mergeStateStatus,
-        conflictFiles,
-      });
-    }
-    pushUnique(allowedNextActions, [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE]);
-    pushUnique(forbiddenActions, [
-      PR_GATE_ACTION.RUN_DRAFT_GATE,
-      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-      PR_GATE_ACTION.DECLARE_MERGE_READY,
-    ]);
-    return buildResult({
-      repo: input.repo ?? null,
-      pr: Number.isInteger(input.pr) ? input.pr : null,
-      currentHeadSha,
-      lifecycleState: effectiveLifecycleState,
-      loopDisposition: LOOP_DISPOSITION.DONE,
-      gateBoundary: PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
-      draftGateAlreadySatisfied,
-      draftGate,
-      preApprovalGate,
-      allowedNextActions,
-      forbiddenActions,
-      nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-      reason: "Low-signal heuristic indicates convergence (diminishing-returns signal detected), routing to pre_approval_gate.",
-      mergeStateStatus,
-      conflictFiles,
-    });
-  }
-
-  pushUnique(allowedNextActions, [PR_GATE_ACTION.REPORT_BLOCKED]);
       pushUnique(forbiddenActions, postDraftForbidden);
       return buildResult({
         repo: input.repo ?? null,
@@ -1013,7 +728,7 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_GATE_ACTION.REPORT_BLOCKED,
-        reason: "The low-signal heuristic indicates convergence, but the current head still has failing CI.",
+        reason: "The low-signal heuristic indicates convergence, but the current head still has failing CI, so gate progression remains blocked.",
         mergeStateStatus,
         conflictFiles,
       });
@@ -1034,7 +749,7 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_GATE_ACTION.WAIT_FOR_CI,
-        reason: "The low-signal heuristic indicates convergence, but CI is not yet settled.",
+        reason: "The low-signal heuristic indicates convergence, but the current head does not yet have green or credibly green CI.",
         mergeStateStatus,
         conflictFiles,
       });
@@ -1060,7 +775,7 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
-        reason: "Low-signal heuristic indicates convergence and clean pre-approval gate exists.",
+        reason: "Low-signal heuristic indicates convergence and current-head clean pre_approval_gate evidence exists.",
         mergeStateStatus,
         conflictFiles,
       });
@@ -1085,7 +800,7 @@ export function evaluatePrGateCoordination(input = {}) {
       allowedNextActions,
       forbiddenActions,
       nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-      reason: "Low-signal heuristic indicates convergence (diminishing-returns signal detected), routing to pre_approval_gate.",
+      reason: "Low-signal heuristic indicates convergence (diminishing-returns signal detected), routing to pre_approval_gate instead of re-requesting Copilot.",
       mergeStateStatus,
       conflictFiles,
     });

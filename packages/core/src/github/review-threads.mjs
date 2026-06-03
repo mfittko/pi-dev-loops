@@ -234,14 +234,25 @@ export function classifyThreadSignal(thread) {
  */
 export function classifyReviewThreadsSignal(parsedResult, isCopilotLoginFn) {
   const threads = Array.isArray(parsedResult?.threads) ? parsedResult.threads : [];
+  const flatComments = Array.isArray(parsedResult?.comments) ? parsedResult.comments : [];
+  if (flatComments.length === 0) return null;
+
+  // Group comments by threadId
+  const commentsByThread = new Map();
+  for (const comment of flatComments) {
+    const tid = comment.threadId ?? "unknown";
+    if (!commentsByThread.has(tid)) commentsByThread.set(tid, []);
+    commentsByThread.get(tid).push(comment);
+  }
+
   let maxSignal = null;
   for (const thread of threads) {
-    const comments = Array.isArray(thread?.comments) ? thread.comments : [];
-    const hasCopilotComment = comments.some(
+    const threadComments = commentsByThread.get(thread.id) ?? [];
+    const hasCopilotComment = threadComments.some(
       (c) => typeof c?.author?.login === "string" && isCopilotLoginFn(c.author.login),
     );
     if (!hasCopilotComment) continue;
-    const signal = classifyThreadSignal({ comments });
+    const signal = classifyThreadSignal({ comments: threadComments });
     if (signal === "high") return "high";
     if (maxSignal === null || (signal === "mid" && maxSignal === "low")) {
       maxSignal = signal;

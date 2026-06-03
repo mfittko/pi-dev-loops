@@ -24,7 +24,7 @@ const RefinementConfig = z.strictObject({
   fanOut: z.number().int().min(1).max(10),
   mode: z.enum(["parallel", "sequential"]),
   maxCopilotRounds: z.number().int().positive().default(5),
-  stopOnLowSignal: z.boolean().default(true),
+  stopOnLowSignal: z.boolean().default(false),
   lowSignalRoundThreshold: z.number().int().nonnegative().default(3),
   lowSignalMaxComments: z.number().int().nonnegative().default(2),
   roles: z.array(z.string().trim().min(1)).optional(),
@@ -103,7 +103,7 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
   version: 1,
   strategy: Object.freeze({ default: "github-first" }),
   models: Object.freeze({}),
-  refinement: Object.freeze({ fanOut: 3, mode: "parallel", maxCopilotRounds: 5, stopOnLowSignal: true, lowSignalRoundThreshold: 3, lowSignalMaxComments: 2 }),
+  refinement: Object.freeze({ fanOut: 3, mode: "parallel", maxCopilotRounds: 5, stopOnLowSignal: false, lowSignalRoundThreshold: 3, lowSignalMaxComments: 2 }),
   gates: Object.freeze({}),
   autonomy: Object.freeze({ stopAt: Object.freeze(["merge"]) }),
   workflow: Object.freeze({
@@ -566,7 +566,7 @@ export function resolveRefinementConfig(config, key) {
  *
  * Returns `{ fanOut, mode, roles, maxCopilotRounds, stopOnLowSignal, lowSignalRoundThreshold, lowSignalMaxComments }` with sensible built-in
  * defaults (`fanOut: 3`, `mode: "parallel"`, `roles: null`,
- * `maxCopilotRounds: 5`, `stopOnLowSignal: true`, `lowSignalRoundThreshold: 3`,
+ * `maxCopilotRounds: 5`, `stopOnLowSignal: false`, `lowSignalRoundThreshold: 3`,
  * `lowSignalMaxComments: 2`).
  *
  * Accepts the validated DevLoopConfig from {@link loadDevLoopConfig}.
