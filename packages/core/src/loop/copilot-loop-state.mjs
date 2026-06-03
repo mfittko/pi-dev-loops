@@ -37,6 +37,11 @@ export const STATE = Object.freeze({
    */
   READY_TO_REREQUEST_REVIEW: "ready_to_rerequest_review",
   /**
+   * Low-signal heuristic stopped the re-request loop. Round count exceeded
+   * threshold with only minimal actionable feedback per round.
+   */
+  LOW_SIGNAL_CONVERGED: "low_signal_converged",
+  /**
    * Copilot review request returned `unavailable`. Must stop/report.
    * Do not sleep or watch as if review were requested.
    */
@@ -96,6 +101,7 @@ export const TRANSITIONS = Object.freeze({
   ],
   [STATE.BLOCKED_NEEDS_USER_DECISION]: [],
   [STATE.DONE]: [],
+  [STATE.LOW_SIGNAL_CONVERGED]: [],
 });
 
 /** Recommended next action for each state. */
@@ -110,6 +116,7 @@ const NEXT_ACTIONS = Object.freeze({
   [STATE.REVIEW_REQUEST_UNAVAILABLE]: "Report that Copilot review is unavailable and stop; do not sleep or watch as if review were requested",
   [STATE.WAITING_FOR_CI]: "Wait for CI checks to complete or become available",
   [STATE.BLOCKED_NEEDS_USER_DECISION]: "Report the blocked state to the user and stop; do not proceed without explicit authorization",
+  [STATE.LOW_SIGNAL_CONVERGED]: "Low-signal heuristic stopped re-request loop: round count exceeded threshold with only minimal actionable feedback; treat as converged",
   [STATE.DONE]: "Loop is complete; confirm merge-readiness or close",
 });
 
@@ -141,6 +148,7 @@ export function buildSnapshotFromPrFacts({
   actionableThreadCount = 0,
   copilotReviewRoundCount = 0,
   ciStatus,
+  lastCopilotRoundMaxSignal = null,
 }) {
   const prState = typeof prData?.state === "string" ? prData.state.toUpperCase() : "OPEN";
   const prMerged = prState === "MERGED";
@@ -158,6 +166,7 @@ export function buildSnapshotFromPrFacts({
     unresolvedThreadCount,
     actionableThreadCount,
     copilotReviewRoundCount,
+    lastCopilotRoundMaxSignal,
     ciStatus: ciStatus ?? normalizeCiStatus(prData?.statusCheckRollup),
   });
 }
@@ -192,11 +201,14 @@ function isAutoRerequestEligible(snapshot, state) {
  * - actionableThreadCount {number} — unresolved threads with non-bot actionable comments
  * - copilotReviewRoundCount {number} — completed Copilot review rounds observed on the PR
  * - ciStatus {"success"|"failure"|"pending"|"none"|"crediblyGreen"} — current CI check rollup status
+ * - lastCopilotRoundMaxSignal {"high"|"mid"|"low"|null} — highest signal level across Copilot-authored threads
  * - agentFixStatus {"applied"|null} — agent-provided input: "applied" when code has been fixed
  *
  * @param {object} raw - raw snapshot input
  * @returns {object} normalized snapshot
  */
+const VALID_SIGNAL_LEVELS = new Set(["high", "mid", "low"]);
+
 export function normalizeSnapshot(raw) {
   if (!raw || typeof raw !== "object") {
     throw new Error("Snapshot must be a non-null object");
@@ -229,6 +241,7 @@ export function normalizeSnapshot(raw) {
       ? Math.floor(raw.copilotReviewRoundCount)
       : 0,
     ciStatus: VALID_CI_STATUSES.has(raw.ciStatus) ? raw.ciStatus : "none",
+    lastCopilotRoundMaxSignal: VALID_SIGNAL_LEVELS.has(raw.lastCopilotRoundMaxSignal) ? raw.lastCopilotRoundMaxSignal : null,
     agentFixStatus: raw.agentFixStatus === "applied" ? "applied" : null,
   };
 }
@@ -277,6 +290,10 @@ export function applyConfirmedReviewRequest(snapshot, reviewRequestStatus) {
  *   routes into waiting_for_copilot_review until that request is conclusively settled for this head
  *
  * @param {object} snapshot - raw or normalized snapshot
+ * @param {object} [refinementConfig] - optional refinement config with low-signal heuristic fields
+ * @param {boolean} [refinementConfig.stopOnLowSignal]
+ * @param {number} [refinementConfig.lowSignalRoundThreshold]
+ * @param {number} [refinementConfig.lowSignalMaxComments]
  * @returns {{
  *   state: string,
  *   allowedTransitions: string[],
@@ -285,7 +302,7 @@ export function applyConfirmedReviewRequest(snapshot, reviewRequestStatus) {
  *   sameHeadCleanConverged: boolean
  * }}
  */
-export function interpretLoopState(snapshot) {
+export function interpretLoopState(snapshot, refinementConfig) {
   const s = normalizeSnapshot(snapshot);
 
   let state;
@@ -329,6 +346,23 @@ export function interpretLoopState(snapshot) {
     }
   }
 
+  // Low-signal heuristic: when configured and last Copilot round signal
+  // classification is mid or low (not high), suppress re-request.
+  // Falls back to actionableThreadCount heuristic when signal data is null.
+  const lowSignalApplied =
+    refinementConfig?.stopOnLowSignal === true
+    && state === STATE.READY_TO_REREQUEST_REVIEW
+    && s.copilotReviewRoundCount > (refinementConfig.lowSignalRoundThreshold ?? 3)
+    && s.actionableThreadCount <= (refinementConfig.lowSignalMaxComments ?? 2)
+    && (
+      s.lastCopilotRoundMaxSignal === null
+      || s.lastCopilotRoundMaxSignal !== "high"
+    );
+
+  if (lowSignalApplied) {
+    state = STATE.LOW_SIGNAL_CONVERGED;
+  }
+
   const autoRerequestEligible = isAutoRerequestEligible(s, state);
   const sameHeadCleanConverged = state === STATE.READY_TO_REREQUEST_REVIEW
     && s.copilotReviewOnCurrentHead
@@ -356,12 +390,12 @@ export function interpretLoopState(snapshot) {
  * @param {object} snapshotOrInterpretation - raw snapshot, normalized snapshot, or interpretLoopState() output
  * @returns {{ loopDisposition: string, terminal: boolean }}
  */
-export function summarizeLoopInterpretation(snapshotOrInterpretation) {
+export function summarizeLoopInterpretation(snapshotOrInterpretation, refinementConfig) {
   const interpretation = Array.isArray(snapshotOrInterpretation?.allowedTransitions)
     && typeof snapshotOrInterpretation?.state === "string"
     && typeof snapshotOrInterpretation?.nextAction === "string"
     ? snapshotOrInterpretation
-    : interpretLoopState(snapshotOrInterpretation);
+    : interpretLoopState(snapshotOrInterpretation, refinementConfig);
 
   let loopDisposition;
 
@@ -378,6 +412,7 @@ export function summarizeLoopInterpretation(snapshotOrInterpretation) {
     case STATE.BLOCKED_NEEDS_USER_DECISION:
       loopDisposition = LOOP_DISPOSITION.BLOCKED;
       break;
+    case STATE.LOW_SIGNAL_CONVERGED:
     case STATE.DONE:
       loopDisposition = LOOP_DISPOSITION.DONE;
       break;

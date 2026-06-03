@@ -581,3 +581,70 @@ test("converged non-draft PR without clean draft_gate evidence can still reach f
   assert.equal(result.preApprovalGate.currentHeadClean, true);
 });
 
+
+// ── LOW_SIGNAL_CONVERGED gate routing tests ─────────────────────────────
+
+import { normalizeSnapshot } from "../src/loop/copilot-loop-state.mjs";
+
+test("LOW_SIGNAL_CONVERGED routes to pre-approval gate when CI is green", () => {
+  const result = evaluatePrGateCoordination({
+    repo: "owner/repo", pr: 17,
+    lifecycleState: STATE.LOW_SIGNAL_CONVERGED,
+    loopDisposition: LOOP_DISPOSITION.DONE,
+    prDraft: false, ciStatus: "success",
+    draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
+    preApprovalGate: {},
+  });
+  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
+  assert.ok(!result.allowedNextActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
+  assert.match(result.reason, /low-signal/i);
+});
+
+test("LOW_SIGNAL_CONVERGED with clean pre-approval gate advances to final approval", () => {
+  const result = evaluatePrGateCoordination({
+    repo: "owner/repo", pr: 17, currentHeadSha: "abc1234",
+    lifecycleState: STATE.LOW_SIGNAL_CONVERGED, loopDisposition: LOOP_DISPOSITION.DONE,
+    prDraft: false, ciStatus: "success",
+    preApprovalGate: { visible: true, verdict: "clean", headSha: "abc1234" },
+    preApprovalGateMarker: { visible: true, verdict: "clean", headSha: "abc1234", contractComplete: true },
+    draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
+  });
+  assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+  assert.match(result.reason, /low-signal/i);
+});
+
+test("LOW_SIGNAL_CONVERGED waits for CI when pending", () => {
+  const result = evaluatePrGateCoordination({
+    repo: "owner/repo", pr: 17,
+    lifecycleState: STATE.LOW_SIGNAL_CONVERGED, loopDisposition: LOOP_DISPOSITION.DONE,
+    prDraft: false, ciStatus: "pending",
+    draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
+    preApprovalGate: {},
+  });
+  assert.equal(result.nextAction, PR_GATE_ACTION.WAIT_FOR_CI);
+});
+
+test("LOW_SIGNAL_CONVERGED blocks on CI failure", () => {
+  const result = evaluatePrGateCoordination({
+    repo: "owner/repo", pr: 17,
+    lifecycleState: STATE.LOW_SIGNAL_CONVERGED, loopDisposition: LOOP_DISPOSITION.DONE,
+    prDraft: false, ciStatus: "failure",
+    draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
+    preApprovalGate: {},
+  });
+  assert.equal(result.nextAction, PR_GATE_ACTION.REPORT_BLOCKED);
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
+});
+
+test("normalizeSnapshot preserves valid lastCopilotRoundMaxSignal", () => {
+  assert.equal(normalizeSnapshot({ prExists: true, prNumber: 17, lastCopilotRoundMaxSignal: "high" }).lastCopilotRoundMaxSignal, "high");
+  assert.equal(normalizeSnapshot({ prExists: true, prNumber: 17, lastCopilotRoundMaxSignal: "mid" }).lastCopilotRoundMaxSignal, "mid");
+  assert.equal(normalizeSnapshot({ prExists: true, prNumber: 17, lastCopilotRoundMaxSignal: "low" }).lastCopilotRoundMaxSignal, "low");
+});
+
+test("normalizeSnapshot rejects invalid lastCopilotRoundMaxSignal values", () => {
+  assert.equal(normalizeSnapshot({ prExists: true, prNumber: 17, lastCopilotRoundMaxSignal: "critical" }).lastCopilotRoundMaxSignal, null);
+  assert.equal(normalizeSnapshot({ prExists: true, prNumber: 17, lastCopilotRoundMaxSignal: "" }).lastCopilotRoundMaxSignal, null);
+  assert.equal(normalizeSnapshot({ prExists: true, prNumber: 17 }).lastCopilotRoundMaxSignal, null);
+});

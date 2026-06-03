@@ -164,6 +164,108 @@ export function parseReviewThreads(payload) {
   };
 }
 
+// ── Signal classification heuristics ──────────────────────────────────────
+
+const HIGH_SIGNAL_PATTERNS = [
+  /\bbug\b/i, /\bcrash\b/i, /\bsecurity\b/i, /\bvulnerab/i,
+  /\bcontract\b/i, /\bbroken\b/i, /\bincorrect\b/i, /\bwrong\b/i,
+  /\bsilent(?:ly)?\b/i, /\bdata.?loss\b/i, /\brace.?condition\b/i,
+  /\bmemory.?leak\b/i, /\binfinite.?loop\b/i, /\bdeadlock\b/i,
+  /\bexception\b/i, /\bfatal\b/i, /\bcorrupt/i, /\bdiverg/i,
+  /\binconsisten/i, /\bregression\b/i, /\blost\b/i, /\bmissing\b/i,
+];
+
+const MID_SIGNAL_PATTERNS = [
+  /\brefactor\b/i, /\brestructur/i, /\breorganiz/i,
+  /\bperform(?:ance)?\b/i, /\barchitect/i, /\bdesign\b/i,
+  /\b(?:should\s+)?consider\b/i, /\b(?:\w+\s+)?maybe\b/i,
+  /\balternative\b/i, /\bimprove(?:ment)?\b/i, /\bextract\b/i,
+  /\babstract(?:ion)?\b/i, /\bdry\b/i, /\bsimplif/i,
+  /\bduplicat/i, /\bunnecessary/i, /\bover.engineer/i,
+  /\bcould\b/i, /\bwould\b/i, /\bsuggest/i, /\brecommend/i,
+  /\bprefer\b/i, /\bbetter\b/i, /\bclean(?:er)?\b/i,
+  /\breus(?:e|able)\b/i, /\btestable/i, /\bconsistent/i,
+];
+
+/**
+ * Classify a single comment by signal level using heuristic keyword matching.
+ * No AI or API confidence data is used.
+ *
+ * @param {{ body?: string|null }} comment
+ * @returns {"high"|"mid"|"low"}
+ */
+export function classifyCommentSignal(comment) {
+  const body = (typeof comment?.body === "string" ? comment.body : "").trim();
+  if (body.length === 0) return "low";
+
+  for (const pattern of HIGH_SIGNAL_PATTERNS) {
+    if (pattern.test(body)) return "high";
+  }
+  for (const pattern of MID_SIGNAL_PATTERNS) {
+    if (pattern.test(body)) return "mid";
+  }
+  return "low";
+}
+
+/**
+ * Classify a review thread by its highest comment signal level.
+ *
+ * @param {{ comments: Array<{ body?: string|null }> }} thread
+ * @returns {"high"|"mid"|"low"}
+ */
+export function classifyThreadSignal(thread) {
+  const comments = Array.isArray(thread?.comments) ? thread.comments : [];
+  let maxSignal = "low";
+  for (const comment of comments) {
+    const signal = classifyCommentSignal(comment);
+    if (signal === "high") return "high";
+    if (signal === "mid") maxSignal = "mid";
+  }
+  return maxSignal;
+}
+
+/**
+ * Determine the maximum signal level across all Copilot-authored threads.
+ *
+ * Filters threads to those containing at least one Copilot-authored comment,
+ * then classifies the signal level using all comments in those threads
+ * (including human replies in Copilot threads, which may clarify severity).
+ * Returns null if no Copilot-authored threads exist.
+ *
+ * @param {{ threads: Array<object>, comments: Array<object> }} parsedResult — output of parseReviewThreads()
+ * @param {(login: string) => boolean} isCopilotLoginFn — predicate for Copilot authors
+ * @returns {"high"|"mid"|"low"|null}
+ */
+export function classifyReviewThreadsSignal(parsedResult, isCopilotLoginFn) {
+  const threads = Array.isArray(parsedResult?.threads) ? parsedResult.threads : [];
+  const flatComments = Array.isArray(parsedResult?.comments) ? parsedResult.comments : [];
+  if (flatComments.length === 0) return null;
+
+  // Group comments by threadId
+  const commentsByThread = new Map();
+  for (const comment of flatComments) {
+    const tid = comment.threadId ?? "unknown";
+    if (!commentsByThread.has(tid)) commentsByThread.set(tid, []);
+    commentsByThread.get(tid).push(comment);
+  }
+
+  let maxSignal = null;
+  for (const thread of threads) {
+    const threadComments = commentsByThread.get(thread.id) ?? [];
+    const hasCopilotComment = threadComments.some(
+      (c) => typeof c?.author?.login === "string" && isCopilotLoginFn(c.author.login),
+    );
+    if (!hasCopilotComment) continue;
+    const signal = classifyThreadSignal({ comments: threadComments });
+    if (signal === "high") return "high";
+    if (maxSignal === null || (signal === "mid" && maxSignal === "low")) {
+      maxSignal = signal;
+    }
+  }
+  return maxSignal;
+}
+
+
 function requireOptionValue(args, flag) {
   const value = args.shift();
 

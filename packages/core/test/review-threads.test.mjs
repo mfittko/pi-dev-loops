@@ -173,3 +173,76 @@ test("parseReviewThreads preserves numeric review comment database ids for REST 
     },
   ]);
 });
+
+// ── Signal classification tests ──────────────────────────────────────────
+
+import {
+  classifyCommentSignal,
+  classifyThreadSignal,
+  classifyReviewThreadsSignal,
+} from "../src/github/review-threads.mjs";
+
+test("classifyCommentSignal: low — empty or whitespace body", () => {
+  assert.equal(classifyCommentSignal({ body: "" }), "low");
+  assert.equal(classifyCommentSignal({ body: "   " }), "low");
+  assert.equal(classifyCommentSignal({}), "low");
+});
+
+test("classifyCommentSignal: low — cosmetic nit comments", () => {
+  assert.equal(classifyCommentSignal({ body: "nit: extra space" }), "low");
+  assert.equal(classifyCommentSignal({ body: "Rename this variable." }), "low");
+  assert.equal(classifyCommentSignal({ body: "Spacing is off here." }), "low");
+  assert.equal(classifyCommentSignal({ body: "Please add a comment." }), "low");
+});
+
+test("classifyCommentSignal: high — bug, security, crash keywords", () => {
+  assert.equal(classifyCommentSignal({ body: "This bug causes data loss." }), "high");
+  assert.equal(classifyCommentSignal({ body: "There is a security vulnerability here." }), "high");
+  assert.equal(classifyCommentSignal({ body: "This will crash on null input." }), "high");
+  assert.equal(classifyCommentSignal({ body: "The contract is broken" }), "high");
+  assert.equal(classifyCommentSignal({ body: "This silently drops errors." }), "high");
+  assert.equal(classifyCommentSignal({ body: "Memory leak in the event handler." }), "high");
+});
+
+test("classifyCommentSignal: mid — refactor, design, improvement suggestions", () => {
+  assert.equal(classifyCommentSignal({ body: "Consider refactoring this method." }), "mid");
+  assert.equal(classifyCommentSignal({ body: "The architecture here could be improved." }), "mid");
+  assert.equal(classifyCommentSignal({ body: "I would suggest using a different pattern." }), "mid");
+  assert.equal(classifyCommentSignal({ body: "This is duplicated; DRY it up." }), "mid");
+});
+
+test("classifyCommentSignal: high keywords take priority over mid keywords", () => {
+  assert.equal(classifyCommentSignal({ body: "This bug in the refactored code" }), "high");
+});
+
+test("classifyThreadSignal: highest comment signal sets thread signal", () => {
+  assert.equal(classifyThreadSignal({ comments: [
+    { body: "nit: spacing" }, { body: "This bug causes a crash." },
+  ] }), "high");
+  assert.equal(classifyThreadSignal({ comments: [
+    { body: "nit: spacing" }, { body: "Consider simplifying this." },
+  ] }), "mid");
+  assert.equal(classifyThreadSignal({ comments: [] }), "low");
+});
+
+test("classifyReviewThreadsSignal: filters to Copilot-authored threads", () => {
+  const isCopilot = (login) => /^copilot/i.test(login);
+  // Use parseReviewThreads-compatible shape: flat comments with threadId, plus threads array
+  assert.equal(classifyReviewThreadsSignal({
+    threads: [{ id: "thread-1", isResolved: false, isActionable: true }],
+    comments: [{ threadId: "thread-1", body: "This bug is critical.", author: { login: "copilot-review[bot]" } }],
+  }, isCopilot), "high");
+});
+
+test("classifyReviewThreadsSignal: null when no Copilot threads", () => {
+  const isCopilot = (login) => /^copilot/i.test(login);
+  assert.equal(classifyReviewThreadsSignal({
+    threads: [{ id: "thread-1" }],
+    comments: [{ threadId: "thread-1", body: "ok", author: { login: "human" } }],
+  }, isCopilot), null);
+});
+
+test("classifyReviewThreadsSignal: empty result returns null", () => {
+  const isCopilot = (login) => /^copilot/i.test(login);
+  assert.equal(classifyReviewThreadsSignal({ threads: [], comments: [] }, isCopilot), null);
+});

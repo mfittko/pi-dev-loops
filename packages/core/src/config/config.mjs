@@ -24,6 +24,9 @@ const RefinementConfig = z.strictObject({
   fanOut: z.number().int().min(1).max(10),
   mode: z.enum(["parallel", "sequential"]),
   maxCopilotRounds: z.number().int().positive().default(5),
+  stopOnLowSignal: z.boolean().default(false),
+  lowSignalRoundThreshold: z.number().int().nonnegative().default(3),
+  lowSignalMaxComments: z.number().int().nonnegative().default(2),
   roles: z.array(z.string().trim().min(1)).optional(),
 });
 
@@ -100,7 +103,7 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
   version: 1,
   strategy: Object.freeze({ default: "github-first" }),
   models: Object.freeze({}),
-  refinement: Object.freeze({ fanOut: 3, mode: "parallel", maxCopilotRounds: 5 }),
+  refinement: Object.freeze({ fanOut: 3, mode: "parallel", maxCopilotRounds: 5, stopOnLowSignal: false, lowSignalRoundThreshold: 3, lowSignalMaxComments: 2 }),
   gates: Object.freeze({}),
   autonomy: Object.freeze({ stopAt: Object.freeze(["merge"]) }),
   workflow: Object.freeze({
@@ -521,8 +524,8 @@ const DEFAULT_WORKFLOW_CONFIG = BUILT_IN_DEFAULTS.workflow;
  * requested key.
  *
  * @param {DevLoopConfig} config
- * @param {"fanOut"|"mode"|"roles"|"maxCopilotRounds"} key
- * @returns {number|"parallel"|"sequential"|string[]|null}
+ * @param {"fanOut"|"mode"|"roles"|"maxCopilotRounds"|"stopOnLowSignal"|"lowSignalRoundThreshold"|"lowSignalMaxComments"} key
+ * @returns {number|"parallel"|"sequential"|string[]|boolean|null}
  */
 export function resolveRefinementConfig(config, key) {
   if (key === "roles") {
@@ -543,27 +546,43 @@ export function resolveRefinementConfig(config, key) {
     return config?.refinement?.maxCopilotRounds ?? DEFAULT_REFINEMENT_CONFIG.maxCopilotRounds;
   }
 
+  if (key === "stopOnLowSignal") {
+    return config?.refinement?.stopOnLowSignal ?? DEFAULT_REFINEMENT_CONFIG.stopOnLowSignal;
+  }
+
+  if (key === "lowSignalRoundThreshold") {
+    return config?.refinement?.lowSignalRoundThreshold ?? DEFAULT_REFINEMENT_CONFIG.lowSignalRoundThreshold;
+  }
+
+  if (key === "lowSignalMaxComments") {
+    return config?.refinement?.lowSignalMaxComments ?? DEFAULT_REFINEMENT_CONFIG.lowSignalMaxComments;
+  }
+
   throw new Error(`Unknown refinement config key: ${key}`);
 }
 
 /**
  * Resolve the refinement configuration from the merged dev-loop config.
  *
- * Returns `{ fanOut, mode, roles, maxCopilotRounds }` with sensible built-in
+ * Returns `{ fanOut, mode, roles, maxCopilotRounds, stopOnLowSignal, lowSignalRoundThreshold, lowSignalMaxComments }` with sensible built-in
  * defaults (`fanOut: 3`, `mode: "parallel"`, `roles: null`,
- * `maxCopilotRounds: 5`).
+ * `maxCopilotRounds: 5`, `stopOnLowSignal: false`, `lowSignalRoundThreshold: 3`,
+ * `lowSignalMaxComments: 2`).
  *
  * Accepts the validated DevLoopConfig from {@link loadDevLoopConfig}.
  *
  * @param {DevLoopConfig} config
- * @returns {{ fanOut: number, mode: "parallel"|"sequential", roles: string[]|null, maxCopilotRounds: number }}
+ * @returns {{ fanOut: number, mode: "parallel"|"sequential", roles: string[]|null, maxCopilotRounds: number, stopOnLowSignal: boolean, lowSignalRoundThreshold: number, lowSignalMaxComments: number }}
  */
 export function resolveRefinement(config) {
   const fanOut = /** @type {number} */ (resolveRefinementConfig(config, "fanOut"));
   const mode = /** @type {"parallel"|"sequential"} */ (resolveRefinementConfig(config, "mode"));
   const roles = /** @type {string[]|null} */ (resolveRefinementConfig(config, "roles"));
   const maxCopilotRounds = /** @type {number} */ (resolveRefinementConfig(config, "maxCopilotRounds"));
-  return { fanOut, mode, roles, maxCopilotRounds };
+  const stopOnLowSignal = /** @type {boolean} */ (resolveRefinementConfig(config, "stopOnLowSignal"));
+  const lowSignalRoundThreshold = /** @type {number} */ (resolveRefinementConfig(config, "lowSignalRoundThreshold"));
+  const lowSignalMaxComments = /** @type {number} */ (resolveRefinementConfig(config, "lowSignalMaxComments"));
+  return { fanOut, mode, roles, maxCopilotRounds, stopOnLowSignal, lowSignalRoundThreshold, lowSignalMaxComments };
 }
 
 /**

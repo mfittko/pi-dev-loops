@@ -67,6 +67,7 @@
  *   { "ok": false, "error": "..." } on stderr and exit non-zero.
  */
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import {
@@ -75,11 +76,13 @@ import {
   isCopilotLogin,
   isDirectCliRun,
   parseJsonText,
+  classifyReviewThreadsSignal,
   parseReviewThreads,
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
 import {
   buildSnapshotFromPrFacts,
   interpretLoopState,
@@ -539,12 +542,14 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
   // re-request path.
   let unresolvedThreadCount = 0;
   let actionableThreadCount = 0;
+  let lastCopilotRoundMaxSignal = null;
 
   try {
     const threadsPayload = await fetchGithubReviewThreadsPayload({ repo, pr }, { env, ghCommand });
     const parsed = parseReviewThreads(threadsPayload);
     unresolvedThreadCount = parsed.summary.unresolvedThreads;
     actionableThreadCount = parsed.summary.actionableThreads;
+    lastCopilotRoundMaxSignal = classifyReviewThreadsSignal(parsed, isCopilotLogin);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`Could not determine review-thread state: ${detail}`);
@@ -588,6 +593,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     unresolvedThreadCount,
     actionableThreadCount,
     copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
+    lastCopilotRoundMaxSignal,
     ciStatus: currentHeadCiStatus,
   });
 }
@@ -656,7 +662,12 @@ export async function runCli(
       effectiveConstraints: resolved.effectiveConstraints,
     };
   } else {
-    interpretation = interpretLoopState(snapshot);
+    const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) });
+    // Fall back to built-in defaults when config validation has errors
+    const refinementConfig = config.errors.length > 0
+      ? resolveRefinement({ version: 1 })
+      : resolveRefinement(config.config);
+    interpretation = interpretLoopState(snapshot, refinementConfig);
   }
 
   const interpretationSummary = summarizeLoopInterpretation(interpretation);

@@ -297,10 +297,13 @@ describe("BUILT_IN_DEFAULTS", () => {
     assert.equal(BUILT_IN_DEFAULTS.strategy.default, "github-first");
   });
 
-  test("refinement defaults include fanOut 3, mode parallel, and maxCopilotRounds 5", () => {
+  test("refinement defaults include fanOut 3, mode parallel, maxCopilotRounds 5, and low-signal defaults", () => {
     assert.equal(BUILT_IN_DEFAULTS.refinement.fanOut, 3);
     assert.equal(BUILT_IN_DEFAULTS.refinement.mode, "parallel");
     assert.equal(BUILT_IN_DEFAULTS.refinement.maxCopilotRounds, 5);
+    assert.equal(BUILT_IN_DEFAULTS.refinement.stopOnLowSignal, false);
+    assert.equal(BUILT_IN_DEFAULTS.refinement.lowSignalRoundThreshold, 3);
+    assert.equal(BUILT_IN_DEFAULTS.refinement.lowSignalMaxComments, 2);
   });
 
   test("autonomy.stopAt is [merge]", () => {
@@ -1341,16 +1344,22 @@ describe("role resolution", () => {
       assert.equal(result.mode, "parallel");
       assert.equal(result.roles, null);
       assert.equal(result.maxCopilotRounds, 5);
+      assert.equal(result.stopOnLowSignal, false);
+      assert.equal(result.lowSignalRoundThreshold, 3);
+      assert.equal(result.lowSignalMaxComments, 2);
     });
 
     test("resolveRefinement returns configured values", () => {
       const result = resolveRefinement({
         version: 1,
-        refinement: { fanOut: 5, mode: "sequential", maxCopilotRounds: 7, roles: ["security", "style"] }
+        refinement: { fanOut: 5, mode: "sequential", maxCopilotRounds: 7, stopOnLowSignal: true, lowSignalRoundThreshold: 5, lowSignalMaxComments: 1, roles: ["security", "style"] }
       });
       assert.equal(result.fanOut, 5);
       assert.equal(result.mode, "sequential");
       assert.equal(result.maxCopilotRounds, 7);
+      assert.equal(result.stopOnLowSignal, true);
+      assert.equal(result.lowSignalRoundThreshold, 5);
+      assert.equal(result.lowSignalMaxComments, 1);
       assert.deepEqual(result.roles, ["security", "style"]);
     });
 
@@ -1365,6 +1374,22 @@ describe("role resolution", () => {
         version: 1,
         refinement: { fanOut: 3, mode: "parallel", maxCopilotRounds: 9 },
       }, "maxCopilotRounds"), 9);
+    });
+
+    test("resolveRefinementConfig resolves low-signal keys with defaults", () => {
+      assert.equal(resolveRefinementConfig({ version: 1 }, "stopOnLowSignal"), false);
+      assert.equal(resolveRefinementConfig({ version: 1 }, "lowSignalRoundThreshold"), 3);
+      assert.equal(resolveRefinementConfig({ version: 1 }, "lowSignalMaxComments"), 2);
+    });
+
+    test("resolveRefinementConfig resolves low-signal keys from config", () => {
+      const config = {
+        version: 1,
+        refinement: { fanOut: 3, mode: "parallel", maxCopilotRounds: 5, stopOnLowSignal: true, lowSignalRoundThreshold: 4, lowSignalMaxComments: 1 },
+      };
+      assert.equal(resolveRefinementConfig(config, "stopOnLowSignal"), true);
+      assert.equal(resolveRefinementConfig(config, "lowSignalRoundThreshold"), 4);
+      assert.equal(resolveRefinementConfig(config, "lowSignalMaxComments"), 1);
     });
 
     // Gate angles resolution
