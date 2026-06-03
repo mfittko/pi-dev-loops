@@ -113,15 +113,28 @@ The audit groups categories into recommendations ranked by `score = Σ(count × 
 
 ## Draft-gate persona derivation
 
-Audit findings are the primary input for deciding which personas to add to `.pi/dev-loop/defaults.yaml` and which draft gate angles to enable. The canonical derived personas from this repo's audit:
+Audit findings are the primary input for deciding which personas to add to `.pi/dev-loop/defaults.yaml` and which draft gate angles to enable. The canonical derived personas from this repo's audit stay consumer-repo generic; local issue numbers, repo names, and raw audit artifacts must not be baked into reusable prompt text.
 
-| Persona | Gate wiring | Priority | Source category |
-|---|---|---|---|
-| `ci-guard` | Default draft gate | 1 | ci_guard (67 comments) |
-| `link-check` | Opt-in draft gate | 4 | placeholder_404 + broken_paths (36) |
-| `config-drift` | Opt-in draft gate | 5 | config_conflicts (27) |
-| `gate-evidence` | Opt-in draft gate | 6 | gate_evidence (13) |
-| `no-op` | Opt-in draft gate | 7 | no_op_tool_usage (11) |
+Classic classifier-derived personas:
+
+| Persona | Gate wiring | Source category |
+|---|---|---|
+| `ci-guard` | Default draft gate | ci_guard |
+| `link-check` | Opt-in draft gate | placeholder_404 + broken_paths |
+| `config-drift` | Opt-in draft gate | config_conflicts |
+| `gate-evidence` | Opt-in draft gate | gate_evidence |
+| `no-op` | Opt-in draft gate | no_op_tool_usage |
+
+LLM-cluster-derived personas are qualitative cluster applications, not authoritative frequency rankings:
+
+| Persona | Gate wiring | Generic risk pattern |
+|---|---|---|
+| `contract-surface` | Default draft gate | schema/runtime/docs drift plus CLI help/stdout/stderr contract drift |
+| `input-validation` | Opt-in | CLI/API args, repo slugs, IDs, hostnames, SHAs, sentinels, normalization |
+| `packaging-runtime` | Opt-in | installers, runtime bundles, copied assets, package subsets, import paths |
+| `state-concurrency` | Opt-in | state files, locks, concurrent writes, polling/process cleanup |
+| `renderer-security` | Opt-in | HTML/attribute/URL escaping and user-controlled rendered content |
+| `determinism` | Opt-in | ordering, tie-breakers, strict stubs, time/env independence |
 
 ## Edge cases
 

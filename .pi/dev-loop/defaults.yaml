@@ -20,17 +20,24 @@ refinement:
 gates:
   draft:
     # Draft gate: runs before marking PR ready for review.
-    # Default angles: scope, coverage, correctness, ci-guard.
-    # Opt-in angles (uncomment to add):
-    #   - link-check
-    #   - config-drift
-    #   - gate-evidence
-    #   - no-op
+    # Default angles: scope, coverage, correctness, ci-guard, contract-surface.
+    # `contract-surface` covers public schema/runtime/doc drift plus CLI help/stdout/stderr contract drift.
+    # Opt-in angles (uncomment to add based on touched surface):
+    #   - link-check           # Markdown links, anchors, doc paths, placeholder URLs
+    #   - config-drift         # Config/schema/docs/runtime disagreement
+    #   - gate-evidence        # Missing or stale gate-review PR evidence
+    #   - no-op                # Tool calls/commands whose effects are discarded
+    #   - input-validation     # CLI/API argument parsing, identifiers, sentinels
+    #   - packaging-runtime    # Installers, runtime bundles, copied assets
+    #   - state-concurrency    # State files, locks, polling/process cleanup
+    #   - renderer-security    # HTML/attribute/URL escaping and user content
+    #   - determinism          # Ordering, tie-breakers, stubs, env/time dependence
     angles:
       - scope
       - coverage
       - correctness
       - ci-guard
+      - contract-surface
     required: true
     # When true, draft gate waits for green CI before the gate may run.
     requireCi: true
@@ -260,6 +267,45 @@ personas:
     defaultModel: null
 
   # ── Audit-derived draft-gate personas ──────────────────────────────
+  # These prompts translate recurring Copilot review themes into reusable,
+  # consumer-repo-generic review angles. Keep examples out of prompt text;
+  # operators enable opt-ins by adding angle names to gates.*.angles.
+
+  contract-surface:
+    persona: review
+    prompt: >-
+      Review this change for public contract-surface drift. Check whether documented schema fields, state/sentinel names, runtime values, tests, and CLI output agree. Verify CLI --help usage matches accepted flags. Compare stdout JSON success shape and stderr JSON error shape against documented examples. Flag optional fields documented as always emitted but conditionally omitted, or fields emitted but undocumented. Stay repo-agnostic; cite concrete changed files and give minimal fixes.
+    defaultModel: null
+
+  input-validation:
+    persona: review
+    prompt: >-
+      Review this change for input-validation drift. Check repo slug, issue number, host, SHA, whitespace, and sentinel normalization. Prefer shared parsers/helpers over ad hoc validation. Flag malformed inputs that slip through, confusing errors, path traversal-like segments, and inconsistent trimming/normalization across CLI/API entrypoints. Recommend minimal tests for accepted and rejected forms.
+    defaultModel: null
+
+  packaging-runtime:
+    persona: review
+    prompt: >-
+      Review this change for packaging/runtime asset contract gaps. Check that installed packages, extensions, or runtime bundles include exactly the helper scripts, copied package subsets, templates, docs, and assets needed at runtime: neither missing nor over-broad. Compare install docs, fixture assertions, allow-lists, and import paths. Flag runtime-only dependencies not covered by packaging tests.
+    defaultModel: null
+
+  state-concurrency:
+    persona: review
+    prompt: >-
+      Review this change for state concurrency and locking risks. Check state-file read/modify/write paths, lock acquisition/release, stale lock handling, concurrent invocations, atomic writes, managed process cleanup, and stderr/error capture. Flag races that can clobber state or leave orphaned locks/processes. Recommend narrow deterministic concurrency or cleanup tests.
+    defaultModel: null
+
+  renderer-security:
+    persona: review
+    prompt: >-
+      Review this change for renderer security. Check HTML text escaping, URL encoding, attribute encoding, JSON/script embedding, and rendering of user-controlled content. Treat titles, names, URLs, statuses, errors, and external payload fields as untrusted. Flag raw interpolation into HTML or attributes and tests that expect unsafe output.
+    defaultModel: null
+
+  determinism:
+    persona: review
+    prompt: >-
+      Review this change for determinism. Check ordering, tie-breakers, localeCompare use, time/random/environment dependence, polling/count assumptions, and mocks/stubs that allow unexpected extra calls. Require stable sorting, strict stubs, deterministic fixture data, and tests independent of locale, timezone, filesystem order, and network timing.
+    defaultModel: null
 
   ci-guard:
     persona: review

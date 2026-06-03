@@ -156,6 +156,12 @@ const BUILTIN_PERSONAS = Object.freeze({
   dip:         { persona: "review", defaultModel: null },
   soc:         { persona: "review", defaultModel: null },
   yagni:       { persona: "review", defaultModel: null },
+  "contract-surface":  { persona: "review", defaultModel: null },
+  "input-validation":  { persona: "review", defaultModel: null },
+  "packaging-runtime": { persona: "review", defaultModel: null },
+  "state-concurrency": { persona: "review", defaultModel: null },
+  "renderer-security": { persona: "review", defaultModel: null },
+  determinism:          { persona: "review", defaultModel: null },
 });
 
 const DEFAULT_REVIEWER_PERSONA = "default-reviewer";

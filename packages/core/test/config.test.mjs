@@ -260,6 +260,7 @@ describe("schema validation", () => {
     });
     assert.ok(!result.success);
   });
+
 });
 
 // ============================================================================
@@ -1123,7 +1124,7 @@ describe("role resolution", () => {
     assert.equal(result.fallback, false);
   });
 
-  test("R12: all 14 known angles resolve without fallback", () => {
+  test("R12: all 20 known angles resolve without fallback", () => {
     const expectedPersonas = {
       scope: "review",
       coverage: "review",
@@ -1139,6 +1140,12 @@ describe("role resolution", () => {
       dip: "review",
       soc: "review",
       yagni: "review",
+      "contract-surface": "review",
+      "input-validation": "review",
+      "packaging-runtime": "review",
+      "state-concurrency": "review",
+      "renderer-security": "review",
+      determinism: "review",
     };
 
     for (const [angle, expectedPersona] of Object.entries(expectedPersonas)) {
@@ -1471,6 +1478,49 @@ describe("role resolution", () => {
 });
 
 describe("shipped defaults docs and deep angle wiring", () => {
+
+  test("D2: shipped defaults wire contract-surface by default and expose cluster-derived opt-in prompts", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D2-cluster-prompts-"));
+    try {
+      const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+      const sourceDefaults = await readFile(path.join(repoRoot, ".pi", "dev-loop", "defaults.yaml"), "utf8");
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.yaml"), sourceDefaults);
+
+      const { loadDevLoopConfig, resolveReviewerRole } = await import("../src/config/config.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+      const draftAngles = resolveGateAngles(result.config, "draft");
+      const requiredAngles = [
+        "contract-surface",
+        "input-validation",
+        "packaging-runtime",
+        "state-concurrency",
+        "renderer-security",
+        "determinism",
+      ];
+
+      assert.deepEqual(result.errors, []);
+      assert.ok(draftAngles.includes("contract-surface"), "contract-surface should run in draft gate by default");
+
+      for (const angle of requiredAngles) {
+        const role = resolveReviewerRole(result.config, angle);
+        assert.equal(role.persona, "review", `${angle} should use review persona`);
+        assert.equal(role.fallback, false, `${angle} should resolve from persona registry`);
+        assert.equal(role.prompt, result.config.personas[angle].prompt, `${angle} prompt should come from config`);
+        assert.doesNotMatch(role.prompt, /mfittko\/pi-dev-loops|issue #?\d+|tmp\/investigation|uncategorized-clusters/i, `${angle} prompt should stay repo-agnostic`);
+      }
+
+      assert.match(result.config.personas["contract-surface"].prompt, /schema fields, state\/sentinel names, runtime values, tests, and CLI output agree/i);
+      assert.match(result.config.personas["input-validation"].prompt, /repo slug, issue number, host, SHA, whitespace, and sentinel normalization/i);
+      assert.match(result.config.personas["packaging-runtime"].prompt, /installed packages, extensions, or runtime bundles/i);
+      assert.match(result.config.personas["state-concurrency"].prompt, /state-file read\/modify\/write paths/i);
+      assert.match(result.config.personas["renderer-security"].prompt, /HTML text escaping, URL encoding, attribute encoding/i);
+      assert.match(result.config.personas.determinism.prompt, /ordering, tie-breakers, localeCompare use/i);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
   test("D1: shipped defaults keep docs opt-in, deep enabled by default, and resolve packaged persona prompts", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D1-"));
     try {
@@ -1480,8 +1530,7 @@ describe("shipped defaults docs and deep angle wiring", () => {
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.yaml"), sourceDefaults);
 
-      const { loadDevLoopConfig } = await import("../src/config/config.mjs");
-      const { resolveReviewerRole } = await import("../src/config/config.mjs");
+      const { loadDevLoopConfig, resolveReviewerRole } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       const preApprovalAngles = resolveGateAngles(result.config, "preApproval");
       const docsRole = resolveReviewerRole(result.config, "docs");

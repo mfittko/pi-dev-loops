@@ -148,7 +148,7 @@ workflow:
 
 ### Available review angles
 
-The shipped defaults activate these angles. Additional angles are available as opt-in — add them to your `gates.draft.angles` or `gates.preApproval.angles` and they'll use the prompts defined in the personas registry.
+The shipped defaults activate these angles. Additional angles are available as opt-in — add them to your `gates.draft.angles` or `gates.preApproval.angles` and they'll use the prompts defined in the personas registry. Opt-in prompts are generic and can be overridden in consumer repos through `personas.<angle>.prompt` without depending on this repository's audit examples.
 
 | Default (active) | Opt-in (add to gates) |
 |---|---|
@@ -156,10 +156,17 @@ The shipped defaults activate these angles. Additional angles are available as o
 | `kiss` — over-engineering | `lsp` — Liskov Substitution (subtype contracts) |
 | `yagni` — speculative features | `isp` — Interface Segregation (fat interfaces) |
 | `srp` — Single Responsibility | `dip` — Dependency Inversion (abstractions) |
-| `soc` — Separation of Concerns | |
-| `scope` — scope compliance (draft gate) | |
-| `coverage` — test coverage (draft gate) | |
-| `correctness` — acceptance criteria (draft gate) | |
+| `soc` — Separation of Concerns | `docs` — documentation links, command references, stale docs |
+| `deep` — structural quality / deslop audit | |
+| `scope` — scope compliance (draft gate) | `link-check` — Markdown links, anchors, doc paths |
+| `coverage` — test coverage (draft gate) | `config-drift` — config/schema/docs/runtime disagreement |
+| `correctness` — acceptance criteria (draft gate) | `gate-evidence` — missing/stale gate-review PR evidence |
+| `ci-guard` — CI/workflow reproducibility (draft gate) | `no-op` — ineffective tool or command usage |
+| `contract-surface` — schema/runtime/docs plus CLI help/stdout/stderr drift (draft gate) | `input-validation` — CLI/API args, repo slugs, IDs, sentinels |
+| | `packaging-runtime` — installers, bundles, copied assets, runtime imports |
+| | `state-concurrency` — state files, locks, polling/process cleanup |
+| | `renderer-security` — HTML/attribute/URL escaping and user content |
+| | `determinism` — ordering, tie-breakers, strict stubs, env/time independence |
 
 ### Workflow defaults
 
