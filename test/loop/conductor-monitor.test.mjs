@@ -56,6 +56,29 @@ test("conductor-monitor reports queue_complete when no open PRs exist", async ()
   }
 });
 
+test("conductor-monitor reports gh runtime failures without a usage payload", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-gh-failure-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [{
+      assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open", "--limit", "1000", "--json", "number,title,url,isDraft,headRefName,author"],
+      stderr: "gh exploded\n",
+      exitCode: 1,
+    }]);
+
+    const result = await runNode(["--repo", "owner/repo"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /gh command failed/i);
+    assert.equal(Object.hasOwn(payload, "usage"), false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("conductor-monitor fails closed when gh pr list returns non-array JSON", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-invalid-list-"));
 

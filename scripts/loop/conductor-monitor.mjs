@@ -57,7 +57,10 @@ Queue status values:
   attention_needed At least one open PR needs human-in-the-loop follow-up
 
 Error output (stderr, JSON):
-  { "ok": false, "error": "...", "usage": "..." }
+  Argument/usage errors:
+    { "ok": false, "error": "...", "usage": "..." }
+  gh/runtime failures:
+    { "ok": false, "error": "..." }
 
 Exit codes:
   0  Success
