@@ -497,7 +497,7 @@ test("PR without explicit reviewMode uses standard Copilot review path (default)
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  // Without reviewMode, default to Copilot review (hybrid internal-only + external review)
+  // Without reviewMode, default to standard external Copilot review
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
   assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
