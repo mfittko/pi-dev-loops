@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { resolveAuthoritativeStartupResumeBundle } from "../../packages/core/src/loop/public-dev-loop-routing.mjs";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { requireOptionValue } from "../_cli-primitives.mjs";
+
+import {
+  validateAsyncStartContext,
+  buildAsyncStartRejection,
+  ASYNC_START_STATUS,
+} from "@pi-dev-loops/core/loop/async-start-contract";
 
 const USAGE = `Usage:
   resolve-dev-loop-startup.mjs --input <path>
@@ -22,6 +29,16 @@ Input JSON:
   artifactState, issueLinkageResolution, loopState, issueReadiness,
   issueAssignmentState, gateReviewEvidence, asyncRun, and
   retrospectiveCheckpointState when applicable.
+  NOTE: The resolver always reads .pi/dev-loop-retrospective-checkpoint.json
+  and overrides any caller-provided retrospectiveCheckpointState when the
+  on-disk artifact maps to a known state.
+
+Async-start contract:
+  Strategies flagged as requiresAsyncDispatch must run within a visible
+  Pi-managed async subagent session. When the resolver detects an inline
+  invocation of an async-required strategy, it fails closed with a
+  machine-readable rejection (stderr JSON, exit code 1).
+  Bypass: set PI_ASYNC_START_BYPASS=1.
 
 Output (stdout, JSON):
   {
@@ -34,13 +51,16 @@ Output (stdout, JSON):
     "bundle": { ... }            // bundle.selectedStrategy preserves the raw core value (may be null)
   }
 
+Async-start rejection (stderr, JSON):
+  { "ok": false, "error": "...", "asyncStartContract": "rejected" }
+
 Error output (stderr, JSON):
   Argument/usage errors: { "ok": false, "error": "...", "usage": "..." }
   Runtime failures:      { "ok": false, "error": "..." }
 
 Exit codes:
   0  Success
-  1  Argument error or runtime failure`.trim();
+  1  Argument error, runtime failure, or async-start contract rejection`.trim();
 
 const SHARED_PUBLIC_CONTRACT = "skills/docs/public-dev-loop-contract.md";
 const SHARED_RETROSPECTIVE_CONTRACT = "skills/docs/retrospective-checkpoint-contract.md";
@@ -155,10 +175,67 @@ export function summarizeCanonicalState(bundle) {
   };
 }
 
-export function buildResolveDevLoopStartupResult(input) {
+/**
+ * Build the startup result, with optional async-start enforcement when the
+ * selected strategy requires async dispatch. Also auto-injects
+ * retrospectiveCheckpointState from the settings-driven checkpoint file.
+ *
+ * @param {object} input — canonical-state JSON payload
+ * @param {object} [options]
+ * @param {Record<string,string|undefined>} [options.env] — for async-start check
+ * @param {string} [options.cwd] — working directory for checkpoint file resolution (default: process.cwd())
+ * @returns {{ ok: true, ... } | { ok: false, error: string, asyncStartContract: "rejected" }}
+ */
+export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd = process.cwd() } = {}) {
+  // #462: Always read the retrospective checkpoint file. When the durable
+  // artifact says the retrospective is required, override the caller-provided
+  // value to prevent bypass. Also maps the durable-artifact "required" state
+  // to the core router's "missing" checkpoint state.
+  try {
+    const checkpointText = readFileSync(
+      path.join(cwd, ".pi", "dev-loop-retrospective-checkpoint.json"),
+      "utf8",
+    );
+    const checkpoint = JSON.parse(checkpointText);
+    const rawState = checkpoint?.state;
+
+    // Map durable-artifact states to core-router RETROSPECTIVE_CHECKPOINT_STATE values.
+    const DURABLE_STATE_MAP = {
+      none: "none",
+      complete: "complete",
+      skipped: "skipped",
+      missing: "missing",
+      required: "missing",  // durable artifact uses "required" to mean pending retrospective
+    };
+
+    const normalizedRaw = typeof rawState === "string" ? rawState.trim().toLowerCase() : null;
+    const mappedState = DURABLE_STATE_MAP[normalizedRaw] ?? null;
+
+    if (mappedState) {
+      // Always apply the on-disk state. This prevents callers from bypassing
+      // the gate by supplying a value like "complete" when the durable
+      // artifact says the retrospective is still required.
+      input = { ...input, retrospectiveCheckpointState: mappedState };
+    } else {
+      // Unrecognized state: fail-closed per the retrospective checkpoint
+      // contract (unrecognized checkpoint state maps to "missing").
+      input = { ...input, retrospectiveCheckpointState: "missing" };
+    }
+  } catch (err) {
+    // Distinguish file-not-found (no checkpoint artifact exists — pass through)
+    // from malformed/unreadable (file exists but is corrupt — fail closed).
+    if (err?.code === "ENOENT") {
+      // No checkpoint file — pass through with whatever the caller provided.
+      // (A missing file is not a bypass; it means no qualifying completion
+      // has been recorded yet, so no retrospective is pending.)
+    } else {
+      // File exists but is malformed/unreadable — fail closed per the
+      // retrospective checkpoint contract.
+      input = { ...input, retrospectiveCheckpointState: "missing" };
+    }
+  }
+
   const bundle = resolveAuthoritativeStartupResumeBundle(input);
-  // Preserve the raw bundle.selectedStrategy (may be null per the core contract).
-  // Use a derived key only for required-reads lookup and the top-level selectedStrategy field.
   const strategyKey = bundle.selectedStrategy ?? "none";
   if (!(strategyKey in STRATEGY_REQUIRED_READS)) {
     throw new Error(
@@ -166,6 +243,19 @@ export function buildResolveDevLoopStartupResult(input) {
       `Update STRATEGY_REQUIRED_READS to include this strategy or check for a core routing contract drift.`,
     );
   }
+
+  const requiresAsyncDispatch = bundle.selectedStrategy !== null
+    ? (STRATEGY_ASYNC_DISPATCH[bundle.selectedStrategy] ?? false)
+    : false;
+
+  // #465: Async-start contract enforcement for GitHub-first strategies.
+  if (requiresAsyncDispatch) {
+    const validation = validateAsyncStartContext({ env });
+    if (validation.status === ASYNC_START_STATUS.REJECTED) {
+      return buildAsyncStartRejection(validation);
+    }
+  }
+
   return {
     ok: true,
     bundleKind: bundle.bundleKind,
@@ -177,7 +267,7 @@ export function buildResolveDevLoopStartupResult(input) {
   };
 }
 
-export async function runCli(argv = process.argv.slice(2), { stdout = process.stdout } = {}) {
+export async function runCli(argv = process.argv.slice(2), { stdout = process.stdout, stderr = process.stderr } = {}) {
   const options = parseResolveDevLoopStartupCliArgs(argv);
 
   if (options.help) {
@@ -188,6 +278,15 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
   const text = await readFile(path.resolve(options.inputPath), "utf8");
   const input = parseJsonText(text);
   const result = buildResolveDevLoopStartupResult(input);
+
+  // #465: When async-start enforcement produces a rejection, emit to stderr
+  // and exit non-zero instead of writing the rejection to stdout.
+  if (result.ok === false) {
+    stderr.write(`${JSON.stringify(result)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
   stdout.write(`${JSON.stringify(result)}\n`);
 }
 

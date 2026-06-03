@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -72,7 +72,7 @@ test("buildResolveDevLoopStartupResult maps linked Copilot follow-up to the PR f
     artifactState: "open",
     issueLinkageResolution: "resolved_linked_pr",
     loopState: "unresolved_feedback_present",
-  });
+  }, { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: os.tmpdir() });
 
   assert.equal(result.bundleKind, "resolved");
   assert.equal(result.selectedStrategy, "copilot_pr_followup");
@@ -184,4 +184,303 @@ test("resolve-dev-loop-startup CLI emits stable JSON for a final-approval route"
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("buildResolveDevLoopStartupResult auto-injects retrospectiveCheckpointState from file", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    // Create a .pi/dev-loop-retrospective-checkpoint.json in temp dir
+    // with state "required" — the durable artifact for pending retrospective.
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "required" }),
+      "utf8",
+    );
+
+    // Run via CLI with CWD set to temp dir
+    const inputPath = await writeTempJson(tempDir, "startup.json", {
+      currentState: {
+        target: { kind: "local_branch", branch: "feature/local-route" },
+        ownership: "local",
+        nextActor: "local",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "not_applicable",
+      loopState: "active",
+    });
+
+    const result = await runNode(["--input", inputPath], { cwd: tempDir });
+
+    // The resolver auto-reads the checkpoint file, maps "required" → "missing",
+    // and returns needs_reconcile because the retrospective is pending.
+    assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.bundleKind, "needs_reconcile");
+    assert.equal(parsed.selectedStrategy, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildResolveDevLoopStartupResult passes through when no checkpoint file exists", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const inputPath = await writeTempJson(tempDir, "startup.json", {
+      currentState: {
+        target: { kind: "local_branch", branch: "feature/local-route" },
+        ownership: "local",
+        nextActor: "local",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "not_applicable",
+      loopState: "active",
+    });
+
+    const result = await runNode(["--input", inputPath], { cwd: tempDir });
+
+    assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.selectedStrategy, "local_implementation");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+
+test("buildResolveDevLoopStartupResult maps durable-artifact 'required' to checkpoint state 'missing'", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "required" }),
+      "utf8",
+    );
+
+    // Use the programmatic API with env bypass to test the state mapping
+    // without triggering async-start rejection.
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_branch", branch: "feature/local-route" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "needs_confirmation",
+        },
+        artifactState: "not_applicable",
+        loopState: "active",
+      },
+      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+    );
+
+    // The resolver auto-reads the checkpoint file and maps "required" → "missing".
+    // A missing retrospective checkpoint causes the resolver to return needs_reconcile
+    // regardless of the route type — the retrospective must be completed first.
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "needs_reconcile");
+    assert.equal(result.selectedStrategy, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildResolveDevLoopStartupResult overrides caller-provided state with on-disk 'required'", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "required" }),
+      "utf8",
+    );
+
+    // Caller tries to provide "complete" — should be overridden by on-disk "required".
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_branch", branch: "feature/local-route" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "needs_confirmation",
+        },
+        artifactState: "not_applicable",
+        loopState: "active",
+        retrospectiveCheckpointState: "complete",
+      },
+      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+    );
+
+    // On-disk "required" overrides caller-provided "complete". The resolver
+    // returns needs_reconcile because the retrospective is still pending.
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "needs_reconcile");
+    assert.equal(result.selectedStrategy, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+test("buildResolveDevLoopStartupResult fails closed when checkpoint file is malformed", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    // Write malformed JSON (not valid JSON at all)
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      "this is not valid json {{{{{",
+      "utf8",
+    );
+
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_branch", branch: "feature/local-route" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "needs_confirmation",
+        },
+        artifactState: "not_applicable",
+        loopState: "active",
+      },
+      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+    );
+
+    // Malformed file -> fail closed with missing checkpoint state -> needs_reconcile.
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "needs_reconcile");
+    assert.equal(result.selectedStrategy, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildResolveDevLoopStartupResult fails closed when checkpoint file has unrecognized state", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
+  try {
+    const piDir = path.join(tempDir, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "bogus_unknown_state" }),
+      "utf8",
+    );
+
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_branch", branch: "feature/local-route" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "needs_confirmation",
+        },
+        artifactState: "not_applicable",
+        loopState: "active",
+      },
+      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+    );
+
+    // Unrecognized state -> fail closed with missing -> needs_reconcile.
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "needs_reconcile");
+    assert.equal(result.selectedStrategy, "none");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildResolveDevLoopStartupResult rejects async-required strategy without PI_SUBAGENT_RUN_ID", () => {
+  const result = buildResolveDevLoopStartupResult(
+    {
+      currentState: {
+        target: { kind: "issue", issue: 89, linkedPr: 92 },
+        ownership: "copilot",
+        nextActor: "copilot",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "open",
+      issueLinkageResolution: "resolved_linked_pr",
+      loopState: "unresolved_feedback_present",
+    },
+    { env: {} },
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.asyncStartContract, "rejected");
+  assert.ok(result.error.includes("Pi-managed async context"));
+});
+
+test("buildResolveDevLoopStartupResult allows async-required strategy with PI_SUBAGENT_RUN_ID", () => {
+  const result = buildResolveDevLoopStartupResult(
+    {
+      currentState: {
+        target: { kind: "issue", issue: 89, linkedPr: 92 },
+        ownership: "copilot",
+        nextActor: "copilot",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "open",
+      issueLinkageResolution: "resolved_linked_pr",
+      loopState: "unresolved_feedback_present",
+    },
+    { env: { PI_SUBAGENT_RUN_ID: "test-run-123" } },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.selectedStrategy, "copilot_pr_followup");
+});
+
+test("buildResolveDevLoopStartupResult allows async-required strategy with PI_ASYNC_START_BYPASS=1", () => {
+  const result = buildResolveDevLoopStartupResult(
+    {
+      currentState: {
+        target: { kind: "issue", issue: 89, linkedPr: 92 },
+        ownership: "copilot",
+        nextActor: "copilot",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "open",
+      issueLinkageResolution: "resolved_linked_pr",
+      loopState: "unresolved_feedback_present",
+    },
+    { env: { PI_ASYNC_START_BYPASS: "1" } },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.selectedStrategy, "copilot_pr_followup");
+});
+
+test("buildResolveDevLoopStartupResult does not enforce async-start on local_implementation", () => {
+  const result = buildResolveDevLoopStartupResult(
+    {
+      currentState: {
+        target: { kind: "local_branch", branch: "feature/local-route" },
+        ownership: "local",
+        nextActor: "local",
+        status: "active",
+        authorization: "needs_confirmation",
+      },
+      artifactState: "not_applicable",
+      loopState: "active",
+    },
+    { env: {} },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.selectedStrategy, "local_implementation");
 });

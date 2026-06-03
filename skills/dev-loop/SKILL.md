@@ -46,6 +46,8 @@ The resolver wraps `resolveAuthoritativeStartupResumeBundle` and returns:
 
 If the resolver reports `selectedStrategy: none` / reconcile, stop and reconcile the authoritative startup state before loading any route pack.
 
+**Retrospective checkpoint gate (#462):** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
+
 ## Route table
 
 Load only the route-specific internal skill required by `selectedStrategy`:
@@ -66,7 +68,7 @@ Do not preload local implementation, issue intake, PR follow-up, or final approv
 
 After the resolver selects a strategy and the route pack is loaded, the routed strategy's procedure is the execution plan — not reference material. Follow it.
 
-**Async dispatch rule:** For any routed strategy where the resolver's `canonicalStateSummary.requiresAsyncDispatch` is `true`, dispatch the strategy as a single async coordinator subagent (the `dev-loop` agent) rather than executing steps inline in the parent session. The dispatched agent owns parallel review fan-out, fixer passes, gate comments, state transitions, and sub-delegation internally.
+**Async dispatch rule (#465, enforced):** the resolver enforces this fail-closed for GitHub-first strategies (`issue_intake`, `copilot_pr_followup`, `external_pr_followup`, `reviewer_fixer`, `wait_watch`). Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected with exit code 1 (stderr JSON: `{"ok":false,"error":"...","asyncStartContract":"rejected"}`). Bypass for development: `PI_ASYNC_START_BYPASS=1`. For any routed strategy where the resolver's `canonicalStateSummary.requiresAsyncDispatch` is `true`, dispatch the strategy as a single async coordinator subagent (the `dev-loop` agent) rather than executing steps inline in the parent session. The dispatched agent owns parallel review fan-out, fixer passes, gate comments, state transitions, and sub-delegation internally.
 
 Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline — local phases are often interactive, and final approval requires explicit human confirmation before GitHub mutations.
 
