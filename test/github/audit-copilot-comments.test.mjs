@@ -644,3 +644,56 @@ test("audit-copilot-comments resume with corrupt checkpoint falls back to fresh 
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("parseAuditCopilotCommentsCliArgs parses --save-uncategorized", () => {
+  const options = parseAuditCopilotCommentsCliArgs(["--repo", "owner/repo", "--save-uncategorized"]);
+
+  assert.equal(options.saveUncategorized, true);
+});
+
+test("audit-copilot-comments --save-uncategorized writes only uncategorized comments", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-uncategorized-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/comments?per_page=100"],
+        stdout: `${JSON.stringify([[
+          sampleReviewComment({
+            id: 901,
+            prNumber: 11,
+            path: "README.md",
+            body: "This relative path points to a missing file.",
+          }),
+          sampleReviewComment({
+            id: 902,
+            prNumber: 12,
+            path: "scripts/example.mjs",
+            body: "This asks for a novel guard around streamed response parsing.",
+            line: 42,
+          }),
+        ]])}\n`,
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls?state=all&per_page=100"],
+        stdout: `${JSON.stringify([samplePrs])}\n`,
+      },
+    ]);
+
+    const outputDir = path.join(tempDir, "out");
+    const result = await runNode(["--repo", "owner/repo", "--output-dir", outputDir, "--save-uncategorized"], { env });
+
+    assert.equal(result.code, 0, result.stderr);
+    const stdout = JSON.parse(result.stdout);
+    assert.equal(stdout.files.uncategorizedCommentsPath, path.join(outputDir, "uncategorized-comments.json"));
+
+    const uncategorized = JSON.parse(await readFile(stdout.files.uncategorizedCommentsPath, "utf8"));
+    assert.equal(uncategorized.length, 1);
+    assert.deepEqual(Object.keys(uncategorized[0]).sort(), ["body", "excerpt", "htmlUrl", "line", "path", "prNumber"].sort());
+    assert.equal(uncategorized[0].prNumber, 12);
+    assert.equal(uncategorized[0].line, 42);
+    assert.match(uncategorized[0].body, /novel guard/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

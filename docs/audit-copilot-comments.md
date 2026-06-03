@@ -9,7 +9,7 @@ Scan all pull-request review comments in a repository via the GitHub REST API, f
 ## Usage
 
 ```bash
-node scripts/github/audit-copilot-comments.mjs --repo <owner/name> [--output-dir <path>] [--sleep-ms <ms>] [--checkpoint-file <path>] [--resume]
+node scripts/github/audit-copilot-comments.mjs --repo <owner/name> [--output-dir <path>] [--sleep-ms <ms>] [--checkpoint-file <path>] [--resume] [--save-uncategorized]
 ```
 
 ### Flags
@@ -21,6 +21,7 @@ node scripts/github/audit-copilot-comments.mjs --repo <owner/name> [--output-dir
 | `--sleep-ms` | no | `0` | Sleep this many ms between top-level fetches (non-negative int) |
 | `--checkpoint-file` | no | — | Save/load coarse-grain checkpoint for resume |
 | `--resume` | no | `false` | Resume from checkpoint (requires `--checkpoint-file`) |
+| `--save-uncategorized` | no | `false` | Also write `uncategorized-comments.json` containing only comments where `primaryCategoryId === null` |
 | `--help`, `-h` | no | — | Print usage and exit |
 
 ### Checkpoint stages
@@ -40,14 +41,41 @@ Checkpoint corruption (missing file, invalid JSON, missing stage): `--resume` fa
 
 ## Output
 
-Two files written to `--output-dir`:
+Default run writes two files to `--output-dir`:
 
 | File | Description |
 |---|---|
 | `copilot-comment-summary.json` | Full structured JSON with totals, categories, recommendations, and per-comment classifications |
 | `copilot-comment-categories.md` | Human-readable Markdown report with top-category table, priority-ranked recommendations, and category details |
 
+With `--save-uncategorized`, the audit also writes:
+
+| File | Description |
+|---|---|
+| `uncategorized-comments.json` | Array of only uncategorized comments, preserving `body`, `prNumber`, `path`, `line`, `htmlUrl`, and `excerpt` |
+
 Stdout also emits the same JSON summary.
+
+## LLM classification of uncategorized comments
+
+Script: `scripts/github/classify-uncategorized-comments.mjs`
+
+Use this one-off follow-up after `--save-uncategorized` to cluster uncategorized Copilot review comments with an LLM:
+
+```bash
+node scripts/github/classify-uncategorized-comments.mjs --model <model> [--provider openai-compatible|anthropic] [--api-key <key>] [--base-url <url>] [--input <path>] [--output-dir <path>] [--use-full-body] [--no-dedup]
+```
+
+Key behavior:
+
+- `--model` is required; no default model is inferred.
+- API key comes from `--api-key`, `LLM_API_KEY`, or provider-specific `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`.
+- `--base-url` may point OpenAI-compatible or Anthropic requests at another valid `http(s)` endpoint.
+- Default input is `<output-dir>/uncategorized-comments.json`; if absent, the script falls back to `<output-dir>/copilot-comment-summary.json` and filters `primaryCategoryId === null`. With the default output dir, those paths are under `tmp/investigation`.
+- Default prompt mode sends `excerpt`; `--use-full-body` sends full `body`.
+- Deduplication by comment body/excerpt is on by default; `--no-dedup` disables it.
+- 429/5xx LLM responses retry with exponential backoff. Malformed LLM JSON retries once with stricter JSON-only instructions.
+- Output files are `uncategorized-clusters.json` and `uncategorized-clusters.md`; the Markdown report includes cluster summaries, persona candidates in `.pi/dev-loop/defaults.yaml`-compatible shape, and a "Left unclustered" section.
 
 ## Taxonomy table
 
@@ -105,6 +133,10 @@ Audit findings are the primary input for deciding which personas to add to `.pi/
 | 403/429 mid-fetch | Exponential backoff, max 5 retries |
 | `gh` not authenticated (401) | Fail immediately, no retry |
 | `--resume` without `--checkpoint-file` | CLI validation error |
+| audit `--save-uncategorized` with no uncategorized comments | Writes `[]` to `uncategorized-comments.json` |
+| classifier missing `--model` | CLI validation error |
+| classifier missing API key | Clear non-zero API-key error |
+| LLM returns malformed JSON | Retry once with stricter JSON-only prompt, then fail clearly |
 
 ## See also
 
