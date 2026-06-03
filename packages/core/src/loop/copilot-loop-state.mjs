@@ -54,7 +54,6 @@ export const STATE = Object.freeze({
    */
   BLOCKED_NEEDS_USER_DECISION: "blocked_needs_user_decision",
   /** PR has been merged or closed. Loop is complete. */
-  LOW_SIGNAL_CONVERGED: "low_signal_converged",
   DONE: "done",
 });
 
@@ -149,6 +148,7 @@ export function buildSnapshotFromPrFacts({
   actionableThreadCount = 0,
   copilotReviewRoundCount = 0,
   ciStatus,
+  lastCopilotRoundMaxSignal = null,
 }) {
   const prState = typeof prData?.state === "string" ? prData.state.toUpperCase() : "OPEN";
   const prMerged = prState === "MERGED";
@@ -166,6 +166,7 @@ export function buildSnapshotFromPrFacts({
     unresolvedThreadCount,
     actionableThreadCount,
     copilotReviewRoundCount,
+    lastCopilotRoundMaxSignal,
     ciStatus: ciStatus ?? normalizeCiStatus(prData?.statusCheckRollup),
   });
 }
@@ -200,11 +201,14 @@ function isAutoRerequestEligible(snapshot, state) {
  * - actionableThreadCount {number} — unresolved threads with non-bot actionable comments
  * - copilotReviewRoundCount {number} — completed Copilot review rounds observed on the PR
  * - ciStatus {"success"|"failure"|"pending"|"none"|"crediblyGreen"} — current CI check rollup status
+ * - lastCopilotRoundMaxSignal {"high"|"mid"|"low"|null} — highest signal level across Copilot-authored threads
  * - agentFixStatus {"applied"|null} — agent-provided input: "applied" when code has been fixed
  *
  * @param {object} raw - raw snapshot input
  * @returns {object} normalized snapshot
  */
+const VALID_SIGNAL_LEVELS = new Set(["high", "mid", "low"]);
+
 export function normalizeSnapshot(raw) {
   if (!raw || typeof raw !== "object") {
     throw new Error("Snapshot must be a non-null object");
@@ -237,6 +241,7 @@ export function normalizeSnapshot(raw) {
       ? Math.floor(raw.copilotReviewRoundCount)
       : 0,
     ciStatus: VALID_CI_STATUSES.has(raw.ciStatus) ? raw.ciStatus : "none",
+    lastCopilotRoundMaxSignal: VALID_SIGNAL_LEVELS.has(raw.lastCopilotRoundMaxSignal) ? raw.lastCopilotRoundMaxSignal : null,
     agentFixStatus: raw.agentFixStatus === "applied" ? "applied" : null,
   };
 }
@@ -341,13 +346,18 @@ export function interpretLoopState(snapshot, refinementConfig) {
     }
   }
 
-  // Low-signal heuristic: when configured, stop re-requesting if round count
-  // exceeds threshold and actionable comment count is at or below the limit.
+  // Low-signal heuristic: when configured and last Copilot round signal
+  // classification is mid or low (not high), suppress re-request.
+  // Falls back to actionableThreadCount heuristic when signal data is null.
   const lowSignalApplied =
     refinementConfig?.stopOnLowSignal === true
     && state === STATE.READY_TO_REREQUEST_REVIEW
     && s.copilotReviewRoundCount > (refinementConfig.lowSignalRoundThreshold ?? 3)
-    && s.actionableThreadCount <= (refinementConfig.lowSignalMaxComments ?? 2);
+    && (
+      (s.lastCopilotRoundMaxSignal !== null && s.lastCopilotRoundMaxSignal !== "high")
+      || (s.lastCopilotRoundMaxSignal === null
+          && s.actionableThreadCount <= (refinementConfig.lowSignalMaxComments ?? 2))
+    );
 
   if (lowSignalApplied) {
     state = STATE.LOW_SIGNAL_CONVERGED;

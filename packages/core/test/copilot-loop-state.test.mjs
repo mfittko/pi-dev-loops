@@ -37,6 +37,7 @@ test("normalizeSnapshot returns safe defaults for an empty object", () => {
     actionableThreadCount: 0,
     copilotReviewRoundCount: 0,
     ciStatus: "none",
+    lastCopilotRoundMaxSignal: null,
     agentFixStatus: null,
   });
 });
@@ -808,4 +809,54 @@ test("interpretLoopState uses config default thresholds when not provided", () =
   const result = interpretLoopState(snapshot, refinementConfig);
   assert.equal(result.state, STATE.LOW_SIGNAL_CONVERGED,
     "should use default lowSignalRoundThreshold=3 and lowSignalMaxComments=2");
+});
+
+// ── Signal-gated suppression tests ───────────────────────────────────────
+
+test("interpretLoopState suppresses when lastCopilotRoundMaxSignal is mid and threshold met", () => {
+  const snapshot = {
+    prExists: true, prNumber: 17,
+    copilotReviewRequestStatus: "none", copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false, unresolvedThreadCount: 0,
+    actionableThreadCount: 3, copilotReviewRoundCount: 5,
+    lastCopilotRoundMaxSignal: "mid", ciStatus: "success",
+  };
+  const config = { stopOnLowSignal: true, lowSignalRoundThreshold: 3, lowSignalMaxComments: 2 };
+  assert.equal(interpretLoopState(snapshot, config).state, STATE.LOW_SIGNAL_CONVERGED);
+});
+
+test("interpretLoopState suppresses when lastCopilotRoundMaxSignal is low", () => {
+  const snapshot = {
+    prExists: true, prNumber: 17,
+    copilotReviewRequestStatus: "none", copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false, unresolvedThreadCount: 0,
+    actionableThreadCount: 0, copilotReviewRoundCount: 4,
+    lastCopilotRoundMaxSignal: "low", ciStatus: "success",
+  };
+  const config = { stopOnLowSignal: true, lowSignalRoundThreshold: 3, lowSignalMaxComments: 2 };
+  assert.equal(interpretLoopState(snapshot, config).state, STATE.LOW_SIGNAL_CONVERGED);
+});
+
+test("interpretLoopState does NOT suppress when lastCopilotRoundMaxSignal is high", () => {
+  const snapshot = {
+    prExists: true, prNumber: 17,
+    copilotReviewRequestStatus: "none", copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false, unresolvedThreadCount: 0,
+    actionableThreadCount: 0, copilotReviewRoundCount: 5,
+    lastCopilotRoundMaxSignal: "high", ciStatus: "success",
+  };
+  const config = { stopOnLowSignal: true, lowSignalRoundThreshold: 1, lowSignalMaxComments: 2 };
+  assert.equal(interpretLoopState(snapshot, config).state, STATE.READY_TO_REREQUEST_REVIEW);
+});
+
+test("interpretLoopState falls back to actionableThreadCount when signal data is null", () => {
+  const snapshot = {
+    prExists: true, prNumber: 17,
+    copilotReviewRequestStatus: "none", copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false, unresolvedThreadCount: 0,
+    actionableThreadCount: 0, copilotReviewRoundCount: 4,
+    lastCopilotRoundMaxSignal: null, ciStatus: "success",
+  };
+  const config = { stopOnLowSignal: true, lowSignalRoundThreshold: 3, lowSignalMaxComments: 2 };
+  assert.equal(interpretLoopState(snapshot, config).state, STATE.LOW_SIGNAL_CONVERGED);
 });

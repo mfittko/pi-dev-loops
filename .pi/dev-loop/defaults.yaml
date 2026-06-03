@@ -9,7 +9,7 @@ refinement:
   fanOut: 3
   mode: parallel
   maxCopilotRounds: 5
-  stopOnLowSignal: false
+  stopOnLowSignal: true
   lowSignalRoundThreshold: 3
   lowSignalMaxComments: 2
   roles:

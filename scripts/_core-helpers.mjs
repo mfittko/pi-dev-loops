@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 export {
   formatCliError,
   parseJsonText,
+  classifyReviewThreadsSignal,
   parseReviewThreads,
   readInput,
 } from "@pi-dev-loops/core/github/review-threads";

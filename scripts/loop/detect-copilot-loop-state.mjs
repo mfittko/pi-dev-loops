@@ -76,6 +76,7 @@ import {
   isCopilotLogin,
   isDirectCliRun,
   parseJsonText,
+  classifyReviewThreadsSignal,
   parseReviewThreads,
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
@@ -541,12 +542,14 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
   // re-request path.
   let unresolvedThreadCount = 0;
   let actionableThreadCount = 0;
+  let lastCopilotRoundMaxSignal = null;
 
   try {
     const threadsPayload = await fetchGithubReviewThreadsPayload({ repo, pr }, { env, ghCommand });
     const parsed = parseReviewThreads(threadsPayload);
     unresolvedThreadCount = parsed.summary.unresolvedThreads;
     actionableThreadCount = parsed.summary.actionableThreads;
+    lastCopilotRoundMaxSignal = classifyReviewThreadsSignal(parsed, isCopilotLogin);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`Could not determine review-thread state: ${detail}`);
@@ -590,6 +593,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     unresolvedThreadCount,
     actionableThreadCount,
     copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
+    lastCopilotRoundMaxSignal,
     ciStatus: currentHeadCiStatus,
   });
 }
