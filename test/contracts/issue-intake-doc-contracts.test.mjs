@@ -221,6 +221,7 @@ test("issue-intake flow carries the resolved repo slug through later GitHub issu
   assert.match(skillContent, /gh pr ready <pr-number> --repo <resolved-repo>/);
   assert.match(skillContent, /gh pr review <pr-number> --repo <resolved-repo> --approve/);
   assert.match(skillContent, /detect-gate-review-evidence\.mjs --repo <resolved-repo> --pr <pr-number>/);
+  assert.doesNotMatch(skillContent, /--require-before-merge/, "the removed opt-in flag must not appear in the docs");
   assert.match(skillContent, /gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch/);
 });
 

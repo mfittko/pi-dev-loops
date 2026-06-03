@@ -228,6 +228,11 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
     /detect-gate-review-evidence\.mjs[\s\S]*always-on/i,
     "mechanical pre-merge check should use the gate evidence helper with always-on enforcement",
   );
+  assert.doesNotMatch(
+    step7,
+    /--require-before-merge/,
+    "the removed opt-in flag must not appear in the skill text",
+  );
   assert.match(
     step7,
     /Do not run `gh pr merge` if this command exits non-zero/i,
