@@ -4,7 +4,6 @@ import {
   formatCliError,
   isCopilotLogin,
   isDirectCliRun,
-  parseJsonText,
   parseReviewThreads,
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
@@ -14,6 +13,7 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState } from "@pi-dev-loops/core/loop/copilot-loop-state";
 
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
+const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
 
 const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number> [--force-rerequest-review]
 
@@ -32,9 +32,9 @@ Debug:
                             convergence detection falls back to unsuppressed behavior
 
 Output (stdout, JSON):
-  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean",
+  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
-    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true }
+    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true, "violationCommentIds"?: [N] }
 
 Request statuses:
   requested           Copilot review was successfully requested
@@ -294,7 +294,7 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
 export async function checkForCopilotComments({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
-    ["api", `repos/${repo}/issues/${pr}/comments`, "--jq", "."],
+    ["api", `repos/${repo}/issues/${pr}/comments`, "--paginate", "--jq", "."],
     env,
   );
 
