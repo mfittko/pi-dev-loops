@@ -83,7 +83,7 @@ Error output (stderr, JSON):
 
 Exit codes:
   0  Success (gate evidence is valid)
-  1  Argument error, gh failure, malformed gh JSON, or missing required pre-merge gate evidence`.trim();
+  1  Argument error, gh failure, malformed gh JSON, or missing required pre-merge gate evidence.`.trim();
 
 const parseError = buildParseError(USAGE);
 
