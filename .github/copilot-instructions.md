@@ -5,16 +5,16 @@ Work test-first, ≥90% coverage. `npm run verify` for full validation.
 
 ## Canonical rule docs (single owner per rule)
 
-Confirmation → `skills/docs/confirmation-rules.md`
-Stop conditions → `skills/docs/stop-conditions.md`
-Anti-patterns → `skills/docs/anti-patterns.md`
-Validation → `skills/docs/validation-policy.md`
-Merge preconditions → `skills/docs/merge-preconditions.md`
-Structural quality → `skills/docs/structural-quality.md`
+Confirmation → `../skills/docs/confirmation-rules.md`
+Stop conditions → `../skills/docs/stop-conditions.md`
+Anti-patterns → `../skills/docs/anti-patterns.md`
+Validation → `../skills/docs/validation-policy.md`
+Merge preconditions → `../skills/docs/merge-preconditions.md`
+Structural quality → `../skills/docs/structural-quality.md`
 
 ## Per-strategy entrypoint briefings (30-50 lines each)
 
-`skills/docs/entrypoint-briefing-*.md` — load the one for the routed strategy.
+`../skills/docs/entrypoint-briefing-*.md` — load the one for the routed strategy.
 
 ## Key helpers
 

@@ -1519,6 +1519,34 @@ describe("role resolution", () => {
       assert.deepEqual(result, []);
     });
 
+    test("resolveGateAngles handles non-string entries gracefully", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope", 42, null, "coverage"],
+            excludeAngles: [true, "scope"],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      // Non-strings are coerced to "" and filtered out; "scope" excluded
+      assert.deepEqual(result, ["coverage"]);
+    });
+
+    test("resolveGateAngles handles all non-string angles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: [null, 123, undefined],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, []);
+    });
+
     test("resolveGateAngles trims whitespace from angles and excludeAngles", () => {
       const config = {
         version: 1,
