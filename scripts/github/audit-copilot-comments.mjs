@@ -390,7 +390,7 @@ function isAuthError(stderrText) {
  * Retry a gh JSON call with exponential backoff on 403/429.
  * Fails immediately on 401 (auth) or other non-retryable errors.
  */
-export async function runGhJsonWithRetry(args, { env, ghCommand, retryMax = DEFAULT_RETRY_MAX, retryBaseMs = DEFAULT_RETRY_BASE_MS } = {}) {
+export async function runGhJsonWithRetry(args, { env = process.env, ghCommand = "gh", retryMax = DEFAULT_RETRY_MAX, retryBaseMs = DEFAULT_RETRY_BASE_MS } = {}) {
   let lastError = null;
 
   for (let attempt = 0; attempt <= retryMax; attempt += 1) {
@@ -446,7 +446,6 @@ async function loadCheckpoint(checkpointPath) {
 }
 
 async function saveCheckpoint(checkpointPath, data) {
-  const { mkdir } = await import("node:fs/promises");
   await mkdir(path.dirname(checkpointPath), { recursive: true });
   await writeFile(checkpointPath, `${JSON.stringify(data)}\n`, "utf8");
 }
@@ -881,15 +880,19 @@ export async function auditCopilotComments(options, { env = process.env, ghComma
   // ── Resume path ──────────────────────────────────────────────────
   if (resume && checkpointFile) {
     const checkpoint = await loadCheckpoint(checkpointFile);
-    if (checkpoint && checkpoint.comments && checkpoint.repo === options.repo) {
+    if (checkpoint && Array.isArray(checkpoint.comments) && checkpoint.repo === options.repo) {
       comments = checkpoint.comments;
 
-      if (checkpoint.stage === "after-prs" && checkpoint.prs) {
+      if (checkpoint.stage === "after-prs" && Array.isArray(checkpoint.prs)) {
         prs = checkpoint.prs;
       } else if (checkpoint.stage === "after-comments") {
         await sleepStep(sleepMs);
         prs = await fetchAllPullRequests(options.repo, { env, ghCommand, retryMax, retryBaseMs });
         await saveCheckpoint(checkpointFile, { stage: "after-prs", repo: options.repo, comments, prs });
+      } else {
+        // Unrecognized stage or missing prs in after-prs — treat as corrupt, fall through to fresh fetch
+        comments = null;
+        prs = null;
       }
     }
 

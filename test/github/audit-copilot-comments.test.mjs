@@ -437,6 +437,30 @@ test("runGhJsonWithRetry throws after max retries", async () => {
   }
 });
 
+test("runGhJsonWithRetry uses default ghCommand when omitted", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-default-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+        stdout: `${JSON.stringify([])}
+`,
+      },
+    ]);
+
+    // Call without explicit ghCommand to test default
+    const result = await runGhJsonWithRetry(
+      ["api", "--paginate", "--slurp", "repos/test/repo/pulls/comments?per_page=100"],
+      { env },
+    );
+
+    assert.deepEqual(result, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("runGhJsonWithRetry fails immediately on 401", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-401-"));
 
@@ -543,6 +567,47 @@ test("audit-copilot-comments resume from after-comments stage re-fetches only PR
     const ckptRaw = await readFile(checkpointPath, "utf8");
     const ckpt = JSON.parse(ckptRaw);
     assert.equal(ckpt.stage, "after-prs");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("audit-copilot-comments resume with after-prs checkpoint missing prs falls back to fresh fetch", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-checkpoint-noprs-"));
+
+  try {
+    const checkpointPath = path.join(tempDir, "ckpt.json");
+
+    // Checkpoint with stage after-prs but no prs field
+    await writeFile(checkpointPath, JSON.stringify({
+      stage: "after-prs",
+      repo: "owner/repo",
+      comments: [
+        sampleReviewComment({ id: 701, prNumber: 11, path: "a.md", body: "missing file" }),
+      ],
+      // prs missing deliberately
+    }));
+
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/comments?per_page=100"],
+        stdout: `${JSON.stringify([[
+          sampleReviewComment({ id: 702, prNumber: 11, path: "b.md", body: "missing file again" }),
+        ]])}
+`,
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls?state=all&per_page=100"],
+        stdout: `${JSON.stringify([samplePrs])}
+`,
+      },
+    ]);
+
+    const outputDir = path.join(tempDir, "out");
+    const result = await runNode(["--repo", "owner/repo", "--output-dir", outputDir, "--checkpoint-file", checkpointPath, "--resume"], { env });
+    assert.equal(result.code, 0);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.totals.copilotComments, 1);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
