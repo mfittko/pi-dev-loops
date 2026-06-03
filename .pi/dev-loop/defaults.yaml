@@ -144,7 +144,7 @@ personas:
       - no spaghetti branching growth
       - no unnecessary abstraction or indirection
 
-      This persona complements the deslop-audit skill (full-repo): same rigor,
+      This persona complements full-repo deslop audits: same rigor,
       applied per-PR.
     defaultModel: null
 
