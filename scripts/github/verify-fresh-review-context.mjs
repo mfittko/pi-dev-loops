@@ -14,6 +14,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { isDirectCliRun, formatCliError } from "../_core-helpers.mjs";
 
 const SENTINEL_RELATIVE = path.join("tmp", "gate-review-context-sentinel.json");
 
@@ -24,6 +25,9 @@ Verify that the current subagent session has fresh context.
 Output (stdout, JSON):
   { "ok": true, "fresh": true, "sentinelCreated": true }
   { "ok": true, "fresh": false, "sentinelCreated": false, "reason": "..." }
+
+  On internal error (stderr, JSON):
+  { "ok": false, "error": "..." }
 
 Exit codes:
   0  Clean (first run)
@@ -38,18 +42,21 @@ async function main(argv = process.argv.slice(2)) {
 
   const sentinelPath = path.resolve(process.cwd(), SENTINEL_RELATIVE);
 
+  // Ensure tmp/ exists
   try {
     await mkdir(path.dirname(sentinelPath), { recursive: true });
-  } catch {
-    // ignore
+  } catch (err) {
+    formatCliError(err, { prefix: "verify-fresh-review-context: " });
+    return 2;
   }
 
+  // Check if sentinel already exists
   let existingSentinel = null;
   try {
     const raw = await readFile(sentinelPath, "utf8");
     existingSentinel = JSON.parse(raw);
   } catch {
-    // File doesn't exist — fresh context
+    // File doesn't exist or unreadable — proceed
   }
 
   if (existingSentinel) {
@@ -62,12 +69,30 @@ async function main(argv = process.argv.slice(2)) {
     return 1;
   }
 
+  // Atomic create with exclusive write flag (wx)
   const sentinel = {
     createdAt: new Date().toISOString(),
     pid: process.pid,
   };
 
-  await writeFile(sentinelPath, JSON.stringify(sentinel, null, 2) + "\n", "utf8");
+  try {
+    await writeFile(sentinelPath, JSON.stringify(sentinel, null, 2) + "\n", {
+      encoding: "utf8",
+      flag: "wx",
+    });
+  } catch (err) {
+    if (err.code === "EEXIST") {
+      process.stdout.write(JSON.stringify({
+        ok: true,
+        fresh: false,
+        sentinelCreated: false,
+        reason: "Gate-review context sentinel already exists (detected on atomic create) — inherited session context detected. Restart the subagent with fresh context (subagent({context:\"fresh\"})).",
+      }) + "\n");
+      return 1;
+    }
+    formatCliError(err, { prefix: "verify-fresh-review-context: " });
+    return 2;
+  }
 
   process.stdout.write(JSON.stringify({
     ok: true,
@@ -77,9 +102,12 @@ async function main(argv = process.argv.slice(2)) {
   return 0;
 }
 
-const isDirect = process.argv[1]
-  && path.resolve(process.argv[1]) === path.resolve(import.meta.url.replace("file://", ""));
-if (isDirect) {
-  const exitCode = await main();
-  process.exit(exitCode);
+if (isDirectCliRun(import.meta.url)) {
+  try {
+    const exitCode = await main();
+    process.exit(exitCode);
+  } catch (err) {
+    formatCliError(err, { prefix: "verify-fresh-review-context: " });
+    process.exit(2);
+  }
 }
