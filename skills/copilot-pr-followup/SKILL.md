@@ -149,6 +149,7 @@ Treat the PR as the main working artifact once it exists.
 Inspect:
 - PR body and title
 - whether the PR body actually satisfies the PR description contract from [Copilot Loop Operations](../docs/copilot-loop-operations.md)
+- that the PR body contains `Closes #N` (or `Fixes #N`) for the linked issue; if missing, stop and require it before continuing
 - PR author, because verdict handling differs for PRs not opened by the active GitHub user
 - review summaries
 - unresolved inline comments and issue comments
