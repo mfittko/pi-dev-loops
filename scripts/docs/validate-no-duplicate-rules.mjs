@@ -32,6 +32,8 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isDirectCliRun } from "../_core-helpers.mjs";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const SKILLS_DIR = path.join(REPO_ROOT, "skills");
@@ -212,7 +214,7 @@ async function main(argv = process.argv.slice(2)) {
 
   if (duplicates.size === 0) {
     process.stdout.write(`No duplicate imperative rules found across skill docs.\n`);
-    process.stdout.write(`\n${totalFilesScanned} files scanned, ${fileMap.size} imperative sentences extracted, 0 duplicates found.\n`);
+    process.stdout.write(`\n${totalFilesScanned} files scanned, ${fileMap.size} unique imperative sentences extracted, 0 duplicates found.\n`);
     return 0;
   }
 
@@ -224,7 +226,7 @@ async function main(argv = process.argv.slice(2)) {
     process.stdout.write(`    "${text}"\n\n`);
   }
 
-  process.stdout.write(`${totalFilesScanned} files scanned, ${fileMap.size} imperative sentences extracted, ${duplicates.size} duplicates found.\n`);
+  process.stdout.write(`${totalFilesScanned} files scanned, ${fileMap.size} unique imperative sentences extracted, ${duplicates.size} duplicates found.\n`);
   return 1;
 }
 

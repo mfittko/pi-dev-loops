@@ -234,6 +234,25 @@ test("scanSkills skips canonical contract docs", async () => {
   }
 });
 
+
+test("scanSkills excludes known intentional duplicates", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-validate-rules-"));
+  try {
+    // This sentence is in the KNOWN_INTENTIONAL_DUPLICATES set,
+    // so cross-file duplication should be suppressed.
+    const skillsDir = await writeSkillsDir(tempDir, {
+      "doc-a/SKILL.md": "If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.",
+      "doc-b/SKILL.md": "If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.",
+    });
+    const repoRoot = tempDir;
+    const { duplicates } = await scanSkills(skillsDir, repoRoot);
+
+    assert.equal(duplicates.size, 0);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("collectMarkdownFiles finds markdown files recursively", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-validate-rules-"));
   try {
