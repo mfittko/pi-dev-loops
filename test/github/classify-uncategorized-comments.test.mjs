@@ -176,6 +176,19 @@ test("classifyUncategorizedComments falls back from summary JSON and retries 429
   }
 });
 
+test("classifyUncategorizedComments reports both default input candidates when missing", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-classify-missing-input-"));
+
+  try {
+    await assert.rejects(
+      classifyUncategorizedComments({ outputDir: path.join(tempDir, "out"), model: "gpt-test", apiKey: "key", provider: "openai-compatible" }, { fetchImpl: async () => { throw new Error("should not fetch"); } }),
+      /uncategorized-comments\.json.*copilot-comment-summary\.json/i,
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("classify-uncategorized-comments CLI rejects missing API key clearly", async () => {
   const result = await runNode(["--model", "gpt-test"], { env: { ...process.env, LLM_API_KEY: "", OPENAI_API_KEY: "", ANTHROPIC_API_KEY: "" } });
 

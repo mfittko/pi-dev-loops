@@ -174,7 +174,9 @@ async function resolveInputPath(options) {
   if (options.input) return options.input;
   const uncategorizedPath = path.join(options.outputDir, DEFAULT_INPUT_NAME);
   if (await pathExists(uncategorizedPath)) return uncategorizedPath;
-  return path.join(options.outputDir, FALLBACK_SUMMARY_NAME);
+  const summaryPath = path.join(options.outputDir, FALLBACK_SUMMARY_NAME);
+  if (await pathExists(summaryPath)) return summaryPath;
+  throw new Error(`No classifier input found. Expected ${uncategorizedPath} or fallback ${summaryPath}; pass --input to use another file.`);
 }
 
 function normalizeComment(entry) {
