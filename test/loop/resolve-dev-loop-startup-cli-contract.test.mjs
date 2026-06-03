@@ -14,7 +14,7 @@ async function withInputFile(input, fn) {
   const inputPath = path.join(tmpDir, "startup-input.json");
   await writeFile(inputPath, JSON.stringify(input));
   try {
-    return await fn(inputPath);
+    return await fn(inputPath, tmpDir);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
@@ -52,11 +52,14 @@ test("resolve-dev-loop-startup success stdout keeps documented JSON shape", asyn
     issueAssignmentState: "unassigned",
     loopState: "active",
     retrospectiveCheckpointState: "complete",
-  }, async (inputPath) => {
+  }, async (inputPath, tmpDir) => {
     const result = spawnSync(process.execPath, [cliPath, "--input", inputPath], {
       cwd: repoRoot,
       encoding: "utf8",
       env: { ...process.env, PI_ASYNC_START_BYPASS: "1" },
+      // Note: This test assumes no .pi/dev-loop-retrospective-checkpoint.json
+      // exists in repoRoot — the explicit retrospectiveCheckpointState in the
+      // input ensures deterministic routing regardless.
     });
 
     assert.equal(result.status, 0);
@@ -118,7 +121,7 @@ test("resolve-dev-loop-startup rejects async-required strategy via stderr contra
     issueLinkageResolution: "resolved_linked_pr",
     loopState: "unresolved_feedback_present",
     retrospectiveCheckpointState: "complete",
-  }, async (inputPath) => {
+  }, async (inputPath, tmpDir) => {
     const result = spawnSync(process.execPath, [cliPath, "--input", inputPath], {
       cwd: repoRoot,
       encoding: "utf8",

@@ -72,7 +72,7 @@ test("buildResolveDevLoopStartupResult maps linked Copilot follow-up to the PR f
     artifactState: "open",
     issueLinkageResolution: "resolved_linked_pr",
     loopState: "unresolved_feedback_present",
-  }, { env: { PI_ASYNC_START_BYPASS: "1" } });
+  }, { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: os.tmpdir() });
 
   assert.equal(result.bundleKind, "resolved");
   assert.equal(result.selectedStrategy, "copilot_pr_followup");

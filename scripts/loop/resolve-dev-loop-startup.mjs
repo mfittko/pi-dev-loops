@@ -183,6 +183,7 @@ export function summarizeCanonicalState(bundle) {
  * @param {object} input — canonical-state JSON payload
  * @param {object} [options]
  * @param {Record<string,string|undefined>} [options.env] — for async-start check
+ * @param {string} [options.cwd] — working directory for checkpoint file resolution (default: process.cwd())
  * @returns {{ ok: true, ... } | { ok: false, error: string, asyncStartContract: "rejected" }}
  */
 export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd = process.cwd() } = {}) {
