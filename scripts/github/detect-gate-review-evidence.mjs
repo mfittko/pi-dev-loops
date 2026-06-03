@@ -213,7 +213,7 @@ function normalizeGateMarkerSummary(summary) {
   };
 }
 
-export function buildPreMergeGateCheck(evidence) {
+function buildPreMergeGateCheck(evidence) {
   const failures = [];
 
   if (!(evidence.draftGate.visible && evidence.draftGate.verdict === "clean")) {

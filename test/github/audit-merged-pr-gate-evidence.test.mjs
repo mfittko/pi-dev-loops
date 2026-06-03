@@ -72,29 +72,27 @@ test("audit-merged-pr-gate-evidence reports missing gate evidence among recent m
       {
         assertArgs: ["api", "repos/owner/repo/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=1"],
         stdout: `${JSON.stringify([
-          [
-            {
-              number: 10,
-              title: "Clean PR",
-              html_url: "https://github.com/owner/repo/pull/10",
-              merged_at: "2026-06-03T12:00:00Z",
-              head: { sha: "abc1234" },
-            },
-            {
-              number: 9,
-              title: "Missing gates",
-              html_url: "https://github.com/owner/repo/pull/9",
-              merged_at: "2026-06-03T11:00:00Z",
-              head: { sha: "def5678" },
-            },
-            {
-              number: 8,
-              title: "Closed unmerged",
-              html_url: "https://github.com/owner/repo/pull/8",
-              merged_at: null,
-              head: { sha: "9999999" },
-            },
-          ],
+          {
+            number: 10,
+            title: "Clean PR",
+            html_url: "https://github.com/owner/repo/pull/10",
+            merged_at: "2026-06-03T12:00:00Z",
+            head: { sha: "abc1234" },
+          },
+          {
+            number: 9,
+            title: "Missing gates",
+            html_url: "https://github.com/owner/repo/pull/9",
+            merged_at: "2026-06-03T11:00:00Z",
+            head: { sha: "def5678" },
+          },
+          {
+            number: 8,
+            title: "Closed unmerged",
+            html_url: "https://github.com/owner/repo/pull/8",
+            merged_at: null,
+            head: { sha: "9999999" },
+          },
         ])}\n`,
       },
       {
