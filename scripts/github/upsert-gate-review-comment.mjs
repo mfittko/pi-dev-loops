@@ -112,6 +112,34 @@ function normalizeForceReason(value) {
   return normalized;
 }
 
+function normalizeOptionalForceReason(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = collapseWhitespace(value);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function resolveRuntimeForceOptions(options) {
+  const force = options.force === true;
+  const forceReason = normalizeOptionalForceReason(options.forceReason);
+
+  if (forceReason === null) {
+    throw new Error("forceReason must be a non-empty string when calling upsertGateReviewComment()");
+  }
+
+  if (force && forceReason === undefined) {
+    throw new Error("force requires forceReason when calling upsertGateReviewComment()");
+  }
+
+  if (!force && options.forceReason !== undefined) {
+    throw new Error("forceReason requires force when calling upsertGateReviewComment()");
+  }
+
+  return { force, forceReason };
+}
+
 function collapseWhitespace(value) {
   return String(value).replace(/\s+/gu, " ").trim();
 }
@@ -525,6 +553,7 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
 }
 
 export async function upsertGateReviewComment(options, { env = process.env, ghCommand = "gh", repoRoot = process.cwd() } = {}) {
+  const { force, forceReason } = resolveRuntimeForceOptions(options);
   const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr, localValidationHeadSha: options.localValidationHeadSha }, { env, ghCommand });
   const evidence = coordinationContext.gateEvidence;
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
@@ -553,14 +582,14 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
   const requestedGateAction = resolveGateAction(options.gate);
   const gateActionForbidden = coordination.forbiddenActions.includes(requestedGateAction);
   const forcedBypass = gateActionForbidden
-    && options.force
+    && force
     && isCiBlockedGateOverrideEligible({ coordination, coordinationContext, gate: options.gate });
 
   if (gateActionForbidden && !forcedBypass) {
     throw new Error(buildGateEntryRefusalError({ options, coordination, coordinationContext }));
   }
 
-  const forcedResultMetadata = buildForcedResultMetadata({ forced: forcedBypass, forceReason: options.forceReason });
+  const forcedResultMetadata = buildForcedResultMetadata({ forced: forcedBypass, forceReason });
 
   const effectiveFindingsSummary = appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
   const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha, findingsSummary: effectiveFindingsSummary });

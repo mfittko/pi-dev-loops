@@ -9,6 +9,7 @@ import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson a
 import {
   parseUpsertGateReviewCommentCliArgs,
   summarizeGateReviewText,
+  upsertGateReviewComment,
 } from "../../scripts/github/upsert-gate-review-comment.mjs";
 
 const scriptPath = path.resolve("scripts/github/upsert-gate-review-comment.mjs");
@@ -166,6 +167,22 @@ test("parseUpsertGateReviewCommentCliArgs rejects --force-reason without --force
       "--force-reason", "CI cancelled due to infra",
     ]),
     /--force-reason requires --force/i,
+  );
+});
+
+test("upsertGateReviewComment rejects programmatic force without forceReason before any gh calls", async () => {
+  await assert.rejects(
+    () => upsertGateReviewComment({
+      repo: "owner/repo",
+      pr: 17,
+      gate: "draft_gate",
+      headSha: "abc1234",
+      verdict: "clean",
+      findingsSummary: "no issues found",
+      nextAction: "mark ready for review",
+      force: true,
+    }),
+    /force requires forceReason when calling upsertGateReviewComment\(\)/i,
   );
 });
 
