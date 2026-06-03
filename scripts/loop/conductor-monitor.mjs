@@ -1144,19 +1144,10 @@ function buildSourceSelection(record, outputArtifactText, resultSummaryText, out
   }
 
   if (record.outputArtifactPath) {
-    if (resultSummaryText !== null) {
-      return {
-        primaryText: resultSummaryText,
-        primarySource: "grouped_result_summary",
-        fallbackText: null,
-        weakFallbackText: outputLogText,
-      };
-    }
-
     return {
       primaryText: null,
       primarySource: "missing_output_artifact",
-      fallbackText: null,
+      fallbackText: resultSummaryText,
       weakFallbackText: outputLogText,
     };
   }
