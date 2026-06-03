@@ -11,7 +11,8 @@
  *
  * Use --scope <name> when multiple reviewers share the same working directory
  * (parallel fan-out) so each reviewer writes its own sentinel and false
- * contamination is avoided.
+ * contamination is avoided. Scope must be non-empty and contain only
+ * alphanumeric characters and hyphens.
  *
  * Exit 0 on clean (first run), exit 1 on contamination (prior run detected).
  */
@@ -26,9 +27,10 @@ Verify that the current subagent session has fresh context.
 
 Options:
   --scope <name>  Unique reviewer scope (e.g. "draft-gate-coverage").
-                  When provided, the sentinel is scoped so parallel
-                  reviewers in the same working directory do not
-                  trigger false contamination.
+                  Must be non-empty, containing only alphanumeric
+                  characters and hyphens. When provided, the sentinel
+                  is scoped so parallel reviewers in the same working
+                  directory do not trigger false contamination.
 
 Output (stdout, JSON):
   { "ok": true, "fresh": true, "sentinelCreated": true }
@@ -42,12 +44,36 @@ Exit codes:
   1  Contaminated (prior session detected)
   2  Internal error`.trim();
 
+const VALID_SCOPE_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
+
+/**
+ * Returns the raw --scope value, or null if not provided.
+ * Returns "" (empty string) when --scope is provided but the value
+ * is missing or looks like another flag.
+ */
 function resolveScope(argv) {
   const idx = argv.indexOf("--scope");
   if (idx === -1) return null;
   const val = argv[idx + 1];
-  if (!val || val.startsWith("-")) return null;
+  if (val === undefined || val === "" || (val.length > 0 && val[0] === "-")) {
+    return ""; // provided but missing/empty/flag-like
+  }
   return val;
+}
+
+function usageError(message) {
+  process.stderr.write(`${formatCliError(new Error(message))}\n`);
+  process.stderr.write(`${USAGE}\n`);
+}
+
+function resolveValidatedScope(argv) {
+  const raw = resolveScope(argv);
+  if (raw === null) return null;
+  if (raw === "" || !VALID_SCOPE_RE.test(raw)) {
+    usageError(`Invalid --scope value "${raw}": must be non-empty and contain only alphanumeric characters and hyphens.`);
+    return undefined; // signals invalid
+  }
+  return raw;
 }
 
 function sentinelRelative(scope) {
@@ -61,7 +87,9 @@ async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  const scope = resolveScope(argv);
+  const scope = resolveValidatedScope(argv);
+  if (scope === undefined) return 2;
+
   const sentinelPath = path.resolve(process.cwd(), sentinelRelative(scope));
 
   // Ensure tmp/ exists
@@ -128,9 +156,9 @@ async function main(argv = process.argv.slice(2)) {
 if (isDirectCliRun(import.meta.url)) {
   try {
     const exitCode = await main();
-    process.exit(exitCode);
+    process.exitCode = exitCode;
   } catch (err) {
     process.stderr.write(`${formatCliError(err)}\n`);
-    process.exit(2);
+    process.exitCode = 2;
   }
 }

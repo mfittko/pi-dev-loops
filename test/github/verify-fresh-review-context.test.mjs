@@ -116,3 +116,30 @@ test("verify-fresh-review-context --scope re-run with same scope detects contami
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
 });
+
+test("verify-fresh-review-context --scope rejects path traversal", async () => {
+  const result = runScript(["--scope", "../../.git/config"]);
+  assert.equal(result.status, 2, result.stderr);
+});
+
+test("verify-fresh-review-context --scope rejects empty value", async () => {
+  const result = runScript(["--scope", ""]);
+  assert.equal(result.status, 2, result.stderr);
+});
+
+test("verify-fresh-review-context --scope rejects values with slashes", async () => {
+  const result = runScript(["--scope", "foo/bar"]);
+  assert.equal(result.status, 2, result.stderr);
+});
+
+test("verify-fresh-review-context --scope with missing value fails closed", async () => {
+  // --scope followed by another flag or nothing
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-verify-fresh-"));
+  try {
+    await mkdir(path.join(tmpDir, "tmp"), { recursive: true });
+    const result = runScript(["--scope"], { cwd: tmpDir });
+    assert.equal(result.status, 2, result.stderr);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+});
