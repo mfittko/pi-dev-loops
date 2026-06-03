@@ -516,7 +516,10 @@ async function scanSessionArtifactRoot(artifactsDir, records) {
 }
 
 async function scanSessionRunRoot(root, records) {
-  const topLevelEntries = await readdir(root, { withFileTypes: true });
+  const topLevelEntries = await readdir(root, { withFileTypes: true }).catch(() => null);
+  if (topLevelEntries === null) {
+    return;
+  }
 
   for (const topLevelEntry of topLevelEntries) {
     if (!topLevelEntry.isDirectory()) {
