@@ -132,6 +132,16 @@ Do not assume `scripts/...` is repo-local to the target codebase you are operati
 - For GitHub issue or PR comments, prefer `--body-file` / `-F` or stdin via `-F -` over inline shell strings.
 - Keep scope tight to the issue/PR at hand.
 
+## Structural quality (from `deep` review angle)
+
+During implementation and follow-up fixes, apply the `deep` review angle standards before waiting for review:
+
+- Prefer deletion over addition; question every new file, export, layer, and moving part.
+- Files over ~1k lines need extraction or an explicit justification.
+- Do not bolt conditionals onto unrelated paths; push logic into dedicated boundaries.
+- Avoid spaghetti branching, thin wrappers, re-export-only files, and identity abstractions.
+- Do not leak feature logic into shared modules or create leaky abstractions.
+
 ## Step 5: PR discovery and interpretation
 
 Treat the PR as the main working artifact once it exists.
