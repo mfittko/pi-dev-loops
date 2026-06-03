@@ -61,7 +61,7 @@ const IMPERATIVE_PATTERNS = [
   /\bmust\b/i,
   /\bnever\b/i,
   /\bdo not\b/i,
-  /\brequire[sd]?\b(?!DraftFirst)/i,
+  /\brequire[sd]?\b/i,
 ];
 
 const MIN_SENTENCE_LENGTH = 20;
