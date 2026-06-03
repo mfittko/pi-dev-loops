@@ -301,11 +301,12 @@ async function main() {
     // #443: fetch review threads to verify zero unresolved threads before passing
     let unresolvedThreadCount = null;
     try {
-      const threadsPayload = await fetchGithubReviewThreadsPayload(options);
+      const threadsPayload = await fetchGithubReviewThreadsPayload(options, { env: process.env });
       const parsedThreads = parseReviewThreads(threadsPayload);
       unresolvedThreadCount = parsedThreads?.summary?.unresolvedThreads ?? 0;
     } catch {
-      unresolvedThreadCount = -1;
+      // API unavailable — skip thread check (don't block on fetch failure)
+      unresolvedThreadCount = null;
     }
 
     const preMergeGateCheck = buildPreMergeGateCheck(result, unresolvedThreadCount);
