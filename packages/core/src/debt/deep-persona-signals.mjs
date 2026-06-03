@@ -226,11 +226,8 @@ export function extractDeepPersonaSignals(parsedOutput, prMeta) {
       prMeta,
     );
 
-    // Validate against canonical schema
-    const parsed = DebtSignalSchema.safeParse(signal);
-    if (parsed.success) {
-      signals.push(parsed.data);
-    }
+    // Validate against canonical schema — throw on regression
+    signals.push(DebtSignalSchema.parse(signal));
   }
 
   return signals;

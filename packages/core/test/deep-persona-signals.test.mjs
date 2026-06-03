@@ -1,12 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { readFile } from "node:fs/promises";
-import { mkdtemp, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 
 import { DebtSignalSchema } from "../src/debt/debt-signal.mjs";
 import {
@@ -18,10 +14,8 @@ import { parseReviewThreads, parseJsonText } from "../src/github/review-threads.
 import {
   parseArgs,
   outputFilename as cliOutputFilename,
-  USAGE,
 } from "../bin/capture-deep-persona-signals.mjs";
 
-const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = join(__dirname, "fixtures", "github", "review-threads", "deep-persona-threads.json");
 
@@ -47,7 +41,6 @@ describe("deep-persona signal extraction", () => {
       const parsed = await loadAndParseFixture();
       const signals = extractDeepPersonaSignals(parsed, PR_META);
 
-      // Fixture has 7 bot comments: 6 with deep patterns, 1 non-deep bot, 1 human
       assert.equal(signals.length, 6, "Expected 6 deep-persona signals");
     });
 
@@ -192,8 +185,8 @@ describe("deep-persona signal extraction", () => {
 
       assert.ok(signals.length > 0, "Should have at least one signal");
       for (const signal of signals) {
-        const result = DebtSignalSchema.safeParse(signal);
-        assert.ok(result.success, `Signal ${signal.id} should validate: ${result.success ? "" : JSON.stringify(result.error?.issues)}`);
+        // parse() is used now — throws on failure, so reaching here is validation
+        DebtSignalSchema.parse(signal);
       }
     });
 
@@ -228,7 +221,6 @@ describe("deep-persona signal extraction", () => {
 
     test("schema rejects signal with missing required field", () => {
       const badSignal = {
-        // missing id
         sourceType: "pr_review_deep_persona",
         signalKind: "file_size",
         location: {},
@@ -325,7 +317,6 @@ describe("deep-persona signal extraction", () => {
     test("outputFilename format is deterministic", () => {
       const filename = cliOutputFilename("42");
       const parts = filename.split("-");
-      // deep-persona-signals-<prNumber>-<timestamp>.json
       assert.ok(parts.length >= 5);
       assert.equal(parts[0], "deep");
       assert.equal(parts[1], "persona");
@@ -341,13 +332,10 @@ describe("deep-persona signal extraction", () => {
 
       assert.equal(signals.length, 6, "Should extract 6 signals from fixture");
 
-      // Verify each signal is valid
       for (const signal of signals) {
-        const result = DebtSignalSchema.safeParse(signal);
-        assert.ok(result.success, `Signal ${signal.signalKind} should validate`);
+        DebtSignalSchema.parse(signal);
       }
 
-      // Verify signal kinds are distinct across the fixture
       const kinds = new Set(signals.map((s) => s.signalKind));
       assert.ok(kinds.size >= 5, "Should cover at least 5 distinct categories");
     });
@@ -358,16 +346,20 @@ describe("deep-persona signal extraction", () => {
       const phrases = getDeepPersonaFlagPhrases();
       assert.ok(Array.isArray(phrases));
       assert.ok(phrases.length >= 13, "Should have at least 13 known flag phrases");
-      // All phrases should be non-empty strings
       for (const phrase of phrases) {
         assert.ok(typeof phrase === "string" && phrase.length > 0);
       }
     });
 
-    test("verifyPromptStability returns array (may be empty)", async () => {
+    test("verifyPromptStability: all flag phrase regex patterns match the deep persona prompt", async () => {
       const missing = await verifyPromptStability();
-      assert.ok(Array.isArray(missing));
-      // missing may be empty (all patterns match prompt) or contain entries (patterns don't match prompt)
+      assert.deepEqual(
+        missing,
+        [],
+        "All flag phrase regex patterns must match the deep persona prompt. " +
+        "Missing (prompt drift): " + JSON.stringify(missing) +
+        ". Update FLAG_PATTERNS or the deep persona prompt to realign."
+      );
     });
   });
 
