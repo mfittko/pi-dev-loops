@@ -1519,6 +1519,33 @@ describe("role resolution", () => {
       assert.deepEqual(result, []);
     });
 
+    test("resolveGateAngles trims whitespace from angles and excludeAngles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: [" scope ", "  coverage  ", "correctness"],
+            excludeAngles: [" scope  "],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, ["coverage", "correctness"]);
+    });
+
+    test("resolveGateConfig trims whitespace and filters empty strings from angles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: [" scope ", "  ", "coverage"],
+          },
+        },
+      };
+      const result = resolveGateConfig(config, "draft");
+      assert.deepEqual(result.angles, ["scope", "coverage"]);
+    });
+
     test("resolveGateAngles filters when excludeAngles has angles not in angles list", () => {
       const config = {
         version: 1,

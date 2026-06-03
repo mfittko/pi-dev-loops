@@ -31,8 +31,8 @@ const RefinementConfig = z.strictObject({
 });
 
 const GateConfig = z.strictObject({
-  angles: z.array(z.string().min(1)),
-  excludeAngles: z.array(z.string().min(1)).default([]),
+  angles: z.array(z.string().trim().min(1)),
+  excludeAngles: z.array(z.string().trim().min(1)).default([]),
   required: z.boolean().default(true),
   requireCi: z.boolean().default(true),
 });
@@ -601,10 +601,10 @@ export function resolveGateConfig(config, gate) {
   const gateConfig = config?.gates?.[gate];
   return {
     angles: gateConfig?.angles && Array.isArray(gateConfig.angles)
-      ? [...gateConfig.angles]
+      ? gateConfig.angles.map(a => (typeof a === 'string' ? a.trim() : a)).filter(a => a.length > 0)
       : null,
     excludeAngles: gateConfig?.excludeAngles && Array.isArray(gateConfig.excludeAngles)
-      ? [...gateConfig.excludeAngles]
+      ? gateConfig.excludeAngles.map(a => (typeof a === 'string' ? a.trim() : a)).filter(a => a.length > 0)
       : [],
     required: gateConfig?.required ?? true,
     requireCi: gateConfig?.requireCi ?? true,
