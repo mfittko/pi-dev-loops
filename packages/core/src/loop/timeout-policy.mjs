@@ -12,13 +12,17 @@ export const PERSISTENT_INTERNAL_WAIT_TIMEOUT_POLICY = Object.freeze({
 
 export const EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY = Object.freeze({
   classification: DEV_LOOP_TIMEOUT_CLASSIFICATION.EXTERNAL_HEALTHY_WAIT,
-  minimumTimeoutMs: 86_400_000,
-  defaultTimeoutMs: 86_400_000,
+  minimumTimeoutMs: 1_800_000,
+  defaultTimeoutMs: 1_800_000,
 });
 
 function formatTimeoutDuration(timeoutMs) {
   if (timeoutMs === 3_600_000) {
     return "1 hour";
+  }
+
+  if (timeoutMs === 1_800_000) {
+    return "30 minutes";
   }
 
   if (timeoutMs === 86_400_000) {

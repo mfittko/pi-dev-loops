@@ -99,7 +99,7 @@ Watch refresh rule:
 
 Watch defaults:
   pollIntervalMs  60000  (1 minute)
-  timeoutMs       86400000  (24 hours)
+  timeoutMs       1800000   (30 minutes)
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -112,7 +112,7 @@ Exit codes:
   1  Argument error or gh failure`.trim();
 
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
-const DEFAULT_TIMEOUT_MS = 86_400_000;
+const DEFAULT_TIMEOUT_MS = 1_800_000;
 
 const WATCH_STATES = new Set([
   STATE.WAITING_FOR_COPILOT_REVIEW,

@@ -424,10 +424,10 @@ test("watch-copilot-review --help prints usage and exits 0", async () => {
   assert.equal(helpShort.stdout, helpLong.stdout);
 });
 
-test("watch-copilot-review uses production-safe defaults (1-minute poll, 24-hour timeout)", () => {
+test("watch-copilot-review uses production-safe defaults (1-minute poll, 30-minute timeout)", () => {
   const options = parseWatchCliArgs(["--repo", "owner/repo", "--pr", "17"]);
   assert.equal(options.pollIntervalMs, 60_000);
-  assert.equal(options.timeoutMs, 86_400_000);
+  assert.equal(options.timeoutMs, 1_800_000);
 });
 
 test("watch-copilot-review trims surrounding whitespace from --repo", () => {

@@ -42,8 +42,12 @@ Every step is non-optional. Do not skip, reorder, or batch steps.
 
 ### 4. Wait for Copilot review
 
-- Poll `gh pr view --json reviews` until Copilot review appears
-- Do not proceed without Copilot feedback
+- Use the deterministic wait boundary: `node scripts/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>`
+- Treat the PR follow-up as a loop, not a one-shot watch: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → …`
+- If the watch cycle returns fresh Copilot activity / `cycleDisposition: "needs_followup"`, continue immediately to step 5
+- If the watch cycle returns `watchStatus: "timeout"`, refresh once with `node scripts/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number> --watch-status timeout`
+- If the refreshed state still waits on Copilot, stop with `watch timeout — PR #<number> needs manual attention`
+- Default max watch timeout per Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`)
 
 ### 5. Address Copilot feedback
 
@@ -56,6 +60,7 @@ For each Copilot review pass:
 ### 6. Re-request Copilot review for new heads
 
 - After pushing fixes to a new head, re-request Copilot review
+- Return immediately to step 4 after the re-request; do not stop at `review requested` or after a single watch cycle
 - Repeat steps 4–6 until Copilot review has no actionable feedback
 
 ### 7. Pre-approval gate review
@@ -77,6 +82,8 @@ For each Copilot review pass:
 
 ## Non-negotiable invariants
 
+- **PERSISTENCE RULE: Do not exit your session until the PR is merged or you hit a hard stop that requires conductor authorization.**
+- A single watch cycle return is not completion; stay in the same loop until merge or a hard stop
 - The Copilot review loop (steps 4–6) sits **between** `draft_gate` and `pre_approval_gate` — never reorder
 - `unresolvedThreadCount === 0` verification is required before step 7
 - Gate comments must be visible on the PR — no hidden/local-only evidence

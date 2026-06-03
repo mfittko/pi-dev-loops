@@ -15,7 +15,7 @@ Required:
 
 Optional:
   --poll-interval-ms <ms>       Milliseconds between polls (default: 60000, i.e. 1 minute)
-  --timeout-ms <ms>             Total watch budget in ms; 0 = single check (default: 86400000, i.e. 24 hours)
+  --timeout-ms <ms>             Total watch budget in ms; 0 = single check (default: 1800000, i.e. 30 minutes)
 
 Output (stdout, JSON):
   { "ok": true, "status": "changed"|"timeout"|"idle", "repo": "...", "pr": N, "attempts": N,
@@ -91,7 +91,7 @@ export function parseWatchCliArgs(argv) {
     repo: undefined,
     pr: undefined,
     pollIntervalMs: 60_000,
-    timeoutMs: 86_400_000,
+    timeoutMs: 1_800_000,
   };
 
   while (args.length > 0) {

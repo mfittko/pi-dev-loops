@@ -271,7 +271,7 @@ Required:
 
 Optional:
 - `--poll-interval-ms <positive-integer>` (default `60000`, i.e. 1 minute)
-- `--timeout-ms <non-negative-integer>` (default `86400000`, i.e. 24 hours)
+- `--timeout-ms <non-negative-integer>` (default `1800000`, i.e. 30 minutes)
 
 Contract:
 - captures a baseline snapshot, then performs a bounded number of follow-up polls
@@ -362,7 +362,7 @@ Contract:
 - explicit stop/blocked routing is machine-readable via `action: "stop"` plus `requestWatchContract.stopState`
 
 Success output shape:
-- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchStatus"?: "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false, "requestWatchContract": { "action": "...", "nextAction": "...", "requestStatus": "requested"|"already-requested"|"unavailable"|"failed"|"none", "routingState": "copilot_request_confirmed_waiting"|"ready_state_needs_copilot_request"|"draft_reset_requires_ready_state_reentry"|"non_ready_state", "watchEntryConfirmed": true|false, "watchArgs": { ... }|null, "stopState"?: "unavailable"|"blocked"|"draft_requires_ready_state_reentry"|"no_automatic_next_step" }, "watchTimeoutPolicy"?: { "classification": "external_healthy_wait", "minimumTimeoutMs": 86400000, "defaultTimeoutMs": 86400000 }, "watchArgs"?: { ... } }`
+- `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchStatus"?: "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false, "requestWatchContract": { "action": "...", "nextAction": "...", "requestStatus": "requested"|"already-requested"|"unavailable"|"failed"|"none", "routingState": "copilot_request_confirmed_waiting"|"ready_state_needs_copilot_request"|"draft_reset_requires_ready_state_reentry"|"non_ready_state", "watchEntryConfirmed": true|false, "watchArgs": { ... }|null, "stopState"?: "unavailable"|"blocked"|"draft_requires_ready_state_reentry"|"no_automatic_next_step" }, "watchTimeoutPolicy"?: { "classification": "external_healthy_wait", "minimumTimeoutMs": 1800000, "defaultTimeoutMs": 1800000 }, "watchArgs"?: { ... } }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
@@ -396,7 +396,7 @@ Contract:
 - returns `cycleDisposition: "terminal"` only when handoff routed to `stop`
 
 Success output shape:
-- `{ "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... }, "watchTimeoutPolicy"?: { "classification": "external_healthy_wait", "minimumTimeoutMs": 86400000, "defaultTimeoutMs": 86400000 }, "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... }, "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done", "cycleDisposition": "pending"|"needs_followup"|"terminal", "terminal": true|false }`
+- `{ "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchArgs"?: { ... }, "watchTimeoutPolicy"?: { "classification": "external_healthy_wait", "minimumTimeoutMs": 1800000, "defaultTimeoutMs": 1800000 }, "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... }, "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done", "cycleDisposition": "pending"|"needs_followup"|"terminal", "terminal": true|false }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero

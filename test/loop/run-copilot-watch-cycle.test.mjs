@@ -65,14 +65,14 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
             repo: "owner/repo",
             pr: 17,
             pollIntervalMs: 60_000,
-            timeoutMs: 86_400_000,
+            timeoutMs: 1_800_000,
           },
         },
         watchArgs: {
           repo: "owner/repo",
           pr: 17,
           pollIntervalMs: 60_000,
-          timeoutMs: 86_400_000,
+          timeoutMs: 1_800_000,
         },
       }),
       watchCopilotReviewImpl: async (options) => {
@@ -82,7 +82,7 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
           status: "timeout",
           repo: options.repo,
           pr: options.pr,
-          attempts: 1440,
+          attempts: 30,
           newComments: [],
           newReviews: [],
           newIssueComments: [],
@@ -91,9 +91,9 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
     },
   );
 
-  assert.equal(watcherOptions.timeoutMs, 86_400_000);
+  assert.equal(watcherOptions.timeoutMs, 1_800_000);
   assert.notEqual(watcherOptions.timeoutMs, 0);
-  assert.equal(result.watchTimeoutPolicy.minimumTimeoutMs, 86_400_000);
+  assert.equal(result.watchTimeoutPolicy.minimumTimeoutMs, 1_800_000);
   assert.equal(result.loopDisposition, "pending");
   assert.equal(result.cycleDisposition, "pending");
   assert.equal(result.terminal, false);
@@ -101,10 +101,10 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
   assert.equal(result.state, "waiting_for_copilot_review");
   assert.equal(result.requestWatchContract.routingState, "copilot_request_confirmed_waiting");
   assert.equal(result.contractTrace.waitStrategy.mode, "persistent_watch");
-  assert.equal(result.contractTrace.waitStrategy.effectiveTimeoutMs, 86_400_000);
+  assert.equal(result.contractTrace.waitStrategy.effectiveTimeoutMs, 1_800_000);
   assert.equal(result.contractTrace.waitStrategy.effectivePollIntervalMs, 60_000);
-  assert.equal(result.contractTrace.orchestration.emittedWatchArgs.timeoutMs, 86_400_000);
-  assert.equal(result.contractTrace.orchestration.effectiveWatchArgs.timeoutMs, 86_400_000);
+  assert.equal(result.contractTrace.orchestration.emittedWatchArgs.timeoutMs, 1_800_000);
+  assert.equal(result.contractTrace.orchestration.effectiveWatchArgs.timeoutMs, 1_800_000);
   assert.equal(result.contractTrace.stateRefresh.boundaryKind, "post_watch_or_probe");
   assert.equal(result.contractTrace.stopReason.classification, "healthy_wait");
 });
@@ -137,7 +137,7 @@ test("runWatchCycle rejects persistent watch budgets below the unattended extern
         }),
       },
     ),
-    /requires at least 86400000 ms/i,
+    /requires at least 1800000 ms/i,
   );
 });
 
@@ -165,7 +165,7 @@ test("runWatchCycle uses zero-timeout idle probes only when explicitly requested
           repo: "owner/repo",
           pr: 17,
           pollIntervalMs: 60_000,
-          timeoutMs: 86_400_000,
+          timeoutMs: 1_800_000,
         },
       }),
       watchCopilotReviewImpl: async (options) => {
@@ -216,7 +216,7 @@ test("runWatchCycle keeps shared loopDisposition and reports needs_followup in c
           repo: "owner/repo",
           pr: 17,
           pollIntervalMs: 60_000,
-          timeoutMs: 86_400_000,
+          timeoutMs: 1_800_000,
         },
       }),
       watchCopilotReviewImpl: async (options) => ({
@@ -418,7 +418,7 @@ test("runWatchCycle integration keeps initial request-review -> waiting_for_copi
             status: "timeout",
             repo: options.repo,
             pr: options.pr,
-            attempts: 1440,
+            attempts: 30,
             newComments: [],
             newReviews: [],
             newIssueComments: [],
@@ -433,7 +433,7 @@ test("runWatchCycle integration keeps initial request-review -> waiting_for_copi
     assert.equal(result.loopDisposition, "pending");
     assert.equal(result.terminal, false);
     assert.equal(result.watchStatus, "timeout");
-    assert.equal(watcherOptions.timeoutMs, 86_400_000);
+    assert.equal(watcherOptions.timeoutMs, 1_800_000);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -558,7 +558,7 @@ process.exit(97);
             status: "timeout",
             repo: options.repo,
             pr: options.pr,
-            attempts: 1440,
+            attempts: 30,
             newComments: [],
             newReviews: [],
             newIssueComments: [],
@@ -573,7 +573,7 @@ process.exit(97);
     assert.equal(result.loopDisposition, "pending");
     assert.equal(result.terminal, false);
     assert.equal(result.watchStatus, "timeout");
-    assert.equal(watcherOptions.timeoutMs, 86_400_000);
+    assert.equal(watcherOptions.timeoutMs, 1_800_000);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -681,7 +681,7 @@ test("runWatchCycle integration bounds active Copilot workflow waits by the emit
           repo: "owner/repo",
           pr: 17,
           pollIntervalMs: 60_000,
-          timeoutMs: 86_400_000,
+          timeoutMs: 1_800_000,
         },
       }),
       detectSessionActivity: true,
@@ -714,11 +714,11 @@ test("runWatchCycle integration bounds active Copilot workflow waits by the emit
     },
   );
 
-  assert.equal(receivedTimeoutMs, 86_400_000);
+  assert.equal(receivedTimeoutMs, 1_800_000);
   assert.equal(result.sessionActivity.activity, "active");
   assert.equal(result.watchStatus, "idle");
   assert.equal(result.contractTrace.orchestration.workflowRunWatch.attempted, true);
-  assert.equal(result.contractTrace.orchestration.workflowRunWatch.timeoutMs, 86_400_000);
+  assert.equal(result.contractTrace.orchestration.workflowRunWatch.timeoutMs, 1_800_000);
   assert.equal(result.contractTrace.orchestration.workflowRunWatch.runId, 444);
   assert.equal(result.contractTrace.orchestration.workflowRunWatch.status, "timed_out");
 });
@@ -798,7 +798,7 @@ test("runWatchCycle integration keeps the full persistent watch timeout after ac
 
     assert.equal(result.handoffAction, "watch");
     assert.equal(result.sessionActivity.activity, "active");
-    assert.equal(watcherOptions.timeoutMs, 86_400_000);
+    assert.equal(watcherOptions.timeoutMs, 1_800_000);
     assert.equal(result.watchStatus, "idle");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
