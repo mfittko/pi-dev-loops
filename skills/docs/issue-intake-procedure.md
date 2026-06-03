@@ -221,6 +221,7 @@ node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <resolved-repo>
 gh pr edit <pr-number> --repo <resolved-repo> --title "..." --body-file <body-file>
 gh pr ready <pr-number> --repo <resolved-repo>
 gh pr review <pr-number> --repo <resolved-repo> --approve --body "..."
+node <resolved-skill-scripts>/github/detect-gate-review-evidence.mjs --repo <resolved-repo> --pr <pr-number> --require-before-merge
 gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch
 ```
 

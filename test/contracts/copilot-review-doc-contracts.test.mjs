@@ -200,18 +200,38 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   );
   assert.match(
     step7,
-    /2\.\s+a visible `pre_approval_gate` comment exists on the PR for the current head SHA with verdict `clean`/i,
+    /2\.\s+a visible `draft_gate` comment exists on the PR with verdict `clean`/i,
+    "merge-ready preconditions should require draft gate evidence",
+  );
+  assert.match(
+    step7,
+    /3\.\s+a visible `pre_approval_gate` comment exists on the PR for the current head SHA with verdict `clean`/i,
     "merge-ready preconditions should require current-head clean gate evidence",
   );
   assert.match(
     step7,
-    /3\.\s+CI is green on the current head SHA/i,
+    /4\.\s+CI is green on the current head SHA/i,
     "merge-ready preconditions should require current-head green CI",
   );
   assert.match(
     step7,
     /If any check fails, do not declare merge-ready\./i,
     "merge-ready preconditions should be a hard gate",
+  );
+  assert.match(
+    step7,
+    /### Mechanical pre-merge gate evidence check/i,
+    "Step 7 should include a mechanical pre-merge evidence check",
+  );
+  assert.match(
+    step7,
+    /detect-gate-review-evidence\.mjs[\s\S]*--require-before-merge/i,
+    "mechanical pre-merge check should use the gate evidence helper",
+  );
+  assert.match(
+    step7,
+    /Do not run `gh pr merge` if this command exits non-zero/i,
+    "mechanical pre-merge check should block merge on missing evidence",
   );
   assert.match(
     step7,
@@ -270,6 +290,7 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   assert.match(antiPatterns, /declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA/i);
   assert.match(antiPatterns, /declare merge-ready based solely on `mergeable_state: clean` \+ CI green without gate evidence/i);
   assert.match(antiPatterns, /do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when the helper says the PR is conflicted/i);
+  assert.match(antiPatterns, /run `gh pr merge` without a same-boundary successful `detect-gate-review-evidence\.mjs --require-before-merge` check/i);
   assert.match(antiPatterns, /dispatch an async dev-loop task that omits the pre-approval gate requirement/i);
 });
 

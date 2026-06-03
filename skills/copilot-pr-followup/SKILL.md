@@ -385,8 +385,9 @@ Before any merge-ready or final-approval claim, run `detect-pr-gate-coordination
 Do not declare merge-ready unless all of these checks pass in order:
 
 1. `unresolvedThreadCount === 0`, verified via `capture-review-threads.mjs` rather than by prose assertion alone
-2. a visible `pre_approval_gate` comment exists on the PR for the current head SHA with verdict `clean`
-3. CI is green on the current head SHA
+2. a visible `draft_gate` comment exists on the PR with verdict `clean` for the one-time draft→ready boundary
+3. a visible `pre_approval_gate` comment exists on the PR for the current head SHA with verdict `clean`
+4. CI is green on the current head SHA
 
 If any check fails, do not declare merge-ready.
 
@@ -402,12 +403,26 @@ Use this boundary after the merge-ready preconditions pass.
 
 - Before reporting merge-ready or approval-ready, verify the current-head PR state authoritatively.
 - `unresolvedThreadCount === 0` must be verified via `capture-review-threads.mjs` rather than by prose assertion alone.
+- A visible `draft_gate` comment with verdict `clean` must exist for the one-time draft→ready boundary.
 - A visible `pre_approval_gate` comment with verdict `clean` must exist on the current head SHA.
 - CI must be green, or credibly green with an explicit repository-grounded explanation.
 - Stop at the final human approval gate by default.
 - After approval, report `waiting_for_merge_authorization` and stop again unless merge has been explicitly authorized.
 - Do not merge, push, rebase, resolve threads, or change GitHub state without explicit confirmation unless the latest user message already authorizes that exact action.
-- If merge authorization is explicit, complete one last authoritative check on current-head gate evidence, clean thread state, and green CI, then merge with the repository's intended PR strategy.
+- If merge authorization is explicit, complete one last authoritative check on current-head gate evidence, clean thread state, and green CI, then run the mechanical pre-merge gate evidence check below before merging with the repository's intended PR strategy.
+
+### Mechanical pre-merge gate evidence check
+
+Immediately before any `gh pr merge`, run:
+
+```sh
+node <resolved-skill-scripts>/github/detect-gate-review-evidence.mjs \
+  --repo <owner/name> \
+  --pr <number> \
+  --require-before-merge
+```
+
+This helper uses `gh api` to fetch visible PR issue comments and fails closed unless both required gate comments exist: a clean `draft_gate` comment for the one-time draft boundary and a clean current-head `pre_approval_gate` comment. Do not run `gh pr merge` if this command exits non-zero. Resolved threads, green CI, clean Copilot rereview, or local notes do not substitute for this successful helper output. If a final approval or merge boundary sees `gh pr merge` without a same-boundary successful `--require-before-merge` check, treat that as a workflow violation and stop.
 
 ## Validation policy for this repo
 
@@ -470,6 +485,7 @@ Do not:
 - declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA
 - declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence
 - do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when the helper says the PR is conflicted
+- run `gh pr merge` without a same-boundary successful `detect-gate-review-evidence.mjs --require-before-merge` check
 - suggest approval, approve and merge, or any approval-ready statement without explicit current-head `pre_approval_gate` gate-review evidence
 - treat CI green + resolved review threads + clean Copilot rereview as sufficient for approval or merge without an explicit current-head `pre_approval_gate` gate-review comment
 - dispatch an async dev-loop task that omits the pre-approval gate requirement
