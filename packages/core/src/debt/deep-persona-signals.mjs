@@ -12,7 +12,7 @@ import { loadDevLoopConfig } from "../config/config.mjs";
 /** @type {Array<{ phrase: RegExp, category: string, severity: string, confidence: number }>} */
 const FLAG_PATTERNS = [
   {
-    phrase: /(?:crossing|crossed|exceeds?)\s+\d{3,}\s+lines/i,
+    phrase: /(?:crossing|crossed|exceeds?)\s+(?:1000|1,000)\+?\s+lines/i,
     category: "file_size",
     severity: "high",
     confidence: 0.9,
