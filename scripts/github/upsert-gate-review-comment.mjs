@@ -46,7 +46,7 @@ Optional:
                                              justified for machine-readable output.
 
 Use \`--force\` only after the user explicitly authorizes ignoring the current-head
-CI failure/cancellation for this one gate-comment upsert. Prefer the normal paths
+CI failure for this one gate-comment upsert. Prefer the normal paths
 first: green CI on the current head, \`--local-validation-head-sha\` for the bounded
 \`crediblyGreen\` case, or the draft-gate policy option when the desired behavior is
 a durable policy rather than a one-off override.
@@ -412,7 +412,7 @@ function buildGateEntryRefusalError({ options, coordination, coordinationContext
     return baseMessage;
   }
 
-  return `${baseMessage} Re-run with --force --force-reason "<why>" only when the user has explicitly authorized ignoring the current-head CI failure/cancellation for this one gate-comment upsert.`;
+  return `${baseMessage} Re-run with --force --force-reason "<why>" only when the user has explicitly authorized ignoring the current-head CI failure for this one gate-comment upsert.`;
 }
 
 function buildForcedResultMetadata({ forced, forceReason }) {
