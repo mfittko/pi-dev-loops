@@ -35,7 +35,7 @@ test("conductor-monitor reports queue_complete when no open PRs exist", async ()
 
   try {
     const env = await writeGhStub(tempDir, [{
-      assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open"],
+      assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open", "--limit", "1000"],
       stdout: "[]\n",
     }]);
 
@@ -62,7 +62,7 @@ test("conductor-monitor reports monitoring when open PRs are still in healthy wa
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open"],
+        assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open", "--limit", "1000"],
         stdout: `${JSON.stringify([
           {
             number: 17,
@@ -121,7 +121,7 @@ test("conductor-monitor flags unresolved-feedback PRs as needing attention while
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open"],
+        assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open", "--limit", "1000"],
         stdout: `${JSON.stringify([
           {
             number: 17,

@@ -64,6 +64,7 @@ Exit codes:
   1  Argument error, gh failure, or indeterminate PR status`.trim();
 
 const parseError = buildParseError(USAGE);
+const OPEN_PR_LIST_LIMIT = 1000;
 
 function parseCliArgs(argv) {
   const args = [...argv];
@@ -111,6 +112,8 @@ async function listOpenPrs({ repo }, { env, ghCommand }) {
       repo,
       "--state",
       "open",
+      "--limit",
+      String(OPEN_PR_LIST_LIMIT),
       "--json",
       "number,title,url,isDraft,headRefName,author",
     ],

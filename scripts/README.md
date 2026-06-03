@@ -327,7 +327,7 @@ Required:
 - `--repo <owner/name>`
 
 Contract:
-- lists all open PRs via `gh pr list --state open`
+- lists all open PRs via `gh pr list --state open --limit 1000` to avoid GitHub CLI default truncation
 - reuses `detect-copilot-loop-state.mjs` logic for each PR instead of inventing a second state classifier
 - reports one queue-level summary with per-PR loop state, next action, and whether human follow-up is needed now
 - reports `queue_complete` when the open-PR queue is empty
