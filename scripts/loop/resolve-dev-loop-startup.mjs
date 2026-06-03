@@ -29,9 +29,9 @@ Input JSON:
   artifactState, issueLinkageResolution, loopState, issueReadiness,
   issueAssignmentState, gateReviewEvidence, asyncRun, and
   retrospectiveCheckpointState when applicable.
-  NOTE: When omitted by the caller, retrospectiveCheckpointState is auto-read
-  from .pi/dev-loop-retrospective-checkpoint.json when
-  requireRetrospective is enabled in the repo settings.
+  NOTE: The resolver always reads .pi/dev-loop-retrospective-checkpoint.json
+  and overrides any caller-provided retrospectiveCheckpointState when the
+  on-disk artifact maps to a known state.
 
 Async-start contract:
   Strategies flagged as requiresAsyncDispatch must run within a visible
@@ -215,10 +215,15 @@ export function buildResolveDevLoopStartupResult(input, { env = process.env, con
       // the gate by supplying a value like "complete" when the durable
       // artifact says the retrospective is still required.
       input = { ...input, retrospectiveCheckpointState: mappedState };
+    } else {
+      // Unrecognized state: fail-closed per the retrospective checkpoint
+      // contract (unrecognized checkpoint state maps to "missing").
+      input = { ...input, retrospectiveCheckpointState: "missing" };
     }
   } catch {
-    // No checkpoint file or unreadable — pass through with whatever the
-    // caller provided (or undefined).
+    // No checkpoint file — pass through with whatever the caller provided.
+    // (A missing file is not a bypass; it means no qualifying completion
+    // has been recorded yet, so no retrospective is pending.)
   }
 
   const bundle = resolveAuthoritativeStartupResumeBundle(input);

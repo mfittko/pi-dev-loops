@@ -190,11 +190,12 @@ test("buildResolveDevLoopStartupResult auto-injects retrospectiveCheckpointState
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
   try {
     // Create a .pi/dev-loop-retrospective-checkpoint.json in temp dir
+    // with state "required" — the durable artifact for pending retrospective.
     const piDir = path.join(tempDir, ".pi");
     await mkdir(piDir, { recursive: true });
     await writeFile(
       path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
-      JSON.stringify({ state: "complete" }),
+      JSON.stringify({ state: "required" }),
       "utf8",
     );
 
@@ -213,13 +214,13 @@ test("buildResolveDevLoopStartupResult auto-injects retrospectiveCheckpointState
 
     const result = await runNode(["--input", inputPath], { cwd: tempDir });
 
+    // The resolver auto-reads the checkpoint file, maps "required" → "missing",
+    // and returns needs_reconcile because the retrospective is pending.
     assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
     const parsed = JSON.parse(result.stdout.trim());
     assert.equal(parsed.ok, true);
-    assert.equal(parsed.selectedStrategy, "local_implementation");
-    // The --input JSON didn't include retrospectiveCheckpointState, but the
-    // resolver auto-read it from the checkpoint file — route still passes
-    // because state is "complete".
+    assert.equal(parsed.bundleKind, "needs_reconcile");
+    assert.equal(parsed.selectedStrategy, "none");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

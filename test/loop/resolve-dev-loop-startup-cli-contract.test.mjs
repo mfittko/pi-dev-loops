@@ -37,6 +37,7 @@ test("resolve-dev-loop-startup help documents accepted flags and JSON contracts"
 });
 
 test("resolve-dev-loop-startup success stdout keeps documented JSON shape", async () => {
+  // Use a complete retrospective so route resolves (not blocked by enforcement).
   await withInputFile({
     currentState: {
       target: { kind: "issue", issue: 429 },
@@ -98,6 +99,44 @@ test("resolve-dev-loop-startup success stdout keeps documented JSON shape", asyn
     ]);
     assert.equal(parsed.canonicalStateSummary.requiresAsyncDispatch, true);
     assert.equal(parsed.bundle.contractTrace.decision.selectedGate, "issue_intake");
+  });
+});
+
+test("resolve-dev-loop-startup rejects async-required strategy via stderr contract", async () => {
+  // This test verifies the CLI-level async-start contract:
+  // without PI_SUBAGENT_RUN_ID or PI_ASYNC_START_BYPASS, an async-required
+  // route exits 1 with empty stdout and the rejection object on stderr.
+  await withInputFile({
+    currentState: {
+      target: { kind: "issue", issue: 89, linkedPr: 92 },
+      ownership: "copilot",
+      nextActor: "copilot",
+      status: "active",
+      authorization: "needs_confirmation",
+    },
+    artifactState: "open",
+    issueLinkageResolution: "resolved_linked_pr",
+    loopState: "unresolved_feedback_present",
+    retrospectiveCheckpointState: "complete",
+  }, async (inputPath) => {
+    const result = spawnSync(process.execPath, [cliPath, "--input", inputPath], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      // Deliberately omit PI_SUBAGENT_RUN_ID and PI_ASYNC_START_BYPASS.
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([k]) => k !== "PI_SUBAGENT_RUN_ID" && k !== "PI_ASYNC_START_BYPASS",
+        ),
+      ),
+    });
+
+    assert.equal(result.status, 1, `expected exit 1, got ${result.status}`);
+    assert.equal(result.stdout, "", `expected empty stdout, got: ${result.stdout}`);
+
+    const parsed = JSON.parse(result.stderr);
+    assert.equal(parsed.ok, false);
+    assert.equal(parsed.asyncStartContract, "rejected");
+    assert.ok(parsed.error.includes("Pi-managed async context"));
   });
 });
 
