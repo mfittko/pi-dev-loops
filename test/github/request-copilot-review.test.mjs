@@ -632,10 +632,8 @@ test("checkForCopilotComments blocks when @copilot comment found from non-Copilo
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--jq", "."],
-        stdout: JSON.stringify([
-          { id: 1001, body: "@copilot Please re-review this PR", user: { login: "human-dev" } },
-        ]),
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: JSON.stringify({ id: 1001, body: "@copilot Please re-review this PR", user: { login: "human-dev" } }) + "\n",
       },
     ]);
 
@@ -655,10 +653,8 @@ test("checkForCopilotComments passes when no @copilot comments found", async () 
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--jq", "."],
-        stdout: JSON.stringify([
-          { id: 1001, body: "LGTM!", user: { login: "human-dev" } },
-        ]),
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: JSON.stringify({ id: 1001, body: "LGTM!", user: { login: "human-dev" } }) + "\n",
       },
     ]);
 
@@ -678,10 +674,8 @@ test("checkForCopilotComments ignores @copilot in Copilot-authored comments", as
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--jq", "."],
-        stdout: JSON.stringify([
-          { id: 2001, body: "I see you mentioned @copilot in your message", user: { login: "copilot-pull-request-reviewer[bot]" } },
-        ]),
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: JSON.stringify({ id: 2001, body: "I see you mentioned @copilot in your message", user: { login: "copilot-pull-request-reviewer[bot]" } }) + "\n",
       },
     ]);
 
@@ -701,11 +695,8 @@ test("checkForCopilotComments reports all violation comments when multiple found
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--jq", "."],
-        stdout: JSON.stringify([
-          { id: 3001, body: "@copilot review please", user: { login: "dev-a" } },
-          { id: 3002, body: "/copilot re-review", user: { login: "dev-b" } },
-        ]),
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: [JSON.stringify({ id: 3001, body: "@copilot review please", user: { login: "dev-a" } }), JSON.stringify({ id: 3002, body: "/copilot re-review", user: { login: "dev-b" } })].join("\n") + "\n",
       },
     ]);
 

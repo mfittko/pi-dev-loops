@@ -294,7 +294,7 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
 export async function checkForCopilotComments({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
-    ["api", `repos/${repo}/issues/${pr}/comments`, "--paginate", "--jq", "."],
+    ["api", `repos/${repo}/issues/${pr}/comments`, "--paginate", "--jq", ".[]"],
     env,
   );
 
@@ -303,11 +303,12 @@ export async function checkForCopilotComments({ repo, pr }, { env = process.env,
     throw new Error(`gh command failed: ${detail}`);
   }
 
+  const lines = result.stdout.trim().split("\n").filter(Boolean);
   let comments;
   try {
-    comments = JSON.parse(result.stdout);
-  } catch {
-    throw new Error(`Invalid JSON from gh: ${result.stdout.trim() || "<empty>"}`);
+    comments = lines.map((line) => JSON.parse(line));
+  } catch (e) {
+    throw new Error(`Invalid JSON from gh: ${e.message} (${result.stdout.trim().slice(0, 200) || "<empty>"})`);
   }
 
   if (!Array.isArray(comments)) {
@@ -335,7 +336,6 @@ export async function checkForCopilotComments({ repo, pr }, { env = process.env,
 }
 
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
-  const before = await fetchCopilotReviewState(options, { env, ghCommand });
   // #461: Preflight check for bypass @copilot PR comments (skipped in stub/test envs)
   if (!env.GH_SEQUENCE_PATH) {
     const copilotCommentCheck = await checkForCopilotComments(options, { env, ghCommand });
@@ -352,6 +352,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     }
   }
 
+  const before = await fetchCopilotReviewState(options, { env, ghCommand });
   const sameHeadCleanConverged = await detectSameHeadCleanConvergence(
     options,
     { env, ghCommand },
