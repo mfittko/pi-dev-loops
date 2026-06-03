@@ -130,6 +130,22 @@ test("untracked-only scope fails closed after expansion", async () => {
   }
 });
 
+test("repo-root path is rejected to preserve bounded audit scope", async () => {
+  const repoRoot = await initTrackedRepo([["tracked.md", "tracked\n"]]);
+
+  try {
+    const result = await runAudit(["--root", repoRoot, "--paths", "."]);
+    assert.equal(result.code, 1);
+
+    const parsed = JSON.parse(result.stderr.trim());
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.error, /Repo root is not a valid bounded audit path/i);
+    assert.match(parsed.usage, /run-refinement-audit\.mjs/);
+  } finally {
+    await cleanupRepo(repoRoot);
+  }
+});
+
 test("directory expansion uses tracked files only", async () => {
   const repoRoot = await initTrackedRepo([["scope/tracked.md", "bounded\nscope\n"]]);
 
@@ -225,25 +241,45 @@ test("branching-hotspot finding is emitted", async () => {
   }
 });
 
-test("thin-wrapper candidate is emitted", async () => {
-  const repoRoot = await initTrackedRepo([[
-    "index.js",
+test("thin-wrapper candidate is emitted without misclassifying generator syntax as a comment", async () => {
+  const repoRoot = await initTrackedRepo([
     [
-      "import { api } from './api.js';",
-      "export { api };",
-      "export { createThing } from './create-thing.js';",
-      "export * from './shared.js';",
-    ].join("\n"),
-  ]]);
+      "index.js",
+      [
+        "import { api } from './api.js';",
+        "export { api };",
+        "export { createThing } from './create-thing.js';",
+        "export * from './shared.js';",
+      ].join("\n"),
+    ],
+    [
+      "generator.js",
+      [
+        "export const hooks = {",
+        "  *values() {",
+        "    yield 1;",
+        "  },",
+        "};",
+      ].join("\n"),
+    ],
+  ]);
 
   try {
-    const result = await runAudit(["--root", repoRoot, "--paths", "index.js", "--thin-wrapper-max-lines", "10"]);
+    const result = await runAudit([
+      "--root",
+      repoRoot,
+      "--paths",
+      "index.js,generator.js",
+      "--thin-wrapper-max-lines",
+      "10",
+    ]);
     assert.equal(result.code, 0, result.stderr);
 
     const parsed = JSON.parse(result.stdout.trim());
-    const finding = parsed.findings.find((entry) => entry.id === "thin_wrapper_candidate");
-    assert.ok(finding, "expected thin_wrapper_candidate finding");
-    assert.equal(finding.path, "index.js");
+    const wrapperFinding = parsed.findings.find((entry) => entry.id === "thin_wrapper_candidate" && entry.path === "index.js");
+    const generatorFinding = parsed.findings.find((entry) => entry.id === "thin_wrapper_candidate" && entry.path === "generator.js");
+    assert.ok(wrapperFinding, "expected thin_wrapper_candidate finding for index.js");
+    assert.equal(generatorFinding, undefined);
   } finally {
     await cleanupRepo(repoRoot);
   }

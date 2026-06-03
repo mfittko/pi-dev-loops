@@ -215,7 +215,7 @@ function normalizeRequestedPath(requestedPath, repoRoot) {
   const relativePath = path.relative(repoRoot, resolvedPath);
 
   if (relativePath.length === 0) {
-    return ".";
+    throw parseError("Repo root is not a valid bounded audit path; name a specific file or subdirectory");
   }
 
   if (relativePath.startsWith(`..${path.sep}`) || relativePath === ".." || path.isAbsolute(relativePath)) {
@@ -313,7 +313,13 @@ function collectDuplicateBlockCounts(auditableRecords, duplicateWindowLines) {
 }
 
 function isCommentLine(line) {
-  return line.startsWith("#") || line.startsWith("//") || line.startsWith("/*") || line.startsWith("*") || line.startsWith("*/");
+  return line.startsWith("#")
+    || line.startsWith("//")
+    || line.startsWith("/*")
+    || line === "*"
+    || line.startsWith("* ")
+    || line.startsWith("*	")
+    || line.startsWith("*/");
 }
 
 function isWrapperLikeLine(line) {
