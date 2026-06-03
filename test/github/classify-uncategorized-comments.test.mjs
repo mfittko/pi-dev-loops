@@ -37,12 +37,24 @@ test("parseClassifyUncategorizedCliArgs requires explicit --model", () => {
   assert.equal(parseClassifyUncategorizedCliArgs(["--model", "gpt-test", "--api-key", "key"]).model, "gpt-test");
 });
 
-test("dedupeComments collapses duplicate bodies by default while preserving occurrence count", () => {
+test("dedupeComments collapses duplicate prompt text by default while preserving occurrence count", () => {
   const deduped = dedupeComments(comments);
 
   assert.equal(deduped.length, 2);
   assert.equal(deduped[0].occurrenceCount, 2);
   assert.deepEqual(deduped[0].duplicatePrNumbers, [1, 3]);
+
+  const excerptDuplicates = dedupeComments([
+    { prNumber: 4, body: "same excerpt then long body A", excerpt: "same excerpt" },
+    { prNumber: 5, body: "same excerpt then long body B", excerpt: "same excerpt" },
+  ]);
+  assert.equal(excerptDuplicates.length, 1);
+
+  const fullBodyDistinct = dedupeComments([
+    { prNumber: 4, body: "same excerpt then long body A", excerpt: "same excerpt" },
+    { prNumber: 5, body: "same excerpt then long body B", excerpt: "same excerpt" },
+  ], { useFullBody: true });
+  assert.equal(fullBodyDistinct.length, 2);
 });
 
 test("buildClassificationPrompt uses excerpts by default and full bodies when requested", () => {

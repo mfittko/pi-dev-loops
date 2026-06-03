@@ -195,10 +195,11 @@ async function loadComments(inputPath) {
   return rawComments.map(normalizeComment).filter((comment) => comment.body.length > 0 || comment.excerpt.length > 0);
 }
 
-export function dedupeComments(comments) {
+export function dedupeComments(comments, { useFullBody = false } = {}) {
   const byKey = new Map();
   for (const comment of comments) {
-    const key = (comment.body || comment.excerpt || "").replace(/\s+/g, " ").trim().toLowerCase();
+    const keySource = useFullBody ? comment.body : (comment.excerpt || comment.body);
+    const key = String(keySource ?? "").replace(/\s+/g, " ").trim().toLowerCase();
     if (key.length === 0) continue;
     const existing = byKey.get(key);
     if (existing) {
@@ -440,7 +441,7 @@ export async function classifyUncategorizedComments(options, { env = process.env
   const apiKey = resolveApiKey(options, env);
   const inputPath = await resolveInputPath(options);
   const comments = await loadComments(inputPath);
-  const commentsForPrompt = options.dedup === false ? comments.map((comment) => ({ ...comment, occurrenceCount: 1, duplicatePrNumbers: Number.isInteger(comment.prNumber) ? [comment.prNumber] : [] })) : dedupeComments(comments);
+  const commentsForPrompt = options.dedup === false ? comments.map((comment) => ({ ...comment, occurrenceCount: 1, duplicatePrNumbers: Number.isInteger(comment.prNumber) ? [comment.prNumber] : [] })) : dedupeComments(comments, { useFullBody: options.useFullBody === true });
   const retryMax = options.retryMax ?? DEFAULT_RETRY_MAX;
   const retryBaseMs = options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
 

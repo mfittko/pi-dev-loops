@@ -62,10 +62,11 @@ Output (stdout, JSON summary; abbreviated example):
     ],
     "files": {
       "jsonSummaryPath": "<output-dir>/copilot-comment-summary.json",
-      "markdownReportPath": "<output-dir>/copilot-comment-categories.md",
-      "uncategorizedCommentsPath": "<output-dir>/uncategorized-comments.json"
+      "markdownReportPath": "<output-dir>/copilot-comment-categories.md"
     }
   }
+
+  With --save-uncategorized, the real summary also includes files.uncategorizedCommentsPath.
 
   This example is abbreviated; the real summary includes additional fields on
   categories, recommendations, comments, and files. Stdout emits the same full
