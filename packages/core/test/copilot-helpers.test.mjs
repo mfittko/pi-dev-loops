@@ -284,3 +284,15 @@ test("summarizeGateReviewCommentMarkers prefers structured over lenient when bot
   assert.equal(result.draft_gate.commentId, 2);
   assert.equal(result.draft_gate.contractComplete, true);
 });
+
+test("parseGateReviewCommentMarkerBody lenient SHA ignores github comment URLs", () => {
+  // e.g. URL contains #issuecomment-4615274563 which has 10 decimal digits
+  // that would match [0-9a-f]{7,64} — ensure we strip URLs first
+  const body = "pre_approval_gate for head e284c2e341: all clear!\n\n" +
+    "See https://github.com/mfittko/pi-dev-loops/pull/450#issuecomment-4615274563 for details.";
+  const result = parseGateReviewCommentMarkerBody(body);
+  assert.notEqual(result, null);
+  assert.equal(result.gate, "pre_approval_gate");
+  assert.equal(result.headSha, "e284c2e341");
+  assert.equal(result.contractComplete, false);
+});

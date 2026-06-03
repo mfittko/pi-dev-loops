@@ -117,7 +117,12 @@ function parseGateReviewCommentFields(body) {
   // Lenient fallback: detect gate name and head SHA anywhere in body
   // Handles comments posted via other tools without structured field format
   if (!fields.gate || !fields.headSha) {
-    const flatBody = body.replace(/\*\*/gu, "").replace(/`/gu, "");
+    // Strip GitHub issue/PR comment URLs to prevent false SHA matches
+    // (e.g. #issuecomment-4615274563 where the numeric ID looks like hex)
+    const flatBody = body
+      .replace(/\*\*/gu, "")
+      .replace(/`/gu, "")
+      .replace(/https:\/\/github\.com\/[^\s]+#issuecomment-\d+/g, "");
 
     if (!fields.gate) {
       const gateMatch = flatBody.match(/\b(draft_gate|pre_approval_gate)\b/iu);
