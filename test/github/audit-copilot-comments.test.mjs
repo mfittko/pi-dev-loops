@@ -93,6 +93,13 @@ test("parseAuditCopilotCommentsCliArgs rejects bad --sleep-ms", () => {
   );
 });
 
+test("parseAuditCopilotCommentsCliArgs rejects empty --checkpoint-file", () => {
+  assert.throws(
+    () => parseAuditCopilotCommentsCliArgs(["--repo", "owner/repo", "--checkpoint-file", "   "]),
+    /non-empty path/i,
+  );
+});
+
 test("parseAuditCopilotCommentsCliArgs rejects --resume without --checkpoint-file", () => {
   assert.throws(
     () => parseAuditCopilotCommentsCliArgs(["--repo", "owner/repo", "--resume"]),

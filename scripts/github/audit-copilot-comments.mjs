@@ -212,7 +212,7 @@ const CATEGORY_DEFINITIONS = [
       /error-contract/i,
       /malformed-argument/i,
       /happy\s+path\s+only/i,
-      /doesn['']t\s+exercise/i,
+      /doesn['’]t\s+exercise/i,
       /should\s+test/i,
     ],
   },
@@ -230,7 +230,7 @@ const CATEGORY_DEFINITIONS = [
       /assertions?\s+match\s+very\s+long/i,
       /test\s+can\s+hang/i,
       /brittle\s+to\s+minor\s+copy\s+edits/i,
-      /doesn['']t\s+actually\s+assert/i,
+      /doesn['’]t\s+actually\s+assert/i,
       /claims?\s+.*\s+but/i,
       /confus(?:ing|e)\s+test/i,
       /helper\s+never\s+listens/i,
@@ -446,6 +446,8 @@ async function loadCheckpoint(checkpointPath) {
 }
 
 async function saveCheckpoint(checkpointPath, data) {
+  const { mkdir } = await import("node:fs/promises");
+  await mkdir(path.dirname(checkpointPath), { recursive: true });
   await writeFile(checkpointPath, `${JSON.stringify(data)}\n`, "utf8");
 }
 
@@ -847,6 +849,10 @@ export function parseAuditCopilotCommentsCliArgs(argv) {
     throw parseError("--output-dir must be a non-empty path");
   }
 
+  if (options.checkpointFile !== undefined && options.checkpointFile.length === 0) {
+    throw parseError("--checkpoint-file must be a non-empty path");
+  }
+
   if (options.resume && !options.checkpointFile) {
     throw parseError("--resume requires --checkpoint-file");
   }
@@ -896,8 +902,9 @@ export async function auditCopilotComments(options, { env = process.env, ghComma
 
     if (checkpointFile) {
       await saveCheckpoint(checkpointFile, { stage: "after-comments", repo: options.repo, comments });
-      await sleepStep(sleepMs);
     }
+
+    await sleepStep(sleepMs);
 
     prs = await fetchAllPullRequests(options.repo, { env, ghCommand, retryMax, retryBaseMs });
 
