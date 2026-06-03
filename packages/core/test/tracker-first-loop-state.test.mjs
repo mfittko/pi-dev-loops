@@ -89,16 +89,28 @@ test("interpretTrackerLoopState: completed (closed)", () => {
   assert.equal(r.nextAction, "done");
 });
 
-test("interpretTrackerLoopState: unknown with empty input", () => {
+test("interpretTrackerLoopState: empty input fails closed to needs_triage", () => {
   const r = interpretTrackerLoopState({ trackerState: "" });
+  assert.equal(r.state, "needs_triage");
+  assert.equal(r.nextAction, "start_work");
+});
+
+test("interpretTrackerLoopState: fail-closed — garbage input → needs_triage", () => {
+  const r = interpretTrackerLoopState({ trackerState: "garbage_input_xyz" });
+  assert.equal(r.state, "needs_triage");
+  assert.equal(r.snapshot.rawTrackerState, "garbage_input_xyz");
+});
+
+test("interpretTrackerLoopState: explicit 'unknown' → canonical unknown", () => {
+  const r = interpretTrackerLoopState({ trackerState: "unknown" });
   assert.equal(r.state, "unknown");
   assert.equal(r.nextAction, "reconcile");
 });
 
-test("interpretTrackerLoopState: fail-closed — garbage input → unknown", () => {
-  const r = interpretTrackerLoopState({ trackerState: "garbage_input_xyz" });
-  assert.equal(r.state, "unknown");
-  assert.equal(r.snapshot.rawTrackerState, "garbage_input_xyz");
+test("interpretTrackerLoopState: undefined input fails closed to needs_triage", () => {
+  const r = interpretTrackerLoopState({ trackerState: undefined });
+  assert.equal(r.state, "needs_triage");
+  assert.equal(r.nextAction, "start_work");
 });
 
 // ── Snapshot contract ────────────────────────────────────────────────────

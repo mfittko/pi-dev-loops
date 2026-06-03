@@ -11,7 +11,7 @@
  * Unknown/ambiguous tracker state emits `needs_triage` (fail-closed).
  */
 import process from "node:process";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { interpretTrackerLoopState } from "../../packages/core/src/loop/tracker-first-loop-state.mjs";
 
 function parseArgs() {
@@ -34,20 +34,22 @@ async function main() {
     return;
   }
 
-  // Fetch issue state
-  let rawState = "unknown";
+  // Fetch issue state using execFileSync with argv arrays (no shell interpolation).
+  let rawState = "";
   let prContext = null;
   try {
-    const issueJson = execSync(
-      `gh issue view ${opts.issue} --repo ${opts.repo} --json state,title --jq '.state'`,
+    const issueJson = execFileSync(
+      "gh",
+      ["issue", "view", String(opts.issue), "--repo", opts.repo, "--json", "state,title", "--jq", ".state"],
       { encoding: "utf8" }
     ).trim();
     rawState = issueJson;
 
     // Check for linked PR
     try {
-      const prJson = execSync(
-        `gh pr list --repo ${opts.repo} --search "${opts.issue} in:body" --state open --json number,state,headRefName --jq '.[0]'`,
+      const prJson = execFileSync(
+        "gh",
+        ["pr", "list", "--repo", opts.repo, "--search", `${opts.issue} in:body`, "--state", "open", "--json", "number,state,headRefName", "--jq", ".[0]"],
         { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }
       ).trim();
       if (prJson) prContext = JSON.parse(prJson);
@@ -55,7 +57,7 @@ async function main() {
       // No linked PR — that's fine
     }
   } catch {
-    rawState = "unknown";
+    // Leave rawState empty so the interpreter fail-closes to needs_triage
   }
 
   const result = interpretTrackerLoopState({ trackerState: rawState, prContext });

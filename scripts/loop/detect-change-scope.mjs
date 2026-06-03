@@ -16,8 +16,12 @@
  *
  * When --base/--head not given, defaults to git diff against HEAD~1
  * (for committed scope) or git diff HEAD (for working tree).
+ *
+ * `eligibleForLightMode` is only computed when light mode is enabled in config
+ * and config loading has no validation errors (fail-closed).
+ * When disabled, it is always `false`.
  */
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import process from "node:process";
 
 function parseArgs() {
@@ -42,7 +46,7 @@ function detectScope({ base, head } = {}) {
 
   let output;
   try {
-    output = execSync("git", diffArgs, { encoding: "utf8", maxBuffer: 1_000_000 });
+    output = execFileSync("git", diffArgs, { encoding: "utf8", maxBuffer: 1_000_000 });
   } catch {
     return { ok: true, filesChanged: 0, linesChanged: 0 };
   }
@@ -74,22 +78,28 @@ async function main() {
   const opts = parseArgs();
   const scope = detectScope(opts);
 
-  // Try to load config for threshold
+  // Only compute eligibility when light mode is enabled AND config has no
+  // validation errors (fail-closed). When disabled or errors present,
+  // `eligibleForLightMode` is always false.
   let threshold = { maxFiles: 3, maxLines: 200 }; // built-in default
+  let eligible = false;
   try {
     const { loadDevLoopConfig, resolveLightMode } = await import(
       "../../packages/core/src/config/config.mjs"
     );
-    const { config } = await loadDevLoopConfig({ repoRoot: process.cwd() });
-    const lightMode = resolveLightMode(config);
-    if (lightMode) {
-      threshold = { maxFiles: lightMode.maxFiles, maxLines: lightMode.maxLines };
+    const { config, errors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+    if (Array.isArray(errors) && errors.length > 0) {
+      // Config validation errors → fail-closed, eligible stays false
+    } else {
+      const lightMode = resolveLightMode(config);
+      if (lightMode) {
+        threshold = { maxFiles: lightMode.maxFiles, maxLines: lightMode.maxLines };
+        eligible = isEligibleForLightMode(scope, threshold);
+      }
     }
   } catch {
-    // Use built-in defaults if config loading fails
+    // Use built-in defaults, eligible remains false
   }
-
-  const eligible = isEligibleForLightMode(scope, threshold);
 
   process.stdout.write(
     JSON.stringify({

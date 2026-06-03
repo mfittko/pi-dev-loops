@@ -4,6 +4,10 @@
  * Thin wrapper over the existing detect-tracker-pr-state.mjs detector,
  * providing the same { ok, state, snapshot, allowedTransitions, nextAction }
  * interface as detect-copilot-loop-state.mjs.
+ *
+ * Fail-closed contract: unknown/ambiguous tracker state maps to `needs_triage`,
+ * not to the canonical `unknown` state. Only an explicit `trackerState: "unknown"`
+ * produces the `unknown` canonical state.
  */
 
 /** @typedef {"drafting"|"needs_triage"|"in_progress"|"in_review"|"merge_ready"|"blocked"|"completed"|"unknown"} TrackerState */
@@ -42,10 +46,13 @@ export const TRACKER_TRANSITIONS = Object.freeze({
  */
 export function interpretTrackerLoopState(input) {
   const raw = input.trackerState;
-  let state = /** @type {TrackerState} */ ("unknown");
 
-  // Map raw tracker states to canonical states
+  // Map raw tracker states to canonical states.
+  // Fail-closed: unrecognized/ambiguous states → needs_triage.
+  // Only explicit "unknown" → the canonical `unknown` state.
   const lower = (raw || "").toLowerCase().trim();
+  let state = /** @type {TrackerState} */ ("needs_triage");
+
   if (lower === "draft" || lower === "drafting") state = "drafting";
   else if (lower === "open" || lower === "needs_triage") state = "needs_triage";
   else if (lower === "in_progress" || lower === "in progress") state = "in_progress";
@@ -53,7 +60,7 @@ export function interpretTrackerLoopState(input) {
   else if (lower === "merge_ready" || lower === "ready") state = "merge_ready";
   else if (lower === "blocked") state = "blocked";
   else if (lower === "closed" || lower === "completed" || lower === "done") state = "completed";
-  else state = "unknown";
+  else if (lower === "unknown") state = "unknown";
 
   const allowedTransitions = TRACKER_TRANSITIONS[state];
   const snapshot = {
