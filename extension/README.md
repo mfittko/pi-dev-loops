@@ -156,7 +156,8 @@ The shipped defaults activate these angles. Additional angles are available as o
 | `kiss` — over-engineering | `lsp` — Liskov Substitution (subtype contracts) |
 | `yagni` — speculative features | `isp` — Interface Segregation (fat interfaces) |
 | `srp` — Single Responsibility | `dip` — Dependency Inversion (abstractions) |
-| `soc` — Separation of Concerns | |
+| `soc` — Separation of Concerns | `docs` — documentation links, command references, stale docs |
+| `deep` — structural quality / deslop audit | |
 | `scope` — scope compliance (draft gate) | `link-check` — Markdown links, anchors, doc paths |
 | `coverage` — test coverage (draft gate) | `config-drift` — config/schema/docs/runtime disagreement |
 | `correctness` — acceptance criteria (draft gate) | `gate-evidence` — missing/stale gate-review PR evidence |

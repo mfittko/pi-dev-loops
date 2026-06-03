@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
+const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const cliPath = path.join(repoRoot, "scripts", "loop", "resolve-dev-loop-startup.mjs");
 
 async function withInputFile(input, fn) {
