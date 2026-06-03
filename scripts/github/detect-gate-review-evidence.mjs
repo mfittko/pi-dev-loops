@@ -51,14 +51,25 @@ Output (stdout, JSON; always includes preMergeGateCheck):
     },
     "draftGateSatisfied": true,
     "preApprovalGate": {
-      "visible": false,
-      "headSha": null,
-      "verdict": null,
-      "findingsSummary": null,
-      "nextAction": null,
-      "commentId": null,
-      "commentUrl": null,
-      "updatedAt": null
+      "visible": true,
+      "headSha": "abc1234",
+      "verdict": "clean",
+      "findingsSummary": "no issues found",
+      "nextAction": "await final human approval",
+      "commentId": 102,
+      "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-102",
+      "updatedAt": "2026-05-29T22:00:00Z"
+    },
+    "preApprovalGateMarker": {
+      "visible": true,
+      "headSha": "abc1234",
+      "verdict": "clean",
+      "findingsSummary": "no issues found",
+      "nextAction": "await final human approval",
+      "contractComplete": true,
+      "commentId": 102,
+      "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-102",
+      "updatedAt": "2026-05-29T22:00:00Z"
     },
     "preMergeGateCheck": {
       "ok": true,
