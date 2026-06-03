@@ -70,28 +70,21 @@ test("audit-merged-pr-gate-evidence reports missing gate evidence among recent m
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "repos/owner/repo/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=1"],
+        assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "merged", "--limit", "2", "--json", "number,title,url,mergedAt,headRefOid"],
         stdout: `${JSON.stringify([
           {
             number: 10,
             title: "Clean PR",
-            html_url: "https://github.com/owner/repo/pull/10",
-            merged_at: "2026-06-03T12:00:00Z",
-            head: { sha: "abc1234" },
+            url: "https://github.com/owner/repo/pull/10",
+            mergedAt: "2026-06-03T12:00:00Z",
+            headRefOid: "abc1234",
           },
           {
             number: 9,
             title: "Missing gates",
-            html_url: "https://github.com/owner/repo/pull/9",
-            merged_at: "2026-06-03T11:00:00Z",
-            head: { sha: "def5678" },
-          },
-          {
-            number: 8,
-            title: "Closed unmerged",
-            html_url: "https://github.com/owner/repo/pull/8",
-            merged_at: null,
-            head: { sha: "9999999" },
+            url: "https://github.com/owner/repo/pull/9",
+            mergedAt: "2026-06-03T11:00:00Z",
+            headRefOid: "def5678",
           },
         ])}\n`,
       },
@@ -127,63 +120,13 @@ test("audit-merged-pr-gate-evidence reports missing gate evidence among recent m
 });
 
 
-test("audit-merged-pr-gate-evidence keeps paging until the requested merged PR limit is satisfied", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-merged-gates-paging-"));
-
-  try {
-    const firstPage = Array.from({ length: 100 }, (_, index) => ({
-      number: 200 - index,
-      title: `Closed unmerged ${index}`,
-      html_url: `https://github.com/owner/repo/pull/${200 - index}`,
-      merged_at: null,
-      head: { sha: "aaa1111" },
-    }));
-    const env = await writeGhStub(tempDir, [
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=1"],
-        stdout: `${JSON.stringify(firstPage)}\n`,
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=2"],
-        stdout: `${JSON.stringify([
-          {
-            number: 99,
-            title: "Later merged",
-            html_url: "https://github.com/owner/repo/pull/99",
-            merged_at: "2026-06-03T09:00:00Z",
-            head: { sha: "abc1234" },
-          },
-        ])}\n`,
-      },
-      {
-        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/99/comments?per_page=100"],
-        stdout: `${JSON.stringify([
-          gateComment({ gate: "draft_gate", sha: "bcd1111", id: 990 }),
-          gateComment({ gate: "pre_approval_gate", sha: "abc1234", id: 991 }),
-        ])}\n`,
-      },
-    ]);
-
-    const result = await runNode(["--repo", "owner/repo", "--limit", "1"], { env });
-
-    assert.equal(result.code, 0, result.stderr);
-    const payload = JSON.parse(result.stdout);
-    assert.equal(payload.auditedCount, 1);
-    assert.equal(payload.results[0].pr, 99);
-    assert.equal(payload.allHaveRequiredGateEvidence, true);
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
-});
-
-
 test("audit-merged-pr-gate-evidence reports gh failures deterministically", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-merged-gates-fail-"));
 
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["api", "repos/owner/repo/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=1"],
+        assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "merged", "--limit", "20", "--json", "number,title,url,mergedAt,headRefOid"],
         stderr: "boom\n",
         exitCode: 1,
       },
