@@ -12,14 +12,14 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
-import { evaluatePrGateCoordination } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { evaluatePrGateCoordination, PR_GATE_BOUNDARY, PR_GATE_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { detectGateReviewEvidence } from "../github/detect-gate-review-evidence.mjs";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 
 const UNMERGED_GIT_STATUS_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
 
-const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number> [--review-mode local_first] [--local-validation-head-sha <sha>]
+const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number> [--review-mode internal_only] [--local-validation-head-sha <sha>]
 
 Determine which PR gate/transition is legal next for a pull request.
 
@@ -28,7 +28,7 @@ Required:
   --pr <number>         Pull request number
 
 Optional:
-  --review-mode local_first
+  --review-mode internal_only
   --local-validation-head-sha <sha>
                         Assert that local npm run verify already passed for
                         this exact head SHA so gate coordination can reuse the
@@ -114,11 +114,11 @@ export function parseDetectPrGateCoordinationCliArgs(argv) {
 
     if (token === "--review-mode") {
       const raw = requireOptionValue(args, "--review-mode", parseError).trim().toLowerCase();
-      if (raw === "local_first") {
-        options.reviewMode = "local_first";
+      if (raw === "internal_only") {
+        options.reviewMode = "internal_only";
         continue;
       }
-      throw parseError(`--review-mode must be "local_first", got: ${raw}`);
+      throw parseError(`--review-mode must be "internal_only", got: ${raw}`);
     }
 
     if (token === "--local-validation-head-sha") {
@@ -310,7 +310,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   const { config } = await loadDevLoopConfig({ repoRoot: runtime.repoRoot ?? process.cwd() });
   const draftGateConfig = resolveGateConfig(config, "draft");
   const maxCopilotRounds = resolveRefinementConfig(config, "maxCopilotRounds");
-  return evaluatePrGateCoordination({
+  const result = evaluatePrGateCoordination({
     repo: context.repo,
     pr: context.pr,
     currentHeadSha: context.currentHeadSha,
@@ -332,6 +332,24 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     preApprovalGate: context.gateEvidence.preApprovalGate,
     preApprovalGateMarker: context.gateEvidence.preApprovalGateMarker,
   });
+
+  // #442: pre_approval_gate detector — if pre_approval_gate was never entered
+  // for the current head (no visible contract-complete marker), force the
+  // PRE_APPROVAL_GATE_NEEDED boundary regardless of what the state machine says.
+  const preApprovalNeverEntered = !(result.preApprovalGate?.contractComplete === true);
+  const gateBoundariesExpectingPreApproval = new Set([
+    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
+    PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+  ]);
+
+  if (preApprovalNeverEntered && gateBoundariesExpectingPreApproval.has(result.gateBoundary)) {
+    result.gateBoundary = PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED;
+    result.nextAction = PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE;
+    result.reason = "No contract-complete pre_approval_gate marker exists for the current head SHA; run pre_approval_gate before proceeding.";
+    result.allowedNextActions = [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE];
+  }
+
+  return result;
 }
 
 async function main() {

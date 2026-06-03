@@ -7,6 +7,7 @@ export const PR_GATE_BOUNDARY = Object.freeze({
   CONFLICT_RESOLUTION: "conflict_resolution",
   PRE_APPROVAL_GATE_WINDOW: "pre_approval_gate_window",
   FINAL_APPROVAL_READY: "final_approval_ready",
+  PRE_APPROVAL_GATE_NEEDED: "pre_approval_gate_needed",
   BLOCKED: "blocked",
   DONE: "done",
 });
@@ -435,7 +436,7 @@ export function evaluatePrGateCoordination(input = {}) {
     PR_GATE_ACTION.DECLARE_MERGE_READY,
   ];
 
-  const localFirstPostDraftForbidden = [
+  const internalOnlyPostDraftForbidden = [
     PR_GATE_ACTION.RUN_DRAFT_GATE,
     PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
     PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
@@ -443,11 +444,11 @@ export function evaluatePrGateCoordination(input = {}) {
   ];
 
   if (effectiveLifecycleState === STATE.PR_READY_NO_FEEDBACK) {
-    if (reviewMode === "local_first") {
-      // Explicitly local-first PR: skip the external Copilot review cycle
+    if (reviewMode === "internal_only") {
+      // Explicitly internal-only PR: skip the external Copilot review cycle
       if (preApprovalGate.currentHeadClean) {
         pushUnique(allowedNextActions, [PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
-        pushUnique(forbiddenActions, localFirstPostDraftForbidden);
+        pushUnique(forbiddenActions, internalOnlyPostDraftForbidden);
         return buildResult({
           repo: input.repo ?? null,
           pr: Number.isInteger(input.pr) ? input.pr : null,
@@ -461,14 +462,14 @@ export function evaluatePrGateCoordination(input = {}) {
           allowedNextActions,
           forbiddenActions,
           nextAction: PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
-          reason: "This is an explicitly local-first PR with clean draft_gate evidence and current-head clean pre_approval_gate, so it is ready for final human approval.",
+          reason: "This is an explicitly internal-only PR with clean draft_gate evidence and current-head clean pre_approval_gate, so it is ready for final human approval.",
           mergeStateStatus,
           conflictFiles,
         });
       }
 
       pushUnique(allowedNextActions, [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE]);
-      pushUnique(forbiddenActions, localFirstPostDraftForbidden);
+      pushUnique(forbiddenActions, internalOnlyPostDraftForbidden);
       return buildResult({
         repo: input.repo ?? null,
         pr: Number.isInteger(input.pr) ? input.pr : null,
@@ -482,7 +483,7 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-        reason: "This is an explicitly local-first PR, so `pre_approval_gate` is the next legal boundary instead of an external Copilot review cycle.",
+        reason: "This is an explicitly internal-only PR, so `pre_approval_gate` is the next legal boundary instead of an external Copilot review cycle.",
         mergeStateStatus,
         conflictFiles,
       });

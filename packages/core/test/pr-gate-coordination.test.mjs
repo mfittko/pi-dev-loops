@@ -441,37 +441,37 @@ test("normalizeConflictFiles preserves opaque path strings while still rejecting
   assert.deepEqual(result.conflictFiles, ["  spaced-path.txt  "]);
 });
 
-test("local-first PR with explicit reviewMode skips to pre-approval gate after draft→ready", () => {
+test("internal-only PR with explicit reviewMode skips to pre-approval gate after draft→ready", () => {
   const result = evaluatePrGateCoordination({
     pr: 298,
     currentHeadSha: "abc123456789",
     prDraft: false,
     lifecycleState: STATE.PR_READY_NO_FEEDBACK,
     loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
-    reviewMode: "local_first",
+    reviewMode: "internal_only",
     draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
     draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
     preApprovalGate: gate({ visible: false }),
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  // Local-first PRs skip Copilot review and go straight to pre-approval gate
+  // Internal-only PRs skip Copilot review and go straight to pre-approval gate
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
   assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
   assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
   assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
-  assert.match(result.reason, /local-first/i);
+  assert.match(result.reason, /internal-only/i);
 });
 
-test("local-first PR with both gates clean goes straight to final approval", () => {
+test("internal-only PR with both gates clean goes straight to final approval", () => {
   const result = evaluatePrGateCoordination({
     pr: 298,
     currentHeadSha: "abc123456789",
     prDraft: false,
     lifecycleState: STATE.PR_READY_NO_FEEDBACK,
     loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
-    reviewMode: "local_first",
+    reviewMode: "internal_only",
     draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
     draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
     preApprovalGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
@@ -481,7 +481,7 @@ test("local-first PR with both gates clean goes straight to final approval", () 
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.FINAL_APPROVAL_READY);
   assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
-  assert.match(result.reason, /local-first/i);
+  assert.match(result.reason, /internal-only/i);
 });
 
 test("PR without explicit reviewMode uses standard Copilot review path (default)", () => {
@@ -497,20 +497,20 @@ test("PR without explicit reviewMode uses standard Copilot review path (default)
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  // Without reviewMode, default to Copilot review (hybrid local-first + external review)
+  // Without reviewMode, default to standard external Copilot review
   assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
   assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
   assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
-test("local-first PR without clean draft gate still enters pre-approval gate window", () => {
+test("internal-only PR without clean draft gate still enters pre-approval gate window", () => {
   const result = evaluatePrGateCoordination({
     pr: 298,
     currentHeadSha: "abc123456789",
     prDraft: false,
     lifecycleState: STATE.PR_READY_NO_FEEDBACK,
     loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
-    reviewMode: "local_first",
+    reviewMode: "internal_only",
     draftGate: gate({ visible: false }),
     draftGateMarker: gate({ visible: false }),
     preApprovalGate: gate({ visible: false }),

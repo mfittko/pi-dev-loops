@@ -4,10 +4,12 @@ import {
   formatCliError,
   isDirectCliRun,
   parseJsonText,
+  parseReviewThreads,
   summarizeGateReviewCommentMarkers,
   summarizeGateReviewComments,
 } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
+import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 const USAGE = `Usage: detect-gate-review-evidence.mjs --repo <owner/name> --pr <number>
@@ -217,7 +219,7 @@ function normalizeGateMarkerSummary(summary) {
   };
 }
 
-function buildPreMergeGateCheck(evidence) {
+export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null) {
   const failures = [];
 
   if (!(evidence.draftGate.visible && evidence.draftGate.verdict === "clean")) {
@@ -232,6 +234,15 @@ function buildPreMergeGateCheck(evidence) {
     && preApproval.headSha === evidence.currentHeadSha
   )) {
     failures.push("missing visible clean current-head pre_approval_gate comment");
+  }
+
+  // #443: verify zero unresolved review threads before pre-merge gate passes
+  if (typeof unresolvedThreadCount === "number" && unresolvedThreadCount !== 0) {
+    if (unresolvedThreadCount === -1) {
+      failures.push("could not fetch review thread state from GitHub API; re-run gate evidence check when API connectivity is restored");
+    } else {
+      failures.push(`unresolved review threads present (${unresolvedThreadCount}); must resolve all threads before merge`);
+    }
   }
 
   return {
@@ -286,7 +297,19 @@ async function main() {
 
   try {
     const result = await detectGateReviewEvidence(options);
-    const preMergeGateCheck = buildPreMergeGateCheck(result);
+
+    // #443: fetch review threads to verify zero unresolved threads before passing
+    let unresolvedThreadCount = -1;
+    try {
+      const threadsPayload = await fetchGithubReviewThreadsPayload(options, { env: process.env });
+      const parsedThreads = parseReviewThreads(threadsPayload);
+      unresolvedThreadCount = parsedThreads?.summary?.unresolvedThreads ?? 0;
+    } catch {
+      // API unavailable — fail closed: pass -1 so buildPreMergeGateCheck rejects merge when thread state cannot be verified
+      unresolvedThreadCount = -1;
+    }
+
+    const preMergeGateCheck = buildPreMergeGateCheck(result, unresolvedThreadCount);
     const output = { ...result, preMergeGateCheck };
 
     if (!preMergeGateCheck.ok) {
