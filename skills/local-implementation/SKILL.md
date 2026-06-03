@@ -85,6 +85,34 @@ When the local spec already lives in a tracker issue:
 
 Apply [Structural Quality](../docs/structural-quality.md) from the `deep` review angle.
 
+## Light mode (small changes)
+
+When scope is small enough, skip fan-out/fan-in and use a single review pass instead. Light mode still requires validation and pre-approval gate.
+
+**Eligibility:** ≤3 files AND ≤200 lines changed (configurable via `.pi/dev-loop/settings.yaml` `localImplementation.lightMode`).
+
+Use `scripts/loop/detect-change-scope.mjs` to determine eligibility:
+```sh
+node scripts/loop/detect-change-scope.mjs
+```
+
+**Light mode path:**
+1. Validation (`npm run verify`)
+2. Single review pass (not multi-angle fan-out)
+3. Pre-approval gate
+4. Finalization
+
+**Override threshold:**
+```yaml
+localImplementation:
+  lightMode:
+    enabled: true
+    maxFiles: 5
+    maxLines: 300
+```
+
+Disabled by default (opt-in). Scope above threshold falls back to full fan-out/fan-in path.
+
 ## Deterministic logging structure
 
 Treat the workflow as three layers:
