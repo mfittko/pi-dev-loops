@@ -29,6 +29,13 @@ function responseBody(clusters = []) {
   };
 }
 
+test("classify-uncategorized-comments help lists --base-url", async () => {
+  const result = await runNode(["--help"]);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /--base-url <url>/);
+});
+
 test("parseClassifyUncategorizedCliArgs requires explicit --model", () => {
   assert.throws(
     () => parseClassifyUncategorizedCliArgs(["--api-key", "key"]),

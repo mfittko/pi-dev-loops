@@ -32,7 +32,7 @@ function normalizeBaseUrl(value) {
   return trimmed;
 }
 
-const USAGE = `Usage: classify-uncategorized-comments.mjs --model <model> [--provider <openai-compatible|anthropic>] [--api-key <key>] [--input <path>] [--output-dir <path>] [--use-full-body] [--no-dedup]
+const USAGE = `Usage: classify-uncategorized-comments.mjs --model <model> [--provider <openai-compatible|anthropic>] [--api-key <key>] [--base-url <url>] [--input <path>] [--output-dir <path>] [--use-full-body] [--no-dedup]
 
 Classify uncategorized Copilot review comments with a single LLM pass and write
 both JSON and Markdown cluster reports. Uses built-in fetch; no extra npm deps.
