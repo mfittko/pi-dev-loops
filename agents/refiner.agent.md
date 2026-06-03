@@ -42,6 +42,8 @@ For the active phase, require and produce:
 - validation steps and tests to write first
 - durable decisions that should be preserved in the phase doc
 - when the phase includes a bounded audit or scan: prioritized findings, the highest-value follow-up candidates, and an explicit statement of what the current phase will not rewrite or broaden
+- When an audit artifact is provided, treat it as a first-class planning input: summarize the audited scope, list prioritized findings, include the highest-value follow-up candidates, and classify each meaningful finding as exactly one of current-phase scope/AC, DoD expectation, explicit non-goal / defer, or risk/watchpoint
+- Do not invent audit findings when no audit artifact was provided
 - when the phase includes watcher or predicate-driven behavior: explicit timeout semantics and negative-case expectations for non-target identities/events
 - when the phase relies on package-first shared helpers inside a source-loaded workspace: explicit integration expectations about whether local callers use published package imports or a thin source/workspace adapter during development
 
@@ -74,6 +76,7 @@ Return:
 - Complete acceptance criteria
 - Complete definition of done
 - Explicit non-goals, risks, and unresolved questions
+- When an audit artifact is provided: an `Audit inputs` subsection with prioritized findings, highest-value follow-up candidates, and an explicit `Will not rewrite/broaden in this phase` statement
 - An AC/DoD/Non-goal coverage matrix that uses exact source wording for every explicit item
 - If the source has no explicit definition of done, a `Proposed DoD` subsection
 - Tests to write first and validation steps

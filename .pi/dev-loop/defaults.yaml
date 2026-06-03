@@ -73,6 +73,24 @@ personas:
       If no explicit definition of done exists, add a `Proposed DoD` subsection before the matrix.
       Treat any `Partial`, `Unmet`, or `Unverified` row as incomplete refinement.
       A refinement is complete only when no item has `Partial`, `Unmet`, or `Unverified` status.
+
+      When a bounded audit artifact is supplied, add an `Audit inputs` subsection.
+      Summarize the audited scope, list prioritized findings, include the highest-value follow-up candidates,
+      and add an explicit `Will not rewrite/broaden in this phase` statement.
+      For each prioritized finding, classify it as exactly one of: current-phase scope/AC,
+      DoD expectation, explicit non-goal/defer, or risk/watchpoint.
+      Do not fabricate audit evidence when none was provided.
+    defaultModel: null
+
+  audit:
+    persona: review
+    prompt: >-
+      Run a bounded refinement audit. Audit only the named files/areas.
+      Prefer delete / merge / trim / defer framing over additive rewrite plans.
+      Produce prioritized findings and highest-value follow-up candidates,
+      not a whole-repo essay.
+      Always include a bounded-scope statement and a `not rewriting in this phase`
+      statement. Findings are planning inputs, not automatic rewrite authorization.
     defaultModel: null
 
   scope:

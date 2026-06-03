@@ -240,6 +240,59 @@ test("phase-truth docs agree that Phase 8 is active and Phase 7 is deferred", as
   assert.doesNotMatch(phase8, /defaults\.json|overrides\.json/i);
 });
 
+test("refinement docs and prompts wire the optional audit handoff into the refiner chain", async () => {
+  const [agentsDoc, refinerAgent, defaultsConfig, localImplementationSkill, issueIntakeDoc] = await Promise.all([
+    readRepo("AGENTS.md"),
+    readRepo("agents/refiner.agent.md"),
+    readRepo(".pi/dev-loop/defaults.yaml"),
+    readRepo("skills/local-implementation/SKILL.md"),
+    readRepo("skills/docs/issue-intake-procedure.md"),
+  ]);
+
+  assertMatchesAll(agentsDoc, [
+    /audit -> refine -> implement/i,
+    /bounded to named files\/areas/i,
+    /input artifact/i,
+    /not.+rewrite or broaden/i,
+  ], "AGENTS.md");
+
+  assertMatchesAll(refinerAgent, [
+    /When an audit artifact is provided/i,
+    /highest-value follow-up candidates/i,
+    /scope\/AC/i,
+    /DoD/i,
+    /explicit non-goal \/ defer|non-goal\/defer/i,
+    /risk\/watchpoint/i,
+    /not.+rewrite or broaden/i,
+    /Do not invent audit findings when no audit artifact was provided/i,
+  ], "agents/refiner.agent.md");
+
+  assertMatchesAll(defaultsConfig, [
+    /Audit inputs/i,
+    /highest-value follow-up candidates/i,
+    /Will not rewrite\/broaden in this phase/i,
+    /do not fabricate audit evidence when none was provided/i,
+    /\n  audit:\n    persona: review/i,
+    /audit only the named files\/areas/i,
+  ], ".pi/dev-loop/defaults.yaml");
+
+  assertMatchesAll(localImplementationSkill, [
+    /run one bounded audit before variant fan-out/i,
+    /tmp\/phases\/phase-x\/audit\/refinement-audit-summary\.json/i,
+    /pass a concise audit summary into every refiner briefing/i,
+    /highest-value follow-up candidates/i,
+    /not.+rewrite or broaden/i,
+  ], "skills/local-implementation/SKILL.md");
+
+  assertMatchesAll(issueIntakeDoc, [
+    /run the bounded audit first/i,
+    /same audit artifact shape/i,
+    /tmp\/issues\/issue-<number>\/audit\/refinement-audit-summary\.json/i,
+    /translate audit findings into scope, AC\/DoD, risks, and explicit non-goals/i,
+    /without silently broadening the issue/i,
+  ], "skills/docs/issue-intake-procedure.md");
+});
+
 test("AGENTS documents the conductor monitor pattern as human-in-the-loop queue oversight", async () => {
   const agents = await readRepo("AGENTS.md");
 

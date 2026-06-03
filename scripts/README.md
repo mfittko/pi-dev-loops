@@ -546,6 +546,35 @@ Failure behavior:
 
 Use `--force` only after the user explicitly authorizes ignoring the current-head CI failure for this one gate-comment upsert. Prefer the normal paths first: green current-head CI, `--local-validation-head-sha` for the bounded `crediblyGreen` case, or the draft-gate policy knob from issue #351 when the desired behavior is a durable draft-gate policy rather than a one-off override.
 
+### `scripts/loop/run-refinement-audit.mjs`
+
+Runs one deterministic bounded refinement audit over explicit repo paths and emits one machine-readable planning artifact.
+Use this before refiner fan-out when a local phase or GitHub issue would benefit from scoped slop-risk discovery.
+
+Required:
+- exactly one of:
+  - `--paths <comma-separated path list>`
+  - `--paths-file <file>`
+
+Optional:
+- `--root <path>` — override the repo root (defaults to `git rev-parse --show-toplevel`)
+- `--max-lines <n>` — oversized-file threshold (default `1000`)
+- `--duplicate-window-lines <n>` — duplicate-block window size (default `4`)
+- `--branch-threshold <n>` — branching-hotspot threshold (default `25` control-flow tokens)
+- `--thin-wrapper-max-lines <n>` — thin-wrapper threshold (default `40`)
+- `--output <path>` — writes the same success JSON emitted on stdout
+
+Success output shape:
+- `{ "ok": true, "repoRoot": "/repo", "paths": ["AGENTS.md"], "auditedFiles": [...], "findings": [...], "highestValueFollowUpCandidates": [...], "scopeBoundary": { "mode": "bounded_paths_only", "fullRepoScan": false } }`
+- `auditedFiles[]` reports per-file line count, branch-token count, duplicate-block match count, thin-wrapper classification, and deterministic skip notes for binary/unreadable files
+- `findings[]` uses bounded heuristic ids: `oversized_file`, `duplicate_block_candidate`, `branching_hotspot`, `thin_wrapper_candidate`
+- `highestValueFollowUpCandidates[]` is the concise planning handoff surface for refiner fan-out/fan-in; findings are planning inputs, not auto-authorized rewrites
+
+Failure behavior:
+- malformed arguments, blank paths, invalid thresholds, unreadable `--paths-file` input, or zero auditable files after tracked-file expansion emit `{ "ok": false, "error": "...", ... }` on stderr and exit non-zero
+- findings do **not** fail the process; findings return exit `0`
+- `--paths*` is required; the helper never silently scans the whole repo
+
 ### `scripts/loop/detect-pr-gate-coordination-state.mjs`
 
 Fetches the live PR facts needed to answer which gate/transition is legal next for a pull request. It combines the shared Copilot loop-state machine with visible `draft_gate` / `pre_approval_gate` evidence, GitHub `mergeStateStatus`, and local `git -c core.quotepath=false status --porcelain=v1 -z --untracked-files=no` conflict detection, then emits one explicit gate boundary, allowed/forbidden next actions, and a single recommended next step. Use this before entering `pre_approval_gate` and when deciding whether a ready PR should request Copilot review, keep waiting, stay in feedback resolution, or stop for conflict resolution.

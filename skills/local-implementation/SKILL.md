@@ -230,6 +230,18 @@ If a previous phase exists, read:
 
 Use those lessons to improve the current phase plan.
 
+### 2b. Optional bounded refinement audit
+
+Before variant fan-out, optionally run one bounded audit when the active phase would benefit from slop-risk discovery, structural drift discovery, or adjacent cleanup discovery.
+
+When used:
+- run one bounded audit before variant fan-out
+- write the audit artifact to `tmp/phases/phase-x/audit/refinement-audit-summary.json`
+- use `node scripts/loop/run-refinement-audit.mjs --paths ... --output tmp/phases/phase-x/audit/refinement-audit-summary.json`
+- pass a concise audit summary into every refiner briefing
+- keep the audit opt-in; do not turn it into a mandatory precondition
+- preserve prioritized findings, the highest-value follow-up candidates, and an explicit statement of what this phase will not rewrite or broaden in the merged plan and review artifacts
+
 ### 3. Fan out short plan variants
 
 Write 2-3 short variants:
@@ -246,6 +258,7 @@ Each refiner variant should make room for:
 - complete acceptance criteria
 - a complete definition of done
 - risks and unresolved questions
+- when a bounded audit artifact exists: prioritized findings, highest-value follow-up candidates, and what the phase will not rewrite or broaden
 - RFC escalation notes when technical decisions should go through the coordinator
 - for watcher/predicate-heavy phases: explicit negative-case tests and timeout semantics, including any zero-timeout or single-check contract
 
@@ -291,6 +304,7 @@ The merged plan must include:
 - validation steps
 - acceptance criteria
 - definition of done
+- when a bounded audit artifact exists: prioritized findings, highest-value follow-up candidates, and an explicit statement of what this phase will not rewrite or broaden
 - RFC escalation notes for any RFC-worthy technical decisions that must go through the coordinator instead of being silently resolved during refinement
 - for any new CLI surface: explicit success-output and malformed-argument/error-contract expectations
 - for any watcher/predicate-driven behavior: explicit timeout semantics plus negative-case detection rules for non-target identities or events

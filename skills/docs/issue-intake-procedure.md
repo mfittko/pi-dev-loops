@@ -153,6 +153,13 @@ Preflight verdicts:
 
 Before updating or assigning the issue, refine it asynchronously when practical. Keep issue refinement separate from the phase-scoped refiner used by the local implementation workflow. Use the `refiner` agent for this review-only issue-refinement chain, including the consolidation/fan-in step; do not route those comparison/synthesis steps through `dev-loop` + `local_implementation` (the strategy loaded by `skills/local-implementation`).
 
+When issue refinement would benefit from structural/slop discovery and the likely code/doc surface is knowable, run the bounded audit first.
+- write the issue-refinement audit artifact to `tmp/issues/issue-<number>/audit/refinement-audit-summary.json`
+- use the same audit artifact shape as local phase refinement
+- keep the audit bounded to the named files/areas for this issue; do not widen into a full-repo scan
+- pass a concise audit summary into refiner fan-out and fan-in
+- require the issue-refinement write-up to translate audit findings into scope, AC/DoD, risks, and explicit non-goals without silently broadening the issue
+
 ## Phase 3b — Epic decomposition with GitHub sub-issue trees
 
 When the work item is an umbrella/epic issue that must be decomposed into bounded child slices,
