@@ -10,7 +10,7 @@ import {
   summarizeGateReviewCommentMarkers,
   summarizeGateReviewComments,
 } from "../_core-helpers.mjs";
-import { requireOptionValue, runChild } from "../_cli-primitives.mjs";
+import { parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 const DEFAULT_LIMIT = 20;
@@ -45,13 +45,6 @@ Exit codes:
 
 const parseError = buildParseError(USAGE);
 
-function parsePositiveInteger(value, flag) {
-  const number = Number.parseInt(String(value), 10);
-  if (!Number.isInteger(number) || String(value).trim() !== String(number) || number <= 0) {
-    throw parseError(`${flag} must be a positive integer`);
-  }
-  return number;
-}
 
 function normalizeOutputPath(value) {
   const normalized = typeof value === "string" ? value.trim() : "";
@@ -84,7 +77,7 @@ export function parseAuditMergedPrGateEvidenceCliArgs(argv) {
     }
 
     if (token === "--limit") {
-      options.limit = parsePositiveInteger(requireOptionValue(args, "--limit", parseError), "--limit");
+      options.limit = parsePositiveInteger(requireOptionValue(args, "--limit", parseError), "--limit", parseError);
       continue;
     }
 
@@ -183,9 +176,7 @@ function evaluateMergedPrGateEvidence({ pr, comments }) {
 
 async function fetchRecentMergedPulls(options, { env, ghCommand }) {
   const merged = [];
-  const maxPages = Math.max(1, Math.ceil(options.limit / 100) + 2);
-
-  for (let page = 1; page <= maxPages && merged.length < options.limit; page += 1) {
+  for (let page = 1; merged.length < options.limit; page += 1) {
     const pagePayload = await runGhJson([
       "api",
       `repos/${options.repo}/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=${page}`,

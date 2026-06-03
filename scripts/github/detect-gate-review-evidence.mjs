@@ -236,13 +236,6 @@ export function buildPreMergeGateCheck(evidence) {
   };
 }
 
-export function assertPreMergeGateEvidence(evidence) {
-  const check = buildPreMergeGateCheck(evidence);
-  if (!check.ok) {
-    throw new Error(`Pre-merge gate evidence check failed: ${check.failures.join("; ")}`);
-  }
-  return check;
-}
 
 export async function detectGateReviewEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
   const prPayload = await runGhJson(["pr", "view", String(options.pr), "--repo", options.repo, "--json", "headRefOid"], { env, ghCommand });
