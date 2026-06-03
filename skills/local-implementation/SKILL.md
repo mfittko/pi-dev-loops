@@ -416,13 +416,13 @@ After the phase plan passes review:
    - for each angle, resolve its persona and prompt via `resolveReviewerRole(config, angle)` — start each reviewer in fresh context with a concise briefing including the angle-specific prompt, the branch/phase, intended behavior, acceptance criteria, relevant files or artifacts, and current validation status
    - use a mandatory chain:
   1. **Context-builder (mandatory):** produce a shared briefing artifact (git diff, adjacent code, validation status, acceptance criteria). No reviewer runs without this briefing.
-  2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context with the briefing artifact, inspects the diff, returns findings via output artifacts only, and never edits files.
+  2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context (subagent({context:"fresh"}) mandatory), inspects the diff, returns findings via output artifacts only, and never edits files. **Before starting:** run `scripts/github/verify-fresh-review-context.mjs` to self-verify fresh context; refuse to proceed on contamination.
   3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).
   4. **Post findings first:** document findings before any fix code is applied.
   5. **Fix cycle:** apply only accepted must-fix changes on the same branch.
   6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → document findings) on the new head before calling the phase review-complete or approval-ready. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
   7. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced findings in the previous pass
-   - do not fork the parent session for parallel reviewers; if more context is needed, write a compact handoff artifact under `tmp/` and point the reviewer at it
+   - do not fork the parent session for parallel reviewers; if more context is needed, write a compact handoff artifact under `tmp/` and point the reviewer at it **Mandatory fresh-context verification:** run `scripts/github/verify-fresh-review-context.mjs` at reviewer startup; block on contamination.
    - when reviewer subagents stumble on raw source-tree reads (for example unresolved build artifacts or import assumptions), generate a deterministic diff/review artifact under `tmp/` and have reviewers inspect that artifact instead of the raw file set
    - synthesize actionable findings
    - apply accepted fixes on the same branch
