@@ -507,7 +507,9 @@ async function scanSessionArtifactRoot(artifactsDir, records) {
         records.set(key, mergeRunRecord(record, {
           agent: typeof meta.agent === "string" ? meta.agent : (record.agent ?? agent),
           metaPath: filePath,
-          runState: Number(meta.exitCode) === 0 ? RUN_STATE.COMPLETED : RUN_STATE.FAILED,
+          ...(Number.isInteger(meta.exitCode) ? {
+            runState: meta.exitCode === 0 ? RUN_STATE.COMPLETED : RUN_STATE.FAILED,
+          } : {}),
           timestampMs: typeof meta.timestamp === "number" ? meta.timestamp : null,
           evidence: {
             metaPath: filePath,
@@ -1357,6 +1359,31 @@ export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
     }
   }
 
+  const sameTimestampActiveRuns = activeMatch.filter((candidate) => candidate.run.timestampMs === selectedTimestamp);
+  if (sameTimestampActiveRuns.length > 0) {
+    return {
+      kind: "manual_attention",
+      reason: MANUAL_REASON.ARTIFACT_LIVE_STATE_CONFLICT,
+      runs: [
+        {
+          runId: selected.run.runId,
+          childIndex: selected.run.childIndex,
+          timestampMs: selected.run.timestampMs,
+          outputArtifactPath: selected.run.outputArtifactPath,
+          sessionPath: selected.run.sessionPath,
+        },
+        ...sameTimestampActiveRuns.map((candidate) => ({
+          runId: candidate.run.runId,
+          childIndex: candidate.run.childIndex,
+          timestampMs: candidate.run.timestampMs,
+          outputArtifactPath: candidate.run.outputArtifactPath,
+          sessionPath: candidate.run.sessionPath,
+          runState: candidate.run.runState,
+        })),
+      ],
+    };
+  }
+
   const newerActiveRuns = activeMatch.filter((candidate) => candidate.run.timestampMs > selectedTimestamp);
 
   if (newerActiveRuns.length > 0) {
@@ -1432,7 +1459,7 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
     };
   }
 
-  if (run.staleWorktree && !run.sessionPath && !run.outputArtifactPath && !run.resultSummaryPath) {
+  if (run.staleWorktree && !run.sessionPath && !run.outputArtifactPath && !run.resultSummaryPath && !run.resultPath) {
     return {
       kind: "manual_attention",
       entry: buildManualAttentionEntry({

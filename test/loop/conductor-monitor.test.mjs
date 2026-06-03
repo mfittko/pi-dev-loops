@@ -652,6 +652,127 @@ test("conductor-monitor --auto-resume uses grouped result summaries as the artif
   }
 });
 
+test("conductor-monitor --auto-resume fails closed when an active matching run has the same timestamp as the exited candidate", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-same-timestamp-active-run-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const { sessionPath } = await writeSessionRun({
+      sessionsRoot,
+      runId: "run-complete-59",
+      cwd: repoRoot,
+      timestampMs: 1700000015000,
+      outputText: "Active PR: owner/repo#59\nArtifact state: open\nLoop state: waiting_for_copilot_review\n",
+    });
+    await writeAsyncRun({
+      asyncRunsRoot,
+      runId: "run-active-59",
+      state: "running",
+      cwd: repoRoot,
+      sessionPath,
+      timestampMs: 1700000015000,
+      outputText: "Active PR: owner/repo#59\nLoop state: waiting_for_copilot_review\n",
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 59, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 1);
+    assert.equal(payload.needsManualAttention[0].pr, 59);
+    assert.equal(payload.needsManualAttention[0].reason, "artifact_live_state_conflict");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume does not invent a failed run state from meta without an integer exitCode", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-invalid-meta-exitcode-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const sessionRoot = path.join(sessionsRoot, "2026-06-03T00-00-00-000Z_session");
+    const artifactsDir = path.join(sessionRoot, "subagent-artifacts");
+    const runDir = path.join(sessionRoot, "run-meta-60", "run-0");
+    const statusPath = path.join(asyncRunsRoot, "run-meta-60", "status.json");
+    await mkdir(artifactsDir, { recursive: true });
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(artifactsDir, "run-meta-60_dev-loop_0_meta.json"), `${JSON.stringify({ runId: "run-meta-60", agent: "dev-loop", timestamp: 1700000016000 }, null, 2)}
+`, "utf8");
+    await writeFile(path.join(artifactsDir, "run-meta-60_dev-loop_0_output.md"), "Active PR: owner/repo#60\nArtifact state: open\nLoop state: waiting_for_copilot_review\n", "utf8");
+    await writeFile(path.join(runDir, "session.jsonl"), `${JSON.stringify({ type: "session", version: 3, id: "run-meta-60-session", timestamp: "2026-06-03T00:00:00.000Z", cwd: repoRoot })}\n`, "utf8");
+    await writeAsyncRun({
+      asyncRunsRoot,
+      runId: "run-meta-60",
+      state: "complete",
+      cwd: repoRoot,
+      sessionPath: path.join(runDir, "session.jsonl"),
+      timestampMs: 1700000016500,
+      outputText: "Active PR: owner/repo#60\nLoop state: waiting_for_copilot_review\n",
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 60, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 1);
+    assert.equal(payload.resumePlans[0].runState, "completed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume keeps stale-worktree runs resumable when JSON result evidence is the only surviving artifact", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-stale-worktree-result-json-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const staleWorktreePath = path.join(repoRoot, "tmp", "worktrees", "issue-61-stale");
+    const resultPath = path.join(asyncResultsRoot, "run-result-61.json");
+    await writeFile(resultPath, `${JSON.stringify({
+      runId: "run-result-61",
+      agent: "dev-loop",
+      state: "complete",
+      cwd: staleWorktreePath,
+      summary: [
+        "Run: run-result-61",
+        "State: complete",
+        "Agent: dev-loop",
+        "Active PR: owner/repo#61",
+        "Artifact state: open",
+        "Loop state: waiting_for_copilot_review",
+      ].join("\n"),
+      results: [{
+        agent: "dev-loop",
+        output: [
+          "Run: run-result-61",
+          "State: complete",
+          "Agent: dev-loop",
+          "Active PR: owner/repo#61",
+          "Artifact state: open",
+          "Loop state: waiting_for_copilot_review",
+        ].join("\n"),
+      }],
+    }, null, 2)}
+`, "utf8");
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 61, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 1);
+    assert.equal(payload.resumePlans[0].pr, 61);
+    assert.equal(payload.resumePlans[0].staleWorktree, true);
+    assert.equal(payload.resumePlans[0].artifactPath, resultPath);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("conductor-monitor --auto-resume emits a feedback-fix resume plan for an orphaned unresolved-feedback PR", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-fix-"));
   const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");
