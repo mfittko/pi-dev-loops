@@ -349,6 +349,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   // PRE_APPROVAL_GATE_NEEDED boundary regardless of what the state machine says.
   const preApprovalNeverEntered = !(result.preApprovalGate?.contractComplete === true);
   const gateBoundariesExpectingPreApproval = new Set([
+    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED,
     PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
     PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
   ]);
@@ -366,6 +367,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   const gateBoundariesExpectingDraftGate = new Set([
     PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
     PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
+    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED,
     PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
     PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
   ]);
