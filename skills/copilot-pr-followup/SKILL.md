@@ -132,9 +132,9 @@ Do not assume `scripts/...` is repo-local to the target codebase you are operati
 - For GitHub issue or PR comments, prefer `--body-file` / `-F` or stdin via `-F -` over inline shell strings.
 - Keep scope tight to the issue/PR at hand.
 
-## Structural quality (from deep persona)
+## Structural quality (from `deep` angle)
 
-During implementation and follow-up fixes, apply the `deep` persona standards before waiting for review:
+During implementation and follow-up fixes, apply the `deep` review angle standards before waiting for review:
 
 - Prefer deletion over addition; question every new file, export, layer, and moving part.
 - Files over ~1k lines need extraction or an explicit justification.
