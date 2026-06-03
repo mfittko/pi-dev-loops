@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { runConductorMonitor } from "../../scripts/loop/conductor-monitor.mjs";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper } from "../_helpers.mjs";
 
 const scriptPath = path.resolve("scripts/loop/conductor-monitor.mjs");
@@ -30,6 +31,165 @@ function emptyThreadsPayload() {
   });
 }
 
+function buildPrListEntry(pr) {
+  return {
+    number: pr.number,
+    title: pr.title ?? `PR ${pr.number}`,
+    url: pr.url ?? `https://github.com/${pr.repo ?? "owner/repo"}/pull/${pr.number}`,
+    isDraft: Boolean(pr.isDraft),
+    headRefName: pr.headRefName ?? `copilot/pr-${pr.number}`,
+    author: { login: pr.authorLogin ?? "copilot-swe-agent" },
+  };
+}
+
+function buildPrViewEntry(pr) {
+  return {
+    isDraft: Boolean(pr.isDraft),
+    state: pr.state ?? "OPEN",
+    number: pr.number,
+    reviews: pr.reviews ?? [],
+    statusCheckRollup: pr.statusCheckRollup ?? [],
+  };
+}
+
+function buildRequestedReviewersPayload(pr) {
+  if (Array.isArray(pr.requestedReviewers)) {
+    return JSON.stringify({ users: pr.requestedReviewers, teams: [] });
+  }
+
+  return pr.requestCopilot === true
+    ? JSON.stringify({ users: [{ login: "copilot-pull-request-reviewer[bot]" }], teams: [] })
+    : JSON.stringify({ users: [], teams: [] });
+}
+
+function buildGhEntries({ repo = "owner/repo", prs }) {
+  const entries = [{
+    assertArgs: ["pr", "list", "--repo", repo, "--state", "open", "--limit", "1000", "--json", "number,title,url,isDraft,headRefName,author"],
+    stdout: `${JSON.stringify(prs.map((pr) => buildPrListEntry({ ...pr, repo })))}\n`,
+  }];
+
+  for (const pr of prs) {
+    entries.push(
+      {
+        assertArgs: ["pr", "view", String(pr.number), "--repo", repo],
+        stdout: `${JSON.stringify(buildPrViewEntry(pr))}\n`,
+      },
+      {
+        assertArgs: ["api", `repos/${repo}/pulls/${pr.number}/requested_reviewers`],
+        stdout: `${buildRequestedReviewersPayload(pr)}\n`,
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: `${pr.threadsPayload ?? emptyThreadsPayload()}\n`,
+      },
+    );
+  }
+
+  return entries;
+}
+
+async function createAutoResumeRoots(tempDir) {
+  const repoRoot = path.join(tempDir, "repo");
+  const sessionsRoot = path.join(tempDir, "sessions-root");
+  const asyncRunsRoot = path.join(tempDir, "async-runs-root");
+  const asyncResultsRoot = path.join(tempDir, "async-results-root");
+
+  await mkdir(path.join(repoRoot, "tmp", "worktrees"), { recursive: true });
+  await mkdir(sessionsRoot, { recursive: true });
+  await mkdir(asyncRunsRoot, { recursive: true });
+  await mkdir(asyncResultsRoot, { recursive: true });
+
+  return { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot };
+}
+
+async function writeSessionRun({
+  sessionsRoot,
+  runId,
+  childIndex = 0,
+  agent = "dev-loop",
+  cwd,
+  outputText = null,
+  exitCode = 0,
+  timestampMs = 1700000000000,
+  writeOutputArtifact = true,
+}) {
+  const artifactsDir = path.join(sessionsRoot, "subagent-artifacts");
+  const sessionDir = path.join(sessionsRoot, "2026-06-03T00-00-00-000Z_session", runId, `run-${childIndex}`);
+  const artifactBase = `${runId}_${agent}_${childIndex}`;
+  const metaPath = path.join(artifactsDir, `${artifactBase}_meta.json`);
+  const outputArtifactPath = path.join(artifactsDir, `${artifactBase}_output.md`);
+  const sessionPath = path.join(sessionDir, "session.jsonl");
+
+  await mkdir(artifactsDir, { recursive: true });
+  await mkdir(sessionDir, { recursive: true });
+  await writeFile(metaPath, `${JSON.stringify({ runId, agent, exitCode, timestamp: timestampMs }, null, 2)}\n`, "utf8");
+  if (writeOutputArtifact && outputText !== null) {
+    await writeFile(outputArtifactPath, outputText, "utf8");
+  }
+  await writeFile(
+    sessionPath,
+    `${JSON.stringify({ type: "session", version: 3, id: `${runId}-session`, timestamp: "2026-06-03T00:00:00.000Z", cwd })}\n`,
+    "utf8",
+  );
+
+  return { metaPath, outputArtifactPath, sessionPath };
+}
+
+async function writeAsyncRun({
+  asyncRunsRoot,
+  runId,
+  state = "running",
+  childIndex = 0,
+  childStatus = state,
+  agent = "dev-loop",
+  cwd,
+  outputText = null,
+  sessionPath = null,
+  timestampMs = 1700000000000,
+}) {
+  const asyncDir = path.join(asyncRunsRoot, runId);
+  const statusPath = path.join(asyncDir, "status.json");
+  const outputPath = path.join(asyncDir, `output-${childIndex}.log`);
+  const eventsPath = path.join(asyncDir, "events.jsonl");
+
+  await mkdir(asyncDir, { recursive: true });
+  await writeFile(statusPath, `${JSON.stringify({
+    runId,
+    mode: "single",
+    state,
+    cwd,
+    lastUpdate: timestampMs,
+    startedAt: timestampMs - 5000,
+    steps: [
+      {
+        agent,
+        status: childStatus,
+        sessionFile: sessionPath,
+      },
+    ],
+    outputFile: outputPath,
+  }, null, 2)}\n`, "utf8");
+  await writeFile(eventsPath, "", "utf8");
+  if (outputText !== null) {
+    await writeFile(outputPath, outputText, "utf8");
+  }
+
+  return { statusPath, outputPath, eventsPath };
+}
+
+async function runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo, env }) {
+  return runConductorMonitor(
+    { repo, autoResume: true },
+    {
+      env,
+      repoRoot,
+      sessionRoots: [sessionsRoot],
+      asyncRunRoots: [asyncRunsRoot],
+      asyncResultRoots: [asyncResultsRoot],
+    },
+  );
+}
+
 test("conductor-monitor reports queue_complete when no open PRs exist", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-empty-"));
 
@@ -51,6 +211,36 @@ test("conductor-monitor reports queue_complete when no open PRs exist", async ()
     assert.equal(payload.queueStatus, "queue_complete");
     assert.equal(payload.needsAttentionCount, 0);
     assert.deepEqual(payload.prs, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume keeps queue_complete semantics when no open PRs exist", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-auto-resume-empty-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const env = await writeGhStub(tempDir, [{
+      assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open", "--limit", "1000", "--json", "number,title,url,isDraft,headRefName,author"],
+      stdout: "[]\n",
+    }]);
+    env.PI_AGENT_SESSIONS_DIR = sessionsRoot;
+    env.PI_SUBAGENT_ASYNC_RUNS_DIR = asyncRunsRoot;
+    env.PI_SUBAGENT_ASYNC_RESULTS_DIR = asyncResultsRoot;
+
+    const result = await runNode(["--repo", "owner/repo", "--auto-resume"], { env, cwd: repoRoot });
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.queueStatus, "queue_complete");
+    assert.equal(payload.autoResumeRequested, true);
+    assert.equal(payload.orphanedPrCount, 0);
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 0);
+    assert.deepEqual(payload.resumePlans, []);
+    assert.deepEqual(payload.needsManualAttention, []);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -104,39 +294,15 @@ test("conductor-monitor reports monitoring when open PRs are still in healthy wa
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-waiting-"));
 
   try {
-    const env = await writeGhStub(tempDir, [
-      {
-        assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open", "--limit", "1000", "--json", "number,title,url,isDraft,headRefName,author"],
-        stdout: `${JSON.stringify([
-          {
-            number: 17,
-            title: "Add monitor status report",
-            url: "https://github.com/owner/repo/pull/17",
-            isDraft: false,
-            headRefName: "copilot/issue-383",
-            author: { login: "copilot-swe-agent" },
-          },
-        ])}\n`,
-      },
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
-        stdout: `${JSON.stringify({
-          isDraft: false,
-          state: "OPEN",
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [
+        {
           number: 17,
-          reviews: [],
-          statusCheckRollup: [],
-        })}\n`,
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${emptyThreadsPayload()}\n`,
-      },
-    ]);
+          title: "Add monitor status report",
+          requestCopilot: true,
+        },
+      ],
+    }));
 
     const result = await runNode(["--repo", "owner/repo"], { env });
 
@@ -163,65 +329,22 @@ test("conductor-monitor flags unresolved-feedback PRs as needing attention while
   const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");
 
   try {
-    const env = await writeGhStub(tempDir, [
-      {
-        assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open", "--limit", "1000", "--json", "number,title,url,isDraft,headRefName,author"],
-        stdout: `${JSON.stringify([
-          {
-            number: 17,
-            title: "Add conductor monitor wrapper",
-            url: "https://github.com/owner/repo/pull/17",
-            isDraft: false,
-            headRefName: "copilot/issue-383-wrapper",
-            author: { login: "copilot-swe-agent" },
-          },
-          {
-            number: 18,
-            title: "Document monitor pattern",
-            url: "https://github.com/owner/repo/pull/18",
-            isDraft: false,
-            headRefName: "copilot/issue-383-docs",
-            author: { login: "copilot-swe-agent" },
-          },
-        ])}\n`,
-      },
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
-        stdout: `${JSON.stringify({
-          isDraft: false,
-          state: "OPEN",
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [
+        {
           number: 17,
+          title: "Add conductor monitor wrapper",
           reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
           statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
-        })}\n`,
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: mixedThreadsFixture,
-      },
-      {
-        assertArgs: ["pr", "view", "18", "--repo", "owner/repo"],
-        stdout: `${JSON.stringify({
-          isDraft: false,
-          state: "OPEN",
+          threadsPayload: mixedThreadsFixture,
+        },
+        {
           number: 18,
-          reviews: [],
-          statusCheckRollup: [],
-        })}\n`,
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/18/requested_reviewers"],
-        stdout: '{"users":[{"login":"copilot-pull-request-reviewer[bot]"}],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: `${emptyThreadsPayload()}\n`,
-      },
-    ]);
+          title: "Document monitor pattern",
+          requestCopilot: true,
+        },
+      ],
+    }));
 
     const result = await runNode(["--repo", "owner/repo"], { env });
 
@@ -247,6 +370,329 @@ test("conductor-monitor flags unresolved-feedback PRs as needing attention while
     assert.equal(waiting.state, "waiting_for_copilot_review");
     assert.equal(waiting.loopDisposition, "pending");
     assert.equal(waiting.needsAttention, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume emits a feedback-fix resume plan for an orphaned unresolved-feedback PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-fix-"));
+  const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-fix-17",
+      cwd: repoRoot,
+      timestampMs: 1700000001000,
+      outputText: [
+        "Active PR: owner/repo#17",
+        "Artifact state: open",
+        "Loop state: unresolved_feedback_present",
+        "Next action: address review feedback",
+      ].join("\n"),
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 17,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        threadsPayload: mixedThreadsFixture,
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+
+    assert.equal(payload.autoResumeRequested, true);
+    assert.equal(payload.resumePlanCount, 1);
+    assert.equal(payload.manualAttentionCount, 0);
+    assert.equal(payload.orphanedPrCount, 1);
+    assert.equal(payload.queueStatus, "attention_needed");
+
+    const plan = payload.resumePlans[0];
+    assert.equal(plan.pr, 17);
+    assert.equal(plan.runId, "run-fix-17");
+    assert.equal(plan.runState, "completed");
+    assert.equal(plan.parsedArtifactState, "open");
+    assert.equal(plan.parsedLoopState, "unresolved_feedback_present");
+    assert.equal(plan.livePrState, "unresolved_feedback_present");
+    assert.equal(plan.resumeAction, "needs_feedback_fix");
+    assert.equal(
+      plan.resumeMessage,
+      "PR #17 is orphaned. Live state: unresolved_feedback_present. Resume the prior dev-loop from run run-fix-17. Continue by fixing the remaining review feedback, then reply to and resolve each GitHub thread. Do not merge.",
+    );
+    assert.equal(
+      plan.resumeCommandPreview,
+      'subagent({ action: "resume", id: "run-fix-17", message: "PR #17 is orphaned. Live state: unresolved_feedback_present. Resume the prior dev-loop from run run-fix-17. Continue by fixing the remaining review feedback, then reply to and resolve each GitHub thread. Do not merge." })',
+    );
+    assert.equal(plan.staleWorktree, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume emits a final-approval resume plan for an orphaned approval-boundary PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-final-approval-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-final-22",
+      cwd: repoRoot,
+      timestampMs: 1700000002000,
+      outputText: [
+        "Status: stopped at final human approval boundary",
+        "Routed strategy: final_approval",
+        "PR: https://github.com/owner/repo/pull/22",
+        "Next recommended action: human reviews/approves PR #22",
+      ].join("\n"),
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 22,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 1);
+    const plan = payload.resumePlans[0];
+    assert.equal(plan.pr, 22);
+    assert.equal(plan.resumeAction, "await_final_approval");
+    assert.equal(plan.livePrState, "final_approval_ready");
+    assert.equal(
+      plan.resumeMessage,
+      "PR #22 is orphaned. Live state: final_approval_ready. Resume the prior dev-loop from run run-final-22. Continue by summarizing the clean current-head evidence and stop at final human approval. Do not merge without explicit authorization.",
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume emits a merge-authorization resume plan for an orphaned merge-ready PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-merge-auth-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-merge-24",
+      cwd: repoRoot,
+      timestampMs: 1700000003000,
+      outputText: [
+        "Status: stopped at waiting_for_merge_authorization",
+        "PR #24",
+        "Next action: ask for explicit merge authorization",
+      ].join("\n"),
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 24,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 1);
+    const plan = payload.resumePlans[0];
+    assert.equal(plan.pr, 24);
+    assert.equal(plan.resumeAction, "await_merge_authorization");
+    assert.equal(plan.livePrState, "clean current-head gate evidence + green CI");
+    assert.equal(
+      plan.resumeMessage,
+      "PR #24 is orphaned. Live state: clean current-head gate evidence + green CI. Resume the prior dev-loop from run run-merge-24. Continue by stopping at waiting_for_merge_authorization and asking for explicit merge authorization. Do not merge automatically.",
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume ignores an older completed run when a newer running run matches the same PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-suppressed-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const { sessionPath } = await writeSessionRun({
+      sessionsRoot,
+      runId: "run-complete-30",
+      cwd: repoRoot,
+      timestampMs: 1700000001000,
+      outputText: [
+        "Active PR: owner/repo#30",
+        "Artifact state: open",
+        "Loop state: waiting_for_copilot_review",
+      ].join("\n"),
+    });
+    await writeAsyncRun({
+      asyncRunsRoot,
+      runId: "run-active-30",
+      state: "running",
+      cwd: repoRoot,
+      sessionPath,
+      timestampMs: 1700000005000,
+      outputText: "Active PR: owner/repo#30\nLoop state: waiting_for_copilot_review\n",
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 30, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 0);
+    assert.equal(payload.orphanedPrCount, 0);
+    assert.equal(payload.queueStatus, "monitoring");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume fails closed when the output artifact is missing", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-missing-artifact-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const { sessionPath } = await writeSessionRun({
+      sessionsRoot,
+      runId: "run-missing-31",
+      cwd: repoRoot,
+      timestampMs: 1700000004000,
+      outputText: "Active PR: owner/repo#31\n",
+      writeOutputArtifact: false,
+    });
+    await writeAsyncRun({
+      asyncRunsRoot,
+      runId: "run-missing-31",
+      state: "complete",
+      cwd: repoRoot,
+      sessionPath,
+      timestampMs: 1700000004500,
+      outputText: "Active PR: owner/repo#31\n",
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 31,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 1);
+    assert.equal(payload.needsManualAttention[0].pr, 31);
+    assert.equal(payload.needsManualAttention[0].runId, "run-missing-31");
+    assert.equal(payload.needsManualAttention[0].reason, "missing_output_artifact");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume fails closed on ambiguous PR identity inside one artifact", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-ambiguous-pr-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-ambiguous-33",
+      cwd: repoRoot,
+      timestampMs: 1700000005000,
+      outputText: [
+        "Active PR: owner/repo#33",
+        "Status: still discussing PR #34",
+      ].join("\n"),
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 33 }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 1);
+    assert.equal(payload.needsManualAttention[0].reason, "ambiguous_pr_identity");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume keeps a stale-worktree run resumable when artifact and session evidence are still present", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-stale-worktree-"));
+  const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const staleWorktreePath = path.join(repoRoot, "tmp", "worktrees", "issue-35-stale");
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-stale-35",
+      cwd: staleWorktreePath,
+      timestampMs: 1700000006000,
+      outputText: [
+        "Active PR: owner/repo#35",
+        "Artifact state: open",
+        "Loop state: unresolved_feedback_present",
+      ].join("\n"),
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 35,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        threadsPayload: mixedThreadsFixture,
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 1);
+    assert.equal(payload.resumePlans[0].pr, 35);
+    assert.equal(payload.resumePlans[0].staleWorktree, true);
+    assert.equal(payload.manualAttentionCount, 0);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume ignores non-dev-loop runs and runs from other repos", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-ignore-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-reviewer-36",
+      agent: "reviewer",
+      cwd: repoRoot,
+      timestampMs: 1700000007000,
+      outputText: "Active PR: owner/repo#36\n",
+    });
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-other-repo-36",
+      cwd: path.join(tempDir, "different-repo"),
+      timestampMs: 1700000008000,
+      outputText: "Active PR: owner/repo#36\n",
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 36, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 0);
+    assert.equal(payload.orphanedPrCount, 0);
+    assert.equal(payload.queueStatus, "monitoring");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

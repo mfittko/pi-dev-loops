@@ -345,19 +345,58 @@ Aggregate the current Copilot-loop status for every open PR in one repository.
 Required:
 - `--repo <owner/name>`
 
+Optional:
+- `--auto-resume` — inspect documented pi-subagents async/session artifacts on disk, detect orphaned open PR follow-up runs, and emit deterministic resume plans without executing `subagent({ action: "resume" })`
+
 Contract:
 - lists all open PRs via `gh pr list --state open --limit 1000` to avoid GitHub CLI default truncation
 - reuses `detect-copilot-loop-state.mjs` logic for each PR instead of inventing a second state classifier
 - reports one queue-level summary with per-PR loop state, next action, and whether human follow-up is needed now
 - reports `queue_complete` when the open-PR queue is empty
 - keeps the current implementation human-in-the-loop; fully autonomous monitor ownership is a follow-up slice
+- when `--auto-resume` is present, scans documented async evidence sources only:
+  - pi-subagents async run dirs under `<tmpdir>/pi-subagents-*/async-subagent-runs/<runId>/`
+    (`status.json`, `events.jsonl`, `output-<n>.log`)
+  - pi-subagents async result artifacts under
+    `<tmpdir>/pi-subagents-*/async-subagent-results/`
+  - persisted session/subagent artifacts under the Pi sessions tree (for example
+    `~/.pi/agent/sessions/.../subagent-artifacts/*_dev-loop_*_{meta,output}.json|md`
+    plus matching `run-<n>/session.jsonl` files)
+- ignores non-`dev-loop` agents, other repositories, merged PRs, and any exited run superseded by a newer matching `running` or `queued` run
+- matches exited runs to open PRs only by PR number parsed from artifact text; branch names, issue numbers, or worktree paths alone are never sufficient identity
+- fail-closes to `needsManualAttention` when PR identity, artifact state, or resume inputs are missing, contradictory, or ambiguous
+- `--auto-resume` remains single-shot only; it does not poll, sleep, watch, or execute the resume itself
 
 Success output shape:
-- `{ "ok": true, "repo": "owner/name", "checkedAt": "...", "prCount": 2, "queueStatus": "queue_complete"|"monitoring"|"attention_needed", "needsAttentionCount": 0, "summary": { "waiting": 0, "needsAttention": 0, "blocked": 0, "done": 0 }, "prs": [...] }`
+- default:
+  - `{ "ok": true, "repo": "owner/name", "checkedAt": "...", "prCount": 2, "queueStatus": "queue_complete"|"monitoring"|"attention_needed", "needsAttentionCount": 0, "summary": { "waiting": 0, "needsAttention": 0, "blocked": 0, "done": 0 }, "prs": [...] }`
+- with `--auto-resume`:
+  - adds
+    `{ "autoResumeRequested": true, "orphanedPrCount": 1, "resumePlanCount": 1, "manualAttentionCount": 0, "resumePlans": [...], "needsManualAttention": [...] }`
+
+`resumePlans[]` fields:
+- `pr`
+- `runId`
+- `runState` (`completed` | `failed` | `paused`)
+- `artifactPath`
+- `sessionPath` when known
+- `parsedArtifactState`
+- `parsedLoopState`
+- `livePrState`
+- `resumeAction`
+- `resumeMessage`
+- `resumeCommandPreview`
+- `staleWorktree`
+
+`needsManualAttention[]` fields:
+- `pr` when known
+- `runId` when known
+- `reason`
+- `evidence`
+- `suggestedNextStep`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
-
 
 ### `scripts/loop/detect-copilot-session-activity.mjs`
 
