@@ -773,6 +773,38 @@ test("conductor-monitor --auto-resume keeps stale-worktree runs resumable when J
   }
 });
 
+test("conductor-monitor --auto-resume includes a non-zero child index in the resume preview even when only one child matches", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-nonzero-child-index-"));
+  const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-child-62",
+      childIndex: 1,
+      cwd: repoRoot,
+      timestampMs: 1700000017000,
+      outputText: "Active PR: owner/repo#62\nArtifact state: open\nLoop state: unresolved_feedback_present\n",
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 62,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        threadsPayload: mixedThreadsFixture,
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 1);
+    assert.match(payload.resumePlans[0].resumeCommandPreview, /index: 1/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("conductor-monitor --auto-resume emits a feedback-fix resume plan for an orphaned unresolved-feedback PR", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-fix-"));
   const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");

@@ -1298,7 +1298,7 @@ function buildResumeMessage({ pr, runId, resumeAction, livePrState }) {
 }
 
 function buildResumeCommandPreview({ runId, childIndex, childCount, resumeMessage }) {
-  if (childCount > 1) {
+  if (childCount > 1 || childIndex !== 0) {
     return `subagent({ action: "resume", id: "${runId}", index: ${childIndex}, message: ${JSON.stringify(resumeMessage)} })`;
   }
 
