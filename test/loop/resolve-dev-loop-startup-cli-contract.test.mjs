@@ -33,7 +33,7 @@ test("resolve-dev-loop-startup help documents accepted flags and JSON contracts"
   assert.match(result.stdout, /Output \(stdout, JSON\):/);
   assert.match(result.stdout, /"selectedStrategy": "\.\.\."/);
   assert.match(result.stdout, /Error output \(stderr, JSON\):/);
-  assert.match(result.stdout, /Exit codes:\n  0  Success\n  1  Argument error or runtime failure/);
+  assert.match(result.stdout, /Exit codes:\n  0  Success\n  1  Argument error, runtime failure, or async-start contract rejection/);
 });
 
 test("resolve-dev-loop-startup success stdout keeps documented JSON shape", async () => {
