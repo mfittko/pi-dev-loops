@@ -99,6 +99,16 @@ When the local spec already lives in a tracker issue:
 - When subagents are used, log what each subagent was asked to do and what it concluded.
 - If [Project Plan](../../PLAN.md) is too rough or ambiguous to safely start the current phase, do not guess: run a clarification/interview step with the user first.
 
+## Structural quality (from deep persona)
+
+Implementation agents should self-apply the `deep` persona standards before reviewer gates:
+
+- Prefer deletion over addition; question every new file, export, layer, and moving part.
+- Files over ~1k lines need extraction or an explicit justification.
+- Do not bolt conditionals onto unrelated paths; push logic into dedicated boundaries.
+- Avoid spaghetti branching, thin wrappers, re-export-only files, and identity abstractions.
+- Do not leak feature logic into shared modules or create leaky abstractions.
+
 ## Deterministic logging structure
 
 Treat the workflow as three layers:
