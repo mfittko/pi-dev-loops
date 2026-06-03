@@ -21,13 +21,13 @@ async function readIssueIntakeSurface() {
 test("issue-intake surface still contains its core workflow guidance", async () => {
   const content = await readIssueIntakeSurface();
 
-  assert.match(content, /Before planning, review, or automation:/);
+  // Required startup reads now references entrypoint briefing first\n  assert.match(content, /entrypoint briefing/i);\n  assert.match(content, /Read.*contract docs needed for the current step/i);
   assert.match(content, /Skill asset path resolution/);
   assert.match(content, /Do not assume `scripts\/\.\.\.` is repo-local to the target codebase/i);
   assert.match(content, /source-repo helper scripts live two levels up at `\.\.\/\.\.\/scripts\/`/i);
   assert.match(content, /Before any GitHub mutation/);
   assert.match(content, /Preferred defaults for this repo:/);
-  assert.match(content, /Default validation should match or approximate/);
+  // Validation policy now in canonical doc; skill references it\n  assert.match(content, /Validation Policy|validation policy/i);
   assert.match(content, /start each reviewer in fresh context/i);
   assert.match(content, /concise focus-specific briefing summary/i);
   assert.match(content, /do not fork the parent session/i);

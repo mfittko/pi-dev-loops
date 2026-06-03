@@ -254,7 +254,7 @@ test("copilot-pr-followup mandates upsert helper command for gate comments", asy
   assert.match(copilotFollowupSkill, /--verdict\s+<clean\|findings_present\|blocked>/);
   assert.match(copilotFollowupSkill, /--gate\s+<draft_gate\|pre_approval_gate>/);
   assert.match(copilotFollowupSkill, /Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments\./);
-  assert.match(copilotFollowupSkill, /post gate review comments with gh pr comment or gh pr review instead of upsert-gate-review-comment\.mjs/i);
+  assert.match(copilotFollowupSkill, /Do NOT use.*gh pr comment.*gh pr review.*gate comments.*upsert-gate-review-comment/i);
 });
 
 test("public dev-loop contract keeps conflict reconciliation local and context-first", async () => {
