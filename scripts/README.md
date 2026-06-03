@@ -319,6 +319,27 @@ Contract:
 Success output shape:
 - `{ "ok": true, "repo": "owner/name", "issue": 59, "state": "...", "prNumber": 79|null, "prUrl": "..."|null, "headBranch": "..."|null, "authorLogin": "Copilot"|null, "isDraft": true|false|null, "changedFiles": 0|null, "commitCount": 1|null, "soleCommitHeadline": "Initial plan"|null, "sessionActivity": "active"|"concluded"|"idle"|null, "sessionRunId": 123|null, "sessionRunName": "..."|null, "sessionRunStatus": "..."|null, "sessionRunConclusion": string|null, "sessionRunCreatedAt": "..."|null, "sessionConfidence": "high"|null }`
 
+### `scripts/loop/conductor-monitor.mjs`
+
+Aggregate the current Copilot-loop status for every open PR in one repository.
+
+Required:
+- `--repo <owner/name>`
+
+Contract:
+- lists all open PRs via `gh pr list --state open --limit 1000` to avoid GitHub CLI default truncation
+- reuses `detect-copilot-loop-state.mjs` logic for each PR instead of inventing a second state classifier
+- reports one queue-level summary with per-PR loop state, next action, and whether human follow-up is needed now
+- reports `queue_complete` when the open-PR queue is empty
+- keeps the current implementation human-in-the-loop; fully autonomous monitor ownership is a follow-up slice
+
+Success output shape:
+- `{ "ok": true, "repo": "owner/name", "checkedAt": "...", "prCount": 2, "queueStatus": "queue_complete"|"monitoring"|"attention_needed", "needsAttentionCount": 0, "summary": { "waiting": 0, "needsAttention": 0, "blocked": 0, "done": 0 }, "prs": [...] }`
+
+Failure behavior:
+- malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
+
 ### `scripts/loop/detect-copilot-session-activity.mjs`
 
 Detect deterministic Copilot workflow session activity on a branch.
