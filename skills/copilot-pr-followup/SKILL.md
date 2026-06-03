@@ -77,27 +77,15 @@ For detailed machine guarantees, judgment calls, pre-follow-up planning rules, P
 
 ## Required startup reads
 
-Before planning, review, or automation:
+Read the canonical entrypoint briefing first: [Entrypoint Briefing (Copilot PR Follow-up)](../docs/entrypoint-briefing-copilot-pr-followup.md). Then read only the contract docs needed for the current step:
 
-Read only the contract docs and runtime surface needed for the current routed step.
+- [Agent Instructions](../../AGENTS.md) (repo constitution)
+- [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) (always)
+- [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md) (when async state/resume applies)
+- Active GitHub issue/PR
+- Task-relevant source, tests, config, and CI
 
-Read in every routed flow unless a line explicitly says otherwise:
-1. [Agent Instructions](../../AGENTS.md) if present
-2. [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
-3. [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md) when the current step depends on async start/resume/status or retrospective enforcement
-4. the active GitHub issue or PR
-5. the repository's actual validation/runtime surface:
-   - root `package.json`
-   - relevant package-level `package.json` files
-   - CI/workflow configuration if present
-   - touched helper contract docs when the PR changes a documented contract
-6. task-relevant source files, tests, and configuration
-
-Route-dependent extra reads:
-- routed `issue_intake`: [Copilot Loop Operations](../docs/copilot-loop-operations.md) + [Issue Intake Procedure](../docs/issue-intake-procedure.md)
-- PR follow-up / wait-watch / reviewer-fixer / final approval seams: [Copilot Loop Operations](../docs/copilot-loop-operations.md)
-
-If the repo includes generated wiki or LLM context files, treat them as orientation aids only.
+Route-dependent: see [Copilot Loop Operations](../docs/copilot-loop-operations.md) and [Issue Intake Procedure](../docs/issue-intake-procedure.md) when relevant.
 Verify all material claims against source, tests, configuration, and CI.
 
 ## Skill asset path resolution
@@ -120,27 +108,11 @@ Do not assume `scripts/...` is repo-local to the target codebase you are operati
 
 ## Authority and safety rules
 
-- Source code, tests, CI, and config are authoritative.
-- The generated wiki is a navigation aid, not the source of truth.
-- GitHub Issues are the backlog. Do not invent a parallel backlog file.
-- Before any state-changing action, get explicit confirmation unless the user's latest message already clearly authorizes that action.
-- Questions, preferences, future-tense statements, and implied approval are not confirmation.
-- The bare response `ok` is not confirmation.
-- State-changing actions include local edits, commits, pushes, merges, rebases, branch deletion, issue assignment, label or milestone changes, PR reviews, thread resolution, workflow triggers, and publication.
-- When handing work to Copilot, assign `copilot-swe-agent` directly, not `copilot`.
-- Prefer single commands where practical. If the logic is too involved for one command, write a temporary `.mjs` script under `tmp/` instead of building up fragile shell sequences.
-- For GitHub issue or PR comments, prefer `--body-file` / `-F` or stdin via `-F -` over inline shell strings.
-- Keep scope tight to the issue/PR at hand.
+Source code, tests, CI, and config are authoritative. Generated wiki is navigation aid only. See [Confirmation Rules](../docs/confirmation-rules.md), [Stop Conditions](../docs/stop-conditions.md), and [Merge Preconditions](../docs/merge-preconditions.md) for authorization boundaries.
 
-## Structural quality (from `deep` review angle)
+## Structural quality
 
-During implementation and follow-up fixes, apply the `deep` review angle standards before waiting for review:
-
-- Prefer deletion over addition; question every new file, export, layer, and moving part.
-- Files over ~1k lines need extraction or an explicit justification.
-- Do not bolt conditionals onto unrelated paths; push logic into dedicated boundaries.
-- Avoid spaghetti branching, thin wrappers, re-export-only files, and identity abstractions.
-- Do not leak feature logic into shared modules or create leaky abstractions.
+Apply [Structural Quality](../docs/structural-quality.md) standards from the `deep` review angle during implementation and follow-up fixes.
 
 ## Step 5: PR discovery and interpretation
 
@@ -412,34 +384,12 @@ Before any merge-ready or final-approval claim, run `detect-pr-gate-coordination
 
 ### Merge-ready preconditions
 
-Do not declare merge-ready unless all of these checks pass in order:
-
-1. `unresolvedThreadCount === 0`, verified via `capture-review-threads.mjs` rather than by prose assertion alone
-2. a visible `draft_gate` comment exists on the PR with verdict `clean` for the one-time draft→ready boundary
-3. a visible `pre_approval_gate` comment exists on the PR for the current head SHA with verdict `clean`
-4. CI is green on the current head SHA
-
-If any check fails, do not declare merge-ready.
-
-For any parallel review pass:
-- start each reviewer in fresh context
-- give each reviewer a concise focus-specific briefing summary instead of relying on inherited conversation state
-- include the PR/branch, intended scope, relevant issue or plan link, current validation/check status, key files or artifacts, and the exact review angle
-- do not fork the parent session just to preserve prior chat state; write a compact handoff artifact under `tmp/copilot-loop/` when a reviewer needs more shared context
+See [Merge Preconditions](../docs/merge-preconditions.md). Verify: `unresolvedThreadCount === 0` (via `capture-review-threads.mjs`), visible clean `draft_gate` + current-head `pre_approval_gate`, green CI. For parallel review passes: start each reviewer in fresh context with a concise focus-specific briefing summary; do not fork the parent session just to preserve chat state (write a compact handoff artifact under `tmp/copilot-loop/` instead).
 
 ### Final approval gate
 
-Use this boundary after the merge-ready preconditions pass.
-
-- Before reporting merge-ready or approval-ready, verify the current-head PR state authoritatively.
-- `unresolvedThreadCount === 0` must be verified via `capture-review-threads.mjs` rather than by prose assertion alone.
-- A visible `draft_gate` comment with verdict `clean` must exist for the one-time draft→ready boundary.
-- A visible `pre_approval_gate` comment with verdict `clean` must exist on the current head SHA.
-- CI must be green, or credibly green with an explicit repository-grounded explanation.
-- Stop at the final human approval gate by default.
-- After approval, report `waiting_for_merge_authorization` and stop again unless merge has been explicitly authorized.
-- Do not merge, push, rebase, resolve threads, or change GitHub state without explicit confirmation unless the latest user message already authorizes that exact action.
-- If merge authorization is explicit, complete one last authoritative check on current-head gate evidence, clean thread state, and green CI, then run the mechanical pre-merge gate evidence check below before merging with the repository's intended PR strategy.
+After merge-ready preconditions pass, verify [Merge Preconditions](../docs/merge-preconditions.md) authoritatively before reporting merge-ready. Stop at the final human approval gate by default. Cross-check via `capture-review-threads.mjs` (not prose assertion).
+Follow [Merge Preconditions](../docs/merge-preconditions.md): stop at `waiting_for_merge_authorization` after approval unless merge explicitly authorized. Run pre-merge gate evidence check before any `gh pr merge`.
 
 ### Mechanical pre-merge gate evidence check
 
@@ -453,74 +403,30 @@ node <resolved-skill-scripts>/github/detect-gate-review-evidence.mjs \
 
 This helper is always-on: it uses `gh api` to fetch visible PR issue comments and fails closed unless both required gate comments exist: a clean `draft_gate` comment for the one-time draft boundary and a clean current-head `pre_approval_gate` comment. Do not run `gh pr merge` if this command exits non-zero. There is no opt-out flag. Resolved threads, green CI, clean Copilot rereview, or local notes do not substitute for this successful helper output. If a final approval or merge boundary sees `gh pr merge` without a same-boundary successful check, treat that as a workflow violation and stop.
 
-## Validation policy for this repo
+## Validation policy
 
-Default validation should match or approximate the active repository's PR CI.
-
-Strong defaults:
-- prefer the repo's declared root scripts when they exist
-- prefer package-local test/check scripts when the change is isolated to one Pi package surface
-- if the repo does not yet define CI-equivalent scripts, say so explicitly and run the narrowest honest validation available
-
-Useful examples in this repository:
-- changes under `skills/dev-loop/scripts/`: `npm run test:dev-loop`
-- changes under `skills/dev-loop/templates/`: run the relevant root smoke/contract tests (for example `npm run test:assets`) because `test:dev-loop` currently covers the surviving script-level tests only
-- docs-only changes: `git diff --check` and targeted markdown review
-- frontmatter or skill-only changes: parse/inspect the updated [this skill file](SKILL.md) files and note any remaining gaps
-
-When GitHub Actions runs already exist and the next step is to wait for them rather than rerun them locally, prefer native GitHub CLI watch support where available:
-- use `gh run watch` for a known workflow run ID
-- otherwise refresh once with `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` and report the current wait state from that detector snapshot
-- do not add `sleep`-based retries around `gh pr checks`, `gh pr view`, or `gh api`
-
-When reporting status, distinguish between:
-- locally validated narrowly
-- locally validated with full PR-equivalent checks
-- still awaiting GitHub CI confirmation
+Follow [Validation Policy](../docs/validation-policy.md). Default: `npm run verify` before PR creation, gate entry, and merge. For repo-local examples: `npm run test:dev-loop` for skill scripts, contract tests for templates, `git diff --check` for docs. When CI runs exist, use `gh run watch` or `detect-copilot-loop-state.mjs` instead of `sleep`-based polling. Distinguish: locally validated, full PR-equivalent checks, awaiting CI.
 
 ## Confirmation checkpoints
 
-Always stop and ask before these actions unless explicitly authorized already:
-- editing repository files
-- assigning or reassigning an issue
-- changing labels or milestones
-- posting GitHub comments or review replies
-- submitting a PR review
-- resolving review threads
-- committing local changes
-- pushing a branch
-- merging a PR
-- triggering workflows
+See [Confirmation Rules](../docs/confirmation-rules.md). Stop and ask before GitHub mutations (edits, assignments, labels, comments, reviews, thread resolution, commits, pushes, merges, workflows) unless explicitly authorized.
 
 ## Stop conditions
 
-Stop and report instead of acting when:
-- the next step requires a GitHub mutation that is not yet authorized
-- issue scope is ambiguous
-- the PR has no actionable unresolved feedback
-- CI failures are unrelated and require maintainer judgment
-- the branch contains unrelated local changes
-- a proposed fix would broaden scope beyond the issue/PR
+Follow [Stop Conditions](../docs/stop-conditions.md). Genuine stops: `blocked` state, `done`/terminal, `approval_ready` without merge auth, ambiguous state, scope drift. Non-stops: `waiting` watcher states, quiet observations.
 
 ## Anti-patterns
 
-Do not:
-- treat this repo like a local phase-by-phase prototype workflow
-- create a separate local backlog
-- broaden a Copilot PR into multiple issue scopes
-- resolve threads without checking whether the current branch actually fixes them
-- use ad hoc inline `gh api` or `gh api graphql` thread-mutation commands instead of the deterministic `reply-resolve-review-thread.mjs` / `reply-resolve-review-threads.mjs` helpers
-- submit a merge-ready verdict without first summarizing the pending thread state
-- declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA
-- declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence
-- do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when the helper says the PR is conflicted
-- run `gh pr merge` without a same-boundary successful `detect-gate-review-evidence.mjs` check (always-on, no opt-out flag)
-- suggest approval, approve and merge, or any approval-ready statement without explicit current-head `pre_approval_gate` gate-review evidence
-- treat CI green + resolved review threads + clean Copilot rereview as sufficient for approval or merge without an explicit current-head `pre_approval_gate` gate-review comment
-- dispatch an async dev-loop task that omits the pre-approval gate requirement
-- post gate review comments with gh pr comment or gh pr review instead of upsert-gate-review-comment.mjs
-- bypass Pi async notifications with detached automation when the user wants in-session async behavior
-- assume the generated wiki is authoritative over code or CI
+See [Anti-patterns](../docs/anti-patterns.md). Key repo-specific additions:
+- Use `reply-resolve-review-thread.mjs` / `reply-resolve-review-threads.mjs` helpers instead of ad hoc `gh api`/`gh api graphql` thread-mutation commands
+- Do NOT use `gh pr comment` or `gh pr review` for gate comments (use `upsert-gate-review-comment.mjs`)
+- Do not declare merge-ready without visible `pre_approval_gate` comment on current head SHA
+- Do not declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence
+- Do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when conflicted
+- Do not suggest approval/approve-and-merge without explicit current-head `pre_approval_gate` evidence
+- Do not treat CI green + resolved threads + clean Copilot rereview as sufficient without gate evidence
+- Do not dispatch async dev-loop tasks that omit the pre-approval gate requirement
+- Do not assume generated wiki is authoritative over code or CI
 
 ## Output expectations
 

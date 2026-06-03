@@ -31,33 +31,15 @@ Everything else is optional and may be bootstrapped by this skill.
 
 ## Required startup reads
 
-Read only what the current routed step actually needs.
+Read the canonical entrypoint briefing first: [Entrypoint Briefing (Local Implementation)](../docs/entrypoint-briefing-local-implementation.md). Then read only what the current step needs:
 
-### GitHub-first routed requests (`issue_intake`, `copilot_pr_followup`, `reviewer_fixer`, `wait_watch`, `final_approval`)
+- [Agent Instructions](../../AGENTS.md) (repo constitution)
+- [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
+- [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md) (when async state applies)
+- [Project Plan](../../PLAN.md) and phase/tracker docs when relevant
+- Relevant issue/PR, validation surface, and task files
 
-Before acting on a GitHub-first issue/PR request:
-
-1. read this skill
-2. if [Agent Instructions](../../AGENTS.md) exists, read it first as the repo constitution / working agreement
-3. read [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
-4. if the current step depends on async start/resume/status or retrospective enforcement, read [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md)
-5. read the relevant GitHub issue or PR
-6. inspect the actual validation/runtime surface needed for the current step (`package.json`, CI/workflows, touched files, helper contracts)
-7. when GitHub-first refinement produces multiple bounded child slices, prefer real GitHub sub-issue trees as the durable execution structure; keep parent issue bodies lean once the tree exists and use plain related-issue references when no tree is warranted
-
-### Local implementation routed requests (`local_implementation`)
-
-Before local phase planning or coding:
-
-1. read this skill
-2. if [Agent Instructions](../../AGENTS.md) exists, read it
-3. read [Project Plan](../../PLAN.md)
-4. if [Implementation Workflow](../../docs/IMPLEMENTATION_WORKFLOW.md) exists, read it
-5. if [Implementation State](../../docs/IMPLEMENTATION_STATE.md) exists, read it
-6. if the active local session is phase-doc-backed and [Phase Plan](../../docs/phases/phase-x.md) exists for the active phase, read it
-7. if the active local session is tracker-backed, deterministically resolve the tracker issue spec first via `scripts/github/resolve-tracker-local-spec.mjs` (or the equivalent `gh issue view <number> --repo <owner/name> --json number,title,body,url,state` call), then treat that tracker issue as canonical for the rest of the local session
-
-Treat missing optional files as normal bootstrap conditions, not as errors.
+Treat missing optional files as normal bootstrap conditions, not errors.
 
 ### Tracker-backed local implementation
 
@@ -66,7 +48,7 @@ Local implementation supports two durable spec inputs:
 - phase-doc-backed local sessions ([Phase Plan](../../docs/phases/phase-x.md) is canonical)
 - tracker-backed local sessions (the tracker issue is canonical)
 
-Tracker-backed local implementation stays inside the existing `local_implementation` path. It does not introduce a new routing mode.
+Tracker-backed local implementation stays inside the existing `local_implementation` path. For sub-issue tree decomposition, see [Sub-Issue Tree Contract](../../docs/sub-issue-tree-contract.md) (this is a source-repo reference; it is not part of the bundled `../docs/` runtime contract surface for installed skill copies). It does not introduce a new routing mode.
 
 When the local spec already lives in a tracker issue:
 
@@ -99,15 +81,9 @@ When the local spec already lives in a tracker issue:
 - When subagents are used, log what each subagent was asked to do and what it concluded.
 - If [Project Plan](../../PLAN.md) is too rough or ambiguous to safely start the current phase, do not guess: run a clarification/interview step with the user first.
 
-## Structural quality (from `deep` review angle)
+## Structural quality
 
-Implementation agents should self-apply the `deep` review angle standards before reviewer gates:
-
-- Prefer deletion over addition; question every new file, export, layer, and moving part.
-- Files over ~1k lines need extraction or an explicit justification.
-- Do not bolt conditionals onto unrelated paths; push logic into dedicated boundaries.
-- Avoid spaghetti branching, thin wrappers, re-export-only files, and identity abstractions.
-- Do not leak feature logic into shared modules or create leaky abstractions.
+Apply [Structural Quality](../docs/structural-quality.md) from the `deep` review angle.
 
 ## Deterministic logging structure
 
@@ -525,11 +501,7 @@ If useful, also include truncated `stdout` and `stderr` fields or a path to a la
 
 ## Stop conditions
 
-Stop after the current phase when:
-- the current phase is implemented, validated, and fully finalized, or is explicitly marked `awaiting-finalization`
-- the next step would require refining the next phase
-- a decision requires user or coordination/main-agent approval
-- validation fails in a way that needs a direction change
+See [Stop Conditions](../docs/stop-conditions.md). Local-specific stops: phase completed & finalized, next-phase refinement needed, user/main-agent approval required, validation failure needing direction change.
 
 ## Branch / review / merge policy
 
@@ -557,15 +529,4 @@ Stop after the current phase when:
 
 ## Anti-patterns
 
-Do not:
-- assume a project must already have [Agent Instructions](../../AGENTS.md), [Implementation State](../../docs/IMPLEMENTATION_STATE.md), [Implementation Workflow](../../docs/IMPLEMENTATION_WORKFLOW.md), or [Phase Plan](../../docs/phases/phase-x.md)
-- guess through missing plan details when a short clarification step would resolve them
-- implement multiple future phases in one pass
-- skip the fan-out/fan-in/review loop
-- treat rough notes as implementation authorization
-- expand scope because a helper may be useful later
-- rely on Pi private internals when public hooks exist
-- skip updating [Phase Plan](../../docs/phases/phase-x.md) when the accepted phase plan changes
-- skip updating [Implementation State](../../docs/IMPLEMENTATION_STATE.md)
-- skip writing `tmp/` artifacts
-- use subagents without leaving readable summaries of what they did
+See [Anti-patterns](../docs/anti-patterns.md). Local-specific: don't assume optional plan docs exist, don't guess through missing plan details, don't skip fan-out/fan-in, don't skip `tmp/` artifacts, don't use subagents without readable summaries.

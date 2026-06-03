@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadDevLoopConfig } from "../../packages/core/src/config/config.mjs";
 import { resolveGateConfig } from "../../packages/core/src/config/config.mjs";
-import { resolveReviewerRole } from "../../packages/core/src/config/config.mjs";
+import { resolveGateAngles, resolveReviewerRole } from "../../packages/core/src/config/config.mjs";
 
 async function run({ stdout = process.stdout, repoRoot = process.cwd() } = {}) {
   const { config } = await loadDevLoopConfig({ repoRoot });
@@ -34,7 +34,7 @@ async function run({ stdout = process.stdout, repoRoot = process.cwd() } = {}) {
 
   for (const { label, gate } of gates) {
     const gateConfig = resolveGateConfig(config, gate);
-    const angles = gateConfig.angles;
+    const angles = resolveGateAngles(config, gate);
     const ciLabel = gate === "draft"
       ? String(gateConfig.requireCi)
       : "true (always enforced)";

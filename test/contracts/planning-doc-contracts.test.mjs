@@ -108,10 +108,13 @@ test("planning guidance keeps sub-issue trees as the durable decomposition owner
     readRepo("docs/index.md"),
   ]);
 
-  assertMatchesAll(localImplementationSkill, [
-    ...SUB_ISSUE_TREE_GUIDANCE,
+  // Sub-issue tree guidance canonical in sub-issue-tree-contract.md; SKILL.md references it
+  assert.match(localImplementationSkill, /sub-issue-tree-contract\.md/i);
+  assertMatchesAll(subIssueTreeContract, [
+    /real GitHub[\s\S]*?sub-issue tree[\s\S]*?default durable/i,
+    /keep.*parent.*lean/i,
     /plain related-issue references/i,
-  ], "skills/local-implementation/SKILL.md");
+  ], "docs/sub-issue-tree-contract.md (canonical owner)");
   assertMatchesAll(coordinatorAgent, [
     ...SUB_ISSUE_TREE_GUIDANCE,
     /duplicating order in checklist prose/i,
