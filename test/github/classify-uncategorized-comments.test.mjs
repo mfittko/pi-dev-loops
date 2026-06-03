@@ -35,6 +35,11 @@ test("parseClassifyUncategorizedCliArgs requires explicit --model", () => {
     /requires --model/i,
   );
   assert.equal(parseClassifyUncategorizedCliArgs(["--model", "gpt-test", "--api-key", "key"]).model, "gpt-test");
+  assert.equal(parseClassifyUncategorizedCliArgs(["--model", "gpt-test", "--base-url", "https://models.example.test/v1/"]).baseUrl, "https://models.example.test/v1");
+  assert.throws(
+    () => parseClassifyUncategorizedCliArgs(["--model", "gpt-test", "--base-url", "/"]),
+    /valid http\(s\) URL|non-empty http\(s\) URL/i,
+  );
 });
 
 test("dedupeComments collapses duplicate prompt text by default while preserving occurrence count", () => {
@@ -102,6 +107,8 @@ test("classifyUncategorizedComments reads input, retries malformed JSON once, an
 
     assert.equal(calls.length, 2);
     assert.equal(result.dedupedComments, 2);
+    assert.equal(result.summary.totalCommentsProcessed, 2);
+    assert.equal(result.summary.totalOriginalComments, 3);
     assert.equal(result.files.jsonPath, path.join(outputDir, "uncategorized-clusters.json"));
     assert.equal(result.files.markdownPath, path.join(outputDir, "uncategorized-clusters.md"));
 

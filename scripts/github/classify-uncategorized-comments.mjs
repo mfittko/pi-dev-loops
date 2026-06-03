@@ -16,6 +16,22 @@ const DEFAULT_RETRY_BASE_MS = 1000;
 const OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const ANTHROPIC_DEFAULT_BASE_URL = "https://api.anthropic.com/v1";
 
+function normalizeBaseUrl(value) {
+  const trimmed = String(value ?? "").trim().replace(/\/+$/u, "");
+  if (trimmed.length === 0) {
+    throw parseError("--base-url must be a non-empty http(s) URL");
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("unsupported protocol");
+    }
+  } catch {
+    throw parseError("--base-url must be a valid http(s) URL");
+  }
+  return trimmed;
+}
+
 const USAGE = `Usage: classify-uncategorized-comments.mjs --model <model> [--provider <openai-compatible|anthropic>] [--api-key <key>] [--input <path>] [--output-dir <path>] [--use-full-body] [--no-dedup]
 
 Classify uncategorized Copilot review comments with a single LLM pass and write
@@ -94,7 +110,7 @@ export function parseClassifyUncategorizedCliArgs(argv) {
     }
 
     if (token === "--base-url") {
-      options.baseUrl = requireOptionValue(args, "--base-url", parseError).trim().replace(/\/+$/u, "");
+      options.baseUrl = normalizeBaseUrl(requireOptionValue(args, "--base-url", parseError));
       continue;
     }
 
@@ -476,7 +492,8 @@ export async function classifyUncategorizedComments(options, { env = process.env
     unclustered: llmPayload.unclustered,
     summary: {
       ...llmPayload.summary,
-      totalCommentsProcessed: comments.length,
+      totalCommentsProcessed: commentsForPrompt.length,
+      totalOriginalComments: comments.length,
       totalClustersFound: llmPayload.clusters.length,
     },
     commentAssignments: llmPayload.commentAssignments,

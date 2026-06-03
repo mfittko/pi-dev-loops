@@ -63,13 +63,14 @@ Script: `scripts/github/classify-uncategorized-comments.mjs`
 Use this one-off follow-up after `--save-uncategorized` to cluster uncategorized Copilot review comments with an LLM:
 
 ```bash
-node scripts/github/classify-uncategorized-comments.mjs --model <model> [--provider openai-compatible|anthropic] [--api-key <key>] [--input <path>] [--output-dir <path>] [--use-full-body] [--no-dedup]
+node scripts/github/classify-uncategorized-comments.mjs --model <model> [--provider openai-compatible|anthropic] [--api-key <key>] [--base-url <url>] [--input <path>] [--output-dir <path>] [--use-full-body] [--no-dedup]
 ```
 
 Key behavior:
 
 - `--model` is required; no default model is inferred.
 - API key comes from `--api-key`, `LLM_API_KEY`, or provider-specific `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`.
+- `--base-url` may point OpenAI-compatible or Anthropic requests at another valid `http(s)` endpoint.
 - Default input is `tmp/investigation/uncategorized-comments.json`; if absent, the script falls back to `tmp/investigation/copilot-comment-summary.json` and filters `primaryCategoryId === null`.
 - Default prompt mode sends `excerpt`; `--use-full-body` sends full `body`.
 - Deduplication by comment body/excerpt is on by default; `--no-dedup` disables it.
