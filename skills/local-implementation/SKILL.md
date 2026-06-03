@@ -94,7 +94,7 @@ When the local spec already lives in a tracker issue:
 - Do implementation work on a dedicated local branch, not directly on `main`.
 - If the repo has no commits yet, still create the working branch first so the first commits land off `main`; only move `main` forward after review and validation.
 - Use small atomic local commits as progress checkpoints whenever a coherent slice is green and reviewable.
-- Before a branch is considered review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate as a full review / fix loop with the review angles resolved from config (`resolveGateAngles(config, "preApproval")`; shipped defaults include `deep`), then apply accepted fixes and rerun validation.
+- Before a branch is considered review-complete, approval-ready, merge-ready, or ready for final handoff, run the default pre-approval gate as a full review / fix loop with the review angles resolved from config (`resolveGateAngles(config, "preApproval")`), then apply accepted fixes and rerun validation. Shipped defaults include the `deep` angle.
 - A phase is only fully complete when its scoped work, required support files, artifacts, validation, review/fix pass, commit(s), and finalization (merge into local `main` for phase-doc-backed sessions; PR merge for tracker-backed sessions) are done, or when the only remaining step is an explicitly noted authorization-gated finalization action.
 - When subagents are used, log what each subagent was asked to do and what it concluded.
 - If [Project Plan](../../PLAN.md) is too rough or ambiguous to safely start the current phase, do not guess: run a clarification/interview step with the user first.
