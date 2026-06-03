@@ -46,7 +46,7 @@ async function main(argv = process.argv.slice(2)) {
   try {
     await mkdir(path.dirname(sentinelPath), { recursive: true });
   } catch (err) {
-    formatCliError(err, { prefix: "verify-fresh-review-context: " });
+    process.stderr.write(`${formatCliError(err, { prefix: "verify-fresh-review-context: " })}\n`);
     return 2;
   }
 
@@ -90,7 +90,7 @@ async function main(argv = process.argv.slice(2)) {
       }) + "\n");
       return 1;
     }
-    formatCliError(err, { prefix: "verify-fresh-review-context: " });
+    process.stderr.write(`${formatCliError(err, { prefix: "verify-fresh-review-context: " })}\n`);
     return 2;
   }
 
@@ -107,7 +107,7 @@ if (isDirectCliRun(import.meta.url)) {
     const exitCode = await main();
     process.exit(exitCode);
   } catch (err) {
-    formatCliError(err, { prefix: "verify-fresh-review-context: " });
+    process.stderr.write(`${formatCliError(err, { prefix: "verify-fresh-review-context: " })}\n`);
     process.exit(2);
   }
 }
