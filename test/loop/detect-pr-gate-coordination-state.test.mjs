@@ -177,6 +177,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       nextAction: "request_copilot_review",
       reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
       draftGateAlreadySatisfied: true,
+      gateEvidenceRequiredForMerge: true,
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });

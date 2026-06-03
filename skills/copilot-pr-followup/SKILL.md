@@ -435,11 +435,10 @@ Immediately before any `gh pr merge`, run:
 ```sh
 node <resolved-skill-scripts>/github/detect-gate-review-evidence.mjs \
   --repo <owner/name> \
-  --pr <number> \
-  --require-before-merge
+  --pr <number>
 ```
 
-This helper uses `gh api` to fetch visible PR issue comments and fails closed unless both required gate comments exist: a clean `draft_gate` comment for the one-time draft boundary and a clean current-head `pre_approval_gate` comment. Do not run `gh pr merge` if this command exits non-zero. Resolved threads, green CI, clean Copilot rereview, or local notes do not substitute for this successful helper output. If a final approval or merge boundary sees `gh pr merge` without a same-boundary successful `--require-before-merge` check, treat that as a workflow violation and stop.
+This helper is always-on: it uses `gh api` to fetch visible PR issue comments and fails closed unless both required gate comments exist: a clean `draft_gate` comment for the one-time draft boundary and a clean current-head `pre_approval_gate` comment. Do not run `gh pr merge` if this command exits non-zero. There is no opt-out flag. Resolved threads, green CI, clean Copilot rereview, or local notes do not substitute for this successful helper output. If a final approval or merge boundary sees `gh pr merge` without a same-boundary successful check, treat that as a workflow violation and stop.
 
 ## Validation policy for this repo
 
@@ -502,7 +501,7 @@ Do not:
 - declare merge-ready without a visible `pre_approval_gate` comment on the current head SHA
 - declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence
 - do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when the helper says the PR is conflicted
-- run `gh pr merge` without a same-boundary successful `detect-gate-review-evidence.mjs --require-before-merge` check
+- run `gh pr merge` without a same-boundary successful `detect-gate-review-evidence.mjs` check (always-on, no opt-out flag)
 - suggest approval, approve and merge, or any approval-ready statement without explicit current-head `pre_approval_gate` gate-review evidence
 - treat CI green + resolved review threads + clean Copilot rereview as sufficient for approval or merge without an explicit current-head `pre_approval_gate` gate-review comment
 - dispatch an async dev-loop task that omits the pre-approval gate requirement

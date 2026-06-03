@@ -182,13 +182,13 @@ test("parseDetectGateReviewEvidenceCliArgs rejects malformed arguments determini
     () => parseDetectGateReviewEvidenceCliArgs(["--repo", "bad slug", "--pr", "17"]),
     /match <owner\/name>/i,
   );
-  assert.equal(
-    parseDetectGateReviewEvidenceCliArgs(["--repo", "owner/repo", "--pr", "17", "--require-before-merge"]).requireBeforeMerge,
-    true,
+  assert.throws(
+    () => parseDetectGateReviewEvidenceCliArgs(["--repo", "owner/repo", "--pr", "17", "--require-before-merge"]),
+    /--require-before-merge has been removed/i,
   );
 });
 
-test("detect-gate-review-evidence summarizes the newest valid live gate comments", async () => {
+test("detect-gate-review-evidence summarizes the newest valid live gate comments and passes pre-merge check", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-"));
 
   try {
@@ -297,13 +297,17 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
         updatedAt: "2026-05-29T22:00:00Z",
       },
       draftGateSatisfied: true,
+      preMergeGateCheck: {
+        ok: true,
+        failures: [],
+      },
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("detect-gate-review-evidence flattens paginated issue-comment payloads before summarizing gates", async () => {
+test("detect-gate-review-evidence fails pre-merge check when only draft gate exists (no pre-approval)", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-pages-"));
 
   try {
@@ -342,17 +346,20 @@ test("detect-gate-review-evidence flattens paginated issue-comment payloads befo
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
-    assert.equal(result.code, 0);
-    assert.equal(JSON.parse(result.stdout).draftGate.commentId, 52);
-    assert.equal(JSON.parse(result.stdout).draftGate.visible, true);
-    assert.equal(JSON.parse(result.stdout).draftGateMarker.commentId, 52);
-    assert.equal(JSON.parse(result.stdout).draftGateSatisfied, true);
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Pre-merge gate evidence check failed/i);
+    assert.deepEqual(payload.preMergeGateCheck.failures, [
+      "missing visible clean current-head pre_approval_gate comment",
+    ]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("detect-gate-review-evidence exposes same-head markers even when latest gate contract fields are partial", async () => {
+test("detect-gate-review-evidence fails pre-merge check when only partial draft gate marker exists (no pre-approval)", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-marker-"));
 
   try {
@@ -380,23 +387,22 @@ test("detect-gate-review-evidence exposes same-head markers even when latest gat
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
-    assert.equal(result.code, 0);
-    const payload = JSON.parse(result.stdout);
-    assert.equal(payload.draftGate.visible, false);
-    assert.equal(payload.draftGateMarker.visible, true);
-    assert.equal(payload.draftGateMarker.headSha, "abc1234");
-    assert.equal(payload.draftGateMarker.findingsSummary, null);
-    assert.equal(payload.draftGateMarker.nextAction, null);
-    assert.equal(payload.draftGateMarker.contractComplete, false);
-    assert.equal(payload.draftGateMarker.commentId, 61);
-    assert.equal(payload.draftGateSatisfied, false);
+    assert.equal(result.code, 1);
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Pre-merge gate evidence check failed/i);
+    const failures = payload.preMergeGateCheck.failures;
+    assert.ok(failures.some(f => f.includes("draft_gate")),
+      `expected draft_gate failure in ${JSON.stringify(failures)}`);
+    assert.ok(failures.some(f => f.includes("pre_approval_gate")),
+      `expected pre_approval_gate failure in ${JSON.stringify(failures)}`);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
 
-test("detect-gate-review-evidence --require-before-merge fails before merge when gate comments are missing", async () => {
+test("detect-gate-review-evidence always fails before merge when gate comments are missing", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-premerge-missing-"));
 
   try {
@@ -411,7 +417,7 @@ test("detect-gate-review-evidence --require-before-merge fails before merge when
       },
     ]);
 
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--require-before-merge"], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
@@ -427,7 +433,7 @@ test("detect-gate-review-evidence --require-before-merge fails before merge when
   }
 });
 
-test("detect-gate-review-evidence --require-before-merge passes only with draft and current-head pre-approval gate comments", async () => {
+test("detect-gate-review-evidence always passes pre-merge check with clean draft and current-head pre-approval gate comments", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-premerge-clean-"));
 
   try {
@@ -467,7 +473,7 @@ test("detect-gate-review-evidence --require-before-merge passes only with draft 
       },
     ]);
 
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--require-before-merge"], { env });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
     assert.equal(result.code, 0, result.stderr);
     const payload = JSON.parse(result.stdout);

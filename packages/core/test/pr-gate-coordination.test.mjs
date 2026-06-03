@@ -648,3 +648,17 @@ test("normalizeSnapshot rejects invalid lastCopilotRoundMaxSignal values", () =>
   assert.equal(normalizeSnapshot({ prExists: true, prNumber: 17, lastCopilotRoundMaxSignal: "" }).lastCopilotRoundMaxSignal, null);
   assert.equal(normalizeSnapshot({ prExists: true, prNumber: 17 }).lastCopilotRoundMaxSignal, null);
 });
+
+test("gateEvidenceRequiredForMerge is always true in coordination output", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 10,
+    currentHeadSha: "abc1234",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.gateEvidenceRequiredForMerge, true);
+});

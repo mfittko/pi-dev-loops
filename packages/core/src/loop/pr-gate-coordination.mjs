@@ -212,6 +212,7 @@ function buildResult({
     mergeStateStatus,
     conflictFiles,
     draftGateAlreadySatisfied,
+    gateEvidenceRequiredForMerge: true,
     ...(gateEvidenceNote ? { gateEvidenceNote } : {}),
   };
 }
