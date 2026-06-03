@@ -10,16 +10,22 @@ import {
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
-const USAGE = `Usage: detect-gate-review-evidence.mjs --repo <owner/name> --pr <number>
+const USAGE = `Usage: detect-gate-review-evidence.mjs --repo <owner/name> --pr <number> [--require-before-merge]
 
 Fetch the live PR head SHA and visible PR issue comments, then summarize the
-latest valid draft-gate and pre-approval gate-review comments.
+latest valid draft-gate and pre-approval gate-review comments. With
+--require-before-merge, fail closed unless the PR has visible clean gate
+comments required before \`gh pr merge\`.
 
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
 
-Output (stdout, JSON):
+Optional:
+  --require-before-merge  Exit 1 unless a clean draft_gate comment exists and
+                          a clean current-head pre_approval_gate comment exists.
+
+Output (stdout, JSON; --require-before-merge shape includes preMergeGateCheck):
   {
     "ok": true,
     "repo": "owner/repo",
@@ -56,8 +62,14 @@ Output (stdout, JSON):
       "commentId": null,
       "commentUrl": null,
       "updatedAt": null
+    },
+    "preMergeGateCheck": {
+      "ok": true,
+      "failures": []
     }
   }
+
+When --require-before-merge is omitted, the same evidence summary is emitted without preMergeGateCheck.
 
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
@@ -65,7 +77,7 @@ Error output (stderr, JSON):
 
 Exit codes:
   0  Success
-  1  Argument error, gh failure, or malformed gh JSON`.trim();
+  1  Argument error, gh failure, malformed gh JSON, or missing required pre-merge gate evidence`.trim();
 
 const parseError = buildParseError(USAGE);
 
@@ -76,6 +88,7 @@ export function parseDetectGateReviewEvidenceCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
+    requireBeforeMerge: false,
   };
 
   while (args.length > 0) {
@@ -93,6 +106,11 @@ export function parseDetectGateReviewEvidenceCliArgs(argv) {
 
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
+      continue;
+    }
+
+    if (token === "--require-before-merge") {
+      options.requireBeforeMerge = true;
       continue;
     }
 
@@ -195,6 +213,30 @@ function normalizeGateMarkerSummary(summary) {
   };
 }
 
+function buildPreMergeGateCheck(evidence) {
+  const failures = [];
+
+  if (!(evidence.draftGate.visible && evidence.draftGate.verdict === "clean")) {
+    failures.push("missing visible clean draft_gate comment");
+  }
+
+  const preApproval = evidence.preApprovalGateMarker;
+  if (!(
+    preApproval.visible
+    && preApproval.contractComplete
+    && preApproval.verdict === "clean"
+    && preApproval.headSha === evidence.currentHeadSha
+  )) {
+    failures.push("missing visible clean current-head pre_approval_gate comment");
+  }
+
+  return {
+    ok: failures.length === 0,
+    failures,
+  };
+}
+
+
 export async function detectGateReviewEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
   const prPayload = await runGhJson(["pr", "view", String(options.pr), "--repo", options.repo, "--json", "headRefOid"], { env, ghCommand });
   const commentsPayload = normalizeIssueCommentsPayload(await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/issues/${options.pr}/comments?per_page=100`], { env, ghCommand }));
@@ -240,7 +282,25 @@ async function main() {
 
   try {
     const result = await detectGateReviewEvidence(options);
-    process.stdout.write(`${JSON.stringify(result)}\n`);
+    const preMergeGateCheck = buildPreMergeGateCheck(result);
+    const output = options.requireBeforeMerge
+      ? { ...result, preMergeGateCheck }
+      : result;
+
+    if (options.requireBeforeMerge && !preMergeGateCheck.ok) {
+      process.stderr.write(`${JSON.stringify({
+        ok: false,
+        error: `Pre-merge gate evidence check failed: ${preMergeGateCheck.failures.join("; ")}`,
+        repo: result.repo,
+        pr: result.pr,
+        currentHeadSha: result.currentHeadSha,
+        preMergeGateCheck,
+      })}\n`);
+      process.exitCode = 1;
+      return;
+    }
+
+    process.stdout.write(`${JSON.stringify(output)}\n`);
   } catch (error) {
     process.stderr.write(`${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`);
     process.exitCode = 1;

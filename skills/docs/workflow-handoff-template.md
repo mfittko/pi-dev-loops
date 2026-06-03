@@ -73,6 +73,7 @@ For each Copilot review pass:
 
 ### 8. Merge
 
+- Immediately before merge, run `node scripts/github/detect-gate-review-evidence.mjs --repo <owner/name> --pr <number> --require-before-merge` and stop if it fails.
 - Required evidence:
   - `draft_gate` clean comment exists (any head — one-time transition boundary, no current-head requirement)
   - `pre_approval_gate` clean comment exists for **current** head SHA
@@ -88,3 +89,4 @@ For each Copilot review pass:
 - `unresolvedThreadCount === 0` verification is required before step 7
 - Gate comments must be visible on the PR — no hidden/local-only evidence
 - Never merge without explicit authorization
+- Never run `gh pr merge` without a same-boundary successful `--require-before-merge` gate evidence check

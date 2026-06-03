@@ -182,6 +182,10 @@ test("parseDetectGateReviewEvidenceCliArgs rejects malformed arguments determini
     () => parseDetectGateReviewEvidenceCliArgs(["--repo", "bad slug", "--pr", "17"]),
     /match <owner\/name>/i,
   );
+  assert.equal(
+    parseDetectGateReviewEvidenceCliArgs(["--repo", "owner/repo", "--pr", "17", "--require-before-merge"]).requireBeforeMerge,
+    true,
+  );
 });
 
 test("detect-gate-review-evidence summarizes the newest valid live gate comments", async () => {
@@ -200,7 +204,7 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
             id: 41,
             body: [
               "Gate review: draft_gate",
-              "Reviewed head SHA: old5678",
+              "Reviewed head SHA: bcd5678",
               "Verdict: findings_present",
               "Findings summary: missing tests",
               "Next action: stay draft and fix",
@@ -390,6 +394,90 @@ test("detect-gate-review-evidence exposes same-head markers even when latest gat
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+
+test("detect-gate-review-evidence --require-before-merge fails before merge when gate comments are missing", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-premerge-missing-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: "[]\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--require-before-merge"], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Pre-merge gate evidence check failed/i);
+    assert.deepEqual(payload.preMergeGateCheck.failures, [
+      "missing visible clean draft_gate comment",
+      "missing visible clean current-head pre_approval_gate comment",
+    ]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-gate-review-evidence --require-before-merge passes only with draft and current-head pre-approval gate comments", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-premerge-clean-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: `${JSON.stringify([
+          {
+            id: 70,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: bcd5678",
+              "Verdict: clean",
+              "Findings summary: no issues found",
+              "Next action: mark ready for review",
+            ].join("\n"),
+            updated_at: "2026-05-29T21:00:00Z",
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-70",
+          },
+          {
+            id: 71,
+            body: [
+              "Gate review: pre_approval_gate",
+              "Reviewed head SHA: abc1234",
+              "Verdict: clean",
+              "Findings summary: no issues found",
+              "Next action: await final human approval",
+            ].join("\n"),
+            updated_at: "2026-05-29T22:00:00Z",
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-71",
+          },
+        ])}\n`,
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--require-before-merge"], { env });
+
+    assert.equal(result.code, 0, result.stderr);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.preMergeGateCheck.ok, true);
+    assert.deepEqual(payload.preMergeGateCheck.failures, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 
 test("detect-gate-review-evidence reports gh failures deterministically", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-fail-"));
