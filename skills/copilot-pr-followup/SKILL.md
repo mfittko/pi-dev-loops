@@ -241,6 +241,7 @@ Key rules:
 - do not wrap repeated `gh pr view`, `gh pr checks`, `gh api`, or `detect-copilot-loop-state.mjs` calls inside shell polling loops
 - do not bypass session-based async notifications with detached shell automation unless explicitly asked
 - if a watcher is sleeping between polls, prefer raising the orchestration inactivity threshold over interrupting the child
+- when dispatching a dev-loop subagent that will enter a Copilot watch cycle, set `control.needsAttentionAfterMs` to at least 300000 (5 minutes) — Copilot review arrival is inherently slow and 60s is too aggressive for watch subagents
 - if Pi async subagents or the designated async follow-up skill are not appropriate or available, stop and report rather than improvising a shell watcher
 - the async-start contract is also enforced in code: `outer-loop.mjs` fails closed unless it detects a visible Pi-managed async run id (`PI_SUBAGENT_RUN_ID`). Session-only markers (`PI_SESSION_ID`, `PI_ASYNC_CONTEXT`) and detached/local background fallback are diagnostic-only and do not satisfy startup. Snapshot/test input mode (both `--copilot-input` and `--reviewer-input`) is exempt. Use `PI_ASYNC_START_BYPASS=1` only for explicitly authorized standalone runs, never to route around the in-session async requirement.
 
