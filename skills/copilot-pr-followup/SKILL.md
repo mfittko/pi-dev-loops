@@ -269,7 +269,9 @@ When actionable review feedback exists, use a narrow follow-up loop:
     - resolve the review-round cap from config via `resolveRefinementConfig(config, "maxCopilotRounds")` from `@pi-dev-loops/core/config`; default config ships `maxCopilotRounds: 5`
     - use `snapshot.copilotReviewRoundCount` from `detect-copilot-loop-state.mjs` / `copilot-pr-handoff.mjs` as the completed Copilot review-round count for the current PR
     - if `snapshot.copilotReviewRoundCount >= maxCopilotRounds`, do **not** re-request Copilot review
-    - when the round cap is reached, reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note, then stop and report that the Copilot round limit was reached
+    - when the round cap is reached **and** the refreshed thread snapshot proves `unresolvedThreadCount === 0` **and** current-head CI is `success` or `crediblyGreen`, treat that clean state as eligible for `pre_approval_gate` fallback instead of deadlocking on another Copilot rerequest
+    - when using that fallback, add a short round-exhaustion note to the visible `pre_approval_gate` gate evidence so the PR records why no further Copilot rerequest occurred
+    - if the round cap is reached before the PR is thread-clean or before CI is green/credibly green, reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note, then stop and report that the Copilot round limit was reached
     - if yes and the round cap has not been reached, run the smallest honest local validation for the accepted fix scope
     - if that local validation is still known red, continue remediation instead of re-requesting Copilot
     - after a fix push advances the PR head SHA, treat previous-head CI evidence as stale for any CI-dependent follow-up decision and immediately re-run `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` for the new head

@@ -157,6 +157,26 @@ function normalizeCiStatus(value) {
   return "none";
 }
 
+function normalizeNonNegativeInteger(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return 0;
+  }
+
+  return Math.floor(value);
+}
+
+function normalizePositiveInteger(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return Math.floor(value);
+}
+
+function buildRoundExhaustionGateEvidenceNote({ copilotReviewRoundCount, maxCopilotRounds }) {
+  return `Copilot review rounds exhausted (${copilotReviewRoundCount}/${maxCopilotRounds}); current head has zero unresolved threads and green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.`;
+}
+
 function buildResult({
   draftGateAlreadySatisfied = false,
   repo = null,
@@ -173,6 +193,7 @@ function buildResult({
   reason,
   mergeStateStatus = null,
   conflictFiles = [],
+  gateEvidenceNote = null,
 }) {
   return {
     ok: true,
@@ -191,6 +212,7 @@ function buildResult({
     mergeStateStatus,
     conflictFiles,
     draftGateAlreadySatisfied,
+    ...(gateEvidenceNote ? { gateEvidenceNote } : {}),
   };
 }
 
@@ -211,6 +233,9 @@ export function evaluatePrGateCoordination(input = {}) {
   const conflictFiles = normalizeConflictFiles(input.conflictFiles);
   const ciStatus = normalizeCiStatus(input.ciStatus);
   const draftGateRequireCi = input.draftGateRequireCi !== false;
+  const copilotReviewRoundCount = normalizeNonNegativeInteger(input.copilotReviewRoundCount);
+  const maxCopilotRounds = normalizePositiveInteger(input.maxCopilotRounds);
+  const roundCapReached = maxCopilotRounds !== null && copilotReviewRoundCount >= maxCopilotRounds;
 
   const effectiveLifecycleState = lifecycleState;
 
@@ -600,7 +625,11 @@ export function evaluatePrGateCoordination(input = {}) {
       });
     }
 
-    if (!sameHeadCleanConverged) {
+    const roundExhaustionGateEvidenceNote = roundCapReached
+      ? buildRoundExhaustionGateEvidenceNote({ copilotReviewRoundCount, maxCopilotRounds })
+      : null;
+
+    if (!sameHeadCleanConverged && !roundCapReached) {
       pushUnique(allowedNextActions, [PR_GATE_ACTION.REREQUEST_COPILOT_REVIEW]);
       pushUnique(forbiddenActions, postDraftForbidden);
       return buildResult({
@@ -671,11 +700,14 @@ export function evaluatePrGateCoordination(input = {}) {
       allowedNextActions,
       forbiddenActions,
       nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-      reason: ciStatus === "crediblyGreen"
-        ? "The current head has a clean settled post-draft review cycle, and its zero-suite CI state is accepted as credibly green, so `pre_approval_gate` is now the next legal boundary."
-        : "The current head has a clean settled post-draft review cycle, so `pre_approval_gate` is now the next legal boundary.",
+      reason: roundCapReached
+        ? `The Copilot round limit is exhausted (${copilotReviewRoundCount}/${maxCopilotRounds}), and the current head has zero unresolved threads with ${ciStatus === "crediblyGreen" ? "credibly green" : "green"} CI, so \`pre_approval_gate\` fallback is now the next legal boundary.`
+        : (ciStatus === "crediblyGreen"
+          ? "The current head has a clean settled post-draft review cycle, and its zero-suite CI state is accepted as credibly green, so `pre_approval_gate` is now the next legal boundary."
+          : "The current head has a clean settled post-draft review cycle, so `pre_approval_gate` is now the next legal boundary."),
       mergeStateStatus,
       conflictFiles,
+      gateEvidenceNote: roundCapReached ? roundExhaustionGateEvidenceNote : null,
     });
   }
 

@@ -207,6 +207,33 @@ test("crediblyGreen CI allows pre-approval progression once the review loop is a
   assert.match(result.reason, /credibly green/i);
 });
 
+test("round-cap exhaustion opens the pre-approval gate window even without a current-head Copilot rereview", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: LOOP_DISPOSITION.ACTION_REQUIRED,
+    sameHeadCleanConverged: false,
+    ciStatus: "success",
+    copilotReviewRoundCount: 5,
+    maxCopilotRounds: 5,
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.lifecycleState, STATE.READY_TO_REREQUEST_REVIEW);
+  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
+  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert.equal(result.gateEvidenceNote, "Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.");
+  assert.match(result.reason, /round limit/i);
+  assert.match(result.reason, /pre_approval_gate/i);
+});
+
 test("missing ciStatus fails closed to wait_for_ci instead of reopening gate progression", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
