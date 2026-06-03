@@ -1470,7 +1470,7 @@ describe("role resolution", () => {
 
 });
 
-describe("shipped defaults docs angle wiring", () => {
+describe("shipped defaults docs and deep angle wiring", () => {
   test("D1: shipped defaults keep docs and deep opt-in and resolve the packaged persona prompts", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D1-"));
     try {
