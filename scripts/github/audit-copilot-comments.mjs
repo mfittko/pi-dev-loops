@@ -9,10 +9,11 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 const DEFAULT_OUTPUT_DIR = "tmp/investigation";
 const DEFAULT_JSON_NAME = "copilot-comment-summary.json";
 const DEFAULT_MARKDOWN_NAME = "copilot-comment-categories.md";
+const DEFAULT_UNCATEGORIZED_NAME = "uncategorized-comments.json";
 const DEFAULT_RETRY_MAX = 5;
 const DEFAULT_RETRY_BASE_MS = 1000;
 
-const USAGE = `Usage: audit-copilot-comments.mjs --repo <owner/name> [--output-dir <path>] [--sleep-ms <ms>] [--checkpoint-file <path>] [--resume]
+const USAGE = `Usage: audit-copilot-comments.mjs --repo <owner/name> [--output-dir <path>] [--sleep-ms <ms>] [--checkpoint-file <path>] [--resume] [--save-uncategorized]
 
 Scan all pull-request review comments in a repository via the GitHub REST API,
 filter to Copilot-authored comments, classify them into workflow categories, and
@@ -26,6 +27,7 @@ Optional:
   --sleep-ms <ms>           Sleep this many ms between top-level fetches (non-negative int, default: 0)
   --checkpoint-file <path>  Save/load coarse-grain checkpoint for resume
   --resume                  Resume from checkpoint file (requires --checkpoint-file)
+  --save-uncategorized      Also write uncategorized-comments.json with only primaryCategoryId=null comments
 
 Checkpoint stages:
   after-comments  — comments fetch complete, saved
@@ -60,7 +62,8 @@ Output (stdout, JSON summary; abbreviated example):
     ],
     "files": {
       "jsonSummaryPath": "<output-dir>/copilot-comment-summary.json",
-      "markdownReportPath": "<output-dir>/copilot-comment-categories.md"
+      "markdownReportPath": "<output-dir>/copilot-comment-categories.md",
+      "uncategorizedCommentsPath": "<output-dir>/uncategorized-comments.json"
     }
   }
 
@@ -780,10 +783,31 @@ async function fetchAllPullRequests(repo, { env, ghCommand, retryMax, retryBaseM
 
 // ── Output writer ────────────────────────────────────────────────────
 
-async function writeOutputs(summary, markdown) {
+export function buildUncategorizedComments(summary) {
+  const comments = Array.isArray(summary?.comments) ? summary.comments : [];
+  return comments
+    .filter((comment) => comment?.primaryCategoryId === null)
+    .map((comment) => ({
+      prNumber: Number.isInteger(comment?.prNumber) ? comment.prNumber : null,
+      path: typeof comment?.path === "string" ? comment.path : null,
+      line: Number.isInteger(comment?.line) ? comment.line : null,
+      htmlUrl: typeof comment?.htmlUrl === "string" ? comment.htmlUrl : null,
+      excerpt: typeof comment?.excerpt === "string" ? comment.excerpt : "",
+      body: typeof comment?.body === "string" ? comment.body : "",
+    }));
+}
+
+// ── Output writer ────────────────────────────────────────────────────
+
+async function writeOutputs(summary, markdown, { saveUncategorized = false } = {}) {
   await mkdir(summary.files.outputDir, { recursive: true });
   await writeFile(summary.files.jsonSummaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   await writeFile(summary.files.markdownReportPath, markdown, "utf8");
+
+  if (saveUncategorized) {
+    const uncategorized = buildUncategorizedComments(summary);
+    await writeFile(summary.files.uncategorizedCommentsPath, `${JSON.stringify(uncategorized, null, 2)}\n`, "utf8");
+  }
 }
 
 // ── CLI argument parsing ─────────────────────────────────────────────
@@ -797,6 +821,7 @@ export function parseAuditCopilotCommentsCliArgs(argv) {
     sleepMs: 0,
     checkpointFile: undefined,
     resume: false,
+    saveUncategorized: false,
   };
 
   while (args.length > 0) {
@@ -834,6 +859,11 @@ export function parseAuditCopilotCommentsCliArgs(argv) {
 
     if (token === "--resume") {
       options.resume = true;
+      continue;
+    }
+
+    if (token === "--save-uncategorized") {
+      options.saveUncategorized = true;
       continue;
     }
 
@@ -922,14 +952,17 @@ export async function auditCopilotComments(options, { env = process.env, ghComma
     prs,
     outputDir: options.outputDir,
   });
+  if (options.saveUncategorized === true) {
+    summary.files.uncategorizedCommentsPath = path.join(summary.files.outputDir, DEFAULT_UNCATEGORIZED_NAME);
+  }
   const markdown = renderMarkdownReport(summary);
 
-  await writeOutputs(summary, markdown);
+  await writeOutputs(summary, markdown, { saveUncategorized: options.saveUncategorized === true });
 
   return summary;
 }
 
-export async function runCli(argv = process.argv.slice(2), { stdout = process.stdout, env = process.env, ghCommand = "gh" } = {}) {
+export async function runCli(argv = process.argv.slice(2), { stdout = process.stdout, stderr = process.stderr, env = process.env, ghCommand = "gh" } = {}) {
   const options = parseAuditCopilotCommentsCliArgs(argv);
 
   if (options.help) {
@@ -938,6 +971,9 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
   }
 
   const summary = await auditCopilotComments(options, { env, ghCommand });
+  if (options.saveUncategorized === true && summary.totals.uncategorizedComments === 0) {
+    stderr.write(`No uncategorized Copilot comments found; wrote ${summary.files.uncategorizedCommentsPath} as an empty array.\n`);
+  }
   stdout.write(`${JSON.stringify(summary)}\n`);
 }
 
@@ -953,6 +989,7 @@ export {
   DEFAULT_JSON_NAME,
   DEFAULT_MARKDOWN_NAME,
   DEFAULT_OUTPUT_DIR,
+  DEFAULT_UNCATEGORIZED_NAME,
   DEFAULT_RETRY_BASE_MS,
   DEFAULT_RETRY_MAX,
   RECOMMENDATION_DEFINITIONS,
