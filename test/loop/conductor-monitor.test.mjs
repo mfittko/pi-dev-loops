@@ -325,6 +325,30 @@ test("conductor-monitor reports monitoring when open PRs are still in healthy wa
   }
 });
 
+test("conductor-monitor --auto-resume ignores invalid async JSON side artifacts instead of crashing the scan", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-invalid-async-json-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const badAsyncDir = path.join(asyncRunsRoot, "run-bad-json-40");
+    await mkdir(badAsyncDir, { recursive: true });
+    await writeFile(path.join(badAsyncDir, "status.json"), "{not valid json\n", "utf8");
+    await writeFile(path.join(badAsyncDir, "events.jsonl"), "", "utf8");
+    await writeFile(path.join(badAsyncDir, "output-0.log"), "Active PR: owner/repo#40\n", "utf8");
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{ number: 40, requestCopilot: true }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.queueStatus, "monitoring");
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 0);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("conductor-monitor flags unresolved-feedback PRs as needing attention while preserving pending waits", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-attention-"));
   const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");

@@ -336,7 +336,11 @@ async function readJsonIfExists(filePath) {
     return null;
   }
 
-  return parseJsonText(text);
+  try {
+    return parseJsonText(text);
+  } catch {
+    return null;
+  }
 }
 
 function normalizeRunState(value) {

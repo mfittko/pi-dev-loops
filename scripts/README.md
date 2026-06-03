@@ -360,7 +360,8 @@ Contract:
   - pi-subagents async result artifacts under
     `<tmpdir>/pi-subagents-*/async-subagent-results/`
   - persisted session/subagent artifacts under the Pi sessions tree (for example
-    `~/.pi/agent/sessions/.../subagent-artifacts/*_dev-loop_*_{meta,output}.json|md`
+    `~/.pi/agent/sessions/.../subagent-artifacts/*_dev-loop_*_meta.json` and
+    `~/.pi/agent/sessions/.../subagent-artifacts/*_dev-loop_*_output.md`
     plus matching `run-<n>/session.jsonl` files)
 - ignores non-`dev-loop` agents, other repositories, merged PRs, and any exited run superseded by a newer matching `running` or `queued` run
 - matches exited runs to open PRs only by PR number parsed from artifact text; branch names, issue numbers, or worktree paths alone are never sufficient identity
