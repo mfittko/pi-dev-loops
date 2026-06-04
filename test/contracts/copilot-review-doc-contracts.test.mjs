@@ -504,3 +504,23 @@ test("docs index references sub-issue-tree-contract.md", async () => {
   const indexContent = await readRepo("docs/index.md");
   assert.match(indexContent, /sub-issue-tree-contract\.md/i);
 });
+
+test("copilot-pr-followup SKILL.md cookbook lines 58 and 66 are unambiguous", async () => {
+  const skillContent = await readRepo("skills/copilot-pr-followup/SKILL.md");
+  const lines = skillContent.split("\n");
+
+  // Line 58 (0-indexed 57): run-copilot-watch-cycle.mjs must show --repo/--pr flags
+  const line58 = lines[57] ?? "";
+  assert.match(line58, /--repo <owner\/name>/);
+  assert.match(line58, /--pr <number>/);
+  assert.match(line58, /run-copilot-watch-cycle\.mjs/);
+  assert.match(line58, /--probe-only/);
+
+  // Line 66 (0-indexed 65): --timeout-ms reference must be unambiguous
+  // -- it must clarify that --timeout-ms belongs to the low-level watch-copilot-review.mjs helper
+  const line66 = lines[65] ?? "";
+  assert.match(line66, /--timeout-ms/);
+  assert.match(line66, /watch-copilot-review\.mjs/i);
+  // Must not be ambiguous about which script owns the flag
+  assert.match(line66, /low.level/i);
+});

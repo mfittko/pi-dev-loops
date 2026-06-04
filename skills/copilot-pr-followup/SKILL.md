@@ -55,7 +55,7 @@ Use this helper output as source of truth for the normal routing seam. Interpret
 
 **3. Preferred async wait-boundary helper**
 ```sh
-node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>
+node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number> --probe-only
 ```
 For explicit async loop entry or continuation, this is a persistent async watch/fix loop, not handoff-only behavior:
 - treat the normal PR follow-up path as one loop: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → … → pre_approval_gate → merge`
@@ -63,7 +63,7 @@ For explicit async loop entry or continuation, this is a persistent async watch/
 - a single returned watch cycle (`changed`, `timeout`, or `idle`) is never completion by itself
 - if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary instead of reporting completion
 - after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, resume this watcher again in the same async session
-- default max watch timeout for one Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
+- default max watch timeout for one Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000` on the low-level `watch-copilot-review.mjs` helper); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
 - if the user explicitly asks for async handoff-only behavior, say that out loud and stop after the handoff boundary; otherwise do not silently reinterpret async loop entry as handoff-only
 
 **4. Low-level helpers**
