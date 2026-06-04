@@ -714,9 +714,7 @@ export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
     diffOutput: diff.diffOutput,
   });
 
-  const categories = analysis.t1?.changeCategories ?? [];
-  if (analysis.t0.renameOnly) categories.push("RENAME_ONLY");
-  if (analysis.t0.allDocs) categories.push("DOCS_ONLY");
+  const categories = [...new Set(analysis.t1?.changeCategories ?? [])];
 
   const { resolveDynamicAngles: resolve } = await import("../analysis/change-classifier.mjs");
   const dynamicResult = resolve({

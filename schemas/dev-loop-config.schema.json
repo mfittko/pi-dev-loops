@@ -150,16 +150,6 @@
           "type": "boolean",
           "default": false,
           "description": "Enable dynamic gate angle resolution based on PR diff analysis."
-        },
-        "dynamicAngleThresholds": {
-          "type": "object",
-          "default": {},
-          "description": "Per-angle relevance score thresholds for dynamic angle resolution.",
-          "additionalProperties": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          }
         }
       }
     },

@@ -34,7 +34,7 @@ Debug:
                             convergence detection falls back to unsuppressed behavior
 
 Output (stdout, JSON):
-  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment",
+  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
     "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true, "violationCommentIds"?: [N] }
 
@@ -44,6 +44,7 @@ Request statuses:
   unavailable         Copilot review is not enabled/requestable and no in-progress evidence was found
   suppressed_same_head_clean  Current head is already clean-converged; no new request is made unless forced
   blocked_by_copilot_comment  A non-Copilot PR comment contains @copilot or /copilot; delete the comment(s) first
+  round_cap_reached    Maximum Copilot review rounds reached; no further re-requests will be made
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -360,8 +361,13 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   let maxRounds = 5; // Built-in default; overridden by config when loadable
   try {
     const { loadDevLoopConfig } = await import("@pi-dev-loops/core/config");
-    const { config } = await loadDevLoopConfig();
-    maxRounds = resolveRefinementConfig(config, "maxCopilotRounds");
+    const { config, errors } = await loadDevLoopConfig();
+    if (!errors || errors.length === 0) {
+      const resolved = resolveRefinementConfig(config, "maxCopilotRounds");
+      if (Number.isFinite(resolved) && resolved > 0) {
+        maxRounds = resolved;
+      }
+    }
   } catch {
     // Fail closed to default 5 on config errors
   }

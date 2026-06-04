@@ -2,7 +2,7 @@
  * Change category classification and angle relevance index.
  *
  * Maps change categories detected by the diff analyzer to relevant gate review
- * angles, with optional per-angle score thresholds.
+ * angles.
  */
 
 // ---------------------------------------------------------------------------
