@@ -75,7 +75,7 @@ Under that unattended execution contract:
 - after approval, report `waiting_for_merge_authorization` and stop again unless merge has been explicitly authorized
 - this does **not** imply unattended merge by default
 
-Issue-first shorthand such as `auto dev loop on issue <n>` should preserve this same stop boundary and final human approval gate default.
+Issue-first shorthand such as `auto dev loop on issue <n>` should preserve this same stop boundary and human approval checkpoint default.
 
 ## Phase 1 — Preflight intake
 

@@ -30,7 +30,7 @@ post-PR mechanics:
 
 Route-specific companion docs:
 - routed `issue_intake` work is implemented through this skill plus [Copilot Loop Operations](../docs/copilot-loop-operations.md) and [Issue Intake Procedure](../docs/issue-intake-procedure.md)
-- routed `final_approval` work is implemented through this skill's **Final approval gate** section; [Final Approval](../final-approval/SKILL.md) is now a thin redirect to that canonical section
+- routed `final_approval` work is implemented through this skill's **Human approval checkpoint** section; [Final Approval](../final-approval/SKILL.md) is now a thin redirect to that canonical section
 - the deterministic state-machine/operator guide lives in [Copilot Loop Operations](../docs/copilot-loop-operations.md)
 
 ## Operational cookbook
@@ -203,7 +203,7 @@ Preferred approach for Copilot review follow-up:
 
 Every async dev-loop dispatch task body must include this clause verbatim so fresh-context subagents inherit the gate requirement:
 
-> Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean checkpoint verdict comment exists on the PR for the current head SHA. Do not stop or report completion without this evidence.
+> Before reporting merge-ready or stopping at the human approval checkpoint, you must complete the pre_approval_gate procedure and verify that a visible clean checkpoint verdict comment exists on the PR for the current head SHA. Do not stop or report completion without this evidence.
 
 Key rules:
 - expected polling idle time is normal
@@ -389,9 +389,9 @@ Before any merge-ready or final-approval claim, run `detect-pr-gate-coordination
 
 See [Merge Preconditions](../docs/merge-preconditions.md). Verify: `unresolvedThreadCount === 0` (via `capture-review-threads.mjs`), visible clean `draft_gate` + current-head `pre_approval_gate`, green CI. For parallel review passes: start each reviewer in fresh context with a concise focus-specific briefing summary; do not fork the parent session just to preserve chat state (write a compact handoff artifact under `tmp/copilot-loop/` instead). **Mandatory fresh-context verification:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` at reviewer startup; block on contamination. Use `--scope` for parallel reviewers.
 
-### Final approval gate
+### Human approval checkpoint
 
-After merge-ready preconditions pass, verify [Merge Preconditions](../docs/merge-preconditions.md) authoritatively before reporting merge-ready. Stop at the final human approval gate by default. Cross-check via `capture-review-threads.mjs` (not prose assertion).
+After merge-ready preconditions pass, verify [Merge Preconditions](../docs/merge-preconditions.md) authoritatively before reporting merge-ready. Stop at the human approval checkpoint by default. Cross-check via `capture-review-threads.mjs` (not prose assertion).
 Follow [Merge Preconditions](../docs/merge-preconditions.md): stop at `waiting_for_merge_authorization` after approval unless merge explicitly authorized. Run pre-merge gate evidence check before any `gh pr merge`.
 
 ### Mechanical pre-merge gate evidence check

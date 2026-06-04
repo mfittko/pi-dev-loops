@@ -362,7 +362,7 @@ test("skill docs enforce self-assignment and draft-first rules for create comman
   assert.match(localImplementationSkill, /draft gate inspection is a real workflow boundary/i);
 
   assert.match(finalApprovalSkill, /redirect/i);
-  assert.match(finalApprovalSkill, /Final approval gate/i);
+  assert.match(finalApprovalSkill, /Human approval checkpoint/i);
   assert.match(finalApprovalSkill, /Do not restate merge-ready preconditions/i);
   assert.match(agents, /When creating GitHub issues via `gh issue create`, always include `--assignee @me`/i);
   assert.match(agents, /node scripts\/github\/create-draft-pr\.mjs --assignee @me/i);

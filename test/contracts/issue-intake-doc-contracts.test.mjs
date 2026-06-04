@@ -142,15 +142,15 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(publicContract, /linked_pr_ready_for_followup[\s\S]*isolated checkout\/worktree transition instead of treating that boundary as final completion/i);
   assert.match(publicContract, /non-terminal follow-up\/wait states[\s\S]*waiting_for_copilot_review[\s\S]*continuation boundaries/i);
   assert.match(publicContract, /async child exits before the requested stop boundary[\s\S]*automatically resume\/restart/i);
-  assert.match(publicContract, /R --> A\[Final approval gate\]/i);
+  assert.match(publicContract, /R --> A\[Human approval checkpoint\]/i);
   assert.match(publicContract, /R --> M\[Wait for merge authorization\]/i);
 
   assert.match(devLoopSkill, /Shorthand issue-based auto trigger contract/i);
   assert.match(devLoopSkill, /public `dev-loop` intent `auto_continue_current`/i);
-  assert.match(devLoopSkill, /stop at the final human approval gate by default/i);
+  assert.match(devLoopSkill, /stop at the human approval checkpoint by default/i);
 
   assert.match(issueIntakeSkill, /Issue-first shorthand such as `auto dev loop on issue <n>`/i);
-  assert.match(issueIntakeSkill, /preserve this same stop boundary and final human approval gate default/i);
+  assert.match(issueIntakeSkill, /preserve this same stop boundary and human approval checkpoint default/i);
   assert.match(issueIntakeSkill, /waiting_for_merge_authorization/i);
   assert.match(issueIntakeSkill, /after approval, report `waiting_for_merge_authorization` and stop again/i);
   assert.doesNotMatch(issueIntakeSkill, /Only when merge has been explicitly authorized for this issue\/PR scope:/i);

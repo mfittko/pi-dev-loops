@@ -261,7 +261,7 @@ The public router currently maps to these deterministic internal strategies:
 | `external_pr_followup` | external-human contributor PR follow-up | none |
 | `reviewer_fixer` | reviewer/fixer passes on the current PR | none |
 | `wait_watch` | waiting/watch states | `dev-loop` |
-| `final_approval` | approval-ready gate, or merge-ready with explicit merge authorization | none (canonical procedure lives in [Copilot PR Follow-up](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](./copilot-loop-operations.md) Final approval gate; [Final Approval](../final-approval/SKILL.md) is a thin redirect) |
+| `final_approval` | approval-ready gate, or merge-ready with explicit merge authorization | none (canonical procedure lives in [Copilot PR Follow-up](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](./copilot-loop-operations.md) Human approval checkpoint; [Final Approval](../final-approval/SKILL.md) is a thin redirect) |
 
 `waiting_for_merge_authorization` is part of the gate contract below as a stop gate rather than an internal strategy.
 
@@ -396,7 +396,7 @@ flowchart TD
     R --> HP[External-human PR follow-up]
     R --> RF[Reviewer / fixer]
     R --> W[Wait / watch]
-    R --> A[Final approval gate]
+    R --> A[Human approval checkpoint]
     R --> M[Wait for merge authorization]
 
     L --> S

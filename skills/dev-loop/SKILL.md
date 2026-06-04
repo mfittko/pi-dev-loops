@@ -75,8 +75,8 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 ## Shorthand issue-based auto trigger contract
 
 - treat `auto dev loop on issue 112` as the public `dev-loop` intent `auto_continue_current` after authoritative current-state resolution
-- continue through the normal GitHub/Copilot loop until the next genuine stop condition or the final human approval gate
-- stop at the final human approval gate by default unless merge was explicitly authorized
+- continue through the normal GitHub/Copilot loop until the next genuine stop condition or the human approval checkpoint
+- stop at the human approval checkpoint by default unless merge was explicitly authorized
 
 ## Authority boundary and stop rules
 

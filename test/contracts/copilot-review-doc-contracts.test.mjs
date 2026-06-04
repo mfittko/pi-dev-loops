@@ -119,7 +119,7 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   );
   assert.match(
     step6,
-    /Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean checkpoint verdict comment exists on the PR for the current head SHA\. Do not stop or report completion without this evidence\./i,
+    /Before reporting merge-ready or stopping at the human approval checkpoint, you must complete the pre_approval_gate procedure and verify that a visible clean checkpoint verdict comment exists on the PR for the current head SHA\. Do not stop or report completion without this evidence\./i,
     "Step 6 should embed the required pre-approval gate dispatch clause verbatim",
   );
   const step7Match = skillContent.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Validation policy|$)/);
