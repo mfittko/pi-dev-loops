@@ -40,7 +40,13 @@ const parseError = buildParseError(USAGE);
 
 /**
  * Check the retrospective checkpoint gate.
- * Only blocks when requireRetrospective is true AND checkpoint state is required/missing.
+ *
+ * Only blocks when requireRetrospective is true AND checkpoint state is
+ * required/missing. This is a direct filesystem check for conductor startup
+ * gating — intentionally simpler than core's evaluateRetrospectiveGate, which
+ * operates on routing results for the dev-loop startup resolver. The conductor
+ * needs a yes/no startup gate, not a routing transform.
+ *
  * @param {string} cwd - Repo root
  * @param {boolean} requireRetrospective - Config gate flag
  * @returns {{ blocked: boolean, reason?: string }}
@@ -146,6 +152,9 @@ export async function runConductor(options, runtime = {}) {
 
     const draftCfg = resolveGateConfig(cfg, "draft");
     const preApprovalCfg = resolveGateConfig(cfg, "preApproval");
+    // Only requireCi is extracted from gate config here because the conductor
+    // delegates angle resolution and gate execution to dev-loop subagents.
+    // Angles, excludeAngles, and required are consumed by the subagent layer.
     gateConfig = {
       draft: { requireCi: draftCfg.requireCi },
       preApproval: { requireCi: preApprovalCfg.requireCi },
