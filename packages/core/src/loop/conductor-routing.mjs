@@ -126,7 +126,7 @@ const COPILOT_WEAK_ACTIVE = new Set([
   "ready_to_rerequest_review",
 ]);
 
-// Copilot wait states owned by the outer loop
+// Copilot wait states owned by the orchestrator
 const COPILOT_WAIT = new Set([
   "waiting_for_copilot_review",
   "waiting_for_ci",
@@ -144,7 +144,7 @@ const REVIEWER_ACTIVE = new Set([
   "review_invalidated",
 ]);
 
-// Reviewer wait states owned by the outer loop
+// Reviewer wait states owned by the orchestrator
 const REVIEWER_WAIT = new Set([
   "submitted_review",
   "waiting_for_author_followup",
@@ -740,7 +740,7 @@ export const OUTER_NEXT_ACTIONS = Object.freeze({
   [OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP]: "Re-enter the reviewer loop.",
   [OUTER_STATE.STAY_WITH_CURRENT_LIVE_OWNER]: "Do not issue a new handoff; wait because a live owner is already active.",
   [OUTER_STATE.STOP_NEEDS_HUMAN]: "Stop and require human intervention before continuing.",
-  [OUTER_STATE.DONE_TERMINAL]: "End the outer loop; no further automated action is needed.",
+  [OUTER_STATE.DONE_TERMINAL]: "End the orchestrator; no further automated action is needed.",
   [OUTER_STATE.NEEDS_RECONCILE]: "Stop and reconcile conflicting or insufficient state before resuming.",
 });
 

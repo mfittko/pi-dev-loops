@@ -90,7 +90,7 @@ In that fail-closed result, `handoffEnvelope.targetIdentity` is stable:
 ### Ownership availability note
 
 `ownershipState` is an optional caller-supplied input. **The current `outer-loop.mjs` integration seam does not
-supply it** — the outer loop does not yet resolve conductor ownership (the conductor-ownership module has been retired; see git history and issue #319 for its design).
+supply it** — the orchestrator does not yet resolve conductor ownership (the conductor-ownership module has been retired; see git history and issue #319 for its design).
 The ownership-aware routing branches (`stay_with_current_live_owner`, duplicate-owner reconcile) are fully
 implemented and unit-tested; they become active when a caller that has already resolved ownership supplies
 `ownershipState`.
@@ -201,7 +201,7 @@ The evaluator applies the following first-match-wins priority order:
 
 When `requiresLocalIsolation=true`, those local-execution states do **not** become terminal stop outcomes by themselves. The routing result stays on the owning loop family and carries `handoffEnvelope.requiresLocalIsolation=true` so the caller can re-enter from a safe isolated checkout/worktree.
 
-**Copilot/reviewer wait states** (owned by outer loop): `waiting_for_copilot_review`, `waiting_for_ci` (copilot); `waiting_for_author_followup`, `waiting_for_re_request` (reviewer)
+**Copilot/reviewer wait states** (owned by orchestrator): `waiting_for_copilot_review`, `waiting_for_ci` (copilot); `waiting_for_author_followup`, `waiting_for_re_request` (reviewer)
 
 `waiting_for_copilot_review` is an explicit post-request settle gate for the current head: this routing contract keeps `continue_current_wait` semantics until that fresh Copilot pass has settled, even if reviewer-side state is otherwise active.
 

@@ -221,7 +221,7 @@ test("decideOuterAction: dirty checkout + copilot already_fixed_needs_reply_reso
   assert.equal(result.reason, undefined);
 });
 
-test("decideOuterAction: waiting_for_copilot_review keeps outer loop waiting even when reviewer is active", () => {
+test("decideOuterAction: waiting_for_copilot_review keeps orchestrator waiting even when reviewer is active", () => {
   const result = decideOuterAction({
     copilotState: "waiting_for_copilot_review",
     reviewerState: "review_requested",

@@ -413,15 +413,15 @@ export function composeRunInspectionSnapshot({
     evidenceSummary = "The explicit target PR was not found; no current run state could be determined.";
   } else if (sourceMode === SOURCE_MODE.LIVE_DETECTOR_BACKED) {
     if (effectiveOuterState === "stay_with_current_live_owner") {
-      evidenceSummary = "Live detectors agree a live owner already controls this run, so the outer loop should not issue a new handoff yet.";
+      evidenceSummary = "Live detectors agree a live owner already controls this run, so the orchestrator should not issue a new handoff yet.";
     } else if (effectiveOuterState === "needs_reconcile") {
-      evidenceSummary = "Live detectors found ambiguous or conflicting state, so the outer loop must reconcile before continuing.";
+      evidenceSummary = "Live detectors found ambiguous or conflicting state, so the orchestrator must reconcile before continuing.";
     } else if (effectiveOuterState === "stop_needs_human") {
       evidenceSummary = `Live detectors indicate a blocked outer state that needs human intervention${effectiveOuterReason !== undefined ? ` (reason: ${effectiveOuterReason})` : ""}.`;
     } else if (effectiveOuterState === "done_terminal") {
       evidenceSummary = "Live detectors agree the PR is complete.";
     } else if (effectiveOuterState === "continue_current_wait") {
-      evidenceSummary = "Live detectors agree the outer loop is in its durable wait state.";
+      evidenceSummary = "Live detectors agree the orchestrator is in its durable wait state.";
     } else if (effectiveOuterState === "handoff_to_copilot_loop") {
       evidenceSummary = "Live detectors indicate the next meaningful work belongs to the Copilot loop.";
     } else if (effectiveOuterState === "handoff_to_reviewer_loop") {

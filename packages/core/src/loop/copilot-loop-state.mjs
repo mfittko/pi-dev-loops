@@ -62,7 +62,7 @@ export const STATE = Object.freeze({
 });
 
 /** Stable high-level loop dispositions for completion vs follow-up decisions. */
-export const LOOP_DISPOSITION = Object.freeze({
+export const DISPOSITION = Object.freeze({
   PENDING: "pending",
   UNRESOLVED_FEEDBACK: "unresolved_feedback",
   CLEAN_CONVERGED: "clean_converged",
@@ -443,36 +443,36 @@ export function summarizeLoopInterpretation(snapshotOrInterpretation, refinement
   switch (interpretation.state) {
     case STATE.WAITING_FOR_COPILOT_REVIEW:
     case STATE.WAITING_FOR_CI:
-      loopDisposition = LOOP_DISPOSITION.PENDING;
+      loopDisposition = DISPOSITION.PENDING;
       break;
     case STATE.UNRESOLVED_FEEDBACK_PRESENT:
     case STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE:
-      loopDisposition = LOOP_DISPOSITION.UNRESOLVED_FEEDBACK;
+      loopDisposition = DISPOSITION.UNRESOLVED_FEEDBACK;
       break;
     case STATE.REVIEW_REQUEST_UNAVAILABLE:
     case STATE.BLOCKED_NEEDS_USER_DECISION:
     case STATE.ROUND_CAP_REACHED:
-      loopDisposition = LOOP_DISPOSITION.BLOCKED;
+      loopDisposition = DISPOSITION.BLOCKED;
       break;
     case STATE.LOW_SIGNAL_CONVERGED:
     case STATE.ROUND_CAP_CLEAN_FALLBACK:
     case STATE.DONE:
-      loopDisposition = LOOP_DISPOSITION.DONE;
+      loopDisposition = DISPOSITION.DONE;
       break;
     case STATE.READY_TO_REREQUEST_REVIEW:
       loopDisposition = interpretation.sameHeadCleanConverged
-        ? LOOP_DISPOSITION.CLEAN_CONVERGED
-        : LOOP_DISPOSITION.ACTION_REQUIRED;
+        ? DISPOSITION.CLEAN_CONVERGED
+        : DISPOSITION.ACTION_REQUIRED;
       break;
     default:
-      loopDisposition = LOOP_DISPOSITION.ACTION_REQUIRED;
+      loopDisposition = DISPOSITION.ACTION_REQUIRED;
       break;
   }
 
   return {
     loopDisposition,
-    terminal: loopDisposition === LOOP_DISPOSITION.CLEAN_CONVERGED
-      || loopDisposition === LOOP_DISPOSITION.BLOCKED
-      || loopDisposition === LOOP_DISPOSITION.DONE,
+    terminal: loopDisposition === DISPOSITION.CLEAN_CONVERGED
+      || loopDisposition === DISPOSITION.BLOCKED
+      || loopDisposition === DISPOSITION.DONE,
   };
 }
