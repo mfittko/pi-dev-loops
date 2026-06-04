@@ -17,6 +17,7 @@ import {
   resolveRefinement,
   resolveGateConfig,
   resolveGateAngles,
+  resolveGateAnglesDynamic,
   resolveWorkflowConfig,
   resolveLightMode,
 } from "../src/config/config.mjs";
@@ -1415,6 +1416,7 @@ describe("role resolution", () => {
         excludeAngles: [],
         required: true,
         requireCi: true,
+        dynamicAngles: false,
         blockCleanOnFindingSeverities: ["must-fix"],
       });
     });
@@ -1431,6 +1433,7 @@ describe("role resolution", () => {
         excludeAngles: [],
         required: false,
         requireCi: false,
+        dynamicAngles: false,
         blockCleanOnFindingSeverities: ["must-fix"],
       });
       assert.deepEqual(config.gates.draft.angles, ["scope", "coverage"]);
@@ -2049,4 +2052,103 @@ test("parseGitDiffStat: whitespace-only output", async () => {
 });
 
 // Close the integration tests describe block
+});
+
+// ============================================================================
+// resolveGateAnglesDynamic tests
+// ============================================================================
+
+describe("resolveGateAnglesDynamic", () => {
+  test("returns full angle list when dynamicAngles is false", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: { angles: ["scope", "coverage", "docs"], dynamicAngles: false },
+      },
+    };
+    const result = await resolveGateAnglesDynamic(config, "draft");
+    assert.deepEqual(result.recommendedAngles, ["scope", "coverage", "docs"]);
+    assert.deepEqual(result.skippedAngles, []);
+    assert.equal(result.dynamicAnglesActive, false);
+    assert.equal(result.fallbackToAll, false);
+  });
+
+  test("returns null recommendedAngles when no angles configured", async () => {
+    const result = await resolveGateAnglesDynamic({ version: 1 }, "draft");
+    assert.equal(result.recommendedAngles, null);
+    assert.equal(result.dynamicAnglesActive, false);
+  });
+
+  test("returns full angle list when diff is not provided (dynamicAngles true)", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: { angles: ["scope", "coverage"], dynamicAngles: true },
+      },
+    };
+    const result = await resolveGateAnglesDynamic(config, "draft");
+    assert.deepEqual(result.recommendedAngles, ["scope", "coverage"]);
+    assert.equal(result.dynamicAnglesActive, false); // no diff → not active
+  });
+
+  test("activates dynamic resolution when diff provided and dynamicAngles true", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: { angles: ["scope", "coverage", "docs", "deep", "kiss"], dynamicAngles: true },
+      },
+    };
+    const result = await resolveGateAnglesDynamic(config, "draft", {
+      diff: {
+        nameStatusOutput: "M\tdocs/guide.md\nM\tREADME.md",
+      },
+    });
+    assert.equal(result.dynamicAnglesActive, true);
+    // allDocs → DOCS_ONLY → relevant angles include docs, link-check, contract-surface, dry
+    assert.ok(result.recommendedAngles.length > 0);
+    assert.ok(result.recommendedAngles.length < 5); // narrowed from 5
+  });
+
+  test("respects excludeAngles during dynamic resolution", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: {
+          angles: ["scope", "docs", "kiss"],
+          excludeAngles: ["kiss"],
+          dynamicAngles: true,
+        },
+      },
+    };
+    const result = await resolveGateAnglesDynamic(config, "draft", {
+      diff: {
+        nameStatusOutput: "M\tdocs/guide.md\nM\tREADME.md",
+      },
+    });
+    assert.equal(result.dynamicAnglesActive, true);
+    assert.ok(!result.recommendedAngles.includes("kiss"));
+    assert.ok(!result.skippedAngles.includes("kiss")); // excluded before dynamic resolution
+  });
+
+  test("returns reasons for skipped angles", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: {
+          angles: ["scope", "coverage", "docs", "deep", "kiss", "dry", "srp", "soc"],
+          dynamicAngles: true,
+        },
+      },
+    };
+    const result = await resolveGateAnglesDynamic(config, "draft", {
+      diff: {
+        nameStatusOutput: "M\tdocs/guide.md\nM\tREADME.md",
+      },
+    });
+    assert.equal(result.dynamicAnglesActive, true);
+    assert.ok(Object.keys(result.reasons).length > 0);
+    for (const angle of result.skippedAngles) {
+      assert.ok(result.reasons[angle], `reason missing for ${angle}`);
+    }
+  });
 });

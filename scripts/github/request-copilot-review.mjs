@@ -11,9 +11,11 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState } from "@pi-dev-loops/core/loop/copilot-loop-state";
+import { loadDevLoopConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
 
-const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
 const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
+const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
+const ROUND_CAP_REACHED_STATUS = "round_cap_reached";
 
 const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number> [--force-rerequest-review]
 
@@ -32,9 +34,9 @@ Debug:
                             convergence detection falls back to unsuppressed behavior
 
 Output (stdout, JSON):
-  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment",
+  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
-    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true, "violationCommentIds"?: [N] }
+    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true, "violationCommentIds"?: [N], "completedRounds"?: N, "maxRounds"?: N }
 
 Request statuses:
   requested           Copilot review was successfully requested
@@ -42,6 +44,7 @@ Request statuses:
   unavailable         Copilot review is not enabled/requestable and no in-progress evidence was found
   suppressed_same_head_clean  Current head is already clean-converged; no new request is made unless forced
   blocked_by_copilot_comment  A non-Copilot PR comment contains @copilot or /copilot; delete the comment(s) first
+  round_cap_reached    Maximum Copilot review rounds reached; no further re-requests will be made
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -353,6 +356,33 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   }
 
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
+
+  // #500: Round-cap enforcement — refuse re-request when max rounds reached
+  let maxRounds = 5; // Built-in default; overridden by config when loadable
+  try {
+    const { config, errors } = await loadDevLoopConfig();
+    if (!errors || errors.length === 0) {
+      const resolved = resolveRefinementConfig(config, "maxCopilotRounds");
+      if (Number.isFinite(resolved) && resolved > 0) {
+        maxRounds = resolved;
+      }
+    }
+  } catch {
+    // Fail closed to default 5 on config errors
+  }
+  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds && !options.forceRerequestReview) {
+    return {
+      ok: true,
+      status: ROUND_CAP_REACHED_STATUS,
+      repo: options.repo,
+      pr: options.pr,
+      reviewer: "Copilot",
+      completedRounds: before.completedCopilotReviewRounds,
+      maxRounds,
+      detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. Re-run with --force-rerequest-review to bypass.`,
+    };
+  }
+
   const sameHeadCleanConverged = await detectSameHeadCleanConvergence(
     options,
     { env, ghCommand },
