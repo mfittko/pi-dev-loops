@@ -49,7 +49,7 @@ test("buildResolveDevLoopStartupResult maps local implementation to the local ro
     },
     artifactState: "not_applicable",
     loopState: "active",
-  });
+  }, { env: { PI_WORKTREE_BYPASS: "1" } });
 
   assert.equal(result.bundleKind, "resolved");
   assert.equal(result.selectedStrategy, "local_implementation");
