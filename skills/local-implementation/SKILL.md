@@ -77,11 +77,11 @@ This validates:
 - Branch identity (current branch matches the working branch)
 - Subagent availability (subagents should be used for fan-out when available)
 
-If the gate fails, **stop and fix the violation** before proceeding. Do not bypass the gate.
+If the gate fails, **stop and fix the violation** before proceeding. Do not bypass the gate in normal workflow execution.
 
 This gate does **not** apply to other routed strategies (`copilot_pr_followup`, `external_pr_followup`, `reviewer_fixer`, `wait_watch`, `final_approval`, `issue_intake`). Those strategies have their own execution rules and may edit code from any checkout as needed.
 
-Bypass for development/testing only: `PI_PREFLIGHT_BYPASS=1`.
+Development-only bypass (`PI_PREFLIGHT_BYPASS=1`) exists for testing the gate itself but must not be used in production workflow runs. The bypass variable is a testing convenience, not an operational escape hatch.
 
 ### Primary execution rules
 

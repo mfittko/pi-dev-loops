@@ -99,9 +99,15 @@ export function isListedWorktree(cwd, worktreePaths) {
   return worktreePaths.some((p) => {
     let resolvedP;
     try { resolvedP = realpathSync(p); } catch { resolvedP = p; }
-    return resolvedP.replace(/\\/g, "/").replace(/\/+$/u, "") === normalized;
+    const normalizedP = resolvedP.replace(/\\/g, "/").replace(/\/+$/u, "");
+    // Only match worktree paths that are under tmp/worktrees/ (exclude main checkout).
+    if (!isUnderWorktreePath(normalizedP)) return false;
+    // Accept exact match or cwd is a subdirectory of a listed worktree root.
+    return normalized === normalizedP || normalized.startsWith(normalizedP + "/");
   });
 }
+
+
 
 // ---------------------------------------------------------------------------
 // Subagent availability

@@ -110,7 +110,7 @@ export function parsePreFlightGateCliArgs(argv) {
  * @param {string} opts.cwd
  * @param {Record<string, string | undefined>} opts.env
  * @param {string} [opts.gitCommand]
- * @returns {{ ok: true, mainWorktreePath: string } | { ok: false, error: string, guidance: string, mainWorktreePath?: string }}
+ * @returns {{ ok: true, mainWorktreePath?: string } | { ok: false, error: string, guidance: string, mainWorktreePath?: string }}
  */
 function checkWorktreeIsolation({ cwd, env, gitCommand = "git" }) {
   let worktreeListOutput;
