@@ -42,6 +42,10 @@ Optional:
                                              override when the helper would otherwise
                                              refuse a gate upsert because the current
                                              head is blocked_needs_user_decision.
+  --findings-severity-counts <json>         JSON object mapping severity to count
+                                             (e.g. '{"must-fix":0,"worth-fixing-now":0}').
+                                             Required for --verdict clean when
+                                             blockCleanOnFindingSeverities is configured.
   --force-reason <text>                      Required with --force. Records why the
                                              operator-authorized CI-only override is
                                              justified for machine-readable output.
@@ -636,6 +640,14 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     if (!options.findingsSeverityCounts) {
       throw new Error(
         `Cannot set verdict "clean" for ${options.gate}: --findings-severity-counts is required to verify that no unresolved blocking severities remain (example: --findings-severity-counts '{"must-fix":0,"worth-fixing-now":0,"defer":0}') (blocking: [${activeGateConfig.blockCleanOnFindingSeverities.join(", ")}]).`,
+      );
+    }
+    const missingBlockingKeys = activeGateConfig.blockCleanOnFindingSeverities.filter(
+      sev => !(sev in options.findingsSeverityCounts),
+    );
+    if (missingBlockingKeys.length > 0) {
+      throw new Error(
+        `Cannot set verdict "clean" for ${options.gate}: --findings-severity-counts must include explicit counts for all configured blocking severities. Missing: [${missingBlockingKeys.join(", ")}].`,
       );
     }
     const blocking = activeGateConfig.blockCleanOnFindingSeverities.filter(

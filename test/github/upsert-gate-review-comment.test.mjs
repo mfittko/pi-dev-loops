@@ -1700,3 +1700,34 @@ test("upsert-gate-review-comment rejects clean verdict when --findings-severity-
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("upsert-gate-review-comment rejects clean verdict when --findings-severity-counts omits a blocking severity", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-missing-key-"));
+
+  try {
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      isDraft: true,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "all clear",
+      "--next-action", "mark ready",
+      "--findings-severity-counts", '{"must-fix":0,"defer":0}',
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /must include explicit counts for all configured blocking severities/);
+    assert.match(payload.error, /worth-fixing-now/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

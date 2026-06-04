@@ -97,7 +97,10 @@ function parseFindingsJson(raw) {
       summary: f.summary.trim(),
     };
 
-    if (f.disposition && typeof f.disposition === "string") {
+    if ("disposition" in f) {
+      if (typeof f.disposition !== "string" || f.disposition.trim().length === 0) {
+        throw parseError(`--findings[${i}].disposition must be a non-empty string`);
+      }
       const disp = f.disposition.trim();
       if (!VALID_DISPOSITIONS.has(disp)) {
         throw parseError(`--findings[${i}].disposition must be one of: accepted-for-fix, deferred, disputed, operator_acknowledged`);
@@ -109,7 +112,10 @@ function parseFindingsJson(raw) {
       entry.files = f.files.filter(x => typeof x === "string" && x.trim().length > 0);
     }
 
-    if (f.resolvedIn && typeof f.resolvedIn === "string") {
+    if ("resolvedIn" in f) {
+      if (typeof f.resolvedIn !== "string" || f.resolvedIn.trim().length === 0) {
+        throw parseError(`--findings[${i}].resolvedIn must be a non-empty string`);
+      }
       const sha = f.resolvedIn.trim();
       if (!/^[0-9a-f]{7,64}$/i.test(sha)) {
         throw parseError(`--findings[${i}].resolvedIn must be a 7-64 char hex SHA`);

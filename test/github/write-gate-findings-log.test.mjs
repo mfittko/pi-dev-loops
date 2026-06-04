@@ -101,8 +101,8 @@ test("writeGateFindingsLog writes valid JSON log", async () => {
       headSha: "abc1234567890abcdef",
       verdict: "findings_present",
       findings: JSON.stringify([
-        { severity: "must-fix", angle: "scope", summary: "Scope too broad", files: ["src/a.mjs"] },
-        { severity: "worth-fixing-now", angle: "dry", summary: "DRY violation" },
+        { severity: "must-fix", angle: "scope", summary: "Scope too broad", disposition: "accepted-for-fix", files: ["src/a.mjs"] },
+        { severity: "worth-fixing-now", angle: "dry", summary: "DRY violation", disposition: "deferred" },
       ]),
       tmpRoot: tmpDir,
     });
@@ -356,4 +356,30 @@ test("writeGateFindingsLog rejects repo with backslash in segment", async () => 
       findings: "[]",
     });
   }, /unsafe characters/);
+});
+
+test("writeGateFindingsLog rejects empty-string disposition", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "a/b",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: JSON.stringify([{ severity: "must-fix", angle: "scope", summary: "x", disposition: "" }]),
+    });
+  }, /disposition must be a non-empty string/);
+});
+
+test("writeGateFindingsLog rejects empty-string resolvedIn", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "a/b",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: JSON.stringify([{ severity: "must-fix", angle: "scope", summary: "x", resolvedIn: "" }]),
+    });
+  }, /resolvedIn must be a non-empty string/);
 });
