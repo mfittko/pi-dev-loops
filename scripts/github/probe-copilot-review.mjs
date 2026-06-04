@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * @deprecated This is a one-shot Copilot review probe. For persistent async
- * watch/fix loops, prefer `scripts/loop/run-watch-cycle.mjs`.
- * This script is kept as an optional fallback for explicit
- * `--probe-only` status checks; it is not the primary watch path.
+ * One-shot Copilot review probe. Used internally by `scripts/loop/run-watch-cycle.mjs`
+ * for persistent watch cycles; also available directly for explicit `--probe-only`
+ * status checks.
+ *
+ * For new watch/fix workflows, prefer using `run-watch-cycle.mjs` as the primary
+ * entrypoint rather than calling this script directly.
  */
 import { setTimeout as delay } from "node:timers/promises";
 
