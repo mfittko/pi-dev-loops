@@ -143,7 +143,7 @@ test("worktree guidance docs define the canonical checkout-isolation contract", 
     readRepo("docs/worktree-guidance.md"),
     readRepo("AGENTS.md"),
     readRepo("docs/index.md"),
-      ]);
+  ]);
 
   assertMatchesAll(worktreeGuidance, [
     /## Purpose and scope/i,
@@ -167,7 +167,7 @@ test("worktree guidance docs define the canonical checkout-isolation contract", 
   assert.match(agentsDoc, /docs\/worktree-guidance\.md/i);
   assert.match(docsIndex, /worktree-guidance\.md/i);
 
-      });
+  });
 
 
 test("phase-truth docs agree that Phase 8 is active and Phase 7 is deferred", async () => {

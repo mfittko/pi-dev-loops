@@ -1821,7 +1821,7 @@ async function analyzeAutoResume({ repo, reports }, options) {
     orphanedPrCount: orphanedPrs.size,
     resumePlanCount: resumePlans.length,
     manualAttentionCount: manualAttention.length,
-    localPhaseOrphanedCount: localPhaseResumePlans.length,
+    localPhaseOrphanedCount: localPhaseResumePlans.filter(p => p.runState !== RUN_STATE.COMPLETED).length,
     resumePlans,
     needsManualAttention: manualAttention,
     localPhaseResumePlans,
@@ -1897,7 +1897,7 @@ export async function runConductorMonitor(
       manualAttentionCount: 0,
       resumePlans: [],
       needsManualAttention: [],
-      localPhaseOrphanedCount: localPhaseRuns.length,
+      localPhaseOrphanedCount: localPhaseRuns.filter(r => r.state !== RUN_STATE.COMPLETED).length,
       localPhaseResumePlans: localPhaseRuns.map((run) => buildLocalPhaseResumePlan(run)),
     });
   }
