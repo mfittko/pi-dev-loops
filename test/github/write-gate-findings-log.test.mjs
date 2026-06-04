@@ -293,3 +293,67 @@ test("writeGateFindingsLog accepts operator_acknowledged disposition", async () 
     await rm(tmpDir, { recursive: true, force: true });
   }
 });
+test("writeGateFindingsLog rejects invalid resolvedIn (not a hex SHA)", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "a/b",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: JSON.stringify([{ severity: "must-fix", angle: "scope", summary: "x", resolvedIn: "not-a-sha" }]),
+    });
+  }, /resolvedIn must be a 7-64 char hex SHA/);
+});
+
+test("writeGateFindingsLog rejects repo with dot segment", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "./repo",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: "[]",
+    });
+  }, /unsafe characters/);
+});
+
+test("writeGateFindingsLog rejects repo with double-dot segment", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "owner/..",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: "[]",
+    });
+  }, /unsafe characters/);
+});
+
+test("writeGateFindingsLog rejects repo with whitespace in segment", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "owner/repo name",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: "[]",
+    });
+  }, /unsafe characters/);
+});
+
+test("writeGateFindingsLog rejects repo with backslash in segment", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "owner/re\\po",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: "[]",
+    });
+  }, /unsafe characters/);
+});

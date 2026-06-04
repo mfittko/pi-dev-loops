@@ -174,7 +174,7 @@ function formatValidationCounts(counts) {
 
 function buildVerboseValidationSummary(lines) {
   const commands = [];
-  const counts = {};
+  const counts = Object.create(null);
   let ciLine = null;
   let failureExcerpt = null;
   let sawPassedSignal = false;
@@ -354,7 +354,7 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw parseError("--findings-severity-counts must be a JSON object mapping severity to count");
       }
-      const counts = {};
+      const counts = Object.create(null);
       for (const [key, value] of Object.entries(parsed)) {
         if (!Number.isInteger(value) || value < 0) {
           throw parseError(`--findings-severity-counts.${key} must be a non-negative integer`);

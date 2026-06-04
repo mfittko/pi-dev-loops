@@ -44,7 +44,7 @@ function normalizeHeadSha(value) {
 /**
  * @typedef {object} Finding
  * @property {string} severity - "must-fix" | "worth-fixing-now" | "defer"
- * @property {string} [disposition] - "accepted-for-fix" | "deferred" | "disputed"
+ * @property {string} [disposition] - "accepted-for-fix" | "deferred" | "disputed" | "operator_acknowledged"
  * @property {string} angle - review angle that produced the finding
  * @property {string} summary - finding description
  * @property {string[]} [files] - affected files
@@ -110,7 +110,11 @@ function parseFindingsJson(raw) {
     }
 
     if (f.resolvedIn && typeof f.resolvedIn === "string") {
-      entry.resolvedIn = f.resolvedIn.trim();
+      const sha = f.resolvedIn.trim();
+      if (!/^[0-9a-f]{7,64}$/i.test(sha)) {
+        throw parseError(`--findings[${i}].resolvedIn must be a 7-64 char hex SHA`);
+      }
+      entry.resolvedIn = sha;
     }
 
     return entry;
@@ -191,6 +195,11 @@ function buildLogPath({ repo, pr, gate, headSha, tmpRoot }) {
   const parts = repo.split("/");
   if (parts.length !== 2 || parts.some(p => p.length === 0)) {
     throw new Error(`--repo must be in owner/name format, got: ${JSON.stringify(repo)}`);
+  }
+  for (const p of parts) {
+    if (p === "." || p === ".." || /[\s\\]/.test(p)) {
+      throw new Error(`--repo segment ${JSON.stringify(p)} contains unsafe characters (dots, whitespace, or backslashes)`);
+    }
   }
   const repoSlug = parts.join("-");
   return path.join(tmpRoot, "gate-findings", repoSlug, `pr-${pr}`, `${gate}-${headSha}.json`);

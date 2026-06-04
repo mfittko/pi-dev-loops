@@ -85,7 +85,7 @@ consolidation pass (not manual concatenation):
 - collate findings from all review angles
 - classify each finding: `must-fix`, `worth-fixing-now`, `defer`
 - write the disposition ledger: every finding receives a severity classification and a
-  disposition (accepted-for-fix, deferred, or disputed). The disposition ledger is the
+  disposition (accepted-for-fix, deferred, disputed, or operator_acknowledged). The disposition ledger is the
   durable record of what the gate found and what was decided.
 - produce a merged findings artifact
 - determine the overall gate verdict:
