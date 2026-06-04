@@ -363,7 +363,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   // #460: draft_gate detector — if PR is non-draft but no clean draft_gate
   // evidence exists for any head (one-time boundary), force the
   // DRAFT_GATE_NEEDED boundary.
-  const draftGateNeverPassed = !(result.draftGate?.anyVisible);
+  const draftGateEvidenceMissing = !(result.draftGate?.anyVisible);
   const gateBoundariesExpectingDraftGate = new Set([
     PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
     PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
@@ -372,7 +372,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
   ]);
 
-  if (draftGateNeverPassed && gateBoundariesExpectingDraftGate.has(result.gateBoundary)) {
+  if (draftGateEvidenceMissing && gateBoundariesExpectingDraftGate.has(result.gateBoundary)) {
     result.gateBoundary = PR_GATE_BOUNDARY.DRAFT_GATE_NEEDED;
     result.nextAction = PR_GATE_ACTION.RECONCILE_DRAFT_GATE;
     result.reason = "The PR is non-draft but no visible draft_gate comment or marker exists at all (one-time boundary); run reconcile_draft_gate before proceeding.";
