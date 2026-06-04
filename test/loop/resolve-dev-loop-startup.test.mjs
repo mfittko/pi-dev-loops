@@ -479,7 +479,7 @@ test("buildResolveDevLoopStartupResult does not enforce async-start on local_imp
       artifactState: "not_applicable",
       loopState: "active",
     },
-    { env: {} },
+    { env: { PI_WORKTREE_BYPASS: "1" } },
   );
 
   assert.equal(result.ok, true);
