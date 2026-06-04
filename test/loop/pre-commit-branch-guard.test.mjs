@@ -209,7 +209,7 @@ import {
   isUnderWorktreePath,
   parseMainWorktreePath,
   isMainCheckout,
-} from "../../scripts/loop/pre-commit-branch-guard.mjs";
+} from "../../packages/core/src/loop/worktree-guard.mjs";
 
 async function writeWorktreeGitStub(tempDir, {
   branch = "copilot/feature-branch",

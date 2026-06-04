@@ -64,6 +64,29 @@ When the local spec already lives in a tracker issue:
 
 ## Primary execution rules
 
+### Step 0: Pre-flight gate (mandatory for local_implementation)
+
+For the `local_implementation` strategy, before any planning or implementation mutation, run the pre-flight gate:
+
+```sh
+node scripts/loop/pre-flight-gate.mjs --expected-branch <working-branch> --check-subagents
+```
+
+This validates:
+- Worktree isolation (current directory is under `tmp/worktrees/`)
+- Branch identity (current branch matches the working branch)
+- Subagent availability (subagents should be used for fan-out when available)
+
+If the gate fails, **stop and fix the violation** before proceeding. Do not bypass the gate in normal workflow execution.
+
+Note: `--check-subagents` is advisory — it reports availability but does not block the gate. The worktree and branch checks are the mandatory gates.
+
+This gate does **not** apply to other routed strategies (`copilot_pr_followup`, `external_pr_followup`, `reviewer_fixer`, `wait_watch`, `final_approval`, `issue_intake`). Those strategies have their own execution rules and may edit code from any checkout as needed.
+
+Development-only bypass (`PI_PREFLIGHT_BYPASS=1`) exists for testing the gate itself but must not be used in production workflow runs. The bypass variable is a testing convenience, not an operational escape hatch.
+
+### Step 1
+
 - Implement **one phase at a time**.
 - Do not refine later phases in detail before the current phase is complete.
 - Use the `refiner` agent for phase-refinement work when subagents are available; escalate RFC-worthy technical decisions to the parent session / human operator.

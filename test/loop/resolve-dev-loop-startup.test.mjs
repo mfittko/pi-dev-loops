@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -48,7 +49,7 @@ test("buildResolveDevLoopStartupResult maps local implementation to the local ro
     },
     artifactState: "not_applicable",
     loopState: "active",
-  });
+  }, { env: { PI_WORKTREE_BYPASS: "1" } });
 
   assert.equal(result.bundleKind, "resolved");
   assert.equal(result.selectedStrategy, "local_implementation");
@@ -226,7 +227,7 @@ test("buildResolveDevLoopStartupResult auto-injects retrospectiveCheckpointState
   }
 });
 
-test("buildResolveDevLoopStartupResult passes through when no checkpoint file exists", async () => {
+test("buildResolveDevLoopStartupResult fails closed when no checkpoint file exists and cwd is not a worktree", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
   try {
     const inputPath = await writeTempJson(tempDir, "startup.json", {
@@ -246,7 +247,8 @@ test("buildResolveDevLoopStartupResult passes through when no checkpoint file ex
     assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
     const parsed = JSON.parse(result.stdout.trim());
     assert.equal(parsed.ok, true);
-    assert.equal(parsed.selectedStrategy, "local_implementation");
+    assert.equal(parsed.bundleKind, "needs_reconcile");
+    assert.equal(parsed.selectedStrategy, "none");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -478,9 +480,179 @@ test("buildResolveDevLoopStartupResult does not enforce async-start on local_imp
       artifactState: "not_applicable",
       loopState: "active",
     },
-    { env: {} },
+    { env: { PI_WORKTREE_BYPASS: "1" } },
   );
 
   assert.equal(result.ok, true);
   assert.equal(result.selectedStrategy, "local_implementation");
+});
+
+// ---------------------------------------------------------------------------
+// #497: Worktree isolation enforcement for local_implementation
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a temporary directory structure that simulates a git repo with
+ * a worktree under tmp/worktrees/. Also creates a fake git script that
+ * returns the expected `git worktree list` output.
+ */
+function writeWorktreeEnv(tempDir) {
+  const worktreeDir = path.join(tempDir, "tmp", "worktrees", "issue-test");
+  mkdirSync(worktreeDir, { recursive: true });
+
+  const actualTemp = realpathSync(tempDir);
+  const actualWorktree = realpathSync(worktreeDir);
+
+  const gitPath = path.join(tempDir, "git");
+  const worktreeListOut = `${actualTemp}  535a18a [main]\n${actualWorktree}  535a18a [issue-test]`;
+  const lines = [
+    "#!/usr/bin/env sh",
+    'if [ "$1" = "worktree" ] && [ "$2" = "list" ]; then',
+    `  cat <<'WTEOF'`,
+    worktreeListOut,
+    "WTEOF",
+    "fi",
+    "exit 0",
+  ];
+  writeFileSync(gitPath, lines.join("\n"), { mode: 0o755 });
+
+  return { tempDir, worktreeDir, gitPath };
+}
+
+test("resolver returns needs_reconcile for local_implementation from main checkout", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "resolver-main-"));
+  try {
+    writeWorktreeEnv(tempDir);
+    const env = {
+      ...process.env,
+      PATH: `${tempDir}${path.delimiter}${process.env.PATH || ""}`,
+    };
+
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_phase", issue: 497, phase: "issue-497" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "authorized",
+        },
+        loopState: "implementation_pending",
+        artifactState: "not_applicable",
+        issueLinkageResolution: "not_applicable",
+      },
+      { env, cwd: tempDir },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "needs_reconcile");
+    assert.equal(result.selectedStrategy, "none");
+    assert.ok(
+      result.nextAction.includes("worktree isolation"),
+      `nextAction should mention worktree isolation, got: ${result.nextAction}`,
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("resolver resolves normally for local_implementation from worktree", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "resolver-wt-"));
+  try {
+    const { worktreeDir } = writeWorktreeEnv(tempDir);
+    const env = {
+      ...process.env,
+      PATH: `${tempDir}${path.delimiter}${process.env.PATH || ""}`,
+    };
+
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_phase", issue: 497, phase: "issue-497" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "authorized",
+        },
+        loopState: "implementation_pending",
+        artifactState: "not_applicable",
+        issueLinkageResolution: "not_applicable",
+      },
+      { env, cwd: worktreeDir },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "resolved");
+    assert.equal(result.selectedStrategy, "local_implementation");
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("resolver bypasses worktree check with PI_WORKTREE_BYPASS=1 from main checkout", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "resolver-bypass-"));
+  try {
+    writeWorktreeEnv(tempDir);
+    const env = {
+      ...process.env,
+      PATH: `${tempDir}${path.delimiter}${process.env.PATH || ""}`,
+      PI_WORKTREE_BYPASS: "1",
+    };
+
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "local_phase", issue: 497, phase: "issue-497" },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "authorized",
+        },
+        loopState: "implementation_pending",
+        artifactState: "not_applicable",
+        issueLinkageResolution: "not_applicable",
+      },
+      { env, cwd: tempDir },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "resolved");
+    assert.equal(result.selectedStrategy, "local_implementation");
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("resolver does not block non-local_implementation strategies from main checkout", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "resolver-nonlocal-"));
+  try {
+    writeWorktreeEnv(tempDir);
+    const env = {
+      ...process.env,
+      PATH: `${tempDir}${path.delimiter}${process.env.PATH || ""}`,
+      PI_SUBAGENT_RUN_ID: "test-run-123",
+    };
+
+    const result = buildResolveDevLoopStartupResult(
+      {
+        currentState: {
+          target: { kind: "issue", issue: 89, linkedPr: 92 },
+          ownership: "copilot",
+          nextActor: "copilot",
+          status: "active",
+          authorization: "needs_confirmation",
+        },
+        artifactState: "open",
+        issueLinkageResolution: "resolved_linked_pr",
+        loopState: "unresolved_feedback_present",
+      },
+      { env, cwd: tempDir },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.bundleKind, "resolved");
+    assert.equal(result.selectedStrategy, "copilot_pr_followup");
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
