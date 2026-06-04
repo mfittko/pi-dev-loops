@@ -1118,6 +1118,27 @@ test("interpretLoopState returns false for roundCapCleanEligible in normal READY
   assert.equal(result.roundCapCleanEligible, false);
 });
 
+test("round cap does not interrupt an in-flight Copilot review request", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "requested",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  // In-flight review request must not be interrupted by round cap
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.WAITING_FOR_COPILOT_REVIEW);
+  assert.equal(result.roundCapCleanEligible, false);
+});
+
 test("round cap does not override BLOCKED_NEEDS_USER_DECISION from failed review request", () => {
   const snapshot = {
     prExists: true,

@@ -334,9 +334,13 @@ export function interpretLoopState(snapshot, refinementConfig) {
   // Gating here (before unresolved-thread checks) ensures round cap takes priority over
   // the normal fix loop, including unresolved threads, pending CI, and CI failures.
   // Clean PRs are eligible for pre_approval_gate fallback; everything else is a hard stop.
+  // Does NOT interrupt an in-flight review request (requested/already-requested).
   const maxRounds = refinementConfig?.maxCopilotRounds;
+  const reviewInFlight = s.copilotReviewRequestStatus === "requested"
+    || s.copilotReviewRequestStatus === "already-requested";
   if (typeof maxRounds === "number" && maxRounds > 0
       && s.copilotReviewRoundCount >= maxRounds
+      && !reviewInFlight
       && state !== STATE.NO_PR && state !== STATE.DONE
       && state !== STATE.PR_DRAFT && state !== STATE.REVIEW_REQUEST_UNAVAILABLE
       && state !== STATE.BLOCKED_NEEDS_USER_DECISION) {
