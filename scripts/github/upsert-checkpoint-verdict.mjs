@@ -104,7 +104,7 @@ function normalizeRequiredText(value, flag) {
     throw parseError(`${flag} must be a non-empty string`);
   }
   if (flag === "--findings-summary") {
-    return summarizeGateReviewText(normalized);
+    return summarizeCheckpointVerdictText(normalized);
   }
   return smartTruncate(collapseWhitespace(normalized), MAX_GATE_COMMENT_TEXT_LENGTH);
 }
@@ -250,7 +250,7 @@ function buildVerboseValidationSummary(lines) {
   return parts.length > 0 ? parts.join("; ") : null;
 }
 
-export function summarizeGateReviewText(value, limit = MAX_GATE_COMMENT_TEXT_LENGTH) {
+export function summarizeCheckpointVerdictText(value, limit = MAX_GATE_COMMENT_TEXT_LENGTH) {
   const normalized = typeof value === "string" ? value.trim() : "";
   if (normalized.length === 0) {
     return "";
@@ -406,7 +406,7 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
 }
 
 function appendGateEvidenceNote(summary, note) {
-  const normalizedSummary = summarizeGateReviewText(summary);
+  const normalizedSummary = summarizeCheckpointVerdictText(summary);
   const normalizedNote = typeof note === "string" ? collapseWhitespace(note) : "";
 
   if (normalizedNote.length === 0) {

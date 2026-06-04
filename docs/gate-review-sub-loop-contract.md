@@ -1,4 +1,4 @@
-# Gate-Review Sub-Loop Contract
+# Checkpoint Review Chain Contract
 
 This document defines the reusable checkpoint review chain execution shape shared by the
 two dev-loop gate boundaries: `draft_gate` and `pre_approval_gate`.
@@ -186,7 +186,7 @@ resolved-in SHA (for findings resolved in a later pass).
 
 ## See also
 
-- [Gate-Review Comment Contract](./gate-review-comment-contract.md) — visible PR comment evidence format
+- [Checkpoint Verdict Comment Contract](./gate-review-comment-contract.md) — visible PR comment evidence format
 - [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md) — broader lifecycle state machine
 - [Copilot PR Follow-up](../skills/copilot-pr-followup/SKILL.md) — skill that owns gate execution
 - [Local Implementation](../skills/local-implementation/SKILL.md) — uses chain pattern for local phase plan audits

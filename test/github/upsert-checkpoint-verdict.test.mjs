@@ -8,7 +8,7 @@ import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson a
 
 import {
   parseUpsertCheckpointVerdictCliArgs,
-  summarizeGateReviewText,
+  summarizeCheckpointVerdictText,
   upsertCheckpointVerdict,
 } from "../../scripts/github/upsert-checkpoint-verdict.mjs";
 
@@ -209,9 +209,9 @@ test("parseUpsertCheckpointVerdictCliArgs rejects blank --force-reason", () => {
   );
 });
 
-test("summarizeGateReviewText compacts verbose validation success logs deterministically", () => {
+test("summarizeCheckpointVerdictText compacts verbose validation success logs deterministically", () => {
   assert.equal(
-    summarizeGateReviewText([
+    summarizeCheckpointVerdictText([
       "Validation: verbose local logs follow",
       "> npm test",
       "ℹ tests 46",
@@ -224,9 +224,9 @@ test("summarizeGateReviewText compacts verbose validation success logs determini
   );
 });
 
-test("summarizeGateReviewText keeps failing validation to a concise excerpt", () => {
+test("summarizeCheckpointVerdictText keeps failing validation to a concise excerpt", () => {
   assert.equal(
-    summarizeGateReviewText([
+    summarizeCheckpointVerdictText([
       "> npm test",
       "ℹ tests 46",
       "ℹ pass 45",
@@ -240,9 +240,9 @@ test("summarizeGateReviewText keeps failing validation to a concise excerpt", ()
 });
 
 
-test("summarizeGateReviewText preserves long single-line narratives instead of inventing a log summary", () => {
+test("summarizeCheckpointVerdictText preserves long single-line narratives instead of inventing a log summary", () => {
   const narrative = "Passed reviewer note: keep the operator-facing summary readable even when Error and passed appear in the same explanatory sentence, because this is narrative text rather than a multiline validation log. ".repeat(3).trim();
-  const summarized = summarizeGateReviewText(narrative, 140);
+  const summarized = summarizeCheckpointVerdictText(narrative, 140);
 
   assert.match(summarized, /^Passed reviewer note:/);
   assert.match(summarized, /Error and passed appear/);
@@ -251,7 +251,7 @@ test("summarizeGateReviewText preserves long single-line narratives instead of i
 });
 
 
-test("summarizeGateReviewText preserves multiline narrative text when no structured validation signals are present", () => {
+test("summarizeCheckpointVerdictText preserves multiline narrative text when no structured validation signals are present", () => {
   const narrative = [
     "Validation recap:",
     "The operator passed through the flow carefully.",
@@ -259,14 +259,14 @@ test("summarizeGateReviewText preserves multiline narrative text when no structu
   ].join("\n");
 
   assert.equal(
-    summarizeGateReviewText(narrative),
+    summarizeCheckpointVerdictText(narrative),
     "Validation recap: The operator passed through the flow carefully. Nothing here is a command log or CI line.",
   );
 });
 
-test("summarizeGateReviewText captures Error-prefixed failure lines", () => {
+test("summarizeCheckpointVerdictText captures Error-prefixed failure lines", () => {
   assert.equal(
-    summarizeGateReviewText([
+    summarizeCheckpointVerdictText([
       "> npm test",
       "Error: Expected gate summary to stay bounded",
       "detail: additional stack output that should not become the visible excerpt",
@@ -276,7 +276,7 @@ test("summarizeGateReviewText captures Error-prefixed failure lines", () => {
 });
 
 
-test("summarizeGateReviewText does not treat markdown headings as shell commands", () => {
+test("summarizeCheckpointVerdictText does not treat markdown headings as shell commands", () => {
   const narrative = [
     "# Summary",
     "Validation recap passed through manual review.",
@@ -285,7 +285,7 @@ test("summarizeGateReviewText does not treat markdown headings as shell commands
   ].join("\n");
 
   assert.equal(
-    summarizeGateReviewText(narrative),
+    summarizeCheckpointVerdictText(narrative),
     "# Summary Validation recap passed through manual review. ## Notes This is prose, not a shell transcript.",
   );
 });

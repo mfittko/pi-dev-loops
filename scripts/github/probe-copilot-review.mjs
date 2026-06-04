@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * One-shot Copilot review probe. Used internally by `scripts/loop/run-watch-cycle.mjs`
- * for persistent watch cycles; also available directly for explicit `--probe-only`
- * status checks.
+ * Copilot review probe supporting both persistent polling (default 30-minute
+ * watch) and one-shot status checks (--timeout-ms 0 / --probe-only). Used
+ * internally by `scripts/loop/run-watch-cycle.mjs` for persistent watch cycles.
  *
  * For new watch/fix workflows, prefer using `run-watch-cycle.mjs` as the primary
  * entrypoint rather than calling this script directly.

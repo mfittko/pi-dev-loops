@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * verify-fresh-review-context.mjs — Gate-review subagent startup self-check.
+ * verify-fresh-review-context.mjs — Checkpoint subagent startup self-check.
  *
  * Writes a lock-file sentinel on first run. If the sentinel already exists,
  * the subagent inherits a prior session's context (contaminated) and the
  * script fails closed.
  *
- * Lock-file: tmp/checkpoint-context-sentinel[-<scope>].json (relative to CWD,
+ * Lock-file: tmp/checkpoint-context-sentinel[-<scope>].json (legacy:
+ * tmp/gate-review-context-sentinel[-<scope>].json). Both are detected.
  * which should be the repo root when run inside a Pi subagent).
  *
  * Use --scope <name> when multiple reviewers share the same working directory
@@ -17,7 +18,7 @@
  * Exit 0 on clean (first run), exit 1 on contamination (prior run detected).
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { buildParseError, isDirectCliRun, formatCliError } from "../_core-helpers.mjs";
 
@@ -80,6 +81,21 @@ function sentinelRelative(scope) {
   return path.join("tmp", `checkpoint-context-sentinel${suffix}.json`);
 }
 
+function legacySentinelRelative(scope) {
+  const suffix = scope ? `-${scope}` : "";
+  return path.join("tmp", `gate-review-context-sentinel${suffix}.json`);
+}
+
+async function checkSentinelExists(scope, cwd = process.cwd()) {
+  // Check current sentinel name first
+  const sentinelPath = path.resolve(cwd, sentinelRelative(scope));
+  try { await stat(sentinelPath); return { exists: true, path: sentinelPath, legacy: false }; } catch {}
+  // Check legacy sentinel name for backward compat
+  const legacyPath = path.resolve(cwd, legacySentinelRelative(scope));
+  try { await stat(legacyPath); return { exists: true, path: legacyPath, legacy: true }; } catch {}
+  return { exists: false, path: sentinelPath, legacy: false };
+}
+
 async function main(argv = process.argv.slice(2)) {
   if (argv.includes("--help") || argv.includes("-h")) {
     process.stdout.write(`${USAGE}\n`);
@@ -99,21 +115,14 @@ async function main(argv = process.argv.slice(2)) {
     return 2;
   }
 
-  // Check if sentinel already exists
-  let existingSentinel = null;
-  try {
-    const raw = await readFile(sentinelPath, "utf8");
-    existingSentinel = JSON.parse(raw);
-  } catch {
-    // File doesn't exist or unreadable — proceed
-  }
-
-  if (existingSentinel) {
+  // Check for existing sentinel (current + legacy name for backward compat)
+  const existing = await checkSentinelExists(scope);
+  if (existing.exists) {
     process.stdout.write(JSON.stringify({
       ok: true,
       fresh: false,
       sentinelCreated: false,
-      reason: "Gate-review context sentinel already exists — inherited session context detected. Restart the subagent with fresh context (subagent({context:\"fresh\"})).",
+      reason: `Checkpoint context sentinel already exists${existing.legacy ? " (legacy name)" : ""} — inherited session context detected. Restart the subagent with fresh context (subagent({context:\"fresh\"})).`,
     }) + "\n");
     return 1;
   }
@@ -136,7 +145,7 @@ async function main(argv = process.argv.slice(2)) {
         ok: true,
         fresh: false,
         sentinelCreated: false,
-        reason: "Gate-review context sentinel already exists (detected on atomic create) — inherited session context detected. Restart the subagent with fresh context (subagent({context:\"fresh\"})).",
+        reason: "Checkpoint context sentinel already exists (detected on atomic create) — inherited session context detected. Restart the subagent with fresh context (subagent({context:\"fresh\"})).",
       }) + "\n");
       return 1;
     }

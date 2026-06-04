@@ -1,4 +1,4 @@
-# Gate-Review Comment Contract
+# Checkpoint Verdict Comment Contract
 
 This document defines the required visible PR-comment contract for the two gate
 boundaries in the dev-loop workflow: `draft_gate` and `pre_approval_gate`.
@@ -175,6 +175,6 @@ required visible PR comment is confirmed posted for the current head SHA.
 ## See also
 
 - [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md) — broader lifecycle state machine
-- [Gate-Review Sub-Loop Contract](./gate-review-sub-loop-contract.md) — execution shape for gate inspection work
+- [Checkpoint Review Chain Contract](./gate-review-sub-loop-contract.md) — execution shape for gate inspection work
 - [Copilot PR Follow-up](../skills/copilot-pr-followup/SKILL.md) — skill that owns gate execution
 - [Final Approval](../skills/final-approval/SKILL.md) — human approval gate route
