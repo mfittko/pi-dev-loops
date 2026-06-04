@@ -23,12 +23,33 @@ import { runConductorMonitor } from "./conductor-monitor.mjs";
 import { requireOptionValue } from "../_cli-primitives.mjs";
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const USAGE = `Usage: conductor.mjs --repo <owner/name> [--auto-resume] [--cycle-only] [--monitor-only]
 
 Unified conductor entrypoint for dev-loop lifecycle orchestration.`.trim();
 
 const parseError = buildParseError(USAGE);
+
+function checkRetrospectiveGate(cwd) {
+  try {
+    const checkpointPath = path.join(cwd, ".pi", "dev-loop-retrospective-checkpoint.json");
+    const checkpointText = readFileSync(checkpointPath, "utf8");
+    const checkpoint = JSON.parse(checkpointText);
+    const state = typeof checkpoint?.state === "string" ? checkpoint.state.trim().toLowerCase() : null;
+    if (state === "required" || state === "missing") {
+      return {
+        blocked: true,
+        reason: `Retrospective checkpoint pending (state: ${state}). Complete the retrospective before running the conductor.`,
+      };
+    }
+    return { blocked: false };
+  } catch (err) {
+    if (err?.code === "ENOENT") return { blocked: false };
+    return { blocked: true, reason: `Cannot read retrospective checkpoint: ${err.message}` };
+  }
+}
 
 function parseCliArgs(argv) {
   const args = [...argv];
@@ -86,6 +107,19 @@ function parseCliArgs(argv) {
 
 export async function runConductor(options, runtime = {}) {
   const { cycleOnly = false, monitorOnly = false, autoResume = false } = options;
+  const cwd = runtime.repoRoot || process.cwd();
+
+  const retroGate = checkRetrospectiveGate(cwd);
+  if (retroGate.blocked) {
+    return {
+      ok: false,
+      error: retroGate.reason,
+      repo: options.repo,
+      blockedByRetrospective: true,
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
   const runCycle = !monitorOnly;
   const runMonitor = !cycleOnly;
 
