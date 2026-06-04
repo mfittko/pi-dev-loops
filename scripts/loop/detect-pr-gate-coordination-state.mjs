@@ -360,9 +360,9 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     result.reason = "No contract-complete pre_approval_gate marker exists for the current head SHA; run pre_approval_gate before proceeding.";
     result.allowedNextActions = [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE];
   }
-  // #460: draft_gate detector — if PR is non-draft but no clean draft_gate
-  // evidence exists for any head (one-time boundary), force the
-  // DRAFT_GATE_NEEDED boundary.
+  // #460: draft_gate detector — if PR is non-draft and no visible
+  // draft_gate evidence (comment or marker) exists at all
+  // (one-time boundary), force the DRAFT_GATE_NEEDED boundary.
   const draftGateEvidenceMissing = !(result.draftGate?.anyVisible);
   const gateBoundariesExpectingDraftGate = new Set([
     PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
