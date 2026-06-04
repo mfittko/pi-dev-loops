@@ -630,10 +630,14 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
 
   if (
     options.verdict === "clean"
-    && options.findingsSeverityCounts
     && activeGateConfig.blockCleanOnFindingSeverities
     && activeGateConfig.blockCleanOnFindingSeverities.length > 0
   ) {
+    if (!options.findingsSeverityCounts) {
+      throw new Error(
+        `Cannot set verdict "clean" for ${options.gate}: --findings-severity-counts is required to verify that no unresolved blocking severities remain (blocking: [${activeGateConfig.blockCleanOnFindingSeverities.join(", ")}]).`,
+      );
+    }
     const blocking = activeGateConfig.blockCleanOnFindingSeverities.filter(
       sev => (options.findingsSeverityCounts[sev] ?? 0) > 0,
     );

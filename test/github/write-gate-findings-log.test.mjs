@@ -269,3 +269,27 @@ test("writeGateFindingsLog includes resolvedIn when present", async () => {
     await rm(tmpDir, { recursive: true, force: true });
   }
 });
+
+test("writeGateFindingsLog accepts operator_acknowledged disposition", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "gate-findings-test-"));
+  try {
+    await writeGateFindingsLog({
+      repo: "owner/repo",
+      pr: 99,
+      gate: "pre_approval_gate",
+      headSha: "dddddddddddddddd",
+      verdict: "findings_present",
+      findings: JSON.stringify([
+        { severity: "must-fix", angle: "scope", summary: "Ack", disposition: "operator_acknowledged" },
+      ]),
+      tmpRoot: tmpDir,
+    });
+
+    const fullPath = path.join(tmpDir, "gate-findings", "owner-repo", "pr-99", "pre_approval_gate-dddddddddddddddd.json");
+    const raw = await readFile(fullPath, "utf8");
+    const parsed = JSON.parse(raw);
+    assert.equal(parsed.findings[0].disposition, "operator_acknowledged");
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});

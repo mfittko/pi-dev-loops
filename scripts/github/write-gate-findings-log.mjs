@@ -63,7 +63,7 @@ function normalizeHeadSha(value) {
  */
 
 const VALID_SEVERITIES = new Set(["must-fix", "worth-fixing-now", "defer"]);
-const VALID_DISPOSITIONS = new Set(["accepted-for-fix", "deferred", "disputed"]);
+const VALID_DISPOSITIONS = new Set(["accepted-for-fix", "deferred", "disputed", "operator_acknowledged"]);
 
 function parseFindingsJson(raw) {
   let parsed;
@@ -100,7 +100,7 @@ function parseFindingsJson(raw) {
     if (f.disposition && typeof f.disposition === "string") {
       const disp = f.disposition.trim();
       if (!VALID_DISPOSITIONS.has(disp)) {
-        throw parseError(`--findings[${i}].disposition must be one of: accepted-for-fix, deferred, disputed`);
+        throw parseError(`--findings[${i}].disposition must be one of: accepted-for-fix, deferred, disputed, operator_acknowledged`);
       }
       entry.disposition = disp;
     }
