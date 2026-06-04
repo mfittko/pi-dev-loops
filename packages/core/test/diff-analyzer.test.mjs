@@ -127,6 +127,14 @@ test("analyzeT1: tracks line stats", () => {
   assert.equal(result.lineStats.added, 2);
   assert.equal(result.lineStats.deleted, 1);
 });
+test("analyzeT1: detects COMMENT_ONLY from comment-only diff", () => {
+  const t0 = { files: ["src/foo.mjs"], extensions: [".mjs"], directories: ["src"], renameOnly: false, allDocs: false };
+  const diff = "@@ -1,3 +1,3 @@\n-// old comment\n+// new comment\n";
+  const result = analyzeT1(diff, t0);
+  assert.ok(result.changeCategories.includes("COMMENT_ONLY"));
+  assert.ok(result.hunkCount > 0);
+});
+
 
 // ---------------------------------------------------------------------------
 // analyzeDiff (combined)

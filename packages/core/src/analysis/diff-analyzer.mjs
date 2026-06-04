@@ -146,7 +146,6 @@ function isNonLogicLine(content) {
  * Analyze unified diff hunks to classify change types.
  *
  * Detects:
- * Detects:
  * - COMMENT_ONLY: only comment lines changed
  * - DOCS_ONLY: only .md files changed (from extensions)
  * - CONFIG_ONLY: only config files changed
