@@ -48,7 +48,7 @@ test("parseGateReviewCommentBody returns null when required fields are missing",
   assert.equal(parseGateReviewCommentBody("gate: draft_gate\nhead sha reviewed: abc1234"), null);
 });
 
-test("parseGateReviewCommentBody parses a full gate review comment", () => {
+test("parseGateReviewCommentBody parses a full gate inspection comment", () => {
   const body = [
     "gate: draft_gate",
     "head sha reviewed: abc1234",

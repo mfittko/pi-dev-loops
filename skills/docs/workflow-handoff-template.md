@@ -24,7 +24,7 @@ Every step is non-optional. Do not skip, reorder, or batch steps.
 - Implement changes, write tests, run `npm run verify`
 - Create PR as **draft** via `node scripts/github/create-draft-pr.mjs --assignee @me ...`
 
-### 2. Draft gate review
+### 2. Draft gate inspection
 
 - Run parallel subagent reviews (correctness vs AC, scope compliance, test coverage)
 - Post visible `draft_gate` comment on the PR with:
@@ -42,7 +42,7 @@ Every step is non-optional. Do not skip, reorder, or batch steps.
 
 ### 4. Wait for Copilot review
 
-- Use the deterministic wait boundary: `node scripts/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>`
+- Use the deterministic wait boundary: `node scripts/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number>`
 - Treat the PR follow-up as a loop, not a one-shot watch: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → …`
 - If the watch cycle returns fresh Copilot activity / `cycleDisposition: "needs_followup"`, continue immediately to step 5
 - If the watch cycle returns `watchStatus: "timeout"`, refresh once with `node scripts/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number> --watch-status timeout`
@@ -63,7 +63,7 @@ For each Copilot review pass:
 - Return immediately to step 4 after the re-request; do not stop at `review requested` or after a single watch cycle
 - Repeat steps 4–6 until Copilot review has no actionable feedback
 
-### 7. Pre-approval gate review
+### 7. Pre-approval gate inspection
 
 - Confirm legality: `node scripts/loop/detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number>`
 - If legality returns `gateBoundary=conflict_resolution`, stop the gate, resolve conflicts on the PR branch, rerun validation, re-detect gate state for the new head, and only then rerun `pre_approval_gate`
@@ -73,7 +73,7 @@ For each Copilot review pass:
 
 ### 8. Merge
 
-- Immediately before merge, run `node scripts/github/detect-gate-review-evidence.mjs --repo <owner/name> --pr <number>` and stop if it fails. Gate evidence enforcement is always-on; there is no opt-out flag.
+- Immediately before merge, run `node scripts/github/detect-checkpoint-evidence.mjs --repo <owner/name> --pr <number>` and stop if it fails. Gate evidence enforcement is always-on; there is no opt-out flag.
 - Required evidence:
   - `draft_gate` clean comment exists (any head — one-time transition boundary, no current-head requirement)
   - `pre_approval_gate` clean comment exists for **current** head SHA

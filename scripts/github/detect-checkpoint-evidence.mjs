@@ -12,10 +12,10 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
-const USAGE = `Usage: detect-gate-review-evidence.mjs --repo <owner/name> --pr <number>
+const USAGE = `Usage: detect-checkpoint-evidence.mjs --repo <owner/name> --pr <number>
 
 Fetch the live PR head SHA and visible PR issue comments, then summarize the
-latest valid draft-gate and pre-approval gate-review comments. Always fail
+latest valid draft-gate and pre-approval checkpoint verdict comments. Always fail
 closed (exit 1) unless both required gate comments exist: a clean draft_gate
 comment for the one-time draft boundary and a clean current-head
 pre_approval_gate comment.
@@ -90,7 +90,7 @@ Exit codes:
 const parseError = buildParseError(USAGE);
 
 
-export function parseDetectGateReviewEvidenceCliArgs(argv) {
+export function parseDetectCheckpointEvidenceCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
@@ -124,7 +124,7 @@ export function parseDetectGateReviewEvidenceCliArgs(argv) {
   }
 
   if (options.repo === undefined || options.pr === undefined) {
-    throw parseError("detect-gate-review-evidence requires both --repo <owner/name> and --pr <number>");
+    throw parseError("detect-checkpoint-evidence requires both --repo <owner/name> and --pr <number>");
   }
 
   try {
@@ -252,7 +252,7 @@ export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null) {
 }
 
 
-export async function detectGateReviewEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
+export async function detectCheckpointEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
   const prPayload = await runGhJson(["pr", "view", String(options.pr), "--repo", options.repo, "--json", "headRefOid"], { env, ghCommand });
   const commentsPayload = normalizeIssueCommentsPayload(await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/issues/${options.pr}/comments?per_page=100`], { env, ghCommand }));
 
@@ -283,7 +283,7 @@ export async function detectGateReviewEvidence(options, { env = process.env, ghC
 async function main() {
   let options;
   try {
-    options = parseDetectGateReviewEvidenceCliArgs(process.argv.slice(2));
+    options = parseDetectCheckpointEvidenceCliArgs(process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`${formatCliError(error, { usage: USAGE })}\n`);
     process.exitCode = 1;
@@ -296,7 +296,7 @@ async function main() {
   }
 
   try {
-    const result = await detectGateReviewEvidence(options);
+    const result = await detectCheckpointEvidence(options);
 
     // #443: fetch review threads to verify zero unresolved threads before passing
     let unresolvedThreadCount = -1;

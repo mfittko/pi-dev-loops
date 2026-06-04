@@ -222,7 +222,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /reviewer layer:[\s\S]*full authoritative state machine shown; waiting_for_re_request, waiting_for_review_request/);
   assert.match(html, /Dimmed nodes are still part of the authoritative state machine/);
   assert.ok(html.indexOf('class="mermaid-state-graph mermaid"') < html.indexOf('class="state-graph-cues"'));
-  assert.match(html, /outer lane now comes from the shared authoritative outer-loop graph contract/);
+  assert.match(html, /outer lane comes from the shared authoritative outer-loop graph contract/);
   assert.match(html, /outer-loop summary/);
   assert.match(html, /Copilot loop iterations/);
   assert.match(html, /4 completed, 1 pending/);

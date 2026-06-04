@@ -280,7 +280,7 @@ Failure behavior:
 
 For new GitHub mutation helpers in this repo, do not stop at fixture-only confidence when a real PR is available and mutation is authorized. Run a bounded real-PR smoke check before depending on the helper inside a longer async review/fix loop.
 
-### `scripts/github/watch-copilot-review.mjs`
+### `scripts/github/probe-copilot-review.mjs`
 
 Watch for fresh Copilot-authored review activity on a PR.
 
@@ -447,7 +447,7 @@ Success output shape:
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
-### `scripts/loop/run-copilot-watch-cycle.mjs`
+### `scripts/loop/run-watch-cycle.mjs`
 
 Deterministic handoff → watch helper for one Copilot wait-cycle boundary.
 
@@ -463,7 +463,7 @@ Contract:
 - runs `copilot-pr-handoff.mjs` first and preserves its current state / next action / watch args
 - when handoff stays in watch mode, checks Copilot session activity on the PR head branch via `detect-copilot-session-activity.mjs`
 - when activity is `active`, blocks on `gh run watch <run-id>` and then continues with the same emitted persistent watch budget instead of silently degrading to a zero-timeout probe
-- when handoff returns `action: "watch"`, runs `watch-copilot-review.mjs` with the emitted `watchArgs`; zero-timeout probes are reserved for explicit `--probe-only` status checks
+- when handoff returns `action: "watch"`, runs `probe-copilot-review.mjs` with the emitted `watchArgs`; zero-timeout probes are reserved for explicit `--probe-only` status checks
 - treats `waiting_for_copilot_review` as a persistence boundary, not a completion boundary
 - for explicit async loop entry/continuation, `cycleDisposition: "pending"` with `terminal: false` means stay attached and run another watch boundary rather than exiting as clean success
 - after a follow-up fix / reply-resolve / re-request path returns to `waiting_for_copilot_review`, resume this helper again instead of treating the re-request handoff as completion
@@ -552,7 +552,7 @@ Key behavioral guarantees:
 - When `--steering-state-file` is provided, steering is surfaced as a read-only overlay;
   queued steering promotion/persistence is owned explicitly by `steer-loop.mjs promote`
 
-### `scripts/github/upsert-gate-review-comment.mjs`
+### `scripts/github/upsert-checkpoint-verdict.mjs`
 
 Creates or updates the visible gate-review PR comment for one `gate + headSha` pair.
 Use this at the `draft_gate` / `pre_approval_gate` boundaries so same-head reruns
@@ -638,10 +638,10 @@ Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
 - `gh` failures and malformed `gh` JSON emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
-### `scripts/github/detect-gate-review-evidence.mjs`
+### `scripts/github/detect-checkpoint-evidence.mjs`
 
 Fetches the live PR head SHA plus visible PR issue comments, then summarizes the
-latest valid `draft_gate` and `pre_approval_gate` gate-review comments.
+latest valid `draft_gate` and `pre_approval_gate` checkpoint verdict comments.
 Use this when a fresh session needs authoritative visible gate evidence for the
 current head before running `gh pr ready` or declaring final-approval readiness.
 

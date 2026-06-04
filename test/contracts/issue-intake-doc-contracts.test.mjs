@@ -89,7 +89,7 @@ test("issue-intake surface requires unattended resume-from-state behavior when a
   assert.match(content, /node <resolved-skill-scripts>\/github\/create-draft-pr\.mjs --repo <owner\/name> --assignee @me --base <base> --head <head> --title/i);
   assert.doesNotMatch(content, /gh pr create --draft --repo <owner\/name> --assignee @me --base <base> --head <head> --title/i);
   assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
-  assert.match(content, /continue unattended until the final approval gate/i);
+  assert.match(content, /continue unattended until the human approval checkpoint/i);
   assert.match(content, /stop for a human approval decision by default/i);
   assert.match(content, /waiting_for_merge_authorization/i);
   assert.match(content, /does \*\*not\*\* imply unattended merge by default/i);
@@ -115,7 +115,7 @@ test("issue-intake behavior remains internal and resumable behind dev-loop", asy
   assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
 });
 
-test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the final approval gate", async () => {
+test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the human approval checkpoint", async () => {
   const [readme, publicContract, devLoopSkill, issueIntakeSkill, devLoopAgent] = await Promise.all([
     readRepo("README.md"),
     readRepo("skills/docs/public-dev-loop-contract.md"),
@@ -142,15 +142,15 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(publicContract, /linked_pr_ready_for_followup[\s\S]*isolated checkout\/worktree transition instead of treating that boundary as final completion/i);
   assert.match(publicContract, /non-terminal follow-up\/wait states[\s\S]*waiting_for_copilot_review[\s\S]*continuation boundaries/i);
   assert.match(publicContract, /async child exits before the requested stop boundary[\s\S]*automatically resume\/restart/i);
-  assert.match(publicContract, /R --> A\[Final approval gate\]/i);
+  assert.match(publicContract, /R --> A\[Human approval checkpoint\]/i);
   assert.match(publicContract, /R --> M\[Wait for merge authorization\]/i);
 
   assert.match(devLoopSkill, /Shorthand issue-based auto trigger contract/i);
   assert.match(devLoopSkill, /public `dev-loop` intent `auto_continue_current`/i);
-  assert.match(devLoopSkill, /stop at the final human approval gate by default/i);
+  assert.match(devLoopSkill, /stop at the human approval checkpoint by default/i);
 
   assert.match(issueIntakeSkill, /Issue-first shorthand such as `auto dev loop on issue <n>`/i);
-  assert.match(issueIntakeSkill, /preserve this same stop boundary and final human approval gate default/i);
+  assert.match(issueIntakeSkill, /preserve this same stop boundary and human approval checkpoint default/i);
   assert.match(issueIntakeSkill, /waiting_for_merge_authorization/i);
   assert.match(issueIntakeSkill, /after approval, report `waiting_for_merge_authorization` and stop again/i);
   assert.doesNotMatch(issueIntakeSkill, /Only when merge has been explicitly authorized for this issue\/PR scope:/i);
@@ -223,7 +223,7 @@ test("issue-intake flow carries the resolved repo slug through later GitHub issu
   assert.match(skillContent, /gh pr edit <pr-number> --repo <resolved-repo> --title/);
   assert.match(skillContent, /gh pr ready <pr-number> --repo <resolved-repo>/);
   assert.match(skillContent, /gh pr review <pr-number> --repo <resolved-repo> --approve/);
-  assert.match(skillContent, /detect-gate-review-evidence\.mjs --repo <resolved-repo> --pr <pr-number>/);
+  assert.match(skillContent, /detect-checkpoint-evidence\.mjs --repo <resolved-repo> --pr <pr-number>/);
   assert.doesNotMatch(skillContent, /--require-before-merge/, "the removed opt-in flag must not appear in the docs");
   assert.match(skillContent, /gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch/);
 });

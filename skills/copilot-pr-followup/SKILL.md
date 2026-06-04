@@ -30,7 +30,7 @@ post-PR mechanics:
 
 Route-specific companion docs:
 - routed `issue_intake` work is implemented through this skill plus [Copilot Loop Operations](../docs/copilot-loop-operations.md) and [Issue Intake Procedure](../docs/issue-intake-procedure.md)
-- routed `final_approval` work is implemented through this skill's **Final approval gate** section; [Final Approval](../final-approval/SKILL.md) is now a thin redirect to that canonical section
+- routed `final_approval` work is implemented through this skill's **Human approval checkpoint** section; [Final Approval](../final-approval/SKILL.md) is now a thin redirect to that canonical section
 - the deterministic state-machine/operator guide lives in [Copilot Loop Operations](../docs/copilot-loop-operations.md)
 
 ## Operational cookbook
@@ -55,7 +55,7 @@ Use this helper output as source of truth for the normal routing seam. Interpret
 
 **3. Preferred async wait-boundary helper**
 ```sh
-node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number> [--probe-only]
+node <resolved-skill-scripts>/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number> [--probe-only]
 ```
 For explicit async loop entry or continuation, this is a persistent async watch/fix loop, not handoff-only behavior:
 - treat the normal PR follow-up path as one loop: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → … → pre_approval_gate → merge`
@@ -63,13 +63,13 @@ For explicit async loop entry or continuation, this is a persistent async watch/
 - a single returned watch cycle (`changed`, `timeout`, or `idle`) is never completion by itself
 - if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary instead of reporting completion
 - after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, resume this watcher again in the same async session
-- default max watch timeout for one Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`, set on the low-level `watch-copilot-review.mjs` helper); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
+- default max watch timeout for one Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`, set on the low-level `probe-copilot-review.mjs` helper); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
 - if the user explicitly asks for async handoff-only behavior, say that out loud and stop after the handoff boundary; otherwise do not silently reinterpret async loop entry as handoff-only
 
 **4. Low-level helpers**
 ```sh
 node <resolved-skill-scripts>/github/request-copilot-review.mjs --help
-node <resolved-skill-scripts>/github/watch-copilot-review.mjs --help
+node <resolved-skill-scripts>/github/probe-copilot-review.mjs --help
 node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --help
 ```
 
@@ -160,7 +160,7 @@ If the explicit request fails because Copilot review is not enabled for the repo
 Do not treat an attempted request as equivalent to a confirmed request.
 
 For the resolved `request-copilot-review.mjs` helper, branch on the machine-readable result:
-- `requested`: if another Copilot pass is actually desired, immediately re-baseline with `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` and branch on returned `state`, `snapshot.copilotReviewOnCurrentHead`, `snapshot.ciStatus`, and `nextAction`; only enter persistent waiting through `run-copilot-watch-cycle.mjs` or `gh run watch`, otherwise report the wait state and resume later without bash polling
+- `requested`: if another Copilot pass is actually desired, immediately re-baseline with `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` and branch on returned `state`, `snapshot.copilotReviewOnCurrentHead`, `snapshot.ciStatus`, and `nextAction`; only enter persistent waiting through `run-watch-cycle.mjs` or `gh run watch`, otherwise report the wait state and resume later without bash polling
 - `already-requested`: apply the same detector-first rebasing and wait branching as `requested`; do not keep the session alive with ad hoc bash polling
 - `suppressed_same_head_clean`: report the clean-converged state and stop unless an explicit `--force-rerequest-review` bypass is intentionally authorized
 - `unavailable`: report the limitation and stop unless the user explicitly wants passive waiting without a fresh request
@@ -175,20 +175,20 @@ node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/n
 
 Allowed wait tools for this PR follow-up loop:
 - one-shot PR wait-state classification: `detect-copilot-loop-state.mjs`
-- persistent Copilot review wait: `run-copilot-watch-cycle.mjs`
+- persistent Copilot review wait: `run-watch-cycle.mjs`
 - watch refresh after `timeout`/`idle`: `copilot-pr-handoff.mjs --watch-status <changed|timeout|idle>`
 - CI wait when a current-head workflow run id is known: `gh run watch <run-id> --repo <owner/name>`
 - otherwise: exit cleanly and resume later from a fresh detector call
 
 Practical rule for this repo:
-- `state=waiting_for_copilot_review` with `snapshot.copilotReviewOnCurrentHead=false`: do **not** poll manually; either run `node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent async waiting or report the wait state and resume later after the single detector call
+- `state=waiting_for_copilot_review` with `snapshot.copilotReviewOnCurrentHead=false`: do **not** poll manually; either run `node <resolved-skill-scripts>/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent async waiting or report the wait state and resume later after the single detector call
 - `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`: do **not** poll manually by default; use `gh run watch <run-id> --repo <owner/name>` when the current-head run id is already known, otherwise report pending CI and resume later after the single detector refresh. Bounded exception: if GitHub created zero current-head check suites/statuses, the previous head rollup was green, and local `npm run verify` already passed for the same current head, rerun `detect-copilot-loop-state.mjs` with `--local-validation-head-sha <current-head-sha>` so the detector can promote that exact zero-suite case to `snapshot.ciStatus="crediblyGreen"` instead of waiting forever on raw `none`.
 - `snapshot.ciStatus="failure"` remains a stop/fix state, never a wait loop
 
 Preferred approach for Copilot review follow-up:
 - route request/re-request/watch decisions through `copilot-pr-handoff.mjs` output instead of re-implementing branch logic in markdown
 - enter watcher mode only when handoff returns `action: "watch"` with `requestWatchContract.watchEntryConfirmed=true`
-- for explicit async loop entry or continuation, prefer `run-copilot-watch-cycle.mjs` so the handoff → watch boundary stays deterministic and uses the emitted non-zero watch timeout
+- for explicit async loop entry or continuation, prefer `run-watch-cycle.mjs` so the handoff → watch boundary stays deterministic and uses the emitted non-zero watch timeout
 - if watcher status is `changed`, immediately re-enter the Step 7 fix / reply-resolve / validate path; do not stop at `review requested` or after one watch cycle
 - if watcher status is `timeout`/`idle`, re-run `copilot-pr-handoff.mjs --watch-status <status>` exactly once to refresh authoritative state
 - if that refreshed state is still `waiting_for_copilot_review` after the default 30-minute watch budget was exhausted, treat it as a hard stop and report `watch timeout — PR #<number> needs manual attention.` rather than pretending the loop completed cleanly
@@ -203,12 +203,12 @@ Preferred approach for Copilot review follow-up:
 
 Every async dev-loop dispatch task body must include this clause verbatim so fresh-context subagents inherit the gate requirement:
 
-> Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean gate-review comment exists on the PR for the current head SHA. Do not stop or report completion without this evidence.
+> Before reporting merge-ready or stopping at the human approval checkpoint, you must complete the pre_approval_gate procedure and verify that a visible clean checkpoint verdict comment exists on the PR for the current head SHA. Do not stop or report completion without this evidence.
 
 Key rules:
 - expected polling idle time is normal
 - do not restart watchers just because there has been a short quiet period
-- helper-owned sleep inside `run-copilot-watch-cycle.mjs`, `watch-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed
+- helper-owned sleep inside `run-watch-cycle.mjs`, `probe-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed
 - agent-authored shell polling is forbidden
 - do not use `nohup`, detached shell jobs, `tmux`, `screen`, or ad hoc `for i in $(seq ...)`, `while true`, `until ...; do sleep ...; done`, or `sleep`-retry bash loops for this workflow
 - do not wrap repeated `gh pr view`, `gh pr checks`, `gh api`, or `detect-copilot-loop-state.mjs` calls inside shell polling loops
@@ -282,7 +282,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
     - if GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot
     - only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head rather than assuming it remains requested
     - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
-    - for `requested` / `already-requested`, immediately re-baseline with `detect-copilot-loop-state.mjs`; if the returned state is `waiting_for_copilot_review`, use `run-copilot-watch-cycle.mjs` or stop/resume later, and if the returned state is `waiting_for_ci`, use `gh run watch` for a known run id or stop/resume later after that single detector refresh
+    - for `requested` / `already-requested`, immediately re-baseline with `detect-copilot-loop-state.mjs`; if the returned state is `waiting_for_copilot_review`, use `run-watch-cycle.mjs` or stop/resume later, and if the returned state is `waiting_for_ci`, use `gh run watch` for a known run id or stop/resume later after that single detector refresh
     - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
     - if the request command fails unexpectedly, stop and report the error rather than sleeping and hoping for a new review
 13. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at `review requested`
@@ -296,7 +296,7 @@ Do not treat `fix applied locally` as the end of the loop when the workflow also
 For every `draft_gate` or `pre_approval_gate` comment, you MUST run:
 
 ```sh
-node <resolved-skill-scripts>/github/upsert-gate-review-comment.mjs \
+node <resolved-skill-scripts>/github/upsert-checkpoint-verdict.mjs \
   --repo <owner/name> \
   --pr <number> \
   --gate <draft_gate|pre_approval_gate> \
@@ -308,21 +308,21 @@ node <resolved-skill-scripts>/github/upsert-gate-review-comment.mjs \
 
 Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.
 
-`--force --force-reason` on `upsert-gate-review-comment.mjs` is a narrow operator-authorized CI override for the helper itself, not the default gate path. Use it only when the helper refuses gate entry solely because the current head is `blocked_needs_user_decision` with `ciStatus="failure"`, and only after the user explicitly authorizes ignoring that current-head CI failure for this one gate-comment upsert. It does **not** bypass stale-head checks, unresolved-thread / unsettled-review refusal, non-draft `draft_gate` refusal, merge conflicts, or other legality checks.
+`--force --force-reason` on `upsert-checkpoint-verdict.mjs` is a narrow operator-authorized CI override for the helper itself, not the default gate path. Use it only when the helper refuses gate entry solely because the current head is `blocked_needs_user_decision` with `ciStatus="failure"`, and only after the user explicitly authorizes ignoring that current-head CI failure for this one gate-comment upsert. It does **not** bypass stale-head checks, unresolved-thread / unsettled-review refusal, non-draft `draft_gate` refusal, merge conflicts, or other legality checks.
 
 ### Draft gate contract (before marking PR ready for review)
 
-The canonical gate-review comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
+The canonical checkpoint verdict comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
 
 - **Gate name:** Draft gate
 - **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
 - **Skip rule:** before entering the draft gate, run `detect-pr-gate-coordination-state.mjs` and check `draftGateAlreadySatisfied`. If `true`, skip the draft gate entirely — the draft→ready transition was already recorded. `draft_gate` is a one-time gate; do not re-post on new heads once clean draft-gate evidence exists for the transition record. (While the PR is still draft, advancing the head SHA does require a new draft-gate comment for the new head.) This skip rule applies only to the draft boundary.
-- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the draft gate review angles resolved from config. The sub-loop follows a mandatory chain:
+- **Execution directive:** run the checkpoint review chain defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the draft gate inspection angles resolved from config. The sub-loop follows a mandatory chain:
   1. **Context-builder (mandatory):** produce a shared briefing artifact covering the git diff, adjacent code, current CI/test status, and acceptance criteria. No reviewer runs without this briefing.
   2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context (subagent({context:"fresh"}) mandatory), inspects the diff, returns findings via output artifacts only, and never edits files. **Before starting:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` to self-verify fresh context; refuse to proceed on contamination. Use `--scope` so parallel reviewers in the same working directory do not trigger false contamination.
   3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer). Write the disposition ledger via `write-gate-findings-log.mjs` before posting any visible comment.
   4. **Disposition ledger:** log every finding with its severity classification and disposition (accepted-for-fix, deferred, disputed, operator_acknowledged) under `tmp/gate-findings/`. The ledger is the durable record; the visible PR comment is a summary.
-  5. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
+  5. **Post findings first:** post the findings as a visible PR comment via `upsert-checkpoint-verdict.mjs` **before** any fix code is applied.
   6. **Fix cycle:** apply accepted fixes for all findings at severities in the gate's `blockCleanOnFindingSeverities` (resolved from config). The fix cycle covers all blocking severities, not only `must-fix`. If `blockCleanOnFindingSeverities` includes `worth-fixing-now`, then worth-fixing-now findings must be fixed before the gate can reach `clean`.
   7. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → disposition ledger → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config enables all 14 draft gate angle families; consumer repos may opt out individual angles via `excludeAngles`. Do **not** apply angles from the other gate; each gate owns its own angle list from config.
@@ -330,24 +330,24 @@ The canonical gate-review comment contract is [Gate Review Comment Contract](../
 - **Pass criteria:** all configured draft gate angles pass; all findings at severities in `blockCleanOnFindingSeverities` are addressed; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review.
 - **Non-substitution rule:** a clean `draft_gate` comment only authorizes the draft → ready-for-review transition for that head SHA. It does **not** satisfy `pre_approval_gate`, final-approval readiness, or merge-ready requirements.
-- **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
-- A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
+- **Required PR comment:** after the `draft_gate` review runs, post a visible checkpoint verdict comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
+- A checkpoint verdict comment for an older head SHA does not satisfy this requirement for the current head.
 - If the `draft_gate` finds issues, the comment must say that the PR stays draft and needs fixes before retrying.
-- Do not run `gh pr ready` unless a visible `clean` `draft_gate` gate-review comment exists for the current head SHA.
-- If fixes advance the head SHA **while the PR is still draft**, post a new gate-review comment for the new head.
+- Do not run `gh pr ready` unless a visible `clean` `draft_gate` checkpoint verdict comment exists for the current head SHA.
+- If fixes advance the head SHA **while the PR is still draft**, post a new checkpoint verdict comment for the new head.
 
 ### Pre-approval gate contract
 
-This is the default pre-approval gate for this workflow boundary. The canonical gate-review comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
+This is the default pre-approval gate for this workflow boundary. The canonical checkpoint verdict comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
 
 - **Gate name:** Pre-approval gate
 - **Trigger / boundary:** right before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff
-- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the pre-approval gate review angles resolved from config. The sub-loop follows a mandatory chain:
+- **Execution directive:** run the checkpoint review chain defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the pre-approval gate inspection angles resolved from config. The sub-loop follows a mandatory chain:
   1. **Context-builder (mandatory):** produce a shared briefing artifact covering the git diff, adjacent code, current CI/test status, and acceptance criteria. No reviewer runs without this briefing.
   2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context (subagent({context:"fresh"}) mandatory), inspects the diff, returns findings via output artifacts only, and never edits files. **Before starting:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` to self-verify fresh context; refuse to proceed on contamination. Use `--scope` so parallel reviewers in the same working directory do not trigger false contamination.
   3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer). Write the disposition ledger via `write-gate-findings-log.mjs` before posting any visible comment.
   4. **Disposition ledger:** log every finding with its severity classification and disposition (accepted-for-fix, deferred, disputed, operator_acknowledged) under `tmp/gate-findings/`. The ledger is the durable record; the visible PR comment is a summary.
-  5. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
+  5. **Post findings first:** post the findings as a visible PR comment via `upsert-checkpoint-verdict.mjs` **before** any fix code is applied.
   6. **Fix cycle:** apply accepted fixes for all findings at severities in the gate's `blockCleanOnFindingSeverities` (resolved from config). The fix cycle covers all blocking severities, not only `must-fix`. If `blockCleanOnFindingSeverities` includes `worth-fixing-now`, then worth-fixing-now findings must be fixed before the gate can reach `clean`.
   7. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → disposition ledger → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
   8. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced `findings_present` in the previous pass.
@@ -360,14 +360,14 @@ This is the default pre-approval gate for this workflow boundary. The canonical 
   3. extract checklist items from the **Acceptance criteria** section of the issue body (both `- [ ]` unchecked and `- [x]` already-checked items); ignore checklist items from other sections (DoD, tasks, non-goals) that are not acceptance criteria
   4. for each AC item, verify whether the proposed changes on the current PR head satisfy it
   5. compute the fully-updated issue body once by replacing each verified item's `- [ ]` with `- [x]`, write it to a temporary file, and perform a single `gh issue edit <issue-number> --body-file <tmp-file> --repo <owner/name>` (do not issue one edit per item; prefer `--body-file` over inline `--body` to avoid shell quoting/escaping hazards)
-  6. always post a `pre_approval_gate` comment (the gate-review comment contract requires a visible comment even for non-`clean` verdicts); use verdict `clean` only when all AC items are verified; use verdict `findings_present` when any AC item is not satisfied and requires follow-up fixes; use verdict `blocked` when the gate cannot complete deterministically (for example no linked issue, ambiguous issue linkage, or the issue body is unavailable) — in all cases include a note on AC verification status
+  6. always post a `pre_approval_gate` comment (the checkpoint verdict comment contract requires a visible comment even for non-`clean` verdicts); use verdict `clean` only when all AC items are verified; use verdict `findings_present` when any AC item is not satisfied and requires follow-up fixes; use verdict `blocked` when the gate cannot complete deterministically (for example no linked issue, ambiguous issue linkage, or the issue body is unavailable) — in all cases include a note on AC verification status
   When the issue body has no AC checklist items, post the gate comment with verdict `findings_present` and note that fact explicitly rather than assuming satisfaction.
-- **Next step after passing:** continue the Step 7 flow and then proceed to the final approval gate below.
+- **Next step after passing:** continue the Step 7 flow and then proceed to the human approval checkpoint below.
 - **Non-substitution rule:** a clean `pre_approval_gate` comment is separate from `draft_gate` evidence. It governs final-approval readiness for that head SHA; it does **not** replace the required `draft_gate` evidence for leaving draft.
-- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval. Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA. Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence. If the gate-review comment cannot be posted, fail closed and do not declare final-approval readiness.
+- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible checkpoint verdict comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval. Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` checkpoint verdict comment exists for the current head SHA. Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence. If the checkpoint verdict comment cannot be posted, fail closed and do not declare final-approval readiness.
 - The `pre_approval_gate` procedure must be entered and completed (visible comment posted) before any merge-ready or approval-ready declaration. Skipping the gate is not recoverable by asserting convergence.
-- A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
-- If fixes advance the head SHA, post a new gate-review comment for the new head.
+- A checkpoint verdict comment for an older head SHA does not satisfy this requirement for the current head.
+- If fixes advance the head SHA, post a new checkpoint verdict comment for the new head.
 
 ### Conflict-resolution gate
 
@@ -389,9 +389,9 @@ Before any merge-ready or final-approval claim, run `detect-pr-gate-coordination
 
 See [Merge Preconditions](../docs/merge-preconditions.md). Verify: `unresolvedThreadCount === 0` (via `capture-review-threads.mjs`), visible clean `draft_gate` + current-head `pre_approval_gate`, green CI. For parallel review passes: start each reviewer in fresh context with a concise focus-specific briefing summary; do not fork the parent session just to preserve chat state (write a compact handoff artifact under `tmp/copilot-loop/` instead). **Mandatory fresh-context verification:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` at reviewer startup; block on contamination. Use `--scope` for parallel reviewers.
 
-### Final approval gate
+### Human approval checkpoint
 
-After merge-ready preconditions pass, verify [Merge Preconditions](../docs/merge-preconditions.md) authoritatively before reporting merge-ready. Stop at the final human approval gate by default. Cross-check via `capture-review-threads.mjs` (not prose assertion).
+After merge-ready preconditions pass, verify [Merge Preconditions](../docs/merge-preconditions.md) authoritatively before reporting merge-ready. Stop at the human approval checkpoint by default. Cross-check via `capture-review-threads.mjs` (not prose assertion).
 Follow [Merge Preconditions](../docs/merge-preconditions.md): stop at `waiting_for_merge_authorization` after approval unless merge explicitly authorized. Run pre-merge gate evidence check before any `gh pr merge`.
 
 ### Mechanical pre-merge gate evidence check
@@ -399,7 +399,7 @@ Follow [Merge Preconditions](../docs/merge-preconditions.md): stop at `waiting_f
 Immediately before any `gh pr merge`, run:
 
 ```sh
-node <resolved-skill-scripts>/github/detect-gate-review-evidence.mjs \
+node <resolved-skill-scripts>/github/detect-checkpoint-evidence.mjs \
   --repo <owner/name> \
   --pr <number>
 ```
@@ -422,7 +422,7 @@ Follow [Stop Conditions](../docs/stop-conditions.md). Genuine stops: `blocked` s
 
 See [Anti-patterns](../docs/anti-patterns.md). Key repo-specific additions:
 - Use `reply-resolve-review-thread.mjs` / `reply-resolve-review-threads.mjs` helpers instead of ad hoc `gh api`/`gh api graphql` thread-mutation commands
-- Do NOT use `gh pr comment` or `gh pr review` for gate comments (use `upsert-gate-review-comment.mjs`)
+- Do NOT use `gh pr comment` or `gh pr review` for gate comments (use `upsert-checkpoint-verdict.mjs`)
 - Do not declare merge-ready without visible `pre_approval_gate` comment on current head SHA
 - Do not declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence
 - Do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when conflicted

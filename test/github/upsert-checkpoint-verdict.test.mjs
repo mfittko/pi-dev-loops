@@ -7,12 +7,12 @@ import test from "node:test";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import {
-  parseUpsertGateReviewCommentCliArgs,
-  summarizeGateReviewText,
-  upsertGateReviewComment,
-} from "../../scripts/github/upsert-gate-review-comment.mjs";
+  parseUpsertCheckpointVerdictCliArgs,
+  summarizeCheckpointVerdictText,
+  upsertCheckpointVerdict,
+} from "../../scripts/github/upsert-checkpoint-verdict.mjs";
 
-const scriptPath = path.resolve("scripts/github/upsert-gate-review-comment.mjs");
+const scriptPath = path.resolve("scripts/github/upsert-checkpoint-verdict.mjs");
 
 const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
 
@@ -89,13 +89,13 @@ function buildGateComment({
   };
 }
 
-test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments deterministically", () => {
+test("parseUpsertCheckpointVerdictCliArgs rejects malformed arguments deterministically", () => {
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([]),
+    () => parseUpsertCheckpointVerdictCliArgs([]),
     /requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary, and --next-action/i,
   );
 
-  const parsed = parseUpsertGateReviewCommentCliArgs([
+  const parsed = parseUpsertCheckpointVerdictCliArgs([
     "--repo", "owner/repo",
     "--pr", "17",
     "--gate", "draft_gate",
@@ -108,7 +108,7 @@ test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments determinis
   assert.equal(parsed.headSha, "abc1234");
 
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([
+    () => parseUpsertCheckpointVerdictCliArgs([
       "--repo", "owner/repo",
       "--pr", "17",
       "--gate", "draft_gate",
@@ -122,8 +122,8 @@ test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments determinis
   );
 });
 
-test("parseUpsertGateReviewCommentCliArgs accepts --force with normalized --force-reason", () => {
-  const parsed = parseUpsertGateReviewCommentCliArgs([
+test("parseUpsertCheckpointVerdictCliArgs accepts --force with normalized --force-reason", () => {
+  const parsed = parseUpsertCheckpointVerdictCliArgs([
     "--repo", "owner/repo",
     "--pr", "17",
     "--gate", "draft_gate",
@@ -141,9 +141,9 @@ test("parseUpsertGateReviewCommentCliArgs accepts --force with normalized --forc
   assert.equal(parsed.forceReason, "CI cancelled due to infra");
 });
 
-test("parseUpsertGateReviewCommentCliArgs rejects --force without --force-reason", () => {
+test("parseUpsertCheckpointVerdictCliArgs rejects --force without --force-reason", () => {
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([
+    () => parseUpsertCheckpointVerdictCliArgs([
       "--repo", "owner/repo",
       "--pr", "17",
       "--gate", "draft_gate",
@@ -158,9 +158,9 @@ test("parseUpsertGateReviewCommentCliArgs rejects --force without --force-reason
   );
 });
 
-test("parseUpsertGateReviewCommentCliArgs rejects --force-reason without --force", () => {
+test("parseUpsertCheckpointVerdictCliArgs rejects --force-reason without --force", () => {
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([
+    () => parseUpsertCheckpointVerdictCliArgs([
       "--repo", "owner/repo",
       "--pr", "17",
       "--gate", "draft_gate",
@@ -175,9 +175,9 @@ test("parseUpsertGateReviewCommentCliArgs rejects --force-reason without --force
   );
 });
 
-test("upsertGateReviewComment rejects programmatic force without forceReason before any gh calls", async () => {
+test("upsertCheckpointVerdict rejects programmatic force without forceReason before any gh calls", async () => {
   await assert.rejects(
-    () => upsertGateReviewComment({
+    () => upsertCheckpointVerdict({
       repo: "owner/repo",
       pr: 17,
       gate: "draft_gate",
@@ -187,13 +187,13 @@ test("upsertGateReviewComment rejects programmatic force without forceReason bef
       nextAction: "mark ready for review",
       force: true,
     }),
-    /force requires forceReason when calling upsertGateReviewComment\(\)/i,
+    /force requires forceReason when calling upsertCheckpointVerdict\(\)/i,
   );
 });
 
-test("parseUpsertGateReviewCommentCliArgs rejects blank --force-reason", () => {
+test("parseUpsertCheckpointVerdictCliArgs rejects blank --force-reason", () => {
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([
+    () => parseUpsertCheckpointVerdictCliArgs([
       "--repo", "owner/repo",
       "--pr", "17",
       "--gate", "draft_gate",
@@ -209,9 +209,9 @@ test("parseUpsertGateReviewCommentCliArgs rejects blank --force-reason", () => {
   );
 });
 
-test("summarizeGateReviewText compacts verbose validation success logs deterministically", () => {
+test("summarizeCheckpointVerdictText compacts verbose validation success logs deterministically", () => {
   assert.equal(
-    summarizeGateReviewText([
+    summarizeCheckpointVerdictText([
       "Validation: verbose local logs follow",
       "> npm test",
       "ℹ tests 46",
@@ -224,25 +224,25 @@ test("summarizeGateReviewText compacts verbose validation success logs determini
   );
 });
 
-test("summarizeGateReviewText keeps failing validation to a concise excerpt", () => {
+test("summarizeCheckpointVerdictText keeps failing validation to a concise excerpt", () => {
   assert.equal(
-    summarizeGateReviewText([
+    summarizeCheckpointVerdictText([
       "> npm test",
       "ℹ tests 46",
       "ℹ pass 45",
       "ℹ fail 1",
-      "✖ test/github/upsert-gate-review-comment.test.mjs",
+      "✖ test/github/upsert-checkpoint-verdict.test.mjs",
       "AssertionError: Expected values to be strictly equal: 1 !== 2",
-      "at TestContext.<anonymous> (/tmp/workspace/mfittko/pi-dev-loops/test/github/upsert-gate-review-comment.test.mjs:42:10)",
+      "at TestContext.<anonymous> (/tmp/workspace/mfittko/pi-dev-loops/test/github/upsert-checkpoint-verdict.test.mjs:42:10)",
     ].join("\n")),
-    "commands: npm test; tests: 46, pass: 45, fail: 1; failure excerpt: test/github/upsert-gate-review-comment.test.mjs",
+    "commands: npm test; tests: 46, pass: 45, fail: 1; failure excerpt: test/github/upsert-checkpoint-verdict.test.mjs",
   );
 });
 
 
-test("summarizeGateReviewText preserves long single-line narratives instead of inventing a log summary", () => {
+test("summarizeCheckpointVerdictText preserves long single-line narratives instead of inventing a log summary", () => {
   const narrative = "Passed reviewer note: keep the operator-facing summary readable even when Error and passed appear in the same explanatory sentence, because this is narrative text rather than a multiline validation log. ".repeat(3).trim();
-  const summarized = summarizeGateReviewText(narrative, 140);
+  const summarized = summarizeCheckpointVerdictText(narrative, 140);
 
   assert.match(summarized, /^Passed reviewer note:/);
   assert.match(summarized, /Error and passed appear/);
@@ -251,7 +251,7 @@ test("summarizeGateReviewText preserves long single-line narratives instead of i
 });
 
 
-test("summarizeGateReviewText preserves multiline narrative text when no structured validation signals are present", () => {
+test("summarizeCheckpointVerdictText preserves multiline narrative text when no structured validation signals are present", () => {
   const narrative = [
     "Validation recap:",
     "The operator passed through the flow carefully.",
@@ -259,14 +259,14 @@ test("summarizeGateReviewText preserves multiline narrative text when no structu
   ].join("\n");
 
   assert.equal(
-    summarizeGateReviewText(narrative),
+    summarizeCheckpointVerdictText(narrative),
     "Validation recap: The operator passed through the flow carefully. Nothing here is a command log or CI line.",
   );
 });
 
-test("summarizeGateReviewText captures Error-prefixed failure lines", () => {
+test("summarizeCheckpointVerdictText captures Error-prefixed failure lines", () => {
   assert.equal(
-    summarizeGateReviewText([
+    summarizeCheckpointVerdictText([
       "> npm test",
       "Error: Expected gate summary to stay bounded",
       "detail: additional stack output that should not become the visible excerpt",
@@ -276,7 +276,7 @@ test("summarizeGateReviewText captures Error-prefixed failure lines", () => {
 });
 
 
-test("summarizeGateReviewText does not treat markdown headings as shell commands", () => {
+test("summarizeCheckpointVerdictText does not treat markdown headings as shell commands", () => {
   const narrative = [
     "# Summary",
     "Validation recap passed through manual review.",
@@ -285,12 +285,12 @@ test("summarizeGateReviewText does not treat markdown headings as shell commands
   ].join("\n");
 
   assert.equal(
-    summarizeGateReviewText(narrative),
+    summarizeCheckpointVerdictText(narrative),
     "# Summary Validation recap passed through manual review. ## Notes This is prose, not a shell transcript.",
   );
 });
 
-test("upsert-gate-review-comment allows forced draft_gate create when current-head CI failure is the only blocker", async () => {
+test("upsert-checkpoint-verdict allows forced draft_gate create when current-head CI failure is the only blocker", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-draft-"));
 
   try {
@@ -340,7 +340,7 @@ test("upsert-gate-review-comment allows forced draft_gate create when current-he
   }
 });
 
-test("upsert-gate-review-comment allows forced pre_approval_gate create when current-head CI failure is the only blocker", async () => {
+test("upsert-checkpoint-verdict allows forced pre_approval_gate create when current-head CI failure is the only blocker", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-preapproval-"));
 
   try {
@@ -390,7 +390,7 @@ test("upsert-gate-review-comment allows forced pre_approval_gate create when cur
   }
 });
 
-test("upsert-gate-review-comment keeps CI-blocked gate upserts fail-closed without --force and points to the escape hatch", async () => {
+test("upsert-checkpoint-verdict keeps CI-blocked gate upserts fail-closed without --force and points to the escape hatch", async () => {
   for (const scenario of [
     { gate: "draft_gate", isDraft: true, nextAction: "mark ready for review" },
     { gate: "pre_approval_gate", isDraft: false, nextAction: "await final human approval" },
@@ -426,7 +426,7 @@ test("upsert-gate-review-comment keeps CI-blocked gate upserts fail-closed witho
   }
 });
 
-test("upsert-gate-review-comment forced update includes forced metadata", async () => {
+test("upsert-checkpoint-verdict forced update includes forced metadata", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-update-"));
 
   try {
@@ -481,7 +481,7 @@ test("upsert-gate-review-comment forced update includes forced metadata", async 
   }
 });
 
-test("upsert-gate-review-comment forced noop includes forced metadata", async () => {
+test("upsert-checkpoint-verdict forced noop includes forced metadata", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-noop-"));
 
   try {
@@ -530,7 +530,7 @@ test("upsert-gate-review-comment forced noop includes forced metadata", async ()
   }
 });
 
-test("upsert-gate-review-comment does not use --force to bypass non-CI pre_approval_gate refusal", async () => {
+test("upsert-checkpoint-verdict does not use --force to bypass non-CI pre_approval_gate refusal", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-non-ci-preapproval-"));
 
   try {
@@ -563,7 +563,7 @@ test("upsert-gate-review-comment does not use --force to bypass non-CI pre_appro
   }
 });
 
-test("upsert-gate-review-comment does not use --force to bypass draft_gate refusal on a non-draft PR", async () => {
+test("upsert-checkpoint-verdict does not use --force to bypass draft_gate refusal on a non-draft PR", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-non-draft-"));
 
   try {
@@ -596,7 +596,7 @@ test("upsert-gate-review-comment does not use --force to bypass draft_gate refus
   }
 });
 
-test("upsert-gate-review-comment stale-head protection still fails closed with --force", async () => {
+test("upsert-checkpoint-verdict stale-head protection still fails closed with --force", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-force-stale-"));
 
   try {
@@ -629,7 +629,7 @@ test("upsert-gate-review-comment stale-head protection still fails closed with -
   }
 });
 
-test("upsert-gate-review-comment creates a new comment when no same-head marker exists", async () => {
+test("upsert-checkpoint-verdict creates a new comment when no same-head marker exists", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-create-"));
 
   try {
@@ -691,7 +691,7 @@ test("upsert-gate-review-comment creates a new comment when no same-head marker 
   }
 });
 
-test("upsert-gate-review-comment fails closed when pre-approval gate entry is still illegal", async () => {
+test("upsert-checkpoint-verdict fails closed when pre-approval gate entry is still illegal", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-illegal-preapproval-"));
 
   try {
@@ -754,7 +754,7 @@ test("upsert-gate-review-comment fails closed when pre-approval gate entry is st
   }
 });
 
-test("upsert-gate-review-comment appends the round-cap fallback note to pre-approval evidence", async () => {
+test("upsert-checkpoint-verdict appends the round-cap fallback note to pre-approval evidence", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-round-cap-"));
 
   try {
@@ -846,7 +846,7 @@ test("upsert-gate-review-comment appends the round-cap fallback note to pre-appr
   }
 });
 
-test("upsert-gate-review-comment truncates verbose findings summary before comment creation", async () => {
+test("upsert-checkpoint-verdict truncates verbose findings summary before comment creation", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-verbose-"));
 
   try {
@@ -933,7 +933,7 @@ test("upsert-gate-review-comment truncates verbose findings summary before comme
   }
 });
 
-test("upsert-gate-review-comment suppresses duplicate repost when the current same-head comment already matches", async () => {
+test("upsert-checkpoint-verdict suppresses duplicate repost when the current same-head comment already matches", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-noop-"));
 
   try {
@@ -1008,7 +1008,7 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
   }
 });
 
-test("upsert-gate-review-comment noop still warns when a stale comment exists on a different head", async () => {
+test("upsert-checkpoint-verdict noop still warns when a stale comment exists on a different head", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-noop-warn-"));
 
   try {
@@ -1090,7 +1090,7 @@ test("upsert-gate-review-comment noop still warns when a stale comment exists on
   }
 });
 
-test("upsert-gate-review-comment updates an incomplete same-head marker in place", async () => {
+test("upsert-checkpoint-verdict updates an incomplete same-head marker in place", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-update-"));
 
   try {
@@ -1165,7 +1165,7 @@ test("upsert-gate-review-comment updates an incomplete same-head marker in place
   }
 });
 
-test("upsert-gate-review-comment updates the current same-head marker even when another head has a newer marker", async () => {
+test("upsert-checkpoint-verdict updates the current same-head marker even when another head has a newer marker", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-current-head-"));
 
   try {
@@ -1256,7 +1256,7 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
   }
 });
 
-test("upsert-gate-review-comment prefers the latest same-head marker when it differs from the older strict summary", async () => {
+test("upsert-checkpoint-verdict prefers the latest same-head marker when it differs from the older strict summary", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-latest-marker-"));
 
   try {
@@ -1346,7 +1346,7 @@ test("upsert-gate-review-comment prefers the latest same-head marker when it dif
   }
 });
 
-test("upsert-gate-review-comment expands an abbreviated current-head SHA before matching same-head markers", async () => {
+test("upsert-checkpoint-verdict expands an abbreviated current-head SHA before matching same-head markers", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-short-head-"));
 
   try {
@@ -1420,7 +1420,7 @@ test("upsert-gate-review-comment expands an abbreviated current-head SHA before 
   }
 });
 
-test("upsert-gate-review-comment fails closed when the requested head SHA is stale", async () => {
+test("upsert-checkpoint-verdict fails closed when the requested head SHA is stale", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-stale-"));
 
   try {
@@ -1465,7 +1465,7 @@ test("upsert-gate-review-comment fails closed when the requested head SHA is sta
   }
 });
 
-test("upsert-gate-review-comment warns when a gate comment exists on a different head SHA", async () => {
+test("upsert-checkpoint-verdict warns when a gate comment exists on a different head SHA", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-warn-stale-"));
 
   try {
@@ -1536,7 +1536,7 @@ test("upsert-gate-review-comment warns when a gate comment exists on a different
   }
 });
 
-test("upsert-gate-review-comment fails closed when draft_gate is forbidden on a non-draft PR", async () => {
+test("upsert-checkpoint-verdict fails closed when draft_gate is forbidden on a non-draft PR", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-draft-forbidden-"));
 
   try {
@@ -1598,7 +1598,7 @@ test("upsert-gate-review-comment fails closed when draft_gate is forbidden on a 
   }
 });
 
-test("upsert-gate-review-comment rejects clean verdict when unresolved blocking-severity findings remain", async () => {
+test("upsert-checkpoint-verdict rejects clean verdict when unresolved blocking-severity findings remain", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-blocking-"));
 
   try {
@@ -1630,7 +1630,7 @@ test("upsert-gate-review-comment rejects clean verdict when unresolved blocking-
   }
 });
 
-test("upsert-gate-review-comment allows clean verdict when no blocking-severity findings remain", async () => {
+test("upsert-checkpoint-verdict allows clean verdict when no blocking-severity findings remain", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-clean-ok-"));
 
   try {
@@ -1669,7 +1669,7 @@ test("upsert-gate-review-comment allows clean verdict when no blocking-severity 
 
 
 
-test("upsert-gate-review-comment rejects clean verdict when --findings-severity-counts is missing and blocking severities are configured", async () => {
+test("upsert-checkpoint-verdict rejects clean verdict when --findings-severity-counts is missing and blocking severities are configured", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-missing-counts-"));
 
   try {
@@ -1701,7 +1701,7 @@ test("upsert-gate-review-comment rejects clean verdict when --findings-severity-
   }
 });
 
-test("upsert-gate-review-comment rejects clean verdict when --findings-severity-counts omits a blocking severity", async () => {
+test("upsert-checkpoint-verdict rejects clean verdict when --findings-severity-counts omits a blocking severity", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-missing-key-"));
 
   try {

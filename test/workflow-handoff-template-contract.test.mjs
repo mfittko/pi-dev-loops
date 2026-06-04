@@ -29,12 +29,12 @@ test("workflow-handoff-template includes all 8 mandatory steps in order", async 
 
   const stepPatterns = [
     /### 1\. Create draft PR/i,
-    /### 2\. Draft gate review/i,
+    /### 2\. Draft gate inspection/i,
     /### 3\. Mark ready for review/i,
     /### 4\. Wait for Copilot review/i,
     /### 5\. Address Copilot feedback/i,
     /### 6\. Re-request Copilot review/i,
-    /### 7\. Pre-approval gate review/i,
+    /### 7\. Pre-approval gate inspection/i,
     /### 8\. Merge/i,
   ];
 
@@ -138,7 +138,7 @@ test("unresolvedThreadCount === 0 appears before pre_approval_gate in mandatory 
   const sequenceSection = content.slice(seqStart, nextSection);
 
   const unresolvedIndex = sequenceSection.indexOf("unresolvedThreadCount === 0");
-  const preApprovalIndex = sequenceSection.indexOf("### 7. Pre-approval gate review");
+  const preApprovalIndex = sequenceSection.indexOf("### 7. Pre-approval gate inspection");
 
   assert.ok(unresolvedIndex >= 0, "unresolvedThreadCount === 0 must appear in mandatory sequence");
   assert.ok(preApprovalIndex >= 0, "pre_approval_gate step must exist in mandatory sequence");

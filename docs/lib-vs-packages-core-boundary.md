@@ -17,7 +17,7 @@ This document defines which shared logic belongs in `lib/` versus `packages/core
 - Pure parsing helpers (state detection, JSON normalization, comment parsing)
 - State machine definitions with no side effects
 - Data transformation and aggregation utilities
-- GitHub data normalization (review threads, gate-review comments, Copilot reviews)
+- GitHub data normalization (review threads, checkpoint verdict comments, Copilot reviews)
 - Loop-state logic (Copilot loop, reviewer loop, tracker PR state, conductor routing)
 - Phase-file helpers
 

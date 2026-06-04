@@ -13,7 +13,7 @@ user-invocable: false
 This route now uses [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) as the canonical procedure owner.
 
 When the public router selects `final_approval`, load [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md)
-and follow its **Final approval gate** section inside Step 7.
+and follow its **Human approval checkpoint** section inside Step 7.
 
 Use this redirect only as a narrowed read-set pointer for the routed `final_approval` strategy.
 Do not restate merge-ready preconditions, gate evidence rules, or merge authorization policy here.

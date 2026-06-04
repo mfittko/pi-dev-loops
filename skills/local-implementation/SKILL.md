@@ -59,7 +59,7 @@ When the local spec already lives in a tracker issue:
 - sync durable scope / acceptance / status changes back to the tracker issue rather than maintaining a duplicate local phase doc
 - keep `tmp/` as temporary local execution state only; it does not become a second durable spec surface
 - for tracker-backed sessions, the handoff path is always: push the working branch → open a PR → merge via GitHub
-- for tracker-backed sessions, PR creation must always include `--assignee @me` so the new PR is self-assigned, and the PR body must contain `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge. When `.pi/dev-loop/settings.yaml` `workflow.requireDraftFirst` opts in, use `node scripts/github/create-draft-pr.mjs --assignee @me ...`. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate review is a real workflow boundary.
+- for tracker-backed sessions, PR creation must always include `--assignee @me` so the new PR is self-assigned, and the PR body must contain `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge. When `.pi/dev-loop/settings.yaml` `workflow.requireDraftFirst` opts in, use `node scripts/github/create-draft-pr.mjs --assignee @me ...`. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate inspection is a real workflow boundary.
 - do not suggest a direct local-main merge for tracker-backed sessions; do not merge the working branch into local `main` at phase completion
 
 ## Primary execution rules
@@ -194,7 +194,7 @@ In auto mode:
 - never auto-resolve product, security, or architecture decisions that could materially change scope
 - write all assumptions to `Clarification Log` (`tmp/phases/phase-x/clarification.md`)
 - mark them clearly as `auto-assumptions`
-- surface the assumptions in the phase review so they can be challenged later
+- surface the assumptions in the phase plan audit so they can be challenged later
 - if an assumption is too risky to make safely, stop and ask the user anyway
 
 Do not begin fan-out planning until the current phase is sufficiently specified, either by user clarification or safe auto-assumptions.
@@ -205,12 +205,12 @@ Read [Implementation State](../../docs/IMPLEMENTATION_STATE.md) and identify the
 Read [Phase Plan](../../docs/phases/phase-x.md) for that phase if it exists.
 
 If `tmp/phases/index.json` exists locally, use it as a fast index for prior artifacts.
-If the durable phase doc, the state file, and the tmp index disagree, trust docs first and note the mismatch in the phase review log.
+If the durable phase doc, the state file, and the tmp index disagree, trust docs first and note the mismatch in the phase plan audit log.
 
 If the state file is ambiguous, resolve ambiguity conservatively:
 - prefer the earliest clearly unfinished phase
 - do not skip ahead
-- note the ambiguity in the phase review log under `tmp/`
+- note the ambiguity in the phase plan audit log under `tmp/`
 - if this is a first-run bootstrap, start from the earliest phase implied by [Project Plan](../../PLAN.md)
 
 ## Phase planning loop
@@ -481,7 +481,7 @@ After the phase plan passes review:
   4. **Disposition ledger:** log every finding with its severity classification and disposition (accepted-for-fix, deferred, disputed, operator_acknowledged) under `tmp/gate-findings/`. The ledger is the durable record; the visible PR comment is a summary.
   5. **Post findings first:** document findings before any fix code is applied.
   6. **Fix cycle:** apply accepted fixes for all findings at severities in the gate's `blockCleanOnFindingSeverities` (resolved from config). The fix cycle covers all blocking severities, not only `must-fix`. If `blockCleanOnFindingSeverities` includes `worth-fixing-now`, then worth-fixing-now findings must be fixed before the gate can reach `clean`.
-  7. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → disposition ledger → document findings) on the new head before calling the phase review-complete or approval-ready. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
+  7. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → disposition ledger → document findings) on the new head before calling the phase plan audit-complete or approval-ready. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
   8. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced findings in the previous pass
    - do not fork the parent session for parallel reviewers; if more context is needed, write a compact handoff artifact under `tmp/` and point the reviewer at it **Mandatory fresh-context verification:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` at reviewer startup; block on contamination. Use `--scope` for parallel reviewers.
    - when reviewer subagents stumble on raw source-tree reads (for example unresolved build artifacts or import assumptions), generate a deterministic diff/review artifact under `tmp/` and have reviewers inspect that artifact instead of the raw file set
@@ -602,7 +602,7 @@ See [Stop Conditions](../docs/stop-conditions.md). Local-specific stops: phase c
 - Rerun validation after review-driven fixes.
 - A phase is not operationally closed until its branch state is captured in commit history and the reviewed branch has been finalized according to session type (merged into local `main` for phase-doc-backed sessions; merged via GitHub PR for tracker-backed sessions), unless authorization for that finalization is still pending.
 - For tracker-backed sessions, the handoff path is always: push the working branch → open a PR → merge via GitHub; never merge the working branch into local `main`.
-- PR creation must always include `--assignee @me` so the new PR is self-assigned, and the PR body must contain `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge. When `.pi/dev-loop/settings.yaml` `workflow.requireDraftFirst` opts in, use `node scripts/github/create-draft-pr.mjs --assignee @me ...`. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate review is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is eligible.
+- PR creation must always include `--assignee @me` so the new PR is self-assigned, and the PR body must contain `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge. When `.pi/dev-loop/settings.yaml` `workflow.requireDraftFirst` opts in, use `node scripts/github/create-draft-pr.mjs --assignee @me ...`. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate inspection is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is eligible.
 - When authorization is pending, record the phase as `awaiting-finalization` and describe the exact missing step.
 - For phase-doc-backed sessions, merge the fully reviewed, locally validated branch back into local `main` when authorized.
 

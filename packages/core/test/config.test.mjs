@@ -1830,10 +1830,10 @@ test("existing wired scripts: detect-copilot-loop-state uses resolveRefinement",
   assert.match(source, /resolveRefinement/);
 });
 
-test("existing wired scripts: upsert-gate-review-comment uses resolveRefinementConfig", async () => {
+test("existing wired scripts: upsert-checkpoint-verdict uses resolveRefinementConfig", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(
-    new URL("../../../scripts/github/upsert-gate-review-comment.mjs", import.meta.url),
+    new URL("../../../scripts/github/upsert-checkpoint-verdict.mjs", import.meta.url),
     "utf8"
   );
   assert.match(source, /resolveRefinementConfig/);

@@ -367,17 +367,19 @@ personas:
   gate-evidence:
     persona: review
     prompt: >-
-      Verify that required workflow gate evidence is present and valid:
-      - Check that the draft gate review comment exists and references the
-        correct head SHA.
-      - Check that the pre-approval gate review comment exists when the PR
+      Verify that required workflow checkpoint evidence is present and valid:
+      - Check that the draft checkpoint verdict comment exists. While the PR is
+        still draft, it must also reference the current head SHA. After the PR
+        leaves draft, the `draft_gate` checkpoint verdict comment is a one-time transition record
+        and head-SHA matching no longer applies.
+      - Check that the pre-approval checkpoint verdict comment exists when the PR
         is in a ready/merge state.
       - Flag any PR that transitions to ready/merge states without visible
-        gate evidence for the current head.
+        checkpoint evidence for the current head.
       - When draft-first enforcement is configured, verify that a draft-gate
         comment was posted before the PR was marked ready.
       - This persona is opt-in for the draft gate (uncomment to add).
-        On first PR it checks for any gate evidence (not only draft_gate since
+        On first PR it checks for any checkpoint evidence (not only draft_gate since
         no prior gate exists).
     defaultModel: null
 

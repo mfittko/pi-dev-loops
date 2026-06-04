@@ -15,7 +15,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 ## In scope
 
 - add `scripts/github/capture-review-threads.mjs`
-- add `scripts/github/watch-copilot-review.mjs`
+- add `scripts/github/probe-copilot-review.mjs`
 - add `scripts/loop/summarize-loop-state.mjs` (later deleted during deslop cleanup, issue #319)
 - keep all outputs machine-readable and deterministic
 - reuse Phase 4 package helpers wherever logic is pure and shared
@@ -39,7 +39,7 @@ Phase 4 established the first reusable deterministic package seams: phase-file h
 
 - root `scripts/` gains exactly three Phase 5 entrypoints:
   - `scripts/github/capture-review-threads.mjs`
-  - `scripts/github/watch-copilot-review.mjs`
+  - `scripts/github/probe-copilot-review.mjs`
   - `scripts/loop/summarize-loop-state.mjs` (deleted)
 - `capture-review-threads`:
   - accepts fixture/stdin or explicit live PR arguments via `--repo <owner/name> --pr <number>`

@@ -49,7 +49,7 @@ It does not redefine helper transport mechanics, reviewer-loop internals, conduc
 ## Two required local gates
 
 Each gate runs an independent review chain with its own disposition ledger, review angles,
-and exit conditions. The chains are not interchangeable; see [Gate-Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md).
+and exit conditions. The chains are not interchangeable; see [Checkpoint Review Chain Contract](../../docs/gate-review-sub-loop-contract.md).
 
 ### 1. `draft_gate`
 

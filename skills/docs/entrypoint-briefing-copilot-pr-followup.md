@@ -7,7 +7,7 @@ Next-action sentence: "Load PR state from `detect-copilot-loop-state.mjs`, resol
 Helpers to run first:
 1. `node scripts/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <N>` — resolve loop state
 2. `node scripts/loop/detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <N>` — resolve gate state
-3. `node scripts/github/upsert-gate-review-comment.mjs` — post/update gate comments
+3. `node scripts/github/upsert-checkpoint-verdict.mjs` — post/update gate comments
 
 Required reading:
 - [Public Dev Loop Contract](public-dev-loop-contract.md)

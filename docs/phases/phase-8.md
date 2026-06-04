@@ -25,7 +25,7 @@ Examples now clearly needing first-class configuration:
 - conductor model selection
 - per-role subagent model selection
 - refinement fan-out shape (count, roles, parallel vs sequential)
-- gate review angles and per-angle model overrides
+- gate inspection angles and per-angle model overrides
 - autonomy stop boundaries
 
 Without a configuration contract, behavior drifts between runs, repo policy and per-run overrides are hard to separate, and future changes become prompt surgery instead of contract updates.

@@ -7,7 +7,7 @@ import test from "node:test";
 import {
   AUTONOMY_GATE_ACTION_MAP,
   actionRequiresApproval,
-  GATE_ACTION_TO_CONDUCTOR_ACTION,
+  CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION,
   ACTION_PRIORITY,
   SUBAGENT_ACTIONS,
   buildActionQueue,
@@ -16,7 +16,7 @@ import {
   runConductorCycle,
   parseCliArgs,
 } from "../../scripts/loop/run-conductor-cycle.mjs";
-import { PR_GATE_ACTION, PR_GATE_BOUNDARY } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { PR_CHECKPOINT_ACTION, PR_CHECKPOINT } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper } from "../_helpers.mjs";
 
 const scriptPath = path.resolve("scripts/loop/run-conductor-cycle.mjs");
@@ -26,28 +26,28 @@ const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, opt
 // Unit: action mapping
 // ---------------------------------------------------------------------------
 
-test("all PR_GATE_ACTION values have a conductor action mapping", () => {
-  const gateActionValues = Object.values(PR_GATE_ACTION);
-  const missing = gateActionValues.filter((val) => !(val in GATE_ACTION_TO_CONDUCTOR_ACTION));
+test("all PR_CHECKPOINT_ACTION values have a conductor action mapping", () => {
+  const gateActionValues = Object.values(PR_CHECKPOINT_ACTION);
+  const missing = gateActionValues.filter((val) => !(val in CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION));
   assert.deepEqual(missing, [], `Missing mappings for: ${missing.join(", ")}`);
 });
 
-test("GATE_ACTION_TO_CONDUCTOR_ACTION maps unresolved feedback to fix_threads", () => {
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK], "fix_threads");
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_GATE_ACTION.REPLY_RESOLVE_REVIEW_THREADS], "fix_threads");
+test("CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION maps unresolved feedback to fix_threads", () => {
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.ADDRESS_REVIEW_FEEDBACK], "fix_threads");
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.REPLY_RESOLVE_REVIEW_THREADS], "fix_threads");
 });
 
-test("GATE_ACTION_TO_CONDUCTOR_ACTION maps pre-approval to run_pre_approval", () => {
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE], "run_pre_approval");
+test("CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION maps pre-approval to run_pre_approval", () => {
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE], "run_pre_approval");
 });
 
-test("GATE_ACTION_TO_CONDUCTOR_ACTION maps merge to merge", () => {
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_GATE_ACTION.DECLARE_MERGE_READY], "merge");
+test("CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION maps merge to merge", () => {
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY], "merge");
 });
 
-test("GATE_ACTION_TO_CONDUCTOR_ACTION maps wait states to watch", () => {
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW], "watch");
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_GATE_ACTION.WAIT_FOR_CI], "watch");
+test("CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION maps wait states to watch", () => {
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.WAIT_FOR_COPILOT_REVIEW], "watch");
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.WAIT_FOR_CI], "watch");
 });
 
 // ---------------------------------------------------------------------------
@@ -180,11 +180,11 @@ test("detectPrState returns correctly shaped action entry for fix_threads", asyn
   const mockGateState = {
     lifecycleState: "unresolved_feedback_present",
     loopDisposition: "unresolved_feedback",
-    gateBoundary: PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
-    nextAction: PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK,
+    gateBoundary: PR_CHECKPOINT.FEEDBACK_RESOLUTION,
+    nextAction: PR_CHECKPOINT_ACTION.ADDRESS_REVIEW_FEEDBACK,
     reason: "Fix threads needed",
-    allowedNextActions: [PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK],
-    forbiddenActions: [PR_GATE_ACTION.DECLARE_MERGE_READY],
+    allowedNextActions: [PR_CHECKPOINT_ACTION.ADDRESS_REVIEW_FEEDBACK],
+    forbiddenActions: [PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY],
     draftGate: { visible: true, verdict: "clean", headSha: "abc123" },
     preApprovalGate: { visible: false, verdict: null, headSha: null },
     mergeStateStatus: "CLEAN",
@@ -209,7 +209,7 @@ test("detectPrState returns correctly shaped action entry for fix_threads", asyn
   assert.equal(result.requiresSubagent, true);
   assert.equal(result.state, "unresolved_feedback_present");
   assert.equal(result.lifecycleState, "unresolved_feedback_present");
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.FEEDBACK_RESOLUTION);
   assert.equal(result.snapshot.ciStatus, "success");
   assert.equal(result.gateState.currentHeadSha, "abc123");
   assert.equal(result.error, undefined);
@@ -221,10 +221,10 @@ test("detectPrState returns merge action with correct flags", async () => {
   const mockGateState = {
     lifecycleState: "pr_ready_no_feedback",
     loopDisposition: "clean_converged",
-    gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
-    nextAction: PR_GATE_ACTION.DECLARE_MERGE_READY,
+    gateBoundary: PR_CHECKPOINT.FINAL_APPROVAL_READY,
+    nextAction: PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
     reason: null,
-    allowedNextActions: [PR_GATE_ACTION.DECLARE_MERGE_READY],
+    allowedNextActions: [PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY],
     forbiddenActions: [],
     draftGate: { visible: true, verdict: "clean" },
     preApprovalGate: { visible: true, verdict: "clean" },
@@ -251,10 +251,10 @@ test("detectPrState returns watch for waiting_for_copilot_review", async () => {
   const mockGateState = {
     lifecycleState: "waiting_for_copilot_review",
     loopDisposition: "pending",
-    gateBoundary: PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
-    nextAction: PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
+    gateBoundary: PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW,
+    nextAction: PR_CHECKPOINT_ACTION.WAIT_FOR_COPILOT_REVIEW,
     reason: null,
-    allowedNextActions: [PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW],
+    allowedNextActions: [PR_CHECKPOINT_ACTION.WAIT_FOR_COPILOT_REVIEW],
     forbiddenActions: [],
     draftGate: null,
     preApprovalGate: null,
@@ -296,10 +296,10 @@ test("detectPrState tolerates snapshot failure when gate succeeds", async () => 
   const mockGateState = {
     lifecycleState: "pr_draft",
     loopDisposition: "action_required",
-    gateBoundary: PR_GATE_BOUNDARY.DRAFT_REVIEW,
-    nextAction: PR_GATE_ACTION.RUN_DRAFT_GATE,
+    gateBoundary: PR_CHECKPOINT.DRAFT_REVIEW,
+    nextAction: PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
     reason: "draft gate needed",
-    allowedNextActions: [PR_GATE_ACTION.RUN_DRAFT_GATE],
+    allowedNextActions: [PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE],
     forbiddenActions: [],
     draftGate: null,
     preApprovalGate: null,
@@ -608,10 +608,10 @@ test("detectPrState flags merge as requiresApproval with default stopAt", async 
   const mockGateState = {
     lifecycleState: "pr_ready_no_feedback",
     loopDisposition: "clean_converged",
-    gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
-    nextAction: PR_GATE_ACTION.DECLARE_MERGE_READY,
+    gateBoundary: PR_CHECKPOINT.FINAL_APPROVAL_READY,
+    nextAction: PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
     reason: null,
-    allowedNextActions: [PR_GATE_ACTION.DECLARE_MERGE_READY],
+    allowedNextActions: [PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY],
     forbiddenActions: [],
     draftGate: { visible: true, verdict: "clean" },
     preApprovalGate: { visible: true, verdict: "clean" },
@@ -635,10 +635,10 @@ test("detectPrState does NOT flag merge as requiresApproval when stopAt is empty
   const mockGateState = {
     lifecycleState: "pr_ready_no_feedback",
     loopDisposition: "clean_converged",
-    gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
-    nextAction: PR_GATE_ACTION.DECLARE_MERGE_READY,
+    gateBoundary: PR_CHECKPOINT.FINAL_APPROVAL_READY,
+    nextAction: PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
     reason: null,
-    allowedNextActions: [PR_GATE_ACTION.DECLARE_MERGE_READY],
+    allowedNextActions: [PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY],
     forbiddenActions: [],
     draftGate: { visible: true, verdict: "clean" },
     preApprovalGate: { visible: true, verdict: "clean" },
@@ -663,10 +663,10 @@ test("detectPrState flags run_pre_approval with requiresApproval when pre-approv
   const mockGateState = {
     lifecycleState: "pr_draft_reviewed_clean",
     loopDisposition: "action_required",
-    gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
-    nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
+    gateBoundary: PR_CHECKPOINT.FINAL_APPROVAL_READY,
+    nextAction: PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
     reason: null,
-    allowedNextActions: [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE],
+    allowedNextActions: [PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE],
     forbiddenActions: [],
     draftGate: { visible: true, verdict: "clean" },
     preApprovalGate: null,

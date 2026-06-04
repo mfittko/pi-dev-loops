@@ -11,7 +11,7 @@
  *      An explicit operator override can force another same-head request.
  *   3. Emit a single JSON payload describing the current state, the
  *      recommended action ("watch", "fix", or "stop"), and — when the action
- *      is "watch" — the exact watch parameters to pass to watch-copilot-review.mjs.
+ *      is "watch" — the exact watch parameters to pass to probe-copilot-review.mjs.
  *
  * This helper does not run the full fix loop and does not perform any GitHub
  * mutations beyond the explicit Copilot review request step.
@@ -90,7 +90,7 @@ Output (stdout, JSON):
     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
 
 Actions:
-  watch   Copilot review was requested; use watchArgs with watch-copilot-review.mjs
+  watch   Copilot review was requested; use watchArgs with probe-copilot-review.mjs
   fix     Unresolved feedback exists; address it before re-requesting review
   stop    No automatic next step; report the current state (terminal, blocked, or operator-decision-required) and do not proceed
 

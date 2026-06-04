@@ -68,8 +68,8 @@ Repo-local workflow defaults are configured under `.pi/dev-loop/settings.yaml` `
 
 Current behavior notes:
 - Use the `dev-loop` skill in **dev mode by default** for local implementation work in this repo.
-- After every completed async dev loop run, run a **behavioral review**: inspect what the loop did, whether it followed the working agreement, what it got right and where it drifted, and record any corrective notes before the next loop starts.
-- The behavioral review should be brief but honest — it is not a formality. If the loop made a bad decision or skipped a step, say so explicitly.
+- After every completed async dev loop run, run a **post-run audit**: inspect what the loop did, whether it followed the working agreement, what it got right and where it drifted, and record any corrective notes before the next loop starts.
+- The post-run audit should be brief but honest — it is not a formality. If the loop made a bad decision or skipped a step, say so explicitly.
 
 ## Formal dev mode vs required post-run retrospective
 

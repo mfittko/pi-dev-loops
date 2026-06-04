@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  LOOP_DISPOSITION,
+  DISPOSITION,
   STATE,
   TRANSITIONS,
   normalizeSnapshot,
@@ -571,7 +571,7 @@ test("summarizeLoopInterpretation marks pending requested review as non-terminal
   });
 
   assert.deepEqual(summary, {
-    loopDisposition: LOOP_DISPOSITION.PENDING,
+    loopDisposition: DISPOSITION.PENDING,
     terminal: false,
   });
 });
@@ -587,7 +587,7 @@ test("summarizeLoopInterpretation marks unresolved feedback as non-terminal", ()
   });
 
   assert.deepEqual(summary, {
-    loopDisposition: LOOP_DISPOSITION.UNRESOLVED_FEEDBACK,
+    loopDisposition: DISPOSITION.UNRESOLVED_FEEDBACK,
     terminal: false,
   });
 });
@@ -605,7 +605,7 @@ test("summarizeLoopInterpretation marks same-head clean convergence as terminal"
   });
 
   assert.deepEqual(summary, {
-    loopDisposition: LOOP_DISPOSITION.CLEAN_CONVERGED,
+    loopDisposition: DISPOSITION.CLEAN_CONVERGED,
     terminal: true,
   });
 });
@@ -620,7 +620,7 @@ test("summarizeLoopInterpretation marks blocked states as terminal", () => {
   });
 
   assert.deepEqual(summary, {
-    loopDisposition: LOOP_DISPOSITION.BLOCKED,
+    loopDisposition: DISPOSITION.BLOCKED,
     terminal: true,
   });
 });
@@ -787,7 +787,7 @@ test("summarizeLoopInterpretation marks LOW_SIGNAL_CONVERGED as terminal", () =>
     lowSignalMaxComments: 2,
   });
 
-  assert.equal(summary.loopDisposition, LOOP_DISPOSITION.DONE);
+  assert.equal(summary.loopDisposition, DISPOSITION.DONE);
   assert.equal(summary.terminal, true);
 });
 
@@ -1081,7 +1081,7 @@ test("summarizeLoopInterpretation marks ROUND_CAP_REACHED as blocked and termina
   };
 
   const summary = summarizeLoopInterpretation(interpretation);
-  assert.equal(summary.loopDisposition, LOOP_DISPOSITION.BLOCKED);
+  assert.equal(summary.loopDisposition, DISPOSITION.BLOCKED);
   assert.equal(summary.terminal, true);
 });
 
@@ -1096,7 +1096,7 @@ test("summarizeLoopInterpretation marks ROUND_CAP_CLEAN_FALLBACK as done and ter
   };
 
   const summary = summarizeLoopInterpretation(interpretation);
-  assert.equal(summary.loopDisposition, LOOP_DISPOSITION.DONE);
+  assert.equal(summary.loopDisposition, DISPOSITION.DONE);
   assert.equal(summary.terminal, true);
 });
 

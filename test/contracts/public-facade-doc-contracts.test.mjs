@@ -249,12 +249,12 @@ test("copilot-pr-followup mandates upsert helper command for gate comments", asy
   const copilotFollowupSkill = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
   assert.match(copilotFollowupSkill, /For every `draft_gate` or `pre_approval_gate` comment, you MUST run:/);
-  assert.match(copilotFollowupSkill, /node\s+<resolved-skill-scripts>\/github\/upsert-gate-review-comment\.mjs/i);
+  assert.match(copilotFollowupSkill, /node\s+<resolved-skill-scripts>\/github\/upsert-checkpoint-verdict\.mjs/i);
   assert.match(copilotFollowupSkill, /--head-sha\s+<current_head_sha>/);
   assert.match(copilotFollowupSkill, /--verdict\s+<clean\|findings_present\|blocked>/);
   assert.match(copilotFollowupSkill, /--gate\s+<draft_gate\|pre_approval_gate>/);
   assert.match(copilotFollowupSkill, /Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments\./);
-  assert.match(copilotFollowupSkill, /Do NOT use.*gh pr comment.*gh pr review.*gate comments.*upsert-gate-review-comment/i);
+  assert.match(copilotFollowupSkill, /Do NOT use.*gh pr comment.*gh pr review.*gate comments.*upsert-checkpoint-verdict/i);
 });
 
 test("public dev-loop contract keeps conflict reconciliation local and context-first", async () => {
@@ -295,7 +295,7 @@ test("public dev-loop contract keeps tracker-backed local work inside local_impl
   assert.match(localImplSkill, /do not merge the working branch into local `main` at phase completion/i);
 });
 
-test("gate-review sub-loop contract exists and is referenced by both gates", async () => {
+test("checkpoint review chain contract exists and is referenced by both gates", async () => {
   const [subLoopContract, copilotFollowupSkill] = await Promise.all([
     readRepo("docs/gate-review-sub-loop-contract.md"),
     readRepo("skills/copilot-pr-followup/SKILL.md"),
@@ -352,17 +352,17 @@ test("skill docs enforce self-assignment and draft-first rules for create comman
   assert.doesNotMatch(copilotFollowupSkill, /gh pr create --draft --repo <owner\/name> --assignee @me --base <base> --head <head> --title/i);
   assert.match(copilotFollowupSkill, /New PRs in this workflow must be opened as \*\*draft\*\* PRs first/i);
   assert.match(copilotFollowupSkill, /Do not create a fresh PR directly in ready-for-review state/i);
-  assert.match(copilotFollowupSkill, /draft gate review is a real workflow boundary/i);
+  assert.match(copilotFollowupSkill, /draft gate inspection is a real workflow boundary/i);
 
   // local-implementation keeps self-assignment unconditional and draft-first config-driven via the wrapper
   assert.match(localImplementationSkill, /PR creation must always include `--assignee @me`/i);
   assert.match(localImplementationSkill, /workflow\.requireDraftFirst[\s\S]{0,160}node scripts\/github\/create-draft-pr\.mjs --assignee @me/i);
   assert.doesNotMatch(localImplementationSkill, /workflow\.requireDraftFirst[\s\S]{0,160}gh pr create --draft --assignee @me/i);
   assert.match(localImplementationSkill, /Do not create a fresh PR directly in ready-for-review state/i);
-  assert.match(localImplementationSkill, /draft gate review is a real workflow boundary/i);
+  assert.match(localImplementationSkill, /draft gate inspection is a real workflow boundary/i);
 
   assert.match(finalApprovalSkill, /redirect/i);
-  assert.match(finalApprovalSkill, /Final approval gate/i);
+  assert.match(finalApprovalSkill, /Human approval checkpoint/i);
   assert.match(finalApprovalSkill, /Do not restate merge-ready preconditions/i);
   assert.match(agents, /When creating GitHub issues via `gh issue create`, always include `--assignee @me`/i);
   assert.match(agents, /node scripts\/github\/create-draft-pr\.mjs --assignee @me/i);

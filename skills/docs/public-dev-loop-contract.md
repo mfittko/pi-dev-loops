@@ -261,7 +261,7 @@ The public router currently maps to these deterministic internal strategies:
 | `external_pr_followup` | external-human contributor PR follow-up | none |
 | `reviewer_fixer` | reviewer/fixer passes on the current PR | none |
 | `wait_watch` | waiting/watch states | `dev-loop` |
-| `final_approval` | approval-ready gate, or merge-ready with explicit merge authorization | none (canonical procedure lives in [Copilot PR Follow-up](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](./copilot-loop-operations.md) Final approval gate; [Final Approval](../final-approval/SKILL.md) is a thin redirect) |
+| `final_approval` | approval-ready gate, or merge-ready with explicit merge authorization | none (canonical procedure lives in [Copilot PR Follow-up](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](./copilot-loop-operations.md) Human approval checkpoint; [Final Approval](../final-approval/SKILL.md) is a thin redirect) |
 
 `waiting_for_merge_authorization` is part of the gate contract below as a stop gate rather than an internal strategy.
 
@@ -316,7 +316,7 @@ The shared machine-checkable gate contract is exported from `packages/core/src/l
 |---|---|---|---|
 | `stop_blocked_or_not_authorized` | `stop` | none | blocked or not-authorized canonical state stops for a human decision |
 | `stop_done_terminal` | `stop` | none | done canonical state stops as terminal work |
-| `final_approval` | `route` | `final_approval` | approval-ready canonical state routes to the final approval gate; merge-ready routes here only when merge authorization is explicit; requires explicit current-head `pre_approval_gate` gate-review evidence — CI green + resolved threads + clean rereview are not sufficient substitutes |
+| `final_approval` | `route` | `final_approval` | approval-ready canonical state routes to the human approval checkpoint; merge-ready routes here only when merge authorization is explicit; requires explicit current-head `pre_approval_gate` checkpoint verdict evidence — CI green + resolved threads + clean rereview are not sufficient substitutes |
 | `waiting_for_merge_authorization` | `stop` | none | merge-ready canonical state without explicit merge authorization stops and waits for explicit merge authorization |
 | `wait_watch` | `wait` | `wait_watch` | waiting canonical state routes to the shared wait/watch strategy |
 | `local_implementation` | `route` | `local_implementation` | local branch or local phase canonical state stays on local implementation |
@@ -396,7 +396,7 @@ flowchart TD
     R --> HP[External-human PR follow-up]
     R --> RF[Reviewer / fixer]
     R --> W[Wait / watch]
-    R --> A[Final approval gate]
+    R --> A[Human approval checkpoint]
     R --> M[Wait for merge authorization]
 
     L --> S

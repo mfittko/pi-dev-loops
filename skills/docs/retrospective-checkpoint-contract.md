@@ -116,7 +116,7 @@ The checkpoint file is written by `.pi/extensions/dev-loop-behavioral-review.ts`
 {
   "state": "skipped",
   "skippedAt": "2026-05-29T16:30:00.000Z",
-  "reason": "Trivial documentation-only change; no behavioral review needed."
+  "reason": "Trivial documentation-only change; no post-run audit needed."
 }
 ```
 
