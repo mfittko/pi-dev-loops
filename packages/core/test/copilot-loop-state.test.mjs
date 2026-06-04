@@ -881,7 +881,7 @@ test("TRANSITIONS covers ROUND_CAP_REACHED and ROUND_CAP_CLEAN_FALLBACK in compl
   }
 });
 
-test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded with unresolved threads", () => {
+test("interpretLoopState routes to ROUND_CAP_REACHED when round cap reached with unresolved threads", () => {
   const snapshot = {
     prExists: true,
     prNumber: 17,
@@ -902,7 +902,7 @@ test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded wit
   assert.equal(result.roundCapCleanEligible, false);
 });
 
-test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK when round cap exceeded with clean PR and green CI", () => {
+test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK when round cap reached with clean PR and green CI", () => {
   const snapshot = {
     prExists: true,
     prNumber: 17,
@@ -946,7 +946,7 @@ test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK with crediblyGreen C
   assert.equal(result.roundCapCleanEligible, true);
 });
 
-test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded with clean threads but failing CI", () => {
+test("interpretLoopState routes to ROUND_CAP_REACHED when round cap reached with clean threads but failing CI", () => {
   const snapshot = {
     prExists: true,
     prNumber: 17,
@@ -967,7 +967,7 @@ test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded wit
   assert.equal(result.roundCapCleanEligible, false);
 });
 
-test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded with clean threads and pending CI", () => {
+test("interpretLoopState routes to ROUND_CAP_REACHED when round cap reached with clean threads and pending CI", () => {
   const snapshot = {
     prExists: true,
     prNumber: 17,
