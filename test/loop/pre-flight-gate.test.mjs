@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import { mkdtempSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
@@ -22,7 +22,7 @@ function writeGitStub(tempDir, {
   logFile,
 } = {}) {
   const gitPath = path.join(tempDir, "git");
-  const lines = ["#!/usr/bin/env bash"];
+  const lines = ["#!/usr/bin/env sh"];
   lines.push(`echo "$@" >> ${JSON.stringify(logFile)}`);
 
   if (branch !== null) {
@@ -135,7 +135,7 @@ test("gate passes with PI_PREFLIGHT_BYPASS=1 from main checkout", () => {
     assert.equal(payload.checks.worktree, true);
     assert.equal(payload.summary.includes("bypassed"), true);
   } finally {
-    // Clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -164,7 +164,7 @@ test("gate passes when cwd is under tmp/worktrees/", () => {
     assert.equal(payload.ok, true);
     assert.equal(payload.checks.worktree, true);
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -189,7 +189,7 @@ test("gate fails when cwd is main checkout (detects main_checkout_detected)", ()
     assert.equal(payload.error, "main_checkout_detected");
     assert.ok(payload.guidance.includes("main git checkout"));
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -214,7 +214,7 @@ test("gate fails when cwd is main checkout with main-checkout-detected error (un
       `expected not_in_worktree or main_checkout_detected, got ${payload.error}`,
     );
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -222,7 +222,7 @@ test("gate fails when git worktree list fails", () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), "preflight-git-fail-"));
   try {
     const gitPath = path.join(tempDir, "git");
-    writeFileSync(gitPath, "#!/usr/bin/env bash\nexit 1\n", { mode: 0o755 });
+    writeFileSync(gitPath, "#!/usr/bin/env sh\nexit 1\n", { mode: 0o755 });
 
     const result = runGate([], { cwd: tempDir });
 
@@ -231,7 +231,33 @@ test("gate fails when git worktree list fails", () => {
     assert.equal(payload.ok, false);
     assert.equal(payload.error, "worktree_list_failed");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("gate fails when cwd is under tmp/worktrees/ but not a real git worktree", () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "preflight-fake-worktree-"));
+  try {
+    const fakeWorktreeDir = path.join(tempDir, "tmp", "worktrees", "fake-issue");
+    mkdirSync(fakeWorktreeDir, { recursive: true });
+
+    const logFile = path.join(tempDir, "git.log");
+    const worktreeListOut = realpathSync(tempDir) + "  535a18a [main]";
+
+    writeGitStub(tempDir, { worktreeListOut, logFile });
+
+    const result = runGate([], { cwd: fakeWorktreeDir, gitDir: tempDir });
+
+    assert.equal(result.exitCode, 1);
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.error, "not_in_worktree");
+    assert.ok(
+      payload.guidance.includes("not a real git worktree"),
+      "guidance should mention not a real worktree",
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -255,7 +281,7 @@ test("gate passes when --expected-branch matches current branch", () => {
     // Overwrite with branch-aware stub
     const gitPath = path.join(tempDir, "git");
     const lines = [
-      "#!/usr/bin/env bash",
+      "#!/usr/bin/env sh",
       `echo "$@" >> ${JSON.stringify(logFile)}`,
       'if [ "$1" = "worktree" ]; then',
       `  cat <<'WTEOF'`,
@@ -275,7 +301,7 @@ test("gate passes when --expected-branch matches current branch", () => {
     assert.equal(payload.ok, true);
     assert.equal(payload.checks.branch, "matched");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -293,7 +319,7 @@ test("gate fails when --expected-branch does not match current branch", () => {
 
     const gitPath = path.join(tempDir, "git");
     const lines = [
-      "#!/usr/bin/env bash",
+      "#!/usr/bin/env sh",
       `echo "$@" >> ${JSON.stringify(logFile)}`,
       'if [ "$1" = "worktree" ]; then',
       `  cat <<'WTEOF'`,
@@ -313,7 +339,7 @@ test("gate fails when --expected-branch does not match current branch", () => {
     assert.equal(payload.ok, false);
     assert.equal(payload.error, "branch_mismatch");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -337,7 +363,7 @@ test("gate skips branch check when --expected-branch not provided", () => {
     const payload = JSON.parse(result.stdout);
     assert.equal(payload.checks.branch, "skipped");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -369,7 +395,7 @@ test("gate reports subagent status skipped when --require-subagents not set", ()
     const payload = JSON.parse(result.stdout);
     assert.equal(payload.checks.subagents, "skipped");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -397,7 +423,7 @@ test("gate reports subagent available when PI_SUBAGENT_AVAILABLE=1 and --require
     const payload = JSON.parse(result.stdout);
     assert.equal(payload.checks.subagents, "available");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -421,7 +447,7 @@ test("gate reports subagent unavailable when --require-subagents and env var not
     const payload = JSON.parse(result.stdout);
     assert.equal(payload.checks.subagents, "unavailable");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -443,7 +469,7 @@ test("success output is valid JSON on stdout", () => {
 
     const gitPath = path.join(tempDir, "git");
     const branchAwareLines = [
-      "#!/usr/bin/env bash",
+      "#!/usr/bin/env sh",
       `echo "$@" >> ${JSON.stringify(logFile)}`,
       'if [ "$1" = "worktree" ]; then',
       `  cat <<'WTEOF'`,
@@ -469,7 +495,7 @@ test("success output is valid JSON on stdout", () => {
     assert.equal(typeof payload.checks, "object");
     assert.equal(typeof payload.summary, "string");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -493,7 +519,7 @@ test("failure output is valid JSON on stderr with error + guidance + checks", ()
     assert.equal(payload.checks.worktree, false);
     assert.ok(Array.isArray(payload.errors));
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -508,7 +534,7 @@ test("gate prints usage with --help", () => {
     assert.equal(result.exitCode, 0);
     assert.ok(result.stdout.includes("Usage"), "stdout should contain usage text");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -519,6 +545,6 @@ test("gate prints usage with -h", () => {
     assert.equal(result.exitCode, 0);
     assert.ok(result.stdout.includes("Usage"), "stdout should contain usage text");
   } finally {
-    // clean up
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });

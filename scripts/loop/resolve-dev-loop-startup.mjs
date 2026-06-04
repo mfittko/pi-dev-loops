@@ -11,6 +11,8 @@ import {
   isUnderWorktreePath,
   parseMainWorktreePath,
   isMainCheckout,
+  parseAllWorktreePaths,
+  isListedWorktree,
 } from "../../packages/core/src/loop/worktree-guard.mjs";
 
 import {
@@ -278,7 +280,8 @@ export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd
         stdio: ["ignore", "pipe", "pipe"],
       });
       const mainPath = parseMainWorktreePath(worktreeOutput);
-      if (!isUnderWorktreePath(cwd)) {
+      const allPaths = parseAllWorktreePaths(worktreeOutput);
+      if (!isUnderWorktreePath(cwd) || !isListedWorktree(cwd, allPaths)) {
         const reason = mainPath !== null && isMainCheckout(cwd, mainPath)
           ? `Local implementation requires worktree isolation. Current directory is the main git checkout (${mainPath}). Create a worktree under tmp/worktrees/<slug>/ and re-run.`
           : "Local implementation requires worktree isolation. Current directory is not under tmp/worktrees/. Create a worktree and re-run.";

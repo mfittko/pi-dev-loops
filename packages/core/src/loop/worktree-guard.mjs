@@ -7,6 +7,8 @@
  * This module is intentionally pure and side-effect free.
  */
 
+import { realpathSync } from "node:fs";
+
 // ---------------------------------------------------------------------------
 // Worktree path helpers
 // ---------------------------------------------------------------------------
@@ -52,6 +54,53 @@ export function isMainCheckout(cwd, mainWorktreePath) {
   const normalizedCwd = cwd.replace(/\\/g, "/").replace(/\/+$/u, "");
   const normalizedMain = mainWorktreePath.replace(/\\/g, "/").replace(/\/+$/u, "");
   return normalizedCwd === normalizedMain || normalizedCwd.startsWith(normalizedMain + "/");
+}
+
+/**
+ * Parse all worktree paths from `git worktree list` output.
+ *
+ * Each line in the output has the format `<path>  <sha> [<branch>]`.
+ * Returns absolute paths (one per worktree), preserving list order.
+ *
+ * @param {string} worktreeListOutput - Raw stdout from `git worktree list`.
+ * @returns {string[]}
+ */
+export function parseAllWorktreePaths(worktreeListOutput) {
+  const paths = [];
+  for (const line of worktreeListOutput.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const shaIdx = trimmed.search(/\s[0-9a-f]{7,64}\b/iu);
+    if (shaIdx === -1) continue;
+    paths.push(trimmed.slice(0, shaIdx).trim());
+  }
+  return paths;
+}
+
+/**
+ * Check whether `cwd` is listed as a git worktree by `git worktree list`.
+ *
+ * This is stricter than `isUnderWorktreePath()` — a manually-created
+ * `tmp/worktrees/<slug>/` directory inside the main checkout passes
+ * `isUnderWorktreePath()` but fails `isListedWorktree()` because it is
+ * not a real git worktree.
+ *
+ * Resolves symlinks via realpathSync so that /var vs /private/var
+ * differences on macOS do not cause false negatives.
+ *
+ * @param {string} cwd - Absolute or relative path to the current working directory.
+ * @param {string[]} worktreePaths - Array of paths from `parseAllWorktreePaths`.
+ * @returns {boolean}
+ */
+export function isListedWorktree(cwd, worktreePaths) {
+  let resolvedCwd;
+  try { resolvedCwd = realpathSync(cwd); } catch { resolvedCwd = cwd; }
+  const normalized = resolvedCwd.replace(/\\/g, "/").replace(/\/+$/u, "");
+  return worktreePaths.some((p) => {
+    let resolvedP;
+    try { resolvedP = realpathSync(p); } catch { resolvedP = p; }
+    return resolvedP.replace(/\\/g, "/").replace(/\/+$/u, "") === normalized;
+  });
 }
 
 // ---------------------------------------------------------------------------

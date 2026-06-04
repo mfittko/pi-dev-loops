@@ -22,6 +22,8 @@ import {
   isUnderWorktreePath,
   parseMainWorktreePath,
   isMainCheckout,
+  parseAllWorktreePaths,
+  isListedWorktree,
   detectSubagentAvailability,
 } from "../../packages/core/src/loop/worktree-guard.mjs";
 
@@ -153,6 +155,22 @@ function checkWorktreeIsolation({ cwd, env, gitCommand = "git" }) {
     };
   }
 
+  // Even if cwd is under tmp/worktrees/, verify it is actually a listed git worktree
+  // (not just a manually-created directory inside the main checkout).
+  const allPaths = parseAllWorktreePaths(worktreeListOutput);
+  if (!isListedWorktree(cwd, allPaths)) {
+    return {
+      ok: false,
+      error: "not_in_worktree",
+      guidance:
+        "Current directory is under tmp/worktrees/ but is not a real git worktree.\n" +
+        "Create a worktree with:\n" +
+        "  git worktree add -b <branch> tmp/worktrees/<slug>/ origin/main\n" +
+        "Then re-run from the worktree directory.",
+      mainWorktreePath: mainWorktreePath ?? undefined,
+    };
+  }
+
   return { ok: true, mainWorktreePath: mainWorktreePath ?? undefined };
 }
 
@@ -180,6 +198,7 @@ function checkBranchIdentity({ cwd, env, expectedBranch, gitCommand = "git" }) {
   } catch {
     return {
       ok: false,
+      status: "error",
       error: "branch_check_failed",
       guidance: "Could not determine current branch. Verify the repository is a valid git working directory.",
     };
@@ -188,6 +207,7 @@ function checkBranchIdentity({ cwd, env, expectedBranch, gitCommand = "git" }) {
   if (currentBranch !== expectedBranch) {
     return {
       ok: false,
+      status: "mismatch",
       error: "branch_mismatch",
       guidance: `Expected branch "${expectedBranch}" but current branch is "${currentBranch}". Switch to the working branch and re-run.`,
     };
