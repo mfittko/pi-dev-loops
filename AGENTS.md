@@ -24,7 +24,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 
 ## Working agreement
 
-- **No direct commits to `main`. No exceptions.** All changes — including docs, config, and single-line fixes — go through a feature branch, worktree isolation, and a pull request. This is not a judgment call; it is a hard rule enforced as a required workflow step — pre-commit-branch-guard.mjs blocks commits on unexpected branches.
+- **No direct commits to `main`. No exceptions.** All changes — including docs, config, and single-line fixes — go through a feature branch, worktree isolation, and a pull request. This is not a judgment call; it is a hard rule enforced as a required guard step — `node scripts/loop/pre-commit-branch-guard.mjs` exits non-zero on branch mismatch, blocking the commit.
 - Work test-first for all non-trivial logic.
 - Maintain at least 90% coverage for lines, statements, functions, and branches.
 - Implement one phase at a time.
