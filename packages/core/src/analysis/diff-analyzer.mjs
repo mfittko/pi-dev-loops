@@ -30,6 +30,18 @@
  * @param {string} nameStatusOutput — raw stdout from `git diff --name-status`
  * @returns {T0Result}
  */
+
+/**
+ * Normalize file path separators to forward slashes.
+ * Handles Windows backslash paths from git output on Windows.
+ *
+ * @param {string} filePath
+ * @returns {string}
+ */
+function normalizeSep(filePath) {
+  return filePath.replaceAll("\\", "/");
+}
+
 export function analyzeT0(nameStatusOutput) {
   const lines = nameStatusOutput.trim().split("\n").filter(Boolean);
   const files = [];
@@ -40,7 +52,8 @@ export function analyzeT0(nameStatusOutput) {
   for (const line of lines) {
     const parts = line.split("\t");
     const status = parts[0];
-    const path = parts.length >= 3 ? parts[2] : parts[1];
+    const rawPath = parts.length >= 3 ? parts[2] : parts[1];
+    const path = normalizeSep(rawPath);
     if (!path) continue;
 
     files.push(path);
@@ -56,7 +69,7 @@ export function analyzeT0(nameStatusOutput) {
 
   const renameOnly = lines.length > 0 && renameCount === lines.length;
   const allDocs = lines.length > 0 && files.every(
-    (f) => f.startsWith("docs/") || f.endsWith(".md") || f === "README.md",
+    (f) => normalizeSep(f).startsWith("docs/") || f.endsWith(".md") || f === "README.md",
   );
 
   return {
@@ -79,30 +92,33 @@ export function analyzeT0(nameStatusOutput) {
  * @returns {FileCategory}
  */
 export function classifyFile(filePath) {
-  if (filePath.startsWith(".github/")) {
+  const fp = normalizeSep(filePath);
+  if (fp.startsWith(".github/")) {
     return "ci";
   }
-  if (filePath.startsWith("docs/") || filePath.endsWith(".md") || filePath === "README.md") {
+  if (fp.startsWith("docs/") || fp.endsWith(".md") || fp === "README.md") {
     return "docs";
   }
   if (
-    filePath.endsWith(".yml") || filePath.endsWith(".yaml") ||
-    filePath.endsWith(".json") || filePath === "package.json"
+    fp.endsWith(".yml") || fp.endsWith(".yaml") ||
+    fp.endsWith(".json") || fp === "package.json"
   ) {
     return "config";
   }
-  if (filePath.includes(".test.") || filePath.startsWith("test/")) {
+  if (fp.includes(".test.") || fp.startsWith("test/")) {
     return "test";
   }
+  if (fp.startsWith(".github/")) {
+    return "ci";
+  }
   if (
-    filePath.endsWith(".mjs") || filePath.endsWith(".js") ||
-    filePath.endsWith(".ts") || filePath.endsWith(".mts")
+    fp.endsWith(".mjs") || fp.endsWith(".js") ||
+    fp.endsWith(".ts") || fp.endsWith(".mts")
   ) {
     return "code";
   }
   return "unknown";
 }
-
 // ---------------------------------------------------------------------------
 // T1: Hunk-level analysis
 // ---------------------------------------------------------------------------

@@ -128,7 +128,6 @@ export function resolveDynamicAngles({
   }
 
   // Filter to only angles that are configured
-  const configuredSet = new Set(configuredAngles);
   const recommendedAngles = configuredAngles.filter((a) => recommended.has(a));
   const skippedAngles = configuredAngles.filter((a) => !recommended.has(a));
 
@@ -138,10 +137,7 @@ export function resolveDynamicAngles({
     if (ALWAYS_INCLUDE.has(angle)) {
       reasons[angle] = "always-included angle, should never be skipped";
     } else {
-      const matchedCategories = changeCategories.filter(
-        (cat) => !(CATEGORY_ANGLE_MAP[cat] ?? []).includes(angle),
-      );
-      reasons[angle] = `No relevant change categories detected (${matchedCategories.join(", ") || "none"})`;
+      reasons[angle] = `Skipped: detected categories (${changeCategories.join(", ") || "none"}) do not trigger this angle`;
     }
   }
 

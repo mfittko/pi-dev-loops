@@ -615,7 +615,7 @@ export function resolveRefinement(config) {
  *
  * @param {DevLoopConfig} config
  * @param {"draft"|"preApproval"} gate
- * @returns {{ angles: string[]|null, excludeAngles: string[], required: boolean, requireCi: boolean, blockCleanOnFindingSeverities: string[] }}
+ * @returns {{ angles: string[]|null, excludeAngles: string[], required: boolean, requireCi: boolean, blockCleanOnFindingSeverities: string[], dynamicAngles: boolean }}
  */
 export function resolveGateConfig(config, gate) {
   const gateConfig = config?.gates?.[gate];

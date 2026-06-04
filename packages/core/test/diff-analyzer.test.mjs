@@ -79,7 +79,7 @@ test("analyzeT0: mixed extensions", () => {
 
 test("analyzeT0: handles Windows paths", () => {
   const result = analyzeT0("M\tsrc\\foo.mjs");
-  assert.deepEqual(result.files, ["src\\foo.mjs"]);
+  assert.deepEqual(result.files, ["src/foo.mjs"]);
   assert.deepEqual(result.extensions, [".mjs"]);
 });
 
