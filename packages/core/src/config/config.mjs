@@ -39,6 +39,8 @@ const GateConfig = z.strictObject({
     .array(z.enum(["must-fix", "worth-fixing-now", "defer"]))
     .min(1)
     .default(["must-fix"]),
+  dynamicAngles: z.boolean().default(false),
+  dynamicAngleThresholds: z.record(z.string().trim().min(1), z.number().min(0).max(1)).default({}),
 });
 
 const GatesConfig = z.strictObject({
@@ -671,6 +673,63 @@ export function resolveGateAngles(config, gate) {
   if (gateConfig.angles === null) return null;
   const excluded = new Set(gateConfig.excludeAngles);
   return gateConfig.angles.filter(a => !excluded.has(a));
+}
+
+/**
+ * Resolve gate angles dynamically when `dynamicAngles` is enabled in config.
+ *
+ * Uses diff analysis (from `@pi-dev-loops/core/analysis`) to filter the
+ * configured angle list down to only angles relevant to the change set.
+ *
+ * When `dynamicAngles` is disabled (default), returns the full configured
+ * angle list (same as `resolveGateAngles`).
+ *
+ * @param {import("./types.js").DevLoopConfig} config
+ * @param {"draft"|"preApproval"} gate
+ * @param {object} [options]
+ * @param {{ nameStatusOutput: string, diffOutput?: string }} [options.diff]
+ * @returns {{ recommendedAngles: string[] | null, skippedAngles: string[], reasons: Record<string,string>, fallbackToAll: boolean, dynamicAnglesActive: boolean }}
+ */
+export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
+  const staticAngles = resolveGateAngles(config, gate);
+  if (staticAngles === null) {
+    return { recommendedAngles: null, skippedAngles: [], reasons: {}, fallbackToAll: false, dynamicAnglesActive: false };
+  }
+
+  const gateConfig = resolveGateConfig(config, gate);
+  if (!gateConfig.dynamicAngles || !diff) {
+    return {
+      recommendedAngles: staticAngles,
+      skippedAngles: [],
+      reasons: {},
+      fallbackToAll: false,
+      dynamicAnglesActive: false,
+    };
+  }
+
+  // Dynamic resolution
+  const { analyzeDiff } = await import("../analysis/index.mjs");
+  const analysis = analyzeDiff({
+    nameStatusOutput: diff.nameStatusOutput,
+    diffOutput: diff.diffOutput,
+  });
+
+  const categories = analysis.t1?.changeCategories ?? [];
+  if (analysis.t0.renameOnly) categories.push("RENAME_ONLY");
+  if (analysis.t0.allDocs) categories.push("DOCS_ONLY");
+
+  const { resolveDynamicAngles: resolve } = await import("../analysis/change-classifier.mjs");
+  const dynamicResult = resolve({
+    configuredAngles: staticAngles,
+    changeCategories: categories,
+    ambiguous: analysis.ambiguous,
+    thresholds: gateConfig.dynamicAngleThresholds ?? {},
+  });
+
+  return {
+    ...dynamicResult,
+    dynamicAnglesActive: true,
+  };
 }
 
 /**

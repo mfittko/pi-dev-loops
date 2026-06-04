@@ -13,7 +13,7 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState } from "@pi-dev-loops/core/loop/copilot-loop-state";
 
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
-const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
+const ROUND_CAP_REACHED_STATUS = "round_cap_reached";
 
 const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number> [--force-rerequest-review]
 
@@ -353,6 +353,22 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   }
 
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
+
+  // #500: Round-cap enforcement — refuse re-request when max rounds reached
+  const maxRounds = 5; // Default from config; matches resolveRefinementConfig default
+  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds && !options.forceRerequestReview) {
+    return {
+      ok: true,
+      status: ROUND_CAP_REACHED_STATUS,
+      repo: options.repo,
+      pr: options.pr,
+      reviewer: "Copilot",
+      completedRounds: before.completedCopilotReviewRounds,
+      maxRounds,
+      detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. Re-run with --force-rerequest-review to bypass.`,
+    };
+  }
+
   const sameHeadCleanConverged = await detectSameHeadCleanConvergence(
     options,
     { env, ghCommand },
