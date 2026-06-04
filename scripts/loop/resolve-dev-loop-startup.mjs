@@ -281,10 +281,22 @@ export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd
       });
       const mainPath = parseMainWorktreePath(worktreeOutput);
       const allPaths = parseAllWorktreePaths(worktreeOutput);
-      if (!isUnderWorktreePath(cwd) || !isListedWorktree(cwd, allPaths)) {
+      if (!isUnderWorktreePath(cwd)) {
         const reason = mainPath !== null && isMainCheckout(cwd, mainPath)
           ? `Local implementation requires worktree isolation. Current directory is the main git checkout (${mainPath}). Create a worktree under tmp/worktrees/<slug>/ and re-run.`
           : "Local implementation requires worktree isolation. Current directory is not under tmp/worktrees/. Create a worktree and re-run.";
+        return {
+          ok: true,
+          bundleKind: "needs_reconcile",
+          selectedStrategy: "none",
+          requiredReads: STRATEGY_REQUIRED_READS["none"],
+          nextAction: reason,
+          canonicalStateSummary: summarizeCanonicalState(bundle),
+          bundle,
+        };
+      }
+      if (!isListedWorktree(cwd, allPaths)) {
+        const reason = `Local implementation requires worktree isolation. Current directory is under tmp/worktrees/ but is not listed as a git worktree by \`git worktree list\`. Create a proper worktree with \`git worktree add\` and re-run.`;
         return {
           ok: true,
           bundleKind: "needs_reconcile",

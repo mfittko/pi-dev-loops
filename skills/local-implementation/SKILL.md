@@ -79,6 +79,8 @@ This validates:
 
 If the gate fails, **stop and fix the violation** before proceeding. Do not bypass the gate in normal workflow execution.
 
+Note: `--check-subagents` is advisory — it reports availability but does not block the gate. The worktree and branch checks are the mandatory gates.
+
 This gate does **not** apply to other routed strategies (`copilot_pr_followup`, `external_pr_followup`, `reviewer_fixer`, `wait_watch`, `final_approval`, `issue_intake`). Those strategies have their own execution rules and may edit code from any checkout as needed.
 
 Development-only bypass (`PI_PREFLIGHT_BYPASS=1`) exists for testing the gate itself but must not be used in production workflow runs. The bypass variable is a testing convenience, not an operational escape hatch.
