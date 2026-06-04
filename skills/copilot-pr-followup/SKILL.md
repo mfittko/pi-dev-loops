@@ -303,7 +303,7 @@ node <resolved-skill-scripts>/github/upsert-gate-review-comment.mjs \
   --head-sha <current_head_sha> \
   --verdict <clean|findings_present|blocked> \
   --findings-summary "<summary>" \
-  --next-action "<next action>"
+  --next-action "<next action>" --findings-severity-counts '{"must-fix":0,"worth-fixing-now":0,"defer":0}'
 ```
 
 Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.

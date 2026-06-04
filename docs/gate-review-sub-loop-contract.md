@@ -177,7 +177,7 @@ node scripts/github/write-gate-findings-log.mjs \
   --gate <draft_gate|pre_approval_gate> \
   --head-sha <sha> \
   --verdict <clean|findings_present|blocked> \
-  --findings '[{"severity":"must-fix","angle":"scope","summary":"..."}]'
+  --findings '[{"severity":"must-fix","angle":"scope","summary":"...","disposition":"accepted-for-fix"}]'
 ```
 
 The log is written under `tmp/gate-findings/<repo-slug>/pr-<N>/<gate>-<headSha>.json`.
