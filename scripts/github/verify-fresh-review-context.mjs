@@ -6,9 +6,10 @@
  * the subagent inherits a prior session's context (contaminated) and the
  * script fails closed.
  *
- * Lock-file: tmp/checkpoint-context-sentinel[-<scope>].json (legacy:
- * tmp/gate-review-context-sentinel[-<scope>].json). Both are detected.
- * which should be the repo root when run inside a Pi subagent).
+ * Lock-file: tmp/checkpoint-context-sentinel[-<scope>].json (relative to
+ * CWD, which should be the repo root when run inside a Pi subagent).
+ * Legacy: tmp/gate-review-context-sentinel[-<scope>].json is also
+ * detected for backward compatibility.
  *
  * Use --scope <name> when multiple reviewers share the same working directory
  * (parallel fan-out) so each reviewer writes its own sentinel and false
