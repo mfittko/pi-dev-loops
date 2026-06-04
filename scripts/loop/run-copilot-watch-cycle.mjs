@@ -278,6 +278,7 @@ export async function runWatchCycle(
     allowedTransitions: handoff.allowedTransitions,
     nextAction: handoff.nextAction,
     snapshot: handoff.snapshot,
+    roundCapCleanEligible: handoff.roundCapCleanEligible ?? false,
     loopDisposition: handoff.loopDisposition,
     cycleDisposition: handoff.action === "stop" ? "terminal" : "needs_followup",
     terminal: Boolean(handoff.terminal),

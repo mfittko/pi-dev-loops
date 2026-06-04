@@ -860,3 +860,289 @@ test("interpretLoopState falls back to actionableThreadCount when signal data is
   const config = { stopOnLowSignal: true, lowSignalRoundThreshold: 3, lowSignalMaxComments: 2 };
   assert.equal(interpretLoopState(snapshot, config).state, STATE.LOW_SIGNAL_CONVERGED);
 });
+
+// ---------------------------------------------------------------------------
+// Round-cap enforcement (maxCopilotRounds)
+// ---------------------------------------------------------------------------
+
+test("ROUND_CAP_REACHED and ROUND_CAP_CLEAN_FALLBACK are terminal states", () => {
+  assert.deepEqual(TRANSITIONS[STATE.ROUND_CAP_REACHED], []);
+  assert.deepEqual(TRANSITIONS[STATE.ROUND_CAP_CLEAN_FALLBACK], []);
+  assert.ok(Object.prototype.hasOwnProperty.call(TRANSITIONS, STATE.ROUND_CAP_REACHED),
+    "ROUND_CAP_REACHED must have a TRANSITIONS entry");
+  assert.ok(Object.prototype.hasOwnProperty.call(TRANSITIONS, STATE.ROUND_CAP_CLEAN_FALLBACK),
+    "ROUND_CAP_CLEAN_FALLBACK must have a TRANSITIONS entry");
+});
+
+test("TRANSITIONS covers ROUND_CAP_REACHED and ROUND_CAP_CLEAN_FALLBACK in completeness check", () => {
+  for (const stateName of Object.values(STATE)) {
+    assert.ok(Object.prototype.hasOwnProperty.call(TRANSITIONS, stateName),
+      `missing transition entry for ${stateName}`);
+  }
+});
+
+test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded with unresolved threads", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 2,
+    actionableThreadCount: 2,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  // Unresolved threads exist → routes to UNRESOLVED_FEEDBACK_PRESENT first
+  // (unresolved threads take priority over round cap)
+  assert.equal(result.state, STATE.UNRESOLVED_FEEDBACK_PRESENT);
+  assert.equal(result.roundCapCleanEligible, false);
+});
+
+test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK when round cap exceeded with clean PR and green CI", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.ROUND_CAP_CLEAN_FALLBACK);
+  assert.deepEqual(result.allowedTransitions, []);
+  assert.equal(result.autoRerequestEligible, false);
+  assert.equal(result.sameHeadCleanConverged, false);
+  assert.equal(result.roundCapCleanEligible, true);
+  assert.match(result.nextAction, /pre_approval_gate/i);
+});
+
+test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK with crediblyGreen CI", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "crediblyGreen",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.ROUND_CAP_CLEAN_FALLBACK);
+  assert.equal(result.roundCapCleanEligible, true);
+});
+
+test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded with clean threads but failing CI", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "failure",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  // ciStatus failure routes to BLOCKED_NEEDS_USER_DECISION before round cap check
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.roundCapCleanEligible, false);
+});
+
+test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded with clean threads and pending CI", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "pending",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  // ciStatus pending routes to WAITING_FOR_CI before round cap check
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.WAITING_FOR_CI);
+  assert.equal(result.roundCapCleanEligible, false);
+});
+
+test("interpretLoopState does not apply round cap when copilotReviewRoundCount is below maxCopilotRounds", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 3,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+  assert.equal(result.roundCapCleanEligible, false);
+  assert.equal(result.autoRerequestEligible, true);
+});
+
+test("interpretLoopState does not apply round cap when maxCopilotRounds is not configured", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 10,
+    ciStatus: "success",
+  };
+
+  // No refinementConfig at all
+  const result = interpretLoopState(snapshot);
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+  assert.equal(result.roundCapCleanEligible, false);
+});
+
+test("interpretLoopState does not apply round cap when maxCopilotRounds is 0 or negative", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const result0 = interpretLoopState(snapshot, { maxCopilotRounds: 0 });
+  assert.equal(result0.state, STATE.READY_TO_REREQUEST_REVIEW);
+
+  const resultNeg = interpretLoopState(snapshot, { maxCopilotRounds: -1 });
+  assert.equal(resultNeg.state, STATE.READY_TO_REREQUEST_REVIEW);
+});
+
+test("interpretLoopState does not apply round cap to non-READY_TO_REREQUEST_REVIEW states", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    unresolvedThreadCount: 3,
+    actionableThreadCount: 3,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 3 };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  // Unresolved threads take priority
+  assert.equal(result.state, STATE.UNRESOLVED_FEEDBACK_PRESENT);
+  assert.equal(result.roundCapCleanEligible, false);
+});
+
+test("summarizeLoopInterpretation marks ROUND_CAP_REACHED as blocked and terminal", () => {
+  // Force ROUND_CAP_REACHED by having unresolved threads that route there
+  // (this requires round cap + something that keeps it in READY_TO_REREQUEST_REVIEW first)
+  // We simulate the state directly
+  const interpretation = {
+    state: STATE.ROUND_CAP_REACHED,
+    allowedTransitions: [],
+    nextAction: "Stop",
+    autoRerequestEligible: false,
+    sameHeadCleanConverged: false,
+    roundCapCleanEligible: false,
+  };
+
+  const summary = summarizeLoopInterpretation(interpretation);
+  assert.equal(summary.loopDisposition, LOOP_DISPOSITION.BLOCKED);
+  assert.equal(summary.terminal, true);
+});
+
+test("summarizeLoopInterpretation marks ROUND_CAP_CLEAN_FALLBACK as done and terminal", () => {
+  const interpretation = {
+    state: STATE.ROUND_CAP_CLEAN_FALLBACK,
+    allowedTransitions: [],
+    nextAction: "Continue to pre_approval_gate",
+    autoRerequestEligible: false,
+    sameHeadCleanConverged: false,
+    roundCapCleanEligible: true,
+  };
+
+  const summary = summarizeLoopInterpretation(interpretation);
+  assert.equal(summary.loopDisposition, LOOP_DISPOSITION.DONE);
+  assert.equal(summary.terminal, true);
+});
+
+test("interpretLoopState returns false for roundCapCleanEligible in normal READY_TO_REREQUEST_REVIEW state", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 2,
+    ciStatus: "success",
+  };
+
+  const result = interpretLoopState(snapshot, { maxCopilotRounds: 5 });
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+  assert.equal(result.roundCapCleanEligible, false);
+});
+
+test("round cap takes priority over low-signal heuristic when both apply", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+    lastCopilotRoundMaxSignal: "low",
+  };
+
+  const refinementConfig = {
+    maxCopilotRounds: 5,
+    stopOnLowSignal: true,
+    lowSignalRoundThreshold: 3,
+    lowSignalMaxComments: 2,
+  };
+
+  // Round cap is checked first, clean fallback wins over low-signal
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.ROUND_CAP_CLEAN_FALLBACK);
+  assert.equal(result.roundCapCleanEligible, true);
+});

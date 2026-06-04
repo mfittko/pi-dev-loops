@@ -42,6 +42,8 @@
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import path from "node:path";
+import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
 import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
@@ -241,7 +243,11 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     { repo: options.repo, pr: options.pr },
     { env, ghCommand },
   );
-  let interpretation = interpretLoopState(snapshot);
+  const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) }).catch(() => ({ errors: ["config load failed"], config: { version: 1 } }));
+  const refinementConfig = config.errors.length > 0
+    ? resolveRefinement({ version: 1 })
+    : resolveRefinement(config.config);
+  let interpretation = interpretLoopState(snapshot, refinementConfig);
   let reviewRequestStatus;
 
   const shouldRequestReview = options.watchStatus === undefined
@@ -262,10 +268,10 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     reviewRequestStatus = requestResult.status;
 
     snapshot = applyConfirmedReviewRequest(snapshot, reviewRequestStatus);
-    interpretation = interpretLoopState(snapshot);
+    interpretation = interpretLoopState(snapshot, refinementConfig);
   }
 
-  const interpretationSummary = summarizeLoopInterpretation(interpretation);
+  const interpretationSummary = summarizeLoopInterpretation(interpretation, refinementConfig);
   const effectiveReviewRequestStatus = reviewRequestStatus
     ?? (snapshot.copilotReviewRequestStatus === "requested" || snapshot.copilotReviewRequestStatus === "already-requested"
       ? snapshot.copilotReviewRequestStatus
@@ -290,6 +296,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     nextAction: interpretation.nextAction,
     autoRerequestEligible: interpretation.autoRerequestEligible,
     sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
+    roundCapCleanEligible: interpretation.roundCapCleanEligible ?? false,
     loopDisposition: interpretationSummary.loopDisposition,
     terminal: interpretationSummary.terminal,
     snapshot,
