@@ -192,9 +192,10 @@ export async function runConductor(options, runtime = {}) {
         preApproval: { requireCi: preApprovalCfg.requireCi },
       };
     }
-  } catch {
+  } catch (error) {
     // Config load failed — use safe defaults (no retrospective block, stop at merge, CI required)
-    configLoadResult = { config: null, warnings: [], errors: [{ path: "<config>", message: "Failed to load config", layer: "merged" }] };
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    configLoadResult = { config: null, warnings: [], errors: [{ path: "<config>", message: `Failed to load config: ${errorMessage}`, layer: "merged" }] };
   }
 
   const retroGate = checkRetrospectiveGate(cwd, requireRetrospective);
