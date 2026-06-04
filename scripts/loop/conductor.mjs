@@ -41,11 +41,17 @@ const parseError = buildParseError(USAGE);
 /**
  * Check the retrospective checkpoint gate.
  *
- * Only blocks when requireRetrospective is true AND checkpoint state is
- * required/missing. This is a direct filesystem check for conductor startup
- * gating — intentionally simpler than core's evaluateRetrospectiveGate, which
- * operates on routing results for the dev-loop startup resolver. The conductor
- * needs a yes/no startup gate, not a routing transform.
+ * Blocks when requireRetrospective is true AND either:
+ * - checkpoint state is required/missing (retrospective pending), OR
+ * - checkpoint file exists but is unreadable or malformed (fail-closed).
+ *
+ * Does not block when requireRetrospective is false, or when the checkpoint
+ * file is absent (ENOENT — no qualifying completion has been recorded).
+ *
+ * This is a direct filesystem check for conductor startup gating — intentionally
+ * simpler than core's evaluateRetrospectiveGate, which operates on routing
+ * results for the dev-loop startup resolver. The conductor needs a yes/no
+ * startup gate, not a routing transform.
  *
  * @param {string} cwd - Repo root
  * @param {boolean} requireRetrospective - Config gate flag
@@ -141,26 +147,35 @@ export async function runConductor(options, runtime = {}) {
   let requireRetrospective = false;
   let autonomyStopAt = ["merge"];
   /** @type {{ draft: { requireCi: boolean } | null, preApproval: { requireCi: boolean } | null }} */
-  let gateConfig = { draft: null, preApproval: null };
+  let gateConfig = { draft: { requireCi: true }, preApproval: { requireCi: true } };
 
   try {
     configLoadResult = await loadConfig({ repoRoot: cwd });
-    const cfg = configLoadResult.config ?? {};
+    const hasErrors = Array.isArray(configLoadResult.errors) && configLoadResult.errors.length > 0;
 
-    requireRetrospective = resolveWorkflowConfig(cfg, "requireRetrospective");
-    autonomyStopAt = resolveAutonomyStopAt(cfg);
+    if (hasErrors) {
+      // Validation errors present — use safe defaults (no retrospective block,
+      // stop at merge, CI required on both gates) instead of reading potentially
+      // unsafe truthy values from the partially-valid config.
+      configLoadResult = { ...configLoadResult };
+    } else {
+      const cfg = configLoadResult.config ?? {};
 
-    const draftCfg = resolveGateConfig(cfg, "draft");
-    const preApprovalCfg = resolveGateConfig(cfg, "preApproval");
-    // Only requireCi is extracted from gate config here because the conductor
-    // delegates angle resolution and gate execution to dev-loop subagents.
-    // Angles, excludeAngles, and required are consumed by the subagent layer.
-    gateConfig = {
-      draft: { requireCi: draftCfg.requireCi },
-      preApproval: { requireCi: preApprovalCfg.requireCi },
-    };
+      requireRetrospective = resolveWorkflowConfig(cfg, "requireRetrospective");
+      autonomyStopAt = resolveAutonomyStopAt(cfg);
+
+      const draftCfg = resolveGateConfig(cfg, "draft");
+      const preApprovalCfg = resolveGateConfig(cfg, "preApproval");
+      // Only requireCi is extracted from gate config here because the conductor
+      // delegates angle resolution and gate execution to dev-loop subagents.
+      // Angles, excludeAngles, and required are consumed by the subagent layer.
+      gateConfig = {
+        draft: { requireCi: draftCfg.requireCi },
+        preApproval: { requireCi: preApprovalCfg.requireCi },
+      };
+    }
   } catch {
-    // Config load failed — use safe defaults (no retrospective block, stop at merge)
+    // Config load failed — use safe defaults (no retrospective block, stop at merge, CI required)
     configLoadResult = { config: null, warnings: [], errors: [{ path: "<config>", message: "Failed to load config", layer: "merged" }] };
   }
 
