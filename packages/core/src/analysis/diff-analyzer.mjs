@@ -17,7 +17,7 @@
  * @typedef {object} T0Result
  * @property {string[]} files — flat file paths
  * @property {string[]} extensions — unique file extensions (lowercase, with dot)
- * @property {string[]} directories — unique top-level directories
+ * @property {string[]} directories — unique top-level path segments
  * @property {boolean} renameOnly — true when all entries are renames (no adds/deletes/modifies)
  * @property {boolean} allDocs — true when all files are under docs/ or are .md
  */
@@ -129,7 +129,7 @@ export function classifyFile(filePath) {
 
 /**
  * Check whether a diff line content (after stripping the + / - prefix) is
- * a comment, import/export, or blank line — i.e. not logic.
+ * a comment or blank line — i.e. not logic.
  *
  * @param {string} content — trimmed line content (without + / - prefix)
  * @returns {boolean}
@@ -146,7 +146,7 @@ function isNonLogicLine(content) {
  * Analyze unified diff hunks to classify change types.
  *
  * Detects:
- * - IMPORT_ONLY: only import/require lines changed
+ * Detects:
  * - COMMENT_ONLY: only comment lines changed
  * - DOCS_ONLY: only .md files changed (from extensions)
  * - CONFIG_ONLY: only config files changed

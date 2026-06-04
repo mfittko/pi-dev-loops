@@ -11,7 +11,7 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState } from "@pi-dev-loops/core/loop/copilot-loop-state";
-import { resolveRefinementConfig } from "@pi-dev-loops/core/config";
+import { loadDevLoopConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
 
 const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
@@ -360,7 +360,6 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   // #500: Round-cap enforcement — refuse re-request when max rounds reached
   let maxRounds = 5; // Built-in default; overridden by config when loadable
   try {
-    const { loadDevLoopConfig } = await import("@pi-dev-loops/core/config");
     const { config, errors } = await loadDevLoopConfig();
     if (!errors || errors.length === 0) {
       const resolved = resolveRefinementConfig(config, "maxCopilotRounds");

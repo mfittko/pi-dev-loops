@@ -134,11 +134,7 @@ export function resolveDynamicAngles({
   // Build reasons
   const reasons = {};
   for (const angle of skippedAngles) {
-    if (ALWAYS_INCLUDE.has(angle)) {
-      reasons[angle] = "always-included angle, should never be skipped";
-    } else {
-      reasons[angle] = `Skipped: detected categories (${changeCategories.join(", ") || "none"}) do not trigger this angle`;
-    }
+    reasons[angle] = `Skipped: detected categories (${changeCategories.join(", ") || "none"}) do not trigger this angle`;
   }
 
   return {
