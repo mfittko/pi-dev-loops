@@ -184,7 +184,9 @@ Preferred defaults for this repo:
 
 These are the defaults built into `probe-copilot-review.mjs`, `run-watch-cycle.mjs`, and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Pass them explicitly when overriding.
 
-Helper-owned sleep inside `run-watch-cycle.mjs`, `probe-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed. Agent-authored shell polling is not allowed.
+### Hard rule: no agent-authored shell polling
+
+Helper-owned sleep inside `run-watch-cycle.mjs`, `probe-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed. Agent-authored shell polling (`sleep`, `for`, `while`, `timeout` wrappers around tool invocations) is a contract breach. This rule applies to ALL repos using the dev-loop workflow, not just the source repo.
 
 A watcher sleeping between polls is expected behavior, not a blocker.
 
