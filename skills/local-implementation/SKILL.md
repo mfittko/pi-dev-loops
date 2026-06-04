@@ -418,15 +418,27 @@ Recommended naming:
 - `003-reviewer-maintainability.md`
 - `004-worker-followup.md`
 
-Each summary should record:
-- agent name
+Each summary must include a machine-readable header block using bullet-key format so
+`conductor-monitor.mjs` can detect and parse local phase subagent state:
+
+```
+- agent name: <developer|quality|docs|review|refiner>
+- status: <queued|running|completed|failed|paused>
+- run id: <subagent-run-id>
+- task: <one-line task summary>
+- cwd: <working directory>
+```
+
+Only `agent name` and `status` are required for conductor-monitor detection; the
+other fields improve resume-plan quality. The header block must start at the
+beginning of a line (no leading whitespace before the bullet).
+
+Below the header, include human-readable context:
 - whether it was sync or async
-- task/prompt summary
 - why it was used
 - main findings or output
 - files or artifacts it influenced
 - whether its advice was accepted, partially accepted, or rejected
-- run id if available
 - raw output path if output was saved separately
 
 If the subagent ran asynchronously, update its summary when results arrive so fresh sessions can understand what happened without replaying the whole conversation.

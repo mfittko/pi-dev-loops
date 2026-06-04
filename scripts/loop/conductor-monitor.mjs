@@ -1012,7 +1012,7 @@ async function scanLocalPhaseSubagents(repoRoot) {
   return runs;
 }
 
-function buildLocalPhaseResumePlan(localRun, phaseIndex) {
+function buildLocalPhaseResumePlan(localRun) {
   const phaseName = path.basename(localRun.phaseDir);
   const taskDesc = localRun.taskSummary ?? "unknown";
 
@@ -1815,7 +1815,7 @@ async function analyzeAutoResume({ repo, reports }, options) {
   // Scan local phase subagents
   const localPhaseRuns = await scanLocalPhaseSubagents(options.repoRoot ?? process.cwd());
   const localPhaseResumePlans = localPhaseRuns
-    .map((run, index) => buildLocalPhaseResumePlan(run, index));
+    .map((run) => buildLocalPhaseResumePlan(run));
 
   return {
     orphanedPrCount: orphanedPrs.size,
@@ -1837,7 +1837,7 @@ function applyAutoResumeToBaseResult(baseResult, autoResume) {
     }
   });
 
-  const localPhaseAttention = (autoResume.localPhaseResumePlans?.length ?? 0) > 0;
+  const localPhaseAttention = (autoResume.localPhaseResumePlans?.filter(p => p.runState !== RUN_STATE.COMPLETED)?.length ?? 0) > 0;
   const queueNeedsAttention = baseResult.queueStatus === "attention_needed"
     || autoResume.resumePlanCount > 0
     || autoResume.manualAttentionCount > 0
@@ -1884,7 +1884,7 @@ export async function runConductorMonitor(
         return {
           ...baseResult,
           localPhaseOrphanedCount: localRuns.length,
-          localPhaseResumePlans: localRuns.map((run, i) => buildLocalPhaseResumePlan(run, i)),
+          localPhaseResumePlans: localRuns.map((run) => buildLocalPhaseResumePlan(run)),
         };
       }
       return baseResult;
@@ -1898,7 +1898,7 @@ export async function runConductorMonitor(
       resumePlans: [],
       needsManualAttention: [],
       localPhaseOrphanedCount: localPhaseRuns.length,
-      localPhaseResumePlans: localPhaseRuns.map((run, i) => buildLocalPhaseResumePlan(run, i)),
+      localPhaseResumePlans: localPhaseRuns.map((run) => buildLocalPhaseResumePlan(run)),
     });
   }
 
