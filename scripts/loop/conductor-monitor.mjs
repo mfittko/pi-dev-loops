@@ -902,11 +902,15 @@ const LOCAL_PHASE_AGENTS = new Set([
 
 const RUN_STATE_LABELS = Object.freeze({
   queued: RUN_STATE.QUEUED,
+  pending: RUN_STATE.QUEUED,
   running: RUN_STATE.RUNNING,
   paused: RUN_STATE.PAUSED,
+  interrupted: RUN_STATE.PAUSED,
   completed: RUN_STATE.COMPLETED,
-  failed: RUN_STATE.FAILED,
+  complete: RUN_STATE.COMPLETED,
   done: RUN_STATE.COMPLETED,
+  failed: RUN_STATE.FAILED,
+  failure: RUN_STATE.FAILED,
   error: RUN_STATE.FAILED,
 });
 
@@ -1010,11 +1014,16 @@ async function scanLocalPhaseSubagents(repoRoot) {
 
 function buildLocalPhaseResumePlan(localRun, phaseIndex) {
   const phaseName = path.basename(localRun.phaseDir);
-  const actionDetail = localRun.runState === RUN_STATE.FAILED
-    ? `Local phase ${phaseName} subagent ${localRun.agent} (${localRun.runId}) failed`
-    : `Local phase ${phaseName} subagent ${localRun.agent} (${localRun.runId}) exited`;
+  const taskDesc = localRun.taskSummary ?? "unknown";
 
-  const resumeMessage = `${actionDetail}. Task: ${localRun.taskSummary ?? "unknown"}. Resume the phase from the last deterministic checkpoint in ${localRun.phaseDir}.`;
+  let resumeMessage;
+  if (localRun.runState === RUN_STATE.COMPLETED) {
+    resumeMessage = `Local phase ${phaseName} subagent ${localRun.agent} (${localRun.runId}) completed. Task: ${taskDesc}. Consolidate and review results from ${localRun.phaseDir}.`;
+  } else if (localRun.runState === RUN_STATE.FAILED) {
+    resumeMessage = `Local phase ${phaseName} subagent ${localRun.agent} (${localRun.runId}) failed. Task: ${taskDesc}. Resume the phase from the last deterministic checkpoint in ${localRun.phaseDir}.`;
+  } else {
+    resumeMessage = `Local phase ${phaseName} subagent ${localRun.agent} (${localRun.runId}) exited (${localRun.runState}). Task: ${taskDesc}. Resume the phase from the last deterministic checkpoint in ${localRun.phaseDir}.`;
+  }
 
   return {
     kind: "local_phase",

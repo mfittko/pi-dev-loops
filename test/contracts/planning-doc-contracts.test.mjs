@@ -102,8 +102,6 @@ test("planning guidance keeps sub-issue trees as the durable decomposition owner
     /real GitHub[\s\S]*?sub-issue tree[\s\S]*?default durable/i,
     /keep.*parent.*lean/i,
     /plain related-issue references/i,
-  ], "docs/sub-issue-tree-contract.md (canonical owner)");
-    assertMatchesAll(subIssueTreeContract, [
     /manage-sub-issues\.mjs/i,
     /When to use sub-issues vs plain related-issue references/i,
     /do not maintain.*checklist.*duplicates|not.*maintain.*ordered checklist.*duplicates/i,
