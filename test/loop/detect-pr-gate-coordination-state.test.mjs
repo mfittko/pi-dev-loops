@@ -386,6 +386,9 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed when Copilot rou
     assert.equal(parsed.gateBoundary, "draft_gate_needed");
     assert.equal(parsed.nextAction, "reconcile_draft_gate");
     assert.equal(parsed.gateEvidenceNote, null);
+    assert.deepEqual(parsed.allowedNextActions, ["reconcile_draft_gate"]);
+    assert.ok(parsed.forbiddenActions.includes("run_pre_approval_gate"));
+    assert.ok(parsed.forbiddenActions.includes("declare_merge_ready"));
     assert.match(parsed.reason, /no clean draft_gate/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
