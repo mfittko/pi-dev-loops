@@ -505,7 +505,7 @@ function writeWorktreeEnv(tempDir) {
   const gitPath = path.join(tempDir, "git");
   const worktreeListOut = `${actualTemp}  535a18a [main]\n${actualWorktree}  535a18a [issue-test]`;
   const lines = [
-    "#!/usr/bin/env bash",
+    "#!/usr/bin/env sh",
     'if [ "$1" = "worktree" ] && [ "$2" = "list" ]; then',
     `  cat <<'WTEOF'`,
     worktreeListOut,

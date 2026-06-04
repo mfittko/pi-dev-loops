@@ -36,7 +36,7 @@ export function isUnderWorktreePath(cwd) {
 export function parseMainWorktreePath(worktreeListOutput) {
   const firstLine = worktreeListOutput.split("\n")[0].trim();
   if (!firstLine) return null;
-  // Find the last hex SHA (7+ chars) in the line and take everything before it as the path.
+  // Find the first hex SHA (7+ chars) preceded by whitespace; take everything before it as the path.
   const shaIdx = firstLine.search(/\s[0-9a-f]{7,64}\b/iu);
   if (shaIdx === -1) return null;
   return firstLine.slice(0, shaIdx).trim();

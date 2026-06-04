@@ -83,7 +83,7 @@ This gate does **not** apply to other routed strategies (`copilot_pr_followup`, 
 
 Development-only bypass (`PI_PREFLIGHT_BYPASS=1`) exists for testing the gate itself but must not be used in production workflow runs. The bypass variable is a testing convenience, not an operational escape hatch.
 
-### Primary execution rules
+### Step 1
 
 - Implement **one phase at a time**.
 - Do not refine later phases in detail before the current phase is complete.
