@@ -94,9 +94,6 @@ export function classifyFile(filePath) {
   if (filePath.includes(".test.") || filePath.startsWith("test/")) {
     return "test";
   }
-  if (filePath.startsWith(".github/")) {
-    return "ci";
-  }
   if (
     filePath.endsWith(".mjs") || filePath.endsWith(".js") ||
     filePath.endsWith(".ts") || filePath.endsWith(".mts")
@@ -116,6 +113,21 @@ export function classifyFile(filePath) {
  * @property {number} hunkCount
  * @property {{ added: number, deleted: number }} lineStats
  */
+
+/**
+ * Check whether a diff line content (after stripping the + / - prefix) is
+ * a comment, import/export, or blank line — i.e. not logic.
+ *
+ * @param {string} content — trimmed line content (without + / - prefix)
+ * @returns {boolean}
+ */
+function isNonLogicLine(content) {
+  if (content === "") return true;
+  if (content.startsWith("//") || content.startsWith("/*") || content.startsWith("*")) return true;
+  if (content.startsWith("import ") || content.startsWith("export ")) return true;
+  if (content.includes("require(")) return true;
+  return false;
+}
 
 /**
  * Analyze unified diff hunks to classify change types.
@@ -142,6 +154,8 @@ export function analyzeT1(diffOutput, t0) {
 
   let inHunk = false;
   let hasLogicChange = false;
+  let hasAnyChangedLine = false;
+  let allChangedLinesAreNonLogic = true;
 
   for (const line of lines) {
     // Track hunk headers
@@ -153,21 +167,23 @@ export function analyzeT1(diffOutput, t0) {
 
     if (!inHunk) continue;
 
-    // Track line stats
+    // Track line stats and classify
     if (line.startsWith("+") && !line.startsWith("+++")) {
       added++;
-      // Classify the line
+      hasAnyChangedLine = true;
       const content = line.slice(1).trim();
-      if (content.startsWith("import ") || content.startsWith("export ") ||
-          content.includes("require(") || content.startsWith("//") ||
-          content.startsWith("/*") || content.startsWith("*") ||
-          content === "") {
-        // comment, import, or blank — not logic
-      } else {
+      if (!isNonLogicLine(content)) {
         hasLogicChange = true;
+        allChangedLinesAreNonLogic = false;
       }
     } else if (line.startsWith("-") && !line.startsWith("---")) {
       deleted++;
+      hasAnyChangedLine = true;
+      const content = line.slice(1).trim();
+      if (!isNonLogicLine(content)) {
+        hasLogicChange = true;
+        allChangedLinesAreNonLogic = false;
+      }
     }
   }
 
@@ -178,7 +194,10 @@ export function analyzeT1(diffOutput, t0) {
   if (t0.files.every((f) => classifyFile(f) === "test")) categories.add("TEST_ONLY");
   if (t0.files.every((f) => classifyFile(f) === "ci")) categories.add("CI_ONLY");
   if (hasLogicChange) categories.add("LOGIC_CHANGE");
-  if (hunkCount === 0 && !hasLogicChange && !t0.renameOnly) {
+
+  // COMMENT_ONLY: hunkCount > 0 (real diff), has changed lines, all are non-logic,
+  // and not a rename-only change
+  if (hunkCount > 0 && hasAnyChangedLine && allChangedLinesAreNonLogic && !t0.renameOnly) {
     categories.add("COMMENT_ONLY");
   }
 
@@ -201,9 +220,27 @@ export function analyzeT1(diffOutput, t0) {
  */
 
 /**
+ * Infer change categories from T0 analysis when T1 is not run.
+ *
+ * @param {T0Result} t0
+ * @returns {string[]}
+ */
+function inferCategoriesFromT0(t0) {
+  const categories = [];
+  if (t0.renameOnly) categories.push("RENAME_ONLY");
+  if (t0.allDocs) categories.push("DOCS_ONLY");
+  if (t0.files.length > 0 && t0.files.every((f) => classifyFile(f) === "config")) categories.push("CONFIG_ONLY");
+  if (t0.files.length > 0 && t0.files.every((f) => classifyFile(f) === "test")) categories.push("TEST_ONLY");
+  if (t0.files.length > 0 && t0.files.every((f) => classifyFile(f) === "ci")) categories.push("CI_ONLY");
+  return categories;
+}
+
+/**
  * Run full diff analysis (T0 + T1 if needed).
  *
  * T0 always runs. T1 runs when T0 doesn't produce a clear single-category result.
+ * When T1 is not run (unambiguous diff), categories are inferred from T0 so
+ * dynamic angle resolution can still narrow the angle list.
  *
  * @param {{ nameStatusOutput: string, diffOutput?: string }} input
  * @returns {DiffAnalysis}
@@ -220,7 +257,17 @@ export function analyzeDiff({ nameStatusOutput, diffOutput }) {
     t1 = analyzeT1(diffOutput, t0);
   }
 
-  const ambiguous = t0Ambiguous && (!t1 || t1.changeCategories.length === 0 || t1.changeCategories.includes("LOGIC_CHANGE"));
+  // When t1 is null (unambiguous diff), infer categories from t0
+  // so dynamic angle resolution can narrow for config-only / test-only etc.
+  if (!t1) {
+    t1 = {
+      changeCategories: inferCategoriesFromT0(t0),
+      hunkCount: 0,
+      lineStats: { added: 0, deleted: 0 },
+    };
+  }
+
+  const ambiguous = t0Ambiguous && (t1.changeCategories.length === 0 || t1.changeCategories.includes("LOGIC_CHANGE"));
 
   return { t0, t1, ambiguous };
 }

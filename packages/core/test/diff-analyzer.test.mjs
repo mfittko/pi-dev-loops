@@ -135,7 +135,7 @@ test("analyzeT1: tracks line stats", () => {
 test("analyzeDiff: T0 unambiguous → no T1, not ambiguous", () => {
   const result = analyzeDiff({ nameStatusOutput: "M\tdocs/guide.md\nM\tREADME.md" });
   assert.ok(result.t0.allDocs);
-  assert.equal(result.t1, null);
+  assert.deepEqual(result.t1.changeCategories, ["DOCS_ONLY"]);
   assert.equal(result.ambiguous, false);
 });
 
@@ -150,7 +150,7 @@ test("analyzeDiff: T0 ambiguous with diff → runs T1, ambiguous if logic change
 
 test("analyzeDiff: T0 ambiguous without diff → no T1, ambiguous", () => {
   const result = analyzeDiff({ nameStatusOutput: "M\tsrc/foo.mjs\nM\tdocs/bar.md" });
-  assert.equal(result.t1, null);
+  assert.deepEqual(result.t1.changeCategories, []);
   assert.equal(result.ambiguous, true);
 });
 

@@ -86,14 +86,12 @@ const ALWAYS_INCLUDE = new Set(["gate-evidence", "renderer-security"]);
  * @param {string[]} options.configuredAngles — all angles configured for this gate
  * @param {string[]} options.changeCategories — from diff analysis
  * @param {boolean} [options.ambiguous] — from diff analysis
- * @param {Record<string, number>} [options.thresholds] — per-angle override thresholds
  * @returns {DynamicAngleResult}
  */
 export function resolveDynamicAngles({
   configuredAngles,
   changeCategories,
   ambiguous = false,
-  thresholds = {},
 }) {
   // Fallback: ambiguous diff → all angles
   if (ambiguous) {
@@ -131,7 +129,7 @@ export function resolveDynamicAngles({
 
   // Filter to only angles that are configured
   const configuredSet = new Set(configuredAngles);
-  const recommendedAngles = [...recommended].filter((a) => configuredSet.has(a));
+  const recommendedAngles = configuredAngles.filter((a) => recommended.has(a));
   const skippedAngles = configuredAngles.filter((a) => !recommended.has(a));
 
   // Build reasons

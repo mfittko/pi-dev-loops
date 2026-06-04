@@ -5,24 +5,39 @@
   "description": "Schema for .pi/dev-loop/defaults.yaml, settings.yaml, or overrides.yaml.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version"],
+  "required": [
+    "version"
+  ],
   "properties": {
-    "version": { "const": 1 },
+    "version": {
+      "const": 1
+    },
     "strategy": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "default": { "enum": ["local-first", "github-first"] }
+        "default": {
+          "enum": [
+            "local-first",
+            "github-first"
+          ]
+        }
       }
     },
     "models": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "conductor": { "type": "string", "minLength": 1 },
+        "conductor": {
+          "type": "string",
+          "minLength": 1
+        },
         "roles": {
           "type": "object",
-          "additionalProperties": { "type": "string", "minLength": 1 }
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
@@ -30,12 +45,27 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "fanOut": { "type": "integer", "minimum": 1, "maximum": 10 },
-        "mode": { "enum": ["parallel", "sequential"] },
-        "maxCopilotRounds": { "type": "integer", "minimum": 1 },
+        "fanOut": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "mode": {
+          "enum": [
+            "parallel",
+            "sequential"
+          ]
+        },
+        "maxCopilotRounds": {
+          "type": "integer",
+          "minimum": 1
+        },
         "roles": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
@@ -60,7 +90,12 @@
         "stopAt": {
           "type": "array",
           "items": {
-            "enum": ["refinement", "draft-pr", "pre-approval", "merge"]
+            "enum": [
+              "refinement",
+              "draft-pr",
+              "pre-approval",
+              "merge"
+            ]
           }
         }
       }
@@ -69,15 +104,25 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "requireRetrospective": { "type": "boolean" },
-        "requireDraftFirst": { "type": "boolean" },
-        "devModeDefault": { "type": "boolean" }
+        "requireRetrospective": {
+          "type": "boolean"
+        },
+        "requireDraftFirst": {
+          "type": "boolean"
+        },
+        "devModeDefault": {
+          "type": "boolean"
+        }
       }
     },
     "personas": {
       "type": "object",
-      "propertyNames": { "minLength": 1 },
-      "additionalProperties": { "$ref": "#/$defs/personaEntry" }
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/personaEntry"
+      }
     }
   },
   "$defs": {
@@ -87,7 +132,10 @@
       "properties": {
         "angles": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "required": {
           "type": "boolean",
@@ -107,7 +155,11 @@
           "type": "object",
           "default": {},
           "description": "Per-angle relevance score thresholds for dynamic angle resolution.",
-          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
         }
       }
     },
@@ -115,10 +167,19 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "persona": { "type": "string", "minLength": 1 },
-        "prompt": { "type": "string", "minLength": 1 },
+        "persona": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
         "defaultModel": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "minLength": 1,
           "default": null
         }

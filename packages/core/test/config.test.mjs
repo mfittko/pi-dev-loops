@@ -1415,6 +1415,7 @@ describe("role resolution", () => {
         excludeAngles: [],
         required: true,
         requireCi: true,
+        dynamicAngles: false,
         blockCleanOnFindingSeverities: ["must-fix"],
       });
     });
@@ -1431,6 +1432,7 @@ describe("role resolution", () => {
         excludeAngles: [],
         required: false,
         requireCi: false,
+        dynamicAngles: false,
         blockCleanOnFindingSeverities: ["must-fix"],
       });
       assert.deepEqual(config.gates.draft.angles, ["scope", "coverage"]);

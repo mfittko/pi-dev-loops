@@ -40,7 +40,6 @@ const GateConfig = z.strictObject({
     .min(1)
     .default(["must-fix"]),
   dynamicAngles: z.boolean().default(false),
-  dynamicAngleThresholds: z.record(z.string().trim().min(1), z.number().min(0).max(1)).default({}),
 });
 
 const GatesConfig = z.strictObject({
@@ -629,6 +628,7 @@ export function resolveGateConfig(config, gate) {
       : [],
     required: gateConfig?.required ?? true,
     requireCi: gateConfig?.requireCi ?? true,
+    dynamicAngles: gateConfig?.dynamicAngles ?? false,
     blockCleanOnFindingSeverities: gateConfig?.blockCleanOnFindingSeverities && Array.isArray(gateConfig.blockCleanOnFindingSeverities)
       ? [...gateConfig.blockCleanOnFindingSeverities]
       : ["must-fix"],
@@ -723,7 +723,6 @@ export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
     configuredAngles: staticAngles,
     changeCategories: categories,
     ambiguous: analysis.ambiguous,
-    thresholds: gateConfig.dynamicAngleThresholds ?? {},
   });
 
   return {
