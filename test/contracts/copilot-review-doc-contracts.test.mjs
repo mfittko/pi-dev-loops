@@ -80,9 +80,9 @@ test("copilot-pr-followup skill routes review requests and wait seams through de
   const step6 = step6Match ? step6Match[0] : "";
   assert.ok(step6.length > 0, "copilot-pr-followup Step 6 section not found");
   assert.match(step6, /detect-copilot-loop-state\.mjs/i);
-  assert.match(step6, /run-copilot-watch-cycle\.mjs/i);
+  assert.match(step6, /run-watch-cycle\.mjs/i);
   assert.match(step6, /gh run watch <run-id> --repo <owner\/name>/i);
-  assert.match(step6, /helper-owned sleep inside `run-copilot-watch-cycle\.mjs`, `watch-copilot-review\.mjs`, or `watch-initial-copilot-pr\.mjs` is allowed/i);
+  assert.match(step6, /helper-owned sleep inside `run-watch-cycle\.mjs`, `probe-copilot-review\.mjs`, or `watch-initial-copilot-pr\.mjs` is allowed/i);
   assert.match(step6, /agent-authored shell polling is forbidden/i);
   assert.match(step6, /for i in \$\(seq \.\.\.\)/i);
   assert.match(step6, /while true/i);
@@ -95,7 +95,7 @@ test("copilot-pr-followup skill keeps async watch persistence explicit", async (
     readRepo("scripts/README.md"),
     readRepo("docs/copilot-loop-state-graph.md"),
   ]);
-  assert.match(skillContent, /run-copilot-watch-cycle\.mjs/i);
+  assert.match(skillContent, /run-watch-cycle\.mjs/i);
   assert.match(skillContent, /zero-timeout `idle` probes are for explicit one-shot status\/reattach checks only/i);
   assert.match(skillContent, /returning to `waiting_for_copilot_review` is a persistence boundary: resume the watcher instead of reporting completion/i);
   assert.match(skillContent, /persistent async watch\/fix loop, not handoff-only behavior/i);

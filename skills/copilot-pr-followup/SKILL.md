@@ -55,7 +55,7 @@ Use this helper output as source of truth for the normal routing seam. Interpret
 
 **3. Preferred async wait-boundary helper**
 ```sh
-node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number> [--probe-only]
+node <resolved-skill-scripts>/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number> [--probe-only]
 ```
 For explicit async loop entry or continuation, this is a persistent async watch/fix loop, not handoff-only behavior:
 - treat the normal PR follow-up path as one loop: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → … → pre_approval_gate → merge`
@@ -63,13 +63,13 @@ For explicit async loop entry or continuation, this is a persistent async watch/
 - a single returned watch cycle (`changed`, `timeout`, or `idle`) is never completion by itself
 - if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary instead of reporting completion
 - after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, resume this watcher again in the same async session
-- default max watch timeout for one Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`, set on the low-level `watch-copilot-review.mjs` helper); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
+- default max watch timeout for one Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`, set on the low-level `probe-copilot-review.mjs` helper); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
 - if the user explicitly asks for async handoff-only behavior, say that out loud and stop after the handoff boundary; otherwise do not silently reinterpret async loop entry as handoff-only
 
 **4. Low-level helpers**
 ```sh
 node <resolved-skill-scripts>/github/request-copilot-review.mjs --help
-node <resolved-skill-scripts>/github/watch-copilot-review.mjs --help
+node <resolved-skill-scripts>/github/probe-copilot-review.mjs --help
 node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --help
 ```
 
@@ -160,7 +160,7 @@ If the explicit request fails because Copilot review is not enabled for the repo
 Do not treat an attempted request as equivalent to a confirmed request.
 
 For the resolved `request-copilot-review.mjs` helper, branch on the machine-readable result:
-- `requested`: if another Copilot pass is actually desired, immediately re-baseline with `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` and branch on returned `state`, `snapshot.copilotReviewOnCurrentHead`, `snapshot.ciStatus`, and `nextAction`; only enter persistent waiting through `run-copilot-watch-cycle.mjs` or `gh run watch`, otherwise report the wait state and resume later without bash polling
+- `requested`: if another Copilot pass is actually desired, immediately re-baseline with `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` and branch on returned `state`, `snapshot.copilotReviewOnCurrentHead`, `snapshot.ciStatus`, and `nextAction`; only enter persistent waiting through `run-watch-cycle.mjs` or `gh run watch`, otherwise report the wait state and resume later without bash polling
 - `already-requested`: apply the same detector-first rebasing and wait branching as `requested`; do not keep the session alive with ad hoc bash polling
 - `suppressed_same_head_clean`: report the clean-converged state and stop unless an explicit `--force-rerequest-review` bypass is intentionally authorized
 - `unavailable`: report the limitation and stop unless the user explicitly wants passive waiting without a fresh request
@@ -175,20 +175,20 @@ node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/n
 
 Allowed wait tools for this PR follow-up loop:
 - one-shot PR wait-state classification: `detect-copilot-loop-state.mjs`
-- persistent Copilot review wait: `run-copilot-watch-cycle.mjs`
+- persistent Copilot review wait: `run-watch-cycle.mjs`
 - watch refresh after `timeout`/`idle`: `copilot-pr-handoff.mjs --watch-status <changed|timeout|idle>`
 - CI wait when a current-head workflow run id is known: `gh run watch <run-id> --repo <owner/name>`
 - otherwise: exit cleanly and resume later from a fresh detector call
 
 Practical rule for this repo:
-- `state=waiting_for_copilot_review` with `snapshot.copilotReviewOnCurrentHead=false`: do **not** poll manually; either run `node <resolved-skill-scripts>/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent async waiting or report the wait state and resume later after the single detector call
+- `state=waiting_for_copilot_review` with `snapshot.copilotReviewOnCurrentHead=false`: do **not** poll manually; either run `node <resolved-skill-scripts>/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent async waiting or report the wait state and resume later after the single detector call
 - `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`: do **not** poll manually by default; use `gh run watch <run-id> --repo <owner/name>` when the current-head run id is already known, otherwise report pending CI and resume later after the single detector refresh. Bounded exception: if GitHub created zero current-head check suites/statuses, the previous head rollup was green, and local `npm run verify` already passed for the same current head, rerun `detect-copilot-loop-state.mjs` with `--local-validation-head-sha <current-head-sha>` so the detector can promote that exact zero-suite case to `snapshot.ciStatus="crediblyGreen"` instead of waiting forever on raw `none`.
 - `snapshot.ciStatus="failure"` remains a stop/fix state, never a wait loop
 
 Preferred approach for Copilot review follow-up:
 - route request/re-request/watch decisions through `copilot-pr-handoff.mjs` output instead of re-implementing branch logic in markdown
 - enter watcher mode only when handoff returns `action: "watch"` with `requestWatchContract.watchEntryConfirmed=true`
-- for explicit async loop entry or continuation, prefer `run-copilot-watch-cycle.mjs` so the handoff → watch boundary stays deterministic and uses the emitted non-zero watch timeout
+- for explicit async loop entry or continuation, prefer `run-watch-cycle.mjs` so the handoff → watch boundary stays deterministic and uses the emitted non-zero watch timeout
 - if watcher status is `changed`, immediately re-enter the Step 7 fix / reply-resolve / validate path; do not stop at `review requested` or after one watch cycle
 - if watcher status is `timeout`/`idle`, re-run `copilot-pr-handoff.mjs --watch-status <status>` exactly once to refresh authoritative state
 - if that refreshed state is still `waiting_for_copilot_review` after the default 30-minute watch budget was exhausted, treat it as a hard stop and report `watch timeout — PR #<number> needs manual attention.` rather than pretending the loop completed cleanly
@@ -208,7 +208,7 @@ Every async dev-loop dispatch task body must include this clause verbatim so fre
 Key rules:
 - expected polling idle time is normal
 - do not restart watchers just because there has been a short quiet period
-- helper-owned sleep inside `run-copilot-watch-cycle.mjs`, `watch-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed
+- helper-owned sleep inside `run-watch-cycle.mjs`, `probe-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed
 - agent-authored shell polling is forbidden
 - do not use `nohup`, detached shell jobs, `tmux`, `screen`, or ad hoc `for i in $(seq ...)`, `while true`, `until ...; do sleep ...; done`, or `sleep`-retry bash loops for this workflow
 - do not wrap repeated `gh pr view`, `gh pr checks`, `gh api`, or `detect-copilot-loop-state.mjs` calls inside shell polling loops
@@ -282,7 +282,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
     - if GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot
     - only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head rather than assuming it remains requested
     - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
-    - for `requested` / `already-requested`, immediately re-baseline with `detect-copilot-loop-state.mjs`; if the returned state is `waiting_for_copilot_review`, use `run-copilot-watch-cycle.mjs` or stop/resume later, and if the returned state is `waiting_for_ci`, use `gh run watch` for a known run id or stop/resume later after that single detector refresh
+    - for `requested` / `already-requested`, immediately re-baseline with `detect-copilot-loop-state.mjs`; if the returned state is `waiting_for_copilot_review`, use `run-watch-cycle.mjs` or stop/resume later, and if the returned state is `waiting_for_ci`, use `gh run watch` for a known run id or stop/resume later after that single detector refresh
     - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
     - if the request command fails unexpectedly, stop and report the error rather than sleeping and hoping for a new review
 13. after a confirmed re-requested Copilot pass, refresh PR thread state again before reporting completion; if fresh Copilot threads exist, return to this follow-up loop rather than stopping at `review requested`

@@ -1,11 +1,17 @@
 #!/usr/bin/env node
+/**
+ * @deprecated This is a one-shot Copilot review probe. For persistent async
+ * watch/fix loops, prefer `scripts/loop/run-watch-cycle.mjs`.
+ * This script is kept as an optional fallback for explicit
+ * `--probe-only` status checks; it is not the primary watch path.
+ */
 import { setTimeout as delay } from "node:timers/promises";
 
 import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
 import { parseNonNegativeInteger, parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
-const USAGE = `Usage: watch-copilot-review.mjs --repo <owner/name> --pr <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
+const USAGE = `Usage: probe-copilot-review.mjs --repo <owner/name> --pr <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
 
 Poll for fresh Copilot review activity on a GitHub pull request.
 

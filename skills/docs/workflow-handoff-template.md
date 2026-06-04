@@ -42,7 +42,7 @@ Every step is non-optional. Do not skip, reorder, or batch steps.
 
 ### 4. Wait for Copilot review
 
-- Use the deterministic wait boundary: `node scripts/loop/run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number>`
+- Use the deterministic wait boundary: `node scripts/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number>`
 - Treat the PR follow-up as a loop, not a one-shot watch: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → …`
 - If the watch cycle returns fresh Copilot activity / `cycleDisposition: "needs_followup"`, continue immediately to step 5
 - If the watch cycle returns `watchStatus: "timeout"`, refresh once with `node scripts/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number> --watch-status timeout`

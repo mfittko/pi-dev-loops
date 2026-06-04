@@ -5,7 +5,7 @@ import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { parseWatchCycleCliArgs, runWatchCycle } from "../../scripts/loop/run-copilot-watch-cycle.mjs";
+import { parseWatchCycleCliArgs, runWatchCycle } from "../../scripts/loop/run-watch-cycle.mjs";
 
 const EMPTY_THREADS = JSON.stringify({
   data: {
@@ -51,13 +51,13 @@ test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", a
         action: "watch",
         state: "waiting_for_copilot_review",
         allowedTransitions: ["unresolved_feedback_present"],
-        nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+        nextAction: "Wait for Copilot review via scripts/github/probe-copilot-review.mjs",
         snapshot: { repo: "owner/repo", pr: 17 },
         loopDisposition: "pending",
         terminal: false,
         requestWatchContract: {
           action: "watch",
-          nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+          nextAction: "Wait for Copilot review via scripts/github/probe-copilot-review.mjs",
           requestStatus: "requested",
           routingState: "copilot_request_confirmed_waiting",
           watchEntryConfirmed: true,
@@ -124,7 +124,7 @@ test("runWatchCycle rejects persistent watch budgets below the unattended extern
           action: "watch",
           state: "waiting_for_copilot_review",
           allowedTransitions: ["unresolved_feedback_present"],
-          nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+          nextAction: "Wait for Copilot review via scripts/github/probe-copilot-review.mjs",
           snapshot: { repo: "owner/repo", pr: 17 },
           loopDisposition: "pending",
           terminal: false,
@@ -157,7 +157,7 @@ test("runWatchCycle uses zero-timeout idle probes only when explicitly requested
         action: "watch",
         state: "waiting_for_copilot_review",
         allowedTransitions: ["unresolved_feedback_present"],
-        nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+        nextAction: "Wait for Copilot review via scripts/github/probe-copilot-review.mjs",
         snapshot: { repo: "owner/repo", pr: 17 },
         loopDisposition: "pending",
         terminal: false,
@@ -208,7 +208,7 @@ test("runWatchCycle keeps shared loopDisposition and reports needs_followup in c
         action: "watch",
         state: "waiting_for_copilot_review",
         allowedTransitions: ["unresolved_feedback_present"],
-        nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+        nextAction: "Wait for Copilot review via scripts/github/probe-copilot-review.mjs",
         snapshot: { repo: "owner/repo", pr: 17 },
         loopDisposition: "pending",
         terminal: false,
@@ -674,7 +674,7 @@ test("runWatchCycle integration bounds active Copilot workflow waits by the emit
         action: "watch",
         state: "waiting_for_copilot_review",
         allowedTransitions: ["unresolved_feedback_present"],
-        nextAction: "Wait for Copilot review via scripts/github/watch-copilot-review.mjs",
+        nextAction: "Wait for Copilot review via scripts/github/probe-copilot-review.mjs",
         snapshot: { repo: "owner/repo", pr: 17 },
         loopDisposition: "pending",
         terminal: false,

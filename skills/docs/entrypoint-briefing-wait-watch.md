@@ -6,7 +6,7 @@ Next-action sentence: "Enter healthy-watch mode with configured timeout; escalat
 
 Helpers to run first:
 1. `node scripts/loop/watch-initial-copilot-pr.mjs --repo <owner/name> --pr <N>` — bootstrap watcher
-2. `node scripts/loop/run-copilot-watch-cycle.mjs` — cycle watcher
+2. `node scripts/loop/run-watch-cycle.mjs` — cycle watcher
 
 Required reading:
 - [Public Dev Loop Contract](public-dev-loop-contract.md)

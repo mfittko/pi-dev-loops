@@ -6,9 +6,9 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
-import { buildAttemptBudget, buildPollDelayMs, parseWatchCliArgs } from "../../scripts/github/watch-copilot-review.mjs";
+import { buildAttemptBudget, buildPollDelayMs, parseWatchCliArgs } from "../../scripts/github/probe-copilot-review.mjs";
 
-const scriptPath = path.resolve("scripts/github/watch-copilot-review.mjs");
+const scriptPath = path.resolve("scripts/github/probe-copilot-review.mjs");
 
 const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
 
@@ -101,7 +101,7 @@ test("buildPollDelayMs schedules polls on the requested watch timeline", () => {
   assert.equal(buildPollDelayMs(1_000, 250, 100, 3, 1_260), 0);
 });
 
-test("watch-copilot-review returns idle for a zero-timeout no-change check", async () => {
+test("probe-copilot-review returns idle for a zero-timeout no-change check", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-idle-"));
   const baseline = createActivityPayload({ threads: [createThread("c-1", "reviewer", "Please add a test.")] });
 
@@ -125,7 +125,7 @@ test("watch-copilot-review returns idle for a zero-timeout no-change check", asy
   }
 });
 
-test("watch-copilot-review returns timeout after bounded polling with no fresh Copilot activity", async () => {
+test("probe-copilot-review returns timeout after bounded polling with no fresh Copilot activity", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-timeout-"));
   const baseline = createActivityPayload({ threads: [createThread("c-1", "reviewer", "Please add a test.")] });
 
@@ -149,7 +149,7 @@ test("watch-copilot-review returns timeout after bounded polling with no fresh C
   }
 });
 
-test("watch-copilot-review rounds up attempt budget so non-divisible timeout still covers full window", async () => {
+test("probe-copilot-review rounds up attempt budget so non-divisible timeout still covers full window", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-timeout-round-up-"));
   const baseline = createActivityPayload();
   const stillQuiet = createActivityPayload();
@@ -196,7 +196,7 @@ test("watch-copilot-review rounds up attempt budget so non-divisible timeout sti
   }
 });
 
-test("watch-copilot-review returns changed for fresh Copilot review-thread comments", async () => {
+test("probe-copilot-review returns changed for fresh Copilot review-thread comments", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-thread-"));
   const baseline = createActivityPayload({ threads: [createThread("c-1", "reviewer", "Please add a test.")] });
   const changed = createActivityPayload({
@@ -238,8 +238,8 @@ test("watch-copilot-review returns changed for fresh Copilot review-thread comme
   }
 });
 
-test("watch-copilot-review returns changed for fresh Copilot review summaries", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-review-"));
+test("probe-copilot-review returns changed for fresh Copilot review summaries", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-probe-copilot-review-"));
   const baseline = createActivityPayload();
   const changed = createActivityPayload({
     reviews: [createReview("r-1", "copilot-pull-request-reviewer[bot]", "Automated Copilot summary.", "Bot")],
@@ -276,7 +276,7 @@ test("watch-copilot-review returns changed for fresh Copilot review summaries", 
   }
 });
 
-test("watch-copilot-review returns changed for fresh Copilot issue comments", async () => {
+test("probe-copilot-review returns changed for fresh Copilot issue comments", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-issue-comment-"));
   const baseline = createActivityPayload();
   const changed = createActivityPayload({
@@ -314,7 +314,7 @@ test("watch-copilot-review returns changed for fresh Copilot issue comments", as
   }
 });
 
-test("watch-copilot-review ignores fresh non-Copilot activity", async () => {
+test("probe-copilot-review ignores fresh non-Copilot activity", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-ignore-"));
   const baseline = createActivityPayload({ threads: [createThread("c-1", "reviewer", "Please add a test.")] });
   const changed = createActivityPayload({
@@ -342,7 +342,7 @@ test("watch-copilot-review ignores fresh non-Copilot activity", async () => {
   }
 });
 
-test("watch-copilot-review ignores lookalike non-Copilot logins", async () => {
+test("probe-copilot-review ignores lookalike non-Copilot logins", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-copilot-lookalike-"));
   const baseline = createActivityPayload({ threads: [createThread("c-1", "reviewer", "Please add a test.")] });
   const changed = createActivityPayload({
@@ -370,7 +370,7 @@ test("watch-copilot-review ignores lookalike non-Copilot logins", async () => {
   }
 });
 
-test("watch-copilot-review rejects malformed arguments and invalid poll settings deterministically", async () => {
+test("probe-copilot-review rejects malformed arguments and invalid poll settings deterministically", async () => {
   const missingPr = await runNode(["--repo", "owner/repo"]);
   assert.equal(missingPr.code, 1);
   assert.equal(missingPr.stdout, "");
@@ -408,11 +408,11 @@ test("watch-copilot-review rejects malformed arguments and invalid poll settings
   assert(invalidRepoErr.usage.length > 0);
 });
 
-test("watch-copilot-review --help prints usage and exits 0", async () => {
+test("probe-copilot-review --help prints usage and exits 0", async () => {
   const helpLong = await runNode(["--help"]);
   assert.equal(helpLong.code, 0);
   assert.equal(helpLong.stderr, "");
-  assert(helpLong.stdout.includes("watch-copilot-review.mjs"), `expected script name in help, got: ${helpLong.stdout}`);
+  assert(helpLong.stdout.includes("probe-copilot-review.mjs"), `expected script name in help, got: ${helpLong.stdout}`);
   assert(helpLong.stdout.includes("--repo"), `expected --repo in help`);
   assert(helpLong.stdout.includes("--pr"), `expected --pr in help`);
   assert(helpLong.stdout.includes("--poll-interval-ms"), `expected --poll-interval-ms in help`);
@@ -424,13 +424,13 @@ test("watch-copilot-review --help prints usage and exits 0", async () => {
   assert.equal(helpShort.stdout, helpLong.stdout);
 });
 
-test("watch-copilot-review uses production-safe defaults (1-minute poll, 30-minute timeout)", () => {
+test("probe-copilot-review uses production-safe defaults (1-minute poll, 30-minute timeout)", () => {
   const options = parseWatchCliArgs(["--repo", "owner/repo", "--pr", "17"]);
   assert.equal(options.pollIntervalMs, 60_000);
   assert.equal(options.timeoutMs, 1_800_000);
 });
 
-test("watch-copilot-review trims surrounding whitespace from --repo", () => {
+test("probe-copilot-review trims surrounding whitespace from --repo", () => {
   const options = parseWatchCliArgs(["--repo", " owner/repo ", "--pr", "17"]);
   assert.equal(options.repo, "owner/repo");
 });

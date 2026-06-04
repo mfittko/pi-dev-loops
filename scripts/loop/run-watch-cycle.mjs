@@ -6,7 +6,7 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { DEV_LOOP_CONTRACT_TRACE_CLASSIFICATION } from "@pi-dev-loops/core/loop/public-dev-loop-routing";
-import { watchCopilotReview } from "../github/watch-copilot-review.mjs";
+import { watchCopilotReview } from "../github/probe-copilot-review.mjs";
 import { runHandoff } from "./copilot-pr-handoff.mjs";
 import { detectCopilotSessionActivity } from "./detect-copilot-session-activity.mjs";
 import {
@@ -14,7 +14,7 @@ import {
   enforceExternalHealthyWaitTimeout,
 } from "@pi-dev-loops/core/loop/timeout-policy";
 
-const USAGE = `Usage: run-copilot-watch-cycle.mjs --repo <owner/name> --pr <number> [--force-rerequest-review] [--probe-only]
+const USAGE = `Usage: run-watch-cycle.mjs --repo <owner/name> --pr <number> [--force-rerequest-review] [--probe-only]
 
 Run one deterministic Copilot wait-cycle boundary.
 
@@ -167,7 +167,7 @@ function buildWatchCycleContractTrace({
       terminal: Boolean(handoff.terminal),
     },
     waitStrategy: {
-      helper: handoff.action === "watch" ? "scripts/github/watch-copilot-review.mjs" : null,
+      helper: handoff.action === "watch" ? "scripts/github/probe-copilot-review.mjs" : null,
       mode: handoff.action === "watch"
         ? (probeOnly ? "one_shot_probe" : "persistent_watch")
         : "not_applicable",
@@ -246,7 +246,7 @@ export function parseWatchCycleCliArgs(argv) {
   }
 
   if (options.repo === undefined || options.pr === undefined) {
-    throw parseError("run-copilot-watch-cycle requires both --repo <owner/name> and --pr <number>");
+    throw parseError("run-watch-cycle requires both --repo <owner/name> and --pr <number>");
   }
 
   try {
