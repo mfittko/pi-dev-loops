@@ -375,7 +375,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   if (draftGateNeverPassed && gateBoundariesExpectingDraftGate.has(result.gateBoundary)) {
     result.gateBoundary = PR_GATE_BOUNDARY.DRAFT_GATE_NEEDED;
     result.nextAction = PR_GATE_ACTION.RECONCILE_DRAFT_GATE;
-    result.reason = "The PR is non-draft but no clean draft_gate comment exists for any head SHA (one-time boundary); run reconcile_draft_gate before proceeding.";
+    result.reason = "The PR is non-draft but no visible draft_gate comment or marker exists at all (one-time boundary); run reconcile_draft_gate before proceeding.";
     result.allowedNextActions = [PR_GATE_ACTION.RECONCILE_DRAFT_GATE];
     result.forbiddenActions = [
       PR_GATE_ACTION.RUN_DRAFT_GATE,
