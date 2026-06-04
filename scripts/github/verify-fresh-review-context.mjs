@@ -90,10 +90,14 @@ function legacySentinelRelative(scope) {
 async function checkSentinelExists(scope, cwd = process.cwd()) {
   // Check current sentinel name first
   const sentinelPath = path.resolve(cwd, sentinelRelative(scope));
-  try { await stat(sentinelPath); return { exists: true, path: sentinelPath, legacy: false }; } catch {}
+  try { await stat(sentinelPath); return { exists: true, path: sentinelPath, legacy: false }; } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
   // Check legacy sentinel name for backward compat
   const legacyPath = path.resolve(cwd, legacySentinelRelative(scope));
-  try { await stat(legacyPath); return { exists: true, path: legacyPath, legacy: true }; } catch {}
+  try { await stat(legacyPath); return { exists: true, path: legacyPath, legacy: true }; } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
   return { exists: false, path: sentinelPath, legacy: false };
 }
 

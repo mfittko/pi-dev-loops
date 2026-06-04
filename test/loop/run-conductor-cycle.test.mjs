@@ -7,7 +7,7 @@ import test from "node:test";
 import {
   AUTONOMY_GATE_ACTION_MAP,
   actionRequiresApproval,
-  GATE_ACTION_TO_CONDUCTOR_ACTION,
+  CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION,
   ACTION_PRIORITY,
   SUBAGENT_ACTIONS,
   buildActionQueue,
@@ -28,26 +28,26 @@ const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, opt
 
 test("all PR_CHECKPOINT_ACTION values have a conductor action mapping", () => {
   const gateActionValues = Object.values(PR_CHECKPOINT_ACTION);
-  const missing = gateActionValues.filter((val) => !(val in GATE_ACTION_TO_CONDUCTOR_ACTION));
+  const missing = gateActionValues.filter((val) => !(val in CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION));
   assert.deepEqual(missing, [], `Missing mappings for: ${missing.join(", ")}`);
 });
 
-test("GATE_ACTION_TO_CONDUCTOR_ACTION maps unresolved feedback to fix_threads", () => {
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.ADDRESS_REVIEW_FEEDBACK], "fix_threads");
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.REPLY_RESOLVE_REVIEW_THREADS], "fix_threads");
+test("CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION maps unresolved feedback to fix_threads", () => {
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.ADDRESS_REVIEW_FEEDBACK], "fix_threads");
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.REPLY_RESOLVE_REVIEW_THREADS], "fix_threads");
 });
 
-test("GATE_ACTION_TO_CONDUCTOR_ACTION maps pre-approval to run_pre_approval", () => {
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE], "run_pre_approval");
+test("CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION maps pre-approval to run_pre_approval", () => {
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE], "run_pre_approval");
 });
 
-test("GATE_ACTION_TO_CONDUCTOR_ACTION maps merge to merge", () => {
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY], "merge");
+test("CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION maps merge to merge", () => {
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY], "merge");
 });
 
-test("GATE_ACTION_TO_CONDUCTOR_ACTION maps wait states to watch", () => {
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.WAIT_FOR_COPILOT_REVIEW], "watch");
-  assert.equal(GATE_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.WAIT_FOR_CI], "watch");
+test("CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION maps wait states to watch", () => {
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.WAIT_FOR_COPILOT_REVIEW], "watch");
+  assert.equal(CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[PR_CHECKPOINT_ACTION.WAIT_FOR_CI], "watch");
 });
 
 // ---------------------------------------------------------------------------

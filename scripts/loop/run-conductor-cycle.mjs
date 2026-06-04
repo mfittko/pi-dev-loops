@@ -64,7 +64,7 @@ const OPEN_PR_LIST_LIMIT = 1000;
  * Parent-executable actions: merge (gh pr merge), watch (poll),
  *   await_approval (stop), resolve_conflicts (stop), blocked (stop), done (stop)
  */
-export const GATE_ACTION_TO_CONDUCTOR_ACTION = Object.freeze({
+export const CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION = Object.freeze({
   [PR_CHECKPOINT_ACTION.ADDRESS_REVIEW_FEEDBACK]: "fix_threads",
   [PR_CHECKPOINT_ACTION.REPLY_RESOLVE_REVIEW_THREADS]: "fix_threads",
   [PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE]: "draft_gate",
@@ -274,7 +274,7 @@ export async function detectPrState(
       // Snapshot is supplementary; gate state is primary
     }
 
-    const action = GATE_ACTION_TO_CONDUCTOR_ACTION[gateState.nextAction] ?? "error";
+    const action = CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[gateState.nextAction] ?? "error";
     const priority = ACTION_PRIORITY[action] ?? -1;
     const requiresApproval = actionRequiresApproval(action, autonomyStopAt);
 
