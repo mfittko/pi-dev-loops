@@ -184,7 +184,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
   }
 });
 
-test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs with no draft_gate evidence", async () => {
+test("detect-pr-gate-coordination-state flags draft_gate_needed for non-draft PRs with no draft_gate evidence", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-no-draft-evidence-"));
 
   try {
@@ -223,16 +223,15 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
     const parsed = JSON.parse(result.stdout);
-    assert.equal(parsed.gateBoundary, "post_draft_external_review");
-    assert.equal(parsed.nextAction, "request_copilot_review");
-    assert.equal(parsed.draftGate.cleanEvidenceExists, false);
+    assert.equal(parsed.gateBoundary, "draft_gate_needed");
+    assert.equal(parsed.nextAction, "reconcile_draft_gate");
     assert.equal(parsed.draftGateAlreadySatisfied, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("detect-pr-gate-coordination-state allows pre-approval flow for converged non-draft PRs with no draft_gate evidence", async () => {
+test("detect-pr-gate-coordination-state flags draft_gate_needed for converged non-draft PRs with no draft_gate evidence", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-no-draft-evidence-converged-"));
 
   try {
@@ -292,16 +291,15 @@ test("detect-pr-gate-coordination-state allows pre-approval flow for converged n
     assert.equal(result.stderr, "");
     const parsed = JSON.parse(result.stdout);
     assert.equal(parsed.lifecycleState, "ready_to_rerequest_review");
-    assert.equal(parsed.gateBoundary, "pre_approval_gate_window");
-    assert.equal(parsed.nextAction, "run_pre_approval_gate");
-    assert.equal(parsed.draftGate.cleanEvidenceExists, false);
+    assert.equal(parsed.gateBoundary, "draft_gate_needed");
+    assert.equal(parsed.nextAction, "reconcile_draft_gate");
     assert.equal(parsed.draftGateAlreadySatisfied, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("detect-pr-gate-coordination-state allows pre-approval fallback when the Copilot round cap is exhausted", async () => {
+test("detect-pr-gate-coordination-state flags draft_gate_needed when Copilot round cap is exhausted without draft_gate", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-round-cap-"));
 
   try {
@@ -385,10 +383,106 @@ test("detect-pr-gate-coordination-state allows pre-approval fallback when the Co
     assert.equal(result.stderr, "");
     const parsed = JSON.parse(result.stdout);
     assert.equal(parsed.lifecycleState, "ready_to_rerequest_review");
-    assert.equal(parsed.gateBoundary, "pre_approval_gate_window");
-    assert.equal(parsed.nextAction, "run_pre_approval_gate");
-    assert.equal(parsed.gateEvidenceNote, "Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.");
-    assert.match(parsed.reason, /round limit/i);
+    assert.equal(parsed.gateBoundary, "draft_gate_needed");
+    assert.equal(parsed.nextAction, "reconcile_draft_gate");
+    assert.equal(parsed.gateEvidenceNote, null);
+    assert.deepEqual(parsed.allowedNextActions, ["reconcile_draft_gate"]);
+    assert.ok(parsed.forbiddenActions.includes("run_pre_approval_gate"));
+    assert.ok(parsed.forbiddenActions.includes("declare_merge_ready"));
+    assert.match(parsed.reason, /no visible draft_gate/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-pr-gate-coordination-state auto-detects local-fix-without-reply (#464) when unresolved threads exist on older review commit", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-464-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "269", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 269,
+          state: "OPEN",
+          isDraft: false,
+          headRefOid: "abababababababababababababababababababab",
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd" },
+              submittedAt: "2026-06-01T12:00:00Z",
+            },
+          ],
+        }),
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/269/requested_reviewers"],
+        stdout: jsonLine({ users: [], teams: [] }),
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=269"],
+        stdout: jsonLine({
+          data: {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  nodes: [
+                    {
+                      id: "thread-1",
+                      isResolved: false,
+                      comments: {
+                        nodes: [
+                          {
+                            id: "comment-1",
+                            databaseId: 1001,
+                            body: "This needs a fix",
+                            author: { login: "copilot-pull-request-reviewer", __typename: "Bot" },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        }),
+      },
+      {
+        assertArgs: ["pr", "view", "269", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: jsonLine({ headRefOid: "abababababababababababababababababababab" }),
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/269/comments?per_page=100"],
+        stdout: jsonLine([
+          [
+            {
+              id: 50,
+              body: [
+                "Gate review: draft_gate",
+                "Reviewed head SHA: abababababababababababababababababababab",
+                "Verdict: clean",
+                "Findings summary: Initial draft gate.",
+                "Next action: Mark ready for review.",
+              ].join("\n"),
+              html_url: "https://example.test/comment/50",
+              updated_at: "2026-06-01T12:00:00Z",
+            },
+          ],
+        ]),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "269"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.lifecycleState, "already_fixed_needs_reply_resolve");
+    assert.equal(parsed.nextAction, "reply_resolve_review_threads");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -685,8 +779,23 @@ test("pre-approval-gate-detector overrides to pre_approval_gate_needed when neve
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/268/comments?per_page=100"],
-        // No pre_approval_gate comment at all
-        stdout: jsonLine([[]]),
+        // Clean draft_gate comment present; no pre_approval_gate comment
+        stdout: jsonLine([
+          [
+            {
+              id: 60,
+              body: [
+                "Gate review: draft_gate",
+                "Reviewed head SHA: fedcba987654",
+                "Verdict: clean",
+                "Findings summary: Draft gate passed.",
+                "Next action: Mark ready for review.",
+              ].join("\n"),
+              html_url: "https://example.test/comment/60",
+              updated_at: "2026-05-31T20:00:00Z",
+            },
+          ],
+        ]),
       },
     ]);
 

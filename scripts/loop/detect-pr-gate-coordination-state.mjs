@@ -279,6 +279,17 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     }, runtime);
   }
 
+  // #464: Auto-detect stop-at-local-fix without GitHub reply/resolve.
+  // When unresolved threads exist AND the Copilot review was on an older
+  // commit than current HEAD, auto-set agentFixStatus = "applied" so the
+  // state machine routes to ALREADY_FIXED_NEEDS_REPLY_RESOLVE instead of
+  // UNRESOLVED_FEEDBACK_PRESENT (implying code fixes still needed).
+  if (snapshot.unresolvedThreadCount > 0
+      && !snapshot.copilotReviewOnCurrentHead
+      && snapshot.copilotReviewPresent) {
+    snapshot.agentFixStatus = "applied";
+  }
+
   const conflictFiles = await fetchLocalConflictFiles(runtime);
 
   if (gateEvidence.currentHeadSha !== currentHeadSha) {
@@ -338,6 +349,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   // PRE_APPROVAL_GATE_NEEDED boundary regardless of what the state machine says.
   const preApprovalNeverEntered = !(result.preApprovalGate?.contractComplete === true);
   const gateBoundariesExpectingPreApproval = new Set([
+    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED,
     PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
     PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
   ]);
@@ -347,6 +359,33 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     result.nextAction = PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE;
     result.reason = "No contract-complete pre_approval_gate marker exists for the current head SHA; run pre_approval_gate before proceeding.";
     result.allowedNextActions = [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE];
+  }
+  // #460: draft_gate detector — if PR is non-draft and no visible
+  // draft_gate evidence (comment or marker) exists at all
+  // (one-time boundary), force the DRAFT_GATE_NEEDED boundary.
+  const draftGateEvidenceMissing = !(result.draftGate?.anyVisible);
+  const gateBoundariesExpectingDraftGate = new Set([
+    PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
+    PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
+    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED,
+    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
+    PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+  ]);
+
+  if (draftGateEvidenceMissing && gateBoundariesExpectingDraftGate.has(result.gateBoundary)) {
+    result.gateBoundary = PR_GATE_BOUNDARY.DRAFT_GATE_NEEDED;
+    result.nextAction = PR_GATE_ACTION.RECONCILE_DRAFT_GATE;
+    result.reason = "The PR is non-draft but no visible draft_gate comment or marker exists at all (one-time boundary); run reconcile_draft_gate before proceeding.";
+    result.allowedNextActions = [PR_GATE_ACTION.RECONCILE_DRAFT_GATE];
+    result.forbiddenActions = [
+      PR_GATE_ACTION.RUN_DRAFT_GATE,
+      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
+      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
+      PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
+      PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
+      PR_GATE_ACTION.DECLARE_MERGE_READY,
+    ];
+    result.gateEvidenceNote = null;
   }
 
   return result;
