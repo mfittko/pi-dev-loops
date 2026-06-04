@@ -26,7 +26,7 @@
 - confirm the review surface checks the planned definition of done instead of only acceptance criteria
 
 ## RFC-escalation sanity check
-- confirm RFC-worthy technical decisions are escalated through the coordinator
-- confirm the coordinator-side receiving boundary and decision ownership remain explicit
+- confirm RFC-worthy technical decisions are escalated to the parent session / human operator
+- confirm the parent-session receiving boundary and decision ownership remain explicit
 
 ## Required revisions

@@ -35,23 +35,13 @@ test("docs agent supports docs-correctness review posture without becoming a pub
   assert.match(content, /do not silently edit files when acting as reviewer/i);
 });
 
-test("coordinator agent does not contain stale docs/plans path and requires fresh-context review briefings", async () => {
-  const content = await readRepo("agents/coordinator.agent.md");
-
-  assert.doesNotMatch(content, /docs\/plans\//);
-  assert.match(content, /Do not fork the parent session for review subagents/i);
-  assert.match(content, /concise briefing summary/i);
-  assert.match(content, /fresh context/i);
-});
-
 test("review workflow resolves pre-approval gate angles from config with explicit fallback requirement", async () => {
-  const [localImplementationSkill, copilotFollowupSkill, subLoopContract, reviewAgent, coordinatorAgent, reviewTemplate, reviewerGraph] = await Promise.all([
+  const [localImplementationSkill, copilotFollowupSkill, subLoopContract, reviewAgent, reviewTemplate, reviewerGraph] = await Promise.all([
     readRepo("skills/local-implementation/SKILL.md"),
     readRepo("skills/copilot-pr-followup/SKILL.md"),
     readRepo("docs/gate-review-sub-loop-contract.md"),
     readRepo("agents/review.agent.md"),
-    readRepo("agents/coordinator.agent.md"),
-    readRepo("skills/dev-loop/templates/review.md"),
+        readRepo("skills/dev-loop/templates/review.md"),
     readRepo("docs/reviewer-loop-state-graph.md"),
   ]);
 
@@ -59,7 +49,6 @@ test("review workflow resolves pre-approval gate angles from config with explici
     ["skills/local-implementation/SKILL.md", localImplementationSkill, /default pre-approval gate[\s\S]{0,200}resolveGateAngles/i],
     ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill, /default pre-approval gate/i],
     ["agents/review.agent.md", reviewAgent, /default pre-approval gate contract:[\s\S]{0,200}resolveGateAngles/i],
-    ["agents/coordinator.agent.md", coordinatorAgent, /review fan-out must use the [\s\S]{0,200}resolveGateAngles/i],
     ["skills/dev-loop/templates/review.md", reviewTemplate, /Default pre-approval gate/i],
     ["docs/reviewer-loop-state-graph.md", reviewerGraph, /default pre-approval gate[\s\S]{0,200}resolveGateAngles/i],
   ];
@@ -72,8 +61,7 @@ test("review workflow resolves pre-approval gate angles from config with explici
     ["skills/local-implementation/SKILL.md", localImplementationSkill],
     ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill],
     ["agents/review.agent.md", reviewAgent],
-    ["agents/coordinator.agent.md", coordinatorAgent],
-    ["docs/reviewer-loop-state-graph.md", reviewerGraph],
+        ["docs/reviewer-loop-state-graph.md", reviewerGraph],
   ]) {
     assert.match(
       content,
@@ -92,8 +80,6 @@ test("review workflow resolves pre-approval gate angles from config with explici
   assert.match(copilotFollowupSkill, /if parallel execution is impractical[\s\S]*still run all configured lenses and explicitly record the limitation/i);
   assert.match(reviewAgent, /if parallel execution is impractical[\s\S]*still cover all configured angles and explicitly record the limitation/i);
   assert.match(reviewAgent, /run those configured angle-focused passes in fresh context and in parallel when practical/i);
-  assert.match(coordinatorAgent, /resolve angles from config[\s\S]*run [a-z ]+ in parallel when practical/i);
-  assert.match(coordinatorAgent, /if parallel execution is impractical[\s\S]*still run all configured angles and record that limitation explicitly/i);
   assert.match(reviewerGraph, /workflow lenses that reviewer\s+runs must cover for the change/i);
   assert.match(reviewerGraph, /do not replace the state machine's supported\s+review-angle taxonomy/i);
 });

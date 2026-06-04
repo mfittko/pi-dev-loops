@@ -66,7 +66,7 @@ When the local spec already lives in a tracker issue:
 
 - Implement **one phase at a time**.
 - Do not refine later phases in detail before the current phase is complete.
-- Use the `refiner` agent for phase-refinement work when subagents are available; keep the coordinator as the escalation and decision owner when RFC-worthy technical decisions appear.
+- Use the `refiner` agent for phase-refinement work when subagents are available; escalate RFC-worthy technical decisions to the parent session / human operator.
 - Work **test-first** for all non-trivial logic.
 - Maintain **90% coverage** thresholds.
 - Log detailed iteration artifacts under `tmp/` using the required structure below.
@@ -273,7 +273,7 @@ Each refiner variant should make room for:
 - a complete definition of done
 - risks and unresolved questions
 - when a bounded audit artifact exists: prioritized findings, highest-value follow-up candidates, and what the phase will not rewrite or broaden
-- RFC escalation notes when technical decisions should go through the coordinator
+- RFC escalation notes when technical decisions should go to the parent session / human operator
 - for watcher/predicate-heavy phases: explicit negative-case tests and timeout semantics, including any zero-timeout or single-check contract
 
 Use the template in [Phase Variant Template](../dev-loop/templates/phase-variant.md).
@@ -319,7 +319,7 @@ The merged plan must include:
 - acceptance criteria
 - definition of done
 - when a bounded audit artifact exists: prioritized findings, highest-value follow-up candidates, and an explicit statement of what this phase will not rewrite or broaden
-- RFC escalation notes for any RFC-worthy technical decisions that must go through the coordinator instead of being silently resolved during refinement
+- RFC escalation notes for any RFC-worthy technical decisions that must go to the parent session / human operator instead of being silently resolved during refinement
 - for any new CLI surface: explicit success-output and malformed-argument/error-contract expectations
 - for any watcher/predicate-driven behavior: explicit timeout semantics plus negative-case detection rules for non-target identities or events
 - for package-first phases in a source-loaded workspace: explicit expectations about whether callers consume shared logic through workspace/source adapters or published package import paths during local development
@@ -356,6 +356,54 @@ If the review finds real issues, revise the merged plan and briefly update the r
 
 Do not begin coding before the merged phase plan has passed review.
 Update `manifest.json` to show that phase implementation has started.
+
+## Task breakdown & delegation
+
+After the merged phase plan passes review and before implementation starts, break the phase
+into parallel executable tasks and dispatch them to the right specialist subagents.
+
+### Task decomposition
+
+1. Read the merged phase plan and identify independent work slices.
+2. Break each slice into a discrete task with explicit acceptance criteria, required files,
+   and expected verification.
+3. Prefer parallel dispatch of non-overlapping tasks.
+4. Treat task ordering as: parallel-independent work first, then dependent work that requires
+   a prior task's output.
+
+### Delegation contract
+
+Dispatch implementation tasks to dedicated specialist agents:
+
+| Task type | Delegate to |
+|---|---|
+| Code changes, refactors, tests, bug fixes, feature work | `developer` |
+| Build systems, CI, test runners, type-checking, linting | `quality` |
+| README, plan docs, agent docs, migration notes | `docs` |
+| Review-comment follow-up, PR fix commits | `fixer` |
+
+For each delegated task:
+- give the subagent one focused task with exact success criteria
+- include only the minimum relevant files, plans, and repo context
+- tell the subagent whether it should implement, verify, or review
+- require the subagent to report blockers, verification results, and changed files
+- avoid circular delegation and overlapping scopes
+
+### Status monitoring
+
+Track each dispatched task:
+- at minimum record agent name, task summary, status (`queued`, `running`, `done`, `failed`),
+  and output artifacts
+- when tasks are dispatched asynchronously, check status periodically
+- if a subagent exits while the task is still non-terminal, resume or re-dispatch
+
+### Consolidation
+
+After all dispatched tasks complete:
+1. Collect results and verification output from each task.
+2. Review that each task's acceptance criteria are genuinely satisfied.
+3. Resolve any coordination gaps or overlapping changes.
+4. Proceed to the implementation loop for the phase once all tasks are green.
 
 ## Subagent summary logging
 
@@ -395,7 +443,7 @@ The canonical template is [Workflow Handoff Template](../docs/workflow-handoff-t
 - non-negotiable invariants (Copilot review loop between gates, `unresolvedThreadCount === 0`, visible gate comments)
 
 For all GitHub-first routed follow-up (`copilot_pr_followup`, `issue_intake`), the
-coordinator must use this template when delegating the full run to a subagent.
+ `local-implementation` skill uses this template when delegating the full run to a subagent.
 Reference it by path, not by memory.
 
 ## Implementation loop for the phase

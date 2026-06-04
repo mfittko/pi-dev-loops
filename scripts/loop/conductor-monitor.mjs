@@ -888,6 +888,147 @@ function isStaleWorktreePath(filePath, repoIsolation) {
   return !existsSync(filePath);
 }
 
+
+// ── Local phase subagent scanning ───────────────────────────────────────────
+
+const LOCAL_PHASE_AGENTS = new Set([
+  "developer",
+  "quality",
+  "docs",
+  "fixer",
+  "refiner",
+  "review",
+]);
+
+const RUN_STATE_LABELS = Object.freeze({
+  queued: RUN_STATE.QUEUED,
+  running: RUN_STATE.RUNNING,
+  paused: RUN_STATE.PAUSED,
+  completed: RUN_STATE.COMPLETED,
+  failed: RUN_STATE.FAILED,
+  done: RUN_STATE.COMPLETED,
+  error: RUN_STATE.FAILED,
+});
+
+function normalizeSummaryState(label) {
+  return RUN_STATE_LABELS[String(label).trim().toLowerCase()] ?? RUN_STATE.UNKNOWN;
+}
+
+function parseLocalSubagentSummary(text, filePath) {
+  const agentMatch = text.match(/^[-*]\s*agent(?:\s*name)?:\s*(.+)$/imu);
+  const statusMatch = text.match(/^[-*]\s*(?:status|state):\s*(.+)$/imu);
+  const runIdMatch = text.match(/^[-*]\s*run(?:\s*id)?:\s*(.+)$/imu);
+  const cwdMatch = text.match(/^[-*]\s*(?:cwd|working\s*directory):\s*(.+)$/imu);
+  const taskMatch = text.match(/^[-*]\s*(?:task|prompt\s*summary):\s*(.+)$/imu);
+
+  const agent = agentMatch?.[1]?.trim() ?? null;
+  if (agent === null || !LOCAL_PHASE_AGENTS.has(agent)) {
+    return null;
+  }
+
+  return {
+    agent,
+    runState: normalizeSummaryState(statusMatch?.[1] ?? ""),
+    runId: (runIdMatch?.[1] ?? path.basename(filePath, ".md")).trim(),
+    cwd: cwdMatch?.[1]?.trim() ?? null,
+    taskSummary: taskMatch?.[1]?.trim() ?? null,
+    summaryPath: filePath,
+    evidence: { summaryPath: filePath },
+    childIndex: 0,
+    timestampMs: null,
+  };
+}
+
+async function scanLocalPhaseSubagents(repoRoot) {
+  const phasesRoot = path.join(repoRoot, "tmp", "phases");
+  const phaseDirs = await listDirectoriesIfExists(phasesRoot);
+  const runs = [];
+
+  for (const phaseDir of phaseDirs) {
+    const subagentsDir = path.join(phaseDir, "subagents");
+    let entries;
+    try {
+      entries = await readdir(subagentsDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".md")) {
+        continue;
+      }
+
+      const filePath = path.join(subagentsDir, entry.name);
+      const text = await readTextIfExists(filePath);
+      if (text === null) {
+        continue;
+      }
+
+      const parsed = parseLocalSubagentSummary(text, filePath);
+      if (parsed !== null && isExitedState(parsed.runState)) {
+        runs.push({
+          ...parsed,
+          phaseDir,
+          kind: "local_phase",
+        });
+      }
+    }
+
+    // Also scan raw subagent outputs
+    const rawDir = path.join(subagentsDir, "raw");
+    let rawEntries;
+    try {
+      rawEntries = await readdir(rawDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of rawEntries) {
+      if (!entry.isFile() || !entry.name.endsWith(".md")) {
+        continue;
+      }
+
+      const filePath = path.join(rawDir, entry.name);
+      const text = await readTextIfExists(filePath);
+      if (text === null) {
+        continue;
+      }
+
+      const parsed = parseLocalSubagentSummary(text, filePath);
+      if (parsed !== null && isExitedState(parsed.runState)) {
+        runs.push({
+          ...parsed,
+          phaseDir,
+          kind: "local_phase_raw",
+        });
+      }
+    }
+  }
+
+  return runs;
+}
+
+function buildLocalPhaseResumePlan(localRun, phaseIndex) {
+  const phaseName = path.basename(localRun.phaseDir);
+  const actionDetail = localRun.runState === RUN_STATE.FAILED
+    ? `Local phase ${phaseName} subagent ${localRun.agent} (${localRun.runId}) failed`
+    : `Local phase ${phaseName} subagent ${localRun.agent} (${localRun.runId}) exited`;
+
+  const resumeMessage = `${actionDetail}. Task: ${localRun.taskSummary ?? "unknown"}. Resume the phase from the last deterministic checkpoint in ${localRun.phaseDir}.`;
+
+  return {
+    kind: "local_phase",
+    phase: phaseName,
+    phaseDir: localRun.phaseDir,
+    agent: localRun.agent,
+    runId: localRun.runId,
+    runState: localRun.runState,
+    taskSummary: localRun.taskSummary,
+    resumeMessage,
+    summaryPath: localRun.summaryPath,
+  };
+}
+
 export async function listRepoAsyncRuns(
   { repo },
   {
@@ -1662,12 +1803,19 @@ async function analyzeAutoResume({ repo, reports }, options) {
     }
   });
 
+  // Scan local phase subagents
+  const localPhaseRuns = await scanLocalPhaseSubagents(options.repoRoot ?? process.cwd());
+  const localPhaseResumePlans = localPhaseRuns
+    .map((run, index) => buildLocalPhaseResumePlan(run, index));
+
   return {
     orphanedPrCount: orphanedPrs.size,
     resumePlanCount: resumePlans.length,
     manualAttentionCount: manualAttention.length,
+    localPhaseOrphanedCount: localPhaseResumePlans.length,
     resumePlans,
     needsManualAttention: manualAttention,
+    localPhaseResumePlans,
   };
 }
 
@@ -1680,10 +1828,12 @@ function applyAutoResumeToBaseResult(baseResult, autoResume) {
     }
   });
 
+  const localPhaseAttention = (autoResume.localPhaseResumePlans?.length ?? 0) > 0;
   const queueNeedsAttention = baseResult.queueStatus === "attention_needed"
     || autoResume.resumePlanCount > 0
-    || autoResume.manualAttentionCount > 0;
-  const queueStatus = baseResult.prCount === 0
+    || autoResume.manualAttentionCount > 0
+    || localPhaseAttention;
+  const queueStatus = baseResult.prCount === 0 && !localPhaseAttention
     ? "queue_complete"
     : (queueNeedsAttention ? "attention_needed" : "monitoring");
   const liveAttentionPrs = new Set(baseResult.prs.filter((pr) => pr.needsAttention).map((pr) => pr.number));
@@ -1697,8 +1847,10 @@ function applyAutoResumeToBaseResult(baseResult, autoResume) {
     orphanedPrCount: autoResume.orphanedPrCount,
     resumePlanCount: autoResume.resumePlanCount,
     manualAttentionCount: autoResume.manualAttentionCount,
+    localPhaseOrphanedCount: autoResume.localPhaseOrphanedCount ?? 0,
     resumePlans: autoResume.resumePlans,
     needsManualAttention: autoResume.needsManualAttention,
+    localPhaseResumePlans: autoResume.localPhaseResumePlans ?? [],
   };
 }
 
@@ -1717,15 +1869,27 @@ export async function runConductorMonitor(
   if (prs.length === 0) {
     const baseResult = buildBaseResult(repo, []);
     if (!autoResume) {
+      // Still scan local phases for informational reporting
+      const localRuns = await scanLocalPhaseSubagents(repoRoot);
+      if (localRuns.length > 0) {
+        return {
+          ...baseResult,
+          localPhaseOrphanedCount: localRuns.length,
+          localPhaseResumePlans: localRuns.map((run, i) => buildLocalPhaseResumePlan(run, i)),
+        };
+      }
       return baseResult;
     }
 
+    const localPhaseRuns = await scanLocalPhaseSubagents(repoRoot);
     return applyAutoResumeToBaseResult(baseResult, {
       orphanedPrCount: 0,
       resumePlanCount: 0,
       manualAttentionCount: 0,
       resumePlans: [],
       needsManualAttention: [],
+      localPhaseOrphanedCount: localPhaseRuns.length,
+      localPhaseResumePlans: localPhaseRuns.map((run, i) => buildLocalPhaseResumePlan(run, i)),
     });
   }
 

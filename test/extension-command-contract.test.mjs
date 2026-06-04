@@ -100,7 +100,7 @@ test("extension clears stale footer status and syncs packaged agents on session 
       await readFile(new URL("../.pi/agents/dev-loop.agent.md", import.meta.url), "utf8"),
     );
     assert.equal(await readFile(path.join(tempHome, ".agents", "keep.txt"), "utf8"), "keep me\n");
-    await access(path.join(tempHome, ".agents", "coordinator.agent.md"));
+    await access(path.join(tempHome, ".agents", "developer.agent.md"));
   } finally {
     if (previousHome === undefined) {
       delete process.env.HOME;
