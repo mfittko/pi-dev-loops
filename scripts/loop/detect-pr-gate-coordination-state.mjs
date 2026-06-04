@@ -318,7 +318,9 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
 
 export async function detectPrGateCoordinationState(options, runtime = {}) {
   const context = await loadPrGateCoordinationContext(options, runtime);
-  const { config } = await loadDevLoopConfig({ repoRoot: runtime.repoRoot ?? process.cwd() });
+  const configLoadResult = await loadDevLoopConfig({ repoRoot: runtime.repoRoot ?? process.cwd() });
+  const hasConfigErrors = Array.isArray(configLoadResult.errors) && configLoadResult.errors.length > 0;
+  const config = hasConfigErrors ? {} : (configLoadResult.config ?? {});
   const draftGateConfig = resolveGateConfig(config, "draft");
   const maxCopilotRounds = resolveRefinementConfig(config, "maxCopilotRounds");
   const result = evaluatePrGateCoordination({
