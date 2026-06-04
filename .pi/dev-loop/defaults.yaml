@@ -367,10 +367,10 @@ personas:
   gate-evidence:
     persona: review
     prompt: >-
-      Verify that required workflow gate evidence is present and valid:
-      - Check that the draft gate review comment exists and references the
+      Verify that required workflow checkpoint evidence is present and valid:
+      - Check that the draft checkpoint verdict comment exists and references the
         correct head SHA.
-      - Check that the pre-approval gate review comment exists when the PR
+      - Check that the pre-approval checkpoint verdict comment exists when the PR
         is in a ready/merge state.
       - Flag any PR that transitions to ready/merge states without visible
         gate evidence for the current head.

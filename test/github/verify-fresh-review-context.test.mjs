@@ -34,7 +34,7 @@ test("verify-fresh-review-context exits 1 when sentinel already exists", async (
   try {
     await mkdir(path.join(tmpDir, "tmp"), { recursive: true });
     await writeFile(
-      path.join(tmpDir, "tmp", "gate-review-context-sentinel.json"),
+      path.join(tmpDir, "tmp", "checkpoint-context-sentinel.json"),
       JSON.stringify({ createdAt: "2026-01-01T00:00:00.000Z", pid: 1 }) + "\n",
       "utf8"
     );

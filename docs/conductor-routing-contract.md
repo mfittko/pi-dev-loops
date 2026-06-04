@@ -132,7 +132,7 @@ The following input combinations are sufficient for direct routing (no reconcile
 
 | Outcome | Meaning | Loop family |
 |---|---|---|
-| `continue_current_wait` | Outer-loop wait state; re-enter after bounded wait interval | `outer_loop` |
+| `continue_current_wait` | Orchestrator wait state; re-enter after bounded wait interval | `outer_loop` |
 | `handoff_to_copilot_loop` | Copilot inner loop should handle the next step | `copilot_loop` |
 | `handoff_to_reviewer_loop` | Reviewer inner loop should handle the next step | `reviewer_loop` |
 | `stay_with_current_live_owner` | A live owner already has control; no new handoff needed this cycle | `outer_loop` |

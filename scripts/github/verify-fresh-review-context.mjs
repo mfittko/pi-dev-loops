@@ -6,7 +6,7 @@
  * the subagent inherits a prior session's context (contaminated) and the
  * script fails closed.
  *
- * Lock-file: tmp/gate-review-context-sentinel[-<scope>].json (relative to CWD,
+ * Lock-file: tmp/checkpoint-context-sentinel[-<scope>].json (relative to CWD,
  * which should be the repo root when run inside a Pi subagent).
  *
  * Use --scope <name> when multiple reviewers share the same working directory
@@ -77,7 +77,7 @@ function resolveValidatedScope(argv) {
 
 function sentinelRelative(scope) {
   const suffix = scope ? `-${scope}` : "";
-  return path.join("tmp", `gate-review-context-sentinel${suffix}.json`);
+  return path.join("tmp", `checkpoint-context-sentinel${suffix}.json`);
 }
 
 async function main(argv = process.argv.slice(2)) {

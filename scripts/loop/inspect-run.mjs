@@ -116,9 +116,9 @@ Output (stdout, JSON):
     layers (copilot, reviewer, steering drill-down)
 
 statusClass values:
-  active    Outer loop needs to re-enter an inner loop
-  waiting   Outer loop is waiting on an external event
-  blocked   Outer loop is stopped and requires attention
+  active    Orchestrator needs to re-enter an inner loop
+  waiting   Orchestrator is waiting on an external event
+  blocked   Orchestrator is stopped and requires attention
   done      PR is merged or closed; loop complete
   unknown   Cannot determine state from available evidence
 

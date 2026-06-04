@@ -7,7 +7,7 @@ import test from "node:test";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import {
-  parseUpsertGateReviewCommentCliArgs,
+  parseUpsertCheckpointVerdictCliArgs,
   summarizeGateReviewText,
   upsertCheckpointVerdict,
 } from "../../scripts/github/upsert-checkpoint-verdict.mjs";
@@ -89,13 +89,13 @@ function buildGateComment({
   };
 }
 
-test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments deterministically", () => {
+test("parseUpsertCheckpointVerdictCliArgs rejects malformed arguments deterministically", () => {
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([]),
+    () => parseUpsertCheckpointVerdictCliArgs([]),
     /requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary, and --next-action/i,
   );
 
-  const parsed = parseUpsertGateReviewCommentCliArgs([
+  const parsed = parseUpsertCheckpointVerdictCliArgs([
     "--repo", "owner/repo",
     "--pr", "17",
     "--gate", "draft_gate",
@@ -108,7 +108,7 @@ test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments determinis
   assert.equal(parsed.headSha, "abc1234");
 
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([
+    () => parseUpsertCheckpointVerdictCliArgs([
       "--repo", "owner/repo",
       "--pr", "17",
       "--gate", "draft_gate",
@@ -122,8 +122,8 @@ test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments determinis
   );
 });
 
-test("parseUpsertGateReviewCommentCliArgs accepts --force with normalized --force-reason", () => {
-  const parsed = parseUpsertGateReviewCommentCliArgs([
+test("parseUpsertCheckpointVerdictCliArgs accepts --force with normalized --force-reason", () => {
+  const parsed = parseUpsertCheckpointVerdictCliArgs([
     "--repo", "owner/repo",
     "--pr", "17",
     "--gate", "draft_gate",
@@ -141,9 +141,9 @@ test("parseUpsertGateReviewCommentCliArgs accepts --force with normalized --forc
   assert.equal(parsed.forceReason, "CI cancelled due to infra");
 });
 
-test("parseUpsertGateReviewCommentCliArgs rejects --force without --force-reason", () => {
+test("parseUpsertCheckpointVerdictCliArgs rejects --force without --force-reason", () => {
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([
+    () => parseUpsertCheckpointVerdictCliArgs([
       "--repo", "owner/repo",
       "--pr", "17",
       "--gate", "draft_gate",
@@ -158,9 +158,9 @@ test("parseUpsertGateReviewCommentCliArgs rejects --force without --force-reason
   );
 });
 
-test("parseUpsertGateReviewCommentCliArgs rejects --force-reason without --force", () => {
+test("parseUpsertCheckpointVerdictCliArgs rejects --force-reason without --force", () => {
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([
+    () => parseUpsertCheckpointVerdictCliArgs([
       "--repo", "owner/repo",
       "--pr", "17",
       "--gate", "draft_gate",
@@ -191,9 +191,9 @@ test("upsertCheckpointVerdict rejects programmatic force without forceReason bef
   );
 });
 
-test("parseUpsertGateReviewCommentCliArgs rejects blank --force-reason", () => {
+test("parseUpsertCheckpointVerdictCliArgs rejects blank --force-reason", () => {
   assert.throws(
-    () => parseUpsertGateReviewCommentCliArgs([
+    () => parseUpsertCheckpointVerdictCliArgs([
       "--repo", "owner/repo",
       "--pr", "17",
       "--gate", "draft_gate",

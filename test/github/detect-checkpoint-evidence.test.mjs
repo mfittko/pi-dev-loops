@@ -13,7 +13,7 @@ import {
   summarizeGateReviewComments,
 } from "../../scripts/_core-helpers.mjs";
 import {
-  parseDetectGateReviewEvidenceCliArgs,
+  parseDetectCheckpointEvidenceCliArgs,
   buildPreMergeGateCheck,
 } from "../../scripts/github/detect-checkpoint-evidence.mjs";
 
@@ -170,21 +170,21 @@ test("summarizeGateReviewCommentMarkers keeps newest gate+head marker even if co
   assert.equal(summary.draft_gate?.contractComplete, false);
 });
 
-test("parseDetectGateReviewEvidenceCliArgs rejects malformed arguments deterministically", () => {
+test("parseDetectCheckpointEvidenceCliArgs rejects malformed arguments deterministically", () => {
   assert.throws(
-    () => parseDetectGateReviewEvidenceCliArgs([]),
+    () => parseDetectCheckpointEvidenceCliArgs([]),
     /requires both --repo <owner\/name> and --pr <number>/i,
   );
   assert.throws(
-    () => parseDetectGateReviewEvidenceCliArgs(["--repo", "owner/repo", "--pr", "0"]),
+    () => parseDetectCheckpointEvidenceCliArgs(["--repo", "owner/repo", "--pr", "0"]),
     /positive integer/i,
   );
   assert.throws(
-    () => parseDetectGateReviewEvidenceCliArgs(["--repo", "bad slug", "--pr", "17"]),
+    () => parseDetectCheckpointEvidenceCliArgs(["--repo", "bad slug", "--pr", "17"]),
     /match <owner\/name>/i,
   );
   assert.throws(
-    () => parseDetectGateReviewEvidenceCliArgs(["--repo", "owner/repo", "--pr", "17", "--require-before-merge"]),
+    () => parseDetectCheckpointEvidenceCliArgs(["--repo", "owner/repo", "--pr", "17", "--require-before-merge"]),
     /--require-before-merge has been removed/i,
   );
 });

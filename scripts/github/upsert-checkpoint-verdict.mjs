@@ -266,7 +266,7 @@ export function summarizeGateReviewText(value, limit = MAX_GATE_COMMENT_TEXT_LEN
   return smartTruncate(verboseSummary ?? flat, limit);
 }
 
-export function parseUpsertGateReviewCommentCliArgs(argv) {
+export function parseUpsertCheckpointVerdictCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
@@ -574,7 +574,7 @@ function parseCommentMutationResponse(payload) {
     : null;
 
   if (commentId === null || commentUrl === null) {
-    throw new Error("Gate-review comment mutation did not return a comment id and html_url");
+    throw new Error("Checkpoint verdict comment mutation did not return a comment id and html_url");
   }
 
   return { commentId, commentUrl };
@@ -733,7 +733,7 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
 async function main() {
   let options;
   try {
-    options = parseUpsertGateReviewCommentCliArgs(process.argv.slice(2));
+    options = parseUpsertCheckpointVerdictCliArgs(process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`${formatCliError(error, { usage: USAGE })}\n`);
     process.exitCode = 1;

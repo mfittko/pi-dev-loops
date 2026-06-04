@@ -90,7 +90,7 @@ Exit codes:
 const parseError = buildParseError(USAGE);
 
 
-export function parseDetectGateReviewEvidenceCliArgs(argv) {
+export function parseDetectCheckpointEvidenceCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
@@ -283,7 +283,7 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
 async function main() {
   let options;
   try {
-    options = parseDetectGateReviewEvidenceCliArgs(process.argv.slice(2));
+    options = parseDetectCheckpointEvidenceCliArgs(process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`${formatCliError(error, { usage: USAGE })}\n`);
     process.exitCode = 1;
