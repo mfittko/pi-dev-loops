@@ -192,6 +192,60 @@ test("writeGateFindingsLog rejects finding without summary", async () => {
   }, /summary/);
 });
 
+test("writeGateFindingsLog includes disposition when present", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "gate-findings-test-"));
+  try {
+    await writeGateFindingsLog({
+      repo: "owner/repo",
+      pr: 99,
+      gate: "pre_approval_gate",
+      headSha: "ccccccccccccccccc",
+      verdict: "findings_present",
+      findings: JSON.stringify([
+        { severity: "must-fix", angle: "scope", summary: "Must fix", disposition: "accepted-for-fix" },
+        { severity: "worth-fixing-now", angle: "dry", summary: "DRY", disposition: "deferred" },
+        { severity: "defer", angle: "naming", summary: "Style", disposition: "disputed" },
+      ]),
+      tmpRoot: tmpDir,
+    });
+
+    const fullPath = path.join(tmpDir, "gate-findings", "owner-repo", "pr-99", "pre_approval_gate-ccccccccccccccccc.json");
+    const raw = await readFile(fullPath, "utf8");
+    const parsed = JSON.parse(raw);
+    assert.equal(parsed.findings[0].disposition, "accepted-for-fix");
+    assert.equal(parsed.findings[1].disposition, "deferred");
+    assert.equal(parsed.findings[2].disposition, "disputed");
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("writeGateFindingsLog rejects invalid disposition", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "a/b",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: JSON.stringify([{ severity: "must-fix", angle: "scope", summary: "x", disposition: "bad" }]),
+    });
+  }, /disposition/);
+});
+
+test("writeGateFindingsLog rejects malformed repo format in buildLogPath", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "no-slash",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: "[]",
+    });
+  }, /owner\/name format/);
+});
+
 test("writeGateFindingsLog includes resolvedIn when present", async () => {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "gate-findings-test-"));
   try {

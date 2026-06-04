@@ -274,6 +274,7 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
     findingsSummary: undefined,
     nextAction: undefined,
     localValidationHeadSha: undefined,
+    findingsSeverityCounts: undefined,
     force: false,
     forceReason: undefined,
   };
@@ -342,6 +343,28 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
       continue;
     }
 
+    if (token === "--findings-severity-counts") {
+      const raw = requireOptionValue(args, "--findings-severity-counts", parseError);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw parseError("--findings-severity-counts must be valid JSON");
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw parseError("--findings-severity-counts must be a JSON object mapping severity to count");
+      }
+      const counts = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (!Number.isInteger(value) || value < 0) {
+          throw parseError(`--findings-severity-counts.${key} must be a non-negative integer`);
+        }
+        counts[key] = value;
+      }
+      options.findingsSeverityCounts = counts;
+      continue;
+    }
+
     if (token === "--force") {
       options.force = true;
       continue;
@@ -407,7 +430,7 @@ export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSu
 
   if (verdict === "clean" && blockCleanOnFindingSeverities && blockCleanOnFindingSeverities.length > 0) {
     const sevs = blockCleanOnFindingSeverities.join(", ");
-    lines.push(`**Blocking severities:** ${sevs} (clean requires no findings at or above these severities)`);
+    lines.push(`**Blocking severities:** ${sevs} (clean requires no findings matching these severities)`);
   }
 
   lines.push(
@@ -604,6 +627,23 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
   const forcedResultMetadata = buildForcedResultMetadata({ forced: forcedBypass, forceReason });
 
   const activeGateConfig = options.gate === "draft_gate" ? draftGateConfig : preApprovalGateConfig;
+
+  if (
+    options.verdict === "clean"
+    && options.findingsSeverityCounts
+    && activeGateConfig.blockCleanOnFindingSeverities
+    && activeGateConfig.blockCleanOnFindingSeverities.length > 0
+  ) {
+    const blocking = activeGateConfig.blockCleanOnFindingSeverities.filter(
+      sev => (options.findingsSeverityCounts[sev] ?? 0) > 0,
+    );
+    if (blocking.length > 0) {
+      throw new Error(
+        `Cannot set verdict "clean" for ${options.gate}: unresolved findings remain at blocking severities [${blocking.join(", ")}]. Fix these findings and re-gate before declaring clean.`,
+      );
+    }
+  }
+
   const effectiveFindingsSummary = appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
   const desiredBody = renderGateReviewCommentBody({
     ...options,

@@ -2,11 +2,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parsePrNumber, requireOptionValue } from "../_cli-primitives.mjs";
-import { isDirectCliRun } from "../_core-helpers.mjs";
+import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 
 const USAGE = `Usage: write-gate-findings-log.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings <json> [--tmp-root <path>]
 
-Write a durable final-findings.json log under deterministic tmp/ paths.
+Write a durable <gate>-<headSha>.json log under deterministic tmp/ paths.
 
 Required:
   --repo <owner/name>
@@ -14,7 +14,7 @@ Required:
   --gate <draft_gate|pre_approval_gate>
   --head-sha <sha>
   --verdict <clean|findings_present|blocked>
-  --findings <json>              JSON array of finding objects with severity and summary
+  --findings <json>              JSON array of finding objects with severity, disposition, angle, and summary
 
 Optional:
   --tmp-root <path>              Root tmp directory (default: tmp/)
@@ -44,6 +44,7 @@ function normalizeHeadSha(value) {
 /**
  * @typedef {object} Finding
  * @property {string} severity - "must-fix" | "worth-fixing-now" | "defer"
+ * @property {string} [disposition] - "accepted-for-fix" | "deferred" | "disputed"
  * @property {string} angle - review angle that produced the finding
  * @property {string} summary - finding description
  * @property {string[]} [files] - affected files
@@ -62,6 +63,7 @@ function normalizeHeadSha(value) {
  */
 
 const VALID_SEVERITIES = new Set(["must-fix", "worth-fixing-now", "defer"]);
+const VALID_DISPOSITIONS = new Set(["accepted-for-fix", "deferred", "disputed"]);
 
 function parseFindingsJson(raw) {
   let parsed;
@@ -94,6 +96,14 @@ function parseFindingsJson(raw) {
       angle: f.angle.trim(),
       summary: f.summary.trim(),
     };
+
+    if (f.disposition && typeof f.disposition === "string") {
+      const disp = f.disposition.trim();
+      if (!VALID_DISPOSITIONS.has(disp)) {
+        throw parseError(`--findings[${i}].disposition must be one of: accepted-for-fix, deferred, disputed`);
+      }
+      entry.disposition = disp;
+    }
 
     if (Array.isArray(f.files)) {
       entry.files = f.files.filter(x => typeof x === "string" && x.trim().length > 0);
@@ -178,7 +188,11 @@ export function parseWriteGateFindingsLogCliArgs(argv) {
  *   <tmpRoot>/gate-findings/<repo-slug>/pr-<N>/<gate>-<headSha>.json
  */
 function buildLogPath({ repo, pr, gate, headSha, tmpRoot }) {
-  const repoSlug = repo.replace("/", "-");
+  const parts = repo.split("/");
+  if (parts.length !== 2 || parts.some(p => p.length === 0)) {
+    throw new Error(`--repo must be in owner/name format, got: ${JSON.stringify(repo)}`);
+  }
+  const repoSlug = parts.join("-");
   return path.join(tmpRoot, "gate-findings", repoSlug, `pr-${pr}`, `${gate}-${headSha}.json`);
 }
 
@@ -228,7 +242,7 @@ async function main() {
   try {
     options = parseWriteGateFindingsLogCliArgs(process.argv.slice(2));
   } catch (error) {
-    process.stderr.write(`${error.message}\n${error.usage ? `\n${error.usage}\n` : ""}`);
+    process.stderr.write(`${formatCliError(error, { usage: USAGE })}\n`);
     process.exitCode = 1;
     return;
   }

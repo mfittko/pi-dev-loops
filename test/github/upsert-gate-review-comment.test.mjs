@@ -1573,3 +1573,73 @@ test("upsert-gate-review-comment fails closed when draft_gate is forbidden on a 
   }
 });
 
+test("upsert-gate-review-comment rejects clean verdict when unresolved blocking-severity findings remain", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-blocking-"));
+
+  try {
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      isDraft: true,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "reviewed: 2 must-fix, 1 worth-fixing-now",
+      "--next-action", "mark ready for review",
+      "--findings-severity-counts", '{"must-fix":2,"worth-fixing-now":1,"defer":0}',
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Cannot set verdict "clean"/);
+    assert.match(payload.error, /must-fix/);
+    assert.match(payload.error, /worth-fixing-now/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment allows clean verdict when no blocking-severity findings remain", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-clean-ok-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      ...buildGateCoordinationEntries({
+        isDraft: true,
+        statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+      }),
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+        assertArgContains: ["body=### Gate review: `draft_gate`", "**Verdict:** clean"],
+        stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":1}',
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.action, "created");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
