@@ -55,6 +55,10 @@ export const STATE = Object.freeze({
   BLOCKED_NEEDS_USER_DECISION: "blocked_needs_user_decision",
   /** PR has been merged or closed. Loop is complete. */
   DONE: "done",
+  /** Round cap reached with unresolved threads or failing CI; explicit stop. */
+  ROUND_CAP_REACHED: "round_cap_reached",
+  /** Round cap reached with clean threads and green CI; eligible for pre_approval_gate fallback. */
+  ROUND_CAP_CLEAN_FALLBACK: "round_cap_clean_fallback",
 });
 
 /** Stable high-level loop dispositions for completion vs follow-up decisions. */
@@ -102,6 +106,8 @@ export const TRANSITIONS = Object.freeze({
   [STATE.BLOCKED_NEEDS_USER_DECISION]: [],
   [STATE.DONE]: [],
   [STATE.LOW_SIGNAL_CONVERGED]: [],
+  [STATE.ROUND_CAP_REACHED]: [],
+  [STATE.ROUND_CAP_CLEAN_FALLBACK]: [],
 });
 
 /** Recommended next action for each state. */
@@ -117,6 +123,8 @@ const NEXT_ACTIONS = Object.freeze({
   [STATE.WAITING_FOR_CI]: "Wait for CI checks to complete or become available",
   [STATE.BLOCKED_NEEDS_USER_DECISION]: "Report the blocked state to the user and stop; do not proceed without explicit authorization",
   [STATE.LOW_SIGNAL_CONVERGED]: "Low-signal heuristic stopped re-request loop: round count exceeded threshold with only minimal actionable feedback; treat as converged",
+  [STATE.ROUND_CAP_REACHED]: "Stop: Copilot review round limit reached with unresolved threads or failing CI; do not re-request review",
+  [STATE.ROUND_CAP_CLEAN_FALLBACK]: "Round cap reached with clean PR; continue to pre_approval_gate instead of re-requesting Copilot review",
   [STATE.DONE]: "Loop is complete; confirm merge-readiness or close",
 });
 
@@ -294,12 +302,14 @@ export function applyConfirmedReviewRequest(snapshot, reviewRequestStatus) {
  * @param {boolean} [refinementConfig.stopOnLowSignal]
  * @param {number} [refinementConfig.lowSignalRoundThreshold]
  * @param {number} [refinementConfig.lowSignalMaxComments]
+ * @param {number} [refinementConfig.maxCopilotRounds]
  * @returns {{
  *   state: string,
  *   allowedTransitions: string[],
  *   nextAction: string,
  *   autoRerequestEligible: boolean,
- *   sameHeadCleanConverged: boolean
+ *   sameHeadCleanConverged: boolean,
+ *   roundCapCleanEligible: boolean
  * }}
  */
 export function interpretLoopState(snapshot, refinementConfig) {
@@ -317,34 +327,62 @@ export function interpretLoopState(snapshot, refinementConfig) {
     state = STATE.REVIEW_REQUEST_UNAVAILABLE;
   } else if (s.copilotReviewRequestStatus === "failed") {
     state = STATE.BLOCKED_NEEDS_USER_DECISION;
-  } else if (s.unresolvedThreadCount > 0 && s.agentFixStatus === "applied") {
-    // Agent has fixed the code; threads still need reply/resolve on GitHub
-    state = STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE;
-  } else if (s.unresolvedThreadCount > 0) {
-    // Unresolved feedback exists — do not wait; enter fix/reply-resolve handling
-    state = STATE.UNRESOLVED_FEEDBACK_PRESENT;
-  } else if (s.copilotReviewRequestStatus === "requested" || s.copilotReviewRequestStatus === "already-requested") {
-    // A current-head Copilot request is still active/pending and must settle before gate progression.
-    state = STATE.WAITING_FOR_COPILOT_REVIEW;
-  } else if (s.copilotReviewPresent) {
-    // Copilot has reviewed at least once; all threads resolved
-    if (isBlockedCiStatus(s.ciStatus)) {
-      state = STATE.BLOCKED_NEEDS_USER_DECISION;
-    } else if (isWaitingCiStatus(s.ciStatus)) {
-      state = STATE.WAITING_FOR_CI;
+  }
+
+  // Round-cap enforcement: when maxCopilotRounds is configured and the review-round
+  // count has been exhausted, stop re-requests before entering fix/reply-resolve routing.
+  // Gating here (before unresolved-thread checks) ensures round cap takes priority over
+  // the normal fix loop, including unresolved threads, pending CI, and CI failures.
+  // Clean PRs are eligible for pre_approval_gate fallback; everything else is a hard stop.
+  // Does NOT interrupt an in-flight review request (requested/already-requested).
+  const maxRounds = refinementConfig?.maxCopilotRounds;
+  const reviewInFlight = s.copilotReviewRequestStatus === "requested"
+    || s.copilotReviewRequestStatus === "already-requested";
+  if (typeof maxRounds === "number" && maxRounds > 0
+      && s.copilotReviewRoundCount >= maxRounds
+      && !reviewInFlight
+      && state !== STATE.NO_PR && state !== STATE.DONE
+      && state !== STATE.PR_DRAFT && state !== STATE.REVIEW_REQUEST_UNAVAILABLE
+      && state !== STATE.BLOCKED_NEEDS_USER_DECISION) {
+    const ciClean = s.ciStatus === "success" || s.ciStatus === "crediblyGreen";
+    if (s.unresolvedThreadCount === 0 && ciClean) {
+      state = STATE.ROUND_CAP_CLEAN_FALLBACK;
     } else {
-      state = STATE.READY_TO_REREQUEST_REVIEW;
-    }
-  } else {
-    // No Copilot review yet; not currently requested
-    if (isBlockedCiStatus(s.ciStatus)) {
-      state = STATE.BLOCKED_NEEDS_USER_DECISION;
-    } else if (isWaitingCiStatus(s.ciStatus)) {
-      state = STATE.WAITING_FOR_CI;
-    } else {
-      state = STATE.PR_READY_NO_FEEDBACK;
+      state = STATE.ROUND_CAP_REACHED;
     }
   }
+
+  if (state === undefined) {
+    if (s.unresolvedThreadCount > 0 && s.agentFixStatus === "applied") {
+      // Agent has fixed the code; threads still need reply/resolve on GitHub
+      state = STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE;
+    } else if (s.unresolvedThreadCount > 0) {
+      // Unresolved feedback exists — do not wait; enter fix/reply-resolve handling
+      state = STATE.UNRESOLVED_FEEDBACK_PRESENT;
+    } else if (s.copilotReviewRequestStatus === "requested" || s.copilotReviewRequestStatus === "already-requested") {
+      // A current-head Copilot request is still active/pending and must settle before gate progression.
+      state = STATE.WAITING_FOR_COPILOT_REVIEW;
+    } else if (s.copilotReviewPresent) {
+      // Copilot has reviewed at least once; all threads resolved
+      if (isBlockedCiStatus(s.ciStatus)) {
+        state = STATE.BLOCKED_NEEDS_USER_DECISION;
+      } else if (isWaitingCiStatus(s.ciStatus)) {
+        state = STATE.WAITING_FOR_CI;
+      } else {
+        state = STATE.READY_TO_REREQUEST_REVIEW;
+      }
+    } else {
+      // No Copilot review yet; not currently requested
+      if (isBlockedCiStatus(s.ciStatus)) {
+        state = STATE.BLOCKED_NEEDS_USER_DECISION;
+      } else if (isWaitingCiStatus(s.ciStatus)) {
+        state = STATE.WAITING_FOR_CI;
+      } else {
+        state = STATE.PR_READY_NO_FEEDBACK;
+      }
+    }
+  }
+
 
   // Low-signal heuristic: when configured and last Copilot round signal
   // classification is mid or low (not high), suppress re-request.
@@ -374,12 +412,15 @@ export function interpretLoopState(snapshot, refinementConfig) {
     nextAction = SAME_HEAD_CLEAN_CONVERGED_NEXT_ACTION;
   }
 
+  const roundCapCleanEligible = state === STATE.ROUND_CAP_CLEAN_FALLBACK;
+
   return {
     state,
     allowedTransitions: [...TRANSITIONS[state]],
     nextAction,
     autoRerequestEligible,
     sameHeadCleanConverged,
+    roundCapCleanEligible,
   };
 }
 
@@ -410,9 +451,11 @@ export function summarizeLoopInterpretation(snapshotOrInterpretation, refinement
       break;
     case STATE.REVIEW_REQUEST_UNAVAILABLE:
     case STATE.BLOCKED_NEEDS_USER_DECISION:
+    case STATE.ROUND_CAP_REACHED:
       loopDisposition = LOOP_DISPOSITION.BLOCKED;
       break;
     case STATE.LOW_SIGNAL_CONVERGED:
+    case STATE.ROUND_CAP_CLEAN_FALLBACK:
     case STATE.DONE:
       loopDisposition = LOOP_DISPOSITION.DONE;
       break;

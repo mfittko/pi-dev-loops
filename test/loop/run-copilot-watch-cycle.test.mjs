@@ -805,3 +805,91 @@ test("runWatchCycle integration keeps the full persistent watch timeout after ac
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("runWatchCycle stops with round cap clean fallback when maxCopilotRounds is exceeded with clean PR", async () => {
+  let watcherCalled = false;
+
+  const result = await runWatchCycle(
+    {
+      repo: "owner/repo",
+      pr: 17,
+      forceRerequestReview: false,
+      probeOnly: false,
+    },
+    {
+      runHandoffImpl: async () => ({
+        ok: true,
+        action: "stop",
+        state: "round_cap_clean_fallback",
+        allowedTransitions: [],
+        nextAction: "Round cap reached with clean PR; continue to pre_approval_gate instead of re-requesting Copilot review",
+        snapshot: {
+          prExists: true,
+          prNumber: 17,
+          copilotReviewRoundCount: 5,
+          unresolvedThreadCount: 0,
+          ciStatus: "success",
+        },
+        loopDisposition: "done",
+        terminal: true,
+        roundCapCleanEligible: true,
+      }),
+      watchCopilotReviewImpl: async () => {
+        watcherCalled = true;
+        return { ok: true, status: "timeout" };
+      },
+    },
+  );
+
+  assert.equal(watcherCalled, false);
+  assert.equal(result.handoffAction, "stop");
+  assert.equal(result.state, "round_cap_clean_fallback");
+  assert.equal(result.loopDisposition, "done");
+  assert.equal(result.cycleDisposition, "terminal");
+  assert.equal(result.terminal, true);
+  assert.equal(result.roundCapCleanEligible, true);
+});
+
+test("runWatchCycle stops with round cap reached when maxCopilotRounds is exceeded with unresolved threads", async () => {
+  let watcherCalled = false;
+
+  const result = await runWatchCycle(
+    {
+      repo: "owner/repo",
+      pr: 17,
+      forceRerequestReview: false,
+      probeOnly: false,
+    },
+    {
+      runHandoffImpl: async () => ({
+        ok: true,
+        action: "stop",
+        state: "round_cap_reached",
+        allowedTransitions: [],
+        nextAction: "Stop: Copilot review round limit reached with unresolved threads or failing CI",
+        snapshot: {
+          prExists: true,
+          prNumber: 17,
+          copilotReviewRoundCount: 5,
+          unresolvedThreadCount: 3,
+          ciStatus: "success",
+        },
+        loopDisposition: "blocked",
+        terminal: true,
+        roundCapCleanEligible: false,
+      }),
+      watchCopilotReviewImpl: async () => {
+        watcherCalled = true;
+        return { ok: true, status: "timeout" };
+      },
+    },
+  );
+
+  assert.equal(watcherCalled, false);
+  assert.equal(result.handoffAction, "stop");
+  assert.equal(result.state, "round_cap_reached");
+  assert.equal(result.loopDisposition, "blocked");
+  assert.equal(result.cycleDisposition, "terminal");
+  assert.equal(result.terminal, true);
+  assert.equal(result.roundCapCleanEligible, false);
+});

@@ -40,6 +40,7 @@ Output (stdout, JSON):
     "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... },
     "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done",
     "cycleDisposition": "pending"|"needs_followup"|"terminal",
+    "roundCapCleanEligible": true|false,
     "terminal": true|false }
 
 Cycle disposition:
@@ -278,6 +279,7 @@ export async function runWatchCycle(
     allowedTransitions: handoff.allowedTransitions,
     nextAction: handoff.nextAction,
     snapshot: handoff.snapshot,
+    roundCapCleanEligible: handoff.roundCapCleanEligible ?? false,
     loopDisposition: handoff.loopDisposition,
     cycleDisposition: handoff.action === "stop" ? "terminal" : "needs_followup",
     terminal: Boolean(handoff.terminal),
