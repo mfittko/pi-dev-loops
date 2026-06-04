@@ -925,7 +925,7 @@ function parseLocalSubagentSummary(text, filePath) {
   const cwdMatch = text.match(/^[-*]\s*(?:cwd|working\s*directory):\s*(.+)$/imu);
   const taskMatch = text.match(/^[-*]\s*(?:task|prompt\s*summary):\s*(.+)$/imu);
 
-  const agent = agentMatch?.[1]?.trim() ?? null;
+  const agent = agentMatch?.[1]?.trim().toLowerCase() ?? null;
   if (agent === null || !LOCAL_PHASE_AGENTS.has(agent)) {
     return null;
   }
