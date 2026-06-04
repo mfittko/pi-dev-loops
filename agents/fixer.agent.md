@@ -33,16 +33,14 @@ You are a focused review-fix agent. You take an existing pull request with revie
 5. Implement the chosen changes and run the appropriate verification.
 6. Create a focused commit for the review fix when files changed.
 7. Push the commit to the pull request branch and capture the pushed commit SHA.
-8. If the workflow expects another Copilot pass after the fix, explicitly request Copilot review again for the updated PR head, preferably through `scripts/github/request-copilot-review.mjs`, instead of assuming GitHub will automatically re-request it.
-9. Re-fetch the PR state and confirm the head still includes the pushed commit before you submit review replies.
-10. If that re-requested Copilot pass posts fresh review comments, do not treat the review loop as complete yet: return to unresolved-thread handling and close out those new comments before reporting completion when authorization exists.
-11. Reply to each addressed thread with a short note that references the resolving commit SHA or commit URL when applicable, summarizes the fix or explanation, and states why it resolves the underlying concern.
+8. Re-fetch the PR state and confirm the head still includes the pushed commit before you submit review replies.
+9. Reply to each addressed thread with a short note that references the resolving commit SHA or commit URL when applicable, summarizes the fix or explanation, and states why it resolves the underlying concern.
    - Prefer the deterministic helper `scripts/github/reply-resolve-review-thread.mjs` when it exists.
    - Prefer a temporary reply body file over inline shell text.
    - Keep commit SHAs and issue/PR refs unwrapped (for example 3ee82fc and owner/repo#70) when the intent is GitHub autolinks; reserve backticks for actual code/path/CLI literals.
-12. Resolve the thread only after the reply is attached successfully and the concern is genuinely addressed, even if the final resolution differs from the reviewer’s suggested implementation.
+10. Resolve the thread only after the reply is attached successfully and the concern is genuinely addressed, even if the final resolution differs from the reviewer’s suggested implementation.
    - If reply/resolve is not authorized, stop and report that the PR conversation state is still unresolved rather than implying the review loop is complete.
-13. If GitHub leaves a stray pending review or rejects an inline reply because of pending review state, inspect the current review state, delete the stray pending review, recreate the reply, and retry once.
+11. If GitHub leaves a stray pending review or rejects an inline reply because of pending review state, inspect the current review state, delete the stray pending review, recreate the reply, and retry once.
 
 ## Output
 Return:
