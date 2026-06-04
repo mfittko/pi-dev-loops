@@ -40,6 +40,7 @@ Output (stdout, JSON):
     "watchStatus"?: "changed"|"timeout"|"idle", "watch"?: { ... },
     "loopDisposition": "pending"|"unresolved_feedback"|"clean_converged"|"blocked"|"action_required"|"done",
     "cycleDisposition": "pending"|"needs_followup"|"terminal",
+    "roundCapCleanEligible": true|false,
     "terminal": true|false }
 
 Cycle disposition:

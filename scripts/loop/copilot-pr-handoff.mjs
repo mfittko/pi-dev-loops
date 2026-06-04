@@ -21,7 +21,7 @@
  *     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
  *     "reviewRequestStatus"?: "...", "watchStatus"?: "...",
  *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
- *     "loopDisposition": "...", "terminal": true|false,
+ *     "roundCapCleanEligible": true|false, "loopDisposition": "...", "terminal": true|false,
  *     "requestWatchContract": {
  *       "action": "watch"|"fix"|"stop",
  *       "nextAction": "...",
@@ -76,7 +76,7 @@ Output (stdout, JSON):
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
     "reviewRequestStatus"?: "...", "watchStatus"?: "...",
     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
-    "loopDisposition": "...", "terminal": true|false,
+    "roundCapCleanEligible": true|false, "loopDisposition": "...", "terminal": true|false,
     "requestWatchContract": {
       "action": "watch"|"fix"|"stop",
       "nextAction": "...",
@@ -243,8 +243,11 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     { repo: options.repo, pr: options.pr },
     { env, ghCommand },
   );
-  const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) }).catch((err) => { console.error("[copilot-pr-handoff] config load failed:", err.message || err); return { errors: ["config load failed"], config: { version: 1 } }; });
-  const refinementConfig = config.errors.length > 0
+  const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) });
+  if (config.errors?.length > 0) {
+    console.error("[copilot-pr-handoff] config warnings:", config.errors.join("; "));
+  }
+  const refinementConfig = config.errors?.length > 0
     ? resolveRefinement({ version: 1 })
     : resolveRefinement(config.config);
   let interpretation = interpretLoopState(snapshot, refinementConfig);
