@@ -51,8 +51,12 @@ export function parseMainWorktreePath(worktreeListOutput) {
  */
 export function isMainCheckout(cwd, mainWorktreePath) {
   if (!mainWorktreePath) return false;
-  const normalizedCwd = cwd.replace(/\\/g, "/").replace(/\/+$/u, "");
-  const normalizedMain = mainWorktreePath.replace(/\\/g, "/").replace(/\/+$/u, "");
+  let resolvedCwd;
+  try { resolvedCwd = realpathSync(cwd); } catch { resolvedCwd = cwd; }
+  let resolvedMain;
+  try { resolvedMain = realpathSync(mainWorktreePath); } catch { resolvedMain = mainWorktreePath; }
+  const normalizedCwd = resolvedCwd.replace(/\\/g, "/").replace(/\/+$/u, "");
+  const normalizedMain = resolvedMain.replace(/\\/g, "/").replace(/\/+$/u, "");
   return normalizedCwd === normalizedMain || normalizedCwd.startsWith(normalizedMain + "/");
 }
 

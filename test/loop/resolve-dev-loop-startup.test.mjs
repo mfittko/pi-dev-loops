@@ -522,7 +522,7 @@ function writeWorktreeEnv(tempDir) {
 test("resolver returns needs_reconcile for local_implementation from main checkout", () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "resolver-main-"));
   try {
-    const { gitPath } = writeWorktreeEnv(tempDir);
+    writeWorktreeEnv(tempDir);
     const env = {
       ...process.env,
       PATH: `${tempDir}${path.delimiter}${process.env.PATH || ""}`,
@@ -592,7 +592,7 @@ test("resolver resolves normally for local_implementation from worktree", () => 
 test("resolver bypasses worktree check with PI_WORKTREE_BYPASS=1 from main checkout", () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "resolver-bypass-"));
   try {
-    const { gitPath } = writeWorktreeEnv(tempDir);
+    writeWorktreeEnv(tempDir);
     const env = {
       ...process.env,
       PATH: `${tempDir}${path.delimiter}${process.env.PATH || ""}`,
@@ -626,7 +626,7 @@ test("resolver bypasses worktree check with PI_WORKTREE_BYPASS=1 from main check
 test("resolver does not block non-local_implementation strategies from main checkout", () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "resolver-nonlocal-"));
   try {
-    const { gitPath } = writeWorktreeEnv(tempDir);
+    writeWorktreeEnv(tempDir);
     const env = {
       ...process.env,
       PATH: `${tempDir}${path.delimiter}${process.env.PATH || ""}`,
