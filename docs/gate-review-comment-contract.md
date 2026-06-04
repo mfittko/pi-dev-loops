@@ -26,6 +26,16 @@ This contract covers exactly two gates with distinct lifecycle semantics:
   merge readiness on the current head SHA. A new pass is required for each new head
   after post-draft changes.
 
+## Separate chains per gate
+
+Each gate runs an independent review chain with its own disposition ledger. The chains
+are not interchangeable:
+
+| Gate | Own review angles | Own disposition ledger | Own exit conditions |
+|---|---|---|---|
+| `draft_gate` | Config: `gates.draft.angles` | `tmp/gate-findings/.../draft_gate-<sha>.json` | Clean = no blocking-severity findings for draft→ready |
+| `pre_approval_gate` | Config: `gates.preApproval.angles` | `tmp/gate-findings/.../pre_approval_gate-<sha>.json` | Clean = no blocking-severity findings for final approval |
+
 ## Review-angle ownership and non-substitution rules
 
 These gates are related but **not interchangeable**.
@@ -51,6 +61,7 @@ Every gate-review PR comment must include:
 | **Gate name** | `draft_gate` or `pre_approval_gate` |
 | **Head SHA reviewed** | The exact commit SHA that was reviewed |
 | **Verdict** | `clean`, `findings_present`, or `blocked` |
+| **Blocking severities** | (clean verdicts only) Which severity levels must be clean per gate config |
 | **Findings summary** | Short truthful audit summary. Use `no issues found` only when the reviewed head needed no corrective change for that gate pass. |
 | **Next action** | One of: `stay draft and fix`, `rerun gate`, `mark ready for review`, `await final human approval` |
 
@@ -58,14 +69,28 @@ Every gate-review PR comment must include:
 
 | Verdict | Meaning |
 |---|---|
-| `clean` | All gate review angles passed; no must-fix findings remain |
-| `findings_present` | The gate found issues; fixes are required before the gate boundary can be crossed |
+| `clean` | No findings with a severity in the gate's `blockCleanOnFindingSeverities` remain |
+| `findings_present` | The gate found issues at blocking severities; fixes are required before the gate boundary can be crossed |
 | `blocked` | The gate could not complete or a hard blocker prevented a verdict |
+
+## Disposition ledger
+
+Every gate pass writes a durable final-findings log via `write-gate-findings-log.mjs`
+before the visible PR comment is posted. The disposition ledger is the source of truth
+for what the gate found and what was decided:
+
+- each finding records: severity, review angle, summary, affected files
+- resolved findings record the head SHA that resolved them
+- the log is written under `tmp/gate-findings/<repo-slug>/pr-<N>/<gate>-<headSha>.json`
+
+The visible PR comment is a summary for auditability; the disposition ledger is the
+complete durable record.
 
 ## Readable deterministic format
 
 - Keep the visible comment compact and deterministic, but slightly human-friendly:
-  prefer labels like `Gate review`, `Reviewed head SHA`, `Verdict`, `Findings summary`, and `Next action`.
+  prefer labels like `Gate review`, `Reviewed head SHA`, `Verdict`, `Blocking severities`,
+  `Findings summary`, and `Next action`.
 - Preserve parser stability for gate name and reviewed head SHA; minor label wording is fine as long as those fields remain easy to extract deterministically.
 - When a gate pass reached `clean` only after corrective changes on the reviewed head, the findings summary should briefly say what gap was found, what changed, and why the current head now satisfies the gate.
 - Validation reporting in visible gate comments must stay concise by default:
@@ -76,7 +101,6 @@ Every gate-review PR comment must include:
 - When validation fails, include only a focused relevant excerpt rather than an
   unbounded raw log dump; detailed logs may live in local/session artifacts or
   linked GitHub logs instead of the visible audit comment.
-
 
 ## Behavior requirements
 

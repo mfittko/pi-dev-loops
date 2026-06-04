@@ -42,6 +42,10 @@ Optional:
                                              override when the helper would otherwise
                                              refuse a gate upsert because the current
                                              head is blocked_needs_user_decision.
+  --findings-severity-counts <json>         JSON object mapping severity to count
+                                             (e.g. '{"must-fix":0,"worth-fixing-now":0}').
+                                             Required for --verdict clean when
+                                             blockCleanOnFindingSeverities is configured.
   --force-reason <text>                      Required with --force. Records why the
                                              operator-authorized CI-only override is
                                              justified for machine-readable output.
@@ -174,7 +178,7 @@ function formatValidationCounts(counts) {
 
 function buildVerboseValidationSummary(lines) {
   const commands = [];
-  const counts = {};
+  const counts = Object.create(null);
   let ciLine = null;
   let failureExcerpt = null;
   let sawPassedSignal = false;
@@ -274,6 +278,7 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
     findingsSummary: undefined,
     nextAction: undefined,
     localValidationHeadSha: undefined,
+    findingsSeverityCounts: undefined,
     force: false,
     forceReason: undefined,
   };
@@ -342,6 +347,28 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
       continue;
     }
 
+    if (token === "--findings-severity-counts") {
+      const raw = requireOptionValue(args, "--findings-severity-counts", parseError);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw parseError("--findings-severity-counts must be valid JSON");
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw parseError("--findings-severity-counts must be a JSON object mapping severity to count");
+      }
+      const counts = Object.create(null);
+      for (const [key, value] of Object.entries(parsed)) {
+        if (!Number.isInteger(value) || value < 0) {
+          throw parseError(`--findings-severity-counts.${key} must be a non-negative integer`);
+        }
+        counts[key] = value;
+      }
+      options.findingsSeverityCounts = counts;
+      continue;
+    }
+
     if (token === "--force") {
       options.force = true;
       continue;
@@ -397,17 +424,27 @@ function appendGateEvidenceNote(summary, note) {
   return smartTruncate(`${normalizedSummary}; ${normalizedNote}`, MAX_GATE_COMMENT_TEXT_LENGTH);
 }
 
-export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction }) {
-  return [
+export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction, blockCleanOnFindingSeverities }) {
+  const lines = [
     `### Gate review: \`${gate}\``,
     "",
     `**Reviewed head SHA:** \`${headSha}\``,
     `**Verdict:** ${verdict}`,
+  ];
+
+  if (verdict === "clean" && blockCleanOnFindingSeverities && blockCleanOnFindingSeverities.length > 0) {
+    const sevs = blockCleanOnFindingSeverities.join(", ");
+    lines.push(`**Blocking severities:** ${sevs} (clean requires no findings matching these severities)`);
+  }
+
+  lines.push(
     "",
     `**Findings summary:** ${findingsSummary}`,
     "",
     `**Next action:** ${nextAction}`,
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 function resolveRequestedHeadSha(requestedHeadSha, currentHeadSha) {
@@ -560,6 +597,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
   const { config } = await loadDevLoopConfig({ repoRoot });
   const draftGateConfig = resolveGateConfig(config, "draft");
+  const preApprovalGateConfig = resolveGateConfig(config, "preApproval");
   const maxCopilotRounds = resolveRefinementConfig(config, "maxCopilotRounds");
   const coordination = evaluatePrGateCoordination({
     repo: coordinationContext.repo,
@@ -592,8 +630,43 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
 
   const forcedResultMetadata = buildForcedResultMetadata({ forced: forcedBypass, forceReason });
 
+  const activeGateConfig = options.gate === "draft_gate" ? draftGateConfig : preApprovalGateConfig;
+
+  if (
+    options.verdict === "clean"
+    && activeGateConfig.blockCleanOnFindingSeverities
+    && activeGateConfig.blockCleanOnFindingSeverities.length > 0
+  ) {
+    if (!options.findingsSeverityCounts) {
+      throw new Error(
+        `Cannot set verdict "clean" for ${options.gate}: --findings-severity-counts is required to verify that no unresolved blocking severities remain (example: --findings-severity-counts '{"must-fix":0,"worth-fixing-now":0,"defer":0}') (blocking: [${activeGateConfig.blockCleanOnFindingSeverities.join(", ")}]).`,
+      );
+    }
+    const missingBlockingKeys = activeGateConfig.blockCleanOnFindingSeverities.filter(
+      sev => !(sev in options.findingsSeverityCounts),
+    );
+    if (missingBlockingKeys.length > 0) {
+      throw new Error(
+        `Cannot set verdict "clean" for ${options.gate}: --findings-severity-counts must include explicit counts for all configured blocking severities. Missing: [${missingBlockingKeys.join(", ")}].`,
+      );
+    }
+    const blocking = activeGateConfig.blockCleanOnFindingSeverities.filter(
+      sev => (options.findingsSeverityCounts[sev] ?? 0) > 0,
+    );
+    if (blocking.length > 0) {
+      throw new Error(
+        `Cannot set verdict "clean" for ${options.gate}: unresolved findings remain at blocking severities [${blocking.join(", ")}]. Fix these findings and re-gate before declaring clean.`,
+      );
+    }
+  }
+
   const effectiveFindingsSummary = appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
-  const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha, findingsSummary: effectiveFindingsSummary });
+  const desiredBody = renderGateReviewCommentBody({
+    ...options,
+    headSha: canonicalHeadSha,
+    findingsSummary: effectiveFindingsSummary,
+    blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
+  });
 
   const gateEvidence = selectGateEvidence(evidence, options.gate);
   const existing = summarizeExistingComment({ ...gateEvidence, headSha: canonicalHeadSha });
@@ -617,6 +690,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       commentId: existing.commentId,
       commentUrl: existing.commentUrl,
       ...forcedResultMetadata,
+      blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
       ...(warning ? { warning } : {}),
     };
   }
@@ -634,6 +708,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       commentId: updated.commentId,
       commentUrl: updated.commentUrl,
       ...forcedResultMetadata,
+      blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
       ...(warning ? { warning } : {}),
     };
   }
@@ -650,6 +725,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     commentId: created.commentId,
     commentUrl: created.commentUrl,
     ...forcedResultMetadata,
+    blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
     ...(warning ? { warning } : {}),
   };
 }

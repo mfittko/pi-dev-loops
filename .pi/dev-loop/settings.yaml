@@ -17,6 +17,9 @@ gates:
       - config-drift
       - gate-evidence
     requireCi: true
+    blockCleanOnFindingSeverities:
+      - must-fix
+      - worth-fixing-now
   preApproval:
     angles:
       - dry
@@ -31,6 +34,9 @@ gates:
       - isp
       - dip
       - renderer-security
+    blockCleanOnFindingSeverities:
+      - must-fix
+      - worth-fixing-now
 
 workflow:
   requireRetrospective: true

@@ -231,8 +231,8 @@ When actionable review feedback exists, use a narrow follow-up loop:
    - source `<headRefName>` from authoritative PR state (`headRefName`), not from a local branch guess
    - if the guard exits non-zero (`remote_ahead`), stop writing locally, reconcile to the refreshed remote head, then restart the fixer pass
 3. classify findings:
-   - must fix now
-   - worth fixing now
+   - must-fix: blocks gate; always fixed
+   - worth-fixing-now: blocks gate when `blockCleanOnFindingSeverities` includes it; fixed when blocking
    - defer / non-blocking / disagree
 4. apply only the accepted narrow fixes
 5. run the smallest validation that honestly proves the fix
@@ -303,7 +303,7 @@ node <resolved-skill-scripts>/github/upsert-gate-review-comment.mjs \
   --head-sha <current_head_sha> \
   --verdict <clean|findings_present|blocked> \
   --findings-summary "<summary>" \
-  --next-action "<next action>"
+  --next-action "<next action>" --findings-severity-counts '{"must-fix":0,"worth-fixing-now":0,"defer":0}'
 ```
 
 Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.
@@ -320,13 +320,14 @@ The canonical gate-review comment contract is [Gate Review Comment Contract](../
 - **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the draft gate review angles resolved from config. The sub-loop follows a mandatory chain:
   1. **Context-builder (mandatory):** produce a shared briefing artifact covering the git diff, adjacent code, current CI/test status, and acceptance criteria. No reviewer runs without this briefing.
   2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context (subagent({context:"fresh"}) mandatory), inspects the diff, returns findings via output artifacts only, and never edits files. **Before starting:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` to self-verify fresh context; refuse to proceed on contamination. Use `--scope` so parallel reviewers in the same working directory do not trigger false contamination.
-  3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).
-  4. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
-  5. **Fix cycle:** apply only accepted must-fix changes on the same branch.
-  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
+  3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer). Write the disposition ledger via `write-gate-findings-log.mjs` before posting any visible comment.
+  4. **Disposition ledger:** log every finding with its severity classification and disposition (accepted-for-fix, deferred, disputed, operator_acknowledged) under `tmp/gate-findings/`. The ledger is the durable record; the visible PR comment is a summary.
+  5. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
+  6. **Fix cycle:** apply accepted fixes for all findings at severities in the gate's `blockCleanOnFindingSeverities` (resolved from config). The fix cycle covers all blocking severities, not only `must-fix`. If `blockCleanOnFindingSeverities` includes `worth-fixing-now`, then worth-fixing-now findings must be fixed before the gate can reach `clean`.
+  7. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → disposition ledger → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config enables all 14 draft gate angle families; consumer repos may opt out individual angles via `excludeAngles`. Do **not** apply angles from the other gate; each gate owns its own angle list from config.
 - **CI prerequisite:** resolve the draft gate config first (`resolveGateConfig(config, "draft")`). When `requireCi=true` (default), wait for green current-head CI before entering `draft_gate`. When `requireCi=false`, the draft gate may proceed without green CI. This draft-only override does **not** relax `pre_approval_gate`; final approval and merge readiness still require green current-head CI.
-- **Pass criteria:** all configured draft gate angles pass; all must-fix findings are addressed; validation passes; no unrelated files are included.
+- **Pass criteria:** all configured draft gate angles pass; all findings at severities in `blockCleanOnFindingSeverities` are addressed; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review.
 - **Non-substitution rule:** a clean `draft_gate` comment only authorizes the draft → ready-for-review transition for that head SHA. It does **not** satisfy `pre_approval_gate`, final-approval readiness, or merge-ready requirements.
 - **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
@@ -344,11 +345,12 @@ This is the default pre-approval gate for this workflow boundary. The canonical 
 - **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the pre-approval gate review angles resolved from config. The sub-loop follows a mandatory chain:
   1. **Context-builder (mandatory):** produce a shared briefing artifact covering the git diff, adjacent code, current CI/test status, and acceptance criteria. No reviewer runs without this briefing.
   2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context (subagent({context:"fresh"}) mandatory), inspects the diff, returns findings via output artifacts only, and never edits files. **Before starting:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` to self-verify fresh context; refuse to proceed on contamination. Use `--scope` so parallel reviewers in the same working directory do not trigger false contamination.
-  3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer).
-  4. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
-  5. **Fix cycle:** apply only accepted must-fix changes on the same branch.
-  6. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
-  7. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced `findings_present` in the previous pass.
+  3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer). Write the disposition ledger via `write-gate-findings-log.mjs` before posting any visible comment.
+  4. **Disposition ledger:** log every finding with its severity classification and disposition (accepted-for-fix, deferred, disputed, operator_acknowledged) under `tmp/gate-findings/`. The ledger is the durable record; the visible PR comment is a summary.
+  5. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
+  6. **Fix cycle:** apply accepted fixes for all findings at severities in the gate's `blockCleanOnFindingSeverities` (resolved from config). The fix cycle covers all blocking severities, not only `must-fix`. If `blockCleanOnFindingSeverities` includes `worth-fixing-now`, then worth-fixing-now findings must be fixed before the gate can reach `clean`.
+  7. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → disposition ledger → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
+  8. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced `findings_present` in the previous pass.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config`. Default config enables all 11 pre-approval gate angle families; consumer repos may opt out individual angles via `excludeAngles`.
 - **Persona mapping:** each angle resolves to a reviewer persona via `resolveReviewerRole(config, angle)` from `@pi-dev-loops/core/config`. Include this prompt in each reviewer's briefing so the reviewer knows exactly what to look for.
 - **Pass criteria:** the sub-loop completes with verdict `clean`; all configured angles pass; if parallel execution is impractical, still run all configured lenses and explicitly record the limitation.

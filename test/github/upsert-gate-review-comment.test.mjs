@@ -101,6 +101,7 @@ test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments determinis
     "--gate", "draft_gate",
     "--head-sha", "ABC1234",
     "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
     "--findings-summary", "no issues found",
     "--next-action", "mark ready for review",
   ]);
@@ -113,6 +114,7 @@ test("parseUpsertGateReviewCommentCliArgs rejects malformed arguments determinis
       "--gate", "draft_gate",
       "--head-sha", "not-a-sha",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
     ]),
@@ -127,6 +129,7 @@ test("parseUpsertGateReviewCommentCliArgs accepts --force with normalized --forc
     "--gate", "draft_gate",
     "--head-sha", "ABC1234",
     "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
     "--findings-summary", "no issues found",
     "--next-action", "mark ready for review",
     "--force",
@@ -146,6 +149,7 @@ test("parseUpsertGateReviewCommentCliArgs rejects --force without --force-reason
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
       "--force",
@@ -162,6 +166,7 @@ test("parseUpsertGateReviewCommentCliArgs rejects --force-reason without --force
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
       "--force-reason", "CI cancelled due to infra",
@@ -194,6 +199,7 @@ test("parseUpsertGateReviewCommentCliArgs rejects blank --force-reason", () => {
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
       "--force",
@@ -305,6 +311,7 @@ test("upsert-gate-review-comment allows forced draft_gate create when current-he
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
       "--force",
@@ -326,6 +333,7 @@ test("upsert-gate-review-comment allows forced draft_gate create when current-he
       forced: true,
       forceReason: "CI cancelled due to infrastructure",
       forceBypass: "ci_blocked_needs_user_decision",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -353,6 +361,7 @@ test("upsert-gate-review-comment allows forced pre_approval_gate create when cur
       "--gate", "pre_approval_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "await final human approval",
       "--force",
@@ -374,6 +383,7 @@ test("upsert-gate-review-comment allows forced pre_approval_gate create when cur
       forced: true,
       forceReason: "CI cancelled due to infrastructure",
       forceBypass: "ci_blocked_needs_user_decision",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -399,6 +409,7 @@ test("upsert-gate-review-comment keeps CI-blocked gate upserts fail-closed witho
         "--gate", scenario.gate,
         "--head-sha", "abc1234",
         "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
         "--findings-summary", "no issues found",
         "--next-action", scenario.nextAction,
       ], { env });
@@ -463,6 +474,7 @@ test("upsert-gate-review-comment forced update includes forced metadata", async 
       forced: true,
       forceReason: "CI failed due to transient infrastructure",
       forceBypass: "ci_blocked_needs_user_decision",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -511,6 +523,7 @@ test("upsert-gate-review-comment forced noop includes forced metadata", async ()
       forced: true,
       forceReason: "CI cancelled due to infrastructure",
       forceBypass: "ci_blocked_needs_user_decision",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -532,6 +545,7 @@ test("upsert-gate-review-comment does not use --force to bypass non-CI pre_appro
       "--gate", "pre_approval_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "await final human approval",
       "--force",
@@ -564,6 +578,7 @@ test("upsert-gate-review-comment does not use --force to bypass draft_gate refus
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
       "--force",
@@ -597,6 +612,7 @@ test("upsert-gate-review-comment stale-head protection still fails closed with -
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
       "--force",
@@ -651,6 +667,7 @@ test("upsert-gate-review-comment creates a new comment when no same-head marker 
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
     ], { env });
@@ -667,6 +684,7 @@ test("upsert-gate-review-comment creates a new comment when no same-head marker 
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -720,6 +738,7 @@ test("upsert-gate-review-comment fails closed when pre-approval gate entry is st
       "--gate", "pre_approval_gate",
       "--head-sha", "def56789",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "await final human approval",
     ], { env });
@@ -803,6 +822,7 @@ test("upsert-gate-review-comment appends the round-cap fallback note to pre-appr
       "--gate", "pre_approval_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "await final human approval",
     ], { env });
@@ -819,6 +839,7 @@ test("upsert-gate-review-comment appends the round-cap fallback note to pre-appr
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -880,6 +901,7 @@ test("upsert-gate-review-comment truncates verbose findings summary before comme
       "--gate", "pre_approval_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", [
         "Validation: verbose local logs follow",
         "> npm test",
@@ -904,6 +926,7 @@ test("upsert-gate-review-comment truncates verbose findings summary before comme
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -959,6 +982,7 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
     ], { env });
@@ -975,6 +999,7 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
     // 5 gh calls: pr facts + requested_reviewers + review threads + headRefOid + issue comments
     assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
@@ -1047,6 +1072,7 @@ test("upsert-gate-review-comment noop still warns when a stale comment exists on
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
     ], { env });
@@ -1115,6 +1141,7 @@ test("upsert-gate-review-comment updates an incomplete same-head marker in place
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
     ], { env });
@@ -1131,6 +1158,7 @@ test("upsert-gate-review-comment updates an incomplete same-head marker in place
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -1203,6 +1231,7 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
       "--gate", "draft_gate",
       "--head-sha", "ABC1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "fixed the marker for the current head",
       "--next-action", "mark ready for review",
     ], { env });
@@ -1220,6 +1249,7 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
       warning: "A gate comment for \`draft_gate\` already exists on a different head SHA \`def5678\` (comment 202). The old comment is stale for the current head.",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -1292,6 +1322,7 @@ test("upsert-gate-review-comment prefers the latest same-head marker when it dif
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "corrected the newer malformed marker",
       "--next-action", "mark ready for review",
     ], { env });
@@ -1308,6 +1339,7 @@ test("upsert-gate-review-comment prefers the latest same-head marker when it dif
       currentHeadSha: "abc1234",
       commentId: 202,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-202",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -1363,6 +1395,7 @@ test("upsert-gate-review-comment expands an abbreviated current-head SHA before 
       "--gate", "draft_gate",
       "--head-sha", "ABCDEF1",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
     ], { env });
@@ -1379,6 +1412,7 @@ test("upsert-gate-review-comment expands an abbreviated current-head SHA before 
       currentHeadSha: "abcdef1234567890abcdef1234567890abcdef12",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
     assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
   } finally {
@@ -1419,6 +1453,7 @@ test("upsert-gate-review-comment fails closed when the requested head SHA is sta
       "--gate", "draft_gate",
       "--head-sha", "abc1234",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
     ], { env });
@@ -1483,6 +1518,7 @@ test("upsert-gate-review-comment warns when a gate comment exists on a different
       "--gate", "draft_gate",
       "--head-sha", "def5678",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
     ], { env });
@@ -1547,6 +1583,7 @@ test("upsert-gate-review-comment fails closed when draft_gate is forbidden on a 
       "--gate", "draft_gate",
       "--head-sha", "def56789",
       "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
       "--findings-summary", "no issues found",
       "--next-action", "mark ready for review",
     ], { env });
@@ -1561,3 +1598,136 @@ test("upsert-gate-review-comment fails closed when draft_gate is forbidden on a 
   }
 });
 
+test("upsert-gate-review-comment rejects clean verdict when unresolved blocking-severity findings remain", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-blocking-"));
+
+  try {
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      isDraft: true,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "reviewed: 2 must-fix, 1 worth-fixing-now",
+      "--next-action", "mark ready for review",
+      "--findings-severity-counts", '{"must-fix":2,"worth-fixing-now":1,"defer":0}',
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Cannot set verdict "clean"/);
+    assert.match(payload.error, /must-fix/);
+    assert.match(payload.error, /worth-fixing-now/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment allows clean verdict when no blocking-severity findings remain", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-clean-ok-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      ...buildGateCoordinationEntries({
+        isDraft: true,
+        statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+      }),
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+        assertArgContains: ["body=### Gate review: `draft_gate`", "**Verdict:** clean"],
+        stdout: '{"id":101,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-101"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":1}',
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.action, "created");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+
+test("upsert-gate-review-comment rejects clean verdict when --findings-severity-counts is missing and blocking severities are configured", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-missing-counts-"));
+
+  try {
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      isDraft: true,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "reviewed",
+      "--next-action", "mark ready for review",
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Cannot set verdict "clean"/);
+    assert.match(payload.error, /--findings-severity-counts is required/);
+    assert.match(payload.error, /must-fix/);
+    assert.match(payload.error, /worth-fixing-now/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-gate-review-comment rejects clean verdict when --findings-severity-counts omits a blocking severity", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-missing-key-"));
+
+  try {
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      isDraft: true,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "all clear",
+      "--next-action", "mark ready",
+      "--findings-severity-counts", '{"must-fix":0,"defer":0}',
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /must include explicit counts for all configured blocking severities/);
+    assert.match(payload.error, /worth-fixing-now/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
