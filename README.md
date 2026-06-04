@@ -21,7 +21,7 @@ This repo is built around generic role agents plus thin workflow entrypoint agen
 
 Its main surfaces are:
 1. **Role agents** in `agents/`
-   - reusable prompts such as coordinator, developer, docs, quality, review, fixer, and refiner
+   - reusable prompts such as developer, docs, quality, review, fixer, and refiner
 2. **Workflow skills** in `skills/`
    - `dev-loop` is the public façade; internal routed logic stays internal
 3. **Extension and CLI UX** in `extension/` and `cli/`

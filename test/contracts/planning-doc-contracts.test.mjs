@@ -46,7 +46,7 @@ test("refiner agent defines the approved phase-refinement contract", async () =>
     /variant-a.+variant-b|variant-b.+variant-a/is,
     /one persona or refinement angle/i,
     /different persona or angle/i,
-    /through the coordinator/i,
+    /to the parent session \/ human operator/i,
     /lead dev/i,
     /specialized dev/i,
     /systems architect/i,
@@ -70,7 +70,7 @@ test("defaults config exposes a customizable refiner coverage-matrix prompt", as
   ], ".pi/dev-loop/defaults.yaml");
 });
 
-test("local-implementation skill uses the refiner for phase planning without replacing the coordinator", async () => {
+test("local-implementation skill uses the refiner for phase planning and delegates RFC decisions to the parent session", async () => {
   const content = await readRepo("skills/local-implementation/SKILL.md");
 
   assertMatchesAll(content, [
@@ -82,28 +82,16 @@ test("local-implementation skill uses the refiner for phase planning without rep
     /different persona or angle/i,
     /Definition of done/i,
     /RFC-worthy technical decisions/i,
-    /through the coordinator/i,
-    /keeps? the coordinator as the escalation\/decision owner|coordinator as the escalation and decision owner/i,
+    /to the parent session \/ human operator/i,
+    /escalate RFC-worthy technical decisions to the parent session/i,
   ], "skills/local-implementation/SKILL.md");
 });
 
-test("coordinator agent remains the RFC receiving boundary and decision owner", async () => {
-  const content = await readRepo("agents/coordinator.agent.md");
 
-  assertMatchesAll(content, [
-    /RFC/i,
-    /receiv/i,
-    /decision owner/i,
-    /lead dev/i,
-    /specialized dev/i,
-    /systems architect/i,
-  ], "agents/coordinator.agent.md");
-});
 
 test("planning guidance keeps sub-issue trees as the durable decomposition owner", async () => {
-  const [localImplementationSkill, coordinatorAgent, subIssueTreeContract, docsIndex] = await Promise.all([
+  const [localImplementationSkill, subIssueTreeContract, docsIndex] = await Promise.all([
     readRepo("skills/local-implementation/SKILL.md"),
-    readRepo("agents/coordinator.agent.md"),
     readRepo("docs/sub-issue-tree-contract.md"),
     readRepo("docs/index.md"),
   ]);
@@ -114,12 +102,6 @@ test("planning guidance keeps sub-issue trees as the durable decomposition owner
     /real GitHub[\s\S]*?sub-issue tree[\s\S]*?default durable/i,
     /keep.*parent.*lean/i,
     /plain related-issue references/i,
-  ], "docs/sub-issue-tree-contract.md (canonical owner)");
-  assertMatchesAll(coordinatorAgent, [
-    ...SUB_ISSUE_TREE_GUIDANCE,
-    /duplicating order in checklist prose/i,
-  ], "agents/coordinator.agent.md");
-  assertMatchesAll(subIssueTreeContract, [
     /manage-sub-issues\.mjs/i,
     /When to use sub-issues vs plain related-issue references/i,
     /do not maintain.*checklist.*duplicates|not.*maintain.*ordered checklist.*duplicates/i,
@@ -157,11 +139,10 @@ test("local workflow docs define tracker-backed local canonicality and no-dup ru
 });
 
 test("worktree guidance docs define the canonical checkout-isolation contract", async () => {
-  const [worktreeGuidance, agentsDoc, docsIndex, coordinatorAgent] = await Promise.all([
+  const [worktreeGuidance, agentsDoc, docsIndex] = await Promise.all([
     readRepo("docs/worktree-guidance.md"),
     readRepo("AGENTS.md"),
     readRepo("docs/index.md"),
-    readRepo("agents/coordinator.agent.md"),
   ]);
 
   assertMatchesAll(worktreeGuidance, [
@@ -186,17 +167,7 @@ test("worktree guidance docs define the canonical checkout-isolation contract", 
   assert.match(agentsDoc, /docs\/worktree-guidance\.md/i);
   assert.match(docsIndex, /worktree-guidance\.md/i);
 
-  assertMatchesAll(coordinatorAgent, [
-    /docs\/worktree-guidance\.md/i,
-    /tmp\/worktrees\/<issue-or-branch-slug>\//i,
-    /git worktree list/i,
-    /git worktree remove --force/i,
-    /git worktree prune/i,
-    /worktrees are unavailable/i,
-  ], "agents/coordinator.agent.md");
-  assert.doesNotMatch(coordinatorAgent, /ONLY use worktrees when they improve isolation/i);
-  assert.doesNotMatch(coordinatorAgent, /Prefer the current working tree for a single small task/i);
-});
+  });
 
 
 test("phase-truth docs agree that Phase 8 is active and Phase 7 is deferred", async () => {
@@ -310,4 +281,12 @@ test("AGENTS documents the conductor monitor pattern as human-in-the-loop queue 
     /human-in-the-loop pattern for now/i,
     /follow-up slice/i,
   ], "AGENTS.md");
+});
+
+test("coordinator.agent.md does NOT exist as a file", async () => {
+  await assert.rejects(
+    () => readRepo("agents/coordinator.agent.md"),
+    undefined,
+    "coordinator.agent.md should not exist"
+  );
 });

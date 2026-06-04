@@ -6,7 +6,6 @@ const fromRepoRoot = (relativePath) => new URL(`../${relativePath}`, import.meta
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), "utf8");
 
 const USER_FACING_AGENT_SURFACE = Object.freeze({
-  coordinator: { kind: "role-agent" },
   "dev-loop": { kind: "workflow-entrypoint" },
 });
 

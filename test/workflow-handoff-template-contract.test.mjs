@@ -148,8 +148,6 @@ test("unresolvedThreadCount === 0 appears before pre_approval_gate in mandatory 
   );
 });
 
-
-
 test("workflow-handoff-template includes the persistence rule and timeout escalation", async () => {
   const content = await readTemplate();
 
@@ -168,16 +166,3 @@ test("workflow-handoff-template includes the persistence rule and timeout escala
   );
 });
 
-test("coordinator prompt references the canonical hand-off template", async () => {
-  const coordinatorPath = path.resolve("agents/coordinator.agent.md");
-  const coordinatorContent = await readFile(coordinatorPath, "utf8");
-
-  assert.ok(
-    coordinatorContent.includes("skills/docs/workflow-handoff-template.md"),
-    "coordinator prompt must reference skills/docs/workflow-handoff-template.md",
-  );
-  assert.ok(
-    /abbreviated task summaries|operator memory/i.test(coordinatorContent),
-    "coordinator prompt must forbid abbreviated task summaries",
-  );
-});

@@ -11,16 +11,16 @@ When routed work is issue-first rather than already in active PR follow-up, use 
 
 ## New-idea safety layer (default contract in this repo)
 
-For **all new ideas** that are not already anchored to an existing issue (including abstract ideas such as plain-language requests without an issue number or plan-doc path), apply this coordinator-owned intake contract before any GitHub mutation:
+For **all new ideas** that are not already anchored to an existing issue (including abstract ideas such as plain-language requests without an issue number or plan-doc path), apply this procedure-owned intake contract before any GitHub mutation:
 
-- coordinator owns classification and mutation gating decisions
+- procedure owns classification; human operator gates all mutations
 - run classification in fresh context by default
 - run classification asynchronously when practical
 - run async fan-out / fan-in proposal generation by default when practical
 - emit a proposal artifact before any GitHub state-changing mutation, including create/edit/retitle/collapse/link operations
 - default to create-new over overwrite/update when a new tracked artifact is justified
 - do not repurpose/retitle/collapse/overwrite an existing issue unless that exact mutation is explicitly proposed and explicitly approved
-- after approval, run a second async coordinator mutation pass instead of mutating directly from inherited context
+- after approval, run a second async mutation pass (dispatched via the procedure) instead of mutating directly from inherited context
 - verify post-mutation artifact state and record what actually changed
 
 Deterministic intake + mutation-gate state machine:
@@ -53,7 +53,7 @@ Proposal artifact contract:
 If the Phase 1 preflight verdict is `pause_for_clarification`, stop and ask.
 If the intake state machine stops at `stopped_overlap_needs_decision` or `stopped_low_confidence`, stop and ask.
 If the intake state machine stops at `stopped_explicit_reject`, stop and record that the proposal was rejected; do not mutate GitHub.
-After approval, start a separate async coordinator mutation pass that consumes the approved proposal and emits a post-mutation verification artifact. Emit a concise post-mutation verification artifact and record what the mutation pass actually changed and verify the resulting issue/artifact state.
+After approval, start a separate async mutation pass (dispatched via the procedure) that consumes the approved proposal and emits a post-mutation verification artifact. Emit a concise post-mutation verification artifact and record what the mutation pass actually changed and verify the resulting issue/artifact state.
 
 ## Unattended issue-first execution and automatic re-entry
 

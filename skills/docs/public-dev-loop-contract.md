@@ -72,7 +72,7 @@ Use this taxonomy consistently across docs, discovery surfaces, and tests:
 |---|---|---|
 | Public workflow entrypoint | `dev-loop` | treat as the default and converging public workflow surface |
 | Internal routed strategy modules | `issue-intake`, `copilot-pr-followup`, `local-implementation`, `final-approval` | keep internal-only behind `dev-loop`; do not expose as executable peer workflow entrypoints |
-| Reusable role agents | `coordinator`, `developer`, `docs`, `review`, `fixer`, `quality`, `refiner` | keep framed as reusable building blocks, not peer public workflow entrypoints |
+| Reusable role agents | `developer`, `docs`, `review`, `fixer`, `quality`, `refiner` | keep framed as reusable building blocks, not peer public workflow entrypoints |
 
 Any remaining specialized Copilot behavior stays internal-only behind `dev-loop`.
 
