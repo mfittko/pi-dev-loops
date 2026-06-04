@@ -50,7 +50,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 ### Deterministic tooling — no bash polling
 
 - **Copilot review waiting:** Use `node scripts/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent Copilot review watching. Do NOT use bash `sleep`, `for`, `while`, or `timeout` wrappers around tool invocations.
-- **Probes:** Use `node scripts/loop/run-watch-cycle.mjs --probe-only` for single immediate rechecks. Do NOT use bash loops to poll.
+- **Probes:** Use `node scripts/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number> --probe-only` for single immediate rechecks. Do NOT use bash loops to poll.
 - **Waiting in general:** Use the deterministic helper owned by the current routed strategy. Agent-authored shell polling (`sleep N`, `for i in $(seq ...)`, `while true; do ...; sleep N; done`) is a contract breach — it bypasses timeout policy, poll-interval defaults, and machine-readable output contracts.
 - **Why:** Helper-owned sleep inside `run-watch-cycle.mjs`, `probe-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed. Agent-authored shell polling is not. Defaults (timeout, poll interval) belong in tooling constants, not in agent-authored bash wrappers.
 
