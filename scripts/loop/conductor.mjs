@@ -65,13 +65,27 @@ function checkRetrospectiveGate(cwd, requireRetrospective) {
     const checkpointText = readFileSync(checkpointPath, "utf8");
     const checkpoint = JSON.parse(checkpointText);
     const state = typeof checkpoint?.state === "string" ? checkpoint.state.trim().toLowerCase() : null;
-    if (state === "required" || state === "missing") {
+
+    // Recognized non-blocking states
+    if (state === "none" || state === "complete" || state === "skipped") {
+      return { blocked: false };
+    }
+
+    // Blocking state or unrecognized/missing/empty state — fail closed
+    if (state === "required" || state === "missing" || state === null || state === "") {
       return {
         blocked: true,
-        reason: `Retrospective checkpoint pending (state: ${state}). Complete the retrospective before running the conductor.`,
+        reason: state === "required" || state === "missing"
+          ? `Retrospective checkpoint pending (state: ${state}). Complete the retrospective before running the conductor.`
+          : "Retrospective checkpoint file exists but has an unrecognized or empty state; cannot determine retrospective status safely.",
       };
     }
-    return { blocked: false };
+
+    // Unrecognized known state value — fail closed (treat as malformed)
+    return {
+      blocked: true,
+      reason: `Retrospective checkpoint has an unrecognized state: "${state}".`,
+    };
   } catch (err) {
     if (err?.code === "ENOENT") return { blocked: false };
     return { blocked: true, reason: `Cannot read retrospective checkpoint: ${err.message}` };
@@ -121,6 +135,10 @@ function parseCliArgs(argv) {
 
   if (options.repo === undefined) {
     throw parseError("conductor requires --repo <owner/name>");
+  }
+
+  if (options.cycleOnly && options.monitorOnly) {
+    throw parseError("--cycle-only and --monitor-only are mutually exclusive");
   }
 
   try {
@@ -265,6 +283,13 @@ export async function runCli(
     ghCommand,
     repoRoot: cwd,
   });
+
+  if (result.ok === false) {
+    process.stderr.write(`${JSON.stringify(result)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
   stdout.write(`${JSON.stringify(result)}\n`);
 }
 
