@@ -74,24 +74,24 @@ function runGate(args = [], { cwd, env = {}, gitDir, logFile } = {}) {
 test("parsePreFlightGateCliArgs: parses --expected-branch", () => {
   const opts = parsePreFlightGateCliArgs(["--expected-branch", "my-branch"]);
   assert.equal(opts.expectedBranch, "my-branch");
-  assert.equal(opts.requireSubagents, false);
+  assert.equal(opts.checkSubagents, false);
 });
 
-test("parsePreFlightGateCliArgs: parses --require-subagents", () => {
-  const opts = parsePreFlightGateCliArgs(["--require-subagents"]);
-  assert.equal(opts.requireSubagents, true);
+test("parsePreFlightGateCliArgs: parses --check-subagents", () => {
+  const opts = parsePreFlightGateCliArgs(["--check-subagents"]);
+  assert.equal(opts.checkSubagents, true);
 });
 
 test("parsePreFlightGateCliArgs: parses both flags", () => {
-  const opts = parsePreFlightGateCliArgs(["--expected-branch", "br", "--require-subagents"]);
+  const opts = parsePreFlightGateCliArgs(["--expected-branch", "br", "--check-subagents"]);
   assert.equal(opts.expectedBranch, "br");
-  assert.equal(opts.requireSubagents, true);
+  assert.equal(opts.checkSubagents, true);
 });
 
 test("parsePreFlightGateCliArgs: no flags", () => {
   const opts = parsePreFlightGateCliArgs([]);
   assert.equal(opts.expectedBranch, undefined);
-  assert.equal(opts.requireSubagents, false);
+  assert.equal(opts.checkSubagents, false);
 });
 
 test("parsePreFlightGateCliArgs: --help", () => {
@@ -371,7 +371,7 @@ test("gate skips branch check when --expected-branch not provided", () => {
 // Subagent availability
 // ---------------------------------------------------------------------------
 
-test("gate reports subagent status skipped when --require-subagents not set", () => {
+test("gate reports subagent status skipped when --check-subagents not set", () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), "preflight-subagent-skip-"));
   try {
     const worktreeDir = path.join(tempDir, "tmp", "worktrees", "issue-497");
@@ -399,7 +399,7 @@ test("gate reports subagent status skipped when --require-subagents not set", ()
   }
 });
 
-test("gate reports subagent available when PI_SUBAGENT_AVAILABLE=1 and --require-subagents", () => {
+test("gate reports subagent available when PI_SUBAGENT_AVAILABLE=1 and --check-subagents", () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), "preflight-subagent-ok-"));
   try {
     const worktreeDir = path.join(tempDir, "tmp", "worktrees", "issue-497");
@@ -413,7 +413,7 @@ test("gate reports subagent available when PI_SUBAGENT_AVAILABLE=1 and --require
 
     writeGitStub(tempDir, { worktreeListOut, logFile });
 
-    const result = runGate(["--require-subagents"], {
+    const result = runGate(["--check-subagents"], {
       cwd: worktreeDir,
       gitDir: tempDir,
       env: { PI_SUBAGENT_AVAILABLE: "1" },
@@ -427,7 +427,7 @@ test("gate reports subagent available when PI_SUBAGENT_AVAILABLE=1 and --require
   }
 });
 
-test("gate reports subagent unavailable when --require-subagents and env var not set", () => {
+test("gate reports subagent unavailable when --check-subagents and env var not set", () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), "preflight-subagent-unavail-"));
   try {
     const worktreeDir = path.join(tempDir, "tmp", "worktrees", "issue-497");
@@ -441,7 +441,7 @@ test("gate reports subagent unavailable when --require-subagents and env var not
 
     writeGitStub(tempDir, { worktreeListOut, logFile });
 
-    const result = runGate(["--require-subagents"], { cwd: worktreeDir, gitDir: tempDir });
+    const result = runGate(["--check-subagents"], { cwd: worktreeDir, gitDir: tempDir });
 
     assert.equal(result.exitCode, 0);
     const payload = JSON.parse(result.stdout);

@@ -69,7 +69,7 @@ When the local spec already lives in a tracker issue:
 For the `local_implementation` strategy, before any planning or implementation mutation, run the pre-flight gate:
 
 ```sh
-node scripts/loop/pre-flight-gate.mjs --expected-branch <working-branch> --require-subagents
+node scripts/loop/pre-flight-gate.mjs --expected-branch <working-branch> --check-subagents
 ```
 
 This validates:

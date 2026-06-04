@@ -5,12 +5,12 @@
  * Runs before any planning or implementation work to enforce:
  * 1. Worktree isolation (current directory is under tmp/worktrees/)
  * 2. Branch identity (current branch matches --expected-branch when provided)
- * 3. Subagent availability (advisory; fails-open when --require-subagents set)
+ * 3. Subagent availability (advisory; fails-open when --check-subagents set)
  *
  * Fails closed on any violation: exit code 1 + machine-readable JSON on stderr.
  *
  * Usage:
- *   pre-flight-gate.mjs [--expected-branch <name>] [--require-subagents]
+ *   pre-flight-gate.mjs [--expected-branch <name>] [--check-subagents]
  *
  * Bypass: PI_PREFLIGHT_BYPASS=1
  */
@@ -30,7 +30,7 @@ import {
 const PI_PREFLIGHT_BYPASS_VAR = "PI_PREFLIGHT_BYPASS";
 
 const USAGE = `Usage:
-  pre-flight-gate.mjs [--expected-branch <name>] [--require-subagents]
+  pre-flight-gate.mjs [--expected-branch <name>] [--check-subagents]
 
 Gate local implementation mutations before planning or editing.
 
@@ -39,7 +39,7 @@ Required environment:
 
 Optional:
   --expected-branch <name>   Expected current branch (for branch identity check).
-  --require-subagents        Require subagent availability (advisory; fails-open).
+  --check-subagents        Check subagent availability (advisory; fails-open).
 
 Success output (stdout, JSON):
   { "ok": true, "checks": { "worktree": true, "branch": "matched",
@@ -62,7 +62,7 @@ const parseError = buildParseError(USAGE);
  * @typedef {object} PreFlightGateOptions
  * @property {boolean} help
  * @property {string | undefined} expectedBranch
- * @property {boolean} requireSubagents
+ * @property {boolean} checkSubagents
  */
 
 /**
@@ -74,7 +74,7 @@ export function parsePreFlightGateCliArgs(argv) {
   const options = {
     help: false,
     expectedBranch: undefined,
-    requireSubagents: false,
+    checkSubagents: false,
   };
 
   while (args.length > 0) {
@@ -90,8 +90,8 @@ export function parsePreFlightGateCliArgs(argv) {
       continue;
     }
 
-    if (token === "--require-subagents") {
-      options.requireSubagents = true;
+    if (token === "--check-subagents") {
+      options.checkSubagents = true;
       continue;
     }
 
@@ -219,11 +219,11 @@ function checkBranchIdentity({ cwd, env, expectedBranch, gitCommand = "git" }) {
 /**
  * @param {object} opts
  * @param {Record<string, string | undefined>} opts.env
- * @param {boolean} opts.requireSubagents
+ * @param {boolean} opts.checkSubagents
  * @returns {{ ok: true, status: "available" | "unavailable" | "skipped" }}
  */
-function checkSubagentAvailability({ env, requireSubagents }) {
-  if (!requireSubagents) {
+function checkSubagentAvailability({ env, checkSubagents }) {
+  if (!checkSubagents) {
     return { ok: true, status: "skipped" };
   }
 
@@ -306,7 +306,7 @@ export async function runCli(
   // 3. Subagent availability (advisory; fails-open)
   const subagentResult = checkSubagentAvailability({
     env,
-    requireSubagents: options.requireSubagents,
+    checkSubagents: options.checkSubagents,
   });
   checks.subagents = subagentResult.status;
 

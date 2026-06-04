@@ -227,7 +227,7 @@ test("buildResolveDevLoopStartupResult auto-injects retrospectiveCheckpointState
   }
 });
 
-test("buildResolveDevLoopStartupResult passes through when no checkpoint file exists", async () => {
+test("buildResolveDevLoopStartupResult fails closed when no checkpoint file exists and cwd is not a worktree", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-startup-"));
   try {
     const inputPath = await writeTempJson(tempDir, "startup.json", {
