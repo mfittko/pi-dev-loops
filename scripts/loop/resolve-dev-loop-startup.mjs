@@ -6,6 +6,12 @@ import path from "node:path";
 import { resolveAuthoritativeStartupResumeBundle } from "../../packages/core/src/loop/public-dev-loop-routing.mjs";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { requireOptionValue } from "../_cli-primitives.mjs";
+import { execFileSync } from "node:child_process";
+import {
+  isUnderWorktreePath,
+  parseMainWorktreePath,
+  isMainCheckout,
+} from "../../packages/core/src/loop/worktree-guard.mjs";
 
 import {
   validateAsyncStartContext,
@@ -253,6 +259,42 @@ export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd
     const validation = validateAsyncStartContext({ env });
     if (validation.status === ASYNC_START_STATUS.REJECTED) {
       return buildAsyncStartRejection(validation);
+    }
+  }
+
+  // #497: Worktree isolation enforcement for local implementation.
+  // Reject local_implementation routing when the working directory is the
+  // main git checkout (not a worktree under tmp/worktrees/).
+  const PI_WORKTREE_BYPASS_VAR = "PI_WORKTREE_BYPASS";
+  if (
+    strategyKey === "local_implementation" &&
+    (env[PI_WORKTREE_BYPASS_VAR] ?? "").trim() !== "1"
+  ) {
+    try {
+      const worktreeOutput = execFileSync("git", ["worktree", "list"], {
+        cwd,
+        env,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      const mainPath = parseMainWorktreePath(worktreeOutput);
+      if (!isUnderWorktreePath(cwd)) {
+        const reason = mainPath !== null && isMainCheckout(cwd, mainPath)
+          ? `Local implementation requires worktree isolation. Current directory is the main git checkout (${mainPath}). Create a worktree under tmp/worktrees/<slug>/ and re-run.`
+          : "Local implementation requires worktree isolation. Current directory is not under tmp/worktrees/. Create a worktree and re-run.";
+        return {
+          ok: true,
+          bundleKind: "needs_reconcile",
+          selectedStrategy: "none",
+          requiredReads: STRATEGY_REQUIRED_READS["none"],
+          nextAction: reason,
+          canonicalStateSummary: summarizeCanonicalState(bundle),
+          bundle,
+        };
+      }
+    } catch {
+      // If git worktree list fails, pass through — don't block routing on
+      // a git command failure. The pre-flight gate will catch this later.
     }
   }
 

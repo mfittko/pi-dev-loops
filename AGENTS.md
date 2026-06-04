@@ -46,6 +46,7 @@ These skills may be provided repo-locally or globally; this contract does not as
 - Canonical guidance lives in [Worktree Usage Guidance](docs/worktree-guidance.md).
 - Create or reuse worktrees under `tmp/worktrees/<issue-or-branch-slug>/` for mutating local work, and reserve the main checkout for inspection/control by default.
 - Check `git worktree list` before creating a new worktree, and remove merged/abandoned worktrees with `git worktree remove --force <path>` followed by `git worktree prune`.
+- **Enforcement:** The local-implementation skill mandates `scripts/loop/pre-flight-gate.mjs` as step 0 before any mutation. The startup resolver (`resolve-dev-loop-startup.mjs`) rejects `local_implementation` routing when the working directory is the main git checkout. Use `PI_WORKTREE_BYPASS=1` or `PI_PREFLIGHT_BYPASS=1` for development/testing only.
 
 ## Standard refinement chain pattern
 

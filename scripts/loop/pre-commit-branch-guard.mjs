@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { requireOptionValue, runCommand } from "../_cli-primitives.mjs";
+import {
+  isUnderWorktreePath,
+  parseMainWorktreePath,
+  isMainCheckout,
+} from "../../packages/core/src/loop/worktree-guard.mjs";
 
 const USAGE = `Usage:
   pre-commit-branch-guard.mjs --expected-branch <name> [--require-worktree] [--block-main-checkout]
@@ -80,28 +85,7 @@ export function parseBranchGuardCliArgs(argv) {
   return options;
 }
 
-export function isUnderWorktreePath(cwd) {
-  const normalized = cwd.replace(/\\/g, "/");
-  // Match tmp/worktrees as a path segment; allow cwd to be exactly the worktrees dir
-  return /(?:^|\/)tmp\/worktrees(?:\/|$)/.test(normalized);
-}
 
-export function parseMainWorktreePath(worktreeListOutput) {
-  const firstLine = worktreeListOutput.split("\n")[0].trim();
-  if (!firstLine) return null;
-  // git worktree list format: "<path>  <sha> [<branch>]"
-  // Find the last hex SHA (7+ chars) in the line and take everything before it as the path.
-  const shaIdx = firstLine.search(/\s[0-9a-f]{7,64}\b/iu);
-  if (shaIdx === -1) return null;
-  return firstLine.slice(0, shaIdx).trim();
-}
-
-export function isMainCheckout(cwd, mainWorktreePath) {
-  if (!mainWorktreePath) return false;
-  const normalizedCwd = cwd.replace(/\\/g, "/").replace(/\/+$/u, "");
-  const normalizedMain = mainWorktreePath.replace(/\\/g, "/").replace(/\/+$/u, "");
-  return normalizedCwd === normalizedMain || normalizedCwd.startsWith(normalizedMain + "/");
-}
 
 export async function runCli(
   argv = process.argv.slice(2),
