@@ -897,9 +897,8 @@ test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded wit
   const refinementConfig = { maxCopilotRounds: 5 };
 
   const result = interpretLoopState(snapshot, refinementConfig);
-  // Unresolved threads exist → routes to UNRESOLVED_FEEDBACK_PRESENT first
-  // (unresolved threads take priority over round cap)
-  assert.equal(result.state, STATE.UNRESOLVED_FEEDBACK_PRESENT);
+  // Round cap gates before unresolved-thread routing; unresolved threads + cap → hard stop
+  assert.equal(result.state, STATE.ROUND_CAP_REACHED);
   assert.equal(result.roundCapCleanEligible, false);
 });
 
@@ -962,9 +961,9 @@ test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded wit
 
   const refinementConfig = { maxCopilotRounds: 5 };
 
-  // ciStatus failure routes to BLOCKED_NEEDS_USER_DECISION before round cap check
+  // Round cap gates before CI routing; failing CI + cap → hard stop
   const result = interpretLoopState(snapshot, refinementConfig);
-  assert.equal(result.state, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.state, STATE.ROUND_CAP_REACHED);
   assert.equal(result.roundCapCleanEligible, false);
 });
 
@@ -983,9 +982,9 @@ test("interpretLoopState routes to ROUND_CAP_REACHED when round cap exceeded wit
 
   const refinementConfig = { maxCopilotRounds: 5 };
 
-  // ciStatus pending routes to WAITING_FOR_CI before round cap check
+  // Round cap gates before CI routing; pending CI + cap → hard stop
   const result = interpretLoopState(snapshot, refinementConfig);
-  assert.equal(result.state, STATE.WAITING_FOR_CI);
+  assert.equal(result.state, STATE.ROUND_CAP_REACHED);
   assert.equal(result.roundCapCleanEligible, false);
 });
 
@@ -1049,7 +1048,7 @@ test("interpretLoopState does not apply round cap when maxCopilotRounds is 0 or 
   assert.equal(resultNeg.state, STATE.READY_TO_REREQUEST_REVIEW);
 });
 
-test("interpretLoopState does not apply round cap to non-READY_TO_REREQUEST_REVIEW states", () => {
+test("round cap overrides unresolved-thread routing when maxCopilotRounds is exceeded", () => {
   const snapshot = {
     prExists: true,
     prNumber: 17,
@@ -1064,15 +1063,14 @@ test("interpretLoopState does not apply round cap to non-READY_TO_REREQUEST_REVI
   const refinementConfig = { maxCopilotRounds: 3 };
 
   const result = interpretLoopState(snapshot, refinementConfig);
-  // Unresolved threads take priority
-  assert.equal(result.state, STATE.UNRESOLVED_FEEDBACK_PRESENT);
+  // Round cap gates before unresolved-thread routing; cap exceeded → hard stop
+  assert.equal(result.state, STATE.ROUND_CAP_REACHED);
   assert.equal(result.roundCapCleanEligible, false);
 });
 
 test("summarizeLoopInterpretation marks ROUND_CAP_REACHED as blocked and terminal", () => {
-  // Force ROUND_CAP_REACHED by having unresolved threads that route there
-  // (this requires round cap + something that keeps it in READY_TO_REREQUEST_REVIEW first)
-  // We simulate the state directly
+  // ROUND_CAP_REACHED is now reachable through normal routing when round cap gates
+  // before unresolved-thread/CI checks. We simulate directly for summary test.
   const interpretation = {
     state: STATE.ROUND_CAP_REACHED,
     allowedTransitions: [],
