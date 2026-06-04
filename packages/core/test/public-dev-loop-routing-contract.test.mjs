@@ -132,7 +132,7 @@ test("public contract doc stays aligned with the machine-checkable gate contract
   );
   assert.match(
     publicContract,
-    /approval-ready canonical state routes to the final approval gate; merge-ready routes here only when merge authorization is explicit; requires explicit current-head `pre_approval_gate` gate-review evidence/i,
+    /approval-ready canonical state routes to the human approval checkpoint; merge-ready routes here only when merge authorization is explicit; requires explicit current-head `pre_approval_gate` gate-review evidence/i,
   );
 
   const internalStrategySection = publicContract.split("## Internal strategy families")[1]?.split("## Copilot-first issue-assignment seam")[0] ?? "";

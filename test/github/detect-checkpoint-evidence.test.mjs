@@ -15,9 +15,9 @@ import {
 import {
   parseDetectGateReviewEvidenceCliArgs,
   buildPreMergeGateCheck,
-} from "../../scripts/github/detect-gate-review-evidence.mjs";
+} from "../../scripts/github/detect-checkpoint-evidence.mjs";
 
-const scriptPath = path.resolve("scripts/github/detect-gate-review-evidence.mjs");
+const scriptPath = path.resolve("scripts/github/detect-checkpoint-evidence.mjs");
 
 const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
 
@@ -189,8 +189,8 @@ test("parseDetectGateReviewEvidenceCliArgs rejects malformed arguments determini
   );
 });
 
-test("detect-gate-review-evidence summarizes the newest valid live gate comments and passes pre-merge check", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-"));
+test("detect-checkpoint-evidence summarizes the newest valid live gate comments and passes pre-merge check", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-checkpoint-evidence-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -317,8 +317,8 @@ test("detect-gate-review-evidence summarizes the newest valid live gate comments
   }
 });
 
-test("detect-gate-review-evidence fails pre-merge check when only draft gate exists (no pre-approval)", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-pages-"));
+test("detect-checkpoint-evidence fails pre-merge check when only draft gate exists (no pre-approval)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-checkpoint-evidence-pages-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -378,8 +378,8 @@ test("detect-gate-review-evidence fails pre-merge check when only draft gate exi
   }
 });
 
-test("detect-gate-review-evidence fails pre-merge check when only partial draft gate marker exists (no pre-approval)", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-marker-"));
+test("detect-checkpoint-evidence fails pre-merge check when only partial draft gate marker exists (no pre-approval)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-checkpoint-evidence-marker-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -430,7 +430,7 @@ test("detect-gate-review-evidence fails pre-merge check when only partial draft 
 });
 
 
-test("detect-gate-review-evidence always fails before merge when gate comments are missing", async () => {
+test("detect-checkpoint-evidence always fails before merge when gate comments are missing", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-premerge-missing-"));
 
   try {
@@ -470,7 +470,7 @@ test("detect-gate-review-evidence always fails before merge when gate comments a
   }
 });
 
-test("detect-gate-review-evidence always passes pre-merge check with clean draft and current-head pre-approval gate comments", async () => {
+test("detect-checkpoint-evidence always passes pre-merge check with clean draft and current-head pre-approval gate comments", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-premerge-clean-"));
 
   try {
@@ -530,7 +530,7 @@ test("detect-gate-review-evidence always passes pre-merge check with clean draft
   }
 });
 
-test("detect-gate-review-evidence fails pre-merge check when pre-approval gate is for a stale head SHA", async () => {
+test("detect-checkpoint-evidence fails pre-merge check when pre-approval gate is for a stale head SHA", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-stale-head-"));
 
   try {
@@ -594,8 +594,8 @@ test("detect-gate-review-evidence fails pre-merge check when pre-approval gate i
 });
 
 
-test("detect-gate-review-evidence reports gh failures deterministically", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-evidence-fail-"));
+test("detect-checkpoint-evidence reports gh failures deterministically", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-checkpoint-evidence-fail-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -626,7 +626,7 @@ test("detect-gate-review-evidence reports gh failures deterministically", async 
 });
 
 
-test("detect-gate-review-evidence fails pre-merge with unresolved review threads via CLI", async () => {
+test("detect-checkpoint-evidence fails pre-merge with unresolved review threads via CLI", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-unresolved-"));
 
   try {
@@ -691,7 +691,7 @@ test("detect-gate-review-evidence fails pre-merge with unresolved review threads
   }
 });
 
-test("detect-gate-review-evidence fails pre-merge when graphql review-thread fetch fails via CLI", async () => {
+test("detect-checkpoint-evidence fails pre-merge when graphql review-thread fetch fails via CLI", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-graphql-fail-"));
 
   try {

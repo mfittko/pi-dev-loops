@@ -203,7 +203,7 @@ Preferred approach for Copilot review follow-up:
 
 Every async dev-loop dispatch task body must include this clause verbatim so fresh-context subagents inherit the gate requirement:
 
-> Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean gate-review comment exists on the PR for the current head SHA. Do not stop or report completion without this evidence.
+> Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean checkpoint verdict comment exists on the PR for the current head SHA. Do not stop or report completion without this evidence.
 
 Key rules:
 - expected polling idle time is normal
@@ -296,7 +296,7 @@ Do not treat `fix applied locally` as the end of the loop when the workflow also
 For every `draft_gate` or `pre_approval_gate` comment, you MUST run:
 
 ```sh
-node <resolved-skill-scripts>/github/upsert-gate-review-comment.mjs \
+node <resolved-skill-scripts>/github/upsert-checkpoint-verdict.mjs \
   --repo <owner/name> \
   --pr <number> \
   --gate <draft_gate|pre_approval_gate> \
@@ -308,21 +308,21 @@ node <resolved-skill-scripts>/github/upsert-gate-review-comment.mjs \
 
 Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.
 
-`--force --force-reason` on `upsert-gate-review-comment.mjs` is a narrow operator-authorized CI override for the helper itself, not the default gate path. Use it only when the helper refuses gate entry solely because the current head is `blocked_needs_user_decision` with `ciStatus="failure"`, and only after the user explicitly authorizes ignoring that current-head CI failure for this one gate-comment upsert. It does **not** bypass stale-head checks, unresolved-thread / unsettled-review refusal, non-draft `draft_gate` refusal, merge conflicts, or other legality checks.
+`--force --force-reason` on `upsert-checkpoint-verdict.mjs` is a narrow operator-authorized CI override for the helper itself, not the default gate path. Use it only when the helper refuses gate entry solely because the current head is `blocked_needs_user_decision` with `ciStatus="failure"`, and only after the user explicitly authorizes ignoring that current-head CI failure for this one gate-comment upsert. It does **not** bypass stale-head checks, unresolved-thread / unsettled-review refusal, non-draft `draft_gate` refusal, merge conflicts, or other legality checks.
 
 ### Draft gate contract (before marking PR ready for review)
 
-The canonical gate-review comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
+The canonical checkpoint verdict comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
 
 - **Gate name:** Draft gate
 - **Trigger / boundary:** right before running `gh pr ready` (draft → ready for review)
 - **Skip rule:** before entering the draft gate, run `detect-pr-gate-coordination-state.mjs` and check `draftGateAlreadySatisfied`. If `true`, skip the draft gate entirely — the draft→ready transition was already recorded. `draft_gate` is a one-time gate; do not re-post on new heads once clean draft-gate evidence exists for the transition record. (While the PR is still draft, advancing the head SHA does require a new draft-gate comment for the new head.) This skip rule applies only to the draft boundary.
-- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the draft gate review angles resolved from config. The sub-loop follows a mandatory chain:
+- **Execution directive:** run the checkpoint review chain defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the draft gate review angles resolved from config. The sub-loop follows a mandatory chain:
   1. **Context-builder (mandatory):** produce a shared briefing artifact covering the git diff, adjacent code, current CI/test status, and acceptance criteria. No reviewer runs without this briefing.
   2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context (subagent({context:"fresh"}) mandatory), inspects the diff, returns findings via output artifacts only, and never edits files. **Before starting:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` to self-verify fresh context; refuse to proceed on contamination. Use `--scope` so parallel reviewers in the same working directory do not trigger false contamination.
   3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer). Write the disposition ledger via `write-gate-findings-log.mjs` before posting any visible comment.
   4. **Disposition ledger:** log every finding with its severity classification and disposition (accepted-for-fix, deferred, disputed, operator_acknowledged) under `tmp/gate-findings/`. The ledger is the durable record; the visible PR comment is a summary.
-  5. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
+  5. **Post findings first:** post the findings as a visible PR comment via `upsert-checkpoint-verdict.mjs` **before** any fix code is applied.
   6. **Fix cycle:** apply accepted fixes for all findings at severities in the gate's `blockCleanOnFindingSeverities` (resolved from config). The fix cycle covers all blocking severities, not only `must-fix`. If `blockCleanOnFindingSeverities` includes `worth-fixing-now`, then worth-fixing-now findings must be fixed before the gate can reach `clean`.
   7. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → disposition ledger → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
 - **Review angles:** resolved at runtime from config via `resolveGateAngles(config, "draft")` from `@pi-dev-loops/core/config`. Default config enables all 14 draft gate angle families; consumer repos may opt out individual angles via `excludeAngles`. Do **not** apply angles from the other gate; each gate owns its own angle list from config.
@@ -330,24 +330,24 @@ The canonical gate-review comment contract is [Gate Review Comment Contract](../
 - **Pass criteria:** all configured draft gate angles pass; all findings at severities in `blockCleanOnFindingSeverities` are addressed; validation passes; no unrelated files are included.
 - **Next step after passing:** mark the PR ready for review.
 - **Non-substitution rule:** a clean `draft_gate` comment only authorizes the draft → ready-for-review transition for that head SHA. It does **not** satisfy `pre_approval_gate`, final-approval readiness, or merge-ready requirements.
-- **Required PR comment:** after the `draft_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
-- A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
+- **Required PR comment:** after the `draft_gate` review runs, post a visible checkpoint verdict comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. See [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) for required fields, verdict definitions, and fail-closed behavior.
+- A checkpoint verdict comment for an older head SHA does not satisfy this requirement for the current head.
 - If the `draft_gate` finds issues, the comment must say that the PR stays draft and needs fixes before retrying.
-- Do not run `gh pr ready` unless a visible `clean` `draft_gate` gate-review comment exists for the current head SHA.
-- If fixes advance the head SHA **while the PR is still draft**, post a new gate-review comment for the new head.
+- Do not run `gh pr ready` unless a visible `clean` `draft_gate` checkpoint verdict comment exists for the current head SHA.
+- If fixes advance the head SHA **while the PR is still draft**, post a new checkpoint verdict comment for the new head.
 
 ### Pre-approval gate contract
 
-This is the default pre-approval gate for this workflow boundary. The canonical gate-review comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
+This is the default pre-approval gate for this workflow boundary. The canonical checkpoint verdict comment contract is [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md). This section summarizes the procedural integration only.
 
 - **Gate name:** Pre-approval gate
 - **Trigger / boundary:** right before calling a PR/branch review-complete, approval-ready, merge-ready, or ready for final handoff
-- **Execution directive:** run the gate-review sub-loop defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the pre-approval gate review angles resolved from config. The sub-loop follows a mandatory chain:
+- **Execution directive:** run the checkpoint review chain defined in [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md) with the pre-approval gate review angles resolved from config. The sub-loop follows a mandatory chain:
   1. **Context-builder (mandatory):** produce a shared briefing artifact covering the git diff, adjacent code, current CI/test status, and acceptance criteria. No reviewer runs without this briefing.
   2. **Parallel reviewers (read-only):** fan out one reviewer per gate angle. Each reviewer starts in fresh context (subagent({context:"fresh"}) mandatory), inspects the diff, returns findings via output artifacts only, and never edits files. **Before starting:** run `scripts/github/verify-fresh-review-context.mjs --scope <angle>` to self-verify fresh context; refuse to proceed on contamination. Use `--scope` so parallel reviewers in the same working directory do not trigger false contamination.
   3. **Consolidation:** reconcile all review outputs into a consolidated fix plan with classified findings (must-fix, worth-fixing-now, defer). Write the disposition ledger via `write-gate-findings-log.mjs` before posting any visible comment.
   4. **Disposition ledger:** log every finding with its severity classification and disposition (accepted-for-fix, deferred, disputed, operator_acknowledged) under `tmp/gate-findings/`. The ledger is the durable record; the visible PR comment is a summary.
-  5. **Post findings first:** post the findings as a visible PR comment via `upsert-gate-review-comment.mjs` **before** any fix code is applied.
+  5. **Post findings first:** post the findings as a visible PR comment via `upsert-checkpoint-verdict.mjs` **before** any fix code is applied.
   6. **Fix cycle:** apply accepted fixes for all findings at severities in the gate's `blockCleanOnFindingSeverities` (resolved from config). The fix cycle covers all blocking severities, not only `must-fix`. If `blockCleanOnFindingSeverities` includes `worth-fixing-now`, then worth-fixing-now findings must be fixed before the gate can reach `clean`.
   7. **Re-gate mandatory:** after fixes advance the head SHA, re-run the chain (context-builder → reviewers → consolidation → disposition ledger → post findings) on the new head before crossing the gate boundary. On retry, only re-run reviewers that had findings in the previous pass; context-builder and consolidation always run fresh.
   8. **Retry rule:** in subsequent retry cycles, only re-run reviewers that produced `findings_present` in the previous pass.
@@ -360,14 +360,14 @@ This is the default pre-approval gate for this workflow boundary. The canonical 
   3. extract checklist items from the **Acceptance criteria** section of the issue body (both `- [ ]` unchecked and `- [x]` already-checked items); ignore checklist items from other sections (DoD, tasks, non-goals) that are not acceptance criteria
   4. for each AC item, verify whether the proposed changes on the current PR head satisfy it
   5. compute the fully-updated issue body once by replacing each verified item's `- [ ]` with `- [x]`, write it to a temporary file, and perform a single `gh issue edit <issue-number> --body-file <tmp-file> --repo <owner/name>` (do not issue one edit per item; prefer `--body-file` over inline `--body` to avoid shell quoting/escaping hazards)
-  6. always post a `pre_approval_gate` comment (the gate-review comment contract requires a visible comment even for non-`clean` verdicts); use verdict `clean` only when all AC items are verified; use verdict `findings_present` when any AC item is not satisfied and requires follow-up fixes; use verdict `blocked` when the gate cannot complete deterministically (for example no linked issue, ambiguous issue linkage, or the issue body is unavailable) — in all cases include a note on AC verification status
+  6. always post a `pre_approval_gate` comment (the checkpoint verdict comment contract requires a visible comment even for non-`clean` verdicts); use verdict `clean` only when all AC items are verified; use verdict `findings_present` when any AC item is not satisfied and requires follow-up fixes; use verdict `blocked` when the gate cannot complete deterministically (for example no linked issue, ambiguous issue linkage, or the issue body is unavailable) — in all cases include a note on AC verification status
   When the issue body has no AC checklist items, post the gate comment with verdict `findings_present` and note that fact explicitly rather than assuming satisfaction.
-- **Next step after passing:** continue the Step 7 flow and then proceed to the final approval gate below.
+- **Next step after passing:** continue the Step 7 flow and then proceed to the human approval checkpoint below.
 - **Non-substitution rule:** a clean `pre_approval_gate` comment is separate from `draft_gate` evidence. It governs final-approval readiness for that head SHA; it does **not** replace the required `draft_gate` evidence for leaving draft.
-- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible gate-review comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval. Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA. Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence. If the gate-review comment cannot be posted, fail closed and do not declare final-approval readiness.
+- **Required PR comment:** after the `pre_approval_gate` review runs, post a visible checkpoint verdict comment on the PR using the mandatory upsert helper. Keep validation reporting concise: include command names with pass/fail status. Do **not** paste raw passing test output into the visible gate comment. If you include a failing validation excerpt, keep it focused and truncate it to a deterministic retained-prefix length before posting the comment. If the `pre_approval_gate` finds issues, the comment must say that follow-up fixes are required before final approval. Do not declare final-approval readiness unless a visible `clean` `pre_approval_gate` checkpoint verdict comment exists for the current head SHA. Final-approval readiness must not rely only on local or hidden artifacts; the visible PR comment is the required auditable evidence. If the checkpoint verdict comment cannot be posted, fail closed and do not declare final-approval readiness.
 - The `pre_approval_gate` procedure must be entered and completed (visible comment posted) before any merge-ready or approval-ready declaration. Skipping the gate is not recoverable by asserting convergence.
-- A gate-review comment for an older head SHA does not satisfy this requirement for the current head.
-- If fixes advance the head SHA, post a new gate-review comment for the new head.
+- A checkpoint verdict comment for an older head SHA does not satisfy this requirement for the current head.
+- If fixes advance the head SHA, post a new checkpoint verdict comment for the new head.
 
 ### Conflict-resolution gate
 
@@ -399,7 +399,7 @@ Follow [Merge Preconditions](../docs/merge-preconditions.md): stop at `waiting_f
 Immediately before any `gh pr merge`, run:
 
 ```sh
-node <resolved-skill-scripts>/github/detect-gate-review-evidence.mjs \
+node <resolved-skill-scripts>/github/detect-checkpoint-evidence.mjs \
   --repo <owner/name> \
   --pr <number>
 ```
@@ -422,7 +422,7 @@ Follow [Stop Conditions](../docs/stop-conditions.md). Genuine stops: `blocked` s
 
 See [Anti-patterns](../docs/anti-patterns.md). Key repo-specific additions:
 - Use `reply-resolve-review-thread.mjs` / `reply-resolve-review-threads.mjs` helpers instead of ad hoc `gh api`/`gh api graphql` thread-mutation commands
-- Do NOT use `gh pr comment` or `gh pr review` for gate comments (use `upsert-gate-review-comment.mjs`)
+- Do NOT use `gh pr comment` or `gh pr review` for gate comments (use `upsert-checkpoint-verdict.mjs`)
 - Do not declare merge-ready without visible `pre_approval_gate` comment on current head SHA
 - Do not declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence
 - Do not blind-run `gh pr merge`, `gh pr update-branch`, or an unapproved rebase when conflicted

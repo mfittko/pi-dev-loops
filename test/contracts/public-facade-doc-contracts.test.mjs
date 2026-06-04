@@ -249,12 +249,12 @@ test("copilot-pr-followup mandates upsert helper command for gate comments", asy
   const copilotFollowupSkill = await readRepo("skills/copilot-pr-followup/SKILL.md");
 
   assert.match(copilotFollowupSkill, /For every `draft_gate` or `pre_approval_gate` comment, you MUST run:/);
-  assert.match(copilotFollowupSkill, /node\s+<resolved-skill-scripts>\/github\/upsert-gate-review-comment\.mjs/i);
+  assert.match(copilotFollowupSkill, /node\s+<resolved-skill-scripts>\/github\/upsert-checkpoint-verdict\.mjs/i);
   assert.match(copilotFollowupSkill, /--head-sha\s+<current_head_sha>/);
   assert.match(copilotFollowupSkill, /--verdict\s+<clean\|findings_present\|blocked>/);
   assert.match(copilotFollowupSkill, /--gate\s+<draft_gate\|pre_approval_gate>/);
   assert.match(copilotFollowupSkill, /Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments\./);
-  assert.match(copilotFollowupSkill, /Do NOT use.*gh pr comment.*gh pr review.*gate comments.*upsert-gate-review-comment/i);
+  assert.match(copilotFollowupSkill, /Do NOT use.*gh pr comment.*gh pr review.*gate comments.*upsert-checkpoint-verdict/i);
 });
 
 test("public dev-loop contract keeps conflict reconciliation local and context-first", async () => {
@@ -295,7 +295,7 @@ test("public dev-loop contract keeps tracker-backed local work inside local_impl
   assert.match(localImplSkill, /do not merge the working branch into local `main` at phase completion/i);
 });
 
-test("gate-review sub-loop contract exists and is referenced by both gates", async () => {
+test("checkpoint review chain contract exists and is referenced by both gates", async () => {
   const [subLoopContract, copilotFollowupSkill] = await Promise.all([
     readRepo("docs/gate-review-sub-loop-contract.md"),
     readRepo("skills/copilot-pr-followup/SKILL.md"),

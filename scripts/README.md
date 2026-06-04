@@ -552,7 +552,7 @@ Key behavioral guarantees:
 - When `--steering-state-file` is provided, steering is surfaced as a read-only overlay;
   queued steering promotion/persistence is owned explicitly by `steer-loop.mjs promote`
 
-### `scripts/github/upsert-gate-review-comment.mjs`
+### `scripts/github/upsert-checkpoint-verdict.mjs`
 
 Creates or updates the visible gate-review PR comment for one `gate + headSha` pair.
 Use this at the `draft_gate` / `pre_approval_gate` boundaries so same-head reruns
@@ -638,10 +638,10 @@ Failure behavior:
 - malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
 - `gh` failures and malformed `gh` JSON emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
-### `scripts/github/detect-gate-review-evidence.mjs`
+### `scripts/github/detect-checkpoint-evidence.mjs`
 
 Fetches the live PR head SHA plus visible PR issue comments, then summarizes the
-latest valid `draft_gate` and `pre_approval_gate` gate-review comments.
+latest valid `draft_gate` and `pre_approval_gate` checkpoint verdict comments.
 Use this when a fresh session needs authoritative visible gate evidence for the
 current head before running `gh pr ready` or declaring final-approval readiness.
 

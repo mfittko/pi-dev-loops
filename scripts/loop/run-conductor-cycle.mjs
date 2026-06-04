@@ -44,7 +44,7 @@ import {
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectPrGateCoordinationState } from "./detect-pr-gate-coordination-state.mjs";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
-import { PR_GATE_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -57,7 +57,7 @@ Poll all open PRs, detect state, and output an ordered action queue.`.trim();
 const OPEN_PR_LIST_LIMIT = 1000;
 
 /**
- * Map PR_GATE_ACTION values to conductor action types.
+ * Map PR_CHECKPOINT_ACTION values to conductor action types.
  *
  * Subagent-requiring actions: fix_threads, draft_gate, request_review,
  *   rerequest_review, run_pre_approval
@@ -65,21 +65,21 @@ const OPEN_PR_LIST_LIMIT = 1000;
  *   await_approval (stop), resolve_conflicts (stop), blocked (stop), done (stop)
  */
 export const GATE_ACTION_TO_CONDUCTOR_ACTION = Object.freeze({
-  [PR_GATE_ACTION.ADDRESS_REVIEW_FEEDBACK]: "fix_threads",
-  [PR_GATE_ACTION.REPLY_RESOLVE_REVIEW_THREADS]: "fix_threads",
-  [PR_GATE_ACTION.RUN_DRAFT_GATE]: "draft_gate",
-  [PR_GATE_ACTION.RECONCILE_DRAFT_GATE]: "draft_gate",
-  [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE]: "run_pre_approval",
-  [PR_GATE_ACTION.MARK_READY_FOR_REVIEW]: "request_review",
-  [PR_GATE_ACTION.REQUEST_COPILOT_REVIEW]: "request_review",
-  [PR_GATE_ACTION.REREQUEST_COPILOT_REVIEW]: "rerequest_review",
-  [PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW]: "watch",
-  [PR_GATE_ACTION.WAIT_FOR_CI]: "watch",
-  [PR_GATE_ACTION.DECLARE_MERGE_READY]: "merge",
-  [PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]: "await_approval",
-  [PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS]: "resolve_conflicts",
-  [PR_GATE_ACTION.REPORT_BLOCKED]: "blocked",
-  [PR_GATE_ACTION.REPORT_DONE]: "done",
+  [PR_CHECKPOINT_ACTION.ADDRESS_REVIEW_FEEDBACK]: "fix_threads",
+  [PR_CHECKPOINT_ACTION.REPLY_RESOLVE_REVIEW_THREADS]: "fix_threads",
+  [PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE]: "draft_gate",
+  [PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE]: "draft_gate",
+  [PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE]: "run_pre_approval",
+  [PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW]: "request_review",
+  [PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW]: "request_review",
+  [PR_CHECKPOINT_ACTION.REREQUEST_COPILOT_REVIEW]: "rerequest_review",
+  [PR_CHECKPOINT_ACTION.WAIT_FOR_COPILOT_REVIEW]: "watch",
+  [PR_CHECKPOINT_ACTION.WAIT_FOR_CI]: "watch",
+  [PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY]: "merge",
+  [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]: "await_approval",
+  [PR_CHECKPOINT_ACTION.RESOLVE_MERGE_CONFLICTS]: "resolve_conflicts",
+  [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]: "blocked",
+  [PR_CHECKPOINT_ACTION.REPORT_DONE]: "done",
 });
 
 /**

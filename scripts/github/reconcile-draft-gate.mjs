@@ -3,8 +3,8 @@ import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { loadDevLoopConfig, resolveGateConfig } from "@pi-dev-loops/core/config";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
-import { detectGateReviewEvidence } from "./detect-gate-review-evidence.mjs";
-import { upsertGateReviewComment } from "./upsert-gate-review-comment.mjs";
+import { detectCheckpointEvidence } from "./detect-checkpoint-evidence.mjs";
+import { upsertCheckpointVerdict } from "./upsert-checkpoint-verdict.mjs";
 
 const USAGE = `Usage: reconcile-draft-gate.mjs --repo <owner/name> --pr <number> [--skip-checks]
 
@@ -290,7 +290,7 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
   const draftGateConfig = resolveGateConfig(config, "draft");
 
   // Step 1: Inspect current PR state
-  const initialEvidence = await detectGateReviewEvidence(
+  const initialEvidence = await detectCheckpointEvidence(
     { repo: options.repo, pr: options.pr },
     { env, ghCommand }
   );
@@ -337,7 +337,7 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
   // Step 3: Post a reconciling clean draft_gate comment
   let gateResult;
   try {
-    gateResult = await upsertGateReviewComment({
+    gateResult = await upsertCheckpointVerdict({
       repo: options.repo,
       pr: options.pr,
       gate: "draft_gate",

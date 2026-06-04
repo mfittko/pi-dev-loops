@@ -70,7 +70,7 @@ Under that unattended execution contract:
 - when routing leaves bootstrap wait for `linked_pr_ready_for_followup`, do not stop only because local isolation is required; re-enter the same PR follow-up from a safe isolated checkout/worktree
 - When the draft PR appears, classify whether it is still the bootstrap-only Copilot draft before entering normal follow-up
 - if a child async run exits while the deterministic state is still non-terminal (for example `waiting_for_copilot_review`), automatically resume/restart follow-up when continuation is feasible instead of requiring manual operator restart
-- continue unattended until the final approval gate unless a genuine stop condition is reached
+- continue unattended until the human approval checkpoint unless a genuine stop condition is reached
 - stop for a human approval decision by default
 - after approval, report `waiting_for_merge_authorization` and stop again unless merge has been explicitly authorized
 - this does **not** imply unattended merge by default
@@ -221,7 +221,7 @@ node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <resolved-repo>
 gh pr edit <pr-number> --repo <resolved-repo> --title "..." --body-file <body-file>
 gh pr ready <pr-number> --repo <resolved-repo>
 gh pr review <pr-number> --repo <resolved-repo> --approve --body "..."
-node <resolved-skill-scripts>/github/detect-gate-review-evidence.mjs --repo <resolved-repo> --pr <pr-number>
+node <resolved-skill-scripts>/github/detect-checkpoint-evidence.mjs --repo <resolved-repo> --pr <pr-number>
 gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch
 ```
 

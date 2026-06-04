@@ -73,7 +73,7 @@ For each Copilot review pass:
 
 ### 8. Merge
 
-- Immediately before merge, run `node scripts/github/detect-gate-review-evidence.mjs --repo <owner/name> --pr <number>` and stop if it fails. Gate evidence enforcement is always-on; there is no opt-out flag.
+- Immediately before merge, run `node scripts/github/detect-checkpoint-evidence.mjs --repo <owner/name> --pr <number>` and stop if it fails. Gate evidence enforcement is always-on; there is no opt-out flag.
 - Required evidence:
   - `draft_gate` clean comment exists (any head — one-time transition boundary, no current-head requirement)
   - `pre_approval_gate` clean comment exists for **current** head SHA

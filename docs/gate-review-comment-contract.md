@@ -10,7 +10,7 @@ conversation alone. A reviewer or maintainer can inspect which gate ran, which h
 commit was reviewed, whether it passed cleanly, and whether a result is current for
 the latest head — without relying on local or session-only artifacts.
 
-This document owns the visible gate-review comment evidence contract only. It does
+This document owns the visible checkpoint verdict comment evidence contract only. It does
 not restate the full PR follow-up procedure; that remains owned by the relevant
 workflow skill. The broader family-local PR lifecycle that consumes this evidence
 is defined in [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md).
@@ -121,28 +121,28 @@ normal review/fix loops and the recurring per-head `pre_approval_gate`.
   anywhere on the PR, skip the draft gate entirely — the draft→ready transition was
   already recorded. Do not re-post draft gate on new heads. This is a one-time gate.
 - When the `draft_gate` runs (while the PR is still draft and no clean evidence exists),
-  the PR must receive a visible gate-review comment.
+  the PR must receive a visible checkpoint verdict comment.
 - If the `draft_gate` verdict is `findings_present` or `blocked`, the comment must
   state that the PR stays draft and fixes are required before retrying.
 - The PR must not leave draft (`gh pr ready`) unless a visible `clean` `draft_gate`
-  gate-review comment exists for the current head SHA.
-- A gate-review comment for an older head SHA does not satisfy this requirement for
+  checkpoint verdict comment exists for the current head SHA.
+- A checkpoint verdict comment for an older head SHA does not satisfy this requirement for
   the current head while the PR is still draft.
 - After the PR leaves draft, existing clean `draft_gate` evidence remains valid as a
   one-time transition record — it records that the draft → ready boundary was properly
   crossed. Later head changes do not invalidate this record.
 - If a PR is already non-draft and no clean `draft_gate` evidence exists at all (no
-  valid gate-review comment was ever posted), automation must fail closed and reconcile
+  valid checkpoint verdict comment was ever posted), automation must fail closed and reconcile
   that missing draft-stage evidence before continuing.
 
 ### Pre-approval gate (`pre_approval_gate`) comment requirements
 
-- When the `pre_approval_gate` runs, the PR must receive a visible gate-review comment.
+- When the `pre_approval_gate` runs, the PR must receive a visible checkpoint verdict comment.
 - If the `pre_approval_gate` verdict is `findings_present` or `blocked`, the comment
   must state that follow-up fixes are required before final approval.
 - Final-approval readiness must not rely only on local or hidden artifacts; the
   visible PR comment is the required auditable evidence.
-- A gate-review comment for an older head SHA does not satisfy this requirement for
+- A checkpoint verdict comment for an older head SHA does not satisfy this requirement for
   the current head.
 
 ## Rerun rules
@@ -150,11 +150,11 @@ normal review/fix loops and the recurring per-head `pre_approval_gate`.
 | Scenario | Rule |
 |---|---|
 | Same head SHA rerun | Idempotent behavior: do not post a second visible marker for the same gate+head. Reuse/suppress by default; if correction is needed, update/replace the existing marker in place. |
-| New head SHA rerun | A new visible gate-review comment must be posted for the new head; the older-head comment remains but does not satisfy readiness for the new head |
+| New head SHA rerun | A new visible checkpoint verdict comment must be posted for the new head; the older-head comment remains but does not satisfy readiness for the new head |
 
 ## Fail-closed behavior
 
-If the required gate-review comment cannot be posted (for example due to a GitHub
+If the required checkpoint verdict comment cannot be posted (for example due to a GitHub
 API error, permission restriction, or tooling failure), the workflow must not cross
 the gate boundary:
 

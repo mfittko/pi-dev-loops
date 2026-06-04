@@ -20,7 +20,7 @@ Structural quality → `../skills/docs/structural-quality.md`
 
 Startup: `node scripts/loop/resolve-dev-loop-startup.mjs`
 Draft PR: `node scripts/github/create-draft-pr.mjs --assignee @me ...`
-Gate: `node scripts/github/upsert-gate-review-comment.mjs`
+Gate: `node scripts/github/upsert-checkpoint-verdict.mjs`
 Branch guard: `node scripts/loop/pre-commit-branch-guard.mjs`
 
 ## Contracts

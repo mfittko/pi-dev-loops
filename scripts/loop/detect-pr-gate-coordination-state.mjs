@@ -12,9 +12,9 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
-import { evaluatePrGateCoordination, PR_GATE_BOUNDARY, PR_GATE_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { evaluatePrGateCoordination, PR_CHECKPOINT, PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
-import { detectGateReviewEvidence } from "../github/detect-gate-review-evidence.mjs";
+import { detectCheckpointEvidence } from "../github/detect-checkpoint-evidence.mjs";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 
 const UNMERGED_GIT_STATUS_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
@@ -248,7 +248,7 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     const requestedReviewers = await fetchRequestedReviewers(options, runtime);
     const threadsPayload = await fetchGithubReviewThreadsPayload(options, runtime);
     const parsedThreads = parseReviewThreads(threadsPayload);
-    gateEvidence = await detectGateReviewEvidence(options, runtime);
+    gateEvidence = await detectCheckpointEvidence(options, runtime);
     const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
     const reviewRequestStatus = requestedReviewers.requested
       ? "requested"
@@ -266,7 +266,7 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     });
   } else {
     const requestedReviewers = await fetchRequestedReviewers(options, runtime);
-    gateEvidence = await detectGateReviewEvidence(options, runtime);
+    gateEvidence = await detectCheckpointEvidence(options, runtime);
     const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
     const reviewRequestStatus = requestedReviewers.requested
       ? "requested"
@@ -351,41 +351,41 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   // PRE_APPROVAL_GATE_NEEDED boundary regardless of what the state machine says.
   const preApprovalNeverEntered = !(result.preApprovalGate?.contractComplete === true);
   const gateBoundariesExpectingPreApproval = new Set([
-    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED,
-    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
-    PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED,
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+    PR_CHECKPOINT.FINAL_APPROVAL_READY,
   ]);
 
   if (preApprovalNeverEntered && gateBoundariesExpectingPreApproval.has(result.gateBoundary)) {
-    result.gateBoundary = PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED;
-    result.nextAction = PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE;
+    result.gateBoundary = PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED;
+    result.nextAction = PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE;
     result.reason = "No contract-complete pre_approval_gate marker exists for the current head SHA; run pre_approval_gate before proceeding.";
-    result.allowedNextActions = [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE];
+    result.allowedNextActions = [PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE];
   }
   // #460: draft_gate detector — if PR is non-draft and no visible
   // draft_gate evidence (comment or marker) exists at all
   // (one-time boundary), force the DRAFT_GATE_NEEDED boundary.
   const draftGateEvidenceMissing = !(result.draftGate?.anyVisible);
   const gateBoundariesExpectingDraftGate = new Set([
-    PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
-    PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
-    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_NEEDED,
-    PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW,
-    PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+    PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW,
+    PR_CHECKPOINT.FEEDBACK_RESOLUTION,
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED,
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+    PR_CHECKPOINT.FINAL_APPROVAL_READY,
   ]);
 
   if (draftGateEvidenceMissing && gateBoundariesExpectingDraftGate.has(result.gateBoundary)) {
-    result.gateBoundary = PR_GATE_BOUNDARY.DRAFT_GATE_NEEDED;
-    result.nextAction = PR_GATE_ACTION.RECONCILE_DRAFT_GATE;
+    result.gateBoundary = PR_CHECKPOINT.DRAFT_GATE_NEEDED;
+    result.nextAction = PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE;
     result.reason = "The PR is non-draft but no visible draft_gate comment or marker exists at all (one-time boundary); run reconcile_draft_gate before proceeding.";
-    result.allowedNextActions = [PR_GATE_ACTION.RECONCILE_DRAFT_GATE];
+    result.allowedNextActions = [PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE];
     result.forbiddenActions = [
-      PR_GATE_ACTION.RUN_DRAFT_GATE,
-      PR_GATE_ACTION.MARK_READY_FOR_REVIEW,
-      PR_GATE_ACTION.REQUEST_COPILOT_REVIEW,
-      PR_GATE_ACTION.WAIT_FOR_COPILOT_REVIEW,
-      PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
-      PR_GATE_ACTION.DECLARE_MERGE_READY,
+      PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
+      PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW,
+      PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW,
+      PR_CHECKPOINT_ACTION.WAIT_FOR_COPILOT_REVIEW,
+      PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
+      PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
     ];
     result.gateEvidenceNote = null;
   }

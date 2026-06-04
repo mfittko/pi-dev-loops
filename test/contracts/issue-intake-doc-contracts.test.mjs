@@ -89,7 +89,7 @@ test("issue-intake surface requires unattended resume-from-state behavior when a
   assert.match(content, /node <resolved-skill-scripts>\/github\/create-draft-pr\.mjs --repo <owner\/name> --assignee @me --base <base> --head <head> --title/i);
   assert.doesNotMatch(content, /gh pr create --draft --repo <owner\/name> --assignee @me --base <base> --head <head> --title/i);
   assert.match(content, /pre-existing PR.*not.*stop-by-default condition/is);
-  assert.match(content, /continue unattended until the final approval gate/i);
+  assert.match(content, /continue unattended until the human approval checkpoint/i);
   assert.match(content, /stop for a human approval decision by default/i);
   assert.match(content, /waiting_for_merge_authorization/i);
   assert.match(content, /does \*\*not\*\* imply unattended merge by default/i);
@@ -115,7 +115,7 @@ test("issue-intake behavior remains internal and resumable behind dev-loop", asy
   assert.match(content, /local facts, GitHub facts, and helper\/state-machine output do not agree/i);
 });
 
-test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the final approval gate", async () => {
+test("issue-based shorthand auto dev-loop trigger is documented as one public intent through the human approval checkpoint", async () => {
   const [readme, publicContract, devLoopSkill, issueIntakeSkill, devLoopAgent] = await Promise.all([
     readRepo("README.md"),
     readRepo("skills/docs/public-dev-loop-contract.md"),
@@ -223,7 +223,7 @@ test("issue-intake flow carries the resolved repo slug through later GitHub issu
   assert.match(skillContent, /gh pr edit <pr-number> --repo <resolved-repo> --title/);
   assert.match(skillContent, /gh pr ready <pr-number> --repo <resolved-repo>/);
   assert.match(skillContent, /gh pr review <pr-number> --repo <resolved-repo> --approve/);
-  assert.match(skillContent, /detect-gate-review-evidence\.mjs --repo <resolved-repo> --pr <pr-number>/);
+  assert.match(skillContent, /detect-checkpoint-evidence\.mjs --repo <resolved-repo> --pr <pr-number>/);
   assert.doesNotMatch(skillContent, /--require-before-merge/, "the removed opt-in flag must not appear in the docs");
   assert.match(skillContent, /gh pr merge <pr-number> --repo <resolved-repo> --squash --delete-branch/);
 });

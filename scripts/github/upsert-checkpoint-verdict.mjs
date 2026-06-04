@@ -4,9 +4,9 @@ import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig } from "@
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { truncateText } from "@pi-dev-loops/core/bash-exit-one";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
-import { detectGateReviewEvidence } from "./detect-gate-review-evidence.mjs";
+import { detectCheckpointEvidence } from "./detect-checkpoint-evidence.mjs";
 import { loadPrGateCoordinationContext } from "../loop/detect-pr-gate-coordination-state.mjs";
-import { evaluatePrGateCoordination, PR_GATE_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { evaluatePrGateCoordination, PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { STATE } from "@pi-dev-loops/core/loop/copilot-loop-state";
 
 const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
@@ -15,7 +15,7 @@ const MAX_GATE_COMMENT_TEXT_LENGTH = 2000;
 const MAX_GATE_COMMENT_EXCERPT_LENGTH = 120;
 const FORCE_BYPASS = "ci_blocked_needs_user_decision";
 
-const USAGE = `Usage: upsert-gate-review-comment.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text> [--local-validation-head-sha <sha>] [--force --force-reason <text>]
+const USAGE = `Usage: upsert-checkpoint-verdict.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text> [--local-validation-head-sha <sha>] [--force --force-reason <text>]
 
 Create or update the visible gate-review PR comment for a gate/head pair.
 Same-head reruns are idempotent: if a visible marker already exists for the same
@@ -131,15 +131,15 @@ function resolveRuntimeForceOptions(options) {
   const forceReason = normalizeOptionalForceReason(options.forceReason);
 
   if (forceReason === null) {
-    throw new Error("forceReason must be a non-empty string when calling upsertGateReviewComment()");
+    throw new Error("forceReason must be a non-empty string when calling upsertCheckpointVerdict()");
   }
 
   if (force && forceReason === undefined) {
-    throw new Error("force requires forceReason when calling upsertGateReviewComment()");
+    throw new Error("force requires forceReason when calling upsertCheckpointVerdict()");
   }
 
   if (!force && options.forceReason !== undefined) {
-    throw new Error("forceReason requires force when calling upsertGateReviewComment()");
+    throw new Error("forceReason requires force when calling upsertCheckpointVerdict()");
   }
 
   return { force, forceReason };
@@ -385,7 +385,7 @@ export function parseUpsertGateReviewCommentCliArgs(argv) {
   const missing = ["repo", "pr", "gate", "headSha", "verdict", "findingsSummary", "nextAction"]
     .filter((key) => options[key] === undefined);
   if (missing.length > 0) {
-    throw parseError("upsert-gate-review-comment requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary, and --next-action");
+    throw parseError("upsert-checkpoint-verdict requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary, and --next-action");
   }
 
   if (options.force && options.forceReason === undefined) {
@@ -461,8 +461,8 @@ function resolveRequestedHeadSha(requestedHeadSha, currentHeadSha) {
 
 function resolveGateAction(gate) {
   return gate === "draft_gate"
-    ? PR_GATE_ACTION.RUN_DRAFT_GATE
-    : PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE;
+    ? PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE
+    : PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE;
 }
 
 function isCiBlockedGateOverrideEligible({ coordination, coordinationContext, gate }) {
@@ -590,7 +590,7 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
   return parseCommentMutationResponse(payload);
 }
 
-export async function upsertGateReviewComment(options, { env = process.env, ghCommand = "gh", repoRoot = process.cwd() } = {}) {
+export async function upsertCheckpointVerdict(options, { env = process.env, ghCommand = "gh", repoRoot = process.cwd() } = {}) {
   const { force, forceReason } = resolveRuntimeForceOptions(options);
   const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr, localValidationHeadSha: options.localValidationHeadSha }, { env, ghCommand });
   const evidence = coordinationContext.gateEvidence;
@@ -746,7 +746,7 @@ async function main() {
   }
 
   try {
-    const result = await upsertGateReviewComment(options);
+    const result = await upsertCheckpointVerdict(options);
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
     process.stderr.write(`${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`);

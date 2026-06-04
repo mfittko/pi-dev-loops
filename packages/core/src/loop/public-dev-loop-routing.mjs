@@ -593,7 +593,7 @@ function routeForState(
     && !hasCleanVisibleCurrentHeadPreApprovalGate(gateReviewEvidence)
   ) {
     return buildReconcile(
-      "Final-approval routing requires explicit current-head `pre_approval_gate` evidence: (1) current head SHA identified, (2) a visible clean `pre_approval_gate` gate-review comment for that exact head SHA. CI green + resolved review threads + clean Copilot rereview are not sufficient substitutes. Do not suggest approval or merge without this proof; rerun the pre_approval_gate and confirm the gate-review comment before continuing.",
+      "Final-approval routing requires explicit current-head `pre_approval_gate` evidence: (1) current head SHA identified, (2) a visible clean `pre_approval_gate` checkpoint verdict comment for that exact head SHA. CI green + resolved review threads + clean Copilot rereview are not sufficient substitutes. Do not suggest approval or merge without this proof; rerun the pre_approval_gate and confirm the checkpoint verdict comment before continuing.",
       routableCanonicalState,
       executionMode,
     );

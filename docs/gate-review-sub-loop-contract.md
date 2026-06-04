@@ -1,6 +1,6 @@
 # Gate-Review Sub-Loop Contract
 
-This document defines the reusable gate-review sub-loop execution shape shared by the
+This document defines the reusable checkpoint review chain execution shape shared by the
 two dev-loop gate boundaries: `draft_gate` and `pre_approval_gate`.
 
 ## Purpose
@@ -14,14 +14,14 @@ This contract owns the **execution shape** of gate-review work. It does not own:
 - the visible gate-review PR comment format (owned by [Gate Review Comment Contract](./gate-review-comment-contract.md))
 - the broader PR lifecycle sequencing (owned by the workflow skill and [PR Lifecycle Contract](../skills/docs/pr-lifecycle-contract.md))
 
-## Relationship to the gate-review comment contract
+## Relationship to the checkpoint verdict comment contract
 
-The sub-loop executes the review work. The gate-review comment contract
+The sub-loop executes the review work. The checkpoint verdict comment contract
 ([Gate Review Comment Contract](gate-review-comment-contract.md)) defines the visible PR comment evidence that
 proves the sub-loop completed for a specific head SHA. Both are required for a gate to
 be satisfied, but they address different concerns:
 - this contract = **how** the review work is structured and executed
-- gate-review comment contract = **what** visible evidence must exist on the PR
+- checkpoint verdict comment contract = **what** visible evidence must exist on the PR
 
 ## Separate chains per gate
 
@@ -101,7 +101,7 @@ The ledger is the source of truth for what the gate found; the visible PR commen
 summary for auditability.
 
 **Post-findings rule:** The consolidated findings must be posted as a visible
-PR comment (via the gate-review comment contract) **before** the fix cycle in
+PR comment (via the checkpoint verdict comment contract) **before** the fix cycle in
 Phase 4 begins. Fixes must not be applied until the auditable trail exists on
 the PR.
 
@@ -164,7 +164,7 @@ The execution phases are identical; only the review angles and blocking severity
 
 A clean sub-loop pass for one gate does not satisfy the other gate. Each gate requires
 its own complete sub-loop execution with its own review angles, its own disposition ledger,
-and its own visible gate-review comment on the PR for the reviewed head SHA.
+and its own visible checkpoint verdict comment on the PR for the reviewed head SHA.
 
 ## Disposition ledger and durable logging
 

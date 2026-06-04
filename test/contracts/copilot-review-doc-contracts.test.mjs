@@ -33,7 +33,7 @@ test("copilot review gates keep phase-specific angle ownership in one canonical 
   assert.ok(devLoopPreApproval.length > 0, "copilot-pr-followup pre-approval gate section not found inside Step 7");
   assert.match(copilotPrFollowupSkill, /canonical internal `copilot_pr_followup` route behind the public `dev-loop` façade/i);
   assert.match(copilotPrFollowupSkill, /canonical internal owner of the shared post-PR mechanics/i);
-  assert.match(gateContract, /visible gate-review comment evidence contract only/i);
+  assert.match(gateContract, /visible checkpoint verdict comment evidence contract only/i);
   const expectedDevLoopShape = [/Gate name:/i, /Trigger \/ boundary:/i, /Review angles:/i, /Pass criteria:/i, /Next step after passing:/i];
   for (const [label, section] of [
     ["copilot-pr-followup draft gate", devLoopDraftGate],
@@ -119,7 +119,7 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   );
   assert.match(
     step6,
-    /Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean gate-review comment exists on the PR for the current head SHA\. Do not stop or report completion without this evidence\./i,
+    /Before reporting merge-ready or stopping at the human approval gate, you must complete the pre_approval_gate procedure and verify that a visible clean checkpoint verdict comment exists on the PR for the current head SHA\. Do not stop or report completion without this evidence\./i,
     "Step 6 should embed the required pre-approval gate dispatch clause verbatim",
   );
   const step7Match = skillContent.match(/## Step 7: Pi review\/fix follow-up loop[\s\S]*?(?=\n## Validation policy|$)/);
@@ -226,7 +226,7 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   );
   assert.match(
     step7,
-    /detect-gate-review-evidence\.mjs[\s\S]*always-on/i,
+    /detect-checkpoint-evidence\.mjs[\s\S]*always-on/i,
     "mechanical pre-merge check should use the gate evidence helper with always-on enforcement",
   );
   assert.doesNotMatch(
@@ -397,9 +397,9 @@ test("docs index separates active docs, archived history, and presentations", as
   assert.match(content, /presentations\/applied-dev-loops-presentation\.md/i);
   assert.match(content, /presentations\/style\.css/i);
 });
-test("gate-review comment contract documents required fields, verdict values, rerun rules, and fail-closed behavior", async () => {
+test("checkpoint verdict comment contract documents required fields, verdict values, rerun rules, and fail-closed behavior", async () => {
   const contractContent = await readRepo("docs/gate-review-comment-contract.md");
-  assert.match(contractContent, /visible gate-review comment evidence contract only/i);
+  assert.match(contractContent, /visible checkpoint verdict comment evidence contract only/i);
   assert.match(contractContent, /does[\s\S]*not restate the full PR follow-up procedure/i);
   // Required fields
   assert.match(contractContent, /gate name/i);
@@ -438,7 +438,7 @@ test("gate-review comment contract documents required fields, verdict values, re
   assert.match(contractContent, /A clean `draft_gate` comment does \*\*not\*\* satisfy `pre_approval_gate` requirements/i);
   assert.match(contractContent, /A clean `pre_approval_gate` comment does \*\*not\*\* retroactively replace the required `draft_gate` evidence/i);
 });
-test("gate-review comment ownership stays explicit in the canonical internal skill file", async () => {
+test("checkpoint verdict comment ownership stays explicit in the canonical internal skill file", async () => {
   const copilotPrFollowupSkill = await readRepo("skills/copilot-pr-followup/SKILL.md");
   const devLoopDraftGateMatch = copilotPrFollowupSkill.match(/### Draft gate contract[\s\S]*?(?=\n### |\n## |$)/);
   const devLoopDraftGate = devLoopDraftGateMatch ? devLoopDraftGateMatch[0] : "";
@@ -449,8 +449,8 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopDraftGate, /fail.closed|cannot be posted/i);
   assert.match(devLoopDraftGate, /older head SHA does not satisfy/i);
   assert.match(devLoopDraftGate, /stays draft and needs fixes/i);
-  assert.match(devLoopDraftGate, /visible `clean` `draft_gate` gate-review comment exists for the current head SHA/i);
-  assert.match(devLoopDraftGate, /post a new gate-review comment for the new head/i);
+  assert.match(devLoopDraftGate, /visible `clean` `draft_gate` checkpoint verdict comment exists for the current head SHA/i);
+  assert.match(devLoopDraftGate, /post a new checkpoint verdict comment for the new head/i);
   assert.match(devLoopDraftGate, /does \*\*not\*\* satisfy `pre_approval_gate`|does not satisfy `pre_approval_gate`/i);
   assert.match(devLoopDraftGate, /command names with pass.fail status/i);
   assert.match(devLoopDraftGate, /raw passing test output/i);
@@ -464,9 +464,9 @@ test("gate-review comment ownership stays explicit in the canonical internal ski
   assert.match(devLoopPreApprovalGate, /fail.closed|cannot be posted/i);
   assert.match(devLoopPreApprovalGate, /older head SHA does not satisfy/i);
   assert.match(devLoopPreApprovalGate, /follow-up fixes are required before final approval/i);
-  assert.match(devLoopPreApprovalGate, /visible `clean` `pre_approval_gate` gate-review comment exists for the current head SHA/i);
+  assert.match(devLoopPreApprovalGate, /visible `clean` `pre_approval_gate` checkpoint verdict comment exists for the current head SHA/i);
   assert.match(devLoopPreApprovalGate, /must not rely only on local or hidden artifacts/i);
-  assert.match(devLoopPreApprovalGate, /post a new gate-review comment for the new head/i);
+  assert.match(devLoopPreApprovalGate, /post a new checkpoint verdict comment for the new head/i);
   assert.match(devLoopPreApprovalGate, /does \*\*not\*\* replace the required `draft_gate` evidence|does not replace the required `draft_gate` evidence/i);
   assert.match(devLoopPreApprovalGate, /command names with pass.fail status/i);
   assert.match(devLoopPreApprovalGate, /raw passing test output/i);

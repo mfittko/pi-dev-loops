@@ -3,8 +3,8 @@ import test from "node:test";
 
 import {
   evaluatePrGateCoordination,
-  PR_GATE_ACTION,
-  PR_GATE_BOUNDARY,
+  PR_CHECKPOINT_ACTION,
+  PR_CHECKPOINT,
 } from "../src/loop/pr-gate-coordination.mjs";
 import { LOOP_DISPOSITION, STATE } from "../src/loop/copilot-loop-state.mjs";
 
@@ -28,12 +28,12 @@ test("draft PR only allows mark-ready after current-head clean draft gate eviden
     draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.DRAFT_REVIEW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.MARK_READY_FOR_REVIEW);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.MARK_READY_FOR_REVIEW));
-  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.MARK_READY_FOR_REVIEW));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.DRAFT_REVIEW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW));
+  assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
   assert.equal(result.draftGate.currentHead, true);
   assert.equal(result.draftGate.currentHeadClean, true);
 });
@@ -51,9 +51,9 @@ test("draft PR waits for CI before allowing draft gate when requireCi is enabled
     draftGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.nextAction, PR_GATE_ACTION.WAIT_FOR_CI);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.WAIT_FOR_CI));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.WAIT_FOR_CI);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.WAIT_FOR_CI));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
   assert.match(result.reason, /requires green current-head CI before entering `draft_gate`/i);
 });
 
@@ -70,9 +70,9 @@ test("draft PR allows draft gate without green CI when requireCi is disabled", (
     draftGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_DRAFT_GATE);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
-  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
+  assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
 });
 
 test("draft PR forbids mark-ready until current-head clean draft gate evidence exists", () => {
@@ -87,8 +87,8 @@ test("draft PR forbids mark-ready until current-head clean draft gate evidence e
     draftGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_DRAFT_GATE);
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.MARK_READY_FOR_REVIEW));
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE);
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW));
 });
 
 test("stale gate markers do not report current-head contract completeness", () => {
@@ -120,13 +120,13 @@ test("non-draft PR with clean draft gate on a different head proceeds to post-dr
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW);
   assert.equal(result.draftGate.visible, true);
   assert.equal(result.draftGate.currentHead, false);
   assert.equal(result.draftGate.cleanEvidenceExists, true);
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
 test("ready non-draft PR with current-head clean draft gate evidence requests Copilot review next", () => {
@@ -142,10 +142,10 @@ test("ready non-draft PR with current-head clean draft gate evidence requests Co
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
   assert.equal(result.draftGate.currentHeadClean, true);
 });
 
@@ -160,8 +160,8 @@ test("waiting_for_ci recommends a dedicated wait-for-ci action", () => {
     draftGateMarker: gate({ visible: true, headSha: "def5678", verdict: "clean", contractComplete: true }),
   });
 
-  assert.equal(result.nextAction, PR_GATE_ACTION.WAIT_FOR_CI);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.WAIT_FOR_CI));
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.WAIT_FOR_CI);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.WAIT_FOR_CI));
   assert.match(result.reason, /waiting on current-head CI/i);
 });
 
@@ -180,10 +180,10 @@ test("clean settled current-head review opens the pre-approval gate window", () 
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
 test("crediblyGreen CI allows pre-approval progression once the review loop is already settled", () => {
@@ -202,8 +202,8 @@ test("crediblyGreen CI allows pre-approval progression once the review loop is a
   });
 
   assert.equal(result.lifecycleState, STATE.READY_TO_REREQUEST_REVIEW);
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
   assert.match(result.reason, /credibly green/i);
 });
 
@@ -225,10 +225,10 @@ test("round-cap exhaustion opens the pre-approval gate window even without a cur
   });
 
   assert.equal(result.lifecycleState, STATE.READY_TO_REREQUEST_REVIEW);
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
   assert.equal(result.gateEvidenceNote, "Copilot review rounds exhausted (5/5); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.");
   assert.match(result.reason, /round limit/i);
   assert.match(result.reason, /pre_approval_gate/i);
@@ -249,8 +249,8 @@ test("missing ciStatus fails closed to wait_for_ci instead of reopening gate pro
   });
 
   assert.equal(result.lifecycleState, STATE.WAITING_FOR_CI);
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.WAIT_FOR_CI);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.WAIT_FOR_CI);
 });
 
 test("current-head clean pre-approval evidence advances to final approval boundary", () => {
@@ -269,8 +269,8 @@ test("current-head clean pre-approval evidence advances to final approval bounda
     preApprovalGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.FINAL_APPROVAL_READY);
-  assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.FINAL_APPROVAL_READY);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
   assert.equal(result.preApprovalGate.currentHead, true);
   assert.equal(result.preApprovalGate.currentHeadClean, true);
   assert.equal(result.mergeStateStatus, "CLEAN");
@@ -290,11 +290,11 @@ test("non-draft PR with clean draft_gate on a different head still allows post-d
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.notEqual(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
-  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
+  assert.notEqual(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW);
   assert.equal(result.draftGate.currentHead, false);
   assert.equal(result.draftGate.cleanEvidenceExists, true);
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
   assert.equal(
     result.reason,
     "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
@@ -314,13 +314,13 @@ test("non-draft PR without any clean draft_gate evidence still enters post-draft
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW);
   assert.equal(result.draftGate.cleanEvidenceExists, false);
   assert.equal(result.draftGateAlreadySatisfied, false);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
   assert.equal(
     result.reason,
     "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
@@ -340,12 +340,12 @@ test("non-draft PR with visible non-clean draft_gate evidence still follows post
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW);
   assert.equal(result.draftGate.cleanEvidenceExists, false);
   assert.equal(result.draftGate.anyVisible, true);
-  assert(!result.allowedNextActions.includes(PR_GATE_ACTION.RECONCILE_DRAFT_GATE));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_DRAFT_GATE));
+  assert(!result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
   assert.equal(
     result.reason,
     "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
@@ -369,14 +369,14 @@ test("conflicted PR returns the conflict-resolution boundary and reports conflic
     preApprovalGateMarker: gate({ visible: true, headSha: "deadbee", verdict: "clean", contractComplete: true }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.CONFLICT_RESOLUTION);
-  assert.equal(result.nextAction, PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.CONFLICT_RESOLUTION);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RESOLVE_MERGE_CONFLICTS);
   assert.equal(result.mergeStateStatus, "DIRTY");
   assert.deepEqual(result.conflictFiles, ["config.test.mjs", "extension/README.md"]);
-  assert.deepEqual(result.allowedNextActions, [PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS]);
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.DECLARE_MERGE_READY));
+  assert.deepEqual(result.allowedNextActions, [PR_CHECKPOINT_ACTION.RESOLVE_MERGE_CONFLICTS]);
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY));
   assert.match(result.reason, /resolve the conflict locally on the PR branch/i);
   assert.match(result.reason, /config\.test\.mjs/i);
 });
@@ -396,11 +396,11 @@ test("conflict state takes precedence over otherwise merge-ready current-head ev
     preApprovalGateMarker: gate({ visible: true, headSha: "deadbee", verdict: "clean", contractComplete: true }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.CONFLICT_RESOLUTION);
-  assert.equal(result.nextAction, PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS);
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.DECLARE_MERGE_READY));
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.CONFLICT_RESOLUTION);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RESOLVE_MERGE_CONFLICTS);
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY));
 });
 
 test("local git conflict files trigger the conflict-resolution boundary even without DIRTY mergeStateStatus", () => {
@@ -418,8 +418,8 @@ test("local git conflict files trigger the conflict-resolution boundary even wit
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.CONFLICT_RESOLUTION);
-  assert.equal(result.nextAction, PR_GATE_ACTION.RESOLVE_MERGE_CONFLICTS);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.CONFLICT_RESOLUTION);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RESOLVE_MERGE_CONFLICTS);
   assert.deepEqual(result.conflictFiles, [".pi/dev-loop/defaults.yaml"]);
 });
 
@@ -456,11 +456,11 @@ test("internal-only PR with explicit reviewMode skips to pre-approval gate after
   });
 
   // Internal-only PRs skip Copilot review and go straight to pre-approval gate
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW));
   assert.match(result.reason, /internal-only/i);
 });
 
@@ -478,9 +478,9 @@ test("internal-only PR with both gates clean goes straight to final approval", (
     preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.FINAL_APPROVAL_READY);
-  assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.FINAL_APPROVAL_READY);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW));
   assert.match(result.reason, /internal-only/i);
 });
 
@@ -498,9 +498,9 @@ test("PR without explicit reviewMode uses standard Copilot review path (default)
   });
 
   // Without reviewMode, default to standard external Copilot review
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.REQUEST_COPILOT_REVIEW);
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW);
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
 test("internal-only PR without clean draft gate still enters pre-approval gate window", () => {
@@ -517,10 +517,10 @@ test("internal-only PR without clean draft gate still enters pre-approval gate w
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(result.forbiddenActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW));
 });
 
 test("draft PR with clean current-head draft_gate sets cleanEvidenceExists", () => {
@@ -553,11 +553,11 @@ test("converged non-draft PR without clean draft_gate evidence still enters pre-
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
-  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
   assert.equal(result.draftGate.anyVisible, false);
-  assert(result.allowedNextActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
-  assert(!result.forbiddenActions.includes(PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
 test("converged non-draft PR without clean draft_gate evidence can still reach final approval", () => {
@@ -575,8 +575,8 @@ test("converged non-draft PR without clean draft_gate evidence can still reach f
     preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
   });
 
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.FINAL_APPROVAL_READY);
-  assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.FINAL_APPROVAL_READY);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
   assert.equal(result.draftGate.cleanEvidenceExists, false);
   assert.equal(result.preApprovalGate.currentHeadClean, true);
 });
@@ -595,9 +595,9 @@ test("LOW_SIGNAL_CONVERGED routes to pre-approval gate when CI is green", () => 
     draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
     preApprovalGate: {},
   });
-  assert.equal(result.nextAction, PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE);
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.PRE_APPROVAL_GATE_WINDOW);
-  assert.ok(!result.allowedNextActions.includes(PR_GATE_ACTION.REQUEST_COPILOT_REVIEW));
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW);
+  assert.ok(!result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW));
   assert.match(result.reason, /low-signal/i);
 });
 
@@ -610,7 +610,7 @@ test("LOW_SIGNAL_CONVERGED with clean pre-approval gate advances to final approv
     preApprovalGateMarker: { visible: true, verdict: "clean", headSha: "abc1234", contractComplete: true },
     draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
   });
-  assert.equal(result.nextAction, PR_GATE_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
   assert.match(result.reason, /low-signal/i);
 });
 
@@ -622,7 +622,7 @@ test("LOW_SIGNAL_CONVERGED waits for CI when pending", () => {
     draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
     preApprovalGate: {},
   });
-  assert.equal(result.nextAction, PR_GATE_ACTION.WAIT_FOR_CI);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.WAIT_FOR_CI);
 });
 
 test("LOW_SIGNAL_CONVERGED blocks on CI failure", () => {
@@ -633,8 +633,8 @@ test("LOW_SIGNAL_CONVERGED blocks on CI failure", () => {
     draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
     preApprovalGate: {},
   });
-  assert.equal(result.nextAction, PR_GATE_ACTION.REPORT_BLOCKED);
-  assert.equal(result.gateBoundary, PR_GATE_BOUNDARY.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
 });
 
 test("normalizeSnapshot preserves valid lastCopilotRoundMaxSignal", () => {
