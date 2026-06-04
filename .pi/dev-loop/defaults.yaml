@@ -370,7 +370,7 @@ personas:
       Verify that required workflow checkpoint evidence is present and valid:
       - Check that the draft checkpoint verdict comment exists. While the PR is
         still draft, it must also reference the current head SHA. After the PR
-        leaves draft, the draft-gate comment is a one-time transition record
+        leaves draft, the `draft_gate` checkpoint verdict comment is a one-time transition record
         and head-SHA matching no longer applies.
       - Check that the pre-approval checkpoint verdict comment exists when the PR
         is in a ready/merge state.

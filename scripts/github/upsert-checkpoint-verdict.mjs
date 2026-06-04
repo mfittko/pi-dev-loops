@@ -17,9 +17,9 @@ const FORCE_BYPASS = "ci_blocked_needs_user_decision";
 
 const USAGE = `Usage: upsert-checkpoint-verdict.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text> [--local-validation-head-sha <sha>] [--force --force-reason <text>]
 
-Create or update the visible checkpoint verdict comment for a checkpoint/head pair.
+Create or update the visible checkpoint verdict comment for a gate/head pair.
 Same-head reruns are idempotent: if a visible marker already exists for the same
-\`checkpoint + headSha\`, this helper updates it in place when correction is needed and
+\`gate + headSha\`, this helper updates it in place when correction is needed and
 suppresses duplicate reposts when the existing visible comment already matches.
 
 Required:
