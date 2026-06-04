@@ -422,7 +422,7 @@ Each summary must include a machine-readable header block using bullet-key forma
 `conductor-monitor.mjs` can detect and parse local phase subagent state:
 
 ```
-- agent name: <developer|quality|docs|review|refiner>
+- agent name: <developer|quality|docs|review|refiner|fixer>
 - status: <queued|running|completed|failed|paused>
 - run id: <subagent-run-id>
 - task: <one-line task summary>

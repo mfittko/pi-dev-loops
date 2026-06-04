@@ -92,7 +92,7 @@ test("local-implementation skill uses the refiner for phase planning and delegat
 test("planning guidance keeps sub-issue trees as the durable decomposition owner", async () => {
   const [localImplementationSkill, subIssueTreeContract, docsIndex] = await Promise.all([
     readRepo("skills/local-implementation/SKILL.md"),
-        readRepo("docs/sub-issue-tree-contract.md"),
+    readRepo("docs/sub-issue-tree-contract.md"),
     readRepo("docs/index.md"),
   ]);
 
@@ -286,6 +286,7 @@ test("AGENTS documents the conductor monitor pattern as human-in-the-loop queue 
 test("coordinator.agent.md does NOT exist as a file", async () => {
   await assert.rejects(
     () => readRepo("agents/coordinator.agent.md"),
+    undefined,
     "coordinator.agent.md should not exist"
   );
 });

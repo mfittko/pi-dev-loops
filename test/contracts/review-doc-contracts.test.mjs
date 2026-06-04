@@ -41,7 +41,7 @@ test("review workflow resolves pre-approval gate angles from config with explici
     readRepo("skills/copilot-pr-followup/SKILL.md"),
     readRepo("docs/gate-review-sub-loop-contract.md"),
     readRepo("agents/review.agent.md"),
-        readRepo("skills/dev-loop/templates/review.md"),
+    readRepo("skills/dev-loop/templates/review.md"),
     readRepo("docs/reviewer-loop-state-graph.md"),
   ]);
 
@@ -61,7 +61,7 @@ test("review workflow resolves pre-approval gate angles from config with explici
     ["skills/local-implementation/SKILL.md", localImplementationSkill],
     ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill],
     ["agents/review.agent.md", reviewAgent],
-        ["docs/reviewer-loop-state-graph.md", reviewerGraph],
+    ["docs/reviewer-loop-state-graph.md", reviewerGraph],
   ]) {
     assert.match(
       content,
