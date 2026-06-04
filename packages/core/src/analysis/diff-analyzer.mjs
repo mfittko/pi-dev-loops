@@ -108,9 +108,6 @@ export function classifyFile(filePath) {
   if (fp.includes(".test.") || fp.startsWith("test/")) {
     return "test";
   }
-  if (fp.startsWith(".github/")) {
-    return "ci";
-  }
   if (
     fp.endsWith(".mjs") || fp.endsWith(".js") ||
     fp.endsWith(".ts") || fp.endsWith(".mts")
@@ -140,8 +137,8 @@ export function classifyFile(filePath) {
 function isNonLogicLine(content) {
   if (content === "") return true;
   if (content.startsWith("//") || content.startsWith("/*") || content.startsWith("*")) return true;
-  if (content.startsWith("import ") || content.startsWith("export ")) return true;
-  if (content.includes("require(")) return true;
+  // import/export/require lines are NOT non-logic — they change dependencies
+  // and should not be classified as COMMENT_ONLY
   return false;
 }
 

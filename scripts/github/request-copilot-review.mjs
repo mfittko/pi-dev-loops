@@ -36,7 +36,7 @@ Debug:
 Output (stdout, JSON):
   { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
-    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true, "violationCommentIds"?: [N] }
+    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true, "violationCommentIds"?: [N], "completedRounds"?: N, "maxRounds"?: N }
 
 Request statuses:
   requested           Copilot review was successfully requested

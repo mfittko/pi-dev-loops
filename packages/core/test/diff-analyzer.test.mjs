@@ -95,11 +95,11 @@ test("analyzeT1: detects logic change from code additions", () => {
   assert.equal(result.hunkCount, 1);
 });
 
-test("analyzeT1: no logic change from import-only diff", () => {
+test("analyzeT1: logic change from import-only diff (imports ARE logic)", () => {
   const t0 = { files: ["src/foo.mjs"], extensions: [".mjs"], directories: ["src"], renameOnly: false, allDocs: false };
   const diff = "@@ -1,1 +1,1 @@\n-import x from 'y';\n+import z from 'y';\n";
   const result = analyzeT1(diff, t0);
-  assert.ok(!result.changeCategories.includes("LOGIC_CHANGE"));
+  assert.ok(result.changeCategories.includes("LOGIC_CHANGE"));
 });
 
 test("analyzeT1: renames with no content change", () => {
