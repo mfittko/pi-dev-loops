@@ -48,6 +48,9 @@ It does not redefine helper transport mechanics, reviewer-loop internals, conduc
 
 ## Two required local gates
 
+Each gate runs an independent review chain with its own disposition ledger, review angles,
+and exit conditions. The chains are not interchangeable; see [Gate-Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md).
+
 ### 1. `draft_gate`
 
 Applies while the PR is draft.
@@ -59,6 +62,8 @@ Purpose:
 
 Boundary note:
 - `draft_gate` governs only the draft -> ready-for-review boundary for the reviewed head
+- a clean verdict requires no findings at any severity in the gate's `blockCleanOnFindingSeverities` (resolved from config via `resolveGateConfig(config, "draft").blockCleanOnFindingSeverities`)
+- every gate pass writes a durable disposition ledger via `write-gate-findings-log.mjs` under `tmp/gate-findings/`
 - visible comment schema/evidence rules stay in [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md)
 - `gates.draft.requireCi=false` does **not** relax `pre_approval_gate`; final approval and merge readiness still require green current-head CI
 
@@ -70,6 +75,8 @@ This gate uses review angles resolved from config (`resolveGateAngles(config, "p
 
 Boundary note:
 - `pre_approval_gate` governs only final approval readiness for the reviewed head
+- a clean verdict requires no findings at any severity in the gate's `blockCleanOnFindingSeverities` (resolved from config via `resolveGateConfig(config, "preApproval").blockCleanOnFindingSeverities`)
+- every gate pass writes a durable disposition ledger via `write-gate-findings-log.mjs` under `tmp/gate-findings/`
 - non-draft PRs do not need visible `draft_gate` evidence to enter the post-draft review / `pre_approval_gate` lifecycle; only the draft -> ready transition depends on `draft_gate`
 - visible comment schema/evidence rules stay in [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md)
 
@@ -167,6 +174,11 @@ The lifecycle distinguishes two evidence classes:
 2. **visible gate evidence on the PR**
    - current-head `draft_gate` evidence when draft-gate clearance is required
    - current-head `pre_approval_gate` evidence when final approval readiness is required
+
+3. **durable disposition ledger**
+   - every gate pass logs findings and dispositions under `tmp/gate-findings/<repo-slug>/pr-<N>/`
+   - the ledger is the durable record of what each gate found and what was decided
+   - the visible PR comment is a summary; the disposition ledger is the complete record
 
 ### Precedence rules
 

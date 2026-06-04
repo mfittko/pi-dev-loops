@@ -35,6 +35,10 @@ const GateConfig = z.strictObject({
   excludeAngles: z.array(z.string().trim().min(1)).default([]),
   required: z.boolean().default(true),
   requireCi: z.boolean().default(true),
+  blockCleanOnFindingSeverities: z
+    .array(z.enum(["must-fix", "worth-fixing-now", "defer"]))
+    .min(1)
+    .default(["must-fix"]),
 });
 
 const GatesConfig = z.strictObject({
@@ -610,7 +614,7 @@ export function resolveRefinement(config) {
  *
  * @param {DevLoopConfig} config
  * @param {"draft"|"preApproval"} gate
- * @returns {{ angles: string[]|null, excludeAngles: string[], required: boolean, requireCi: boolean }}
+ * @returns {{ angles: string[]|null, excludeAngles: string[], required: boolean, requireCi: boolean, blockCleanOnFindingSeverities: string[] }}
  */
 export function resolveGateConfig(config, gate) {
   const gateConfig = config?.gates?.[gate];
@@ -623,6 +627,9 @@ export function resolveGateConfig(config, gate) {
       : [],
     required: gateConfig?.required ?? true,
     requireCi: gateConfig?.requireCi ?? true,
+    blockCleanOnFindingSeverities: gateConfig?.blockCleanOnFindingSeverities && Array.isArray(gateConfig.blockCleanOnFindingSeverities)
+      ? [...gateConfig.blockCleanOnFindingSeverities]
+      : ["must-fix"],
   };
 }
 

@@ -1,0 +1,217 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import {
+  parseWriteGateFindingsLogCliArgs,
+  writeGateFindingsLog,
+} from "../../scripts/github/write-gate-findings-log.mjs";
+
+test("parseWriteGateFindingsLogCliArgs parses all required args", () => {
+  const result = parseWriteGateFindingsLogCliArgs([
+    "--repo", "owner/repo",
+    "--pr", "42",
+    "--gate", "draft_gate",
+    "--head-sha", "abc1234567890abcdef",
+    "--verdict", "findings_present",
+    "--findings", '[{"severity":"must-fix","angle":"scope","summary":"bad scope"}]',
+  ]);
+  assert.deepEqual(result, {
+    repo: "owner/repo",
+    pr: 42,
+    gate: "draft_gate",
+    headSha: "abc1234567890abcdef",
+    verdict: "findings_present",
+    findings: '[{"severity":"must-fix","angle":"scope","summary":"bad scope"}]',
+    tmpRoot: "tmp",
+  });
+});
+
+test("parseWriteGateFindingsLogCliArgs accepts custom tmp-root", () => {
+  const result = parseWriteGateFindingsLogCliArgs([
+    "--repo", "owner/repo",
+    "--pr", "1",
+    "--gate", "pre_approval_gate",
+    "--head-sha", "deadbeef1234567890",
+    "--verdict", "clean",
+    "--findings", "[]",
+    "--tmp-root", "custom-tmp",
+  ]);
+  assert.equal(result.tmpRoot, "custom-tmp");
+});
+
+test("parseWriteGateFindingsLogCliArgs rejects invalid gate", () => {
+  assert.throws(() => {
+    parseWriteGateFindingsLogCliArgs([
+      "--repo", "a/b", "--pr", "1", "--gate", "bad_gate",
+      "--head-sha", "abc12345", "--verdict", "clean", "--findings", "[]",
+    ]);
+  }, /gate/);
+});
+
+test("parseWriteGateFindingsLogCliArgs rejects invalid verdict", () => {
+  assert.throws(() => {
+    parseWriteGateFindingsLogCliArgs([
+      "--repo", "a/b", "--pr", "1", "--gate", "draft_gate",
+      "--head-sha", "abc12345", "--verdict", "invalid", "--findings", "[]",
+    ]);
+  }, /verdict/);
+});
+
+test("parseWriteGateFindingsLogCliArgs rejects invalid head SHA", () => {
+  assert.throws(() => {
+    parseWriteGateFindingsLogCliArgs([
+      "--repo", "a/b", "--pr", "1", "--gate", "draft_gate",
+      "--head-sha", "short", "--verdict", "clean", "--findings", "[]",
+    ]);
+  }, /hex/);
+});
+
+test("writeGateFindingsLog rejects non-array findings JSON", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "a/b",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: '{"not":"array"}',
+    });
+  }, /array/);
+});
+
+test("parseWriteGateFindingsLogCliArgs rejects missing required args", () => {
+  assert.throws(() => {
+    parseWriteGateFindingsLogCliArgs([
+      "--repo", "a/b",
+      "--pr", "1",
+    ]);
+  }, /Missing required/);
+});
+
+test("writeGateFindingsLog writes valid JSON log", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "gate-findings-test-"));
+  try {
+    const result = await writeGateFindingsLog({
+      repo: "owner/repo",
+      pr: 42,
+      gate: "draft_gate",
+      headSha: "abc1234567890abcdef",
+      verdict: "findings_present",
+      findings: JSON.stringify([
+        { severity: "must-fix", angle: "scope", summary: "Scope too broad", files: ["src/a.mjs"] },
+        { severity: "worth-fixing-now", angle: "dry", summary: "DRY violation" },
+      ]),
+      tmpRoot: tmpDir,
+    });
+
+    assert.equal(result.ok, true);
+    assert.ok(result.path.includes("draft_gate-abc1234567890abcdef.json"));
+
+    const fullPath = path.join(tmpDir, "gate-findings", "owner-repo", "pr-42", "draft_gate-abc1234567890abcdef.json");
+    const raw = await readFile(fullPath, "utf8");
+    const parsed = JSON.parse(raw);
+
+    assert.equal(parsed.repo, "owner/repo");
+    assert.equal(parsed.pr, 42);
+    assert.equal(parsed.gate, "draft_gate");
+    assert.equal(parsed.headSha, "abc1234567890abcdef");
+    assert.equal(parsed.verdict, "findings_present");
+    assert.ok(parsed.loggedAt);
+    assert.equal(parsed.findings.length, 2);
+    assert.equal(parsed.findings[0].severity, "must-fix");
+    assert.equal(parsed.findings[0].angle, "scope");
+    assert.deepEqual(parsed.findings[0].files, ["src/a.mjs"]);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("writeGateFindingsLog handles empty findings array", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "gate-findings-test-"));
+  try {
+    const result = await writeGateFindingsLog({
+      repo: "owner/repo",
+      pr: 1,
+      gate: "pre_approval_gate",
+      headSha: "deadbeef1234567890",
+      verdict: "clean",
+      findings: "[]",
+      tmpRoot: tmpDir,
+    });
+
+    assert.equal(result.ok, true);
+    const fullPath = path.join(tmpDir, "gate-findings", "owner-repo", "pr-1", "pre_approval_gate-deadbeef1234567890.json");
+    const raw = await readFile(fullPath, "utf8");
+    const parsed = JSON.parse(raw);
+    assert.equal(parsed.findings.length, 0);
+    assert.equal(parsed.verdict, "clean");
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("writeGateFindingsLog rejects invalid severity", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "a/b",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: JSON.stringify([{ severity: "bad-sev", angle: "scope", summary: "x" }]),
+    });
+  }, /severity/);
+});
+
+test("writeGateFindingsLog rejects finding without angle", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "a/b",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: JSON.stringify([{ severity: "must-fix", summary: "x" }]),
+    });
+  }, /angle/);
+});
+
+test("writeGateFindingsLog rejects finding without summary", async () => {
+  await assert.rejects(async () => {
+    await writeGateFindingsLog({
+      repo: "a/b",
+      pr: 1,
+      gate: "draft_gate",
+      headSha: "abc12345",
+      verdict: "clean",
+      findings: JSON.stringify([{ severity: "must-fix", angle: "scope" }]),
+    });
+  }, /summary/);
+});
+
+test("writeGateFindingsLog includes resolvedIn when present", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "gate-findings-test-"));
+  try {
+    await writeGateFindingsLog({
+      repo: "owner/repo",
+      pr: 99,
+      gate: "pre_approval_gate",
+      headSha: "ccccccccccccccccc",
+      verdict: "clean",
+      findings: JSON.stringify([
+        { severity: "must-fix", angle: "scope", summary: "Fixed", resolvedIn: "bbbbbbbbbbbbbbb" },
+      ]),
+      tmpRoot: tmpDir,
+    });
+
+    const fullPath = path.join(tmpDir, "gate-findings", "owner-repo", "pr-99", "pre_approval_gate-ccccccccccccccccc.json");
+    const raw = await readFile(fullPath, "utf8");
+    const parsed = JSON.parse(raw);
+    assert.equal(parsed.findings[0].resolvedIn, "bbbbbbbbbbbbbbb");
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});

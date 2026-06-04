@@ -397,17 +397,27 @@ function appendGateEvidenceNote(summary, note) {
   return smartTruncate(`${normalizedSummary}; ${normalizedNote}`, MAX_GATE_COMMENT_TEXT_LENGTH);
 }
 
-export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction }) {
-  return [
+export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSummary, nextAction, blockCleanOnFindingSeverities }) {
+  const lines = [
     `### Gate review: \`${gate}\``,
     "",
     `**Reviewed head SHA:** \`${headSha}\``,
     `**Verdict:** ${verdict}`,
+  ];
+
+  if (verdict === "clean" && blockCleanOnFindingSeverities && blockCleanOnFindingSeverities.length > 0) {
+    const sevs = blockCleanOnFindingSeverities.join(", ");
+    lines.push(`**Blocking severities:** ${sevs} (clean requires no findings at or above these severities)`);
+  }
+
+  lines.push(
     "",
     `**Findings summary:** ${findingsSummary}`,
     "",
     `**Next action:** ${nextAction}`,
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 function resolveRequestedHeadSha(requestedHeadSha, currentHeadSha) {
@@ -560,6 +570,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
   const { config } = await loadDevLoopConfig({ repoRoot });
   const draftGateConfig = resolveGateConfig(config, "draft");
+  const preApprovalGateConfig = resolveGateConfig(config, "preApproval");
   const maxCopilotRounds = resolveRefinementConfig(config, "maxCopilotRounds");
   const coordination = evaluatePrGateCoordination({
     repo: coordinationContext.repo,
@@ -592,8 +603,14 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
 
   const forcedResultMetadata = buildForcedResultMetadata({ forced: forcedBypass, forceReason });
 
+  const activeGateConfig = options.gate === "draft_gate" ? draftGateConfig : preApprovalGateConfig;
   const effectiveFindingsSummary = appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
-  const desiredBody = renderGateReviewCommentBody({ ...options, headSha: canonicalHeadSha, findingsSummary: effectiveFindingsSummary });
+  const desiredBody = renderGateReviewCommentBody({
+    ...options,
+    headSha: canonicalHeadSha,
+    findingsSummary: effectiveFindingsSummary,
+    blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
+  });
 
   const gateEvidence = selectGateEvidence(evidence, options.gate);
   const existing = summarizeExistingComment({ ...gateEvidence, headSha: canonicalHeadSha });
@@ -617,6 +634,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       commentId: existing.commentId,
       commentUrl: existing.commentUrl,
       ...forcedResultMetadata,
+      blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
       ...(warning ? { warning } : {}),
     };
   }
@@ -634,6 +652,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
       commentId: updated.commentId,
       commentUrl: updated.commentUrl,
       ...forcedResultMetadata,
+      blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
       ...(warning ? { warning } : {}),
     };
   }
@@ -650,6 +669,7 @@ export async function upsertGateReviewComment(options, { env = process.env, ghCo
     commentId: created.commentId,
     commentUrl: created.commentUrl,
     ...forcedResultMetadata,
+    blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
     ...(warning ? { warning } : {}),
   };
 }

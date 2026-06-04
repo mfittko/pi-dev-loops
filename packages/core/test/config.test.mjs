@@ -7,6 +7,7 @@ import test, { describe } from "node:test";
 
 import {
   DevLoopConfigSchema,
+  FileConfigSchema,
   BUILT_IN_DEFAULTS,
 } from "../src/config/config.mjs";
 import {
@@ -1414,6 +1415,7 @@ describe("role resolution", () => {
         excludeAngles: [],
         required: true,
         requireCi: true,
+        blockCleanOnFindingSeverities: ["must-fix"],
       });
     });
 
@@ -1429,6 +1431,7 @@ describe("role resolution", () => {
         excludeAngles: [],
         required: false,
         requireCi: false,
+        blockCleanOnFindingSeverities: ["must-fix"],
       });
       assert.deepEqual(config.gates.draft.angles, ["scope", "coverage"]);
     });
@@ -1573,6 +1576,90 @@ describe("role resolution", () => {
       };
       const result = resolveGateConfig(config, "draft");
       assert.deepEqual(result.angles, ["scope", "coverage"]);
+      assert.deepEqual(result.blockCleanOnFindingSeverities, ["must-fix"]);
+    });
+
+    test("resolveGateConfig returns configured blockCleanOnFindingSeverities", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope"],
+            blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
+          },
+        },
+      };
+      const result = resolveGateConfig(config, "draft");
+      assert.deepEqual(result.blockCleanOnFindingSeverities, ["must-fix", "worth-fixing-now"]);
+    });
+
+    test("resolveGateConfig returns default blockCleanOnFindingSeverities for missing field", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope"],
+            required: true,
+          },
+        },
+      };
+      const result = resolveGateConfig(config, "draft");
+      assert.deepEqual(result.blockCleanOnFindingSeverities, ["must-fix"]);
+    });
+
+    test("resolveGateConfig blockCleanOnFindingSeverities returns a copy, not reference", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope"],
+            blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
+          },
+        },
+      };
+      const result = resolveGateConfig(config, "draft");
+      result.blockCleanOnFindingSeverities.push("defer");
+      assert.deepEqual(config.gates.draft.blockCleanOnFindingSeverities, ["must-fix", "worth-fixing-now"]);
+    });
+
+    test("resolveGateConfig returns blockCleanOnFindingSeverities for preApproval gate", () => {
+      const config = {
+        version: 1,
+        gates: {
+          preApproval: {
+            angles: ["dry"],
+            blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now", "defer"],
+          },
+        },
+      };
+      const result = resolveGateConfig(config, "preApproval");
+      assert.deepEqual(result.blockCleanOnFindingSeverities, ["must-fix", "worth-fixing-now", "defer"]);
+    });
+
+    test("GateConfig rejects invalid blockCleanOnFindingSeverities tokens", () => {
+      const invalid = {
+        version: 1,
+        gates: {
+          draft: {
+            blockCleanOnFindingSeverities: ["invalid-severity"],
+          },
+        },
+      };
+      const result = FileConfigSchema.safeParse(invalid);
+      assert.equal(result.success, false);
+    });
+
+    test("GateConfig rejects empty blockCleanOnFindingSeverities (min 1)", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            blockCleanOnFindingSeverities: [],
+          },
+        },
+      };
+      const result = FileConfigSchema.safeParse(config);
+      assert.equal(result.success, false);
     });
 
     test("resolveGateAngles filters when excludeAngles has angles not in angles list", () => {

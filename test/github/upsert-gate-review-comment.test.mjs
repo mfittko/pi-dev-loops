@@ -326,6 +326,7 @@ test("upsert-gate-review-comment allows forced draft_gate create when current-he
       forced: true,
       forceReason: "CI cancelled due to infrastructure",
       forceBypass: "ci_blocked_needs_user_decision",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -374,6 +375,7 @@ test("upsert-gate-review-comment allows forced pre_approval_gate create when cur
       forced: true,
       forceReason: "CI cancelled due to infrastructure",
       forceBypass: "ci_blocked_needs_user_decision",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -463,6 +465,7 @@ test("upsert-gate-review-comment forced update includes forced metadata", async 
       forced: true,
       forceReason: "CI failed due to transient infrastructure",
       forceBypass: "ci_blocked_needs_user_decision",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -511,6 +514,7 @@ test("upsert-gate-review-comment forced noop includes forced metadata", async ()
       forced: true,
       forceReason: "CI cancelled due to infrastructure",
       forceBypass: "ci_blocked_needs_user_decision",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -667,6 +671,7 @@ test("upsert-gate-review-comment creates a new comment when no same-head marker 
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -819,6 +824,7 @@ test("upsert-gate-review-comment appends the round-cap fallback note to pre-appr
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -904,6 +910,7 @@ test("upsert-gate-review-comment truncates verbose findings summary before comme
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -975,6 +982,7 @@ test("upsert-gate-review-comment suppresses duplicate repost when the current sa
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
     // 5 gh calls: pr facts + requested_reviewers + review threads + headRefOid + issue comments
     assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
@@ -1131,6 +1139,7 @@ test("upsert-gate-review-comment updates an incomplete same-head marker in place
       currentHeadSha: "abc1234",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -1220,6 +1229,7 @@ test("upsert-gate-review-comment updates the current same-head marker even when 
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
       warning: "A gate comment for \`draft_gate\` already exists on a different head SHA \`def5678\` (comment 202). The old comment is stale for the current head.",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -1308,6 +1318,7 @@ test("upsert-gate-review-comment prefers the latest same-head marker when it dif
       currentHeadSha: "abc1234",
       commentId: 202,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-202",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -1379,6 +1390,7 @@ test("upsert-gate-review-comment expands an abbreviated current-head SHA before 
       currentHeadSha: "abcdef1234567890abcdef1234567890abcdef12",
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
     assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
   } finally {

@@ -1,0 +1,255 @@
+#!/usr/bin/env node
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { parsePrNumber, requireOptionValue } from "../_cli-primitives.mjs";
+import { isDirectCliRun } from "../_core-helpers.mjs";
+
+const USAGE = `Usage: write-gate-findings-log.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings <json> [--tmp-root <path>]
+
+Write a durable final-findings.json log under deterministic tmp/ paths.
+
+Required:
+  --repo <owner/name>
+  --pr <number>
+  --gate <draft_gate|pre_approval_gate>
+  --head-sha <sha>
+  --verdict <clean|findings_present|blocked>
+  --findings <json>              JSON array of finding objects with severity and summary
+
+Optional:
+  --tmp-root <path>              Root tmp directory (default: tmp/)
+`.trim();
+
+function parseError(message) {
+  return Object.assign(new Error(message), { usage: USAGE });
+}
+
+function normalizeGate(value) {
+  const gates = new Set(["draft_gate", "pre_approval_gate"]);
+  const normalized = String(value).trim().toLowerCase();
+  return gates.has(normalized) ? normalized : null;
+}
+
+function normalizeVerdict(value) {
+  const verdicts = new Set(["clean", "findings_present", "blocked"]);
+  const normalized = String(value).trim().toLowerCase();
+  return verdicts.has(normalized) ? normalized : null;
+}
+
+function normalizeHeadSha(value) {
+  const normalized = String(value).trim().toLowerCase();
+  return /^[0-9a-f]{7,64}$/i.test(normalized) ? normalized : null;
+}
+
+/**
+ * @typedef {object} Finding
+ * @property {string} severity - "must-fix" | "worth-fixing-now" | "defer"
+ * @property {string} angle - review angle that produced the finding
+ * @property {string} summary - finding description
+ * @property {string[]} [files] - affected files
+ * @property {string} [resolvedIn] - head SHA that resolved this finding (only for resolved findings)
+ */
+
+/**
+ * @typedef {object} GateFindingsLog
+ * @property {string} repo
+ * @property {number} pr
+ * @property {string} gate
+ * @property {string} headSha
+ * @property {string} verdict
+ * @property {string} loggedAt - ISO timestamp
+ * @property {Finding[]} findings
+ */
+
+const VALID_SEVERITIES = new Set(["must-fix", "worth-fixing-now", "defer"]);
+
+function parseFindingsJson(raw) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw parseError("--findings must be valid JSON");
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw parseError("--findings must be a JSON array");
+  }
+
+  return parsed.map((f, i) => {
+    if (!f || typeof f !== "object") {
+      throw parseError(`--findings[${i}] must be an object`);
+    }
+    if (!f.severity || !VALID_SEVERITIES.has(f.severity)) {
+      throw parseError(`--findings[${i}].severity must be one of: must-fix, worth-fixing-now, defer`);
+    }
+    if (!f.angle || typeof f.angle !== "string" || f.angle.trim().length === 0) {
+      throw parseError(`--findings[${i}].angle is required`);
+    }
+    if (!f.summary || typeof f.summary !== "string" || f.summary.trim().length === 0) {
+      throw parseError(`--findings[${i}].summary is required`);
+    }
+
+    const entry = {
+      severity: f.severity,
+      angle: f.angle.trim(),
+      summary: f.summary.trim(),
+    };
+
+    if (Array.isArray(f.files)) {
+      entry.files = f.files.filter(x => typeof x === "string" && x.trim().length > 0);
+    }
+
+    if (f.resolvedIn && typeof f.resolvedIn === "string") {
+      entry.resolvedIn = f.resolvedIn.trim();
+    }
+
+    return entry;
+  });
+}
+
+export function parseWriteGateFindingsLogCliArgs(argv) {
+  const args = [...argv];
+  const options = {
+    repo: undefined,
+    pr: undefined,
+    gate: undefined,
+    headSha: undefined,
+    verdict: undefined,
+    findings: undefined,
+    tmpRoot: "tmp",
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      return { help: true };
+    }
+
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo", parseError).trim();
+      continue;
+    }
+    if (token === "--pr") {
+      options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
+      continue;
+    }
+    if (token === "--gate") {
+      const gate = normalizeGate(requireOptionValue(args, "--gate", parseError));
+      if (!gate) throw parseError("--gate must be draft_gate or pre_approval_gate");
+      options.gate = gate;
+      continue;
+    }
+    if (token === "--head-sha") {
+      const sha = normalizeHeadSha(requireOptionValue(args, "--head-sha", parseError));
+      if (!sha) throw parseError("--head-sha must be a 7-64 character hex SHA");
+      options.headSha = sha;
+      continue;
+    }
+    if (token === "--verdict") {
+      const verdict = normalizeVerdict(requireOptionValue(args, "--verdict", parseError));
+      if (!verdict) throw parseError("--verdict must be clean, findings_present, or blocked");
+      options.verdict = verdict;
+      continue;
+    }
+    if (token === "--findings") {
+      options.findings = requireOptionValue(args, "--findings", parseError);
+      continue;
+    }
+    if (token === "--tmp-root") {
+      options.tmpRoot = requireOptionValue(args, "--tmp-root", parseError).trim();
+      continue;
+    }
+
+    throw parseError(`Unknown argument: ${token}`);
+  }
+
+  const missing = ["repo", "pr", "gate", "headSha", "verdict", "findings"]
+    .filter(k => options[k] === undefined);
+  if (missing.length > 0) {
+    throw parseError(`Missing required arguments: ${missing.join(", ")}`);
+  }
+
+  return options;
+}
+
+/**
+ * Determine the deterministic log path:
+ *   <tmpRoot>/gate-findings/<repo-slug>/pr-<N>/<gate>-<headSha>.json
+ */
+function buildLogPath({ repo, pr, gate, headSha, tmpRoot }) {
+  const repoSlug = repo.replace("/", "-");
+  return path.join(tmpRoot, "gate-findings", repoSlug, `pr-${pr}`, `${gate}-${headSha}.json`);
+}
+
+/**
+ * Write the gate findings log.
+ * @param {object} options
+ * @param {string} options.repo
+ * @param {number} options.pr
+ * @param {string} options.gate
+ * @param {string} options.headSha
+ * @param {string} options.verdict
+ * @param {string} options.findings - raw JSON string
+ * @param {string} [options.tmpRoot]
+ * @returns {Promise<{ ok: boolean, path: string, log: GateFindingsLog }>}
+ */
+export async function writeGateFindingsLog(options, { repoRoot = process.cwd() } = {}) {
+  const findings = parseFindingsJson(options.findings);
+  const logPath = buildLogPath({
+    repo: options.repo,
+    pr: options.pr,
+    gate: options.gate,
+    headSha: options.headSha,
+    tmpRoot: options.tmpRoot || "tmp",
+  });
+
+  const fullPath = path.resolve(repoRoot, logPath);
+
+  /** @type {GateFindingsLog} */
+  const log = {
+    repo: options.repo,
+    pr: options.pr,
+    gate: options.gate,
+    headSha: options.headSha,
+    verdict: options.verdict,
+    loggedAt: new Date().toISOString(),
+    findings,
+  };
+
+  await mkdir(path.dirname(fullPath), { recursive: true });
+  await writeFile(fullPath, JSON.stringify(log, null, 2) + "\n", "utf8");
+
+  return { ok: true, path: logPath, log };
+}
+
+async function main() {
+  let options;
+  try {
+    options = parseWriteGateFindingsLogCliArgs(process.argv.slice(2));
+  } catch (error) {
+    process.stderr.write(`${error.message}\n${error.usage ? `\n${error.usage}\n` : ""}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (options.help) {
+    process.stdout.write(`${USAGE}\n`);
+    return;
+  }
+
+  try {
+    const result = await writeGateFindingsLog(options);
+    process.stdout.write(JSON.stringify(result) + "\n");
+  } catch (error) {
+    process.stderr.write(JSON.stringify({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }) + "\n");
+    process.exitCode = 1;
+  }
+}
+
+if (isDirectCliRun(import.meta.url)) {
+  await main();
+}
