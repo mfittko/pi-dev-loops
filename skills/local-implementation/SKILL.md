@@ -64,9 +64,9 @@ When the local spec already lives in a tracker issue:
 
 ## Primary execution rules
 
-### Step 0: Pre-flight gate (mandatory)
+### Step 0: Pre-flight gate (mandatory for local_implementation)
 
-Before any planning or implementation mutation, run the pre-flight gate:
+For the `local_implementation` strategy, before any planning or implementation mutation, run the pre-flight gate:
 
 ```sh
 node scripts/loop/pre-flight-gate.mjs --expected-branch <working-branch> --require-subagents
@@ -78,6 +78,8 @@ This validates:
 - Subagent availability (subagents should be used for fan-out when available)
 
 If the gate fails, **stop and fix the violation** before proceeding. Do not bypass the gate.
+
+This gate does **not** apply to other routed strategies (`copilot_pr_followup`, `external_pr_followup`, `reviewer_fixer`, `wait_watch`, `final_approval`, `issue_intake`). Those strategies have their own execution rules and may edit code from any checkout as needed.
 
 Bypass for development/testing only: `PI_PREFLIGHT_BYPASS=1`.
 
