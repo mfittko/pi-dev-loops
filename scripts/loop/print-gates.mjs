@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Print active gate review angles with their resolved prompts.
+ * Print active gate inspection angles with their resolved prompts.
  *
  * Usage:
  *   node scripts/loop/print-gates.mjs [--repo-root <path>]

@@ -4,7 +4,7 @@ Script: `scripts/github/audit-copilot-comments.mjs`
 
 ## Purpose
 
-Scan all pull-request review comments in a repository via the GitHub REST API, filter to Copilot-authored comments, classify them into workflow-category buckets, and produce a JSON summary and a Markdown report. The output is designed to inform draft-gate persona decisions: which recurring comment categories should be caught by a deterministic gate review rather than consuming Copilot review budget.
+Scan all pull-request review comments in a repository via the GitHub REST API, filter to Copilot-authored comments, classify them into workflow-category buckets, and produce a JSON summary and a Markdown report. The output is designed to inform draft-gate persona decisions: which recurring comment categories should be caught by a deterministic gate inspection rather than consuming Copilot review budget.
 
 ## Usage
 

@@ -24,7 +24,7 @@ Every step is non-optional. Do not skip, reorder, or batch steps.
 - Implement changes, write tests, run `npm run verify`
 - Create PR as **draft** via `node scripts/github/create-draft-pr.mjs --assignee @me ...`
 
-### 2. Draft gate review
+### 2. Draft gate inspection
 
 - Run parallel subagent reviews (correctness vs AC, scope compliance, test coverage)
 - Post visible `draft_gate` comment on the PR with:
@@ -63,7 +63,7 @@ For each Copilot review pass:
 - Return immediately to step 4 after the re-request; do not stop at `review requested` or after a single watch cycle
 - Repeat steps 4–6 until Copilot review has no actionable feedback
 
-### 7. Pre-approval gate review
+### 7. Pre-approval gate inspection
 
 - Confirm legality: `node scripts/loop/detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number>`
 - If legality returns `gateBoundary=conflict_resolution`, stop the gate, resolve conflicts on the PR branch, rerun validation, re-detect gate state for the new head, and only then rerun `pre_approval_gate`

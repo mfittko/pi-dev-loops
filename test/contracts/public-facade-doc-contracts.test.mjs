@@ -352,14 +352,14 @@ test("skill docs enforce self-assignment and draft-first rules for create comman
   assert.doesNotMatch(copilotFollowupSkill, /gh pr create --draft --repo <owner\/name> --assignee @me --base <base> --head <head> --title/i);
   assert.match(copilotFollowupSkill, /New PRs in this workflow must be opened as \*\*draft\*\* PRs first/i);
   assert.match(copilotFollowupSkill, /Do not create a fresh PR directly in ready-for-review state/i);
-  assert.match(copilotFollowupSkill, /draft gate review is a real workflow boundary/i);
+  assert.match(copilotFollowupSkill, /draft gate inspection is a real workflow boundary/i);
 
   // local-implementation keeps self-assignment unconditional and draft-first config-driven via the wrapper
   assert.match(localImplementationSkill, /PR creation must always include `--assignee @me`/i);
   assert.match(localImplementationSkill, /workflow\.requireDraftFirst[\s\S]{0,160}node scripts\/github\/create-draft-pr\.mjs --assignee @me/i);
   assert.doesNotMatch(localImplementationSkill, /workflow\.requireDraftFirst[\s\S]{0,160}gh pr create --draft --assignee @me/i);
   assert.match(localImplementationSkill, /Do not create a fresh PR directly in ready-for-review state/i);
-  assert.match(localImplementationSkill, /draft gate review is a real workflow boundary/i);
+  assert.match(localImplementationSkill, /draft gate inspection is a real workflow boundary/i);
 
   assert.match(finalApprovalSkill, /redirect/i);
   assert.match(finalApprovalSkill, /Final approval gate/i);
