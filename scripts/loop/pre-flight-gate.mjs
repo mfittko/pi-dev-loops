@@ -180,7 +180,7 @@ function checkWorktreeIsolation({ cwd, env, gitCommand = "git" }) {
  * @param {Record<string, string | undefined>} opts.env
  * @param {string | undefined} opts.expectedBranch
  * @param {string} [opts.gitCommand]
- * @returns {{ ok: true, status: "matched" | "skipped", branch?: string } | { ok: false, error: string, guidance: string }}
+ * @returns {{ ok: true, status: "matched" | "skipped", branch?: string } | { ok: false, status: "error" | "mismatch", error: string, guidance: string }}
  */
 function checkBranchIdentity({ cwd, env, expectedBranch, gitCommand = "git" }) {
   if (!expectedBranch) {

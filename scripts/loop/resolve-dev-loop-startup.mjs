@@ -296,8 +296,19 @@ export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd
         };
       }
     } catch {
-      // If git worktree list fails, pass through — don't block routing on
-      // a git command failure. The pre-flight gate will catch this later.
+      // If git worktree list fails, fail closed — we cannot validate worktree
+      // isolation so we must not allow local_implementation routing from an unknown
+      // directory. The pre-flight gate provides a secondary guard for the actual
+      // implementation session.
+      return {
+        ok: true,
+        bundleKind: "needs_reconcile",
+        selectedStrategy: "none",
+        requiredReads: STRATEGY_REQUIRED_READS["none"],
+        nextAction: "Local implementation requires worktree isolation but git worktree list failed. Verify the repository and re-run from a worktree under tmp/worktrees/.",
+        canonicalStateSummary: summarizeCanonicalState(bundle),
+        bundle,
+      };
     }
   }
 

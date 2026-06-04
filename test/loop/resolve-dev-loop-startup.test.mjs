@@ -247,7 +247,8 @@ test("buildResolveDevLoopStartupResult passes through when no checkpoint file ex
     assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
     const parsed = JSON.parse(result.stdout.trim());
     assert.equal(parsed.ok, true);
-    assert.equal(parsed.selectedStrategy, "local_implementation");
+    assert.equal(parsed.bundleKind, "needs_reconcile");
+    assert.equal(parsed.selectedStrategy, "none");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
