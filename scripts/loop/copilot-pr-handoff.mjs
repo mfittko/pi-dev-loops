@@ -245,7 +245,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   );
   const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) });
   if (config.errors?.length > 0) {
-    console.error("[copilot-pr-handoff] config warnings:", config.errors.join("; "));
+    console.error("[copilot-pr-handoff] config warnings:", JSON.stringify(config.errors));
   }
   const refinementConfig = config.errors?.length > 0
     ? resolveRefinement({ version: 1 })
