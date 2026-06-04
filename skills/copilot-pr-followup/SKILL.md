@@ -37,6 +37,12 @@ Route-specific companion docs:
 
 All commands use the resolved skill scripts directory (see [Skill asset path resolution](#skill-asset-path-resolution) below).
 
+**5. Conductor-based queue orchestration (preferred for multi-PR workflows)**
+```sh
+node scripts/loop/conductor.mjs --repo <owner/name> --auto-resume
+```
+Produces a consolidated action queue with priorities, detects orphaned runs, and suggests auto-resume. Prefer this over manual dispatch when 2+ PRs are active or when a PR has completed 1+ Copilot round.
+
 **1. Detect current loop state**
 ```sh
 node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>

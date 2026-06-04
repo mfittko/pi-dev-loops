@@ -72,6 +72,24 @@ After the resolver selects a strategy and the route pack is loaded, the routed s
 
 Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline — local phases are often interactive, and final approval requires explicit human confirmation before GitHub mutations.
 
+### Conductor-based queue orchestration
+
+After dispatching one or more async subagents for GitHub-first strategies, use the conductor for queue-level management instead of manual status-checking and re-dispatching:
+
+```sh
+node scripts/loop/conductor.mjs --repo <owner/name> --auto-resume
+```
+
+The conductor:
+- Produces a consolidated action queue with priorities and next actions
+- Detects orphaned subagent runs and suggests auto-resume
+- Handles `fix_threads` → `watch` → `pre_approval_gate` state transitions automatically
+- Avoids "did Copilot respond yet?" manual polling — the conductor owns the watch cycle
+
+**When to use:** whenever 2+ PRs are active, or when a single PR has completed 1+ Copilot round and needs follow-up. The conductor is the preferred orchestration path for GitHub-first workflows after `dev-loop` startup routing.
+
+**Manual dispatch** (launching individual `subagent dev-loop` tasks) remains valid for single-PR quick starts but does not auto-resume or queue-manage.
+
 ## Shorthand issue-based auto trigger contract
 
 - treat `auto dev loop on issue 112` as the public `dev-loop` intent `auto_continue_current` after authoritative current-state resolution
