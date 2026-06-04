@@ -338,7 +338,8 @@ export function interpretLoopState(snapshot, refinementConfig) {
   if (typeof maxRounds === "number" && maxRounds > 0
       && s.copilotReviewRoundCount >= maxRounds
       && state !== STATE.NO_PR && state !== STATE.DONE
-      && state !== STATE.PR_DRAFT && state !== STATE.REVIEW_REQUEST_UNAVAILABLE) {
+      && state !== STATE.PR_DRAFT && state !== STATE.REVIEW_REQUEST_UNAVAILABLE
+      && state !== STATE.BLOCKED_NEEDS_USER_DECISION) {
     const ciClean = s.ciStatus === "success" || s.ciStatus === "crediblyGreen";
     if (s.unresolvedThreadCount === 0 && ciClean) {
       state = STATE.ROUND_CAP_CLEAN_FALLBACK;

@@ -1118,6 +1118,27 @@ test("interpretLoopState returns false for roundCapCleanEligible in normal READY
   assert.equal(result.roundCapCleanEligible, false);
 });
 
+test("round cap does not override BLOCKED_NEEDS_USER_DECISION from failed review request", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "failed",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: false,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  // Round cap must not mask a real review-request failure
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.roundCapCleanEligible, false);
+});
+
 test("round cap takes priority over low-signal heuristic when both apply", () => {
   const snapshot = {
     prExists: true,

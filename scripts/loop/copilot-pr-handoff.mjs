@@ -243,7 +243,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     { repo: options.repo, pr: options.pr },
     { env, ghCommand },
   );
-  const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) }).catch(() => ({ errors: ["config load failed"], config: { version: 1 } }));
+  const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) }).catch((err) => { console.error("[copilot-pr-handoff] config load failed:", err.message || err); return { errors: ["config load failed"], config: { version: 1 } }; });
   const refinementConfig = config.errors.length > 0
     ? resolveRefinement({ version: 1 })
     : resolveRefinement(config.config);

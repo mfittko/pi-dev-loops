@@ -806,7 +806,7 @@ test("runWatchCycle integration keeps the full persistent watch timeout after ac
   }
 });
 
-test("runWatchCycle stops with round cap reached when maxCopilotRounds is exceeded with clean PR", async () => {
+test("runWatchCycle stops with round cap clean fallback when maxCopilotRounds is exceeded with clean PR", async () => {
   let watcherCalled = false;
 
   const result = await runWatchCycle(
@@ -847,6 +847,7 @@ test("runWatchCycle stops with round cap reached when maxCopilotRounds is exceed
   assert.equal(result.loopDisposition, "done");
   assert.equal(result.cycleDisposition, "terminal");
   assert.equal(result.terminal, true);
+  assert.equal(result.roundCapCleanEligible, true);
 });
 
 test("runWatchCycle stops with round cap reached when maxCopilotRounds is exceeded with unresolved threads", async () => {
@@ -890,4 +891,5 @@ test("runWatchCycle stops with round cap reached when maxCopilotRounds is exceed
   assert.equal(result.loopDisposition, "blocked");
   assert.equal(result.cycleDisposition, "terminal");
   assert.equal(result.terminal, true);
+  assert.equal(result.roundCapCleanEligible, false);
 });
