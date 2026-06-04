@@ -1883,7 +1883,7 @@ export async function runConductorMonitor(
       if (localRuns.length > 0) {
         return {
           ...baseResult,
-          localPhaseOrphanedCount: localRuns.length,
+          localPhaseOrphanedCount: localRuns.filter(r => r.runState !== RUN_STATE.COMPLETED).length,
           localPhaseResumePlans: localRuns.map((run) => buildLocalPhaseResumePlan(run)),
         };
       }
@@ -1897,7 +1897,7 @@ export async function runConductorMonitor(
       manualAttentionCount: 0,
       resumePlans: [],
       needsManualAttention: [],
-      localPhaseOrphanedCount: localPhaseRuns.filter(r => r.state !== RUN_STATE.COMPLETED).length,
+      localPhaseOrphanedCount: localPhaseRuns.filter(r => r.runState !== RUN_STATE.COMPLETED).length,
       localPhaseResumePlans: localPhaseRuns.map((run) => buildLocalPhaseResumePlan(run)),
     });
   }
