@@ -5,6 +5,8 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  AUTONOMY_GATE_ACTION_MAP,
+  actionRequiresApproval,
   GATE_ACTION_TO_CONDUCTOR_ACTION,
   ACTION_PRIORITY,
   SUBAGENT_ACTIONS,
@@ -534,4 +536,201 @@ test("run-conductor-cycle CLI fails closed on non-array pr list response", async
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+// ---------------------------------------------------------------------------
+test("AUTONOMY_GATE_ACTION_MAP maps merge to [merge]", () => {
+  assert.deepEqual(AUTONOMY_GATE_ACTION_MAP.merge, ["merge"]);
+});
+
+test("AUTONOMY_GATE_ACTION_MAP maps pre-approval to [run_pre_approval]", () => {
+  assert.deepEqual(AUTONOMY_GATE_ACTION_MAP["pre-approval"], ["run_pre_approval"]);
+});
+
+test("AUTONOMY_GATE_ACTION_MAP maps draft-pr to [draft_gate, request_review, rerequest_review]", () => {
+  const expected = ["draft_gate", "request_review", "rerequest_review"];
+  assert.deepEqual(AUTONOMY_GATE_ACTION_MAP["draft-pr"], expected);
+});
+
+test("AUTONOMY_GATE_ACTION_MAP has empty array for refinement", () => {
+  assert.deepEqual(AUTONOMY_GATE_ACTION_MAP.refinement, []);
+});
+
+// ---------------------------------------------------------------------------
+// Unit: actionRequiresApproval
+// ---------------------------------------------------------------------------
+
+test("actionRequiresApproval returns true for merge when stopAt includes merge (default)", () => {
+  assert.equal(actionRequiresApproval("merge"), true);
+  assert.equal(actionRequiresApproval("merge", ["merge"]), true);
+});
+
+test("actionRequiresApproval returns false for merge when stopAt is empty", () => {
+  assert.equal(actionRequiresApproval("merge", []), false);
+});
+
+test("actionRequiresApproval returns false for watch regardless of stopAt", () => {
+  assert.equal(actionRequiresApproval("watch"), false);
+  assert.equal(actionRequiresApproval("watch", ["merge"]), false);
+  assert.equal(actionRequiresApproval("watch", ["merge", "pre-approval", "draft-pr"]), false);
+});
+
+test("actionRequiresApproval returns true for run_pre_approval when pre-approval is in stopAt", () => {
+  assert.equal(actionRequiresApproval("run_pre_approval", ["merge"]), false);
+  assert.equal(actionRequiresApproval("run_pre_approval", ["merge", "pre-approval"]), true);
+});
+
+test("actionRequiresApproval returns true for draft_gate, request_review, rerequest_review when draft-pr is in stopAt", () => {
+  assert.equal(actionRequiresApproval("draft_gate", ["merge"]), false);
+  assert.equal(actionRequiresApproval("request_review", ["merge"]), false);
+  assert.equal(actionRequiresApproval("rerequest_review", ["merge"]), false);
+
+  const stopAt = ["merge", "draft-pr"];
+  assert.equal(actionRequiresApproval("draft_gate", stopAt), true);
+  assert.equal(actionRequiresApproval("request_review", stopAt), true);
+  assert.equal(actionRequiresApproval("rerequest_review", stopAt), true);
+});
+
+test("actionRequiresApproval handles unknown action names safely", () => {
+  assert.equal(actionRequiresApproval("unknown_action", ["merge"]), false);
+});
+
+test("actionRequiresApproval handles unknown gate names in stopAt safely", () => {
+  assert.equal(actionRequiresApproval("merge", ["unknown_gate"]), false);
+  assert.equal(actionRequiresApproval("merge", ["merge", "unknown_gate"]), true);
+});
+
+// ---------------------------------------------------------------------------
+// Unit: detectPrState — requiresApproval with autonomyStopAt
+// ---------------------------------------------------------------------------
+
+test("detectPrState flags merge as requiresApproval with default stopAt", async () => {
+  const pr = { number: 1, title: "R", url: "u", isDraft: false, headRefName: "f" };
+  const mockGateState = {
+    lifecycleState: "pr_ready_no_feedback",
+    loopDisposition: "clean_converged",
+    gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+    nextAction: PR_GATE_ACTION.DECLARE_MERGE_READY,
+    reason: null,
+    allowedNextActions: [PR_GATE_ACTION.DECLARE_MERGE_READY],
+    forbiddenActions: [],
+    draftGate: { visible: true, verdict: "clean" },
+    preApprovalGate: { visible: true, verdict: "clean" },
+    mergeStateStatus: "CLEAN",
+    conflictFiles: [],
+    currentHeadSha: "sha",
+  };
+
+  const result = await detectPrState(pr, {
+    repo: "r",
+    detectGateImpl: async () => mockGateState,
+    detectSnapshotImpl: async () => ({ ciStatus: "success" }),
+  });
+
+  assert.equal(result.action, "merge");
+  assert.equal(result.requiresApproval, true);
+});
+
+test("detectPrState does NOT flag merge as requiresApproval when stopAt is empty", async () => {
+  const pr = { number: 1, title: "R", url: "u", isDraft: false, headRefName: "f" };
+  const mockGateState = {
+    lifecycleState: "pr_ready_no_feedback",
+    loopDisposition: "clean_converged",
+    gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+    nextAction: PR_GATE_ACTION.DECLARE_MERGE_READY,
+    reason: null,
+    allowedNextActions: [PR_GATE_ACTION.DECLARE_MERGE_READY],
+    forbiddenActions: [],
+    draftGate: { visible: true, verdict: "clean" },
+    preApprovalGate: { visible: true, verdict: "clean" },
+    mergeStateStatus: "CLEAN",
+    conflictFiles: [],
+    currentHeadSha: "sha",
+  };
+
+  const result = await detectPrState(pr, {
+    repo: "r",
+    detectGateImpl: async () => mockGateState,
+    detectSnapshotImpl: async () => ({ ciStatus: "success" }),
+    autonomyStopAt: [],
+  });
+
+  assert.equal(result.action, "merge");
+  assert.equal(result.requiresApproval, false);
+});
+
+test("detectPrState flags run_pre_approval with requiresApproval when pre-approval is in stopAt", async () => {
+  const pr = { number: 2, title: "P", url: "u", isDraft: false, headRefName: "f" };
+  const mockGateState = {
+    lifecycleState: "pr_draft_reviewed_clean",
+    loopDisposition: "action_required",
+    gateBoundary: PR_GATE_BOUNDARY.FINAL_APPROVAL_READY,
+    nextAction: PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE,
+    reason: null,
+    allowedNextActions: [PR_GATE_ACTION.RUN_PRE_APPROVAL_GATE],
+    forbiddenActions: [],
+    draftGate: { visible: true, verdict: "clean" },
+    preApprovalGate: null,
+    mergeStateStatus: "CLEAN",
+    conflictFiles: [],
+    currentHeadSha: "sha",
+  };
+
+  const result = await detectPrState(pr, {
+    repo: "r",
+    detectGateImpl: async () => mockGateState,
+    detectSnapshotImpl: async () => ({ ciStatus: "success" }),
+    autonomyStopAt: ["merge", "pre-approval"],
+  });
+
+  assert.equal(result.action, "run_pre_approval");
+  assert.equal(result.requiresApproval, true);
+});
+
+// ---------------------------------------------------------------------------
+// Integration: runConductorCycle passes autonomyStopAt through
+// ---------------------------------------------------------------------------
+
+test("runConductorCycle includes autonomyStopAt in output", async () => {
+  const result = await runConductorCycle(
+    { repo: "test/repo", autonomyStopAt: ["merge", "draft-pr"] },
+    { listPrsImpl: async () => [], detectPrStateImpl: async () => ({}) },
+  );
+
+  assert.deepEqual(result.autonomyStopAt, ["merge", "draft-pr"]);
+});
+
+test("runConductorCycle passes autonomyStopAt to detectPrState", async () => {
+  let capturedStopAt = null;
+  const mockDetectPr = async (_pr, opts) => {
+    capturedStopAt = opts.autonomyStopAt;
+    return { pr: 1, action: "watch", priority: 30, requiresSubagent: false, requiresApproval: false };
+  };
+
+  await runConductorCycle(
+    { repo: "test/repo", autonomyStopAt: ["merge", "draft-pr"] },
+    {
+      listPrsImpl: async () => [{ number: 1, title: "T", url: "u", isDraft: false, headRefName: "f", authorLogin: "a" }],
+      detectPrStateImpl: mockDetectPr,
+    },
+  );
+
+  assert.deepEqual(capturedStopAt, ["merge", "draft-pr"]);
+});
+
+test("runConductorCycle uses default stopAt [merge] when none provided", async () => {
+  let capturedStopAt = null;
+  const mockDetectPr = async (_pr, opts) => {
+    capturedStopAt = opts.autonomyStopAt;
+    return { pr: 1, action: "watch", priority: 30, requiresSubagent: false, requiresApproval: false };
+  };
+
+  await runConductorCycle(
+    { repo: "test/repo" },
+    {
+      listPrsImpl: async () => [{ number: 1, title: "T", url: "u", isDraft: false, headRefName: "f", authorLogin: "a" }],
+      detectPrStateImpl: mockDetectPr,
+    },
+  );
+
+  assert.deepEqual(capturedStopAt, ["merge"]);
 });

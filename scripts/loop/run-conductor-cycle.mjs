@@ -25,7 +25,8 @@
  *                   "resolve_conflicts"|"blocked"|"done"|"error",
  *         "priority": N, "state": "...", "lifecycleState": "...",
  *         "loopDisposition": "...", "gateBoundary": "...", "reason": "...",
- *         "snapshot": {...}, "gateState": {...}, "requiresSubagent": bool
+ *         "snapshot": {...}, "gateState": {...}, "requiresSubagent": bool,
+ *         "requiresApproval": bool
  *       }
  *     ],
  *     "summary": { "needsSubagent": N, "readyToMerge": N, "waiting": N,
@@ -109,6 +110,41 @@ export const SUBAGENT_ACTIONS = new Set([
   "rerequest_review",
   "run_pre_approval",
 ]);
+
+/**
+ * Map autonomy.stopAt gates to the conductor actions that require approval.
+ *
+ * When a gate is in autonomy.stopAt, the corresponding actions are flagged
+ * with requiresApproval: true. The parent agent must obtain explicit operator
+ * authorization before executing those actions.
+ *
+ * Gate → conductor action mapping:
+ *   "merge"        → merge
+ *   "pre-approval" → run_pre_approval
+ *   "draft-pr"     → draft_gate, request_review, rerequest_review
+ *   "refinement"   → n/a (refinement happens before the conductor lifecycle)
+ */
+export const AUTONOMY_GATE_ACTION_MAP = Object.freeze({
+  merge: ["merge"],
+  "pre-approval": ["run_pre_approval"],
+  "draft-pr": ["draft_gate", "request_review", "rerequest_review"],
+  refinement: [],
+});
+
+/**
+ * Determine whether a conductor action requires operator approval based on
+ * the configured autonomy stop-at list.
+ *
+ * @param {string} action - Conductor action name
+ * @param {string[]} autonomyStopAt - Configured stop-at gates (e.g. ["merge"])
+ * @returns {boolean}
+ */
+export function actionRequiresApproval(action, autonomyStopAt = ["merge"]) {
+  const stopSet = new Set(
+    autonomyStopAt.flatMap((gate) => AUTONOMY_GATE_ACTION_MAP[gate] ?? [])
+  );
+  return stopSet.has(action);
+}
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -205,6 +241,10 @@ export async function listOpenPrs({ repo }, { env, ghCommand }) {
  * Detect state for a single PR.
  *
  * Accepts injectable detection functions so tests can supply mocks.
+ *
+ * @param {object} pr
+ * @param {object} opts
+ * @param {string[]} [opts.autonomyStopAt] - Configured autonomy stop-at gates
  */
 export async function detectPrState(
   pr,
@@ -215,6 +255,7 @@ export async function detectPrState(
     repoRoot,
     detectGateImpl = detectPrGateCoordinationState,
     detectSnapshotImpl = autoDetectSnapshot,
+    autonomyStopAt = ["merge"],
   },
 ) {
   try {
@@ -235,6 +276,7 @@ export async function detectPrState(
 
     const action = GATE_ACTION_TO_CONDUCTOR_ACTION[gateState.nextAction] ?? "error";
     const priority = ACTION_PRIORITY[action] ?? -1;
+    const requiresApproval = actionRequiresApproval(action, autonomyStopAt);
 
     return {
       pr: pr.number,
@@ -261,6 +303,7 @@ export async function detectPrState(
         ciStatus: snapshot?.ciStatus ?? null,
       },
       requiresSubagent: SUBAGENT_ACTIONS.has(action),
+      requiresApproval,
     };
   } catch (error) {
     return {
@@ -279,6 +322,7 @@ export async function detectPrState(
       snapshot: null,
       gateState: null,
       requiresSubagent: false,
+      requiresApproval: false,
       error: error instanceof Error ? error.message : String(error),
     };
   }
@@ -350,8 +394,12 @@ export function buildSummary(actions) {
 // Main
 // ---------------------------------------------------------------------------
 
+/**
+ * @param {{ repo: string, autonomyStopAt?: string[], gateConfig?: object }} params
+ * @param {object} runtime
+ */
 export async function runConductorCycle(
-  { repo },
+  { repo, autonomyStopAt, gateConfig },
   {
     env = process.env,
     ghCommand = "gh",
@@ -362,9 +410,16 @@ export async function runConductorCycle(
 ) {
   const prs = await listPrsImpl({ repo }, { env, ghCommand });
 
+  const stopAt = autonomyStopAt ?? ["merge"];
   const detectionResults = [];
   for (const pr of prs) {
-    const result = await detectPrStateImpl(pr, { repo, env, ghCommand, repoRoot });
+    const result = await detectPrStateImpl(pr, {
+      repo,
+      env,
+      ghCommand,
+      repoRoot,
+      autonomyStopAt: stopAt,
+    });
     detectionResults.push(result);
   }
 
@@ -378,6 +433,8 @@ export async function runConductorCycle(
     prCount: prs.length,
     actions,
     summary,
+    ...(gateConfig ? { gateConfig } : {}),
+    autonomyStopAt: stopAt,
   };
 }
 

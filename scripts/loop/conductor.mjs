@@ -23,6 +23,12 @@ import { runConductorMonitor } from "./conductor-monitor.mjs";
 import { requireOptionValue } from "../_cli-primitives.mjs";
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import {
+  loadDevLoopConfig,
+  resolveWorkflowConfig,
+  resolveAutonomyStopAt,
+  resolveGateConfig,
+} from "@pi-dev-loops/core/config";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -32,7 +38,16 @@ Unified conductor entrypoint for dev-loop lifecycle orchestration.`.trim();
 
 const parseError = buildParseError(USAGE);
 
-function checkRetrospectiveGate(cwd) {
+/**
+ * Check the retrospective checkpoint gate.
+ * Only blocks when requireRetrospective is true AND checkpoint state is required/missing.
+ * @param {string} cwd - Repo root
+ * @param {boolean} requireRetrospective - Config gate flag
+ * @returns {{ blocked: boolean, reason?: string }}
+ */
+function checkRetrospectiveGate(cwd, requireRetrospective) {
+  if (!requireRetrospective) return { blocked: false };
+
   try {
     const checkpointPath = path.join(cwd, ".pi", "dev-loop-retrospective-checkpoint.json");
     const checkpointText = readFileSync(checkpointPath, "utf8");
@@ -105,11 +120,42 @@ function parseCliArgs(argv) {
   return options;
 }
 
+/**
+ * @param {object} options
+ * @param {object} runtime
+ * @param {object} [runtime.loadConfigImpl] - injectable config loader for tests
+ */
 export async function runConductor(options, runtime = {}) {
   const { cycleOnly = false, monitorOnly = false, autoResume = false } = options;
   const cwd = runtime.repoRoot || process.cwd();
+  const loadConfig = runtime.loadConfigImpl || loadDevLoopConfig;
 
-  const retroGate = checkRetrospectiveGate(cwd);
+  // Load config once at startup and share with all sub-components
+  let configLoadResult;
+  let requireRetrospective = false;
+  let autonomyStopAt = ["merge"];
+  /** @type {{ draft: { requireCi: boolean } | null, preApproval: { requireCi: boolean } | null }} */
+  let gateConfig = { draft: null, preApproval: null };
+
+  try {
+    configLoadResult = await loadConfig({ repoRoot: cwd });
+    const cfg = configLoadResult.config ?? {};
+
+    requireRetrospective = resolveWorkflowConfig(cfg, "requireRetrospective");
+    autonomyStopAt = resolveAutonomyStopAt(cfg);
+
+    const draftCfg = resolveGateConfig(cfg, "draft");
+    const preApprovalCfg = resolveGateConfig(cfg, "preApproval");
+    gateConfig = {
+      draft: { requireCi: draftCfg.requireCi },
+      preApproval: { requireCi: preApprovalCfg.requireCi },
+    };
+  } catch {
+    // Config load failed — use safe defaults (no retrospective block, stop at merge)
+    configLoadResult = { config: null, warnings: [], errors: [{ path: "<config>", message: "Failed to load config", layer: "merged" }] };
+  }
+
+  const retroGate = checkRetrospectiveGate(cwd, requireRetrospective);
   if (retroGate.blocked) {
     return {
       ok: false,
@@ -126,7 +172,7 @@ export async function runConductor(options, runtime = {}) {
   // Run sequentially so gh stubs (and other shared state) don't race.
   // Promise.all causes parallel gh calls that exhaust stub sequences.
   const cycleResult = runCycle
-    ? await runConductorCycle({ repo: options.repo }, runtime).catch((error) => ({
+    ? await runConductorCycle({ repo: options.repo, autonomyStopAt, gateConfig }, runtime).catch((error) => ({
         ok: false,
         error: error instanceof Error ? error.message : String(error),
       }))
@@ -150,6 +196,12 @@ export async function runConductor(options, runtime = {}) {
     monitor: monitorResult ?? null,
     cycleOk,
     monitorOk,
+    config: {
+      requireRetrospective,
+      autonomyStopAt,
+      gateConfig,
+      configErrors: configLoadResult?.errors?.length ?? 0,
+    },
     summary: {
       totalPrs: (cycleResult?.prCount ?? 0) || (monitorResult?.prCount ?? 0),
       cycleActions: cycleResult?.actions?.length ?? 0,
