@@ -363,7 +363,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   // #460: draft_gate detector — if PR is non-draft but no clean draft_gate
   // evidence exists for any head (one-time boundary), force the
   // DRAFT_GATE_NEEDED boundary.
-  const draftGateNeverPassed = !result.draftGateAlreadySatisfied;
+  const draftGateNeverPassed = !(result.draftGate?.visible || result.draftGateMarker?.visible);
   const gateBoundariesExpectingDraftGate = new Set([
     PR_GATE_BOUNDARY.POST_DRAFT_EXTERNAL_REVIEW,
     PR_GATE_BOUNDARY.FEEDBACK_RESOLUTION,
