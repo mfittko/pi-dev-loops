@@ -13,6 +13,24 @@ export const PR_CHECKPOINT = Object.freeze({
   DONE: "done",
 });
 
+
+/**
+ * Refinement-artifact gate check (issue #532).
+ *
+ * The draft gate must verify the linked issue has an explicit refinement
+ * artifact (Acceptance criteria / DoD / linked refinement doc) before it
+ * can post a clean verdict. When the artifact is missing the draft gate
+ * must post verdict=blocked with the missing_refinement_artifact finding
+ * and the PR cannot leave draft.
+ */
+export const REFINEMENT_ARTIFACT_STATUS = Object.freeze({
+  MISSING: "missing",
+  PRESENT: "present",
+  UNKNOWN: "unknown",
+});
+
+export const REFINEMENT_ARTIFACT_FINDING = "missing_refinement_artifact";
+
 export const PR_CHECKPOINT_ACTION = Object.freeze({
   RUN_DRAFT_GATE: "run_draft_gate",
   MARK_READY_FOR_REVIEW: "mark_ready_for_review",
@@ -175,6 +193,20 @@ function normalizePositiveInteger(value) {
   return Math.floor(value);
 }
 
+function normalizeRefinementArtifactStatus(value) {
+  if (value === REFINEMENT_ARTIFACT_STATUS.MISSING || value === REFINEMENT_ARTIFACT_STATUS.PRESENT) {
+    return value;
+  }
+  return REFINEMENT_ARTIFACT_STATUS.UNKNOWN;
+}
+
+function formatRefinementBlockedReason(linkedIssue, status) {
+  if (linkedIssue !== null && Number.isInteger(linkedIssue)) {
+    return `Linked issue #${linkedIssue} has no refinement artifact (Acceptance criteria / DoD / linked refinement doc). Run refinement first, add ACs/DoD to the issue, then re-open the draft PR. finding=${REFINEMENT_ARTIFACT_FINDING}`;
+  }
+  return `The draft gate cannot complete: the linked issue has no detectable refinement artifact (Acceptance criteria / DoD / linked refinement doc). finding=${REFINEMENT_ARTIFACT_FINDING}`;
+}
+
 function buildRoundExhaustionGateEvidenceNote({ copilotReviewRoundCount, maxCopilotRounds }) {
   return `Copilot review rounds exhausted (${copilotReviewRoundCount}/${maxCopilotRounds}); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.`;
 }
@@ -251,6 +283,7 @@ function buildRetrospectiveGatePendingResult({
   mergeStateStatus,
   conflictFiles,
   reason,
+  refinementArtifact = null,
 }) {
   const allowedNextActions = [];
   const forbiddenActions = [];
@@ -280,6 +313,7 @@ function buildRetrospectiveGatePendingResult({
     reason,
     mergeStateStatus,
     conflictFiles,
+      refinementArtifact,
   });
 }
 
@@ -300,7 +334,10 @@ function buildResult({
   mergeStateStatus = null,
   conflictFiles = [],
   gateEvidenceNote = null,
+  refinementArtifact = null,
+  inputRefinementArtifact = null,
 }) {
+  const effectiveRefinementArtifact = refinementArtifact ?? inputRefinementArtifact ?? null;
   return {
     ok: true,
     ...(repo ? { repo } : {}),
@@ -320,6 +357,7 @@ function buildResult({
     draftGateAlreadySatisfied,
     gateEvidenceRequiredForMerge: true,
     ...(gateEvidenceNote ? { gateEvidenceNote } : {}),
+    ...(effectiveRefinementArtifact ? { refinementArtifact: effectiveRefinementArtifact } : {}),
   };
 }
 
@@ -345,6 +383,11 @@ export function evaluatePrGateCoordination(input = {}) {
   const roundCapReached = maxCopilotRounds !== null && copilotReviewRoundCount >= maxCopilotRounds;
   const requireRetrospectiveGate = input.requireRetrospectiveGate === true;
   const retrospectiveCheckpoint = input.retrospectiveCheckpoint;
+  const refinementArtifact = input.refinementArtifact && typeof input.refinementArtifact === "object"
+    ? input.refinementArtifact
+    : null;
+  const refinementArtifactStatus = normalizeRefinementArtifactStatus(refinementArtifact?.status);
+  const refinementLinkedIssue = Number.isInteger(refinementArtifact?.linkedIssue) ? refinementArtifact.linkedIssue : null;
 
   const effectiveLifecycleState = lifecycleState;
 
@@ -380,6 +423,7 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: "The pull request is already closed or merged, so no further gate entry is legal.",
       mergeStateStatus,
       conflictFiles,
+        refinementArtifact,
     });
   }
 
@@ -408,6 +452,7 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: "The PR is in a blocked lifecycle state, so gate progression must stop for a user decision.",
       mergeStateStatus,
       conflictFiles,
+        refinementArtifact,
     });
   }
 
@@ -443,10 +488,40 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: formatConflictResolutionReason(mergeStateStatus, conflictFiles),
       mergeStateStatus,
       conflictFiles,
+        refinementArtifact,
     });
   }
 
   if (prDraft || effectiveLifecycleState === STATE.PR_DRAFT) {
+    if (refinementArtifactStatus === REFINEMENT_ARTIFACT_STATUS.MISSING) {
+      pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
+      pushUnique(forbiddenActions, [
+        PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW,
+        PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
+        PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW,
+        PR_CHECKPOINT_ACTION.WAIT_FOR_COPILOT_REVIEW,
+        PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
+        PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
+      ]);
+      return buildResult({
+        repo: input.repo ?? null,
+        pr: Number.isInteger(input.pr) ? input.pr : null,
+        currentHeadSha,
+        lifecycleState: STATE.BLOCKED_NEEDS_USER_DECISION,
+        loopDisposition: DISPOSITION.BLOCKED,
+        gateBoundary: PR_CHECKPOINT.BLOCKED,
+        draftGateAlreadySatisfied,
+        draftGate,
+        preApprovalGate,
+        allowedNextActions,
+        forbiddenActions,
+        nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
+        reason: formatRefinementBlockedReason(refinementLinkedIssue, refinementArtifactStatus),
+        mergeStateStatus,
+        conflictFiles,
+        refinementArtifact,
+      });
+    }
     const draftReviewForbidden = [
       ...(draftGate.currentHeadClean ? [] : [PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW]),
       PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW,
@@ -478,6 +553,7 @@ export function evaluatePrGateCoordination(input = {}) {
           reason: "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`. The current head is failing CI, so fix the checks before retrying the draft gate.",
           mergeStateStatus,
           conflictFiles,
+            refinementArtifact,
         });
       }
 
@@ -503,6 +579,7 @@ export function evaluatePrGateCoordination(input = {}) {
           reason: "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`, so wait for CI to settle green before running the draft gate.",
           mergeStateStatus,
           conflictFiles,
+            refinementArtifact,
         });
       }
     }
@@ -533,6 +610,7 @@ export function evaluatePrGateCoordination(input = {}) {
           : "The PR is still draft, and this repo does not require CI before `draft_gate`, so the draft gate is the next legal boundary before `gh pr ready`."),
       mergeStateStatus,
       conflictFiles,
+        refinementArtifact,
     });
   }
 
@@ -566,6 +644,7 @@ export function evaluatePrGateCoordination(input = {}) {
               mergeStateStatus,
               conflictFiles,
               reason: `Merge remains blocked: retrospective_gate_pending. ${retrospectiveGate.reason}`,
+            refinementArtifact,
             });
           }
         }
@@ -588,6 +667,7 @@ export function evaluatePrGateCoordination(input = {}) {
           reason: "This is an explicitly internal-only PR with clean draft_gate evidence and current-head clean pre_approval_gate, so it is ready for final human approval.",
           mergeStateStatus,
           conflictFiles,
+            refinementArtifact,
         });
       }
 
@@ -609,6 +689,7 @@ export function evaluatePrGateCoordination(input = {}) {
         reason: "This is an explicitly internal-only PR, so `pre_approval_gate` is the next legal boundary instead of an external Copilot review cycle.",
         mergeStateStatus,
         conflictFiles,
+          refinementArtifact,
       });
     }
 
@@ -630,6 +711,7 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
       mergeStateStatus,
       conflictFiles,
+        refinementArtifact,
     });
   }
 
@@ -658,6 +740,7 @@ export function evaluatePrGateCoordination(input = {}) {
         : "The post-draft review cycle is still pending on Copilot review, so `pre_approval_gate` remains illegal until the current-head review cycle settles.",
       mergeStateStatus,
       conflictFiles,
+        refinementArtifact,
     });
   }
 
@@ -680,6 +763,7 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: "Actionable unresolved feedback exists, so follow-up work must stay in the review/fix cycle and cannot enter `pre_approval_gate` yet.",
       mergeStateStatus,
       conflictFiles,
+        refinementArtifact,
     });
   }
 
@@ -702,6 +786,7 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: "Fixes were applied, but unresolved threads still need reply/resolve handling before another gate boundary is legal.",
       mergeStateStatus,
       conflictFiles,
+        refinementArtifact,
     });
   }
 
@@ -725,6 +810,7 @@ export function evaluatePrGateCoordination(input = {}) {
         reason: "The current head still has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
         mergeStateStatus,
         conflictFiles,
+          refinementArtifact,
       });
     }
 
@@ -747,6 +833,7 @@ export function evaluatePrGateCoordination(input = {}) {
         reason: "The current head does not yet have green or credibly green CI, so `pre_approval_gate` remains illegal until CI settles.",
         mergeStateStatus,
         conflictFiles,
+          refinementArtifact,
       });
     }
 
@@ -773,6 +860,7 @@ export function evaluatePrGateCoordination(input = {}) {
         reason: "The review loop is between passes, but the current head does not yet have a clean settled Copilot convergence point, so `pre_approval_gate` is still forbidden.",
         mergeStateStatus,
         conflictFiles,
+          refinementArtifact,
       });
     }
 
@@ -789,6 +877,7 @@ export function evaluatePrGateCoordination(input = {}) {
             mergeStateStatus,
             conflictFiles,
             reason: `Merge remains blocked: retrospective_gate_pending. ${retrospectiveGate.reason}`,
+          refinementArtifact,
           });
         }
       }
@@ -818,6 +907,7 @@ export function evaluatePrGateCoordination(input = {}) {
           : "The current head has both a clean settled review cycle and clean `pre_approval_gate` evidence, so the PR is at the final approval boundary.",
         mergeStateStatus,
         conflictFiles,
+          refinementArtifact,
       });
     }
 
@@ -872,6 +962,7 @@ export function evaluatePrGateCoordination(input = {}) {
         reason: "The low-signal heuristic indicates convergence, but the current head still has failing CI, so gate progression remains blocked.",
         mergeStateStatus,
         conflictFiles,
+          refinementArtifact,
       });
     }
     if (ciStatus === "pending" || ciStatus === "none") {
@@ -893,6 +984,7 @@ export function evaluatePrGateCoordination(input = {}) {
         reason: "The low-signal heuristic indicates convergence, but the current head does not yet have green or credibly green CI.",
         mergeStateStatus,
         conflictFiles,
+          refinementArtifact,
       });
     }
     if (preApprovalGate.currentHeadClean) {
@@ -908,6 +1000,7 @@ export function evaluatePrGateCoordination(input = {}) {
             mergeStateStatus,
             conflictFiles,
             reason: `Merge remains blocked: retrospective_gate_pending. ${retrospectiveGate.reason}`,
+          refinementArtifact,
           });
         }
       }
@@ -935,6 +1028,7 @@ export function evaluatePrGateCoordination(input = {}) {
         reason: "Low-signal heuristic indicates convergence and current-head clean pre_approval_gate evidence exists.",
         mergeStateStatus,
         conflictFiles,
+          refinementArtifact,
       });
     }
     pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE]);
@@ -960,6 +1054,7 @@ export function evaluatePrGateCoordination(input = {}) {
       reason: "Low-signal heuristic indicates convergence (diminishing-returns signal detected), routing to pre_approval_gate instead of re-requesting Copilot.",
       mergeStateStatus,
       conflictFiles,
+        refinementArtifact,
     });
   }
 
@@ -987,5 +1082,6 @@ export function evaluatePrGateCoordination(input = {}) {
     reason: "The PR gate-boundary evaluator could not map this lifecycle state to a legal gate transition; reconcile before continuing.",
     mergeStateStatus,
     conflictFiles,
+      refinementArtifact,
   });
 }

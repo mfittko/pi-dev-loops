@@ -835,3 +835,102 @@ test("gateEvidenceRequiredForMerge is always true in coordination output", () =>
 
   assert.equal(result.gateEvidenceRequiredForMerge, true);
 });
+
+test("draft PR is blocked when refinement artifact is missing on linked issue (#532)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 532,
+    currentHeadSha: "abc1234567",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+    refinementArtifact: {
+      status: "missing",
+      linkedIssue: 532,
+      source: "missing",
+      reason: "Issue body has no Acceptance criteria section, no DoD section, and no linked refinement doc.",
+      finding: "missing_refinement_artifact",
+    },
+  });
+
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY));
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.REPORT_BLOCKED));
+  assert.match(result.reason, /no refinement artifact/i);
+  assert.match(result.reason, /#532/);
+  assert.match(result.reason, /missing_refinement_artifact/);
+  assert.equal(result.refinementArtifact?.status, "missing");
+  assert.equal(result.refinementArtifact?.linkedIssue, 532);
+});
+
+test("draft PR is not blocked when refinement artifact is present (#532)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 532,
+    currentHeadSha: "abc1234567",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "success",
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+    refinementArtifact: {
+      status: "present",
+      linkedIssue: 532,
+      source: "issue-body-ac",
+      acItems: ["First AC", "Second AC"],
+      reason: "Found 2 Acceptance criteria checklist item(s) in the issue body.",
+    },
+  });
+
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.DRAFT_REVIEW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE);
+  assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
+  assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
+  assert.equal(result.refinementArtifact?.status, "present");
+});
+
+test("refinement block takes precedence over non-draft branches for draft PRs", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 10,
+    currentHeadSha: "abc1234567",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    mergeStateStatus: "CLEAN",
+    conflictFiles: [],
+    refinementArtifact: {
+      status: "missing",
+      linkedIssue: 10,
+      source: "missing",
+      reason: "no artifact",
+      finding: "missing_refinement_artifact",
+    },
+  });
+
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+});
+
+test("non-draft PRs do not block on missing refinement artifact (already left draft)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 10,
+    currentHeadSha: "abc1234567",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    refinementArtifact: {
+      status: "missing",
+      linkedIssue: 10,
+      source: "missing",
+      reason: "no artifact",
+    },
+  });
+
+  assert.notEqual(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.refinementArtifact?.status, "missing");
+});
