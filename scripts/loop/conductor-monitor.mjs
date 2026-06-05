@@ -8,6 +8,11 @@ import { runChild, requireOptionValue } from "../_cli-primitives.mjs";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
+import {
+  buildHandoffContractForResumeAction,
+  compareHandoffContracts,
+  parseRecordedHandoffContract,
+} from "./_handoff-contract.mjs";
 import { interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
 
 const USAGE = `Usage: conductor-monitor.mjs --repo <owner/name> [--auto-resume]
@@ -114,6 +119,9 @@ const MANUAL_REASON = {
   UNCLASSIFIED_ARTIFACT_STATE: "unclassified_artifact_state",
   MULTIPLE_CANDIDATE_RUNS: "multiple_candidate_runs",
   STALE_WORKTREE_MISSING_RESUME_INPUTS: "stale_worktree_missing_resume_inputs",
+  HANDOFF_CONTRACT_INCOMPLETE: "handoff_contract_incomplete",
+  HANDOFF_CONTRACT_INVALID: "handoff_contract_invalid",
+  HANDOFF_CONTRACT_MISMATCH: "handoff_contract_mismatch",
 };
 
 function parseCliArgs(argv) {
@@ -1420,6 +1428,27 @@ export async function parseDevLoopArtifact(record) {
     const parsedArtifactState = parseArtifactState(candidate.text);
     const parsedLoopState = parseLoopState(candidate.text);
     const nextAction = parseNextActionText(candidate.text);
+    const recordedHandoffContractResult = parseRecordedHandoffContract(candidate.text);
+    if (recordedHandoffContractResult.reason !== null) {
+      return {
+        ok: false,
+        reason: recordedHandoffContractResult.reason === "incomplete_handoff_contract"
+          ? MANUAL_REASON.HANDOFF_CONTRACT_INCOMPLETE
+          : MANUAL_REASON.HANDOFF_CONTRACT_INVALID,
+        pr: prNumbers[0],
+        evidence: {
+          source: candidate.source,
+          details: recordedHandoffContractResult.details ?? null,
+          parsedArtifactState,
+          parsedLoopState,
+          nextAction,
+          outputArtifactPath: record.outputArtifactPath,
+          resultSummaryPath: record.resultSummaryPath,
+        },
+        source: candidate.source,
+        weakFallbackText: selection.weakFallbackText,
+      };
+    }
     if (parsedArtifactState === null) {
       lastFailure = {
         ok: false,
@@ -1469,6 +1498,7 @@ export async function parseDevLoopArtifact(record) {
       parsedArtifactState,
       parsedLoopState,
       nextAction,
+      recordedHandoffContract: recordedHandoffContractResult.contract,
       resumeBucket,
       source: candidate.source,
       text: candidate.text,
@@ -1736,6 +1766,31 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
   }
 
   const livePrState = classifyLiveStateForResume(resumeAction, prReport);
+  const expectedHandoffContract = buildHandoffContractForResumeAction(resumeAction);
+  const recordedHandoffContract = parsedArtifact.recordedHandoffContract ?? null;
+  const handoffContractMismatch = compareHandoffContracts(recordedHandoffContract, expectedHandoffContract);
+  if (handoffContractMismatch !== null) {
+    return {
+      kind: "manual_attention",
+      entry: buildManualAttentionEntry({
+        pr: prReport.number,
+        runId: run.runId,
+        reason: MANUAL_REASON.HANDOFF_CONTRACT_MISMATCH,
+        evidence: {
+          parsedArtifactState: parsedArtifact.parsedArtifactState,
+          parsedLoopState: parsedArtifact.parsedLoopState,
+          resumeAction,
+          livePrState,
+          recordedHandoffContract,
+          expectedHandoffContract,
+          outputArtifactPath: run.outputArtifactPath,
+          sessionPath: run.sessionPath,
+        },
+        suggestedNextStep: "Reconcile the recorded handoff contract against the live PR state before resuming.",
+      }),
+    };
+  }
+
   const resumeMessage = buildResumeMessage({
     pr: prReport.number,
     runId: run.runId,
@@ -1757,6 +1812,8 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
       parsedLoopState: parsedArtifact.parsedLoopState,
       livePrState,
       resumeAction,
+      handoffContract: expectedHandoffContract,
+      ...(recordedHandoffContract ? { recordedHandoffContract } : {}),
       resumeMessage,
       resumeCommandPreview: buildResumeCommandPreview({
         runId: run.runId,

@@ -26,7 +26,12 @@
  *         "priority": N, "state": "...", "lifecycleState": "...",
  *         "loopDisposition": "...", "gateBoundary": "...", "reason": "...",
  *         "snapshot": {...}, "gateState": {...}, "requiresSubagent": bool,
- *         "requiresApproval": bool
+ *         "requiresApproval": bool,
+ *         "handoffContract": {
+ *           "ownership": "subagent"|"parent"|"human"|"terminal",
+ *           "stopBoundary": "...",
+ *           "resumePolicy": "..."
+ *         }
  *       }
  *     ],
  *     "summary": { "needsSubagent": N, "readyToMerge": N, "waiting": N,
@@ -45,6 +50,10 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectPrGateCoordinationState } from "./detect-pr-gate-coordination-state.mjs";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import {
+  SUBAGENT_ACTIONS as SHARED_SUBAGENT_ACTIONS,
+  buildHandoffContractForConductorAction,
+} from "./_handoff-contract.mjs";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -100,16 +109,7 @@ export const ACTION_PRIORITY = Object.freeze({
   error: -1,
 });
 
-/**
- * Actions that require spawning a dev-loop subagent by the Pi parent.
- */
-export const SUBAGENT_ACTIONS = new Set([
-  "fix_threads",
-  "draft_gate",
-  "request_review",
-  "rerequest_review",
-  "run_pre_approval",
-]);
+export const SUBAGENT_ACTIONS = SHARED_SUBAGENT_ACTIONS;
 
 /**
  * Map autonomy.stopAt gates to the conductor actions that require approval.
@@ -277,6 +277,11 @@ export async function detectPrState(
     const action = CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[gateState.nextAction] ?? "error";
     const priority = ACTION_PRIORITY[action] ?? -1;
     const requiresApproval = actionRequiresApproval(action, autonomyStopAt);
+    const handoffContract = buildHandoffContractForConductorAction({
+      action,
+      gateBoundary: gateState.gateBoundary,
+      requiresApproval,
+    });
 
     return {
       pr: pr.number,
@@ -304,6 +309,7 @@ export async function detectPrState(
       },
       requiresSubagent: SUBAGENT_ACTIONS.has(action),
       requiresApproval,
+      handoffContract,
     };
   } catch (error) {
     return {
@@ -323,6 +329,7 @@ export async function detectPrState(
       gateState: null,
       requiresSubagent: false,
       requiresApproval: false,
+      handoffContract: buildHandoffContractForConductorAction({ action: "error" }),
       error: error instanceof Error ? error.message : String(error),
     };
   }

@@ -212,6 +212,11 @@ test("detectPrState returns correctly shaped action entry for fix_threads", asyn
   assert.equal(result.gateBoundary, PR_CHECKPOINT.FEEDBACK_RESOLUTION);
   assert.equal(result.snapshot.ciStatus, "success");
   assert.equal(result.gateState.currentHeadSha, "abc123");
+  assert.deepEqual(result.handoffContract, {
+    ownership: "subagent",
+    stopBoundary: "subagent_exit",
+    resumePolicy: "resume_after_subagent_exit",
+  });
   assert.equal(result.error, undefined);
 });
 
@@ -243,6 +248,11 @@ test("detectPrState returns merge action with correct flags", async () => {
   assert.equal(result.action, "merge");
   assert.equal(result.priority, 100);
   assert.equal(result.requiresSubagent, false);
+  assert.deepEqual(result.handoffContract, {
+    ownership: "human",
+    stopBoundary: "merge_boundary",
+    resumePolicy: "resume_after_merge_authorization",
+  });
 });
 
 test("detectPrState returns watch for waiting_for_copilot_review", async () => {
@@ -272,6 +282,11 @@ test("detectPrState returns watch for waiting_for_copilot_review", async () => {
   assert.equal(result.action, "watch");
   assert.equal(result.priority, 30);
   assert.equal(result.requiresSubagent, false);
+  assert.deepEqual(result.handoffContract, {
+    ownership: "parent",
+    stopBoundary: "watch_boundary",
+    resumePolicy: "resume_after_state_refresh",
+  });
 });
 
 test("detectPrState handles gate detection failure gracefully", async () => {
@@ -340,6 +355,11 @@ test("runConductorCycle produces ordered queue for mixed PR states", async () =>
         lifecycleState: "pr_ready_no_feedback", loopDisposition: "clean_converged",
         gateBoundary: "final_approval_ready", reason: null, snapshot: null,
         gateState: {}, requiresSubagent: false,
+        handoffContract: {
+          ownership: "human",
+          stopBoundary: "merge_boundary",
+          resumePolicy: "resume_after_merge_authorization",
+        },
       };
     }
     if (pr.number === 5) {
@@ -349,6 +369,11 @@ test("runConductorCycle produces ordered queue for mixed PR states", async () =>
         lifecycleState: "unresolved_feedback_present", loopDisposition: "unresolved_feedback",
         gateBoundary: "feedback_resolution", reason: null, snapshot: null,
         gateState: {}, requiresSubagent: true,
+        handoffContract: {
+          ownership: "subagent",
+          stopBoundary: "subagent_exit",
+          resumePolicy: "resume_after_subagent_exit",
+        },
       };
     }
     return {
@@ -357,6 +382,11 @@ test("runConductorCycle produces ordered queue for mixed PR states", async () =>
       lifecycleState: "waiting_for_copilot_review", loopDisposition: "pending",
       gateBoundary: "post_draft_external_review", reason: null, snapshot: null,
       gateState: {}, requiresSubagent: false,
+      handoffContract: {
+        ownership: "parent",
+        stopBoundary: "watch_boundary",
+        resumePolicy: "resume_after_state_refresh",
+      },
     };
   };
 
@@ -371,10 +401,13 @@ test("runConductorCycle produces ordered queue for mixed PR states", async () =>
 
   assert.equal(result.actions[0].pr, 7);
   assert.equal(result.actions[0].action, "merge");
+  assert.equal(result.actions[0].handoffContract.ownership, "human");
   assert.equal(result.actions[1].pr, 5);
   assert.equal(result.actions[1].action, "fix_threads");
+  assert.equal(result.actions[1].handoffContract.ownership, "subagent");
   assert.equal(result.actions[2].pr, 10);
   assert.equal(result.actions[2].action, "watch");
+  assert.equal(result.actions[2].handoffContract.resumePolicy, "resume_after_state_refresh");
 
   assert.equal(result.summary.readyToMerge, 1);
   assert.equal(result.summary.needsSubagent, 1);
