@@ -195,7 +195,7 @@ Preferred approach for Copilot review follow-up:
 - otherwise continue from the refreshed deterministic state instead of guessing
 - zero-timeout `idle` probes are for explicit one-shot status/reattach checks only; they are not the normal async wait mechanism
 - after a successful fix / reply-resolve / re-request cycle, returning to `waiting_for_copilot_review` is a persistence boundary: resume the watcher instead of reporting completion
-- if a child async run exits and the refreshed state remains non-terminal (for example `waiting_for_copilot_review`) before merge and without a hard stop, treat that as early exit and automatically restart/resume the same-PR follow-up path when feasible
+- if a child async run exits and the refreshed state remains non-terminal (for example `waiting_for_copilot_review`) before merge and without a hard stop, treat that as early exit and the main session re-dispatches the same-PR follow-up path when feasible (the subagent exits on external wait)
 - delegate fix findings to the `fixer` subagent: dev-loop dispatches fixer per review round, receives results, and decides next action; do not run inline fix/reply/resolve passes in-watcher
 - do not report completion while unresolved Copilot feedback remains
 
