@@ -149,12 +149,6 @@ export function parseResolveDevLoopStartupCliArgs(argv) {
   return options;
 }
 
-const WARN_PREFIX = "[dev-loop:resolve]";
-
-function warnDefault(field, value, reason) {
-  process.stderr.write(`${WARN_PREFIX} ${field}: using default "${value}" — ${reason}\n`);
-}
-
 function detectRepoSlug(cwd) {
   try {
     const url = execFileSync("git", ["remote", "get-url", "origin"], {
@@ -215,49 +209,62 @@ function resolveTargetPreference(cwd) {
  * Exported for testability.
  */
 export function buildAutoResolvedInput({ issue, pr, cwd }) {
-  const repo = detectRepoSlug(cwd);
+  // Resolve repo root for reliable script/settings path resolution (thread 2)
+  let repoRoot = cwd;
+  try {
+    repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    // Fall through — use cwd as-is
+  }
+
+  const repo = detectRepoSlug(repoRoot);
 
   if (issue !== undefined) {
-    let artifactState = "not_applicable";
-    warnDefault("artifactState", artifactState, "no PR artifact to inspect for issue targets");
+    const artifactState = "not_applicable";
+    const warnings = [];
 
-    let issueLinkageResolution;
+    let issueLinkageResolution = "resolved_no_open_pr";
+    let linkedPr = null;
     try {
       const linkageJson = execFileSync("node", [
-        path.resolve(cwd, "scripts/github/detect-linked-issue-pr.mjs"),
+        path.join(repoRoot, "scripts/github/detect-linked-issue-pr.mjs"),
         "--repo", repo, "--issue", String(issue),
-      ], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      ], { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
       const linkage = JSON.parse(linkageJson);
-      issueLinkageResolution = linkage.hasOpenLinkedPr ? "resolved_linked_pr" : "resolved_no_open_pr";
+      if (linkage.hasOpenLinkedPr) {
+        issueLinkageResolution = "resolved_linked_pr";
+        linkedPr = linkage.prNumber;
+      }
     } catch {
-      issueLinkageResolution = "resolved_no_open_pr";
-      warnDefault("issueLinkageResolution", issueLinkageResolution, "linked-PR detection unavailable");
+      warnings.push(`issueLinkageResolution: using default "${issueLinkageResolution}" — linked-PR detection unavailable`);
     }
 
     let issueReadiness;
     try {
-      const issueJson = ghJson(["issue", "view", String(issue), "--repo", repo, "--json", "body"], cwd);
+      const issueJson = ghJson(["issue", "view", String(issue), "--repo", repo, "--json", "body"], repoRoot);
       issueReadiness = hasAcSection(issueJson.body) ? "ready" : "needs_clarification";
     } catch {
       issueReadiness = "needs_clarification";
-      warnDefault("issueReadiness", issueReadiness, "gh issue view failed");
+      warnings.push(`issueReadiness: using default "${issueReadiness}" — gh issue view failed`);
     }
 
     let issueAssignmentState;
     try {
-      const assigneesJson = ghJson(["issue", "view", String(issue), "--repo", repo, "--json", "assignees"], cwd);
+      const assigneesJson = ghJson(["issue", "view", String(issue), "--repo", repo, "--json", "assignees"], repoRoot);
       issueAssignmentState = (assigneesJson.assignees || []).some(a => a.login === "copilot-swe-agent")
         ? "assigned_to_copilot"
         : "unassigned";
     } catch {
       issueAssignmentState = "unassigned";
-      warnDefault("issueAssignmentState", issueAssignmentState, "gh issue view failed");
+      warnings.push(`issueAssignmentState: using default "${issueAssignmentState}" — gh issue view failed`);
     }
 
-    const targetPreference = resolveTargetPreference(cwd);
-
+    const targetPreference = resolveTargetPreference(repoRoot);
     const loopState = "issue_intake_start";
-    warnDefault("loopState", loopState, "synthesized for fresh issue start");
 
     return {
       intent: "start_issue_locally",
@@ -268,8 +275,9 @@ export function buildAutoResolvedInput({ issue, pr, cwd }) {
       issueReadiness,
       issueAssignmentState,
       loopState,
+      warnings: warnings.length > 0 ? warnings : undefined,
       currentState: {
-        target: { kind: "issue", issue, pr: null, linkedPr: null, branch: null, phase: null },
+        target: { kind: "issue", issue, pr: null, linkedPr, branch: null, phase: null },
         ownership: "local",
         nextActor: "local",
         status: "active",
@@ -281,14 +289,13 @@ export function buildAutoResolvedInput({ issue, pr, cwd }) {
   // --- PR path ---
   let artifactState;
   try {
-    const prJson = ghJson(["pr", "view", String(pr), "--repo", repo, "--json", "state,mergedAt"], cwd);
+    const prJson = ghJson(["pr", "view", String(pr), "--repo", repo, "--json", "state,mergedAt"], repoRoot);
     artifactState = prJson.mergedAt ? "merged" : mapGhState(prJson.state);
   } catch {
     artifactState = "open";
-    warnDefault("artifactState", artifactState, "gh pr view failed");
   }
 
-  const targetPreference = resolveTargetPreference(cwd);
+  const targetPreference = resolveTargetPreference(repoRoot);
 
   return {
     intent: "continue_on_pr",
