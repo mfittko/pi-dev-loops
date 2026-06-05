@@ -267,7 +267,9 @@ test("detect-checkpoint-evidence summarizes the newest valid live gate comments 
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
-    assert.deepEqual(JSON.parse(result.stdout), {
+    const parsed = JSON.parse(result.stdout);
+    parsed.staleRunner = { ...parsed.staleRunner, filePath: "<stale-runner-file-path>" };
+    assert.deepEqual(parsed, {
       ok: true,
       repo: "owner/repo",
       pr: 17,
@@ -316,6 +318,18 @@ test("detect-checkpoint-evidence summarizes the newest valid live gate comments 
       },
       draftGateSatisfied: true,
       preMergeGateCheck: {
+        ok: true,
+        failures: [],
+      },
+      staleRunner: {
+        status: "no_owner_record",
+        activeRun: null,
+        exitSignals: [],
+        staleRunner: null,
+        maxAgeMs: 1_800_000,
+        filePath: "<stale-runner-file-path>",
+      },
+      staleRunnerCheck: {
         ok: true,
         failures: [],
       },

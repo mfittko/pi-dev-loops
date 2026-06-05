@@ -8,12 +8,14 @@ import {
   withStateFileLock as withSharedStateFileLock,
 } from "./_steering-state-file.mjs";
 
-export const RUNNER_COORDINATION_SCHEMA_VERSION = 1;
+export const RUNNER_COORDINATION_SCHEMA_VERSION = 2;
+export const RUNNER_COORDINATION_SUPPORTED_SCHEMA_VERSIONS = Object.freeze([1, 2]);
 export const RUNNER_OWNERSHIP_ERROR = Object.freeze({
   ACTIVE_RUN_EXISTS: "active_run_exists",
   OWNERSHIP_LOST: "ownership_lost",
   OWNERSHIP_MISSING: "ownership_missing",
   RUN_ID_REQUIRED: "run_id_required",
+  EXIT_SIGNAL_RECORDED: "exit_signal_recorded",
 });
 
 function normalizeRepoSlug(repo) {
@@ -36,6 +38,12 @@ function normalizeRunId(runId) {
   return typeof runId === "string" && runId.trim().length > 0
     ? runId.trim()
     : null;
+}
+
+function normalizeSignalReason(reason) {
+  if (typeof reason !== "string") return null;
+  const trimmed = reason.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 500) : null;
 }
 
 async function loadRunnerStateFile(filePath) {
@@ -96,7 +104,24 @@ export function createRunnerCoordinationState({ repo, pr, runId = null, now = ne
     history: normalizedRunId === null
       ? []
       : [{ type: "claim", runId: normalizedRunId, at: now }],
+    exitSignals: [],
   };
+}
+
+function normalizeExitSignals(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const runId = normalizeRunId(entry.runId);
+    if (runId === null) continue;
+    out.push({
+      runId,
+      at: typeof entry.at === "string" ? entry.at : null,
+      reason: normalizeSignalReason(entry.reason),
+    });
+  }
+  return out;
 }
 
 export function normalizeRunnerCoordinationState(raw, { repo, pr } = {}) {
@@ -104,9 +129,9 @@ export function normalizeRunnerCoordinationState(raw, { repo, pr } = {}) {
     throw new Error("Runner coordination state must be a non-null object");
   }
 
-  if (raw.schemaVersion !== RUNNER_COORDINATION_SCHEMA_VERSION) {
+  if (!RUNNER_COORDINATION_SUPPORTED_SCHEMA_VERSIONS.includes(raw.schemaVersion)) {
     throw new Error(
-      `Unsupported runner coordination schemaVersion ${JSON.stringify(raw.schemaVersion)}; expected ${RUNNER_COORDINATION_SCHEMA_VERSION}`,
+      `Unsupported runner coordination schemaVersion ${JSON.stringify(raw.schemaVersion)}; expected one of ${JSON.stringify(RUNNER_COORDINATION_SUPPORTED_SCHEMA_VERSIONS)}`,
     );
   }
 
@@ -167,11 +192,12 @@ export function normalizeRunnerCoordinationState(raw, { repo, pr } = {}) {
       }
       : null,
     history: Array.isArray(raw.history) ? raw.history : [],
+    exitSignals: normalizeExitSignals(raw.exitSignals),
   };
 }
 
-function buildConflict({ error, repo, pr, runId, activeRun, filePath, message }) {
-  return {
+function buildConflict({ error, repo, pr, runId, activeRun, filePath, message, exitSignals = null }) {
+  const payload = {
     ok: false,
     error,
     repo,
@@ -181,6 +207,10 @@ function buildConflict({ error, repo, pr, runId, activeRun, filePath, message })
     filePath,
     message,
   };
+  if (exitSignals !== null) {
+    payload.exitSignals = exitSignals;
+  }
+  return payload;
 }
 
 export async function loadRunnerCoordinationState({ repo, pr, cwd = process.cwd(), filePath = null } = {}) {
@@ -248,6 +278,7 @@ export async function claimRunnerOwnership({
         runId: normalizedRunId,
         activeRun: nextState.activeRun,
         previousRun: nextState.previousRun,
+        exitSignals: nextState.exitSignals,
         filePath: resolvedPath,
       };
     }
@@ -271,6 +302,7 @@ export async function claimRunnerOwnership({
         runId: normalizedRunId,
         activeRun: nextState.activeRun,
         previousRun: nextState.previousRun,
+        exitSignals: nextState.exitSignals,
         filePath: resolvedPath,
       };
     }
@@ -283,6 +315,7 @@ export async function claimRunnerOwnership({
         runId: normalizedRunId,
         activeRun,
         filePath: resolvedPath,
+        exitSignals: state.exitSignals,
         message: `PR ${normalizedRepo}#${normalizedPr} is already owned by run ${activeRun.runId}. Claim failed closed.`,
       });
     }
@@ -315,6 +348,7 @@ export async function claimRunnerOwnership({
       runId: normalizedRunId,
       activeRun: nextState.activeRun,
       previousRun: nextState.previousRun,
+      exitSignals: nextState.exitSignals,
       filePath: resolvedPath,
     };
   });
@@ -355,6 +389,7 @@ export async function assertRunnerOwnership({
         pr: normalizedPr,
         runId: normalizedRunId,
         activeRun: null,
+        exitSignals: [],
         filePath: resolvedPath,
       };
     }
@@ -381,6 +416,7 @@ export async function assertRunnerOwnership({
         runId: normalizedRunId,
         activeRun: null,
         previousRun: state.previousRun,
+        exitSignals: state.exitSignals,
         filePath: resolvedPath,
       };
     }
@@ -405,6 +441,7 @@ export async function assertRunnerOwnership({
       runId: normalizedRunId,
       activeRun: state.activeRun,
       previousRun: state.previousRun,
+      exitSignals: state.exitSignals,
       filePath: resolvedPath,
     };
   }
@@ -416,6 +453,7 @@ export async function assertRunnerOwnership({
     runId: normalizedRunId,
     activeRun: state.activeRun,
     filePath: resolvedPath,
+    exitSignals: state.exitSignals,
     message: state.activeRun?.runId
       ? `PR ${normalizedRepo}#${normalizedPr} is now owned by run ${state.activeRun.runId}; run ${normalizedRunId} must stop.`
       : `PR ${normalizedRepo}#${normalizedPr} no longer has an active runner ownership record; run ${normalizedRunId} must stop.`,
@@ -456,6 +494,7 @@ export async function releaseRunnerOwnership({
         pr: normalizedPr,
         runId: normalizedRunId,
         activeRun: null,
+        exitSignals: [],
         filePath: resolvedPath,
       };
     }
@@ -469,6 +508,7 @@ export async function releaseRunnerOwnership({
         runId: normalizedRunId,
         activeRun: state.activeRun,
         filePath: resolvedPath,
+        exitSignals: state.exitSignals,
         message: state.activeRun?.runId
           ? `Cannot release PR ${normalizedRepo}#${normalizedPr}: active owner is ${state.activeRun.runId}, not ${normalizedRunId}.`
           : `Cannot release PR ${normalizedRepo}#${normalizedPr}: no active owner record remains for ${normalizedRunId}.`,
@@ -494,6 +534,96 @@ export async function releaseRunnerOwnership({
       runId: normalizedRunId,
       activeRun: null,
       previousRun: nextState.previousRun,
+      exitSignals: nextState.exitSignals,
+      filePath: resolvedPath,
+    };
+  });
+}
+
+/**
+ * Record an exit signal for a run id. Used by the parent session or
+ * any other process to tell the runner that it must stop before any
+ * merge-class mutation. Appends a new entry to the exitSignals[]
+ * audit log (append-only; prior signals for the same run id are
+ * preserved). Requires the supplied run id to be the current
+ * active owner unless `requireActiveOwner: false`.
+ */
+export async function recordExitSignalForRunner({
+  repo,
+  pr,
+  runId,
+  reason = null,
+  cwd = process.cwd(),
+  filePath = null,
+  now = new Date().toISOString(),
+  requireActiveOwner = true,
+} = {}) {
+  const normalizedRepo = normalizeRepoSlug(repo);
+  const normalizedPr = normalizePr(pr);
+  const normalizedRunId = normalizeRunId(runId);
+  if (normalizedRunId === null) {
+    return buildConflict({
+      error: RUNNER_OWNERSHIP_ERROR.RUN_ID_REQUIRED,
+      repo: normalizedRepo,
+      pr: normalizedPr,
+      runId: null,
+      activeRun: null,
+      filePath: filePath ?? defaultRunnerCoordinationFilePathForTarget({ repo: normalizedRepo, pr: normalizedPr }, cwd),
+      message: "Recording an exit signal requires a non-empty run id.",
+    });
+  }
+
+  const resolvedPath = filePath ?? defaultRunnerCoordinationFilePathForTarget({ repo: normalizedRepo, pr: normalizedPr }, cwd);
+  return withRunnerStateFileLock(resolvedPath, async () => {
+    const raw = await loadRunnerStateFile(resolvedPath);
+    if (raw === null) {
+      return buildConflict({
+        error: RUNNER_OWNERSHIP_ERROR.OWNERSHIP_MISSING,
+        repo: normalizedRepo,
+        pr: normalizedPr,
+        runId: normalizedRunId,
+        activeRun: null,
+        filePath: resolvedPath,
+        message: `Cannot record exit signal: PR ${normalizedRepo}#${normalizedPr} has no runner coordination record.`,
+      });
+    }
+
+    const state = normalizeRunnerCoordinationState(raw, { repo: normalizedRepo, pr: normalizedPr });
+    if (requireActiveOwner && (state.activeRun === null || state.activeRun.runId !== normalizedRunId)) {
+      return buildConflict({
+        error: RUNNER_OWNERSHIP_ERROR.OWNERSHIP_LOST,
+        repo: normalizedRepo,
+        pr: normalizedPr,
+        runId: normalizedRunId,
+        activeRun: state.activeRun,
+        filePath: resolvedPath,
+        exitSignals: state.exitSignals,
+        message: state.activeRun?.runId
+          ? `Cannot record exit signal: PR ${normalizedRepo}#${normalizedPr} is owned by ${state.activeRun.runId}, not ${normalizedRunId}.`
+          : `Cannot record exit signal: PR ${normalizedRepo}#${normalizedPr} no longer has an active owner.`,
+      });
+    }
+
+    // Append: exitSignals are immutable records; keep all prior signals for audit trail
+    const nextSignal = {
+      runId: normalizedRunId,
+      at: now,
+      reason: normalizeSignalReason(reason),
+    };
+    const nextState = {
+      ...state,
+      exitSignals: [...(state.exitSignals || []), nextSignal],
+    };
+    await saveRunnerStateFile(resolvedPath, nextState);
+    return {
+      ok: true,
+      status: "exit_signal_recorded",
+      repo: normalizedRepo,
+      pr: normalizedPr,
+      runId: normalizedRunId,
+      activeRun: state.activeRun,
+      previousRun: state.previousRun,
+      exitSignals: nextState.exitSignals,
       filePath: resolvedPath,
     };
   });
@@ -516,6 +646,7 @@ export async function ensureAsyncRunnerOwnership({
       pr: normalizePr(pr),
       runId: null,
       activeRun: null,
+      exitSignals: [],
       filePath: defaultRunnerCoordinationFilePathForTarget({ repo, pr }, cwd),
     };
   }
