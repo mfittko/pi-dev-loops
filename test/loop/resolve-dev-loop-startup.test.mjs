@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,6 +10,7 @@ import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson a
 
 import {
   buildResolveDevLoopStartupResult,
+  buildAutoResolvedInput,
   parseResolveDevLoopStartupCliArgs,
   summarizeCanonicalState,
 } from "../../scripts/loop/resolve-dev-loop-startup.mjs";
@@ -31,11 +33,66 @@ test("parseResolveDevLoopStartupCliArgs parses --input and --help", () => {
   assert.deepEqual(parseResolveDevLoopStartupCliArgs(["--input", "state.json"]), {
     help: false,
     inputPath: "state.json",
+    issue: undefined,
+    pr: undefined,
   });
   assert.deepEqual(parseResolveDevLoopStartupCliArgs(["--help"]), {
     help: true,
     inputPath: undefined,
+    issue: undefined,
+    pr: undefined,
   });
+});
+
+test("parseResolveDevLoopStartupCliArgs parses --issue", () => {
+  const opts = parseResolveDevLoopStartupCliArgs(["--issue", "511"]);
+  assert.equal(opts.help, false);
+  assert.equal(opts.inputPath, undefined);
+  assert.equal(opts.issue, 511);
+  assert.equal(opts.pr, undefined);
+});
+
+test("parseResolveDevLoopStartupCliArgs parses --pr", () => {
+  const opts = parseResolveDevLoopStartupCliArgs(["--pr", "507"]);
+  assert.equal(opts.help, false);
+  assert.equal(opts.inputPath, undefined);
+  assert.equal(opts.issue, undefined);
+  assert.equal(opts.pr, 507);
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects --issue combined with --pr", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs(["--issue", "511", "--pr", "507"]),
+    /mutually exclusive/i,
+  );
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects --issue combined with --input", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs(["--issue", "511", "--input", "state.json"]),
+    /mutually exclusive/i,
+  );
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects --issue with non-integer value", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs(["--issue", "abc"]),
+    /must be a positive integer/i,
+  );
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects --issue missing value", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs(["--issue"]),
+    /Missing value for --issue/i,
+  );
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects no input mode", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs([]),
+    /--input.*--issue.*--pr|required/i,
+  );
 });
 
 test("buildResolveDevLoopStartupResult maps local implementation to the local route pack", () => {
@@ -654,5 +711,66 @@ test("resolver does not block non-local_implementation strategies from main chec
     assert.equal(result.selectedStrategy, "copilot_pr_followup");
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildAutoResolvedInput returns warnings array for failed detection", () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    const result = buildAutoResolvedInput({ issue: 999999, cwd: tmp });
+    assert.equal(result.intent, "start_issue_locally");
+    assert.equal(result.artifactState, "not_applicable");
+    assert.equal(result.issueLinkageResolution, "resolved_no_open_pr");
+    assert.equal(result.issueReadiness, "needs_clarification");
+    assert.equal(result.issueAssignmentState, "unassigned");
+    assert.equal(result.loopState, "issue_intake_start");
+    assert.ok(Array.isArray(result.warnings));
+    assert.ok(result.warnings.length >= 1);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("buildAutoResolvedInput sets linkedPr null when detection fails", () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    const result = buildAutoResolvedInput({ issue: 999999, cwd: tmp });
+    assert.equal(result.currentState.target.linkedPr, null);
+    assert.equal(result.issueLinkageResolution, "resolved_no_open_pr");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("buildAutoResolvedInput for PR returns pr_followup_start", () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    const result = buildAutoResolvedInput({ pr: 999999, cwd: tmp });
+    assert.equal(result.intent, "continue_on_pr");
+    assert.equal(result.loopState, "pr_followup_start");
+    assert.equal(result.artifactState, "open");
+    assert.equal(result.currentState.target.kind, "pr");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("buildAutoResolvedInput returns valid targetPreference", () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    const result = buildAutoResolvedInput({ issue: 999999, cwd: tmp });
+    assert.ok(
+      result.targetPreference === "prefer_local" || result.targetPreference === "prefer_github_first",
+    );
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
   }
 });

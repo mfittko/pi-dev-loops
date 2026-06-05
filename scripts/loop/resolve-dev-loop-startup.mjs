@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { resolveAuthoritativeStartupResumeBundle } from "../../packages/core/src/loop/public-dev-loop-routing.mjs";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { requireOptionValue } from "../_cli-primitives.mjs";
+import { requireOptionValue, parsePositiveInteger } from "../_cli-primitives.mjs";
 import { execFileSync } from "node:child_process";
 import {
   isUnderWorktreePath,
@@ -22,49 +22,18 @@ import {
 } from "@pi-dev-loops/core/loop/async-start-contract";
 
 const USAGE = `Usage:
+  resolve-dev-loop-startup.mjs --issue <number>
+  resolve-dev-loop-startup.mjs --pr <number>
   resolve-dev-loop-startup.mjs --input <path>
 
-Resolve the authoritative public dev-loop startup/resume bundle from a pre-built
-canonical-state JSON payload and emit the selected strategy, required route-pack
-reads, next action, and a concise canonical state summary.
+Resolve the authoritative public dev-loop startup/resume bundle.
+Auto-resolves state from GitHub API, git remote, and settings when
+--issue or --pr is used. Use --input for non-standard states.
 
-Required:
-  --input <path>   Path to a JSON file containing the authoritative startup input.
-
-Input JSON:
-  Pass the same shape accepted by resolveAuthoritativeStartupResumeBundle(...),
-  including currentState plus any required authoritative fields such as
-  artifactState, issueLinkageResolution, loopState, issueReadiness,
-  issueAssignmentState, gateReviewEvidence, asyncRun, and
-  retrospectiveCheckpointState when applicable.
-  NOTE: The resolver always reads .pi/dev-loop-retrospective-checkpoint.json
-  and overrides any caller-provided retrospectiveCheckpointState when the
-  on-disk artifact maps to a known state.
-
-Async-start contract:
-  Strategies flagged as requiresAsyncDispatch must run within a visible
-  Pi-managed async subagent session. When the resolver detects an inline
-  invocation of an async-required strategy, it fails closed with a
-  machine-readable rejection (stderr JSON, exit code 1).
-  Bypass: set PI_ASYNC_START_BYPASS=1.
-
-Output (stdout, JSON):
-  {
-    "ok": true,
-    "bundleKind": "resolved|needs_reconcile",
-    "selectedStrategy": "...",   // normalized: null (core) is surfaced as "none" here
-    "requiredReads": ["..."],
-    "nextAction": "...",
-    "canonicalStateSummary": { ... },
-    "bundle": { ... }            // bundle.selectedStrategy preserves the raw core value (may be null)
-  }
-
-Async-start rejection (stderr, JSON):
-  { "ok": false, "error": "...", "asyncStartContract": "rejected" }
-
-Error output (stderr, JSON):
-  Argument/usage errors: { "ok": false, "error": "...", "usage": "..." }
-  Runtime failures:      { "ok": false, "error": "..." }
+Required (exactly one):
+  --issue <n>    Target an issue by number (auto-resolves all state)
+  --pr <n>       Target a PR by number (auto-resolves all state)
+  --input <path>  Path to a JSON file with canonical-state payload
 
 Exit codes:
   0  Success
@@ -138,6 +107,8 @@ export function parseResolveDevLoopStartupCliArgs(argv) {
   const options = {
     help: false,
     inputPath: undefined,
+    issue: undefined,
+    pr: undefined,
   };
 
   while (args.length > 0) {
@@ -153,14 +124,209 @@ export function parseResolveDevLoopStartupCliArgs(argv) {
       continue;
     }
 
+    if (token === "--issue") {
+      options.issue = parsePositiveInteger(requireOptionValue(args, "--issue", parseError), "--issue", parseError);
+      continue;
+    }
+
+    if (token === "--pr") {
+      options.pr = parsePositiveInteger(requireOptionValue(args, "--pr", parseError), "--pr", parseError);
+      continue;
+    }
+
     throw parseError(`Unknown argument: ${token}`);
   }
 
-  if (options.inputPath === undefined) {
-    throw parseError("--input <path> is required");
+  const modeCount = [options.inputPath, options.issue, options.pr].filter(v => v !== undefined).length;
+  if (modeCount > 1) {
+    throw parseError("--issue, --pr, and --input are mutually exclusive; provide exactly one");
+  }
+
+  if (modeCount === 0) {
+    throw parseError("--input <path>, --issue <n>, or --pr <n> is required");
   }
 
   return options;
+}
+
+function detectRepoSlug(cwd) {
+  try {
+    const url = execFileSync("git", ["remote", "get-url", "origin"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
+    if (!match) throw new Error(`Could not parse owner/name from git remote: ${url}`);
+    return `${match[1]}/${match[2]}`;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Repo auto-detection failed: ${msg}. Set origin remote or use --input.`);
+  }
+}
+
+function ghJson(args, cwd) {
+  try {
+    const stdout = execFileSync("gh", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return JSON.parse(stdout);
+  } catch (err) {
+    throw new Error(`gh command failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+function mapGhState(ghState) {
+  const s = String(ghState).toUpperCase();
+  if (s === "OPEN") return "open";
+  if (s === "CLOSED") return "closed";
+  if (s === "MERGED") return "merged";
+  throw new Error(`Unknown GitHub state: "${ghState}"`);
+}
+
+function hasAcSection(body) {
+  if (typeof body !== "string" || body.length === 0) return false;
+  return /##\s*Acceptance Criteria|##\s*AC\b|###\s*Acceptance Criteria|###\s*AC\b/i.test(body);
+}
+
+function resolveTargetPreference(cwd) {
+  const candidates = [
+    path.join(cwd, ".pi", "dev-loop", "settings.yaml"),
+    path.join(cwd, ".pi", "dev-loop", "settings.yml"),
+    path.join(cwd, ".pi", "dev-loop", "settings.json"),
+  ];
+  for (const settingsPath of candidates) {
+    try {
+      const raw = readFileSync(settingsPath, "utf8");
+      if (settingsPath.endsWith(".json")) {
+        const parsed = JSON.parse(raw);
+        const val = parsed?.strategy?.default;
+        if (val === "local-first") return "prefer_local";
+        if (val === "github-first") return "prefer_github_first";
+        continue;
+      }
+      const match = raw.match(/strategy:\s*\n\s*default:\s*["']?([^"'\s]+)["']?/);
+      if (match) {
+        if (match[1] === "local-first") return "prefer_local";
+        if (match[1] === "github-first") return "prefer_github_first";
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+  return "prefer_github_first";
+}
+
+/**
+ * Build the canonical-state input JSON from --issue or --pr auto-resolution.
+ * Exported for testability.
+ */
+export function buildAutoResolvedInput({ issue, pr, cwd }) {
+  // Resolve repo root for reliable script/settings path resolution (thread 2)
+  let repoRoot = cwd;
+  try {
+    repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    // Fall through — use cwd as-is
+  }
+
+  const repo = detectRepoSlug(repoRoot);
+
+  if (issue !== undefined) {
+    const artifactState = "not_applicable";
+    const warnings = [];
+
+    let issueLinkageResolution = "resolved_no_open_pr";
+    let linkedPr = null;
+    try {
+      const linkageJson = execFileSync(process.execPath, [
+        path.join(repoRoot, "scripts/github/detect-linked-issue-pr.mjs"),
+        "--repo", repo, "--issue", String(issue),
+      ], { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      const linkage = JSON.parse(linkageJson);
+      if (linkage.hasOpenLinkedPr) {
+        issueLinkageResolution = "resolved_linked_pr";
+        linkedPr = linkage.prNumber;
+      }
+    } catch {
+      warnings.push(`issueLinkageResolution: using default "${issueLinkageResolution}" — linked-PR detection unavailable`);
+    }
+
+    let issueReadiness;
+    try {
+      const issueJson = ghJson(["issue", "view", String(issue), "--repo", repo, "--json", "body"], repoRoot);
+      issueReadiness = hasAcSection(issueJson.body) ? "ready" : "needs_clarification";
+    } catch {
+      issueReadiness = "needs_clarification";
+      warnings.push(`issueReadiness: using default "${issueReadiness}" — gh issue view failed`);
+    }
+
+    let issueAssignmentState;
+    try {
+      const assigneesJson = ghJson(["issue", "view", String(issue), "--repo", repo, "--json", "assignees"], repoRoot);
+      issueAssignmentState = (assigneesJson.assignees || []).some(a => a.login === "copilot-swe-agent")
+        ? "assigned_to_copilot"
+        : "unassigned";
+    } catch {
+      issueAssignmentState = "unassigned";
+      warnings.push(`issueAssignmentState: using default "${issueAssignmentState}" — gh issue view failed`);
+    }
+
+    const targetPreference = resolveTargetPreference(repoRoot);
+    const loopState = "issue_intake_start";
+
+    return {
+      intent: "start_issue_locally",
+      mode: "bounded_handoff",
+      targetPreference,
+      artifactState,
+      issueLinkageResolution,
+      issueReadiness,
+      issueAssignmentState,
+      loopState,
+      warnings: warnings.length > 0 ? warnings : undefined,
+      currentState: {
+        target: { kind: "issue", issue, pr: null, linkedPr, branch: null, phase: null },
+        ownership: "local",
+        nextActor: "local",
+        status: "active",
+        authorization: "authorized",
+      },
+    };
+  }
+
+  // --- PR path ---
+  let artifactState;
+  try {
+    const prJson = ghJson(["pr", "view", String(pr), "--repo", repo, "--json", "state,mergedAt"], repoRoot);
+    artifactState = prJson.mergedAt ? "merged" : mapGhState(prJson.state);
+  } catch {
+    artifactState = "open";
+  }
+
+  const targetPreference = resolveTargetPreference(repoRoot);
+
+  return {
+    intent: "continue_on_pr",
+    mode: "bounded_handoff",
+    targetPreference,
+    artifactState,
+    issueLinkageResolution: "not_applicable",
+    loopState: "pr_followup_start",
+    currentState: {
+      target: { kind: "pr", issue: null, pr, linkedPr: null, branch: null, phase: null },
+      ownership: "copilot",
+      nextActor: "user",
+      status: "active",
+      authorization: "authorized",
+    },
+  };
 }
 
 export function summarizeCanonicalState(bundle) {
@@ -343,8 +509,16 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
     return;
   }
 
-  const text = await readFile(path.resolve(options.inputPath), "utf8");
-  const input = parseJsonText(text);
+  let input;
+  if (options.inputPath !== undefined) {
+    const text = await readFile(path.resolve(options.inputPath), "utf8");
+    input = parseJsonText(text);
+  } else if (options.issue !== undefined) {
+    input = buildAutoResolvedInput({ issue: options.issue, cwd: process.cwd() });
+  } else {
+    input = buildAutoResolvedInput({ pr: options.pr, cwd: process.cwd() });
+  }
+
   const result = buildResolveDevLoopStartupResult(input);
 
   // #465: When async-start enforcement produces a rejection, emit to stderr

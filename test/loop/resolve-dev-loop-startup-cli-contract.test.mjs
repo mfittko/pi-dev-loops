@@ -28,11 +28,10 @@ test("resolve-dev-loop-startup help documents accepted flags and JSON contracts"
 
   assert.equal(result.status, 0);
   assert.equal(result.stderr, "");
-  assert.match(result.stdout, /Usage:\n  resolve-dev-loop-startup\.mjs --input <path>/);
+  assert.match(result.stdout, /Usage:\n  resolve-dev-loop-startup\.mjs --issue <number>/);
+  assert.match(result.stdout, /--issue <n>\s+Target an issue/);
+  assert.match(result.stdout, /--pr <n>\s+Target a PR/);
   assert.match(result.stdout, /--input <path>\s+Path to a JSON file/);
-  assert.match(result.stdout, /Output \(stdout, JSON\):/);
-  assert.match(result.stdout, /"selectedStrategy": "\.\.\."/);
-  assert.match(result.stdout, /Error output \(stderr, JSON\):/);
   assert.match(result.stdout, /Exit codes:\n  0  Success\n  1  Argument error, runtime failure, or async-start contract rejection/);
 });
 
@@ -155,5 +154,5 @@ test("resolve-dev-loop-startup malformed args keep documented stderr JSON shape"
   assert.deepEqual(Object.keys(parsed), ["ok", "error", "usage"]);
   assert.equal(parsed.ok, false);
   assert.equal(parsed.error, "Unknown argument: --bogus");
-  assert.match(parsed.usage, /Usage:\n  resolve-dev-loop-startup\.mjs --input <path>/);
+  assert.match(parsed.usage, /Usage:\n  resolve-dev-loop-startup\.mjs --issue <number>/);
 });
