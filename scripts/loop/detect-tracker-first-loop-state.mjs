@@ -11,15 +11,39 @@
  * Unknown/ambiguous tracker state emits `needs_triage` (fail-closed).
  * Command failures (gh not found, auth missing, network error, etc.)
  * emit `ok: false` instead of silently fabricating a valid-looking result.
+ *
+ * Exit codes:
+ *   0   Success
+ *   1   Error (missing args, gh command failure, etc.)
  */
 import process from "node:process";
 import { execFileSync } from "node:child_process";
 import { interpretTrackerLoopState } from "../../packages/core/src/loop/tracker-first-loop-state.mjs";
 
+function showHelp() {
+  process.stdout.write(`Usage: detect-tracker-first-loop-state.mjs --repo <owner/name> --issue <number>
+
+Detect tracker-first loop state for a GitHub issue.
+
+Options:
+  --repo <owner/name>   GitHub repository slug
+  --issue <number>      GitHub issue number
+  --help, -h            Show this help
+
+Exit codes:
+  0   Success
+  1   Error
+`);
+  process.exit(0);
+}
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const opts = { repo: null, issue: null };
   for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--help" || args[i] === "-h") {
+      showHelp();
+    }
     if (args[i] === "--repo" && i + 1 < args.length) opts.repo = args[++i];
     else if (args[i] === "--issue" && i + 1 < args.length) opts.issue = args[++i];
   }

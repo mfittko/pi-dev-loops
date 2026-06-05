@@ -5,6 +5,11 @@
  * Usage:
  *   node scripts/loop/detect-change-scope.mjs [--base <ref>] [--head <ref>]
  *
+ * Options:
+ *   --base <ref>   Base ref for diff (default: HEAD~1)
+ *   --head <ref>   Head ref for diff (default: HEAD)
+ *   --help, -h     Show this help
+ *
  * Output (stdout, JSON):
  *   {
  *     "ok": true,
@@ -19,6 +24,10 @@
  * `eligibleForLightMode` is only computed when light mode is enabled in config
  * and config loading has no validation errors (fail-closed).
  * When disabled, it is always `false`.
+ *
+ * Exit codes:
+ *   0   Success
+ *   1   Error
  */
 import { execFileSync } from "node:child_process";
 import process from "node:process";
@@ -27,6 +36,22 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const opts = { base: null, head: null };
   for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--help" || args[i] === "-h") {
+      process.stdout.write(`Usage: detect-change-scope.mjs [--base <ref>] [--head <ref>]
+
+Detect change scope from git diff for light-mode eligibility.
+
+Options:
+  --base <ref>   Base ref for diff (default: HEAD~1)
+  --head <ref>   Head ref for diff (default: HEAD)
+  --help, -h     Show this help
+
+Exit codes:
+  0   Success
+  1   Error
+`);
+      process.exit(0);
+    }
     if (args[i] === "--base" && i + 1 < args.length) opts.base = args[++i];
     else if (args[i] === "--head" && i + 1 < args.length) opts.head = args[++i];
   }

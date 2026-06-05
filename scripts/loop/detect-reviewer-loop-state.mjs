@@ -5,6 +5,10 @@
  * Two modes:
  * 1) --input <path> snapshot interpretation
  * 2) --repo <owner/name> --pr <number> auto-detect from GitHub (+ optional local state file)
+ *
+ * Exit codes:
+ *   0   Success
+ *   1   Error
  */
 import { readFile } from "node:fs/promises";
 
@@ -15,6 +19,24 @@ import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
 } from "@pi-dev-loops/core/loop/reviewer-loop-state";
+
+const HELP = `Usage: detect-reviewer-loop-state.mjs [--input <path> | --repo <owner/name> --pr <number>] [--reviewer-login <login>] [--review-requested <true|false>] [--local-state <path>]
+
+Detect reviewer loop state for a pull request.
+
+Modes:
+  --input <path>                Interpret a JSON snapshot from stdin or file
+  --repo <owner/name> --pr <n>  Auto-detect state from GitHub PR
+
+Options (auto-detect mode only):
+  --reviewer-login <login>      Filter reviews by reviewer login
+  --review-requested <bool>     Override review-requested detection (true/false)
+  --local-state <path>          Path to local state file for snapshot merging
+
+Exit codes:
+  0   Success
+  1   Error
+`;
 
 function parseBool(value, flag) {
   if (value === "true") return true;
@@ -40,6 +62,11 @@ export function parseDetectReviewerCliArgs(argv) {
     reviewRequestedOverride: undefined,
     localStatePath: undefined,
   };
+
+  if (args.includes("--help") || args.includes("-h")) {
+    process.stdout.write(HELP);
+    process.exit(0);
+  }
 
   while (args.length > 0) {
     const token = args.shift();

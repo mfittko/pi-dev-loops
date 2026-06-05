@@ -22,6 +22,19 @@ export const INSPECT_RUN_VIEWER_RELEVANT_PREFIXES = Object.freeze([
 
 const USAGE = "Usage: inspect-run-viewer-ci-changes.mjs <changed-files-path>";
 
+const HELP = `Usage: inspect-run-viewer-ci-changes.mjs <changed-files-path>
+
+Classify changed files to determine if inspect-run-viewer tests should run.
+Reads a newline-delimited file list and checks against known relevant paths.
+
+Options:
+  --help, -h    Show this help
+
+Exit codes:
+  0   Success
+  1   Error
+`;
+
 const parseError = buildParseError(USAGE);
 
 
@@ -57,6 +70,11 @@ export async function runCli(
   argv = process.argv.slice(2),
   { env = process.env, stdout = process.stdout } = {},
 ) {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    stdout.write(HELP);
+    return;
+  }
+
   if (argv.length !== 1) {
     throw parseError("inspect-run-viewer-ci-changes requires exactly one changed-files path argument");
   }

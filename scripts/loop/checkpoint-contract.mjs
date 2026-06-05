@@ -9,6 +9,21 @@ const USAGE = `Usage: checkpoint-contract.mjs --state <required|complete|skipped
 
 Write .pi/dev-loop-retrospective-checkpoint.json using the retrospective contract format.`.trim();
 
+const HELP = `Usage: checkpoint-contract.mjs --state <required|complete|skipped|none|missing> [--notes <text>] [--reason <text>]
+
+Write .pi/dev-loop-retrospective-checkpoint.json using the retrospective contract format.
+
+Options:
+  --state <value>   Checkpoint state (required, complete, skipped, none, missing)
+  --notes <text>    Required when --state is complete
+  --reason <text>   Required when --state is skipped
+  --help, -h        Show this help
+
+Exit codes:
+  0   Success
+  1   Error
+`;
+
 const parseError = buildParseError(USAGE);
 const CHECKPOINT_FILE = ".pi/dev-loop-retrospective-checkpoint.json";
 
@@ -21,6 +36,11 @@ export function parseCheckpointContractCliArgs(argv) {
     notes: null,
     reason: null,
   };
+
+  if (args.includes("--help") || args.includes("-h")) {
+    process.stdout.write(HELP);
+    process.exit(0);
+  }
 
   while (args.length > 0) {
     const token = args.shift();

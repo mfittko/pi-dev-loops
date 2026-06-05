@@ -38,6 +38,23 @@ export const REVIEW_THREADS_QUERY = [
   "}",
 ].join("\n");
 
+const HELP = `Usage: capture-review-threads.mjs [--input <path> | --repo <owner/name> --pr <number>] [--output <path>]
+
+Capture review threads from a GitHub PR or from a local JSON snapshot.
+
+Modes:
+  --input <path>                Read JSON snapshot from file (use - for stdin)
+  --repo <owner/name> --pr <n>  Fetch live review threads from GitHub PR
+
+Options:
+  --output <path>   Write JSON output to file (stdout by default)
+  --help, -h        Show this help
+
+Exit codes:
+  0   Success
+  1   Error
+`;
+
 export function parseCaptureCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -46,6 +63,11 @@ export function parseCaptureCliArgs(argv) {
     repo: undefined,
     pr: undefined,
   };
+
+  if (args.includes("--help") || args.includes("-h")) {
+    process.stdout.write(HELP);
+    process.exit(0);
+  }
 
   while (args.length > 0) {
     const token = args.shift();
