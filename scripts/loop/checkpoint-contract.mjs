@@ -12,6 +12,8 @@ Write .pi/dev-loop-retrospective-checkpoint.json using the retrospective contrac
 const parseError = buildParseError(USAGE);
 const CHECKPOINT_FILE = path.join(".pi", "dev-loop-retrospective-checkpoint.json");
 
+const ALLOWED_STATES = new Set(["required", "complete", "skipped", "none", "missing"]);
+
 export function parseCheckpointContractCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -42,6 +44,10 @@ export function parseCheckpointContractCliArgs(argv) {
     throw parseError("checkpoint-contract requires --state");
   }
 
+  if (!ALLOWED_STATES.has(options.state)) {
+    throw parseError(`Invalid --state value: "${options.state}". Allowed: ${[...ALLOWED_STATES].join(", ")}.`);
+  }
+
   if (options.state === "complete" && !options.notes) {
     throw parseError('state "complete" requires --notes');
   }
@@ -64,7 +70,10 @@ export function buildRetrospectiveCheckpointPayload({ state, notes = null, reaso
   if (state === "required") {
     return { state, triggeredAt: timestamp };
   }
-  if (state === "none" || state === "missing") {
+  if (state === "missing") {
+    return { state, triggeredAt: timestamp };
+  }
+  if (state === "none") {
     return { state };
   }
   throw new Error(`Unsupported retrospective checkpoint state: ${state}`);

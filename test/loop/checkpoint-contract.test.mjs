@@ -18,6 +18,27 @@ test("parseCheckpointContractCliArgs requires --state", () => {
   assert.throws(() => parseCheckpointContractCliArgs([]), /requires --state/i);
 });
 
+test("parseCheckpointContractCliArgs rejects invalid --state values", () => {
+  assert.throws(
+    () => parseCheckpointContractCliArgs(["--state", "compleat"]),
+    /Invalid --state value/i,
+  );
+  assert.throws(
+    () => parseCheckpointContractCliArgs(["--state", "compleat"]),
+    /allowed/i,
+  );
+  // Verify the error preserves USAGE text (parseError convention)
+  try {
+    parseCheckpointContractCliArgs(["--state", "typo"]);
+    assert.fail("Expected parseError to be thrown");
+  } catch (err) {
+    assert.ok(err instanceof Error);
+    assert.match(err.message, /Invalid --state value/i);
+    assert.equal(typeof err.usage, "string");
+    assert.match(err.usage, /Usage:/i);
+  }
+});
+
 test("parseCheckpointContractCliArgs enforces state-specific metadata", () => {
   assert.throws(() => parseCheckpointContractCliArgs(["--state", "complete"]), /requires --notes/i);
   assert.throws(() => parseCheckpointContractCliArgs(["--state", "skipped"]), /requires --reason/i);
@@ -30,6 +51,23 @@ test("buildRetrospectiveCheckpointPayload writes complete payload shape", () => 
     state: "complete",
     completedAt: "2026-06-05T00:00:00.000Z",
     notes: "all good",
+  });
+});
+
+test("buildRetrospectiveCheckpointPayload writes missing payload with triggeredAt timestamp", () => {
+  const now = new Date("2026-06-05T00:00:00.000Z");
+  const payload = buildRetrospectiveCheckpointPayload({ state: "missing" }, now);
+  assert.deepEqual(payload, {
+    state: "missing",
+    triggeredAt: "2026-06-05T00:00:00.000Z",
+  });
+});
+
+test("buildRetrospectiveCheckpointPayload writes none payload without timestamp", () => {
+  const now = new Date("2026-06-05T00:00:00.000Z");
+  const payload = buildRetrospectiveCheckpointPayload({ state: "none" }, now);
+  assert.deepEqual(payload, {
+    state: "none",
   });
 });
 
