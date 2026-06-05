@@ -8,6 +8,7 @@ import {
   assertRunnerOwnership,
   claimRunnerOwnership,
   defaultRunnerCoordinationFilePathForTarget,
+  ensureAsyncRunnerOwnership,
   loadRunnerCoordinationState,
   releaseRunnerOwnership,
 } from "../../scripts/loop/_pr-runner-coordination.mjs";
@@ -140,6 +141,59 @@ test("pr-runner-coordination CLI facade returns machine-readable conflicts", asy
     const status = await runPrRunnerCoordination({ command: "status", repo: "owner/repo", pr: 17 }, { env: {}, cwd: tempDir });
     assert.equal(status.ok, true);
     assert.equal(status.state.activeRun.runId, "run-1");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+test("ensureAsyncRunnerOwnership auto-claims when no file exists", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-runner-coordination-"));
+
+  try {
+    const result = await ensureAsyncRunnerOwnership({
+      repo: "owner/repo",
+      pr: 17,
+      cwd: tempDir,
+      env: { PI_SUBAGENT_RUN_ID: "run-1" },
+      claimIfMissing: true,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "claimed_new");
+    assert.equal(result.activeRun.runId, "run-1");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ensureAsyncRunnerOwnership auto-claims after release when no active owner remains", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-runner-coordination-"));
+
+  try {
+    await claimRunnerOwnership({ repo: "owner/repo", pr: 17, runId: "run-1", cwd: tempDir });
+    await releaseRunnerOwnership({ repo: "owner/repo", pr: 17, runId: "run-1", cwd: tempDir });
+
+    const result = await ensureAsyncRunnerOwnership({
+      repo: "owner/repo",
+      pr: 17,
+      cwd: tempDir,
+      env: { PI_SUBAGENT_RUN_ID: "run-2" },
+      claimIfMissing: true,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "claimed_new");
+    assert.equal(result.activeRun.runId, "run-2");
+
+    const strict = await ensureAsyncRunnerOwnership({
+      repo: "owner/repo",
+      pr: 18,
+      cwd: tempDir,
+      env: { PI_SUBAGENT_RUN_ID: "run-3" },
+      claimIfMissing: false,
+      requireExisting: true,
+    });
+    assert.equal(strict.ok, false);
+    assert.equal(strict.error, "ownership_missing");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

@@ -340,7 +340,32 @@ export async function assertRunnerOwnership({
   }
 
   const state = normalizeRunnerCoordinationState(raw, { repo: normalizedRepo, pr: normalizedPr });
-  if (state.activeRun?.runId === normalizedRunId) {
+  if (state.activeRun === null) {
+    if (!requireExisting) {
+      return {
+        ok: true,
+        status: "no_owner_record",
+        repo: normalizedRepo,
+        pr: normalizedPr,
+        runId: normalizedRunId,
+        activeRun: null,
+        previousRun: state.previousRun,
+        filePath: resolvedPath,
+      };
+    }
+
+    return buildConflict({
+      error: RUNNER_OWNERSHIP_ERROR.OWNERSHIP_MISSING,
+      repo: normalizedRepo,
+      pr: normalizedPr,
+      runId: normalizedRunId,
+      activeRun: null,
+      filePath: resolvedPath,
+      message: `PR ${normalizedRepo}#${normalizedPr} has no active runner ownership record for async run ${normalizedRunId}.`,
+    });
+  }
+
+  if (state.activeRun.runId === normalizedRunId) {
     return {
       ok: true,
       status: "owner_confirmed",
@@ -465,11 +490,19 @@ export async function ensureAsyncRunnerOwnership({
   }
 
   const asserted = await assertRunnerOwnership({ repo, pr, runId, cwd, requireExisting });
-  if (asserted.ok) {
+  if (asserted.ok && asserted.status !== "no_owner_record") {
     return asserted;
   }
 
-  if (!claimIfMissing || asserted.error !== RUNNER_OWNERSHIP_ERROR.OWNERSHIP_MISSING) {
+  if (!claimIfMissing) {
+    return asserted;
+  }
+
+  if (asserted.ok && asserted.status === "no_owner_record") {
+    return claimRunnerOwnership({ repo, pr, runId, cwd, mode: "claim" });
+  }
+
+  if (asserted.error !== RUNNER_OWNERSHIP_ERROR.OWNERSHIP_MISSING) {
     return asserted;
   }
 
