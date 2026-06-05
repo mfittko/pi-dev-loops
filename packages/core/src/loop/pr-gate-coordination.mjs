@@ -216,9 +216,7 @@ function evaluateRetrospectiveMergeApproval(checkpoint) {
   }
   const gateQuality = typeof checkpoint.gateQuality === "string" && checkpoint.gateQuality.trim().length > 0
     ? checkpoint.gateQuality
-    : (br !== null && typeof br.notes === "string" && br.notes.trim().length > 0
-      ? `gateQualityAcceptable: true. ${br.notes}`.trim()
-      : null);
+    : null;
   if (!gateQuality) {
     return { approved: false, reason: "Retrospective is missing `gateQuality` details; provide a notes field with gate-quality assessment or an explicit gateQuality string." };
   }
@@ -233,11 +231,10 @@ function evaluateRetrospectiveMergeApproval(checkpoint) {
     return { approved: false, reason: "Retrospective is missing `unexpectedFindings` details." };
   }
 
-  // mergeRecommendation: require explicit non-empty string; derive from mergeApproved
-  // only when reading behavioralReview format (br !== null). In flat format, the field is required.
+  // mergeRecommendation: require explicit mergeRecommendation field (string).
   const mergeRecommendation = typeof checkpoint.mergeRecommendation === "string" && checkpoint.mergeRecommendation.trim().length > 0
     ? checkpoint.mergeRecommendation
-    : (br !== null ? "mergeApproved: true — merge is authorized." : null);
+    : null;
   if (!mergeRecommendation) {
     return { approved: false, reason: "Retrospective is missing explicit `mergeRecommendation`." };
   }

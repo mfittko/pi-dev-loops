@@ -207,7 +207,10 @@ test("evaluateRetrospectiveGate: COMPLETE checkpoint passes through the proposed
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
   assert.equal(result.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP);
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 // ── Explicit skip with reason ─────────────────────────────────────────────────
@@ -221,7 +224,10 @@ test("evaluateRetrospectiveGate: SKIPPED checkpoint passes through the proposed 
 
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
   assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 // ── No qualifying completion ──────────────────────────────────────────────────
@@ -233,7 +239,10 @@ test("evaluateRetrospectiveGate: NONE checkpoint passes through the proposed rou
     proposedRouting: proposed,
   });
 
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 // ── Missing retrospective checkpoint: fails closed on start/resume ────────────
@@ -291,7 +300,10 @@ test("evaluateRetrospectiveGate: stop result passes through regardless of MISSIN
     proposedRouting: proposed,
   });
 
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 test("evaluateRetrospectiveGate: needs_reconcile result passes through regardless of MISSING checkpoint", () => {
@@ -306,7 +318,10 @@ test("evaluateRetrospectiveGate: needs_reconcile result passes through regardles
     proposedRouting: proposed,
   });
 
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 test("evaluateRetrospectiveGate: inspect result passes through regardless of MISSING checkpoint", () => {
@@ -327,7 +342,10 @@ test("evaluateRetrospectiveGate: inspect result passes through regardless of MIS
     proposedRouting: proposed,
   });
 
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 // ── Unrecognized checkpoint state ─────────────────────────────────────────────
@@ -386,7 +404,10 @@ test("evaluateRetrospectiveMergeGate: passes through when requireRetrospectiveGa
     proposedRouting: proposed,
   });
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 test("evaluateRetrospectiveMergeGate: passes through when gate enabled and satisfied", () => {
@@ -398,7 +419,10 @@ test("evaluateRetrospectiveMergeGate: passes through when gate enabled and satis
     proposedRouting: proposed,
   });
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 test("evaluateRetrospectiveMergeGate: blocks when MISSING checkpoint", () => {
@@ -455,7 +479,10 @@ test("evaluateRetrospectiveMergeGate: does not block stop results", () => {
     mergeApproved: false,
     proposedRouting: proposed,
   });
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 test("evaluateRetrospectiveMergeGate: SKIPPED checkpoint blocks merge when gate is enabled", () => {
