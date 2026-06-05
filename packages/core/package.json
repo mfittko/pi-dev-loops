@@ -26,7 +26,8 @@
     "./debt/signal": "./src/debt/debt-signal.mjs",
     "./debt/finding": "./src/debt/debt-finding.mjs",
     "./debt/signals": "./src/debt/deep-persona-signals.mjs",
-    "./analysis": "./src/analysis/index.mjs"
+    "./analysis": "./src/analysis/index.mjs",
+    "./loop/handoff-envelope": "./src/loop/handoff-envelope.mjs"
   },
   "bin": {
     "pi-dev-loops-log-bash-exit-1": "./bin/log-bash-exit-1.mjs",

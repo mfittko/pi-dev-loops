@@ -19,150 +19,83 @@ test("workflow-handoff-template exists and is non-empty", async () => {
   assert.ok(content.length > 100, "template should have substantial content");
 });
 
-test("workflow-handoff-template includes all 8 mandatory steps in order", async () => {
+test("workflow-handoff-template declares itself as a derivation contract", async () => {
   const content = await readTemplate();
-
-  // Scope to the mandatory sequence section only
-  const seqStart = content.indexOf("## Mandatory sequence");
-  const nextSection = content.indexOf("## Non-negotiable");
-  const sequenceSection = content.slice(seqStart, nextSection);
-
-  const stepPatterns = [
-    /### 1\. Create draft PR/i,
-    /### 2\. Draft gate inspection/i,
-    /### 3\. Mark ready for review/i,
-    /### 4\. Wait for Copilot review/i,
-    /### 5\. Address Copilot feedback/i,
-    /### 6\. Re-request Copilot review/i,
-    /### 7\. Pre-approval gate inspection/i,
-    /### 8\. Merge/i,
-  ];
-
-  let lastIndex = -1;
-  for (const pattern of stepPatterns) {
-    const match = pattern.exec(sequenceSection);
-    assert.ok(match, `missing step matching: ${pattern}`);
-    assert.ok(
-      match.index > lastIndex,
-      `step "${pattern}" appears out of order (index ${match.index}, previous at ${lastIndex})`,
-    );
-    lastIndex = match.index;
-  }
+  assert.match(content, /derivation contract/i);
+  assert.match(content, /buildDevLoopHandoffEnvelope/);
 });
 
-test("workflow-handoff-template references required contract docs by path", async () => {
+test("workflow-handoff-template documents three authoritative sources", async () => {
   const content = await readTemplate();
 
-  const requiredRefs = [
-    "../../docs/gate-review-comment-contract.md",
-    "../copilot-pr-followup/SKILL.md",
-    "../../scripts/README.md",
-  ];
-
-  for (const ref of requiredRefs) {
-    assert.ok(
-      content.includes(ref),
-      `template must reference "${ref}"`,
-    );
-  }
+  assert.match(content, /Resolver output/i);
+  assert.match(content, /resolve-dev-loop-startup/);
+  assert.match(content, /Settings/i);
+  assert.match(content, /settings\.yaml/);
+  assert.match(content, /Gate state/i);
 });
 
-test("workflow-handoff-template requires self-assigned draft PR creation in the mandatory sequence", async () => {
+test("workflow-handoff-template includes acceptance template table", async () => {
   const content = await readTemplate();
 
-  const seqStart = content.indexOf("## Mandatory sequence");
-  const nextSection = content.indexOf("## Non-negotiable", seqStart);
-
-  assert.ok(seqStart >= 0, "mandatory sequence section should exist");
-  assert.ok(nextSection > seqStart, "non-negotiable section should follow mandatory sequence");
-
-  const sequenceSection = content.slice(seqStart, nextSection);
-
-  assert.match(sequenceSection, /node scripts\/github\/create-draft-pr\.mjs --assignee @me/i);
-  assert.doesNotMatch(sequenceSection, /gh pr create --draft --assignee @me/i);
+  // Each strategy+gate combo must be documented
+  assert.match(content, /copilot_pr_followup.*draft/i);
+  assert.match(content, /copilot_pr_followup.*watch/i);
+  assert.match(content, /copilot_pr_followup.*pre-approval/i);
+  assert.match(content, /final_approval/i);
+  assert.match(content, /local_implementation/i);
+  assert.match(content, /issue_intake/i);
 });
 
-test("workflow-handoff-template has Copilot review loop between draft_gate and pre_approval_gate", async () => {
+test("workflow-handoff-template documents stop rules derivation", async () => {
   const content = await readTemplate();
 
-  // Scope to the mandatory sequence section
-  const seqStart = content.indexOf("## Mandatory sequence");
-  const nextSection = content.indexOf("## Non-negotiable");
-  const sequenceSection = content.slice(seqStart, nextSection);
-
-  const draftGateIndex = sequenceSection.indexOf("draft_gate");
-  const preApprovalGateIndex = sequenceSection.indexOf("pre_approval_gate");
-  const copilotReviewIndex = sequenceSection.indexOf("Copilot review");
-
-  assert.ok(draftGateIndex >= 0, "template must mention draft_gate");
-  assert.ok(preApprovalGateIndex >= 0, "template must mention pre_approval_gate");
-  assert.ok(copilotReviewIndex >= 0, "template must mention Copilot review");
-  assert.ok(
-    draftGateIndex < copilotReviewIndex,
-    "Copilot review must appear after draft_gate in mandatory sequence",
-  );
-  assert.ok(
-    copilotReviewIndex < preApprovalGateIndex,
-    "Copilot review must appear before pre_approval_gate in mandatory sequence",
-  );
+  assert.match(content, /stop rules/i);
+  assert.match(content, /autonomy\.stopAt/);
+  assert.match(content, /strategy defaults/i);
 });
 
-test("workflow-handoff-template requires unresolvedThreadCount === 0 verification", async () => {
+test("workflow-handoff-template includes envelope schema", async () => {
   const content = await readTemplate();
 
-  assert.ok(
-    content.includes("unresolvedThreadCount === 0"),
-    "template must explicitly require unresolvedThreadCount === 0 verification",
-  );
+  assert.match(content, /handoffVersion:\s*1/);
+  assert.match(content, /derivedAt/);
+  // Check for target block with repo field (may span lines in TypeScript)
+  assert.match(content, /target:\s*\{/);
+  assert.match(content, /repo:\s*string/);
+  assert.match(content, /acceptance:\s*\{/);
+  assert.match(content, /criteria:\s*Array/);
+  assert.match(content, /control:\s*\{/);
+  assert.match(content, /needsAttentionAfterMs:\s*number/);
 });
 
-test("workflow-handoff-template includes non-negotiable invariants section", async () => {
+test("workflow-handoff-template documents agent consumption pattern", async () => {
   const content = await readTemplate();
 
-  assert.ok(
-    /non-negotiable invariants/i.test(content),
-    "template must have a non-negotiable invariants section",
-  );
-  assert.ok(
-    /Copilot review loop.*between.*draft_gate.*pre_approval_gate/i.test(content) ||
-    /between.*draft_gate.*pre_approval_gate/i.test(content),
-    "invariants must state Copilot review loop sits between draft_gate and pre_approval_gate",
-  );
+  assert.match(content, /Agent consumption pattern/i);
+  assert.match(content, /Read the handoff envelope/i);
+  assert.match(content, /requiredReads/);
+  assert.match(content, /nextAction/);
 });
 
-test("unresolvedThreadCount === 0 appears before pre_approval_gate in mandatory sequence", async () => {
+test("workflow-handoff-template includes backward compatibility note", async () => {
   const content = await readTemplate();
 
-  const seqStart = content.indexOf("## Mandatory sequence");
-  const nextSection = content.indexOf("## Non-negotiable");
-  const sequenceSection = content.slice(seqStart, nextSection);
-
-  const unresolvedIndex = sequenceSection.indexOf("unresolvedThreadCount === 0");
-  const preApprovalIndex = sequenceSection.indexOf("### 7. Pre-approval gate inspection");
-
-  assert.ok(unresolvedIndex >= 0, "unresolvedThreadCount === 0 must appear in mandatory sequence");
-  assert.ok(preApprovalIndex >= 0, "pre_approval_gate step must exist in mandatory sequence");
-  assert.ok(
-    unresolvedIndex < preApprovalIndex,
-    "unresolvedThreadCount === 0 verification must appear before pre_approval_gate step",
-  );
+  assert.match(content, /Backward compatibility/i);
+  assert.match(content, /acceptance.*block.*1:1/i);
+  assert.match(content, /subagent/);
 });
 
-test("workflow-handoff-template includes the persistence rule and timeout escalation", async () => {
+test("workflow-handoff-template lists non-goals", async () => {
   const content = await readTemplate();
 
-  assert.match(
-    content,
-    /PERSISTENCE MODEL: Subagents do bounded implementation tasks and exit on external wait. The main session drives the loop and re-dispatches when continuation is feasible./i,
-  );
-  assert.match(
-    content,
-    /watch → detect → if threads found, fix \+ reply \+ resolve → re-request → watch again/i,
-  );
-  assert.match(content, /30 minutes[\s\S]*1800000/i);
-  assert.match(
-    content,
-    /watch timeout\s+[—-]\s+PR #<number> needs manual attention/i,
-  );
+  assert.match(content, /Non-goals/i);
+  assert.match(content, /dispatch mechanics/i);
+  assert.match(content, /UI\/UX/i);
 });
 
+test("workflow-handoff-template mentions unknown combos throw explicit errors", async () => {
+  const content = await readTemplate();
+
+  assert.match(content, /Unknown strategy.*gate combinations throw/i);
+});
