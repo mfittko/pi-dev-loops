@@ -280,14 +280,14 @@ async function loadRefinementArtifact({ repo, prData, prDraft, prClosed, prMerge
       return {
         status: "missing",
         linkedIssue: null,
-        reason: "Draft PR has no deterministically resolvable linked issue (no closingIssuesReferences, no unique Closes/Fixes pattern in body); draft gate cannot verify a refinement artifact.",
+        reason: "Draft PR has no deterministically resolvable linked issue (no closingIssuesReferences, no unique Closes/Fixes/Resolves pattern in body); draft gate cannot verify a refinement artifact.",
         finding: "missing_refinement_artifact",
       };
     }
     return {
       status: "unknown",
       linkedIssue: null,
-      reason: "No deterministically resolvable linked issue (no closingIssuesReferences, no unique Closes/Fixes pattern in body).",
+      reason: "No deterministically resolvable linked issue (no closingIssuesReferences, no unique Closes/Fixes/Resolves pattern in body).",
     };
   }
   if (!prDraft && !prClosed && !prMerged) {

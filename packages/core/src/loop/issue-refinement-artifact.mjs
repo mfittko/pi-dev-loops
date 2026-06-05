@@ -98,8 +98,9 @@ function findSectionByPatterns(sections, patterns) {
 
 /**
  * Extract checklist bullet items (`- [ ]` and `- [x]`) from a section body.
- * Returns trimmed item text, preserving checkbox state, with at least one
- * non-empty item required for the section to count.
+ * Returns the trimmed item text for each matching line. The checkbox state
+ * (checked vs unchecked) is intentionally not preserved: callers only need
+ * the item text to satisfy the refinement-artifact contract.
  */
 export function extractChecklistItems(sectionBody) {
   if (typeof sectionBody !== "string" || sectionBody.length === 0) {
@@ -127,7 +128,7 @@ export function extractChecklistItems(sectionBody) {
  * Looks for explicit `tmp/refinement/<n>-plan.md` style paths and the
  * `## Refinement` / `## Plan` / `## Refinement doc` sections.
  */
-export function detectLinkedRefinementDoc(body, { issueNumber = null } = {}) {
+export function detectLinkedRefinementDoc(body) {
   if (typeof body !== "string" || body.length === 0) {
     return { found: false, path: null, reason: "empty-body" };
   }
@@ -194,7 +195,7 @@ export function detectIssueRefinementArtifact({ body = "", issueNumber = null } 
   const acItems = acceptanceSection ? extractChecklistItems(acceptanceSection.bodyLines.join("\n")) : [];
   const dodItems = dodSection ? extractChecklistItems(dodSection.bodyLines.join("\n")) : [];
 
-  const linkedDoc = detectLinkedRefinementDoc(body, { issueNumber });
+  const linkedDoc = detectLinkedRefinementDoc(body);
 
   if (acItems.length > 0) {
     return {
