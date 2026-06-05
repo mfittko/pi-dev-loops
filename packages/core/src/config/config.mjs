@@ -57,6 +57,7 @@ const AutonomyConfig = z.strictObject({
 
 const WorkflowConfig = z.strictObject({
   requireRetrospective: z.boolean(),
+  requireRetrospectiveGate: z.boolean().default(false),
   requireDraftFirst: z.boolean(),
   devModeDefault: z.boolean(),
 });
@@ -125,6 +126,7 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
   autonomy: Object.freeze({ stopAt: Object.freeze(["merge"]) }),
   workflow: Object.freeze({
     requireRetrospective: false,
+    requireRetrospectiveGate: false,
     requireDraftFirst: false,
     devModeDefault: false,
   }),
@@ -736,12 +738,16 @@ export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
  * requested key.
  *
  * @param {DevLoopConfig} config
- * @param {"requireRetrospective"|"requireDraftFirst"|"devModeDefault"} key
+ * @param {"requireRetrospective"|"requireRetrospectiveGate"|"requireDraftFirst"|"devModeDefault"} key
  * @returns {boolean}
  */
 export function resolveWorkflowConfig(config, key) {
   if (key === "requireRetrospective") {
     return config?.workflow?.requireRetrospective ?? DEFAULT_WORKFLOW_CONFIG.requireRetrospective;
+  }
+
+  if (key === "requireRetrospectiveGate") {
+    return config?.workflow?.requireRetrospectiveGate ?? DEFAULT_WORKFLOW_CONFIG.requireRetrospectiveGate;
   }
 
   if (key === "requireDraftFirst") {

@@ -179,6 +179,110 @@ function buildRoundExhaustionGateEvidenceNote({ copilotReviewRoundCount, maxCopi
   return `Copilot review rounds exhausted (${copilotReviewRoundCount}/${maxCopilotRounds}); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.`;
 }
 
+function evaluateRetrospectiveMergeApproval(checkpoint) {
+  if (!checkpoint || typeof checkpoint !== "object") {
+    return { approved: false, reason: "No retrospective checkpoint was found." };
+  }
+
+  const state = typeof checkpoint.state === "string" ? checkpoint.state.trim().toLowerCase() : "";
+  if (state !== "complete") {
+    return { approved: false, reason: `Retrospective is not complete (state: ${state || "missing"}).` };
+  }
+
+  // Read merge approval from behavioralReview (existing format) or top-level (future flat format).
+  const br = checkpoint.behavioralReview && typeof checkpoint.behavioralReview === "object"
+    ? checkpoint.behavioralReview
+    : null;
+  const mergeApproved = br !== null ? br.mergeApproved : checkpoint.mergeApproved;
+  if (mergeApproved !== true) {
+    return { approved: false, reason: "Retrospective does not explicitly approve merge (`mergeApproved: true` is required)." };
+  }
+
+  // followedWorkingAgreement: required boolean (existing checkpoint uses behavioralReview.followedWorkingAgreement).
+  const followedWorkingAgreement = br !== null
+    ? br.followedWorkingAgreement
+    : checkpoint.followedWorkingAgreement;
+  if (typeof followedWorkingAgreement !== "boolean") {
+    return { approved: false, reason: "Retrospective is missing `followedWorkingAgreement` (true/false)." };
+  }
+
+  // gateQuality: require gateQualityAcceptable=true AND non-empty notes (behavioralReview)
+  // or explicit gateQuality string (flat format). Avoid empty-notes bypass.
+  const gateQualityAcceptable = br !== null
+    ? br.gateQualityAcceptable
+    : checkpoint.gateQualityAcceptable;
+  if (typeof gateQualityAcceptable !== "boolean" || gateQualityAcceptable !== true) {
+    return { approved: false, reason: `Retrospective gate quality is not explicitly acceptable (gateQualityAcceptable: ${String(gateQualityAcceptable)}).` };
+  }
+  const gateQuality = typeof checkpoint.gateQuality === "string" && checkpoint.gateQuality.trim().length > 0
+    ? checkpoint.gateQuality
+    : null;
+  if (!gateQuality) {
+    return { approved: false, reason: "Retrospective is missing `gateQuality` details; provide a notes field with gate-quality assessment or an explicit gateQuality string." };
+  }
+
+  // unexpectedFindings: derive from behavioralReview.drifts if flat field absent. Empty array is valid (no findings).
+  const unexpectedFindings = typeof checkpoint.unexpectedFindings === "string" && checkpoint.unexpectedFindings.trim().length > 0
+    ? checkpoint.unexpectedFindings
+    : (br !== null && Array.isArray(br.drifts)
+      ? (br.drifts.length > 0 ? br.drifts.join("; ") : "none")
+      : null);
+  if (!unexpectedFindings) {
+    return { approved: false, reason: "Retrospective is missing `unexpectedFindings` details." };
+  }
+
+  // mergeRecommendation: require explicit mergeRecommendation field (string).
+  const mergeRecommendation = typeof checkpoint.mergeRecommendation === "string" && checkpoint.mergeRecommendation.trim().length > 0
+    ? checkpoint.mergeRecommendation
+    : null;
+  if (!mergeRecommendation) {
+    return { approved: false, reason: "Retrospective is missing explicit `mergeRecommendation`." };
+  }
+
+  return { approved: true, reason: null };
+}
+
+function buildRetrospectiveGatePendingResult({
+  input,
+  currentHeadSha,
+  draftGateAlreadySatisfied,
+  draftGate,
+  preApprovalGate,
+  mergeStateStatus,
+  conflictFiles,
+  reason,
+}) {
+  const allowedNextActions = [];
+  const forbiddenActions = [];
+  pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
+  pushUnique(forbiddenActions, [
+    PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
+    PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW,
+    PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW,
+    PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
+    PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
+    PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
+  ]);
+
+  return buildResult({
+    repo: input.repo ?? null,
+    pr: Number.isInteger(input.pr) ? input.pr : null,
+    currentHeadSha,
+    lifecycleState: "retrospective_gate_pending",
+    loopDisposition: DISPOSITION.BLOCKED,
+    gateBoundary: PR_CHECKPOINT.BLOCKED,
+    draftGateAlreadySatisfied,
+    draftGate,
+    preApprovalGate,
+    allowedNextActions,
+    forbiddenActions,
+    nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
+    reason,
+    mergeStateStatus,
+    conflictFiles,
+  });
+}
+
 function buildResult({
   draftGateAlreadySatisfied = false,
   repo = null,
@@ -239,6 +343,8 @@ export function evaluatePrGateCoordination(input = {}) {
   const copilotReviewRoundCount = normalizeNonNegativeInteger(input.copilotReviewRoundCount);
   const maxCopilotRounds = normalizePositiveInteger(input.maxCopilotRounds);
   const roundCapReached = maxCopilotRounds !== null && copilotReviewRoundCount >= maxCopilotRounds;
+  const requireRetrospectiveGate = input.requireRetrospectiveGate === true;
+  const retrospectiveCheckpoint = input.retrospectiveCheckpoint;
 
   const effectiveLifecycleState = lifecycleState;
 
@@ -448,6 +554,22 @@ export function evaluatePrGateCoordination(input = {}) {
     if (reviewMode === "internal_only") {
       // Explicitly internal-only PR: skip the external Copilot review cycle
       if (preApprovalGate.currentHeadClean) {
+        if (requireRetrospectiveGate) {
+          const retrospectiveGate = evaluateRetrospectiveMergeApproval(retrospectiveCheckpoint);
+          if (!retrospectiveGate.approved) {
+            return buildRetrospectiveGatePendingResult({
+              input,
+              currentHeadSha,
+              draftGateAlreadySatisfied,
+              draftGate,
+              preApprovalGate,
+              mergeStateStatus,
+              conflictFiles,
+              reason: `Merge remains blocked: retrospective_gate_pending. ${retrospectiveGate.reason}`,
+            });
+          }
+        }
+
         pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
         pushUnique(forbiddenActions, internalOnlyPostDraftForbidden);
         return buildResult({
@@ -655,6 +777,22 @@ export function evaluatePrGateCoordination(input = {}) {
     }
 
     if (preApprovalGate.currentHeadClean) {
+      if (requireRetrospectiveGate) {
+        const retrospectiveGate = evaluateRetrospectiveMergeApproval(retrospectiveCheckpoint);
+        if (!retrospectiveGate.approved) {
+          return buildRetrospectiveGatePendingResult({
+            input,
+            currentHeadSha,
+            draftGateAlreadySatisfied,
+            draftGate,
+            preApprovalGate,
+            mergeStateStatus,
+            conflictFiles,
+            reason: `Merge remains blocked: retrospective_gate_pending. ${retrospectiveGate.reason}`,
+          });
+        }
+      }
+
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
       pushUnique(forbiddenActions, [
         PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
@@ -758,6 +896,22 @@ export function evaluatePrGateCoordination(input = {}) {
       });
     }
     if (preApprovalGate.currentHeadClean) {
+      if (requireRetrospectiveGate) {
+        const retrospectiveGate = evaluateRetrospectiveMergeApproval(retrospectiveCheckpoint);
+        if (!retrospectiveGate.approved) {
+          return buildRetrospectiveGatePendingResult({
+            input,
+            currentHeadSha,
+            draftGateAlreadySatisfied,
+            draftGate,
+            preApprovalGate,
+            mergeStateStatus,
+            conflictFiles,
+            reason: `Merge remains blocked: retrospective_gate_pending. ${retrospectiveGate.reason}`,
+          });
+        }
+      }
+
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
       pushUnique(forbiddenActions, [
         PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,

@@ -87,6 +87,34 @@ Callers have two supported integration options:
 
 If the gate result is `needs_reconcile`, the caller must not proceed with the proposed routing. The `nextAction` field instructs the operator to complete or explicitly skip the retrospective.
 
+## Merge gate (`requireRetrospectiveGate`)
+
+When `workflow.requireRetrospectiveGate` is enabled in `.pi/dev-loop/settings.yaml`, merge-ready progression is blocked after `pre_approval_gate` unless the retrospective checkpoint:
+- has `state: "complete"`
+- includes a `behavioralReview` with `mergeApproved: true`, `followedWorkingAgreement` (boolean), `gateQualityAcceptable` (boolean), and `drifts` (array)
+- includes `mergeRecommendation` (non-empty string)
+
+The enforcement function is `evaluateRetrospectiveMergeApproval(checkpoint)` in `packages/core/src/loop/pr-gate-coordination.mjs`, called from `evaluatePrGateCoordination` at each merge-ready boundary.
+
+### Merge gate states
+
+| Retrospective state | Merge gate result |
+|---|---|
+| No checkpoint file | Blocked: `retrospective_gate_pending` |
+| `state: "complete"` with `mergeApproved: true` and valid fields | Allowed: proceeds to `FINAL_APPROVAL_READY` |
+| `state: "complete"` without `mergeApproved: true` | Blocked |
+| Missing required fields (`followedWorkingAgreement`, `gateQualityAcceptable`, `drifts`, `mergeRecommendation`) | Blocked |
+| `state: "skipped"` or `state: "required"` | Blocked |
+
+### Configuration
+
+```yaml
+# .pi/dev-loop/settings.yaml
+workflow:
+  requireRetrospective: true        # startup/resume gate
+  requireRetrospectiveGate: true    # merge gate after pre_approval_gate
+```
+
 ## Durable artifact format
 
 The checkpoint file is written by `.pi/extensions/dev-loop-behavioral-review.ts` when it observes the standard async `dev-loop` completion message. The extension trigger is message-based; qualifying-path policy is enforced by the checkpoint gate and repo contract, not by deep route inspection in the extension itself:
