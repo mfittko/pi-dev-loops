@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -807,6 +807,98 @@ test("pre-approval-gate-detector overrides to pre_approval_gate_needed when neve
     assert.equal(parsed.gateBoundary, "pre_approval_gate_needed");
     assert.equal(parsed.nextAction, "run_pre_approval_gate");
     assert.match(parsed.reason, /contract-complete pre_approval_gate marker/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-pr-gate-coordination-state blocks merge readiness when retrospective gate is enabled without approved retrospective", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-retro-"));
+
+  try {
+    await mkdir(path.join(tempDir, ".pi", "dev-loop"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, ".pi", "dev-loop", "settings.yaml"),
+      [
+        "version: 1",
+        "workflow:",
+        "  requireRetrospectiveGate: true",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "271", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 271,
+          state: "OPEN",
+          isDraft: false,
+          headRefOid: "abc9876543210",
+          mergeStateStatus: "CLEAN",
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [
+            {
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              commit: { oid: "abc9876543210" },
+              submittedAt: "2026-05-31T20:00:00Z",
+            },
+          ],
+        }),
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/271/requested_reviewers"],
+        stdout: jsonLine({ users: [], teams: [] }),
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=271"],
+        stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }),
+      },
+      {
+        assertArgs: ["pr", "view", "271", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: jsonLine({ headRefOid: "abc9876543210" }),
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/271/comments?per_page=100"],
+        stdout: jsonLine([[
+          {
+            id: 71,
+            body: [
+              "Gate review: draft_gate",
+              "Reviewed head SHA: abc9876543210",
+              "Verdict: clean",
+              "Findings summary: draft gate clean.",
+              "Next action: mark ready for review",
+            ].join("\n"),
+            html_url: "https://example.test/comment/71",
+            updated_at: "2026-05-31T20:00:00Z",
+          },
+          {
+            id: 72,
+            body: [
+              "Gate review: pre_approval_gate",
+              "Reviewed head SHA: abc9876543210",
+              "Verdict: clean",
+              "Findings summary: pre-approval gate clean.",
+              "Next action: await final human approval",
+            ].join("\n"),
+            html_url: "https://example.test/comment/72",
+            updated_at: "2026-05-31T20:01:00Z",
+          },
+        ]]),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "271"], { env, cwd: tempDir });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.lifecycleState, "retrospective_gate_pending");
+    assert.equal(parsed.gateBoundary, "blocked");
+    assert.equal(parsed.nextAction, "report_blocked");
+    assert.match(parsed.reason, /retrospective_gate_pending/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

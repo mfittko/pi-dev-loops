@@ -39,6 +39,7 @@ describe("schema validation", () => {
       autonomy: { stopAt: ["draft-pr", "merge"] },
       workflow: {
         requireRetrospective: true,
+        requireRetrospectiveGate: false,
         requireDraftFirst: false,
         devModeDefault: true,
       },
@@ -117,12 +118,14 @@ describe("schema validation", () => {
       version: 1,
       workflow: {
         requireRetrospective: true,
+        requireRetrospectiveGate: false,
         requireDraftFirst: false,
         devModeDefault: true,
       },
     });
     assert.ok(result.success);
     assert.equal(result.data.workflow.requireRetrospective, true);
+    assert.equal(result.data.workflow.requireRetrospectiveGate, false);
     assert.equal(result.data.workflow.requireDraftFirst, false);
     assert.equal(result.data.workflow.devModeDefault, true);
   });
@@ -132,6 +135,7 @@ describe("schema validation", () => {
       version: 1,
       workflow: {
         requireRetrospective: true,
+        requireRetrospectiveGate: false,
         requireDraftFirst: false,
         devModeDefault: true,
         unknownKey: true,
@@ -313,9 +317,10 @@ describe("BUILT_IN_DEFAULTS", () => {
     assert.deepEqual(BUILT_IN_DEFAULTS.autonomy.stopAt, ["merge"]);
   });
 
-  test("workflow defaults exist and all three values are false", () => {
+  test("workflow defaults exist and all values are false by default", () => {
     assert.deepEqual(BUILT_IN_DEFAULTS.workflow, {
       requireRetrospective: false,
+      requireRetrospectiveGate: false,
       requireDraftFirst: false,
       devModeDefault: false,
     });
@@ -512,6 +517,7 @@ describe("loader — graceful degradation", () => {
         "version: 1",
         "workflow:",
         "  requireRetrospective: true",
+        "  requireRetrospectiveGate: false",
         "  requireDraftFirst: false",
         "  devModeDefault: false",
       ].join("\n"));
@@ -525,6 +531,7 @@ describe("loader — graceful degradation", () => {
       assert.deepEqual(result.errors, []);
       assert.deepEqual(result.config.workflow, {
         requireRetrospective: true,
+        requireRetrospectiveGate: false,
         requireDraftFirst: true,
         devModeDefault: false,
       });
@@ -994,6 +1001,7 @@ describe("loader — precedence", () => {
           version: 1,
           workflow: {
             requireRetrospective: false,
+            requireRetrospectiveGate: false,
             requireDraftFirst: false,
             devModeDefault: true,
           },
@@ -1013,6 +1021,7 @@ describe("loader — precedence", () => {
       assert.deepEqual(result.errors, []);
       assert.deepEqual(result.config.workflow, {
         requireRetrospective: true,
+        requireRetrospectiveGate: false,
         requireDraftFirst: false,
         devModeDefault: true,
       });
@@ -1688,6 +1697,7 @@ describe("role resolution", () => {
 
     test("resolveWorkflowConfig returns built-in defaults when workflow family is absent", () => {
       assert.equal(resolveWorkflowConfig({ version: 1 }, "requireRetrospective"), false);
+      assert.equal(resolveWorkflowConfig({ version: 1 }, "requireRetrospectiveGate"), false);
       assert.equal(resolveWorkflowConfig({ version: 1 }, "requireDraftFirst"), false);
       assert.equal(resolveWorkflowConfig({ version: 1 }, "devModeDefault"), false);
     });
@@ -1697,11 +1707,13 @@ describe("role resolution", () => {
         version: 1,
         workflow: {
           requireRetrospective: true,
+          requireRetrospectiveGate: true,
           requireDraftFirst: true,
           devModeDefault: false,
         },
       };
       assert.equal(resolveWorkflowConfig(config, "requireRetrospective"), true);
+      assert.equal(resolveWorkflowConfig(config, "requireRetrospectiveGate"), true);
       assert.equal(resolveWorkflowConfig(config, "requireDraftFirst"), true);
       assert.equal(resolveWorkflowConfig(config, "devModeDefault"), false);
     });
@@ -1709,6 +1721,7 @@ describe("role resolution", () => {
     test("resolveWorkflowConfig falls through to built-in false when an individual key is absent", () => {
       const config = { version: 1, workflow: { requireDraftFirst: true } };
       assert.equal(resolveWorkflowConfig(config, "requireRetrospective"), false);
+      assert.equal(resolveWorkflowConfig(config, "requireRetrospectiveGate"), false);
       assert.equal(resolveWorkflowConfig(config, "requireDraftFirst"), true);
       assert.equal(resolveWorkflowConfig(config, "devModeDefault"), false);
     });

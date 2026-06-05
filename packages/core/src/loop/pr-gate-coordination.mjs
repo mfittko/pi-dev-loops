@@ -179,6 +179,80 @@ function buildRoundExhaustionGateEvidenceNote({ copilotReviewRoundCount, maxCopi
   return `Copilot review rounds exhausted (${copilotReviewRoundCount}/${maxCopilotRounds}); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.`;
 }
 
+function evaluateRetrospectiveMergeApproval(checkpoint) {
+  if (!checkpoint || typeof checkpoint !== "object") {
+    return { approved: false, reason: "No retrospective checkpoint was found." };
+  }
+
+  const state = typeof checkpoint.state === "string" ? checkpoint.state.trim().toLowerCase() : "";
+  if (state !== "complete") {
+    return { approved: false, reason: `Retrospective is not complete (state: ${state || "missing"}).` };
+  }
+
+  if (checkpoint.mergeApproved !== true) {
+    return { approved: false, reason: "Retrospective does not explicitly approve merge (`mergeApproved: true` is required)." };
+  }
+
+  if (typeof checkpoint.followedWorkingAgreement !== "boolean") {
+    return { approved: false, reason: "Retrospective is missing `followedWorkingAgreement` (true/false)." };
+  }
+
+  if (typeof checkpoint.gateQuality !== "string" || checkpoint.gateQuality.trim().length === 0) {
+    return { approved: false, reason: "Retrospective is missing `gateQuality` details." };
+  }
+
+  if (typeof checkpoint.unexpectedFindings !== "string" || checkpoint.unexpectedFindings.trim().length === 0) {
+    return { approved: false, reason: "Retrospective is missing `unexpectedFindings` details." };
+  }
+
+  if (typeof checkpoint.mergeRecommendation !== "string" || checkpoint.mergeRecommendation.trim().length === 0) {
+    return { approved: false, reason: "Retrospective is missing `mergeRecommendation` details." };
+  }
+
+  return { approved: true, reason: null };
+}
+
+function buildRetrospectiveGatePendingResult({
+  input,
+  currentHeadSha,
+  draftGateAlreadySatisfied,
+  draftGate,
+  preApprovalGate,
+  mergeStateStatus,
+  conflictFiles,
+  reason,
+}) {
+  const allowedNextActions = [];
+  const forbiddenActions = [];
+  pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
+  pushUnique(forbiddenActions, [
+    PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
+    PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW,
+    PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW,
+    PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
+    PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
+    PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
+  ]);
+
+  return buildResult({
+    repo: input.repo ?? null,
+    pr: Number.isInteger(input.pr) ? input.pr : null,
+    currentHeadSha,
+    lifecycleState: "retrospective_gate_pending",
+    loopDisposition: DISPOSITION.BLOCKED,
+    gateBoundary: PR_CHECKPOINT.BLOCKED,
+    draftGateAlreadySatisfied,
+    draftGate,
+    preApprovalGate,
+    allowedNextActions,
+    forbiddenActions,
+    nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
+    reason,
+    mergeStateStatus,
+    conflictFiles,
+  });
+}
+
 function buildResult({
   draftGateAlreadySatisfied = false,
   repo = null,
@@ -239,6 +313,8 @@ export function evaluatePrGateCoordination(input = {}) {
   const copilotReviewRoundCount = normalizeNonNegativeInteger(input.copilotReviewRoundCount);
   const maxCopilotRounds = normalizePositiveInteger(input.maxCopilotRounds);
   const roundCapReached = maxCopilotRounds !== null && copilotReviewRoundCount >= maxCopilotRounds;
+  const requireRetrospectiveGate = input.requireRetrospectiveGate === true;
+  const retrospectiveCheckpoint = input.retrospectiveCheckpoint;
 
   const effectiveLifecycleState = lifecycleState;
 
@@ -448,6 +524,22 @@ export function evaluatePrGateCoordination(input = {}) {
     if (reviewMode === "internal_only") {
       // Explicitly internal-only PR: skip the external Copilot review cycle
       if (preApprovalGate.currentHeadClean) {
+        if (requireRetrospectiveGate) {
+          const retrospectiveGate = evaluateRetrospectiveMergeApproval(retrospectiveCheckpoint);
+          if (!retrospectiveGate.approved) {
+            return buildRetrospectiveGatePendingResult({
+              input,
+              currentHeadSha,
+              draftGateAlreadySatisfied,
+              draftGate,
+              preApprovalGate,
+              mergeStateStatus,
+              conflictFiles,
+              reason: `Merge remains blocked: retrospective_gate_pending. ${retrospectiveGate.reason}`,
+            });
+          }
+        }
+
         pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
         pushUnique(forbiddenActions, internalOnlyPostDraftForbidden);
         return buildResult({
@@ -655,6 +747,22 @@ export function evaluatePrGateCoordination(input = {}) {
     }
 
     if (preApprovalGate.currentHeadClean) {
+      if (requireRetrospectiveGate) {
+        const retrospectiveGate = evaluateRetrospectiveMergeApproval(retrospectiveCheckpoint);
+        if (!retrospectiveGate.approved) {
+          return buildRetrospectiveGatePendingResult({
+            input,
+            currentHeadSha,
+            draftGateAlreadySatisfied,
+            draftGate,
+            preApprovalGate,
+            mergeStateStatus,
+            conflictFiles,
+            reason: `Merge remains blocked: retrospective_gate_pending. ${retrospectiveGate.reason}`,
+          });
+        }
+      }
+
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
       pushUnique(forbiddenActions, [
         PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
@@ -758,6 +866,22 @@ export function evaluatePrGateCoordination(input = {}) {
       });
     }
     if (preApprovalGate.currentHeadClean) {
+      if (requireRetrospectiveGate) {
+        const retrospectiveGate = evaluateRetrospectiveMergeApproval(retrospectiveCheckpoint);
+        if (!retrospectiveGate.approved) {
+          return buildRetrospectiveGatePendingResult({
+            input,
+            currentHeadSha,
+            draftGateAlreadySatisfied,
+            draftGate,
+            preApprovalGate,
+            mergeStateStatus,
+            conflictFiles,
+            reason: `Merge remains blocked: retrospective_gate_pending. ${retrospectiveGate.reason}`,
+          });
+        }
+      }
+
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
       pushUnique(forbiddenActions, [
         PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,

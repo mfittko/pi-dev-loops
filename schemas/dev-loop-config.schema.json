@@ -107,6 +107,10 @@
         "requireRetrospective": {
           "type": "boolean"
         },
+        "requireRetrospectiveGate": {
+          "type": "boolean",
+          "default": false
+        },
         "requireDraftFirst": {
           "type": "boolean"
         },

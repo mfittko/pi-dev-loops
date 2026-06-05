@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import {
   buildParseError,
   formatCliError,
@@ -9,7 +11,7 @@ import {
   summarizeCopilotReviews,
 } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
-import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
+import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig, resolveWorkflowConfig } from "@pi-dev-loops/core/config";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
 import { evaluatePrGateCoordination, PR_CHECKPOINT, PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
@@ -232,6 +234,18 @@ async function fetchLocalConflictFiles({ env = process.env, gitCommand = "git" }
   return parseGitStatusConflictFiles(result.stdout);
 }
 
+async function loadRetrospectiveCheckpoint(repoRoot) {
+  const checkpointPath = path.join(repoRoot, ".pi", "dev-loop-retrospective-checkpoint.json");
+
+  try {
+    const checkpointText = await readFile(checkpointPath, "utf8");
+    const checkpoint = parseJsonText(checkpointText, { label: "retrospective checkpoint" });
+    return checkpoint && typeof checkpoint === "object" ? checkpoint : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 export async function loadPrGateCoordinationContext(options, runtime = {}) {
   const prData = await fetchPrFacts(options, runtime);
 
@@ -318,11 +332,14 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
 
 export async function detectPrGateCoordinationState(options, runtime = {}) {
   const context = await loadPrGateCoordinationContext(options, runtime);
-  const configLoadResult = await loadDevLoopConfig({ repoRoot: runtime.repoRoot ?? process.cwd() });
+  const repoRoot = runtime.repoRoot ?? process.cwd();
+  const configLoadResult = await loadDevLoopConfig({ repoRoot });
   const hasConfigErrors = Array.isArray(configLoadResult.errors) && configLoadResult.errors.length > 0;
   const config = hasConfigErrors ? {} : (configLoadResult.config ?? {});
   const draftGateConfig = resolveGateConfig(config, "draft");
   const maxCopilotRounds = resolveRefinementConfig(config, "maxCopilotRounds");
+  const requireRetrospectiveGate = resolveWorkflowConfig(config, "requireRetrospectiveGate");
+  const retrospectiveCheckpoint = await loadRetrospectiveCheckpoint(repoRoot);
   const result = evaluatePrGateCoordination({
     repo: context.repo,
     pr: context.pr,
@@ -339,6 +356,8 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     maxCopilotRounds,
     sameHeadCleanConverged: context.interpretation.sameHeadCleanConverged,
     draftGateRequireCi: draftGateConfig.requireCi,
+    requireRetrospectiveGate,
+    retrospectiveCheckpoint,
     reviewMode: options.reviewMode ?? null,
     draftGate: context.gateEvidence.draftGate,
     draftGateMarker: context.gateEvidence.draftGateMarker,

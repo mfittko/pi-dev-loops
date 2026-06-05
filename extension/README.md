@@ -142,6 +142,7 @@ autonomy:
 
 workflow:
   requireRetrospective: true
+  requireRetrospectiveGate: true
   requireDraftFirst: true
   devModeDefault: true
 ```
@@ -175,11 +176,13 @@ The optional `workflow` family carries repo-level workflow posture without hardc
 ```yaml
 workflow:
   requireRetrospective: false
+  requireRetrospectiveGate: false
   requireDraftFirst: false
   devModeDefault: false
 ```
 
 - `requireRetrospective` — when enabled by repo settings, the next qualifying GitHub-first async start/resume must honor the retrospective checkpoint gate
+- `requireRetrospectiveGate` — when enabled by repo settings, merge readiness after `pre_approval_gate` requires a completed retrospective with explicit `mergeApproved: true`
 - `requireDraftFirst` — marks draft-first PR creation as required workflow policy for repos that opt in
 - `devModeDefault` — declares that local implementation should default to formal dev mode; this is config-only for now and establishes source-of-truth config plus docs for future runtime consumers
 

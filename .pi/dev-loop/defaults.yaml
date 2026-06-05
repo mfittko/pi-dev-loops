@@ -71,6 +71,7 @@ autonomy:
 # Workflow defaults: optional enforcement and local-mode posture
 workflow:
   requireRetrospective: false
+  requireRetrospectiveGate: false
   requireDraftFirst: false
   devModeDefault: false
 
