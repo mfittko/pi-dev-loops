@@ -372,6 +372,8 @@ async function main() {
         pr: result.pr,
         currentHeadSha: result.currentHeadSha,
         preMergeGateCheck,
+        staleRunnerCheck,
+        staleRunner: result.staleRunner,
       })}\n`);
       process.exitCode = 1;
       return;

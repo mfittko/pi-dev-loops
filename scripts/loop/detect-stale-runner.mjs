@@ -7,7 +7,6 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
   detectStaleRunner,
   STALE_RUNNER_ERROR,
-  resolveStaleRunnerMaxAgeMs,
 } from "./_stale-runner-detection.mjs";
 
 const USAGE = `Usage: detect-stale-runner.mjs --repo <owner/name> --pr <number>
@@ -164,8 +163,30 @@ export async function runDetectStaleRunner(options, { env = process.env, cwd = p
   const ownershipLost = explicitRunId !== null
     && detection.activeRun !== null
     && detection.activeRun.runId !== explicitRunId;
+  // Also fail closed when a run id is supplied but no active owner record exists
+  const ownershipMissing = explicitRunId !== null && detection.activeRun === null;
 
   const staleRunnerCheck = buildStaleRunnerCheck(detection);
+
+  if (ownershipMissing) {
+    return {
+      ok: false,
+      error: "ownership_lost",
+      repo: options.repo.trim().toLowerCase(),
+      pr: options.pr,
+      status: "ownership_lost",
+      activeRun: null,
+      runId: explicitRunId,
+      exitSignals: [],
+      filePath: detection.filePath,
+      maxAgeMs: detection.maxAgeMs,
+      message: `Stale-runner check: run ${explicitRunId} is no longer the active owner of ${options.repo}#${options.pr}; no active owner record exists.`,
+      staleRunnerCheck: {
+        ok: false,
+        failures: [`ownership_lost: no active owner record exists; run ${explicitRunId} is not the owner`],
+      },
+    };
+  }
 
   if (ownershipLost) {
     return {
