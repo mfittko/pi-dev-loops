@@ -239,7 +239,9 @@ function deriveStopRules(settings, strategy) {
 // requiredReads derivation
 // ---------------------------------------------------------------------------
 
-function deriveRequiredReads(bundle) {
+function deriveRequiredReads(bundle, resolverOutput) {
+  const topReads = resolverOutput?.requiredReads;
+  if (Array.isArray(topReads) && topReads.length > 0) return [...topReads];
   const reads = bundle?.requiredReads;
   return Array.isArray(reads) ? [...reads] : [];
 }
@@ -309,24 +311,29 @@ function deriveCwd(bundle, options = {}) {
   return null;
 }
 
+function flattenSlugSegment(s) {
+  if (typeof s !== "string") return "";
+  return s.replace(/[/\\]/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
+}
+
 function buildWorktreeSlug(artifact, kind) {
   if (kind === DEV_LOOP_TARGET_KIND.ISSUE && Number.isInteger(artifact.issue) && artifact.issue > 0) {
     const branch = normalizeString(artifact.branch);
-    return branch ? `issue-${artifact.issue}-${branch}` : `issue-${artifact.issue}`;
+    return branch ? `issue-${artifact.issue}-${flattenSlugSegment(branch)}` : `issue-${artifact.issue}`;
   }
   if (kind === DEV_LOOP_TARGET_KIND.PR && Number.isInteger(artifact.pr) && artifact.pr > 0) {
     const branch = normalizeString(artifact.branch);
-    return branch ? `pr-${artifact.pr}-${branch}` : `pr-${artifact.pr}`;
+    return branch ? `pr-${artifact.pr}-${flattenSlugSegment(branch)}` : `pr-${artifact.pr}`;
   }
   if (kind === DEV_LOOP_TARGET_KIND.LOCAL_BRANCH) {
     const branch = normalizeString(artifact.branch);
-    return branch || null;
+    return branch ? flattenSlugSegment(branch) : null;
   }
   if (kind === DEV_LOOP_TARGET_KIND.LOCAL_PHASE) {
     const phase = normalizeString(artifact.phase);
     const issue = Number.isInteger(artifact.issue) && artifact.issue > 0 ? artifact.issue : null;
-    if (phase && issue) return `phase-${issue}-${phase}`;
-    if (phase) return `phase-${phase}`;
+    if (phase && issue) return `phase-${issue}-${flattenSlugSegment(phase)}`;
+    if (phase) return `phase-${flattenSlugSegment(phase)}`;
     if (issue) return `issue-${issue}`;
     return null;
   }
@@ -400,7 +407,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
   const subGate = resolveSubGate(strategy, gs);
 
   const target = deriveTarget(bundle, repo);
-  const requiredReads = deriveRequiredReads(bundle);
+  const requiredReads = deriveRequiredReads(bundle, resolverOutput);
   const stopRules = deriveStopRules(settings, strategy);
   const gateConfig = deriveGateConfig(settings, subGate);
   const derivedCwd = deriveCwd(bundle, { repoRoot: options.repoRoot, worktreeCwd: options.worktreeCwd });
@@ -470,4 +477,5 @@ export {
   resolveSubGate,
   lookupAcceptanceTemplate,
   buildWorktreeSlug,
+  flattenSlugSegment,
 };

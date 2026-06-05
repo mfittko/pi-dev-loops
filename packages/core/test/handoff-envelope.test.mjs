@@ -16,6 +16,7 @@ import {
   resolveSubGate,
   lookupAcceptanceTemplate,
   buildWorktreeSlug,
+  flattenSlugSegment,
 } from "../src/loop/handoff-envelope.mjs";
 
 import {
@@ -516,6 +517,35 @@ test("required-reads: empty array when resolver has no reads", () => {
   assert.deepEqual(env.requiredReads, []);
 });
 
+test("required-reads: reads from resolverOutput top-level when wrapper shape present", () => {
+  const raw = {
+    requiredReads: ["from-wrapper.md"],
+    bundle: {
+      selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP,
+      executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+      nextAction: "Do stuff.",
+      activeArtifact: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42 },
+      requiredReads: ["from-bundle.md"],
+    },
+  };
+  const env = buildDevLoopHandoffEnvelope(raw, defaultSettings, {}, defaultOptions);
+  assert.deepEqual(env.requiredReads, ["from-wrapper.md"]);
+});
+
+test("required-reads: falls back to bundle.requiredReads when no top-level reads", () => {
+  const raw = {
+    bundle: {
+      selectedStrategy: INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP,
+      executionMode: DEV_LOOP_EXECUTION_MODE.BOUNDED_HANDOFF,
+      nextAction: "Do stuff.",
+      activeArtifact: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 42 },
+      requiredReads: ["from-bundle.md"],
+    },
+  };
+  const env = buildDevLoopHandoffEnvelope(raw, defaultSettings, {}, defaultOptions);
+  assert.deepEqual(env.requiredReads, ["from-bundle.md"]);
+});
+
 
 // ===========================================================================
 // 8. PR target
@@ -836,8 +866,16 @@ test("unit: buildWorktreeSlug for PR", () => {
 test("unit: buildWorktreeSlug for branch", () => {
   assert.equal(
     buildWorktreeSlug({ branch: "feature/x" }, DEV_LOOP_TARGET_KIND.LOCAL_BRANCH),
-    "feature/x"
+    "feature-x"
   );
+});
+
+test("unit: flattenSlugSegment replaces path separators", () => {
+  assert.strictEqual(flattenSlugSegment("feature/x"), "feature-x");
+  assert.strictEqual(flattenSlugSegment("a" + String.fromCharCode(92) + "b"), "a-b");
+  assert.strictEqual(flattenSlugSegment("simple"), "simple");
+  assert.strictEqual(flattenSlugSegment(""), "");
+  assert.strictEqual(flattenSlugSegment(null), "");
 });
 
 // ===========================================================================
