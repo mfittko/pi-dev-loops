@@ -857,11 +857,16 @@ test("templates: no duplicate registrations", () => {
 });
 
 // ===========================================================================
-// Count verification
+// Invariant: strategy-template coverage
 // ===========================================================================
 
-test("count: total tests should be at least 28", () => {
-  // This test is self-verifying — we've written 48 individual test() calls above.
-  // The node:test runner counts automatically.
-  assert.ok(true);
+test("invariant: every strategy with default stop rules has an acceptance template", () => {
+  const strategies = Object.keys(STRATEGY_DEFAULT_STOP_RULES);
+  for (const s of strategies) {
+    const key = acceptanceKey(s, "default");
+    assert.ok(
+      ACCEPTANCE_TEMPLATES.has(key) || ACCEPTANCE_TEMPLATES.has(acceptanceKey(s, "draft")),
+      `Strategy "${s}" missing acceptance template`,
+    );
+  }
 });

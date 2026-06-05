@@ -18,6 +18,7 @@ import {
   DEV_LOOP_TARGET_KIND,
   INTERNAL_DEV_LOOP_STRATEGY,
 } from "./public-dev-loop-routing-contract.mjs";
+import { normalizeRepoSlug } from "../github/repo-slug.mjs";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -149,9 +150,11 @@ for (const s of [
 // ---------------------------------------------------------------------------
 
 function normalizeRepo(repo) {
-  if (typeof repo !== "string") return null;
-  const trimmed = repo.trim();
-  return REPO_SLUG_RE.test(trimmed) ? trimmed : null;
+  try {
+    return normalizeRepoSlug(repo);
+  } catch {
+    return null;
+  }
 }
 
 function normalizeTargetKind(kind) {
@@ -161,7 +164,7 @@ function normalizeTargetKind(kind) {
 }
 
 function normalizePositiveInt(v) {
-  if (!Number.isFinite(v) || v < 0) return null;
+  if (!Number.isInteger(v) || v < 0) return null;
   return v;
 }
 
@@ -202,20 +205,20 @@ function deriveTarget(bundle, repo) {
       throw new Error("handoff-envelope: issue target must include a valid positive issue number");
     }
     target.issue = issue;
-    if (artifact.pr != null) target.pr = artifact.pr;
-    if (artifact.linkedPr != null) target.linkedPr = artifact.linkedPr;
+    if (Number.isInteger(artifact.pr) && artifact.pr > 0) target.pr = artifact.pr;
+    if (Number.isInteger(artifact.linkedPr) && artifact.linkedPr > 0) target.linkedPr = artifact.linkedPr;
   } else if (kind === DEV_LOOP_TARGET_KIND.PR) {
     const pr = artifact.pr;
     if (!Number.isInteger(pr) || pr < 1) {
       throw new Error("handoff-envelope: PR target must include a valid positive PR number");
     }
     target.pr = pr;
-    if (artifact.issue != null) target.issue = artifact.issue;
+    if (Number.isInteger(artifact.issue) && artifact.issue > 0) target.issue = artifact.issue;
   } else if (kind === DEV_LOOP_TARGET_KIND.LOCAL_BRANCH) {
     const branch = normalizeString(artifact.branch);
     if (!branch) throw new Error("handoff-envelope: local_branch target must include a non-empty branch name");
     target.branch = branch;
-    if (artifact.issue != null) target.issue = artifact.issue;
+    if (Number.isInteger(artifact.issue) && artifact.issue > 0) target.issue = artifact.issue;
   } else if (kind === DEV_LOOP_TARGET_KIND.LOCAL_PHASE) {
     const phase = normalizeString(artifact.phase);
     if (!phase && artifact.issue == null) {
@@ -405,7 +408,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
     derivedAt: new Date().toISOString(),
 
     target,
-    currentGate: gs.currentSubGate ?? (strategy === INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP ? "draft" : subGate),
+    currentGate: subGate,
     currentHeadSha: gs.currentHeadSha,
     ciStatus: gs.ciStatus,
     unresolvedThreadCount: gs.unresolvedThreadCount,
