@@ -10,11 +10,18 @@ import { detectPrGateCoordinationState, parseGitStatusConflictFiles } from "../.
 
 const scriptPath = path.resolve("scripts/loop/detect-pr-gate-coordination-state.mjs");
 
-const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, {
+  ...options,
+  env: {
+    ...process.env,
+    ...(options.env ?? {}),
+    PI_SUBAGENT_RUN_ID: options.env?.PI_SUBAGENT_RUN_ID ?? "",
+  },
+});
 
 async function writeGhStub(tempDir, entries) {
   const { env } = await writeGhStubHelper(tempDir, entries);
-  return env;
+  return { ...env, PI_SUBAGENT_RUN_ID: "" };
 }
 
 async function writeGitStub(tempDir, { stdout = "", stderr = "", exitCode = 0, assertArgs = [] } = {}) {

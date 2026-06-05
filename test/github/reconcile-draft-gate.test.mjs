@@ -12,11 +12,18 @@ import {
 
 const scriptPath = path.resolve("scripts/github/reconcile-draft-gate.mjs");
 
-const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, {
+  ...options,
+  env: {
+    ...process.env,
+    ...(options.env ?? {}),
+    PI_SUBAGENT_RUN_ID: options.env?.PI_SUBAGENT_RUN_ID ?? "",
+  },
+});
 
 async function writeGhStub(tempDir, entries) {
   const { env } = await writeGhStubHelper(tempDir, entries, { repeatLastOnOverflow: true });
-  return env;
+  return { ...env, PI_SUBAGENT_RUN_ID: "" };
 }
 
 async function readGhCallCount(tempDir) {

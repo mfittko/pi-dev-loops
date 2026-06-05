@@ -11,6 +11,7 @@ import {
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { ensureAsyncRunnerOwnership } from "../loop/_pr-runner-coordination.mjs";
 
 const USAGE = `Usage: detect-checkpoint-evidence.mjs --repo <owner/name> --pr <number>
 
@@ -253,6 +254,20 @@ export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null) {
 
 
 export async function detectCheckpointEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
+  const runnerOwnership = await ensureAsyncRunnerOwnership({
+    repo: options.repo,
+    pr: options.pr,
+    env,
+    cwd: process.cwd(),
+    claimIfMissing: false,
+    requireExisting: true,
+  });
+  if (!runnerOwnership.ok) {
+    const error = new Error(runnerOwnership.message);
+    error.runnerOwnership = runnerOwnership;
+    throw error;
+  }
+
   const prPayload = await runGhJson(["pr", "view", String(options.pr), "--repo", options.repo, "--json", "headRefOid"], { env, ghCommand });
   const commentsPayload = normalizeIssueCommentsPayload(await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/issues/${options.pr}/comments?per_page=100`], { env, ghCommand }));
 
@@ -277,6 +292,7 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
     draftGateMarker: normalizeGateMarkerSummary(markerSummary.draft_gate),
     preApprovalGateMarker: normalizeGateMarkerSummary(markerSummary.pre_approval_gate),
     draftGateSatisfied: commentSummary.draft_gate?.verdict === "clean" && typeof commentSummary.draft_gate?.headSha === "string",
+    ...(runnerOwnership.status !== "skipped_no_async_run_id" ? { runnerOwnership } : {}),
   };
 }
 
@@ -327,6 +343,11 @@ async function main() {
 
     process.stdout.write(`${JSON.stringify(output)}\n`);
   } catch (error) {
+    if (error && typeof error === "object" && "runnerOwnership" in error && error.runnerOwnership) {
+      process.stderr.write(`${JSON.stringify(error.runnerOwnership)}\n`);
+      process.exitCode = 1;
+      return;
+    }
     process.stderr.write(`${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`);
     process.exitCode = 1;
   }

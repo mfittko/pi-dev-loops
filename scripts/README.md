@@ -474,12 +474,31 @@ Contract:
 - enters watch only when request state is confirmed (`requested` or `already-requested`) and emits exact `watchArgs` + `watchTimeoutPolicy`
 - watch refresh (`--watch-status`) is observational-only; rely on refreshed `loopDisposition` + `terminal` to decide whether to continue or stop
 - explicit stop/blocked routing is machine-readable via `action: "stop"` plus `requestWatchContract.stopState`
+- when `PI_SUBAGENT_RUN_ID` is present, the helper enforces one-runner-per-PR ownership and returns `runnerOwnership` details when a conflicting or displaced run must stop
 
 Success output shape:
 - `{ "ok": true, "action": "watch"|"fix"|"stop", "state": "...", "allowedTransitions": [...], "nextAction": "...", "snapshot": {...}, "reviewRequestStatus"?: "...", "watchStatus"?: "...", "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false, "loopDisposition": "...", "terminal": true|false, "requestWatchContract": { "action": "...", "nextAction": "...", "requestStatus": "requested"|"already-requested"|"unavailable"|"failed"|"none", "routingState": "copilot_request_confirmed_waiting"|"ready_state_needs_copilot_request"|"draft_reset_requires_ready_state_reentry"|"non_ready_state", "watchEntryConfirmed": true|false, "watchArgs": { ... }|null, "stopState"?: "unavailable"|"blocked"|"draft_requires_ready_state_reentry"|"no_automatic_next_step" }, "watchTimeoutPolicy"?: { "classification": "external_healthy_wait", "minimumTimeoutMs": 1800000, "defaultTimeoutMs": 1800000 }, "watchArgs"?: { ... } }`
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
+
+### `scripts/loop/pr-runner-coordination.mjs`
+
+Durable one-runner-per-PR coordination helper.
+
+Subcommands:
+- `status` — inspect current ownership record for one PR
+- `claim` — claim ownership when no active runner exists; otherwise fail closed with machine-readable conflict details
+- `takeover` — explicit replacement path that records prior/new run ids
+- `assert` — verify the current run still owns the PR; `--require-existing` fails closed when async pre-merge ownership proof is missing
+- `release` — clear ownership when the active run is done
+
+State path:
+- `.pi/runner-coordination/<owner>/<repo>/pr-<number>.json`
+
+Integration notes:
+- `copilot-pr-handoff.mjs` uses this surface for async run ownership checks
+- `detect-checkpoint-evidence.mjs` uses strict ownership assertion before async merge-time gate evaluation
 
 ### `scripts/loop/run-watch-cycle.mjs`
 
@@ -678,6 +697,7 @@ Fetches the live PR head SHA plus visible PR issue comments, then summarizes the
 latest valid `draft_gate` and `pre_approval_gate` checkpoint verdict comments.
 Use this when a fresh session needs authoritative visible gate evidence for the
 current head before running `gh pr ready` or declaring final-approval readiness.
+When `PI_SUBAGENT_RUN_ID` is present, it also enforces async runner ownership before reading GitHub facts, so stale/displaced runs fail closed before merge.
 
 Required:
 - `--repo <owner/name>`
