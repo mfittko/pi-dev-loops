@@ -179,11 +179,6 @@ function requireString(v, label) {
   return s;
 }
 
-function requireArray(v, label) {
-  if (!Array.isArray(v)) throw new Error(`handoff-envelope: ${label} is required and must be an array`);
-  return v;
-}
-
 // ---------------------------------------------------------------------------
 // Target derivation
 // ---------------------------------------------------------------------------
@@ -218,11 +213,12 @@ function deriveTarget(bundle, repo) {
     if (Number.isInteger(artifact.issue) && artifact.issue > 0) target.issue = artifact.issue;
   } else if (kind === DEV_LOOP_TARGET_KIND.LOCAL_PHASE) {
     const phase = normalizeString(artifact.phase);
-    if (!phase && artifact.issue == null) {
-      throw new Error("handoff-envelope: local_phase target must include a phase or issue");
+    const validIssue = Number.isInteger(artifact.issue) && artifact.issue > 0;
+    if (!phase && !validIssue) {
+      throw new Error("handoff-envelope: local_phase target must include a non-empty phase or a valid positive issue number");
     }
     if (phase) target.phase = phase;
-    if (Number.isInteger(artifact.issue) && artifact.issue > 0) target.issue = artifact.issue;
+    if (validIssue) target.issue = artifact.issue;
   }
 
   return target;

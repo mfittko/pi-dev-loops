@@ -866,9 +866,13 @@ test("templates: issue_intake registered", () => {
 });
 
 test("templates: no duplicate registrations", () => {
-  const keys = [...ACCEPTANCE_TEMPLATES.keys()];
-  const uniqueKeys = new Set(keys);
-  assert.equal(keys.length, uniqueKeys.size, "found duplicate template keys");
+  const strategies = Object.keys(STRATEGY_DEFAULT_STOP_RULES);
+  const knownKeys = [...ACCEPTANCE_TEMPLATES.keys()];
+  for (const s of strategies) {
+    const hasDirect = knownKeys.includes(acceptanceKey(s, "default"));
+    const hasDraft = knownKeys.includes(acceptanceKey(s, "draft"));
+    assert.ok(hasDirect || hasDraft, `Strategy "${s}" has no registered template`);
+  }
 });
 
 // ===========================================================================

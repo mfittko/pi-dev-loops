@@ -14,7 +14,8 @@ template.
 
 | Source | Fields derived |
 |---|---|
-| Resolver output (`resolve-dev-loop-startup.mjs` bundle) | `target`, `currentGate`, `nextAction`, `requiredReads`, `executionMode`, `cwd`, `worktreeRequired` |
+| Resolver output (`resolve-dev-loop-startup.mjs` bundle) | `target`, `currentGate`, `nextAction`, `requiredReads`, `executionMode` |
+| Caller options (`repoRoot`, `worktreeCwd`) | `cwd`, `worktreeRequired` |
 | Settings (`.pi/dev-loop/settings.yaml` + `defaults.yaml`) | `gateConfig`, `stopRules`, `asyncStartMode`, `requireDraftFirst`, `maxCopilotRounds` |
 | Gate state (detectors) | `currentHeadSha`, `ciStatus`, `unresolvedThreadCount`, `copilotRoundCount` |
 
