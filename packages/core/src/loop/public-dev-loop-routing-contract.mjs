@@ -77,7 +77,6 @@ export const DEV_LOOP_GATE = Object.freeze({
   REVIEWER_FIXER: "reviewer_fixer",
   COPILOT_PR_FOLLOWUP: "copilot_pr_followup",
   FAIL_CLOSED_RECONCILE: "fail_closed_reconcile",
-  STOP_RETROSPECTIVE_GATE_PENDING: "stop_retrospective_gate_pending",
 });
 
 export const INTERNAL_DEV_LOOP_STRATEGY = Object.freeze({

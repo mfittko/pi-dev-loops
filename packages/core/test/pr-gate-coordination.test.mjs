@@ -333,6 +333,69 @@ test("retrospective merge gate allows final approval when retrospective explicit
   assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
 });
 
+test("retrospective merge gate: empty drifts array is valid (no unexpected findings)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: DISPOSITION.CLEAN_CONVERGED,
+    sameHeadCleanConverged: true,
+    ciStatus: "success",
+    requireRetrospectiveGate: true,
+    retrospectiveCheckpoint: {
+      state: "complete",
+      gateQuality: "All gates clean.",
+      mergeRecommendation: "Proceed with merge.",
+      behavioralReview: {
+        mergeApproved: true,
+        followedWorkingAgreement: true,
+        gateQualityAcceptable: true,
+        notes: "All gates clean.",
+        drifts: [],
+      },
+    },
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+  });
+
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.FINAL_APPROVAL_READY);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+});
+
+test("retrospective merge gate: missing gateQualityAcceptable blocks merge", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: DISPOSITION.CLEAN_CONVERGED,
+    sameHeadCleanConverged: true,
+    ciStatus: "success",
+    requireRetrospectiveGate: true,
+    retrospectiveCheckpoint: {
+      state: "complete",
+      mergeRecommendation: "Proceed.",
+      behavioralReview: {
+        mergeApproved: true,
+        followedWorkingAgreement: true,
+        notes: "Missing gateQualityAcceptable.",
+        drifts: ["No unexpected findings."],
+      },
+    },
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+  });
+
+  assert.equal(result.lifecycleState, "retrospective_gate_pending");
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.match(result.reason, /gateQuality/);
+});
+
 test("non-draft PR with clean draft_gate on a different head still allows post-draft flow (one-time boundary)", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
@@ -577,6 +640,60 @@ test("internal-only PR without clean draft gate still enters pre-approval gate w
   assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
   assert(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
   assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW));
+});
+
+test("internal-only PR with retrospective gate blocks when checkpoint missing", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 298,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    reviewMode: "internal_only",
+    requireRetrospectiveGate: true,
+    draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+  });
+
+  assert.equal(result.lifecycleState, "retrospective_gate_pending");
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.match(result.reason, /retrospective_gate_pending/i);
+});
+
+test("internal-only PR with retrospective gate allows when approved", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 298,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    reviewMode: "internal_only",
+    requireRetrospectiveGate: true,
+    retrospectiveCheckpoint: {
+      state: "complete",
+      behavioralReview: {
+        mergeApproved: true,
+        followedWorkingAgreement: true,
+        gateQualityAcceptable: true,
+        notes: "All gates clean.",
+        drifts: ["No unexpected findings."],
+      },
+      gateQuality: "All gates clean.",
+      mergeRecommendation: "Proceed with merge.",
+    },
+    draftGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+  });
+
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.FINAL_APPROVAL_READY);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW));
+  assert.match(result.reason, /internal-only/i);
 });
 
 test("draft PR with clean current-head draft_gate sets cleanEvidenceExists", () => {
