@@ -122,8 +122,9 @@ Async-start contract:
   workflow.asyncStartMode is set to required (default). It fails closed unless
   PI_SUBAGENT_RUN_ID is set, to prevent hidden detached-process fallback
   (nohup, disowned shell jobs, etc.). Snapshot/test input mode
-  (both --copilot-input and --reviewer-input) is exempt. Standalone/test
-  contexts may opt in via .pi/dev-loop/settings.yaml workflow.asyncStartMode: allowed.
+  (both --copilot-input and --reviewer-input) is exempt. Any relaxed
+  async-start posture is maintainer-controlled repository policy, not an
+  agent-tunable runtime path.
 
 Error output (stderr, JSON):
   Argument/usage errors:

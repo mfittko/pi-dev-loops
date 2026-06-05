@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -139,6 +139,47 @@ test("resolve-dev-loop-startup rejects async-required strategy via stderr contra
     assert.equal(parsed.ok, false);
     assert.equal(parsed.asyncStartContract, "rejected");
     assert.ok(parsed.error.includes("Pi-managed async context"));
+  });
+});
+
+test("resolve-dev-loop-startup honors maintainer-controlled asyncStartMode=allowed from cwd config", async () => {
+  await withInputFile({
+    currentState: {
+      target: { kind: "issue", issue: 89, linkedPr: 92 },
+      ownership: "copilot",
+      nextActor: "copilot",
+      status: "active",
+      authorization: "needs_confirmation",
+    },
+    artifactState: "open",
+    issueLinkageResolution: "resolved_linked_pr",
+    loopState: "unresolved_feedback_present",
+    retrospectiveCheckpointState: "complete",
+  }, async (inputPath, tmpDir) => {
+    await mkdir(path.join(tmpDir, ".pi", "dev-loop"), { recursive: true });
+    await writeFile(
+      path.join(tmpDir, ".pi", "dev-loop", "settings.yaml"),
+      "version: 1\nworkflow:\n  asyncStartMode: allowed\n",
+      "utf8",
+    );
+
+    const result = spawnSync(process.execPath, [cliPath, "--input", inputPath], {
+      cwd: tmpDir,
+      encoding: "utf8",
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([k]) => k !== "PI_SUBAGENT_RUN_ID",
+        ),
+      ),
+    });
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    if (result.stderr !== "") {
+      assert.match(result.stderr, /DEV_LOOP_ROUTING_CONFIG_FALLBACK/);
+    }
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.selectedStrategy, "copilot_pr_followup");
   });
 });
 

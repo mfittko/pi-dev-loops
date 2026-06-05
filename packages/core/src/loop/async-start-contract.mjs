@@ -124,7 +124,7 @@ export function validateAsyncStartContext({
       reason:
         `Detected ${sessionOnlyMarker}, but GitHub-first async-start requires a visible ` +
         "Pi-managed subagent run id for inspectable startup/resume evidence. " +
-        "Set PI_SUBAGENT_RUN_ID or configure workflow.asyncStartMode=allowed to proceed.",
+        "Set PI_SUBAGENT_RUN_ID to proceed. Any exception must come from repository-maintained workflow policy.",
       detectedMarker: null,
     };
   }
@@ -134,8 +134,8 @@ export function validateAsyncStartContext({
       status: ASYNC_START_STATUS.REJECTED,
       reason:
         "Detected detached local background execution; detached/local fallback is diagnostic-only " +
-        "and does not satisfy the async-start contract. Restart via Pi-managed async mode, " +
-        "or configure workflow.asyncStartMode=allowed when that relaxed posture is intentional.",
+        "and does not satisfy the async-start contract. Restart via Pi-managed async mode. " +
+        "Any relaxed posture must come from repository-maintained workflow policy.",
       detectedMarker: null,
     };
   }
@@ -147,7 +147,7 @@ export function validateAsyncStartContext({
       "No Pi-managed async context detected. " +
       "The dev-loop must run within a visible Pi async subagent session, " +
       "not as a detached local process. " +
-      `Set ${PI_ASYNC_CONTEXT_MARKERS[0]} or configure workflow.asyncStartMode=allowed to proceed.`,
+      `Set ${PI_ASYNC_CONTEXT_MARKERS[0]} to proceed. Repository-maintained workflow policy controls any exceptions.`,
     detectedMarker: null,
   };
 }

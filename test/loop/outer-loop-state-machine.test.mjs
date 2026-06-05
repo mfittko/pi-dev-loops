@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -710,23 +710,32 @@ test("outer-loop: proceeds when PI_SUBAGENT_RUN_ID is set (non-snapshot mode)", 
   }
 });
 
-test("outer-loop: proceeds when PI_SUBAGENT_RUN_ID is set (non-snapshot mode)", async () => {
+test("outer-loop: maintainer-controlled asyncStartMode=allowed permits non-snapshot startup", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
     await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
     const gitEnv = await writeGitStub(tempDir);
     const ghEnv = await writeGhStub(tempDir, { repo: "owner/repo", pr: 47 });
-    const env = { ...gitEnv, ...ghEnv, PI_SUBAGENT_RUN_ID: "test-run-123" };
-
-    // copilot-input only — not snapshot mode; visible async run id must satisfy the check
-    const result = await runOuterLoop(
-      { repo: "owner/repo", pr: 47, copilotInputPath, checkpointDir: tempDir },
-      { env, gitCommand: path.join(tempDir, "git") },
+    await mkdir(path.join(tempDir, ".pi", "dev-loop"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, ".pi", "dev-loop", "settings.yaml"),
+      "version: 1\nworkflow:\n  asyncStartMode: allowed\n",
+      "utf8",
     );
 
-    assert.equal(result.ok, true);
-    assert.ok(result.outerAction);
+    // copilot-input only — not snapshot mode; repo policy, not agent env, allows this test setup
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "47",
+      "--copilot-input", copilotInputPath,
+      "--checkpoint-dir", tempDir,
+    ], { env: { ...gitEnv, ...ghEnv }, cwd: tempDir });
+
+    assert.equal(result.code, 0, `stdout=${result.stdout} stderr=${result.stderr}`);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, true);
+    assert.ok(parsed.outerAction);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
