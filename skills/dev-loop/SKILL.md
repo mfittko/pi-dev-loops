@@ -76,7 +76,7 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 
 **Pre-delegation gate (#524, enforced):** Before any async subagent delegation in the dev-loop, run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"`. This prevents delegating work that has no automatic next step — the handoff tool is the authority, not the parent session's judgment. When `action: "stop"` and `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task.
 
-> **Path resolution:** In the source repo, `<resolved-skill-scripts>` = `scripts/`. In installed skills, it resolves from the skill's installation layout per the skill asset path resolution rule.
+> **Path resolution:** In the source repo, `<resolved-skill-scripts>` = `scripts/`. In installed skills, it resolves from the skill's installation layout per the [skill asset path resolution rule in copilot-pr-followup/SKILL.md](../copilot-pr-followup/SKILL.md#skill-asset-path-resolution).
 
 **Worktree cwd rule (#524, enforced):** Always set `cwd` to the worktree when delegating dev-loop work to subagents. Never delegate with the parent's `main` branch checkout as the working directory. The worktree path is authoritative for all git operations, file reads/writes, and validation commands in delegated runs.
 
@@ -87,7 +87,7 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 - Exit conditions and where to write output artifacts
 - Intercom coordination instructions if cross-run signaling is needed
 
-**Inline-first rule for single-PR workflows (#524):** When managing a single PR through its lifecycle, prefer inline commands over async delegation. Inline execution is faster, avoids context serialization overhead, and has full access to the parent session's state and tool results. Use async delegation only when:
+**Inline-first rule for single-PR workflows (#524):** When the dev-loop agent is managing a single PR through its lifecycle, prefer inline commands over nested async subagent delegation. This does not override the enforced `requiresAsyncDispatch` routing rule — the outer dev-loop session still dispatches asynchronously when the resolver requires it. Use nested subagent delegation only when:
 - Parallel fan-out review is explicitly needed
 - The task is bounded with clear inputs/outputs and a deterministic exit condition
 - The parent session needs to continue other work while waiting
