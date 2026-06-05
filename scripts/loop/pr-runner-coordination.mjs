@@ -7,7 +7,6 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
   assertRunnerOwnership,
   claimRunnerOwnership,
-  ensureAsyncRunnerOwnership,
   loadRunnerCoordinationState,
   releaseRunnerOwnership,
 } from "./_pr-runner-coordination.mjs";
@@ -23,9 +22,9 @@ Durable one-runner-per-PR coordination helper.
 
 If --run-id is omitted for claim/assert/release/takeover, PI_SUBAGENT_RUN_ID is used.
 
-Output (stdout, JSON):
-  { "ok": true, ... }
-  { "ok": false, "error": "...", ... }
+Output:
+  stdout: { "ok": true, ... }
+  stderr: { "ok": false, "error": "...", ... }
 
 Exit codes:
   0  Success / clean stop-compatible result
@@ -146,8 +145,7 @@ export async function runPrRunnerCoordination(options, { env = process.env, cwd 
     return releaseRunnerOwnership({ repo: options.repo, pr: options.pr, runId, cwd });
   }
 
-  const fallback = await ensureAsyncRunnerOwnership({ repo: options.repo, pr: options.pr, env, cwd });
-  return fallback;
+  throw new Error(`Unhandled runner coordination command: ${options.command}`);
 }
 
 async function main() {

@@ -10,7 +10,6 @@ export const RUNNER_OWNERSHIP_ERROR = Object.freeze({
   OWNERSHIP_LOST: "ownership_lost",
   OWNERSHIP_MISSING: "ownership_missing",
   RUN_ID_REQUIRED: "run_id_required",
-  INVALID_TARGET: "invalid_target",
 });
 
 function normalizeRepoSlug(repo) {
@@ -355,7 +354,7 @@ export async function assertRunnerOwnership({
   }
 
   return buildConflict({
-    error: raw === null ? RUNNER_OWNERSHIP_ERROR.OWNERSHIP_MISSING : RUNNER_OWNERSHIP_ERROR.OWNERSHIP_LOST,
+    error: RUNNER_OWNERSHIP_ERROR.OWNERSHIP_LOST,
     repo: normalizedRepo,
     pr: normalizedPr,
     runId: normalizedRunId,
