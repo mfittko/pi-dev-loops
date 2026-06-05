@@ -99,9 +99,9 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 - Intercom coordination for cross-run state updates
 - Parent session retains loop ownership; subagents handle bounded slices only
 
-**Round-cap budget check (#524, enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check `detect-copilot-loop-state.mjs` output for `snapshot.copilotReviewRoundCount >= maxCopilotRounds` (default: 5). If the cap is reached:
-- With `unresolvedThreadCount === 0` and CI green → use `round_cap_clean_fallback` to enter `pre_approval_gate`
-- With unresolved threads remaining → reply-resolve as `deferred to follow-up` and stop; do **not** re-request Copilot review
+**Round-cap budget check (#524, enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check `detect-copilot-loop-state.mjs` output for `snapshot.copilotReviewRoundCount >= maxCopilotRounds` (default: 5). When the cap is reached, the detector (`interpretLoopState` in `packages/core/src/loop/copilot-loop-state.mjs`) selects one of two explicit `state` values:
+- `state: "round_cap_clean_fallback"` — when `unresolvedThreadCount === 0` AND `ciStatus` is `"success"` or `"crediblyGreen"`. Treat this as the `pre_approval_gate` entry signal (do not re-request Copilot review).
+- `state: "round_cap_reached"` — when `unresolvedThreadCount > 0` OR `ciStatus` is not `"success"`/`"crediblyGreen"`. Reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note and stop; do **not** re-request Copilot review.
 - The round-cap check is a per-iteration gate, not an end-of-loop assertion
 
 **Deterministic routing step (#524):** The pre-delegation gate above determines whether delegation is appropriate. When it returns `action: "stop"` with `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task.
