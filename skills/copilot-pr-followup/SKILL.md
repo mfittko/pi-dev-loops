@@ -406,6 +406,22 @@ node <resolved-skill-scripts>/github/detect-checkpoint-evidence.mjs \
 
 This helper is always-on: it uses `gh api` to fetch visible PR issue comments and fails closed unless both required gate comments exist: a clean `draft_gate` comment for the one-time draft boundary and a clean current-head `pre_approval_gate` comment. Do not run `gh pr merge` if this command exits non-zero. There is no opt-out flag. Resolved threads, green CI, clean Copilot rereview, or local notes do not substitute for this successful helper output. If a final approval or merge boundary sees `gh pr merge` without a same-boundary successful check, treat that as a workflow violation and stop.
 
+### Mandatory post-merge retrospective checkpoint write
+
+After a merge succeeds (or an explicit retrospective skip is authorized), write the durable retrospective checkpoint before exiting the subagent session:
+
+```sh
+node <resolved-skill-scripts>/loop/checkpoint-contract.mjs --state complete --notes "<one-line retrospective summary>"
+```
+
+For an explicit skip:
+
+```sh
+node <resolved-skill-scripts>/loop/checkpoint-contract.mjs --state skipped --reason "<why retrospective is skipped>"
+```
+
+Do not report completion or advance to the next PR queue item until `.pi/dev-loop-retrospective-checkpoint.json` is updated to `complete` or `skipped`.
+
 ## Validation policy
 
 Follow [Validation Policy](../docs/validation-policy.md). Default: `npm run verify` before PR creation, gate entry, and merge. For repo-local examples: `npm run test:dev-loop` for skill scripts, contract tests for templates, `git diff --check` for docs. When CI runs exist, use `gh run watch` or `detect-copilot-loop-state.mjs` instead of `sleep`-based polling. Distinguish: locally validated, full PR-equivalent checks, awaiting CI.

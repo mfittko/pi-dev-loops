@@ -72,7 +72,7 @@ test("runConductor blocks when requireRetrospective is true and checkpoint is re
     await mkdir(piDir, { recursive: true });
     await writeFile(
       path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
-      JSON.stringify({ state: "required", runId: "test-run" }),
+      JSON.stringify({ state: "required", triggeredAt: "2026-06-05T00:00:00.000Z" }),
     );
 
     const fakeLoadConfig = async () => ({
@@ -109,7 +109,7 @@ test("runConductor does NOT block when requireRetrospective is false even if che
     await mkdir(piDir, { recursive: true });
     await writeFile(
       path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
-      JSON.stringify({ state: "required", runId: "test-run" }),
+      JSON.stringify({ state: "required", triggeredAt: "2026-06-05T00:00:00.000Z" }),
     );
 
     const fakeLoadConfig = async () => ({
@@ -131,6 +131,41 @@ test("runConductor does NOT block when requireRetrospective is false even if che
     assert.equal(result.blockedByRetrospective, undefined);
     assert.equal(result.monitor, null);
     assert.ok(result.cycle !== null);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("runConductor blocks when --require-retrospective override is true and checkpoint is required", async () => {
+  const { repoRoot, cleanup } = await setupConfigDir(false);
+
+  try {
+    const piDir = path.join(repoRoot, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "required", triggeredAt: "2026-06-05T00:00:00.000Z" }),
+    );
+
+    const fakeLoadConfig = async () => ({
+      config: {
+        version: 1,
+        workflow: { requireRetrospective: false, requireDraftFirst: false, devModeDefault: false },
+        autonomy: { stopAt: ["merge"] },
+        gates: { draft: { requireCi: true }, preApproval: { requireCi: true } },
+      },
+      warnings: [],
+      errors: [],
+    });
+
+    const result = await runConductor(
+      { repo: "test/repo", cycleOnly: true, monitorOnly: false, autoResume: false, requireRetrospective: true },
+      { env: process.env, ghCommand: "gh", repoRoot, loadConfigImpl: fakeLoadConfig },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.blockedByRetrospective, true);
+    assert.match(result.error, /Retrospective checkpoint pending/);
   } finally {
     await cleanup();
   }
@@ -291,6 +326,40 @@ test("conductor --monitor-only CLI reports queue_complete when no open PRs exist
     assert.equal(payload.monitor.queueStatus, "queue_complete");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor --require-retrospective CLI blocks when checkpoint is pending", async () => {
+  const { repoRoot, cleanup } = await setupConfigDir(false);
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-require-retro-"));
+
+  try {
+    const piDir = path.join(repoRoot, ".pi");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(
+      path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
+      JSON.stringify({ state: "required", triggeredAt: "2026-06-05T00:00:00.000Z" }),
+    );
+
+    const { env } = await writeGhStubHelper(tempDir, [{
+      assertArgs: ["pr", "list", "--repo", "owner/repo", "--state", "open", "--limit", "1000", "--json", "number,title,url,isDraft,headRefName,author"],
+      stdout: "[]\n",
+    }]);
+
+    const { code, stdout, stderr } = await runNode(
+      ["--repo", "owner/repo", "--cycle-only", "--require-retrospective"],
+      { env, cwd: repoRoot },
+    );
+
+    assert.equal(code, 1);
+    assert.equal(stdout, "");
+    const payload = JSON.parse(stderr);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.blockedByRetrospective, true);
+    assert.match(payload.error, /Retrospective checkpoint pending/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+    await cleanup();
   }
 });
 
