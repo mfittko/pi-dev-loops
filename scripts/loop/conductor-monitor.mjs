@@ -1283,38 +1283,66 @@ function classifyResumeBucket(text, parsedArtifactState) {
 }
 
 function buildSourceSelection(record, outputArtifactText, resultSummaryText, outputLogText) {
-  if (outputArtifactText !== null) {
-    return {
-      primaryText: outputArtifactText,
-      primarySource: "output_artifact",
-      fallbackText: resultSummaryText,
-      weakFallbackText: outputLogText,
-    };
-  }
+  const resultSummaryPath = record.resultSummaryPath ?? record.resultPath ?? null;
+  const candidates = [];
 
-  if (record.outputArtifactPath) {
+  if (outputArtifactText !== null) {
+    candidates.push({
+      text: outputArtifactText,
+      source: "output_artifact",
+      artifactPath: record.outputArtifactPath ?? null,
+      reportingIssue: null,
+    });
+  } else if (record.outputArtifactPath) {
+    if (resultSummaryText !== null) {
+      candidates.push({
+        text: resultSummaryText,
+        source: "grouped_result_summary",
+        artifactPath: resultSummaryPath,
+        reportingIssue: MANUAL_REASON.MISSING_OUTPUT_ARTIFACT,
+      });
+    }
+
+    if (outputLogText !== null) {
+      candidates.push({
+        text: outputLogText,
+        source: "weak_fallback_output_log",
+        artifactPath: record.outputLogPath ?? null,
+        reportingIssue: MANUAL_REASON.MISSING_OUTPUT_ARTIFACT,
+      });
+    }
+
     return {
-      primaryText: null,
+      candidates,
       primarySource: "missing_output_artifact",
-      fallbackText: resultSummaryText,
       weakFallbackText: outputLogText,
+      outputArtifactMissing: true,
     };
   }
 
   if (resultSummaryText !== null) {
-    return {
-      primaryText: resultSummaryText,
-      primarySource: "grouped_result_summary",
-      fallbackText: null,
-      weakFallbackText: outputLogText,
-    };
+    candidates.push({
+      text: resultSummaryText,
+      source: "grouped_result_summary",
+      artifactPath: resultSummaryPath,
+      reportingIssue: null,
+    });
+  }
+
+  if (resultSummaryText !== null && outputLogText !== null) {
+    candidates.push({
+      text: outputLogText,
+      source: "weak_fallback_output_log",
+      artifactPath: record.outputLogPath ?? null,
+      reportingIssue: null,
+    });
   }
 
   return {
-    primaryText: null,
-    primarySource: "weak_fallback_only",
-    fallbackText: null,
+    candidates,
+    primarySource: candidates.length > 0 ? candidates[0].source : "weak_fallback_only",
     weakFallbackText: outputLogText,
+    outputArtifactMissing: false,
   };
 }
 
@@ -1333,7 +1361,7 @@ export async function parseDevLoopArtifact(record) {
   const outputLogText = await readTextIfExists(record.outputLogPath);
   const selection = buildSourceSelection(record, outputArtifactText, resultSummaryText, outputLogText);
 
-  if (selection.primaryText === null) {
+  if (selection.candidates.length === 0) {
     const weakFallbackPr = parseWeakFallbackPr(selection.weakFallbackText);
     return {
       ok: false,
@@ -1342,6 +1370,7 @@ export async function parseDevLoopArtifact(record) {
       evidence: {
         outputArtifactPath: record.outputArtifactPath,
         resultSummaryPath: record.resultSummaryPath,
+        resultPath: record.resultPath,
         outputLogPath: record.outputLogPath,
         sessionPath: record.sessionPath,
       },
@@ -1350,80 +1379,134 @@ export async function parseDevLoopArtifact(record) {
     };
   }
 
-  const prNumbers = extractPrNumbersFromArtifactText(selection.primaryText);
-  if (prNumbers.length > 1) {
-    return {
-      ok: false,
-      reason: MANUAL_REASON.AMBIGUOUS_PR_IDENTITY,
-      evidence: {
-        prNumbers,
-        source: selection.primarySource,
-        outputArtifactPath: record.outputArtifactPath,
-        resultSummaryPath: record.resultSummaryPath,
-      },
-      source: selection.primarySource,
-    };
-  }
+  let lastFailure = null;
+  for (const candidate of selection.candidates) {
+    const prNumbers = extractPrNumbersFromArtifactText(candidate.text);
+    if (prNumbers.length > 1) {
+      lastFailure = {
+        ok: false,
+        reason: MANUAL_REASON.AMBIGUOUS_PR_IDENTITY,
+        evidence: {
+          prNumbers,
+          source: candidate.source,
+          outputArtifactPath: record.outputArtifactPath,
+          resultSummaryPath: record.resultSummaryPath,
+          resultPath: record.resultPath,
+          artifactPath: candidate.artifactPath,
+        },
+        source: candidate.source,
+        weakFallbackText: selection.weakFallbackText,
+      };
+      continue;
+    }
 
-  if (prNumbers.length === 0) {
-    return {
-      ok: false,
-      reason: MANUAL_REASON.MISSING_PR_IDENTITY,
-      evidence: {
-        source: selection.primarySource,
-        outputArtifactPath: record.outputArtifactPath,
-        resultSummaryPath: record.resultSummaryPath,
-      },
-      source: selection.primarySource,
-    };
-  }
+    if (prNumbers.length === 0) {
+      lastFailure = {
+        ok: false,
+        reason: MANUAL_REASON.MISSING_PR_IDENTITY,
+        evidence: {
+          source: candidate.source,
+          outputArtifactPath: record.outputArtifactPath,
+          resultSummaryPath: record.resultSummaryPath,
+          resultPath: record.resultPath,
+          artifactPath: candidate.artifactPath,
+        },
+        source: candidate.source,
+        weakFallbackText: selection.weakFallbackText,
+      };
+      continue;
+    }
 
-  const parsedArtifactState = parseArtifactState(selection.primaryText);
-  const parsedLoopState = parseLoopState(selection.primaryText);
-  const nextAction = parseNextActionText(selection.primaryText);
-  if (parsedArtifactState === null) {
+    const parsedArtifactState = parseArtifactState(candidate.text);
+    const parsedLoopState = parseLoopState(candidate.text);
+    const nextAction = parseNextActionText(candidate.text);
+    if (parsedArtifactState === null) {
+      lastFailure = {
+        ok: false,
+        reason: MANUAL_REASON.UNCLASSIFIED_ARTIFACT_STATE,
+        pr: prNumbers[0],
+        evidence: {
+          source: candidate.source,
+          parsedLoopState,
+          nextAction,
+          outputArtifactPath: record.outputArtifactPath,
+          resultSummaryPath: record.resultSummaryPath,
+          resultPath: record.resultPath,
+          artifactPath: candidate.artifactPath,
+        },
+        source: candidate.source,
+        weakFallbackText: selection.weakFallbackText,
+      };
+      continue;
+    }
+
+    const resumeBucket = classifyResumeBucket(candidate.text, parsedArtifactState);
+
+    if (resumeBucket === null) {
+      lastFailure = {
+        ok: false,
+        reason: MANUAL_REASON.UNCLASSIFIED_ARTIFACT_STATE,
+        pr: prNumbers[0],
+        evidence: {
+          source: candidate.source,
+          parsedArtifactState,
+          parsedLoopState,
+          nextAction,
+          outputArtifactPath: record.outputArtifactPath,
+          resultSummaryPath: record.resultSummaryPath,
+          resultPath: record.resultPath,
+          artifactPath: candidate.artifactPath,
+        },
+        source: candidate.source,
+        weakFallbackText: selection.weakFallbackText,
+      };
+      continue;
+    }
+
     return {
-      ok: false,
-      reason: MANUAL_REASON.UNCLASSIFIED_ARTIFACT_STATE,
+      ok: true,
       pr: prNumbers[0],
-      evidence: {
-        source: selection.primarySource,
-        parsedLoopState,
-        nextAction,
-        outputArtifactPath: record.outputArtifactPath,
-        resultSummaryPath: record.resultSummaryPath,
-      },
-      source: selection.primarySource,
+      parsedArtifactState,
+      parsedLoopState,
+      nextAction,
+      resumeBucket,
+      source: candidate.source,
+      text: candidate.text,
+      artifactPath: candidate.artifactPath,
+      reportingIssue: candidate.reportingIssue,
     };
   }
-  const resumeBucket = classifyResumeBucket(selection.primaryText, parsedArtifactState);
 
-  if (resumeBucket === null) {
+  if (selection.outputArtifactMissing) {
+    const weakFallbackPr = parseWeakFallbackPr(selection.weakFallbackText);
     return {
       ok: false,
-      reason: MANUAL_REASON.UNCLASSIFIED_ARTIFACT_STATE,
-      pr: prNumbers[0],
+      reason: MANUAL_REASON.MISSING_OUTPUT_ARTIFACT,
+      ...(Number.isInteger(weakFallbackPr) ? { pr: weakFallbackPr } : {}),
       evidence: {
-        source: selection.primarySource,
-        parsedArtifactState,
-        parsedLoopState,
-        nextAction,
         outputArtifactPath: record.outputArtifactPath,
         resultSummaryPath: record.resultSummaryPath,
+        resultPath: record.resultPath,
+        outputLogPath: record.outputLogPath,
+        sessionPath: record.sessionPath,
       },
+      weakFallbackText: selection.weakFallbackText,
       source: selection.primarySource,
     };
   }
 
-  return {
-    ok: true,
-    pr: prNumbers[0],
-    parsedArtifactState,
-    parsedLoopState,
-    nextAction,
-    resumeBucket,
+  return lastFailure ?? {
+    ok: false,
+    reason: MANUAL_REASON.UNCLASSIFIED_ARTIFACT_STATE,
+    evidence: {
+      outputArtifactPath: record.outputArtifactPath,
+      resultSummaryPath: record.resultSummaryPath,
+      resultPath: record.resultPath,
+      outputLogPath: record.outputLogPath,
+      sessionPath: record.sessionPath,
+    },
     source: selection.primarySource,
-    text: selection.primaryText,
+    weakFallbackText: selection.weakFallbackText,
   };
 }
 
@@ -1667,7 +1750,8 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
       pr: prReport.number,
       runId: run.runId,
       runState: normalizeRunStateForPlan(run.runState),
-      artifactPath: run.outputArtifactPath ?? run.resultSummaryPath ?? run.resultPath ?? null,
+      artifactPath: parsedArtifact.artifactPath ?? run.outputArtifactPath ?? run.resultSummaryPath ?? run.resultPath ?? null,
+      ...(parsedArtifact.reportingIssue ? { reportingIssue: parsedArtifact.reportingIssue } : {}),
       ...(run.sessionPath ? { sessionPath: run.sessionPath } : {}),
       parsedArtifactState: parsedArtifact.parsedArtifactState,
       parsedLoopState: parsedArtifact.parsedLoopState,
