@@ -221,7 +221,7 @@ function normalizeGateMarkerSummary(summary) {
   };
 }
 
-export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null) {
+export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null, staleRunnerCheck = null) {
   const failures = [];
 
   if (!(evidence.draftGate.visible && evidence.draftGate.verdict === "clean")) {
@@ -244,6 +244,13 @@ export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null) {
       failures.push("could not fetch review thread state from GitHub API; re-run gate evidence check when API connectivity is restored");
     } else {
       failures.push(`unresolved review threads present (${unresolvedThreadCount}); must resolve all threads before merge`);
+    }
+  }
+
+  // #508: incorporate stale-runner / exit-signal failures into pre-merge gate check
+  if (staleRunnerCheck && !staleRunnerCheck.ok) {
+    for (const failure of staleRunnerCheck.failures) {
+      failures.push(failure);
     }
   }
 

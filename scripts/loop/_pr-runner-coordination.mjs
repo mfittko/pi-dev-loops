@@ -603,7 +603,7 @@ export async function recordExitSignalForRunner({
       });
     }
 
-    const filtered = (state.exitSignals || []).filter((entry) => entry.runId !== normalizedRunId);
+    // Append: exitSignals are immutable records; keep all prior signals for audit trail
     const nextSignal = {
       runId: normalizedRunId,
       at: now,
@@ -611,7 +611,7 @@ export async function recordExitSignalForRunner({
     };
     const nextState = {
       ...state,
-      exitSignals: [...filtered, nextSignal],
+      exitSignals: [...(state.exitSignals || []), nextSignal],
     };
     await saveRunnerStateFile(resolvedPath, nextState);
     return {

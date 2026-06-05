@@ -176,7 +176,7 @@ export async function runDetectStaleRunner(options, { env = process.env, cwd = p
       status: "ownership_lost",
       activeRun: detection.activeRun,
       runId: explicitRunId,
-      exitSignals: detection.exitSignal ? [detection.exitSignal] : [],
+      exitSignals: detection.exitSignal?.signals ?? [],
       filePath: detection.filePath,
       maxAgeMs: detection.maxAgeMs,
       message: `Stale-runner check: run ${explicitRunId} is no longer the active owner of ${options.repo}#${options.pr}; current owner is ${detection.activeRun?.runId}.`,
