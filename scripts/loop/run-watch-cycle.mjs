@@ -13,9 +13,6 @@ import {
   EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
   enforceExternalHealthyWaitTimeout,
 } from "@pi-dev-loops/core/loop/timeout-policy";
-import {
-  COPILOT_REVIEW_WAIT_TIMEOUT_MS,
-} from "@pi-dev-loops/core/loop/policy-constants";
 
 const REMOVED_FLAGS = new Set([
   "--force-rerequest-review",
