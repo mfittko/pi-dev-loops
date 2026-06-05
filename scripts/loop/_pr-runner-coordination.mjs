@@ -2,7 +2,11 @@ import path from "node:path";
 import process from "node:process";
 
 import { parseRepoSlugParts } from "@pi-dev-loops/core/github/repo-slug";
-import { loadStateFile, saveStateFile, withStateFileLock } from "./_steering-state-file.mjs";
+import {
+  loadStateFile as loadSharedStateFile,
+  saveStateFile as saveSharedStateFile,
+  withStateFileLock as withSharedStateFileLock,
+} from "./_steering-state-file.mjs";
 
 export const RUNNER_COORDINATION_SCHEMA_VERSION = 1;
 export const RUNNER_OWNERSHIP_ERROR = Object.freeze({
@@ -32,6 +36,33 @@ function normalizeRunId(runId) {
   return typeof runId === "string" && runId.trim().length > 0
     ? runId.trim()
     : null;
+}
+
+async function loadRunnerStateFile(filePath) {
+  try {
+    return await loadSharedStateFile(filePath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read runner coordination state file '${filePath}': ${message}`);
+  }
+}
+
+async function saveRunnerStateFile(filePath, state) {
+  try {
+    return await saveSharedStateFile(filePath, state);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to write runner coordination state file '${filePath}': ${message}`);
+  }
+}
+
+async function withRunnerStateFileLock(filePath, callback) {
+  try {
+    return await withSharedStateFileLock(filePath, callback);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to acquire runner coordination state lock for '${filePath}': ${message}`);
+  }
 }
 
 export function defaultRunnerCoordinationFilePathForTarget({ repo, pr }, cwd = process.cwd()) {
@@ -156,7 +187,7 @@ export async function loadRunnerCoordinationState({ repo, pr, cwd = process.cwd(
   const normalizedRepo = normalizeRepoSlug(repo);
   const normalizedPr = normalizePr(pr);
   const resolvedPath = filePath ?? defaultRunnerCoordinationFilePathForTarget({ repo: normalizedRepo, pr: normalizedPr }, cwd);
-  const raw = await loadStateFile(resolvedPath);
+  const raw = await loadRunnerStateFile(resolvedPath);
   if (raw === null) {
     return { filePath: resolvedPath, state: null };
   }
@@ -191,8 +222,8 @@ export async function claimRunnerOwnership({
   }
 
   const resolvedPath = filePath ?? defaultRunnerCoordinationFilePathForTarget({ repo: normalizedRepo, pr: normalizedPr }, cwd);
-  return withStateFileLock(resolvedPath, async () => {
-    const raw = await loadStateFile(resolvedPath);
+  return withRunnerStateFileLock(resolvedPath, async () => {
+    const raw = await loadRunnerStateFile(resolvedPath);
     const state = raw === null
       ? createRunnerCoordinationState({ repo: normalizedRepo, pr: normalizedPr })
       : normalizeRunnerCoordinationState(raw, { repo: normalizedRepo, pr: normalizedPr });
@@ -208,7 +239,7 @@ export async function claimRunnerOwnership({
         },
         history: [...state.history, { type: "claim", runId: normalizedRunId, at: now }],
       };
-      await saveStateFile(resolvedPath, nextState);
+      await saveRunnerStateFile(resolvedPath, nextState);
       return {
         ok: true,
         status: "claimed_new",
@@ -231,7 +262,7 @@ export async function claimRunnerOwnership({
         },
         history: [...state.history, { type: "refresh", runId: normalizedRunId, at: now }],
       };
-      await saveStateFile(resolvedPath, nextState);
+      await saveRunnerStateFile(resolvedPath, nextState);
       return {
         ok: true,
         status: "refreshed",
@@ -275,7 +306,7 @@ export async function claimRunnerOwnership({
         at: now,
       }],
     };
-    await saveStateFile(resolvedPath, nextState);
+    await saveRunnerStateFile(resolvedPath, nextState);
     return {
       ok: true,
       status: "taken_over",
@@ -314,7 +345,7 @@ export async function assertRunnerOwnership({
     });
   }
 
-  const raw = await loadStateFile(resolvedPath);
+  const raw = await loadRunnerStateFile(resolvedPath);
   if (raw === null) {
     if (!requireExisting) {
       return {
@@ -415,8 +446,8 @@ export async function releaseRunnerOwnership({
   }
 
   const resolvedPath = filePath ?? defaultRunnerCoordinationFilePathForTarget({ repo: normalizedRepo, pr: normalizedPr }, cwd);
-  return withStateFileLock(resolvedPath, async () => {
-    const raw = await loadStateFile(resolvedPath);
+  return withRunnerStateFileLock(resolvedPath, async () => {
+    const raw = await loadRunnerStateFile(resolvedPath);
     if (raw === null) {
       return {
         ok: true,
@@ -454,7 +485,7 @@ export async function releaseRunnerOwnership({
       },
       history: [...state.history, { type: "release", runId: normalizedRunId, at: now }],
     };
-    await saveStateFile(resolvedPath, nextState);
+    await saveRunnerStateFile(resolvedPath, nextState);
     return {
       ok: true,
       status: "released",
