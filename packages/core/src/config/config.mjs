@@ -736,8 +736,8 @@ export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
 /**
  * Resolve one workflow configuration value from the merged dev-loop config.
  *
- * Returns the configured boolean when present, or the built-in default for the
- * requested key.
+ * Returns the configured workflow value when present, or the built-in default
+ * for the requested key.
  *
  * @param {DevLoopConfig} config
  * @param {"asyncStartMode"|"requireRetrospective"|"requireRetrospectiveGate"|"requireDraftFirst"|"devModeDefault"} key
