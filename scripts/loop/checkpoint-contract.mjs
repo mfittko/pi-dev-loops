@@ -38,12 +38,12 @@ export function parseCheckpointContractCliArgs(argv) {
     help: false,
   };
 
-  if (args.includes("--help") || args.includes("-h")) {
-    return { help: true };
-  }
-
   while (args.length > 0) {
     const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      return { help: true };
+    }
 
     if (token === "--state") {
       options.state = requireOptionValue(args, "--state", parseError).trim().toLowerCase();

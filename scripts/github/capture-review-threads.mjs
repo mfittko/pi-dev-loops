@@ -65,12 +65,12 @@ export function parseCaptureCliArgs(argv) {
     help: false,
   };
 
-  if (args.includes("--help") || args.includes("-h")) {
-    return { help: true };
-  }
-
   while (args.length > 0) {
     const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      return { help: true };
+    }
 
     if (token === "--input") {
       options.inputPath = requireOptionValue(args, "--input");

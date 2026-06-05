@@ -64,12 +64,12 @@ export function parseDetectReviewerCliArgs(argv) {
     help: false,
   };
 
-  if (args.includes("--help") || args.includes("-h")) {
-    return { help: true };
-  }
-
   while (args.length > 0) {
     const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      return { help: true };
+    }
 
     if (token === "--input") {
       options.inputPath = requireOptionValue(args, "--input");
@@ -176,10 +176,6 @@ async function fetchPrView({ repo, pr }, deps) {
  * Check whether a PR review belongs to the reviewer scope.
  * Accepts either `user.login` (GitHub REST shape) or `author.login` (fixture/fallback shape).
  * When no reviewer login is provided, all reviews are considered in scope.
- *
- * @param {object} review
- * @param {string|undefined} reviewerLogin
- * @returns {boolean}
  */
 function isReviewInScope(review, reviewerLogin) {
   if (!reviewerLogin) {
@@ -191,22 +187,10 @@ function isReviewInScope(review, reviewerLogin) {
   return login.toLowerCase() === reviewerLogin.toLowerCase();
 }
 
-/**
- * Return true when a GitHub review state represents a submitted (non-pending) review.
- *
- * @param {string} state
- * @returns {boolean}
- */
 function isSubmittedReviewState(state) {
   return ["APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"].includes(state);
 }
 
-/**
- * Return the item with the highest numeric `id`.
- *
- * @param {Array<object>} items
- * @returns {object|null}
- */
 function pickLatestById(items) {
   if (!Array.isArray(items) || items.length === 0) {
     return null;

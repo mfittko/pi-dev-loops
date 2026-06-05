@@ -7,7 +7,7 @@
  *
  * Options:
  *   --base <ref>   Base ref for diff (default: HEAD~1)
- *   --head <ref>   Head ref for diff (default: HEAD)
+ *   --head <ref>   Head ref for diff (requires --base; default: HEAD)
  *   --help, -h     Show this help
  *
  * Output (stdout, JSON):
@@ -43,7 +43,7 @@ Detect change scope from git diff for light-mode eligibility.
 
 Options:
   --base <ref>   Base ref for diff (default: HEAD~1)
-  --head <ref>   Head ref for diff (default: HEAD)
+  --head <ref>   Head ref for diff (requires --base; default: HEAD)
   --help, -h     Show this help
 
 Exit codes:
@@ -72,8 +72,6 @@ export function parseGitDiffStat(output) {
   }
 
   const lines = trimmed.split("\n");
-  // Last line may or may not be a summary line.
-  // Detect summary: matches "N file(s) changed" pattern.
   const lastLine = lines[lines.length - 1];
   const isSummary = /\d+\s+files?\s+changed/.test(lastLine) || /\d+\s+insertion/.test(lastLine) || /\d+\s+deletion/.test(lastLine);
   const fileCount = isSummary ? lines.length - 1 : lines.length;
@@ -119,10 +117,7 @@ async function main() {
   const opts = parseArgs();
   const scope = detectScope(opts);
 
-  // Only compute eligibility when light mode is enabled AND config has no
-  // validation errors (fail-closed). When disabled or errors present,
-  // `eligibleForLightMode` is always false.
-  let threshold = { maxFiles: 3, maxLines: 200 }; // built-in default
+  let threshold = { maxFiles: 3, maxLines: 200 };
   let eligible = false;
   try {
     const { loadDevLoopConfig, resolveLightMode } = await import(
@@ -130,7 +125,7 @@ async function main() {
     );
     const { config, errors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
     if (Array.isArray(errors) && errors.length > 0) {
-      // Config validation errors → fail-closed, eligible stays false
+      // fail-closed
     } else {
       const lightMode = resolveLightMode(config);
       if (lightMode && scope.ok !== false) {
@@ -139,7 +134,7 @@ async function main() {
       }
     }
   } catch {
-    // Use built-in defaults, eligible remains false
+    // defaults
   }
 
   process.stdout.write(
