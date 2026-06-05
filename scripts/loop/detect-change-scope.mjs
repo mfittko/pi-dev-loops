@@ -60,6 +60,13 @@ Exit codes:
   return opts;
 }
 
+/**
+ * Parse `git diff --stat` output into { filesChanged, linesChanged }.
+ * Exported as a pure function for testability.
+ *
+ * @param {string} output - Raw stdout from `git diff --stat`
+ * @returns {{ filesChanged: number, linesChanged: number }}
+ */
 export function parseGitDiffStat(output) {
   const trimmed = output.trim();
   if (trimmed.length === 0) {
