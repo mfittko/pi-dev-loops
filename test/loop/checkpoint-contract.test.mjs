@@ -113,3 +113,52 @@ test("checkpoint-contract CLI writes checkpoint file", async () => {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("checkpoint-contract CLI writes skipped checkpoint file", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "checkpoint-contract-test-"));
+  try {
+    const { code, stdout, stderr } = await runNode(
+      ["--state", "skipped", "--reason", "Doc-only change"],
+      { cwd: tempDir },
+    );
+
+    assert.equal(code, 0);
+    assert.equal(stderr, "");
+    const output = JSON.parse(stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.checkpoint.state, "skipped");
+    assert.equal(output.checkpoint.reason, "Doc-only change");
+    assert.equal(typeof output.checkpoint.skippedAt, "string");
+
+    const checkpointPath = path.join(tempDir, ".pi", "dev-loop-retrospective-checkpoint.json");
+    const checkpoint = JSON.parse(await readFile(checkpointPath, "utf8"));
+    assert.equal(checkpoint.state, "skipped");
+    assert.equal(checkpoint.reason, "Doc-only change");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("checkpoint-contract CLI writes required checkpoint file", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "checkpoint-contract-test-"));
+  try {
+    const { code, stdout, stderr } = await runNode(
+      ["--state", "required"],
+      { cwd: tempDir },
+    );
+
+    assert.equal(code, 0);
+    assert.equal(stderr, "");
+    const output = JSON.parse(stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.checkpoint.state, "required");
+    assert.equal(typeof output.checkpoint.triggeredAt, "string");
+
+    const checkpointPath = path.join(tempDir, ".pi", "dev-loop-retrospective-checkpoint.json");
+    const checkpoint = JSON.parse(await readFile(checkpointPath, "utf8"));
+    assert.equal(checkpoint.state, "required");
+    assert.equal(typeof checkpoint.triggeredAt, "string");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
