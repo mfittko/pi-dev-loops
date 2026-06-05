@@ -218,6 +218,10 @@ Key rules:
 - if Pi async subagents or the designated async follow-up skill are not appropriate or available, stop and report rather than improvising a shell watcher
 - the async-start contract is also enforced in code: `outer-loop.mjs` fails closed unless it detects a visible Pi-managed async run id (`PI_SUBAGENT_RUN_ID`). Session-only markers (`PI_SESSION_ID`, `PI_ASYNC_CONTEXT`) and detached/local background fallback are diagnostic-only and do not satisfy startup. Snapshot/test input mode (both `--copilot-input` and `--reviewer-input`) is exempt. Use `PI_ASYNC_START_BYPASS=1` only for explicitly authorized standalone runs, never to route around the in-session async requirement.
 
+### Async delegation guard rules (#524)
+
+See [Async delegation guard rules](../dev-loop/SKILL.md#async-delegation-guard-rules-524) in the public `dev-loop` skill. Those rules are authoritative and apply to all async subagent dispatch in the PR-followup pipeline. The dev-loop skill is the single source of truth; this section exists only to ensure the rules are visible when this skill is loaded standalone.
+
 ## Step 7: Pi review/fix follow-up loop
 
 This step covers four responsibilities: the draft gate right before `gh pr ready`, the narrower post-review follow-up loop once actionable feedback exists, the pre-approval gate before calling the PR merge-ready, and the final approval / merge boundary.

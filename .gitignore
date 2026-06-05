@@ -11,3 +11,4 @@ test-results/
 
 .pi/ui-servers/
 worktrees/
+.pi/input-history.jsonl

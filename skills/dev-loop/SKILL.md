@@ -72,6 +72,35 @@ After the resolver selects a strategy and the route pack is loaded, the routed s
 
 Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline — local phases are often interactive, and final approval requires explicit human confirmation before GitHub mutations.
 
+## Async delegation guard rules (#524)
+
+**Pre-delegation gate (#524, mandatory):** Before delegating async subagent work that targets an existing PR (watch/follow-up strategies), run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"`. This prevents delegating work that has no automatic next step — the handoff tool is the authority, not the parent session's judgment. When `action: "stop"` and `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task.
+
+> **Path resolution:** In the source repo, `<resolved-skill-scripts>` = `scripts/` (repo-root-relative) or equivalently `../../scripts/` (relative to this skill file). In installed skills, resolve from the skill's installation layout per the [skill asset path resolution rule in copilot-pr-followup/SKILL.md](../copilot-pr-followup/SKILL.md#skill-asset-path-resolution).
+
+**Worktree cwd rule (#524, mandatory):** Always set `cwd` to the worktree when delegating dev-loop work to subagents. Never delegate with the parent's `main` branch checkout as the working directory. The worktree path is authoritative for all git operations, file reads/writes, and validation commands in delegated runs.
+
+**Handoff template rule (#524):** All subagent delegation must use the `workflow-handoff-template.md` contract (resolved path: `../docs/workflow-handoff-template.md` relative to the skill directory). Never delegate with abbreviated task summaries. The handoff template must include:
+- Deterministic routing inputs (current state, gate boundary, next action)
+- Explicit `cwd` path to the worktree
+- Clear bounded task scope (single responsibility per delegation)
+- Exit conditions and where to write output artifacts
+- Intercom coordination instructions if cross-run signaling is needed
+
+**Inline-first rule for single-PR workflows (#524):** When the dev-loop agent is managing a single PR through its lifecycle, prefer inline commands over nested async subagent delegation. This does not override the enforced `requiresAsyncDispatch` routing rule — the outer dev-loop session still dispatches asynchronously when the resolver requires it. Use nested subagent delegation only when:
+- Parallel fan-out review is explicitly needed
+- The task is bounded with clear inputs/outputs and a deterministic exit condition
+- The parent session needs to continue other work while waiting
+
+**Bounded async task contract (#524):** When async delegation is needed, break work into discrete tasks with:
+- Clear input artifacts (file paths, PR numbers, state snapshots)
+- Explicit output expectations (file paths, JSON payloads, exit codes)
+- No shell polling loops — use `run-watch-cycle.mjs` or `gh run watch` for waiting
+- Intercom coordination for cross-run state updates
+- Parent session retains loop ownership; subagents handle bounded slices only
+
+**Deterministic routing step (#524):** The pre-delegation gate above determines whether delegation is appropriate. When it returns `action: "stop"` with `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task.
+
 ## Shorthand issue-based auto trigger contract
 
 - treat `auto dev loop on issue 112` as the public `dev-loop` intent `auto_continue_current` after authoritative current-state resolution
