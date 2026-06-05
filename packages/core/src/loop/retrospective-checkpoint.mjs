@@ -176,3 +176,94 @@ export function evaluateRetrospectiveGate({ checkpointState, proposedRouting } =
     reason: `Unrecognized retrospective checkpoint state: "${String(checkpointState)}".`,
   };
 }
+
+/**
+ * Merge-gate retrospective enforcement.
+ *
+ * When `workflow.requireRetrospectiveGate` is enabled, the merge path is blocked
+ * unless a retrospective checkpoint exists with `mergeApproved: true`.
+ *
+ * Pass-through cases (proposed routing returned unchanged):
+ * - requireRetrospectiveGate is false (gate not enabled)
+ * - checkpoint state is COMPLETE and mergeApproved is true
+ * - checkpoint state is SKIPPED (explicitly skipped with reason)
+ * - proposed routing is already a stop or needs_reconcile result
+ *
+ * Fail-closed cases:
+ * - requireRetrospectiveGate is true and checkpoint state is MISSING or NONE
+ * - requireRetrospectiveGate is true and mergeApproved is not true
+ * - unrecognized checkpoint state
+ *
+ * @param {object} input
+ * @param {boolean} input.requireRetrospectiveGate
+ * @param {string} input.checkpointState - One of RETROSPECTIVE_CHECKPOINT_STATE values
+ * @param {boolean|undefined} input.mergeApproved
+ * @param {object} input.proposedRouting
+ * @returns {object}
+ */
+export function evaluateRetrospectiveMergeGate({
+  requireRetrospectiveGate = false,
+  checkpointState,
+  mergeApproved,
+  proposedRouting,
+} = {}) {
+  if (!proposedRouting || typeof proposedRouting !== "object") {
+    return {
+      publicEntrypoint: "dev-loop",
+      routeKind: "needs_reconcile",
+      selectedGate: "fail_closed_reconcile",
+      selectedStrategy: null,
+      executionMode: "bounded_handoff",
+      waitSemantics: "default",
+      canonicalState: null,
+      issueAssignmentSeam: "not_applicable",
+      nextAction: "Reconcile the retrospective merge-gate state before routing.",
+      reason: "Missing or invalid proposed routing result for retrospective merge-gate evaluation.",
+    };
+  }
+
+  // Already terminal/inspect/stop — pass through regardless.
+  if (
+    proposedRouting.routeKind === "stop" ||
+    proposedRouting.routeKind === "needs_reconcile" ||
+    proposedRouting.routeKind === "inspect"
+  ) {
+    return proposedRouting;
+  }
+
+  // Gate not enabled — pass through.
+  if (requireRetrospectiveGate !== true) {
+    return proposedRouting;
+  }
+
+  // Gate enabled — check retrospective state.
+  if (
+    checkpointState === RETROSPECTIVE_CHECKPOINT_STATE.COMPLETE &&
+    mergeApproved === true
+  ) {
+    return proposedRouting;
+  }
+
+  if (checkpointState === RETROSPECTIVE_CHECKPOINT_STATE.SKIPPED) {
+    return proposedRouting;
+  }
+
+  // Blocked: missing checkpoint, disapproved merge, or unrecognized state.
+  const reason =
+    checkpointState === RETROSPECTIVE_CHECKPOINT_STATE.MISSING || checkpointState === RETROSPECTIVE_CHECKPOINT_STATE.NONE
+      ? "The retrospective merge gate requires a completed retrospective checkpoint before merge; no qualifying retrospective checkpoint exists."
+      : mergeApproved !== true
+        ? "The retrospective merge gate requires the retrospective to explicitly approve merge (mergeApproved: true); the current retrospective does not approve merge."
+        : `Unrecognized retrospective checkpoint state "${String(checkpointState)}" blocks the merge gate.`;
+
+  return {
+    ...proposedRouting,
+    routeKind: "needs_reconcile",
+    selectedGate: "fail_closed_reconcile",
+    selectedStrategy: null,
+    waitSemantics: proposedRouting.waitSemantics ?? "default",
+    issueAssignmentSeam: proposedRouting.issueAssignmentSeam ?? "not_applicable",
+    nextAction: "Complete the required retrospective checkpoint with mergeApproved: true before merging.",
+    reason,
+  };
+}

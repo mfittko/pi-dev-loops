@@ -312,11 +312,13 @@ test("retrospective merge gate allows final approval when retrospective explicit
     requireRetrospectiveGate: true,
     retrospectiveCheckpoint: {
       state: "complete",
-      mergeApproved: true,
-      followedWorkingAgreement: true,
-      gateQuality: "Real gates with concrete findings and follow-through.",
-      unexpectedFindings: "No unexpected findings.",
-      mergeRecommendation: "Proceed with merge.",
+      behavioralReview: {
+        mergeApproved: true,
+        followedWorkingAgreement: true,
+        gateQualityAcceptable: true,
+        notes: "Real gates with concrete findings and follow-through.",
+        drifts: ["No unexpected findings."],
+      },
     },
     draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
     draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),

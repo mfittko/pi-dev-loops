@@ -48,6 +48,7 @@ export const DEV_LOOP_STATUS = Object.freeze({
   APPROVAL_READY: "approval_ready",
   MERGE_READY: "merge_ready",
   DONE: "done",
+  RETROSPECTIVE_GATE_PENDING: "retrospective_gate_pending",
 });
 
 export const DEV_LOOP_AUTHORIZATION = Object.freeze({
@@ -76,6 +77,7 @@ export const DEV_LOOP_GATE = Object.freeze({
   REVIEWER_FIXER: "reviewer_fixer",
   COPILOT_PR_FOLLOWUP: "copilot_pr_followup",
   FAIL_CLOSED_RECONCILE: "fail_closed_reconcile",
+  STOP_RETROSPECTIVE_GATE_PENDING: "stop_retrospective_gate_pending",
 });
 
 export const INTERNAL_DEV_LOOP_STRATEGY = Object.freeze({

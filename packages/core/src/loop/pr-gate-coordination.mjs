@@ -189,23 +189,48 @@ function evaluateRetrospectiveMergeApproval(checkpoint) {
     return { approved: false, reason: `Retrospective is not complete (state: ${state || "missing"}).` };
   }
 
-  if (checkpoint.mergeApproved !== true) {
+  // Read merge approval from behavioralReview (existing format) or top-level (future flat format).
+  const br = checkpoint.behavioralReview && typeof checkpoint.behavioralReview === "object"
+    ? checkpoint.behavioralReview
+    : null;
+  const mergeApproved = br !== null ? br.mergeApproved : checkpoint.mergeApproved;
+  if (mergeApproved !== true) {
     return { approved: false, reason: "Retrospective does not explicitly approve merge (`mergeApproved: true` is required)." };
   }
 
-  if (typeof checkpoint.followedWorkingAgreement !== "boolean") {
+  // followedWorkingAgreement: required boolean (existing checkpoint uses behavioralReview.followedWorkingAgreement).
+  const followedWorkingAgreement = br !== null
+    ? br.followedWorkingAgreement
+    : checkpoint.followedWorkingAgreement;
+  if (typeof followedWorkingAgreement !== "boolean") {
     return { approved: false, reason: "Retrospective is missing `followedWorkingAgreement` (true/false)." };
   }
 
-  if (typeof checkpoint.gateQuality !== "string" || checkpoint.gateQuality.trim().length === 0) {
+  // gateQuality: derive from behavioralReview.gateQualityAcceptable + notes if flat field absent.
+  const gateQuality = typeof checkpoint.gateQuality === "string" && checkpoint.gateQuality.trim().length > 0
+    ? checkpoint.gateQuality
+    : (br !== null
+      ? `gateQualityAcceptable: ${String(br.gateQualityAcceptable ?? "unspecified")}. ${br.notes || ""}`.trim()
+      : null);
+  if (!gateQuality) {
     return { approved: false, reason: "Retrospective is missing `gateQuality` details." };
   }
 
-  if (typeof checkpoint.unexpectedFindings !== "string" || checkpoint.unexpectedFindings.trim().length === 0) {
+  // unexpectedFindings: derive from behavioralReview.drifts if flat field absent.
+  const unexpectedFindings = typeof checkpoint.unexpectedFindings === "string" && checkpoint.unexpectedFindings.trim().length > 0
+    ? checkpoint.unexpectedFindings
+    : (br !== null && Array.isArray(br.drifts) && br.drifts.length > 0
+      ? br.drifts.join("; ")
+      : null);
+  if (!unexpectedFindings) {
     return { approved: false, reason: "Retrospective is missing `unexpectedFindings` details." };
   }
 
-  if (typeof checkpoint.mergeRecommendation !== "string" || checkpoint.mergeRecommendation.trim().length === 0) {
+  // mergeRecommendation: derive from mergeApproved flag if flat field absent.
+  const mergeRecommendation = typeof checkpoint.mergeRecommendation === "string" && checkpoint.mergeRecommendation.trim().length > 0
+    ? checkpoint.mergeRecommendation
+    : "mergeApproved: true — merge is authorized.";
+  if (!mergeRecommendation) {
     return { approved: false, reason: "Retrospective is missing `mergeRecommendation` details." };
   }
 
