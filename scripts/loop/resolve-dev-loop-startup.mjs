@@ -200,11 +200,18 @@ function resolveTargetPreference(cwd) {
   for (const settingsPath of candidates) {
     try {
       const raw = readFileSync(settingsPath, "utf8");
-      const match = raw.match(/strategy:\s*\n\s*default:\s*(\S+)/);
-      if (match && match[1] === "local-first") {
-        return "prefer_local";
+      if (settingsPath.endsWith(".json")) {
+        const parsed = JSON.parse(raw);
+        const val = parsed?.strategy?.default;
+        if (val === "local-first") return "prefer_local";
+        if (val === "github-first") return "prefer_github_first";
+        continue;
       }
-      return "prefer_github_first";
+      const match = raw.match(/strategy:\s*\n\s*default:\s*["']?([^"'\s]+)["']?/);
+      if (match) {
+        if (match[1] === "local-first") return "prefer_local";
+        if (match[1] === "github-first") return "prefer_github_first";
+      }
     } catch {
       // try next candidate
     }
