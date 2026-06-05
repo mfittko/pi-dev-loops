@@ -72,6 +72,33 @@ After the resolver selects a strategy and the route pack is loaded, the routed s
 
 Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline — local phases are often interactive, and final approval requires explicit human confirmation before GitHub mutations.
 
+## Async delegation guard rules (#524)
+
+**Pre-delegation gate (#524, enforced):** Before any async subagent delegation in the dev-loop, run `copilot-pr-handoff.mjs` and abort if `action: "stop"` or `watchArgs: null`. This prevents delegating work that has no automatic next step — the handoff tool is the authority, not the parent session's judgment.
+
+**Worktree cwd rule (#524, enforced):** Always set `cwd` to the worktree when delegating dev-loop work to subagents. Never delegate with the parent's `main` branch checkout as the working directory. The worktree path is authoritative for all git operations, file reads/writes, and validation commands in delegated runs.
+
+**Handoff template rule (#524):** All subagent delegation must use the `workflow-handoff-template.md` contract. Never delegate with abbreviated task summaries. The handoff template must include:
+- Deterministic routing inputs (current state, gate boundary, next action)
+- Explicit `cwd` path to the worktree
+- Clear bounded task scope (single responsibility per delegation)
+- Exit conditions and where to write output artifacts
+- Intercom coordination instructions if cross-run signaling is needed
+
+**Inline-first rule for single-PR workflows (#524):** When managing a single PR through its lifecycle, prefer inline commands over async delegation. Inline execution is faster, avoids context serialization overhead, and has full access to the parent session's state and tool results. Use async delegation only when:
+- Parallel fan-out review is explicitly needed
+- The task is bounded with clear inputs/outputs and a deterministic exit condition
+- The parent session needs to continue other work while waiting
+
+**Bounded async task contract (#524):** When async delegation is needed, break work into discrete tasks with:
+- Clear input artifacts (file paths, PR numbers, state snapshots)
+- Explicit output expectations (file paths, JSON payloads, exit codes)
+- No shell polling loops — use `run-watch-cycle.mjs` or `gh run watch` for waiting
+- Intercom coordination for cross-run state updates
+- Parent session retains loop ownership; subagents handle bounded slices only
+
+**Deterministic routing step (#524):** The dev-loop skill checks `copilot-pr-handoff.mjs` output before deciding whether to delegate or proceed inline. When the handoff returns `action: "stop"` with `terminal: true`, the loop is complete for that phase — proceed to the next gate inline rather than delegating a polling task.
+
 ## Shorthand issue-based auto trigger contract
 
 - treat `auto dev loop on issue 112` as the public `dev-loop` intent `auto_continue_current` after authoritative current-state resolution
