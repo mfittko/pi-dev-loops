@@ -1,92 +1,135 @@
-# Workflow-Run Subagent Hand-Off Template
+# Handoff Envelope — Derivation Contract
 
-This is the canonical hand-off contract for subagents tasked with running
-the dev-loop workflow. Every hand-off must use this template — no abbreviated
-task summaries or operator-memory shortcuts.
+> **Status:** This document now defines the **contract** for the
+> `buildDevLoopHandoffEnvelope()` function in `@pi-dev-loops/core`.
+> It is no longer a prose template consumed by agents at dispatch time.
+> Agents should read the envelope as their first artifact and then load
+> only the listed `requiredReads` before executing `nextAction`.
 
-## Required contract-doc reads
+## Authoritative sources
 
-Before executing any step, the subagent must read these contract docs:
+Every field in the handoff envelope is derived from exactly one of three
+authoritative sources. No field uses a hard-coded magic string or prose
+template.
 
-| Doc | Purpose |
+| Source | Fields derived |
 |---|---|
-| [Gate Review Comment Contract](../../docs/gate-review-comment-contract.md) | `draft_gate` and `pre_approval_gate` semantics, verdict definitions, rerun rules, fail-closed behavior |
-| [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) | Step 7: review/fix follow-up loop, reply/resolve policy, merge-ready preconditions |
-| [Scripts Documentation](../../scripts/README.md) | Deterministic helpers for gate evidence, thread capture, review requests |
+| Resolver output (`resolve-dev-loop-startup.mjs` bundle) | `target`, `currentGate`, `nextAction`, `requiredReads`, `executionMode`, `cwd`, `worktreeRequired` |
+| Settings (`.pi/dev-loop/settings.yaml` + `defaults.yaml`) | `gateConfig`, `stopRules`, `asyncStartMode`, `requireDraftFirst`, `maxCopilotRounds` |
+| Gate state (detectors) | `currentHeadSha`, `ciStatus`, `unresolvedThreadCount`, `copilotRoundCount` |
 
-## Mandatory sequence
+## Acceptance templates
 
-Every step is non-optional. Do not skip, reorder, or batch steps.
+`acceptance.criteria`, `acceptance.evidence`, `acceptance.maxFinalizationTurns`,
+and `control.*` are derived from a static strategy+gate mapping table:
 
-### 1. Create draft PR
+| Strategy | Gate | criteria | evidence | maxFinalizationTurns | needsAttentionAfterMs |
+|---|---|---|---|---|---|
+| `copilot_pr_followup` | `draft` | AC check, scope, coverage, DoD alignment | commands-run, validation-output, review-findings | 4 | 300000 |
+| `copilot_pr_followup` | `watch` | Copilot activity detection, no stuck watch | commands-run | 2 | 300000 |
+| `copilot_pr_followup` | `pre-approval` | Full pre-approval gate chain, clean verdict, unresolved threads, CI green | commands-run, validation-output, review-findings, residual-risks | 6 | 300000 |
+| `final_approval` | `default` | Gate evidence, human confirmation, CI green | validation-output, manual-notes | 2 | 300000 |
+| `local_implementation` | `default` | Phase-acceptance criteria, verify green | commands-run, validation-output, changed-files | 6 | 300000 |
+| `issue_intake` | `default` | Contract compliance | commands-run, validation-output | 4 | 300000 |
+| `external_pr_followup` | `default` | Contract compliance | commands-run, validation-output | 4 | 300000 |
+| `reviewer_fixer` | `default` | Contract compliance | commands-run, validation-output | 4 | 300000 |
+| `wait_watch` | `default` | Contract compliance | commands-run, validation-output | 4 | 300000 |
 
-- Branch off `origin/main`
-- Implement changes, write tests, run `npm run verify`
-- Create PR as **draft** via `node scripts/github/create-draft-pr.mjs --assignee @me ...`
+Unknown strategy+gate combinations throw an explicit error listing known combos.
 
-### 2. Draft gate inspection
+## Stop rules
 
-- Run parallel subagent reviews (correctness vs AC, scope compliance, test coverage)
-- Post visible `draft_gate` comment on the PR with:
-  - gate name `draft_gate`
-  - reviewed head SHA
-  - verdict (clean / findings_present / blocked)
-  - findings summary
-  - next action
-- If findings_present or blocked → fix and re-run draft gate
+Stop rules are derived from `settings.autonomy.stopAt` when present.
+When absent, strategy defaults apply:
 
-### 3. Mark ready for review
+| Strategy | Default stop rules |
+|---|---|
+| `copilot_pr_followup` | `["draft-pr", "merge"]` |
+| `issue_intake` | `["merge"]` |
+| `external_pr_followup` | `["merge"]` |
+| `reviewer_fixer` | `["merge"]` |
+| `wait_watch` | `["merge"]` |
+| `final_approval` | `["merge"]` |
+| `local_implementation` | `[]` (auto-continue) |
 
-- Only after a clean `draft_gate` comment exists for the current head SHA
-- Run: `gh pr ready`
+## Envelope schema
 
-### 4. Wait for Copilot review
+```typescript
+interface HandoffEnvelope {
+  handoffVersion: 1;
+  derivedAt: string; // ISO timestamp
 
-- Use the deterministic wait boundary: `node scripts/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number>`
-- Treat the PR follow-up as a loop, not a one-shot watch: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → …`
-- If the watch cycle returns fresh Copilot activity / `cycleDisposition: "needs_followup"`, continue immediately to step 5
-- If the watch cycle returns `watchStatus: "timeout"`, refresh once with `node scripts/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number> --watch-status timeout`
-- If the refreshed state still waits on Copilot, stop with `watch timeout — PR #<number> needs manual attention`
-- Default max watch timeout per Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`)
+  target: {
+    kind: "issue" | "pr" | "local_branch" | "local_phase";
+    repo: string;
+    issue?: number;
+    pr?: number;
+    linkedPr?: number;
+    branch?: string;
+    phase?: string;
+  };
 
-### 5. Address Copilot feedback
+  currentGate: string;
+  currentHeadSha: string | null;
+  ciStatus: string | null;
+  unresolvedThreadCount: number;
+  copilotRoundCount: number;
+  maxCopilotRounds: number;
+  executionMode: "bounded_handoff" | "durable_auto";
 
-For each Copilot review pass:
-- Apply fixes, verify with `npm run verify`
-- Reply to **every** inline comment with the resolving commit reference
-- **Resolve** the corresponding review threads on GitHub
-- Verify: `unresolvedThreadCount === 0` before proceeding
+  nextAction: string;
+  requiredReads: string[];
 
-### 6. Re-request Copilot review for new heads
+  gateConfig?: {
+    angles: string[];
+    excludeAngles?: string[];
+    blockCleanOnFindingSeverities: string[];
+    requireCi: boolean;
+  };
 
-- After pushing fixes to a new head, re-request Copilot review
-- Return immediately to step 4 after the re-request; do not stop at `review requested` or after a single watch cycle
-- Repeat steps 4–6 until Copilot review has no actionable feedback
+  stopRules: string[];
+  asyncStartMode: "required" | "allowed";
+  requireDraftFirst: boolean;
 
-### 7. Pre-approval gate inspection
+  cwd: string | null;
+  worktreeRequired: boolean;
 
-- Confirm legality: `node scripts/loop/detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number>`
-- If legality returns `gateBoundary=conflict_resolution`, stop the gate, resolve conflicts on the PR branch, rerun validation, re-detect gate state for the new head, and only then rerun `pre_approval_gate`
-- Run parallel subagent reviews with angles resolved from config (`resolveGateAngles(config, "preApproval")`)
-- Post visible `pre_approval_gate` comment on the PR
-- If findings → fix, push new head, re-run pre-approval gate
+  acceptance: {
+    criteria: Array<{ id: string; must: string; severity: "required" | "recommended" }>;
+    evidence: string[];
+    maxFinalizationTurns: number;
+  };
 
-### 8. Merge
+  control: {
+    needsAttentionAfterMs: number;
+    activeNoticeAfterMs: number;
+  };
 
-- Immediately before merge, run `node scripts/github/detect-checkpoint-evidence.mjs --repo <owner/name> --pr <number>` and stop if it fails. Gate evidence enforcement is always-on; there is no opt-out flag.
-- Required evidence:
-  - `draft_gate` clean comment exists (any head — one-time transition boundary, no current-head requirement)
-  - `pre_approval_gate` clean comment exists for **current** head SHA
-  - CI green on current head
-  - `unresolvedThreadCount === 0`
-- Merge only after explicit authorization
+  overrides?: {
+    mergeAuthorized?: boolean;
+    preferLocal?: boolean;
+    scopeConstraint?: string;
+    customStopAt?: string;
+  };
+}
+```
 
-## Non-negotiable invariants
+## Agent consumption pattern
 
-- **PERSISTENCE MODEL: Subagents do bounded implementation tasks and exit on external wait. The main session drives the loop and re-dispatches when continuation is feasible.**
-- A single watch cycle return is not completion; the main session re-dispatches until merge or a hard stop
-- The Copilot review loop (steps 4–6) sits **between** `draft_gate` and `pre_approval_gate` — never reorder
-- `unresolvedThreadCount === 0` verification is required before step 7
-- Gate comments must be visible on the PR — no hidden/local-only evidence
-- Never merge without explicit authorization
-- Never run `gh pr merge` without a same-boundary successful gate evidence check (always-on, no opt-out)
+1. Read the handoff envelope as the first artifact.
+2. Read every path listed in `requiredReads` (in order).
+3. Execute `nextAction`.
+4. Respect `stopRules` — do not proceed past a gated stop point without authorization.
+5. Use `acceptance` to self-validate before declaring completion.
+
+## Backward compatibility
+
+The `acceptance` block maps 1:1 into the existing `subagent()` acceptance
+contract shape. When the envelope is present, no separate prose task
+parameter is required.
+
+## Non-goals
+
+- This contract does not define dispatch mechanics.
+- This contract does not define UI/UX for envelope display.
+- This contract does not modify the `subagent()` API itself.
