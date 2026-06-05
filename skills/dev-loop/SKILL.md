@@ -97,7 +97,7 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 - Intercom coordination for cross-run state updates
 - Parent session retains loop ownership; subagents handle bounded slices only
 
-**Deterministic routing step (#524):** The dev-loop skill checks `copilot-pr-handoff.mjs` output before deciding whether to delegate or proceed inline. When the handoff returns `action: "stop"` with `terminal: true`, the loop is complete for that phase — proceed to the next gate inline rather than delegating a polling task.
+**Deterministic routing step (#524):** The pre-delegation gate above determines whether delegation is appropriate. When it returns `action: "stop"` with `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task.
 
 ## Shorthand issue-based auto trigger contract
 
