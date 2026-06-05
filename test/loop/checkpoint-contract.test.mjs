@@ -27,7 +27,6 @@ test("parseCheckpointContractCliArgs rejects invalid --state values", () => {
     () => parseCheckpointContractCliArgs(["--state", "compleat"]),
     /allowed/i,
   );
-  // Verify the error preserves USAGE text (parseError convention)
   try {
     parseCheckpointContractCliArgs(["--state", "typo"]);
     assert.fail("Expected parseError to be thrown");
@@ -51,6 +50,25 @@ test("buildRetrospectiveCheckpointPayload writes complete payload shape", () => 
     state: "complete",
     completedAt: "2026-06-05T00:00:00.000Z",
     notes: "all good",
+  });
+});
+
+test("buildRetrospectiveCheckpointPayload writes skipped payload shape", () => {
+  const now = new Date("2026-06-05T00:00:00.000Z");
+  const payload = buildRetrospectiveCheckpointPayload({ state: "skipped", reason: "not needed" }, now);
+  assert.deepEqual(payload, {
+    state: "skipped",
+    skippedAt: "2026-06-05T00:00:00.000Z",
+    reason: "not needed",
+  });
+});
+
+test("buildRetrospectiveCheckpointPayload writes required payload shape", () => {
+  const now = new Date("2026-06-05T00:00:00.000Z");
+  const payload = buildRetrospectiveCheckpointPayload({ state: "required" }, now);
+  assert.deepEqual(payload, {
+    state: "required",
+    triggeredAt: "2026-06-05T00:00:00.000Z",
   });
 });
 
