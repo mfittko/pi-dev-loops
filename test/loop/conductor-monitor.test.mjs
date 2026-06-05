@@ -720,6 +720,70 @@ test("conductor-monitor --auto-resume reuses grouped result summaries when accep
   }
 });
 
+test("conductor-monitor --auto-resume falls back to deterministic output logs when grouped summaries are absent", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-output-log-fallback-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    const resultPath = path.join(asyncResultsRoot, "run-output-log-58c.json");
+    const finalApprovalSummary = [
+      "Status: stopped at final human approval boundary",
+      "Routed strategy: final_approval",
+      "PR: https://github.com/owner/repo/pull/58",
+      "Next recommended action: human reviews/approves PR #58",
+    ].join("\n");
+
+    const { sessionPath } = await writeSessionRun({
+      sessionsRoot,
+      runId: "run-output-log-58c",
+      cwd: repoRoot,
+      timestampMs: 1700000014650,
+      exitCode: 1,
+      outputText: finalApprovalSummary,
+      writeOutputArtifact: false,
+    });
+    await writeAsyncRun({
+      asyncRunsRoot,
+      runId: "run-output-log-58c",
+      state: "complete",
+      cwd: repoRoot,
+      sessionPath,
+      timestampMs: 1700000014700,
+      outputText: finalApprovalSummary,
+    });
+    await writeFile(resultPath, `${JSON.stringify({
+      runId: "run-output-log-58c",
+      agent: "dev-loop",
+      state: "complete",
+      cwd: repoRoot,
+      results: [{
+        agent: "dev-loop",
+        artifactPaths: {
+          output: path.join(asyncResultsRoot, "missing-run-output-log-58c_output.md"),
+        },
+      }],
+    }, null, 2)}
+`, "utf8");
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 58,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+    assert.equal(payload.resumePlanCount, 1);
+    assert.equal(payload.manualAttentionCount, 0);
+    assert.equal(payload.resumePlans[0].pr, 58);
+    assert.equal(payload.resumePlans[0].artifactPath.endsWith("output-0.log"), true);
+    assert.equal(payload.resumePlans[0].resumeAction, "await_final_approval");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("conductor-monitor --auto-resume fails closed when an active matching run has the same timestamp as the exited candidate", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-same-timestamp-active-run-"));
 
@@ -1088,7 +1152,7 @@ test("conductor-monitor --auto-resume fails closed when the output artifact is m
     assert.equal(payload.manualAttentionCount, 1);
     assert.equal(payload.needsManualAttention[0].pr, 31);
     assert.equal(payload.needsManualAttention[0].runId, "run-missing-31");
-    assert.equal(payload.needsManualAttention[0].reason, "missing_output_artifact");
+    assert.equal(payload.needsManualAttention[0].reason, "unclassified_artifact_state");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

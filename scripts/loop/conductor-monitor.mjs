@@ -1329,7 +1329,7 @@ function buildSourceSelection(record, outputArtifactText, resultSummaryText, out
     });
   }
 
-  if (resultSummaryText !== null && outputLogText !== null) {
+  if (outputLogText !== null) {
     candidates.push({
       text: outputLogText,
       source: "weak_fallback_output_log",
