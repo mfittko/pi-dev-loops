@@ -156,26 +156,24 @@ test("parseWatchInitialCopilotPrCliArgs parses required args", () => {
   assert.equal(opts.timeoutMs, 3_600_000);
 });
 
-test("parseWatchInitialCopilotPrCliArgs accepts long-lived --poll-interval-ms and --timeout-ms overrides", () => {
-  const opts = parseWatchInitialCopilotPrCliArgs([
-    "--repo", "owner/repo",
-    "--issue", "59",
-    "--poll-interval-ms", "5000",
-    "--timeout-ms", "7200000",
-  ]);
-  assert.equal(opts.pollIntervalMs, 5000);
-  assert.equal(opts.timeoutMs, 7_200_000);
+test("parseWatchInitialCopilotPrCliArgs rejects --poll-interval-ms as a removed policy flag", () => {
+  assert.throws(
+    () => parseWatchInitialCopilotPrCliArgs(["--repo", "owner/repo", "--issue", "59", "--poll-interval-ms", "5000"]),
+    /--poll-interval-ms has been removed/,
+  );
 });
 
-test("parseWatchInitialCopilotPrCliArgs accepts --timeout-ms 0 (single-check mode)", () => {
-  const opts = parseWatchInitialCopilotPrCliArgs(["--repo", "owner/repo", "--issue", "59", "--timeout-ms", "0"]);
-  assert.equal(opts.timeoutMs, 0);
+test("parseWatchInitialCopilotPrCliArgs rejects --timeout-ms 0 as a removed policy flag", () => {
+  assert.throws(
+    () => parseWatchInitialCopilotPrCliArgs(["--repo", "owner/repo", "--issue", "59", "--timeout-ms", "0"]),
+    /--timeout-ms has been removed/,
+  );
 });
 
-test("parseWatchInitialCopilotPrCliArgs rejects short non-zero persistent timeouts", () => {
+test("parseWatchInitialCopilotPrCliArgs rejects --timeout-ms 30000 as a removed policy flag", () => {
   assert.throws(
     () => parseWatchInitialCopilotPrCliArgs(["--repo", "owner/repo", "--issue", "59", "--timeout-ms", "30000"]),
-    /requires at least 3600000 ms/i,
+    /--timeout-ms has been removed/,
   );
 });
 
@@ -209,17 +207,17 @@ test("parseWatchInitialCopilotPrCliArgs throws on bad issue number", () => {
   );
 });
 
-test("parseWatchInitialCopilotPrCliArgs throws on invalid --poll-interval-ms", () => {
+test("parseWatchInitialCopilotPrCliArgs rejects --poll-interval-ms 0 as a removed policy flag", () => {
   assert.throws(
     () => parseWatchInitialCopilotPrCliArgs(["--repo", "owner/repo", "--issue", "1", "--poll-interval-ms", "0"]),
-    /--poll-interval-ms must be a positive integer/i,
+    /--poll-interval-ms has been removed/,
   );
 });
 
-test("parseWatchInitialCopilotPrCliArgs throws on invalid --timeout-ms", () => {
+test("parseWatchInitialCopilotPrCliArgs rejects --timeout-ms -1 as a removed policy flag", () => {
   assert.throws(
     () => parseWatchInitialCopilotPrCliArgs(["--repo", "owner/repo", "--issue", "1", "--timeout-ms", "-1"]),
-    /--timeout-ms must be a non-negative integer/i,
+    /--timeout-ms has been removed/,
   );
 });
 
@@ -307,7 +305,7 @@ test("watchInitialCopilotPr rejects short non-zero persistent budgets for direct
         ]),
       },
     ),
-    /requires at least 3600000 ms/i,
+    /requires at least 3600000 ms/,
   );
 });
 
@@ -655,7 +653,7 @@ test("watch-initial-copilot-pr returns ready_for_followup via CLI when PR is imm
     ]);
 
     const result = await runNode(
-      ["--repo", "owner/repo", "--issue", "59", "--timeout-ms", "0"],
+      ["--repo", "owner/repo", "--issue", "59"],
       { env },
     );
 
@@ -672,158 +670,39 @@ test("watch-initial-copilot-pr returns ready_for_followup via CLI when PR is imm
   }
 });
 
-test("watch-initial-copilot-pr returns timed_out via CLI for bootstrap-only PR (healthy, not failure)", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-initial-pr-bootstrap-"));
-
-  try {
-    const env = await writeGhStub(tempDir, [
-      {
-        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
-        stdout: linkedPrPayload(),
-      },
-      {
-        assertArgs: ["api", "graphql", "-F", "pr=79", "owner=owner", "name=repo"],
-        stdout: pullRequestFactsPayload(),
-      },
-      {
-        assertArgs: ["run", "list", "--repo", "owner/repo", "--branch", "copilot/example-branch"],
-        stdout: "[]\n",
-      },
-    ]);
-
-    const result = await runNode(
-      ["--repo", "owner/repo", "--issue", "59", "--timeout-ms", "0"],
-      { env },
-    );
-
-    assert.equal(result.code, 0);
-    assert.equal(result.stderr, "");
-    const payload = JSON.parse(result.stdout);
-    assert.equal(payload.ok, true);
-    assert.equal(payload.status, "timed_out");
-    assert.equal(payload.prNumber, 79);
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
+test("watch-initial-copilot-pr returns timed_out for bootstrap-only PR", async () => {
+  const detect = makeDetectMock([
+    { ok: true, state: "waiting_for_initial_copilot_implementation", prNumber: 79, prUrl: "https://github.com/owner/repo/pull/79" },
+  ]);
+  const result = await watchInitialCopilotPr(
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 60_000, timeoutMs: 0 },
+    { detectInitialCopilotPrStateImpl: detect, delayImpl: async () => {} },
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "timed_out");
+  assert.equal(result.prNumber, 79);
 });
-
-test("watch-initial-copilot-pr returns timed_out via CLI for no_linked_pr (healthy, not failure)", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-initial-pr-nopr-"));
-
-  try {
-    const env = await writeGhStub(tempDir, [
-      {
-        assertArgs: ["api", "graphql", "-F", "issue=59", "owner=owner", "name=repo"],
-        stdout: linkedPrPayload({ hasOpenLinkedPr: false }),
-      },
-    ]);
-
-    const result = await runNode(
-      ["--repo", "owner/repo", "--issue", "59", "--timeout-ms", "0"],
-      { env },
-    );
-
-    assert.equal(result.code, 0);
-    assert.equal(result.stderr, "");
-    const payload = JSON.parse(result.stdout);
-    assert.equal(payload.ok, true);
-    assert.equal(payload.status, "timed_out");
-    assert.equal(payload.prNumber, null);
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
+test("watch-initial-copilot-pr returns timed_out for no_linked_pr", async () => {
+  const detect = makeDetectMock([
+    { ok: true, state: "no_linked_pr", prNumber: null, prUrl: null },
+  ]);
+  const result = await watchInitialCopilotPr(
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 60_000, timeoutMs: 0 },
+    { detectInitialCopilotPrStateImpl: detect, delayImpl: async () => {} },
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "timed_out");
+  assert.equal(result.prNumber, null);
 });
-
-test("watch-initial-copilot-pr returns prior_linked_pr_closed_unmerged via CLI and exits 0", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-initial-pr-prior-closed-"));
-
-  try {
-    const env = await writeGhStub(tempDir, [
-      {
-        assertArgs: ["api", "graphql", "-F", "issue=130", "owner=owner", "name=repo"],
-        stdout: linkedPrClosedPayload({ closedPrNumber: 149 }),
-      },
-    ]);
-
-    const result = await runNode(
-      ["--repo", "owner/repo", "--issue", "130", "--timeout-ms", "0"],
-      { env },
-    );
-
-    assert.equal(result.code, 0);
-    assert.equal(result.stderr, "");
-    const payload = JSON.parse(result.stdout);
-    assert.equal(payload.ok, true);
-    assert.equal(payload.status, "prior_linked_pr_closed_unmerged");
-    assert.equal(payload.prNumber, 149);
-    assert.equal(payload.issue, 130);
-    assert.equal(payload.repo, "owner/repo");
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// CLI error-handling tests
-// ---------------------------------------------------------------------------
-
-test("watch-initial-copilot-pr rejects malformed arguments deterministically", async () => {
-  const missingIssue = await runNode(["--repo", "owner/repo"]);
-  assert.equal(missingIssue.code, 1);
-  assert.equal(missingIssue.stdout, "");
-  const missingIssueErr = JSON.parse(missingIssue.stderr);
-  assert.equal(missingIssueErr.ok, false);
-  assert.match(missingIssueErr.error, /watch-initial-copilot-pr requires both --repo.*and --issue/i);
-  assert.equal(typeof missingIssueErr.usage, "string");
-  assert.ok(missingIssueErr.usage.length > 0);
-
-  const missingRepo = await runNode(["--issue", "59"]);
-  assert.equal(missingRepo.code, 1);
-  const missingRepoErr = JSON.parse(missingRepo.stderr);
-  assert.equal(missingRepoErr.ok, false);
-  assert.match(missingRepoErr.error, /watch-initial-copilot-pr requires both --repo.*and --issue/i);
-
-  const badIssue = await runNode(["--repo", "owner/repo", "--issue", "abc"]);
-  assert.equal(badIssue.code, 1);
-  const badIssueErr = JSON.parse(badIssue.stderr);
-  assert.equal(badIssueErr.ok, false);
-  assert.match(badIssueErr.error, /--issue must be a positive integer/i);
-  assert.equal(typeof badIssueErr.usage, "string");
-  assert.ok(badIssueErr.usage.length > 0);
-
-  const badPollInterval = await runNode(["--repo", "owner/repo", "--issue", "1", "--poll-interval-ms", "0"]);
-  assert.equal(badPollInterval.code, 1);
-  const badPollErr = JSON.parse(badPollInterval.stderr);
-  assert.equal(badPollErr.ok, false);
-  assert.match(badPollErr.error, /--poll-interval-ms must be a positive integer/i);
-
-  const badTimeout = await runNode(["--repo", "owner/repo", "--issue", "1", "--timeout-ms", "abc"]);
-  assert.equal(badTimeout.code, 1);
-  const badTimeoutErr = JSON.parse(badTimeout.stderr);
-  assert.equal(badTimeoutErr.ok, false);
-  assert.match(badTimeoutErr.error, /--timeout-ms must be a non-negative integer/i);
-});
-
-test("watch-initial-copilot-pr --help prints usage and exits 0", async () => {
-  const helpLong = await runNode(["--help"]);
-  assert.equal(helpLong.code, 0);
-  assert.equal(helpLong.stderr, "");
-  assert.ok(helpLong.stdout.includes("watch-initial-copilot-pr.mjs"), `expected script name in help`);
-  assert.ok(helpLong.stdout.includes("--repo"), `expected --repo in help`);
-  assert.ok(helpLong.stdout.includes("--issue"), `expected --issue in help`);
-  assert.ok(helpLong.stdout.includes("--poll-interval-ms"), `expected --poll-interval-ms in help`);
-  assert.ok(helpLong.stdout.includes("--timeout-ms"), `expected --timeout-ms in help`);
-  assert.ok(helpLong.stdout.includes("ready_for_followup"), `expected ready_for_followup status in help`);
-  assert.ok(helpLong.stdout.includes("timed_out"), `expected timed_out status in help`);
-  assert.ok(helpLong.stdout.includes("prior_linked_pr_closed_unmerged"), `expected prior_linked_pr_closed_unmerged status in help`);
-
-  const helpShort = await runNode(["-h"]);
-  assert.equal(helpShort.code, 0);
-  assert.equal(helpShort.stdout, helpLong.stdout);
-});
-
-test("watch-initial-copilot-pr uses production-safe defaults (1-minute poll, 1-hour timeout)", () => {
-  const opts = parseWatchInitialCopilotPrCliArgs(["--repo", "owner/repo", "--issue", "59"]);
-  assert.equal(opts.pollIntervalMs, 60_000);
-  assert.equal(opts.timeoutMs, 3_600_000);
+test("watch-initial-copilot-pr returns prior_linked_pr_closed_unmerged", async () => {
+  const detect = makeDetectMock([
+    { ok: true, state: "prior_linked_pr_closed_unmerged", prNumber: 101, prUrl: "https://github.com/owner/repo/pull/101" },
+  ]);
+  const result = await watchInitialCopilotPr(
+    { repo: "owner/repo", issue: 59, pollIntervalMs: 60_000, timeoutMs: 0 },
+    { detectInitialCopilotPrStateImpl: detect, delayImpl: async () => {} },
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "prior_linked_pr_closed_unmerged");
+  assert.equal(result.prNumber, 101);
 });

@@ -14,20 +14,18 @@ import {
   enforceExternalHealthyWaitTimeout,
 } from "@pi-dev-loops/core/loop/timeout-policy";
 
-const USAGE = `Usage: run-watch-cycle.mjs --repo <owner/name> --pr <number> [--force-rerequest-review] [--probe-only]
+const REMOVED_FLAGS = new Set([
+  "--force-rerequest-review",
+  "--probe-only",
+]);
+
+const USAGE = `Usage: run-watch-cycle.mjs --repo <owner/name> --pr <number>
 
 Run one deterministic Copilot wait-cycle boundary.
 
 Required:
   --repo <owner/name>       Repository slug (e.g. owner/repo)
   --pr <number>             Pull request number
-
-Optional:
-  --force-rerequest-review  Force a Copilot re-request even when automatic
-                            same-head suppression is active
-  --probe-only              Use a single immediate recheck (timeout 0) for
-                            explicit status probes only; normal async waiting
-                            keeps the emitted long-lived persistent wait timeout
 
 Output (stdout, JSON):
   { "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...",
@@ -60,6 +58,11 @@ Exit codes:
 
 const parseError = buildParseError(USAGE);
 
+function rejectRemovedFlag(token) {
+  throw parseError(
+    `${token} has been removed. Copilot re-requests and probe-only mode are managed internally. Omit the flag.`,
+  );
+}
 
 async function fetchPrHeadBranch({ repo, pr }, { env, ghCommand }) {
   const result = await runChild(
@@ -132,10 +135,9 @@ async function watchWorkflowRun({ repo, runId, timeoutMs = null }, { env, ghComm
   });
 }
 
-function determineWatchTimeout({ probeOnly, defaultTimeoutMs }) {
+function determineWatchTimeout(defaultTimeoutMs) {
   return enforceExternalHealthyWaitTimeout({
     timeoutMs: defaultTimeoutMs,
-    explicitProbe: probeOnly,
     contextLabel: "Copilot review wait",
   });
 }
@@ -144,7 +146,6 @@ function buildWatchCycleContractTrace({
   handoff,
   watchArgs = null,
   watchTimeoutPolicy = null,
-  probeOnly,
   watchStatus,
   cycleDisposition,
   sessionActivity = null,
@@ -169,7 +170,7 @@ function buildWatchCycleContractTrace({
     waitStrategy: {
       helper: handoff.action === "watch" ? "scripts/github/probe-copilot-review.mjs" : null,
       mode: handoff.action === "watch"
-        ? (probeOnly ? "one_shot_probe" : "persistent_watch")
+        ? "persistent_watch"
         : "not_applicable",
       effectiveTimeoutMs: watchArgs?.timeoutMs ?? null,
       effectivePollIntervalMs: watchArgs?.pollIntervalMs ?? null,
@@ -188,7 +189,7 @@ function buildWatchCycleContractTrace({
           refreshRequired: true,
           refreshReason: watchStatus === "changed"
             ? "Watch boundaries with fresh activity require an authoritative state refresh before routing the follow-up path."
-            : "Healthy wait boundaries are observational only; refresh authoritative state before treating timeout/idle as stop or completion.",
+            : "Healthy watch boundaries are observational only; refresh authoritative state before treating timeout/idle as stop or completion.",
         }
       : null,
     stopReason: {
@@ -210,8 +211,6 @@ export function parseWatchCycleCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
-    forceRerequestReview: false,
-    probeOnly: false,
   };
 
   while (args.length > 0) {
@@ -222,6 +221,10 @@ export function parseWatchCycleCliArgs(argv) {
       return options;
     }
 
+    if (REMOVED_FLAGS.has(token)) {
+      rejectRemovedFlag(token);
+    }
+
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
@@ -229,16 +232,6 @@ export function parseWatchCycleCliArgs(argv) {
 
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
-      continue;
-    }
-
-    if (token === "--force-rerequest-review") {
-      options.forceRerequestReview = true;
-      continue;
-    }
-
-    if (token === "--probe-only") {
-      options.probeOnly = true;
       continue;
     }
 
@@ -306,7 +299,6 @@ export async function runWatchCycle(
       handoff,
       watchArgs: result.watchArgs ?? null,
       watchTimeoutPolicy: result.watchTimeoutPolicy ?? null,
-      probeOnly: options.probeOnly,
       watchStatus: result.watchStatus,
       cycleDisposition: result.cycleDisposition,
     });
@@ -317,10 +309,9 @@ export async function runWatchCycle(
     result.watchTimeoutPolicy = EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY;
   }
 
-  const persistentWatchTimeoutMs = determineWatchTimeout({
-    probeOnly: false,
-    defaultTimeoutMs: handoff.watchArgs.timeoutMs,
-  });
+  const persistentWatchTimeoutMs = determineWatchTimeout(
+    handoff.watchArgs.timeoutMs,
+  );
 
   let workflowRunWatch = null;
   if (detectSessionActivity) {
@@ -335,8 +326,7 @@ export async function runWatchCycle(
     result.sessionActivity = session;
 
     if (
-      !options.probeOnly
-      && session.activity === "active"
+      session.activity === "active"
       && Number.isInteger(session.runId)
     ) {
       const workflowWatchResult = await watchWorkflowRunImpl(
@@ -358,10 +348,7 @@ export async function runWatchCycle(
 
   const watchOptions = {
     ...handoff.watchArgs,
-    timeoutMs: determineWatchTimeout({
-      probeOnly: options.probeOnly,
-      defaultTimeoutMs: persistentWatchTimeoutMs,
-    }),
+    timeoutMs: persistentWatchTimeoutMs,
   };
   const watch = await watchCopilotReviewImpl(watchOptions, { env, ghCommand });
 
@@ -374,11 +361,10 @@ export async function runWatchCycle(
     handoff,
     watchArgs: watchOptions,
     watchTimeoutPolicy: result.watchTimeoutPolicy,
-    probeOnly: options.probeOnly,
     watchStatus: watch.status,
     cycleDisposition: result.cycleDisposition,
     sessionActivity: result.sessionActivity ?? null,
-    workflowRunWatch: detectSessionActivity && !options.probeOnly
+    workflowRunWatch: detectSessionActivity
       ? (workflowRunWatch ?? {
           attempted: false,
           timeoutMs: persistentWatchTimeoutMs,

@@ -8,7 +8,6 @@
  *      ready_to_rerequest_review when a meaningful remediation event made
  *      automatic re-request eligible), request Copilot review and re-interpret
  *      the state from the shared post-request wait-cycle snapshot.
- *      An explicit operator override can force another same-head request.
  *   3. Emit a single JSON payload describing the current state, the
  *      recommended action ("watch", "fix", or "stop"), and — when the action
  *      is "watch" — the exact watch parameters to pass to probe-copilot-review.mjs.
@@ -52,10 +51,18 @@ import {
   EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
   enforceExternalHealthyWaitTimeout,
 } from "@pi-dev-loops/core/loop/timeout-policy";
+import {
+  DEFAULT_POLL_INTERVAL_MS,
+  COPILOT_REVIEW_WAIT_TIMEOUT_MS,
+} from "@pi-dev-loops/core/loop/policy-constants";
 
 const VALID_WATCH_STATUSES = new Set(["changed", "timeout", "idle"]);
 
-const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number> [--force-rerequest-review] [--watch-status <changed|timeout|idle>]
+const REMOVED_FLAGS = new Set([
+  "--force-rerequest-review",
+]);
+
+const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number> [--watch-status <changed|timeout|idle>]
 
 Detect the Copilot-loop state for a PR, request Copilot review only when
 a new request is still needed, and emit the recommended next action with
@@ -66,8 +73,6 @@ Required:
   --pr <number>         Pull request number
 
 Optional:
-  --force-rerequest-review  Force a Copilot re-request even when automatic
-                            same-head suppression is active
   --watch-status <status>   Refresh deterministic loop state after a prior
                            watcher result (changed|timeout|idle). This mode
                            never requests review; it only re-detects state.
@@ -113,9 +118,6 @@ Error output (stderr, JSON):
 Exit codes:
   0  Success
   1  Argument error or gh failure`.trim();
-
-const DEFAULT_POLL_INTERVAL_MS = 60_000;
-const DEFAULT_TIMEOUT_MS = 1_800_000;
 
 const WATCH_STATES = new Set([
   STATE.WAITING_FOR_COPILOT_REVIEW,
@@ -172,6 +174,11 @@ function summarizeRequestWatchContract({
 
 const parseError = buildParseError(USAGE);
 
+function rejectRemovedFlag(token) {
+  throw parseError(
+    `${token} has been removed. Copilot re-requests are managed internally. Omit the flag.`,
+  );
+}
 
 export function parseHandoffCliArgs(argv) {
   const args = [...argv];
@@ -179,7 +186,6 @@ export function parseHandoffCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
-    forceRerequestReview: false,
     watchStatus: undefined,
   };
 
@@ -191,6 +197,10 @@ export function parseHandoffCliArgs(argv) {
       return options;
     }
 
+    if (REMOVED_FLAGS.has(token)) {
+      rejectRemovedFlag(token);
+    }
+
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
@@ -198,11 +208,6 @@ export function parseHandoffCliArgs(argv) {
 
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
-      continue;
-    }
-
-    if (token === "--force-rerequest-review") {
-      options.forceRerequestReview = true;
       continue;
     }
 
@@ -220,10 +225,6 @@ export function parseHandoffCliArgs(argv) {
 
   if (options.repo === undefined || options.pr === undefined) {
     throw parseError("copilot-pr-handoff requires both --repo <owner/name> and --pr <number>");
-  }
-
-  if (options.watchStatus !== undefined && options.forceRerequestReview) {
-    throw parseError("--force-rerequest-review cannot be combined with --watch-status because watch refresh mode never requests review");
   }
 
   try {
@@ -290,14 +291,13 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   const shouldRequestReview = options.watchStatus === undefined
     && (interpretation.state === STATE.PR_READY_NO_FEEDBACK
     || interpretation.state === STATE.READY_TO_REREQUEST_REVIEW
-    && (interpretation.autoRerequestEligible || options.forceRerequestReview));
+    && interpretation.autoRerequestEligible);
 
   if (shouldRequestReview) {
     const requestResult = await performCopilotReviewRequest(
       {
         repo: options.repo,
         pr: options.pr,
-        forceRerequestReview: options.forceRerequestReview,
         sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
       },
       { env, ghCommand },
@@ -358,7 +358,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       pr: options.pr,
       pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
       timeoutMs: enforceExternalHealthyWaitTimeout({
-        timeoutMs: DEFAULT_TIMEOUT_MS,
+        timeoutMs: COPILOT_REVIEW_WAIT_TIMEOUT_MS,
         contextLabel: "Copilot review wait",
       }),
     };

@@ -17,17 +17,17 @@ const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
 const ROUND_CAP_REACHED_STATUS = "round_cap_reached";
 
-const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number> [--force-rerequest-review]
+const REMOVED_FLAGS = new Set([
+  "--force-rerequest-review",
+]);
+
+const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number>
 
 Request Copilot as a reviewer on a GitHub pull request.
 
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
-
-Optional:
-  --force-rerequest-review  Bypass same-head clean-convergence suppression and
-                            attempt another explicit Copilot request anyway
 
 Debug:
   PI_DEV_LOOPS_DEBUG=1      Emit stderr traces when best-effort same-head clean
@@ -36,13 +36,13 @@ Debug:
 Output (stdout, JSON):
   { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
-    "sameHeadCleanConverged"?: true, "bypassedSameHeadCleanSuppression"?: true, "violationCommentIds"?: [N], "completedRounds"?: N, "maxRounds"?: N }
+    "sameHeadCleanConverged"?: true, "violationCommentIds"?: [N], "completedRounds"?: N, "maxRounds"?: N }
 
 Request statuses:
   requested           Copilot review was successfully requested
   already-requested   Copilot review was already observably in progress; no new request needed
   unavailable         Copilot review is not enabled/requestable and no in-progress evidence was found
-  suppressed_same_head_clean  Current head is already clean-converged; no new request is made unless forced
+  suppressed_same_head_clean  Current head is already clean-converged; no new request is made
   blocked_by_copilot_comment  A non-Copilot PR comment contains @copilot or /copilot; delete the comment(s) first
   round_cap_reached    Maximum Copilot review rounds reached; no further re-requests will be made
 
@@ -58,6 +58,11 @@ Exit codes:
 
 const parseError = buildParseError(USAGE);
 
+function rejectRemovedFlag(token) {
+  throw parseError(
+    `${token} has been removed. Copilot re-requests are managed internally. Omit the flag.`,
+  );
+}
 
 export function parseRequestCliArgs(argv) {
   const args = [...argv];
@@ -65,7 +70,7 @@ export function parseRequestCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
-    forceRerequestReview: false,
+
   };
 
   while (args.length > 0) {
@@ -76,6 +81,10 @@ export function parseRequestCliArgs(argv) {
       return options;
     }
 
+    if (REMOVED_FLAGS.has(token)) {
+      rejectRemovedFlag(token);
+    }
+
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
@@ -83,11 +92,6 @@ export function parseRequestCliArgs(argv) {
 
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
-      continue;
-    }
-
-    if (token === "--force-rerequest-review") {
-      options.forceRerequestReview = true;
       continue;
     }
 
@@ -370,7 +374,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   } catch {
     // Fail closed to default 5 on config errors
   }
-  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds && !options.forceRerequestReview) {
+  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds) {
     return {
       ok: true,
       status: ROUND_CAP_REACHED_STATUS,
@@ -379,7 +383,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       reviewer: "Copilot",
       completedRounds: before.completedCopilotReviewRounds,
       maxRounds,
-      detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. Re-run with --force-rerequest-review to bypass.`,
+      detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. No further re-requests will be made.`,
     };
   }
 
@@ -388,9 +392,8 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     { env, ghCommand },
     before,
   );
-  const bypassedSameHeadCleanSuppression = sameHeadCleanConverged && options.forceRerequestReview === true;
 
-  if (sameHeadCleanConverged && !options.forceRerequestReview) {
+  if (sameHeadCleanConverged) {
     return {
       ok: true,
       status: SUPPRESSED_SAME_HEAD_CLEAN_STATUS,
@@ -398,7 +401,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       pr: options.pr,
       reviewer: "Copilot",
       sameHeadCleanConverged: true,
-      detail: "Current head already has a clean submitted Copilot review; rerun with --force-rerequest-review to bypass same-head clean-convergence suppression.",
+      detail: "Current head already has a clean submitted Copilot review; same-head clean-convergence suppression is always enforced.",
     };
   }
 
@@ -409,16 +412,12 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       repo: options.repo,
       pr: options.pr,
       reviewer: "Copilot",
-      ...(bypassedSameHeadCleanSuppression ? { bypassedSameHeadCleanSuppression: true } : {}),
     };
   }
 
   const requestResult = await requestCopilotReview(options, { env, ghCommand });
 
   if (requestResult.status === "unavailable") {
-    // Post-failure verification: even when the explicit request path is rejected,
-    // Copilot review may already be in progress if GitHub internally queued it.
-    // Check for observable in-progress evidence before treating this as a terminal stop.
     const after = await fetchCopilotReviewState(options, { env, ghCommand });
     if (after.requested || after.hasPendingReviewOnCurrentHead) {
       return {
@@ -427,12 +426,10 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
         repo: options.repo,
         pr: options.pr,
         reviewer: "Copilot",
-        ...(bypassedSameHeadCleanSuppression ? { bypassedSameHeadCleanSuppression: true } : {}),
       };
     }
     return {
       ...requestResult,
-      ...(bypassedSameHeadCleanSuppression ? { bypassedSameHeadCleanSuppression: true } : {}),
     };
   }
 
@@ -446,7 +443,6 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
 
   return {
     ...requestResult,
-    ...(bypassedSameHeadCleanSuppression ? { bypassedSameHeadCleanSuppression: true } : {}),
   };
 }
 
