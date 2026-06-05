@@ -543,8 +543,9 @@ export async function releaseRunnerOwnership({
 /**
  * Record an exit signal for a run id. Used by the parent session or
  * any other process to tell the runner that it must stop before any
- * merge-class mutation. Idempotent for the same run id (replaces
- * prior signal). Requires the supplied run id to be the current
+ * merge-class mutation. Appends a new entry to the exitSignals[]
+ * audit log (append-only; prior signals for the same run id are
+ * preserved). Requires the supplied run id to be the current
  * active owner unless `requireActiveOwner: false`.
  */
 export async function recordExitSignalForRunner({

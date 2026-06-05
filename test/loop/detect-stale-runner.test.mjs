@@ -15,8 +15,9 @@ import {
 } from "../../scripts/loop/_pr-runner-coordination.mjs";
 
 test("resolveStaleRunnerMaxAgeMs prefers explicit option, then env, then default", () => {
-  assert.equal(resolveStaleRunnerMaxAgeMs(), 30 * 60 * 1000);
-  assert.equal(resolveStaleRunnerMaxAgeMs({}), 30 * 60 * 1000);
+  const emptyEnv = {};
+  assert.equal(resolveStaleRunnerMaxAgeMs({}, emptyEnv), 30 * 60 * 1000);
+  assert.equal(resolveStaleRunnerMaxAgeMs({ staleRunnerMaxAgeMs: 5000 }, emptyEnv), 5000);
   assert.equal(resolveStaleRunnerMaxAgeMs({ staleRunnerMaxAgeMs: 5000 }), 5000);
   assert.equal(resolveStaleRunnerMaxAgeMs({}, { PI_DEV_LOOP_STALE_RUNNER_MAX_AGE_MS: "9000" }), 9000);
   assert.equal(

@@ -390,8 +390,17 @@ async function main() {
       };
       process.stderr.write(`${JSON.stringify({
         ok: false,
-        error: error.staleRunner.message ?? error.staleRunner.error,
-        ...error.staleRunner,
+        error: error.staleRunner.error,
+        status: error.staleRunner.status,
+        message: error.staleRunner.message,
+        staleRunner: {
+          status: error.staleRunner.status,
+          activeRun: error.staleRunner.activeRun,
+          exitSignals: error.staleRunner.exitSignal?.signals ?? [],
+          staleRunner: error.staleRunner.staleRunner,
+          maxAgeMs: error.staleRunner.maxAgeMs,
+          filePath: error.staleRunner.filePath,
+        },
         staleRunnerCheck,
       })}\n`);
       process.exitCode = 1;
