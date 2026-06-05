@@ -160,7 +160,8 @@ function detectRepoSlug(cwd) {
     if (!match) throw new Error(`Could not parse owner/name from git remote: ${url}`);
     return `${match[1]}/${match[2]}`;
   } catch (err) {
-    throw new Error(`Repo auto-detection failed: ${err.message}. Set origin remote or use --input.`);
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Repo auto-detection failed: ${msg}. Set origin remote or use --input.`);
   }
 }
 
@@ -191,17 +192,24 @@ function hasAcSection(body) {
 }
 
 function resolveTargetPreference(cwd) {
-  try {
-    const settingsPath = path.join(cwd, ".pi", "dev-loop", "settings.yaml");
-    const raw = readFileSync(settingsPath, "utf8");
-    const match = raw.match(/strategy:\s*\n\s*default:\s*(\S+)/);
-    if (match && match[1] === "local-first") {
-      return "prefer_local";
+  const candidates = [
+    path.join(cwd, ".pi", "dev-loop", "settings.yaml"),
+    path.join(cwd, ".pi", "dev-loop", "settings.yml"),
+    path.join(cwd, ".pi", "dev-loop", "settings.json"),
+  ];
+  for (const settingsPath of candidates) {
+    try {
+      const raw = readFileSync(settingsPath, "utf8");
+      const match = raw.match(/strategy:\s*\n\s*default:\s*(\S+)/);
+      if (match && match[1] === "local-first") {
+        return "prefer_local";
+      }
+      return "prefer_github_first";
+    } catch {
+      // try next candidate
     }
-    return "prefer_github_first";
-  } catch {
-    return "prefer_github_first";
   }
+  return "prefer_github_first";
 }
 
 /**
@@ -230,7 +238,7 @@ export function buildAutoResolvedInput({ issue, pr, cwd }) {
     let issueLinkageResolution = "resolved_no_open_pr";
     let linkedPr = null;
     try {
-      const linkageJson = execFileSync("node", [
+      const linkageJson = execFileSync(process.execPath, [
         path.join(repoRoot, "scripts/github/detect-linked-issue-pr.mjs"),
         "--repo", repo, "--issue", String(issue),
       ], { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
