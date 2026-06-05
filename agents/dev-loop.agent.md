@@ -39,13 +39,12 @@ If local facts, GitHub facts, and helper/state-machine output do not agree well 
 
 This agent has `tools: [subagent]` and `maxSubagentDepth: 3` to allow orchestrating parallel review, chains, and staged fix passes.
 
-The pi-subagents skill is parent-only, so this agent follows these patterns directly when delegating:
-- **Parallel review**: fan out fresh-context `reviewer` agents with distinct angles; each writes to a distinct output path; no file edits.
-- **Chains**: use `{previous}` or `{outputs.name}` for handoffs between steps.
-- **Staged fix orchestration**: parallel planners (read-only) → single writer worker → parallel validators (read-only).
-- **Key rules**: one writer thread; `async: true` default; `context: "fresh"` for reviewers, `"fork"` for advisory threads; no child subagent spawning beyond assigned fanout work.
+The pi-subagents skill is parent-only, so when this agent delegates it follows these invariants directly:
+- One writer thread; `async: true` default; `context: "fresh"` for reviewers.
+- No child subagent spawning beyond assigned fanout work.
+- Bounded tasks with concrete scope, exit conditions, and validation expectations.
 
-For full delegation patterns and JS examples, use the pi-subagents skill. This agent stays thin — policy lives in the skill, not here.
+For full delegation patterns, use the pi-subagents skill as reference. This agent stays thin — policy lives in the skill, not here.
 
 ## Output
 

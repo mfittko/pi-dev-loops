@@ -220,14 +220,7 @@ Key rules:
 
 ### Async delegation guard rules (#524)
 
-These rules are enforced for all async subagent dispatch in the dev-loop pipeline:
-
-- **Pre-delegation gate:** Before any async subagent delegation, run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>`. If it returns `action: "stop"`, do NOT delegate — proceed inline to the next gate instead.
-- **Worktree cwd rule:** Always set `cwd` to the worktree path in `subagent()` config for dev-loop work. Never delegate with the parent's `main` branch checkout.
-- **Handoff template:** Use `workflow-handoff-template.md` (resolved path: `../docs/workflow-handoff-template.md` relative to the skill directory) for all subagent delegation. Include deterministic routing inputs, explicit `cwd`, bounded task scope, exit conditions, output artifact paths, and intercom coordination instructions.
-- **Inline-first for single-PR:** When managing one PR through its lifecycle, prefer inline commands. Use async delegation only for parallel fan-out review, bounded tasks with clear I/O, or when the parent needs to continue other work.
-- **Bounded tasks:** Break async work into discrete tasks with clear input artifacts, explicit output expectations, no shell polling loops (use `run-watch-cycle.mjs` or `gh run watch`), intercom coordination, and parent-owned loop control.
-- **Deterministic routing:** Check `copilot-pr-handoff.mjs` output before deciding delegate vs inline. When `action: "stop"` and `terminal: true`, the loop phase is complete — proceed inline to the next gate.
+See [Async delegation guard rules](../dev-loop/SKILL.md#async-delegation-guard-rules-524) in the public `dev-loop` skill. Those rules are authoritative and apply to all async subagent dispatch in the PR-followup pipeline. The dev-loop skill is the single source of truth; this section exists only to ensure the rules are visible when this skill is loaded standalone.
 
 ## Step 7: Pi review/fix follow-up loop
 
