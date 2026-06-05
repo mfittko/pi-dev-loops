@@ -40,6 +40,7 @@ gates:
       - worth-fixing-now
 
 workflow:
+  asyncStartMode: required
   requireRetrospective: true
   requireRetrospectiveGate: true
   requireDraftFirst: true

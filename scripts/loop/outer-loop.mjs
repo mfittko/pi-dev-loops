@@ -58,8 +58,8 @@ import {
   ASYNC_START_STATUS,
   buildAsyncStartRejection,
   validateAsyncStartContext,
-} from "@pi-dev-loops/core/loop/async-start-contract";
-import { loadDevLoopConfig, resolveConductorModel, resolveAutonomyStopAt } from "@pi-dev-loops/core/config";
+} from "../../packages/core/src/loop/async-start-contract.mjs";
+import { loadDevLoopConfig, resolveConductorModel, resolveAutonomyStopAt, resolveWorkflowConfig } from "../../packages/core/src/config/config.mjs";
 
 const USAGE = `Usage: outer-loop.mjs --repo <owner/name> --pr <number>
 
@@ -118,11 +118,12 @@ Stop reasons:
   unknown_state                        Unrecognized combined state
 
 Async-start contract:
-  This loop must run within a visible Pi-managed async context. It fails closed
-  unless PI_SUBAGENT_RUN_ID is set, to
-  prevent hidden detached-process fallback (nohup, disowned shell jobs, etc.).
-  Snapshot/test input mode (both --copilot-input and --reviewer-input) is exempt.
-  Set PI_ASYNC_START_BYPASS=1 only for explicitly authorized standalone runs.
+  This loop must run within a visible Pi-managed async context when
+  workflow.asyncStartMode is set to required (default). It fails closed unless
+  PI_SUBAGENT_RUN_ID is set, to prevent hidden detached-process fallback
+  (nohup, disowned shell jobs, etc.). Snapshot/test input mode
+  (both --copilot-input and --reviewer-input) is exempt. Standalone/test
+  contexts may opt in via .pi/dev-loop/settings.yaml workflow.asyncStartMode: allowed.
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -439,9 +440,20 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   const normalizedRepo = repo.trim().toLowerCase();
   const checkpointDir = options.checkpointDir ?? buildDefaultCheckpointDir(normalizedRepo, pr);
 
-  // Async-start contract enforcement: fail closed when not in a Pi-managed context
   const isSnapshotMode = copilotInputPath !== undefined && reviewerInputPath !== undefined;
-  const asyncStartValidation = validateAsyncStartContext({ env, isSnapshotMode });
+  let devLoopConfig = null;
+  if (!isSnapshotMode) {
+    const loaded = await loadDevLoopConfig();
+    if (loaded.errors.length === 0) {
+      devLoopConfig = loaded.config;
+    }
+  }
+
+  // Async-start contract enforcement: fail closed when not in a Pi-managed context
+  const asyncStartMode = devLoopConfig === null
+    ? "required"
+    : resolveWorkflowConfig(devLoopConfig, "asyncStartMode");
+  const asyncStartValidation = validateAsyncStartContext({ env, isSnapshotMode, asyncStartMode });
   if (asyncStartValidation.status === ASYNC_START_STATUS.REJECTED) {
     return buildAsyncStartRejection(asyncStartValidation);
   }
@@ -539,13 +551,9 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   // Resolve conductor model override from config
   let conductorModel = null;
   let autonomyStopAt = null;
-  if (!isSnapshotMode) {
-    // Only load real config; skip for snapshot/test input mode
-    const { config: devLoopConfig, errors = [] } = await loadDevLoopConfig();
-    if (errors.length === 0) {
-      conductorModel = resolveConductorModel(devLoopConfig);
-      autonomyStopAt = resolveAutonomyStopAt(devLoopConfig);
-    }
+  if (devLoopConfig !== null) {
+    conductorModel = resolveConductorModel(devLoopConfig);
+    autonomyStopAt = resolveAutonomyStopAt(devLoopConfig);
   }
 
   return {

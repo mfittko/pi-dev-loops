@@ -121,8 +121,8 @@ export function isListedWorktree(cwd, worktreePaths) {
  * Environment variable name checked by `detectSubagentAvailability`.
  *
  * Set `PI_SUBAGENT_AVAILABLE=1` when the runtime supports subagent dispatch.
- * This is consistent with the `PI_WORKTREE_BYPASS` and `PI_ASYNC_START_BYPASS`
- * patterns already present in the repo.
+ * This is consistent with the `PI_WORKTREE_BYPASS` pattern and other repo-local
+ * runtime configuration gates already present in the repo.
  */
 export const PI_SUBAGENT_AVAILABLE_VAR = "PI_SUBAGENT_AVAILABLE";
 

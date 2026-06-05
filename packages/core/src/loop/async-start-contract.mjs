@@ -10,14 +10,14 @@
  * Pi async context marker. When the marker is absent, the check fails closed
  * and returns a machine-readable rejection rather than silently proceeding.
  *
- * Pi-managed async context markers (required):
+ * Pi-managed async context markers (required when workflow.asyncStartMode is
+ * `required`):
  * - PI_SUBAGENT_RUN_ID env var (set by Pi subagent framework for inspectable async runs)
  *
- * Bypass:
- * - PI_ASYNC_START_BYPASS=1 allows callers to explicitly skip this check
- *   (for development, testing, or explicitly authorized standalone runs)
+ * Allowed modes:
+ * - workflow.asyncStartMode: required | allowed
  * - Snapshot/test mode (when both --copilot-input and --reviewer-input are provided)
- *   implicitly bypasses the check since no real async ownership is needed
+ *   implicitly skips the check since no real async ownership is needed
  *
  * This module is intentionally pure and side-effect free.
  */
@@ -31,15 +31,18 @@ export const PI_ASYNC_CONTEXT_MARKERS = Object.freeze([
   "PI_SUBAGENT_RUN_ID",
 ]);
 
-/** Environment variable that bypasses the async-start check. */
-export const PI_ASYNC_START_BYPASS_VAR = "PI_ASYNC_START_BYPASS";
+/** Supported workflow async-start modes. */
+export const ASYNC_START_MODE = Object.freeze({
+  REQUIRED: "required",
+  ALLOWED: "allowed",
+});
 
 /** Async-start validation result status values. */
 export const ASYNC_START_STATUS = Object.freeze({
   /** A valid Pi-managed async context was detected. */
   VALID: "valid",
-  /** The check was explicitly bypassed via the bypass env var. */
-  BYPASSED: "bypassed",
+  /** The workflow explicitly allows non-async startup for this context. */
+  ALLOWED: "allowed",
   /** The check was skipped because the caller is in snapshot/test mode. */
   SNAPSHOT_MODE: "snapshot_mode",
   /** No Pi-managed async context was detected; fail closed. */
@@ -53,19 +56,21 @@ export const ASYNC_START_STATUS = Object.freeze({
 /**
  * Validate that the current execution context is a visible Pi-managed async run.
  *
- * Returns a result object describing whether the check passed, was bypassed,
- * or was rejected. Callers should treat `rejected` as a hard stop.
+ * Returns a result object describing whether the check passed, was allowed by
+ * config, or was rejected. Callers should treat `rejected` as a hard stop.
  *
  * @param {object} params
  * @param {Record<string, string|undefined>} [params.env] - Environment variables to inspect.
  * @param {boolean} [params.isSnapshotMode] - True when running in snapshot/test input mode.
+ * @param {"required"|"allowed"} [params.asyncStartMode] - Settings-driven async-start mode.
  * @returns {{ status: string, reason: string, detectedMarker: string|null }}
  */
 export function validateAsyncStartContext({
   env = process.env,
   isSnapshotMode = false,
+  asyncStartMode = ASYNC_START_MODE.REQUIRED,
 } = {}) {
-  // Snapshot/test mode implicitly bypasses — no real async ownership needed
+  // Snapshot/test mode implicitly skips — no real async ownership needed
   if (isSnapshotMode) {
     return {
       status: ASYNC_START_STATUS.SNAPSHOT_MODE,
@@ -74,11 +79,15 @@ export function validateAsyncStartContext({
     };
   }
 
-  // Explicit bypass
-  if (env[PI_ASYNC_START_BYPASS_VAR] === "1") {
+  if (
+    asyncStartMode !== ASYNC_START_MODE.REQUIRED &&
+    asyncStartMode !== ASYNC_START_MODE.ALLOWED
+  ) {
     return {
-      status: ASYNC_START_STATUS.BYPASSED,
-      reason: `Async-start check explicitly bypassed via ${PI_ASYNC_START_BYPASS_VAR}=1.`,
+      status: ASYNC_START_STATUS.REJECTED,
+      reason:
+        `Unrecognized workflow.asyncStartMode value ${JSON.stringify(asyncStartMode)}. ` +
+        `Expected ${ASYNC_START_MODE.REQUIRED} or ${ASYNC_START_MODE.ALLOWED}.`,
       detectedMarker: null,
     };
   }
@@ -95,6 +104,14 @@ export function validateAsyncStartContext({
     }
   }
 
+  if (asyncStartMode === ASYNC_START_MODE.ALLOWED) {
+    return {
+      status: ASYNC_START_STATUS.ALLOWED,
+      reason: "Async-start check allowed by workflow.asyncStartMode=allowed.",
+      detectedMarker: null,
+    };
+  }
+
   const sessionOnlyMarker =
     (typeof env.PI_SESSION_ID === "string" && env.PI_SESSION_ID.trim().length > 0)
       ? "PI_SESSION_ID"
@@ -107,7 +124,7 @@ export function validateAsyncStartContext({
       reason:
         `Detected ${sessionOnlyMarker}, but GitHub-first async-start requires a visible ` +
         "Pi-managed subagent run id for inspectable startup/resume evidence. " +
-        "Set PI_SUBAGENT_RUN_ID to proceed.",
+        "Set PI_SUBAGENT_RUN_ID or configure workflow.asyncStartMode=allowed to proceed.",
       detectedMarker: null,
     };
   }
@@ -117,7 +134,8 @@ export function validateAsyncStartContext({
       status: ASYNC_START_STATUS.REJECTED,
       reason:
         "Detected detached local background execution; detached/local fallback is diagnostic-only " +
-        "and does not satisfy the async-start contract. Restart via Pi-managed async mode.",
+        "and does not satisfy the async-start contract. Restart via Pi-managed async mode, " +
+        "or configure workflow.asyncStartMode=allowed when that relaxed posture is intentional.",
       detectedMarker: null,
     };
   }
@@ -129,8 +147,7 @@ export function validateAsyncStartContext({
       "No Pi-managed async context detected. " +
       "The dev-loop must run within a visible Pi async subagent session, " +
       "not as a detached local process. " +
-      `Set ${PI_ASYNC_CONTEXT_MARKERS[0]} or ` +
-      `${PI_ASYNC_START_BYPASS_VAR}=1 to proceed.`,
+      `Set ${PI_ASYNC_CONTEXT_MARKERS[0]} or configure workflow.asyncStartMode=allowed to proceed.`,
     detectedMarker: null,
   };
 }

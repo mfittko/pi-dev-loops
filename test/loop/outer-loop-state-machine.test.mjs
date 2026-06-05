@@ -710,16 +710,16 @@ test("outer-loop: proceeds when PI_SUBAGENT_RUN_ID is set (non-snapshot mode)", 
   }
 });
 
-test("outer-loop: proceeds when PI_ASYNC_START_BYPASS=1 (non-snapshot mode)", async () => {
+test("outer-loop: proceeds when PI_SUBAGENT_RUN_ID is set (non-snapshot mode)", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "outer-loop-async-start-"));
   try {
     const copilotInputPath = path.join(tempDir, "copilot.json");
     await writeJson(copilotInputPath, MINIMAL_COPILOT_SNAPSHOT);
     const gitEnv = await writeGitStub(tempDir);
     const ghEnv = await writeGhStub(tempDir, { repo: "owner/repo", pr: 47 });
-    const env = { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" };
+    const env = { ...gitEnv, ...ghEnv, PI_SUBAGENT_RUN_ID: "test-run-123" };
 
-    // copilot-input only — not snapshot mode; bypass must satisfy the check
+    // copilot-input only — not snapshot mode; visible async run id must satisfy the check
     const result = await runOuterLoop(
       { repo: "owner/repo", pr: 47, copilotInputPath, checkpointDir: tempDir },
       { env, gitCommand: path.join(tempDir, "git") },

@@ -55,7 +55,7 @@ test("resolve-dev-loop-startup success stdout keeps documented JSON shape", asyn
     const result = spawnSync(process.execPath, [cliPath, "--input", inputPath], {
       cwd: repoRoot,
       encoding: "utf8",
-      env: { ...process.env, PI_ASYNC_START_BYPASS: "1" },
+      env: { ...process.env, PI_SUBAGENT_RUN_ID: "test-run-123" },
       // Note: This test assumes no .pi/dev-loop-retrospective-checkpoint.json
       // exists in repoRoot — the explicit retrospectiveCheckpointState in the
       // input ensures deterministic routing regardless.
@@ -106,7 +106,7 @@ test("resolve-dev-loop-startup success stdout keeps documented JSON shape", asyn
 
 test("resolve-dev-loop-startup rejects async-required strategy via stderr contract", async () => {
   // This test verifies the CLI-level async-start contract:
-  // without PI_SUBAGENT_RUN_ID or PI_ASYNC_START_BYPASS, an async-required
+  // without PI_SUBAGENT_RUN_ID or an allowed asyncStartMode setting, an async-required
   // route exits 1 with empty stdout and the rejection object on stderr.
   await withInputFile({
     currentState: {
@@ -124,10 +124,10 @@ test("resolve-dev-loop-startup rejects async-required strategy via stderr contra
     const result = spawnSync(process.execPath, [cliPath, "--input", inputPath], {
       cwd: repoRoot,
       encoding: "utf8",
-      // Deliberately omit PI_SUBAGENT_RUN_ID and PI_ASYNC_START_BYPASS.
+      // Deliberately omit PI_SUBAGENT_RUN_ID.
       env: Object.fromEntries(
         Object.entries(process.env).filter(
-          ([k]) => k !== "PI_SUBAGENT_RUN_ID" && k !== "PI_ASYNC_START_BYPASS",
+          ([k]) => k !== "PI_SUBAGENT_RUN_ID",
         ),
       ),
     });

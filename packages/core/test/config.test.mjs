@@ -38,6 +38,7 @@ describe("schema validation", () => {
       },
       autonomy: { stopAt: ["draft-pr", "merge"] },
       workflow: {
+        asyncStartMode: "required",
         requireRetrospective: true,
         requireRetrospectiveGate: false,
         requireDraftFirst: false,
@@ -117,6 +118,7 @@ describe("schema validation", () => {
     const result = DevLoopConfigSchema.safeParse({
       version: 1,
       workflow: {
+        asyncStartMode: "required",
         requireRetrospective: true,
         requireRetrospectiveGate: false,
         requireDraftFirst: false,
@@ -124,6 +126,7 @@ describe("schema validation", () => {
       },
     });
     assert.ok(result.success);
+    assert.equal(result.data.workflow.asyncStartMode, "required");
     assert.equal(result.data.workflow.requireRetrospective, true);
     assert.equal(result.data.workflow.requireRetrospectiveGate, false);
     assert.equal(result.data.workflow.requireDraftFirst, false);
@@ -134,6 +137,7 @@ describe("schema validation", () => {
     const result = DevLoopConfigSchema.safeParse({
       version: 1,
       workflow: {
+        asyncStartMode: "required",
         requireRetrospective: true,
         requireRetrospectiveGate: false,
         requireDraftFirst: false,
@@ -317,8 +321,9 @@ describe("BUILT_IN_DEFAULTS", () => {
     assert.deepEqual(BUILT_IN_DEFAULTS.autonomy.stopAt, ["merge"]);
   });
 
-  test("workflow defaults exist and all values are false by default", () => {
+  test("workflow defaults exist and use required async start with false boolean gates by default", () => {
     assert.deepEqual(BUILT_IN_DEFAULTS.workflow, {
+      asyncStartMode: "required",
       requireRetrospective: false,
       requireRetrospectiveGate: false,
       requireDraftFirst: false,
@@ -516,6 +521,7 @@ describe("loader — graceful degradation", () => {
       await writeFile(path.join(piDir, "defaults.yaml"), [
         "version: 1",
         "workflow:",
+        "  asyncStartMode: required",
         "  requireRetrospective: true",
         "  requireRetrospectiveGate: false",
         "  requireDraftFirst: false",
@@ -530,6 +536,7 @@ describe("loader — graceful degradation", () => {
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.deepEqual(result.config.workflow, {
+        asyncStartMode: "required",
         requireRetrospective: true,
         requireRetrospectiveGate: false,
         requireDraftFirst: true,
@@ -1000,6 +1007,7 @@ describe("loader — precedence", () => {
         JSON.stringify({
           version: 1,
           workflow: {
+            asyncStartMode: "allowed",
             requireRetrospective: false,
             requireRetrospectiveGate: false,
             requireDraftFirst: false,
@@ -1012,6 +1020,7 @@ describe("loader — precedence", () => {
         JSON.stringify({
           version: 1,
           workflow: {
+            asyncStartMode: "required",
             requireRetrospective: true,
           },
         }),
@@ -1020,6 +1029,7 @@ describe("loader — precedence", () => {
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
       assert.deepEqual(result.errors, []);
       assert.deepEqual(result.config.workflow, {
+        asyncStartMode: "required",
         requireRetrospective: true,
         requireRetrospectiveGate: false,
         requireDraftFirst: false,
@@ -1696,22 +1706,25 @@ describe("role resolution", () => {
     });
 
     test("resolveWorkflowConfig returns built-in defaults when workflow family is absent", () => {
+      assert.equal(resolveWorkflowConfig({ version: 1 }, "asyncStartMode"), "required");
       assert.equal(resolveWorkflowConfig({ version: 1 }, "requireRetrospective"), false);
       assert.equal(resolveWorkflowConfig({ version: 1 }, "requireRetrospectiveGate"), false);
       assert.equal(resolveWorkflowConfig({ version: 1 }, "requireDraftFirst"), false);
       assert.equal(resolveWorkflowConfig({ version: 1 }, "devModeDefault"), false);
     });
 
-    test("resolveWorkflowConfig returns configured booleans", () => {
+    test("resolveWorkflowConfig returns configured workflow values", () => {
       const config = {
         version: 1,
         workflow: {
+          asyncStartMode: "allowed",
           requireRetrospective: true,
           requireRetrospectiveGate: true,
           requireDraftFirst: true,
           devModeDefault: false,
         },
       };
+      assert.equal(resolveWorkflowConfig(config, "asyncStartMode"), "allowed");
       assert.equal(resolveWorkflowConfig(config, "requireRetrospective"), true);
       assert.equal(resolveWorkflowConfig(config, "requireRetrospectiveGate"), true);
       assert.equal(resolveWorkflowConfig(config, "requireDraftFirst"), true);
@@ -1720,6 +1733,7 @@ describe("role resolution", () => {
 
     test("resolveWorkflowConfig falls through to built-in false when an individual key is absent", () => {
       const config = { version: 1, workflow: { requireDraftFirst: true } };
+      assert.equal(resolveWorkflowConfig(config, "asyncStartMode"), "required");
       assert.equal(resolveWorkflowConfig(config, "requireRetrospective"), false);
       assert.equal(resolveWorkflowConfig(config, "requireRetrospectiveGate"), false);
       assert.equal(resolveWorkflowConfig(config, "requireDraftFirst"), true);
