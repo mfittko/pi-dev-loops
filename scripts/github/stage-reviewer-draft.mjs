@@ -8,6 +8,22 @@ import { parsePositiveInteger, requireOptionValue } from "../_cli-primitives.mjs
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildDraftReviewPayload } from "@pi-dev-loops/core/loop/reviewer-loop-state";
 
+const HELP = `Usage: stage-reviewer-draft.mjs --repo <owner/name> --pr <number> --review-file <path> [--local-state-output <path>]
+
+Stage a pending draft review on a GitHub pull request.
+
+Options:
+  --repo <owner/name>       GitHub repository slug (required)
+  --pr <number>             Pull request number (required)
+  --review-file <path>      Path to JSON file containing review payload (required)
+  --local-state-output <path>  Path to write local state snapshot (optional)
+  --help, -h                Show this help
+
+Exit codes:
+  0   Success
+  1   Error
+`;
+
 export function parseStageDraftCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -15,10 +31,16 @@ export function parseStageDraftCliArgs(argv) {
     pr: undefined,
     reviewFile: undefined,
     localStateOutput: undefined,
+    help: false,
   };
 
   while (args.length > 0) {
     const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
 
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo").trim();
@@ -167,6 +189,12 @@ export async function runCli(
   } = {},
 ) {
   const options = parseStageDraftCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(HELP);
+    return;
+  }
+
   const rawReview = parseJsonText(await readFile(options.reviewFile, "utf8"));
 
   if (!rawReview || typeof rawReview !== "object") {

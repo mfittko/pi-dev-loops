@@ -5,6 +5,15 @@
  * Usage:
  *   node scripts/loop/detect-change-scope.mjs [--base <ref>] [--head <ref>]
  *
+ * Options:
+ *   --base <ref>   Override base ref (default: HEAD~1)
+ *   --head <ref>   Override head ref; ignored unless --base is also set
+ *   --help, -h     Show this help
+ *
+ * Diff mode when both --base and --head are given: <base>..<head>.
+ * When only --base is given: <base> (diff vs working tree).
+ * When neither is given: HEAD~1..HEAD (committed scope).
+ *
  * Output (stdout, JSON):
  *   {
  *     "ok": true,
@@ -14,11 +23,13 @@
  *     "threshold": { "maxFiles": 3, "maxLines": 200 }
  *   }
  *
- * When --base/--head not given, defaults to HEAD~1..HEAD (committed scope).
- *
  * `eligibleForLightMode` is only computed when light mode is enabled in config
  * and config loading has no validation errors (fail-closed).
  * When disabled, it is always `false`.
+ *
+ * Exit codes:
+ *   0   Success
+ *   1   Error
  */
 import { execFileSync } from "node:child_process";
 import process from "node:process";
@@ -27,6 +38,22 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const opts = { base: null, head: null };
   for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--help" || args[i] === "-h") {
+      process.stdout.write(`Usage: detect-change-scope.mjs [--base <ref>] [--head <ref>]
+
+Detect change scope from git diff for light-mode eligibility.
+
+Options:
+  --base <ref>   Override base ref (default: HEAD~1)
+  --head <ref>   Override head ref; ignored unless --base is also set
+  --help, -h     Show this help
+
+Exit codes:
+  0   Success
+  1   Error
+`);
+      process.exit(0);
+    }
     if (args[i] === "--base" && i + 1 < args.length) opts.base = args[++i];
     else if (args[i] === "--head" && i + 1 < args.length) opts.head = args[++i];
   }
@@ -47,8 +74,6 @@ export function parseGitDiffStat(output) {
   }
 
   const lines = trimmed.split("\n");
-  // Last line may or may not be a summary line.
-  // Detect summary: matches "N file(s) changed" pattern.
   const lastLine = lines[lines.length - 1];
   const isSummary = /\d+\s+files?\s+changed/.test(lastLine) || /\d+\s+insertion/.test(lastLine) || /\d+\s+deletion/.test(lastLine);
   const fileCount = isSummary ? lines.length - 1 : lines.length;
@@ -94,10 +119,7 @@ async function main() {
   const opts = parseArgs();
   const scope = detectScope(opts);
 
-  // Only compute eligibility when light mode is enabled AND config has no
-  // validation errors (fail-closed). When disabled or errors present,
-  // `eligibleForLightMode` is always false.
-  let threshold = { maxFiles: 3, maxLines: 200 }; // built-in default
+  let threshold = { maxFiles: 3, maxLines: 200 };
   let eligible = false;
   try {
     const { loadDevLoopConfig, resolveLightMode } = await import(
@@ -105,7 +127,7 @@ async function main() {
     );
     const { config, errors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
     if (Array.isArray(errors) && errors.length > 0) {
-      // Config validation errors → fail-closed, eligible stays false
+      // fail-closed
     } else {
       const lightMode = resolveLightMode(config);
       if (lightMode && scope.ok !== false) {
@@ -114,7 +136,7 @@ async function main() {
       }
     }
   } catch {
-    // Use built-in defaults, eligible remains false
+    // defaults
   }
 
   process.stdout.write(

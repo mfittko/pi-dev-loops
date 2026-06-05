@@ -11,6 +11,23 @@ import {
 
 export { hasCommitShaReference } from "./_review-thread-mutations.mjs";
 
+const HELP = `Usage: reply-resolve-review-thread.mjs --repo <owner/name> --pr <number> --comment-id <number> --thread-id <node-id> --body-file <path>
+
+Reply to a review thread comment and resolve the thread.
+
+Options:
+  --repo <owner/name>   GitHub repository slug (required)
+  --pr <number>         Pull request number (required)
+  --comment-id <id>     GraphQL databaseId of the comment to reply to (required)
+  --thread-id <id>      GraphQL node ID of the review thread (required)
+  --body-file <path>    Path to file containing the reply body text (required)
+  --help, -h            Show this help
+
+Exit codes:
+  0   Success
+  1   Error
+`;
+
 export function parseReplyResolveCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -19,10 +36,16 @@ export function parseReplyResolveCliArgs(argv) {
     commentId: undefined,
     threadId: undefined,
     bodyFile: undefined,
+    help: false,
   };
 
   while (args.length > 0) {
     const token = args.shift();
+
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
 
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo").trim();
@@ -72,6 +95,12 @@ export async function runCli(
   } = {},
 ) {
   const options = parseReplyResolveCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(HELP);
+    return;
+  }
+
   const rawBody = await readFile(options.bodyFile, "utf8");
 
   if (rawBody.trim().length === 0) {
