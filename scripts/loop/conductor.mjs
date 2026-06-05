@@ -11,7 +11,7 @@
  *   3. Consolidated summary
  *
  * Usage:
- *   conductor.mjs --repo <owner/name> [--auto-resume] [--cycle-only] [--monitor-only]
+ *   conductor.mjs --repo <owner/name> [--auto-resume] [--cycle-only] [--monitor-only] [--require-retrospective]
  *
  * --cycle-only    Only run the cycle (action queue); skip auto-resume scan
  * --monitor-only  Only run the monitor; skip gate coordination
@@ -32,7 +32,7 @@ import {
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-const USAGE = `Usage: conductor.mjs --repo <owner/name> [--auto-resume] [--cycle-only] [--monitor-only]
+const USAGE = `Usage: conductor.mjs --repo <owner/name> [--auto-resume] [--cycle-only] [--monitor-only] [--require-retrospective]
 
 Unified conductor entrypoint for dev-loop lifecycle orchestration.`.trim();
 
@@ -100,6 +100,7 @@ function parseCliArgs(argv) {
     autoResume: false,
     cycleOnly: false,
     monitorOnly: false,
+    requireRetrospective: false,
   };
 
   while (args.length > 0) {
@@ -130,6 +131,11 @@ function parseCliArgs(argv) {
       continue;
     }
 
+    if (token === "--require-retrospective") {
+      options.requireRetrospective = true;
+      continue;
+    }
+
     throw parseError(`Unknown argument: ${token}`);
   }
 
@@ -156,7 +162,7 @@ function parseCliArgs(argv) {
  * @param {object} [runtime.loadConfigImpl] - injectable config loader for tests
  */
 export async function runConductor(options, runtime = {}) {
-  const { cycleOnly = false, monitorOnly = false, autoResume = false } = options;
+  const { cycleOnly = false, monitorOnly = false, autoResume = false, requireRetrospective: forceRetrospective = false } = options;
   const cwd = runtime.repoRoot || process.cwd();
   const loadConfig = runtime.loadConfigImpl || loadDevLoopConfig;
 
@@ -198,7 +204,8 @@ export async function runConductor(options, runtime = {}) {
     configLoadResult = { config: null, warnings: [], errors: [{ path: "<config>", message: `Failed to load config: ${errorMessage}`, layer: "merged" }] };
   }
 
-  const retroGate = checkRetrospectiveGate(cwd, requireRetrospective);
+  const effectiveRequireRetrospective = forceRetrospective || requireRetrospective;
+  const retroGate = checkRetrospectiveGate(cwd, effectiveRequireRetrospective);
   if (retroGate.blocked) {
     return {
       ok: false,
@@ -240,7 +247,8 @@ export async function runConductor(options, runtime = {}) {
     cycleOk,
     monitorOk,
     config: {
-      requireRetrospective,
+      requireRetrospective: effectiveRequireRetrospective,
+      configRequireRetrospective: requireRetrospective,
       autonomyStopAt,
       gateConfig,
       configErrors: configLoadResult?.errors?.length ?? 0,
