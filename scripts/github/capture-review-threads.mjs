@@ -43,11 +43,11 @@ const HELP = `Usage: capture-review-threads.mjs [--input <path> | --repo <owner/
 Capture review threads from a GitHub PR or from a local JSON snapshot.
 
 Modes:
-  --input <path>                Read JSON snapshot from file (use - for stdin)
+  --input <path>                Read JSON snapshot from file
   --repo <owner/name> --pr <n>  Fetch live review threads from GitHub PR
 
 Options:
-  --output <path>   Write JSON output to file (stdout by default)
+  --output <path>   Write JSON output to file in addition to stdout
   --help, -h        Show this help
 
 Exit codes:
