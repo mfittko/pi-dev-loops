@@ -186,11 +186,10 @@ export function evaluateRetrospectiveGate({ checkpointState, proposedRouting } =
  * Pass-through cases (proposed routing returned unchanged):
  * - requireRetrospectiveGate is false (gate not enabled)
  * - checkpoint state is COMPLETE and mergeApproved is true
- * - checkpoint state is SKIPPED (explicitly skipped with reason)
  * - proposed routing is already a stop or needs_reconcile result
  *
  * Fail-closed cases:
- * - requireRetrospectiveGate is true and checkpoint state is MISSING or NONE
+ * - requireRetrospectiveGate is true and checkpoint state is MISSING, NONE, or SKIPPED
  * - requireRetrospectiveGate is true and mergeApproved is not true
  * - unrecognized checkpoint state
  *
@@ -245,7 +244,14 @@ export function evaluateRetrospectiveMergeGate({
   }
 
   if (checkpointState === RETROSPECTIVE_CHECKPOINT_STATE.SKIPPED) {
-    return proposedRouting;
+    return {
+      ...proposedRouting,
+      routeKind: "stop",
+      selectedGate: "fail_closed_reconcile",
+      selectedStrategy: null,
+      nextAction: "The retrospective merge gate is enabled but the checkpoint was explicitly skipped; complete the retrospective or explicitly disable the gate before merge.",
+      reason: "Retrospective merge gate blocks merge when the checkpoint is explicitly skipped.",
+    };
   }
 
   // Blocked: missing checkpoint, disapproved merge, or unrecognized state.

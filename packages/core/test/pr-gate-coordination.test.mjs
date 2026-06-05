@@ -312,6 +312,9 @@ test("retrospective merge gate allows final approval when retrospective explicit
     requireRetrospectiveGate: true,
     retrospectiveCheckpoint: {
       state: "complete",
+      gateQuality: "Real gates with concrete findings and follow-through.",
+      mergeRecommendation: "Merge approved — all gates passed clean.",
+      unexpectedFindings: "No unexpected findings.",
       behavioralReview: {
         mergeApproved: true,
         followedWorkingAgreement: true,

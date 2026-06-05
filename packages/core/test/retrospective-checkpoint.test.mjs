@@ -458,7 +458,7 @@ test("evaluateRetrospectiveMergeGate: does not block stop results", () => {
   assert.deepEqual(result, proposed);
 });
 
-test("evaluateRetrospectiveMergeGate: passes through SKIPPED checkpoint", () => {
+test("evaluateRetrospectiveMergeGate: SKIPPED checkpoint blocks merge when gate is enabled", () => {
   const proposed = makeCopilotPrFollowupResult();
   const result = evaluateRetrospectiveMergeGate({
     requireRetrospectiveGate: true,
@@ -466,7 +466,10 @@ test("evaluateRetrospectiveMergeGate: passes through SKIPPED checkpoint", () => 
     mergeApproved: false,
     proposedRouting: proposed,
   });
-  assert.deepEqual(result, proposed);
+  assert.equal(result.routeKind, "stop");
+  assert.equal(result.selectedGate, "fail_closed_reconcile");
+  assert.equal(result.selectedStrategy, null);
+  assert.ok(result.nextAction.includes("explicitly skipped"));
 });
 
 test("evaluateRetrospectiveMergeGate: null proposedRouting returns fail-closed", () => {

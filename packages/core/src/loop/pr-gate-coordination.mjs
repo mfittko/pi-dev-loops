@@ -206,32 +206,40 @@ function evaluateRetrospectiveMergeApproval(checkpoint) {
     return { approved: false, reason: "Retrospective is missing `followedWorkingAgreement` (true/false)." };
   }
 
-  // gateQuality: derive from behavioralReview.gateQualityAcceptable + notes if flat field absent.
+  // gateQuality: require gateQualityAcceptable=true AND non-empty notes (behavioralReview)
+  // or explicit gateQuality string (flat format). Avoid empty-notes bypass.
+  const gateQualityAcceptable = br !== null
+    ? br.gateQualityAcceptable
+    : checkpoint.gateQualityAcceptable;
+  if (typeof gateQualityAcceptable !== "boolean" || gateQualityAcceptable !== true) {
+    return { approved: false, reason: `Retrospective gate quality is not explicitly acceptable (gateQualityAcceptable: ${String(gateQualityAcceptable)}).` };
+  }
   const gateQuality = typeof checkpoint.gateQuality === "string" && checkpoint.gateQuality.trim().length > 0
     ? checkpoint.gateQuality
-    : (br !== null
-      ? `gateQualityAcceptable: ${String(br.gateQualityAcceptable ?? "unspecified")}. ${br.notes || ""}`.trim()
+    : (br !== null && typeof br.notes === "string" && br.notes.trim().length > 0
+      ? `gateQualityAcceptable: true. ${br.notes}`.trim()
       : null);
   if (!gateQuality) {
-    return { approved: false, reason: "Retrospective is missing `gateQuality` details." };
+    return { approved: false, reason: "Retrospective is missing `gateQuality` details; provide a notes field with gate-quality assessment or an explicit gateQuality string." };
   }
 
-  // unexpectedFindings: derive from behavioralReview.drifts if flat field absent.
+  // unexpectedFindings: derive from behavioralReview.drifts if flat field absent. Empty array is valid (no findings).
   const unexpectedFindings = typeof checkpoint.unexpectedFindings === "string" && checkpoint.unexpectedFindings.trim().length > 0
     ? checkpoint.unexpectedFindings
-    : (br !== null && Array.isArray(br.drifts) && br.drifts.length > 0
-      ? br.drifts.join("; ")
+    : (br !== null && Array.isArray(br.drifts)
+      ? (br.drifts.length > 0 ? br.drifts.join("; ") : "none")
       : null);
   if (!unexpectedFindings) {
     return { approved: false, reason: "Retrospective is missing `unexpectedFindings` details." };
   }
 
-  // mergeRecommendation: derive from mergeApproved flag if flat field absent.
+  // mergeRecommendation: require explicit non-empty string; derive from mergeApproved
+  // only when reading behavioralReview format (br !== null). In flat format, the field is required.
   const mergeRecommendation = typeof checkpoint.mergeRecommendation === "string" && checkpoint.mergeRecommendation.trim().length > 0
     ? checkpoint.mergeRecommendation
-    : "mergeApproved: true — merge is authorized.";
+    : (br !== null ? "mergeApproved: true — merge is authorized." : null);
   if (!mergeRecommendation) {
-    return { approved: false, reason: "Retrospective is missing `mergeRecommendation` details." };
+    return { approved: false, reason: "Retrospective is missing explicit `mergeRecommendation`." };
   }
 
   return { approved: true, reason: null };
