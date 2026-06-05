@@ -3,8 +3,6 @@ import { buildParseError, formatCliError, isDirectCliRun, parseJsonText, summari
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { loadDevLoopConfig, resolveGateConfig } from "@pi-dev-loops/core/config";
-import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
-import { parseReviewThreads } from "@pi-dev-loops/core/github/review-threads";
 
 const USAGE = `Usage: ready-for-review.mjs --repo <owner/name> --pr <number> [--skip-gate-check] [--skip-ci-check]
 
@@ -312,8 +310,8 @@ export async function readyForReview(options, { env = process.env, ghCommand = "
     ciStatus = await fetchCiStatus({ repo: options.repo, pr: options.pr }, { env, ghCommand });
     if (ciStatus.status === "blocked") {
       throw new Error(
-        `PR #${options.pr} has failing CI: ${ciStatus.blockingSummary}. ` +
-        `Fix CI before marking ready for review, or use --skip-ci-check to override.`
+        `PR #${options.pr} has blocking CI checks: ${ciStatus.blockingSummary}. ` +
+        `Fix blocking checks before marking ready for review, or use --skip-ci-check to override.`
       );
     }
     if (ciStatus.status !== "success") {

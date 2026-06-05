@@ -229,7 +229,7 @@ test("fails when CI is blocked (unless --skip-ci-check)", async () => {
     );
 
     assert.equal(result.code, 1);
-    assert.match(result.stderr, /failing CI/i);
+    assert.match(result.stderr, /blocking CI/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -265,14 +265,14 @@ test("succeeds when draft gate evidence exists and CI is green", async () => {
           {
             body: "Gate review: draft_gate\nReviewed head SHA: abc123def456\nVerdict: clean\nFindings summary: no issues found\nNext action: mark ready for review",
             id: 101,
-            url: "https://github.com/owner/repo/pull/17#issuecomment-101",
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
             created_at: "2026-06-05T00:00:00Z",
             updated_at: "2026-06-05T00:00:00Z",
           },
           {
             body: "Gate review: draft_gate\nReviewed head SHA: abc123def456\nVerdict: clean\nFindings summary: no issues found\nNext action: mark ready for review",
             id: 102,
-            url: "https://github.com/owner/repo/pull/17#issuecomment-102",
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-102",
             created_at: "2026-06-05T00:00:00Z",
             updated_at: "2026-06-05T00:00:00Z",
           },
@@ -348,7 +348,10 @@ test("fails when draft_gate marker does not match current head SHA", async () =>
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-ready-mismatch-head-"));
 
   try {
-    const headSha = "abc123def456";
+    // PR head is a NEW commit pushed after the gate was run
+    const currentHeadSha = "bbb456789012";
+    // Gate evidence was recorded against the OLD commit
+    const gateHeadSha = "abc123def456";
     const { env, ghLogPath } = await writeGhStub(tempDir, [
       {
         stdout: JSON.stringify({
@@ -357,7 +360,7 @@ test("fails when draft_gate marker does not match current head SHA", async () =>
               pullRequest: {
                 id: "PR_abc123",
                 isDraft: true,
-                headRefOid: headSha,
+                headRefOid: currentHeadSha,
                 state: "OPEN",
                 mergeStateStatus: "CLEAN",
               },
@@ -373,16 +376,9 @@ test("fails when draft_gate marker does not match current head SHA", async () =>
       {
         stdout: JSON.stringify([
           {
-            body: `<!-- pi-dev-loop checkpoint gate=draft_gate verdict=clean head_sha=${headSha} findings_summary=summary next_action=mark_ready -->`,
+            body: "Gate review: draft_gate\nReviewed head SHA: " + gateHeadSha + "\nVerdict: clean\nFindings summary: no issues found\nNext action: mark ready for review",
             id: 101,
-            url: "https://github.com/owner/repo/pull/17#issuecomment-101",
-            created_at: "2026-06-05T00:00:00Z",
-            updated_at: "2026-06-05T00:00:00Z",
-          },
-          {
-            body: `<!-- pi-dev-loop marker gate=draft_gate head_sha=old_commit_123 verdict=clean contract_complete=true -->`,
-            id: 102,
-            url: "https://github.com/owner/repo/pull/17#issuecomment-102",
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
             created_at: "2026-06-05T00:00:00Z",
             updated_at: "2026-06-05T00:00:00Z",
           },
@@ -396,11 +392,8 @@ test("fails when draft_gate marker does not match current head SHA", async () =>
     );
 
     assert.equal(result.code, 1);
-    // Marker head doesn't match PR head → cleanEvidenceExists is true
-    // (comment visible) but currentHeadClean is false (marker mismatch).
-    // The implementation throws "no visible clean draft_gate evidence"
-    // because neither condition fully passes.
-    assert.match(result.stderr, /draft_gate|no visible clean/i);
+    // Gate evidence exists but marker head SHA differs from PR head
+    assert.match(result.stderr, /does not match current head/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
