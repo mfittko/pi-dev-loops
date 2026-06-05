@@ -12,6 +12,7 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { ensureAsyncRunnerOwnership } from "../loop/_pr-runner-coordination.mjs";
+import { detectStaleRunner } from "../loop/_stale-runner-detection.mjs";
 
 const USAGE = `Usage: detect-checkpoint-evidence.mjs --repo <owner/name> --pr <number>
 
@@ -268,6 +269,18 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
     throw error;
   }
 
+  // #508: refuse to merge if the active runner is stale or has received an exit signal
+  const staleRunnerDetection = await detectStaleRunner({
+    repo: options.repo,
+    pr: options.pr,
+    cwd: process.cwd(),
+  });
+  if (!staleRunnerDetection.ok) {
+    const error = new Error(staleRunnerDetection.message);
+    error.staleRunner = staleRunnerDetection;
+    throw error;
+  }
+
   const prPayload = await runGhJson(["pr", "view", String(options.pr), "--repo", options.repo, "--json", "headRefOid"], { env, ghCommand });
   const commentsPayload = normalizeIssueCommentsPayload(await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/issues/${options.pr}/comments?per_page=100`], { env, ghCommand }));
 
@@ -293,6 +306,14 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
     preApprovalGateMarker: normalizeGateMarkerSummary(markerSummary.pre_approval_gate),
     draftGateSatisfied: commentSummary.draft_gate?.verdict === "clean" && typeof commentSummary.draft_gate?.headSha === "string",
     ...(runnerOwnership.status !== "skipped_no_async_run_id" ? { runnerOwnership } : {}),
+    staleRunner: {
+      status: staleRunnerDetection.status,
+      activeRun: staleRunnerDetection.activeRun,
+      exitSignals: staleRunnerDetection.exitSignal?.signals ?? [],
+      staleRunner: staleRunnerDetection.staleRunner,
+      maxAgeMs: staleRunnerDetection.maxAgeMs,
+      filePath: staleRunnerDetection.filePath,
+    },
   };
 }
 
@@ -325,8 +346,16 @@ async function main() {
       unresolvedThreadCount = -1;
     }
 
-    const preMergeGateCheck = buildPreMergeGateCheck(result, unresolvedThreadCount);
-    const output = { ...result, preMergeGateCheck };
+    const staleRunnerCheck = {
+      ok: result.staleRunner.status === "fresh_runner" || result.staleRunner.status === "no_owner_record",
+      failures: result.staleRunner.status === "stale_runner"
+        ? [`stale runner: ${result.staleRunner.staleRunner?.runId} claimed ${result.staleRunner.staleRunner?.claimedAgeMs}ms ago, last updated ${result.staleRunner.staleRunner?.updatedAgeMs}ms ago (max age ${result.staleRunner.staleRunner?.maxAgeMs}ms)`]
+        : result.staleRunner.status === "exit_signal_recorded"
+        ? [`exit signal recorded for run ${result.staleRunner.activeRun?.runId}: refuse to merge`]
+        : [],
+    };
+    const preMergeGateCheck = buildPreMergeGateCheck(result, unresolvedThreadCount, staleRunnerCheck);
+    const output = { ...result, preMergeGateCheck, staleRunnerCheck };
 
     if (!preMergeGateCheck.ok) {
       process.stderr.write(`${JSON.stringify({
@@ -343,6 +372,24 @@ async function main() {
 
     process.stdout.write(`${JSON.stringify(output)}\n`);
   } catch (error) {
+    if (error && typeof error === "object" && "staleRunner" in error && error.staleRunner) {
+      const staleRunnerCheck = {
+        ok: false,
+        failures: error.staleRunner.status === "stale_runner"
+          ? [`stale runner: ${error.staleRunner.staleRunner?.runId} claimed ${error.staleRunner.staleRunner?.claimedAgeMs}ms ago, last updated ${error.staleRunner.staleRunner?.updatedAgeMs}ms ago (max age ${error.staleRunner.staleRunner?.maxAgeMs}ms)`]
+          : error.staleRunner.status === "exit_signal_recorded"
+          ? [`exit signal recorded for run ${error.staleRunner.activeRun?.runId}: refuse to merge`]
+          : [],
+      };
+      process.stderr.write(`${JSON.stringify({
+        ok: false,
+        error: error.staleRunner.message ?? error.staleRunner.error,
+        ...error.staleRunner,
+        staleRunnerCheck,
+      })}\n`);
+      process.exitCode = 1;
+      return;
+    }
     if (error && typeof error === "object" && "runnerOwnership" in error && error.runnerOwnership) {
       process.stderr.write(`${JSON.stringify(error.runnerOwnership)}\n`);
       process.exitCode = 1;
