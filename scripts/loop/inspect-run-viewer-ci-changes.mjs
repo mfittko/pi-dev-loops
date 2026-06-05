@@ -70,7 +70,9 @@ export async function runCli(
   argv = process.argv.slice(2),
   { env = process.env, stdout = process.stdout } = {},
 ) {
-  if (argv.includes("--help") || argv.includes("-h")) {
+  // This script takes exactly one positional argument, so --help/-h
+  // should only trigger when it's the sole argument, not when it's a value.
+  if (argv.length === 1 && (argv[0] === "--help" || argv[0] === "-h")) {
     stdout.write(HELP);
     return;
   }

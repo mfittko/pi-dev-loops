@@ -6,9 +6,13 @@
  *   node scripts/loop/detect-change-scope.mjs [--base <ref>] [--head <ref>]
  *
  * Options:
- *   --base <ref>   Base ref for diff (default: HEAD~1)
- *   --head <ref>   Head ref for diff (requires --base; default: HEAD)
+ *   --base <ref>   Override base ref (default: HEAD~1)
+ *   --head <ref>   Override head ref; ignored unless --base is also set
  *   --help, -h     Show this help
+ *
+ * Diff mode when both --base and --head are given: <base>..<head>.
+ * When only --base is given: <base> (diff vs working tree).
+ * When neither is given: HEAD~1..HEAD (committed scope).
  *
  * Output (stdout, JSON):
  *   {
@@ -18,8 +22,6 @@
  *     "eligibleForLightMode": true,
  *     "threshold": { "maxFiles": 3, "maxLines": 200 }
  *   }
- *
- * When --base/--head not given, defaults to HEAD~1..HEAD (committed scope).
  *
  * `eligibleForLightMode` is only computed when light mode is enabled in config
  * and config loading has no validation errors (fail-closed).
@@ -42,8 +44,8 @@ function parseArgs() {
 Detect change scope from git diff for light-mode eligibility.
 
 Options:
-  --base <ref>   Base ref for diff (default: HEAD~1)
-  --head <ref>   Head ref for diff (requires --base; default: HEAD)
+  --base <ref>   Override base ref (default: HEAD~1)
+  --head <ref>   Override head ref; ignored unless --base is also set
   --help, -h     Show this help
 
 Exit codes:
@@ -58,13 +60,6 @@ Exit codes:
   return opts;
 }
 
-/**
- * Parse `git diff --stat` output into { filesChanged, linesChanged }.
- * Exported as a pure function for testability.
- *
- * @param {string} output - Raw stdout from `git diff --stat`
- * @returns {{ filesChanged: number, linesChanged: number }}
- */
 export function parseGitDiffStat(output) {
   const trimmed = output.trim();
   if (trimmed.length === 0) {
