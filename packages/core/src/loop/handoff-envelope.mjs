@@ -52,7 +52,7 @@ function acceptanceKey(strategy, gate) {
 }
 
 function register(strategy, gate, template) {
-  ACCEPTANCE_TEMPLATES.set(acceptanceKey(strategy, gate), Object.freeze(template));
+  ACCEPTANCE_TEMPLATES.set(acceptanceKey(strategy, gate), deepFreeze({ ...template }));
 }
 
 // copilot_pr_followup sub-gates
@@ -362,6 +362,20 @@ function resolveSubGate(strategy, gateState) {
   return "default";
 }
 
+
+// ---------------------------------------------------------------------------
+// Deep freeze helper
+// ---------------------------------------------------------------------------
+
+function deepFreeze(obj) {
+  if (obj == null || typeof obj !== "object") return obj;
+  Object.freeze(obj);
+  for (const key of Object.keys(obj)) {
+    deepFreeze(obj[key]);
+  }
+  return obj;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -417,7 +431,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
     requireDraftFirst: settings?.workflow?.requireDraftFirst ?? false,
 
     cwd: derivedCwd,
-    worktreeRequired: derivedCwd !== null && derivedCwd !== undefined,
+    worktreeRequired: true,
 
     acceptance: {
       criteria: [...template.criteria],
@@ -439,7 +453,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
     envelope.overrides = overrides;
   }
 
-  return Object.freeze(envelope);
+  return deepFreeze(envelope);
 }
 
 export {

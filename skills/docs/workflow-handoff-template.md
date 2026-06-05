@@ -8,8 +8,7 @@
 
 ## Authoritative sources
 
-Every field in the handoff envelope is derived from exactly one of three
-authoritative sources. No field uses a hard-coded magic string or prose
+Every field in the handoff envelope is derived from authoritative sources as shown below. No field uses a hard-coded magic string or prose
 template.
 
 | Source | Fields derived |
