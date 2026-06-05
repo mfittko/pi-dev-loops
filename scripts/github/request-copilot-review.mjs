@@ -70,7 +70,7 @@ export function parseRequestCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
-    forceRerequestReview: false,
+
   };
 
   while (args.length > 0) {
@@ -374,7 +374,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   } catch {
     // Fail closed to default 5 on config errors
   }
-  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds && !options.forceRerequestReview) {
+  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds) {
     return {
       ok: true,
       status: ROUND_CAP_REACHED_STATUS,
@@ -393,7 +393,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     before,
   );
 
-  if (sameHeadCleanConverged && !options.forceRerequestReview) {
+  if (sameHeadCleanConverged) {
     return {
       ok: true,
       status: SUPPRESSED_SAME_HEAD_CLEAN_STATUS,

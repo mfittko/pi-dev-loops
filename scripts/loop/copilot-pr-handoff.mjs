@@ -298,7 +298,6 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       {
         repo: options.repo,
         pr: options.pr,
-        forceRerequestReview: false,
         sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
       },
       { env, ghCommand },
