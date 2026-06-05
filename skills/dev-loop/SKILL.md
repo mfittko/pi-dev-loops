@@ -99,9 +99,10 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 - Intercom coordination for cross-run state updates
 - Parent session retains loop ownership; subagents handle bounded slices only
 
-**Round-cap budget check (#524, enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check `detect-copilot-loop-state.mjs` output for `snapshot.copilotReviewRoundCount >= maxCopilotRounds` (default: 5). When the cap is reached, the detector (`interpretLoopState` in `packages/core/src/loop/copilot-loop-state.mjs`) selects one of two explicit `state` values:
+**Round-cap budget check (#524, enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check `detect-copilot-loop-state.mjs` output for `snapshot.copilotReviewRoundCount >= maxCopilotRounds` (default: 5). When the cap is reached AND no Copilot review request is in flight (i.e., `copilotReviewRequestStatus` is not `"requested"` or `"already-requested"`), the detector (`interpretLoopState` in `packages/core/src/loop/copilot-loop-state.mjs`) selects one of two explicit `state` values:
 - `state: "round_cap_clean_fallback"` — when `unresolvedThreadCount === 0` AND `ciStatus` is `"success"` or `"crediblyGreen"`. Treat this as the `pre_approval_gate` entry signal (do not re-request Copilot review).
 - `state: "round_cap_reached"` — when `unresolvedThreadCount > 0` OR `ciStatus` is not `"success"`/`"crediblyGreen"`. Reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note and stop; do **not** re-request Copilot review.
+- While a Copilot review request is in flight the round-cap routing is suppressed (the state machine preserves the active request instead); only after that request settles does the cap take effect.
 - The round-cap check is a per-iteration gate, not an end-of-loop assertion
 
 **Deterministic routing step (#524):** The pre-delegation gate above determines whether delegation is appropriate. When it returns `action: "stop"` with `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task.
