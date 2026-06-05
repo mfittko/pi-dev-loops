@@ -40,7 +40,8 @@ export function defaultRunnerCoordinationFilePathForTarget({ repo, pr }, cwd = p
     errorMessage: `Invalid repo slug for coordination target path: ${JSON.stringify(repo)}`,
     lowercase: true,
   });
-  return path.join(cwd, ".pi", "runner-coordination", owner, name, `pr-${pr}.json`);
+  const normalizedPr = normalizePr(pr);
+  return path.join(cwd, ".pi", "runner-coordination", owner, name, `pr-${normalizedPr}.json`);
 }
 
 export function createRunnerCoordinationState({ repo, pr, runId = null, now = new Date().toISOString() }) {

@@ -268,7 +268,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
         routingState: "non_ready_state",
         watchEntryConfirmed: false,
         watchArgs: null,
-        stopState: "runner_ownership_conflict",
+        stopState: "blocked",
       },
     };
   }
