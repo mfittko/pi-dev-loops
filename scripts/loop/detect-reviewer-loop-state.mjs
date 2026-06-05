@@ -68,7 +68,8 @@ export function parseDetectReviewerCliArgs(argv) {
     const token = args.shift();
 
     if (token === "--help" || token === "-h") {
-      return { help: true };
+      options.help = true;
+      return options;
     }
 
     if (token === "--input") {
@@ -172,15 +173,8 @@ async function fetchPrView({ repo, pr }, deps) {
   }
 }
 
-/**
- * Check whether a PR review belongs to the reviewer scope.
- * Accepts either `user.login` (GitHub REST shape) or `author.login` (fixture/fallback shape).
- * When no reviewer login is provided, all reviews are considered in scope.
- */
 function isReviewInScope(review, reviewerLogin) {
-  if (!reviewerLogin) {
-    return true;
-  }
+  if (!reviewerLogin) return true;
   const login = typeof review?.user?.login === "string"
     ? review.user.login
     : (typeof review?.author?.login === "string" ? review.author.login : "");
@@ -192,34 +186,24 @@ function isSubmittedReviewState(state) {
 }
 
 function pickLatestById(items) {
-  if (!Array.isArray(items) || items.length === 0) {
-    return null;
-  }
-  return items
-    .filter(Boolean)
-    .slice()
-    .sort((a, b) => {
-      const aid = typeof a.id === "number" ? a.id : -1;
-      const bid = typeof b.id === "number" ? b.id : -1;
-      return bid - aid;
-    })[0] ?? null;
+  if (!Array.isArray(items) || items.length === 0) return null;
+  return items.filter(Boolean).slice().sort((a, b) => {
+    const aid = typeof a.id === "number" ? a.id : -1;
+    const bid = typeof b.id === "number" ? b.id : -1;
+    return bid - aid;
+  })[0] ?? null;
 }
 
 async function fetchReviewRequested({ repo, pr, reviewerLogin, reviewRequestedOverride }, deps) {
-  if (typeof reviewRequestedOverride === "boolean") {
-    return reviewRequestedOverride;
-  }
-
+  if (typeof reviewRequestedOverride === "boolean") return reviewRequestedOverride;
   const payload = await runGhJson(["api", `repos/${repo}/pulls/${pr}/requested_reviewers`], deps);
   const users = Array.isArray(payload?.users) ? payload.users : [];
-
   if (reviewerLogin) {
     return users.some((user) => {
       const login = typeof user?.login === "string" ? user.login : "";
       return login.toLowerCase() === reviewerLogin.toLowerCase();
     });
   }
-
   return users.length > 0;
 }
 
@@ -227,14 +211,12 @@ async function fetchReviewState({ repo, pr, reviewerLogin }, deps) {
   const payload = await runGhJson(["api", `repos/${repo}/pulls/${pr}/reviews`], deps);
   const reviews = Array.isArray(payload) ? payload : [];
   const scoped = reviews.filter((review) => isReviewInScope(review, reviewerLogin));
-
   const pendingReview = pickLatestById(
     scoped.filter((review) => String(review?.state || "").toUpperCase() === "PENDING"),
   );
   const submittedReview = pickLatestById(
     scoped.filter((review) => isSubmittedReviewState(String(review?.state || "").toUpperCase())),
   );
-
   return {
     draftReviewPosted: Boolean(pendingReview),
     draftReviewId: typeof pendingReview?.id === "number" ? pendingReview.id : null,
@@ -247,95 +229,38 @@ async function fetchReviewState({ repo, pr, reviewerLogin }, deps) {
 }
 
 async function readLocalState(pathname) {
-  if (!pathname) {
-    return {};
-  }
-
+  if (!pathname) return {};
   let text;
-  try {
-    text = await readFile(pathname, "utf8");
-  } catch (error) {
-    if (error && error.code === "ENOENT") {
-      return {};
-    }
-    throw error;
-  }
-
+  try { text = await readFile(pathname, "utf8"); }
+  catch (error) { if (error && error.code === "ENOENT") return {}; throw error; }
   const parsed = parseJsonText(text);
-
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("Local state file must contain a JSON object");
-  }
-
+  if (!parsed || typeof parsed !== "object") throw new Error("Local state file must contain a JSON object");
   return parsed;
 }
 
 export async function autoDetectReviewerSnapshot(
-  { repo, pr, reviewerLogin, reviewRequestedOverride, localStatePath },
-  deps,
+  { repo, pr, reviewerLogin, reviewRequestedOverride, localStatePath }, deps,
 ) {
   const prView = await fetchPrView({ repo, pr }, deps);
-
-  if (prView === null) {
-    return normalizeReviewerSnapshot({
-      prExists: false,
-      reviewerLogin,
-    });
-  }
-
+  if (prView === null) return normalizeReviewerSnapshot({ prExists: false, reviewerLogin });
   const localState = await readLocalState(localStatePath);
   const prState = typeof prView.state === "string" ? prView.state.toUpperCase() : "OPEN";
   const prMerged = prState === "MERGED";
   const prClosed = prState === "CLOSED";
-
   if (prMerged || prClosed) {
-    return normalizeReviewerSnapshot({
-      ...localState,
-      prExists: true,
-      prNumber: typeof prView.number === "number" ? prView.number : pr,
-      prMerged,
-      prClosed,
-      prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null,
-      reviewerLogin,
-    });
+    return normalizeReviewerSnapshot({ ...localState, prExists: true, prNumber: typeof prView.number === "number" ? prView.number : pr, prMerged, prClosed, prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null, reviewerLogin });
   }
-
-  const reviewRequested = await fetchReviewRequested(
-    { repo, pr, reviewerLogin, reviewRequestedOverride },
-    deps,
-  );
-
+  const reviewRequested = await fetchReviewRequested({ repo, pr, reviewerLogin, reviewRequestedOverride }, deps);
   const reviewState = await fetchReviewState({ repo, pr, reviewerLogin }, deps);
-
-  return normalizeReviewerSnapshot({
-    ...localState,
-    prExists: true,
-    prNumber: typeof prView.number === "number" ? prView.number : pr,
-    prDraft: Boolean(prView.isDraft),
-    prMerged: false,
-    prClosed: false,
-    prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null,
-    reviewerLogin,
-    reviewRequested,
-    ...reviewState,
-  });
+  return normalizeReviewerSnapshot({ ...localState, prExists: true, prNumber: typeof prView.number === "number" ? prView.number : pr, prDraft: Boolean(prView.isDraft), prMerged: false, prClosed: false, prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null, reviewerLogin, reviewRequested, ...reviewState });
 }
 
 export async function runCli(
   argv = process.argv.slice(2),
-  {
-    stdout = process.stdout,
-    env = process.env,
-    ghCommand = "gh",
-  } = {},
+  { stdout = process.stdout, env = process.env, ghCommand = "gh" } = {},
 ) {
   const options = parseDetectReviewerCliArgs(argv);
-
-  if (options.help) {
-    stdout.write(HELP);
-    return;
-  }
-
+  if (options.help) { stdout.write(HELP); return; }
   let snapshot;
   if (options.inputPath) {
     const text = await readFile(options.inputPath, "utf8");
@@ -343,21 +268,10 @@ export async function runCli(
   } else {
     snapshot = await autoDetectReviewerSnapshot(options, { env, ghCommand });
   }
-
   const interpretation = interpretReviewerLoopState(snapshot);
-
-  stdout.write(`${JSON.stringify({
-    ok: true,
-    snapshot,
-    state: interpretation.state,
-    allowedTransitions: interpretation.allowedTransitions,
-    nextAction: interpretation.nextAction,
-  })}\n`);
+  stdout.write(`${JSON.stringify({ ok: true, snapshot, state: interpretation.state, allowedTransitions: interpretation.allowedTransitions, nextAction: interpretation.nextAction })}\n`);
 }
 
 if (isDirectCliRun(import.meta.url)) {
-  runCli().catch((error) => {
-    process.stderr.write(`${formatCliError(error)}\n`);
-    process.exitCode = 1;
-  });
+  runCli().catch((error) => { process.stderr.write(`${formatCliError(error)}\n`); process.exitCode = 1; });
 }

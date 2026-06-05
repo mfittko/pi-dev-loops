@@ -38,7 +38,8 @@ export function parseStageDraftCliArgs(argv) {
     const token = args.shift();
 
     if (token === "--help" || token === "-h") {
-      return { help: true };
+      options.help = true;
+      return options;
     }
 
     if (token === "--repo") {

@@ -29,6 +29,7 @@ Reads a newline-delimited file list and checks against known relevant paths.
 
 Options:
   --help, -h    Show this help
+  --help, -h    Show this help
 
 Exit codes:
   0   Success

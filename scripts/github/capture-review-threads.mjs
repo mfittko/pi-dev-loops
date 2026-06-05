@@ -44,6 +44,7 @@ Capture review threads from a GitHub PR or from a local JSON snapshot.
 
 Modes:
   --input <path>                Read JSON snapshot from file
+  (no mode flag)                Read JSON snapshot from stdin
   --repo <owner/name> --pr <n>  Fetch live review threads from GitHub PR
 
 Options:
@@ -69,7 +70,8 @@ export function parseCaptureCliArgs(argv) {
     const token = args.shift();
 
     if (token === "--help" || token === "-h") {
-      return { help: true };
+      options.help = true;
+      return options;
     }
 
     if (token === "--input") {
