@@ -45,7 +45,7 @@ The pi-subagents skill is parent-only, so this agent follows these patterns dire
 - **Staged fix orchestration**: parallel planners (read-only) → single writer worker → parallel validators (read-only).
 - **Key rules**: one writer thread; `async: true` default; `context: "fresh"` for reviewers, `"fork"` for advisory threads; no child subagent spawning beyond assigned fanout work.
 
-For full delegation patterns and JS examples, see the `dev-loop` skill's "Subagent delegation" section. This agent stays thin — policy lives in the skill, not here.
+For full delegation patterns and JS examples, use the pi-subagents skill. This agent stays thin — policy lives in the skill, not here.
 
 ## Output
 

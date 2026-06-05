@@ -74,11 +74,11 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 
 ## Async delegation guard rules (#524)
 
-**Pre-delegation gate (#524, enforced):** Before any async subagent delegation in the dev-loop, run `<resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"` or `watchArgs: null`. This prevents delegating work that has no automatic next step — the handoff tool is the authority, not the parent session's judgment.
+**Pre-delegation gate (#524, enforced):** Before any async subagent delegation in the dev-loop, run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"` or `watchArgs: null`. This prevents delegating work that has no automatic next step — the handoff tool is the authority, not the parent session's judgment.
 
 **Worktree cwd rule (#524, enforced):** Always set `cwd` to the worktree when delegating dev-loop work to subagents. Never delegate with the parent's `main` branch checkout as the working directory. The worktree path is authoritative for all git operations, file reads/writes, and validation commands in delegated runs.
 
-**Handoff template rule (#524):** All subagent delegation must use the `workflow-handoff-template.md` contract (resolved path: `<resolved-skill-scripts>/docs/workflow-handoff-template.md`). Never delegate with abbreviated task summaries. The handoff template must include:
+**Handoff template rule (#524):** All subagent delegation must use the `workflow-handoff-template.md` contract (resolved path: `../docs/workflow-handoff-template.md` relative to the skill directory). Never delegate with abbreviated task summaries. The handoff template must include:
 - Deterministic routing inputs (current state, gate boundary, next action)
 - Explicit `cwd` path to the worktree
 - Clear bounded task scope (single responsibility per delegation)
