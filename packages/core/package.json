@@ -22,6 +22,7 @@
     "./loop/run-inspection": "./src/loop/run-inspection.mjs",
     "./loop/steering": "./src/loop/steering.mjs",
     "./loop/timeout-policy": "./src/loop/timeout-policy.mjs",
+    "./loop/policy-constants": "./src/loop/policy-constants.mjs",
     "./loop/tracker-pr-state": "./src/loop/tracker-pr-state.mjs",
     "./debt/signal": "./src/debt/debt-signal.mjs",
     "./debt/finding": "./src/debt/debt-finding.mjs",

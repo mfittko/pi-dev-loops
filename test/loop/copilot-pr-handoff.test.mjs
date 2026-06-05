@@ -105,7 +105,7 @@ test("copilot-pr-handoff rejects malformed arguments with usage guidance", async
   assert.equal(conflictingWatchRefreshErr.ok, false);
   assert.equal(
     conflictingWatchRefreshErr.error,
-    "--force-rerequest-review cannot be combined with --watch-status because watch refresh mode never requests review",
+    "--force-rerequest-review has been removed. Copilot re-requests are managed internally. Omit the flag.",
   );
 });
 
@@ -1066,72 +1066,13 @@ process.exit(97);
   }
 });
 
-test("copilot-pr-handoff allows explicit operator same-head re-request via --force-rerequest-review", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-force-rerequest-"));
-
+test("copilot-pr-handoff rejects --force-rerequest-review as a removed policy flag (standalone)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-force-rerequest-rejected-"));
   try {
-    const env = await writeGhStub(tempDir, [
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
-        stdout: JSON.stringify({
-          isDraft: false,
-          state: "OPEN",
-          number: 17,
-          headRefOid: "newsha",
-          reviews: [
-            {
-              id: "r-1",
-              author: { login: "copilot-pull-request-reviewer[bot]" },
-              state: "COMMENTED",
-              commit: { oid: "newsha" },
-            },
-          ],
-          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
-        }) + "\n",
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["api", "graphql"],
-        stdout: EMPTY_THREADS + "\n",
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
-        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"newsha"}}]}\n',
-      },
-      {
-        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
-        stdout: "https://github.com/owner/repo/pull/17\n",
-      },
-      {
-        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
-        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
-      },
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
-        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"COMMENTED","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"newsha"}}]}\n',
-      },
-    ]);
-
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--force-rerequest-review"], { env });
-
-    assert.equal(result.code, 0);
-    assert.equal(result.stderr, "");
-
-    const output = JSON.parse(result.stdout);
-    assert.equal(output.ok, true);
-    assert.equal(output.action, "watch");
-    assert.equal(output.state, "waiting_for_copilot_review");
-    assert.equal(output.reviewRequestStatus, "requested");
-    assert.equal(output.snapshot.copilotReviewRequestStatus, "requested");
-    assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
-    assert.ok(output.watchArgs, "expected watchArgs after explicit force re-request");
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--force-rerequest-review"]);
+    assert.equal(result.code, 1);
+    const error = JSON.parse(result.stderr);
+    assert.match(error.error, /--force-rerequest-review has been removed/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1187,7 +1128,7 @@ test("copilot-pr-handoff does not re-request review when checks have not materia
   }
 });
 
-test("copilot-pr-handoff keeps same-head suppression without --force-rerequest-review", async () => {
+test("copilot-pr-handoff keeps same-head suppression (no force flag)", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-no-force-rerequest-"));
 
   try {

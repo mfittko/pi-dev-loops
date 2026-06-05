@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Copilot review probe supporting both persistent polling (default 30-minute
- * watch) and one-shot status checks (--timeout-ms 0). Used
+ * Copilot review probe supporting persistent polling (30-minute
+ * watch) and one-shot status checks. Used
  * internally by `scripts/loop/run-watch-cycle.mjs` for persistent watch cycles.
  *
  * For new watch/fix workflows, prefer using `run-watch-cycle.mjs` as the primary
@@ -10,20 +10,25 @@
 import { setTimeout as delay } from "node:timers/promises";
 
 import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
-import { parseNonNegativeInteger, parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
+import { parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import {
+  DEFAULT_POLL_INTERVAL_MS,
+  COPILOT_REVIEW_WAIT_TIMEOUT_MS,
+} from "@pi-dev-loops/core/loop/policy-constants";
 
-const USAGE = `Usage: probe-copilot-review.mjs --repo <owner/name> --pr <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
+const REMOVED_FLAGS = new Set([
+  "--poll-interval-ms",
+  "--timeout-ms",
+]);
+
+const USAGE = `Usage: probe-copilot-review.mjs --repo <owner/name> --pr <number>
 
 Poll for fresh Copilot review activity on a GitHub pull request.
 
 Required:
   --repo <owner/name>           Repository slug (e.g. owner/repo)
   --pr <number>                 Pull request number
-
-Optional:
-  --poll-interval-ms <ms>       Milliseconds between polls (default: 60000, i.e. 1 minute)
-  --timeout-ms <ms>             Total watch budget in ms; 0 = single check (default: 1800000, i.e. 30 minutes)
 
 Output (stdout, JSON):
   { "ok": true, "status": "changed"|"timeout"|"idle", "repo": "...", "pr": N, "attempts": N,
@@ -91,6 +96,11 @@ const COPILOT_ACTIVITY_QUERY = [
 
 const parseError = buildParseError(USAGE);
 
+function rejectRemovedFlag(token) {
+  throw parseError(
+    `${token} has been removed. Poll interval and timeout are centralized policy constants. Omit the flag.`,
+  );
+}
 
 export function parseWatchCliArgs(argv) {
   const args = [...argv];
@@ -98,8 +108,8 @@ export function parseWatchCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
-    pollIntervalMs: 60_000,
-    timeoutMs: 1_800_000,
+    pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
+    timeoutMs: COPILOT_REVIEW_WAIT_TIMEOUT_MS,
   };
 
   while (args.length > 0) {
@@ -110,6 +120,10 @@ export function parseWatchCliArgs(argv) {
       return options;
     }
 
+    if (REMOVED_FLAGS.has(token)) {
+      rejectRemovedFlag(token);
+    }
+
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
@@ -117,16 +131,6 @@ export function parseWatchCliArgs(argv) {
 
     if (token === "--pr") {
       options.pr = parsePositiveInteger(requireOptionValue(args, "--pr", parseError), "--pr", parseError);
-      continue;
-    }
-
-    if (token === "--poll-interval-ms") {
-      options.pollIntervalMs = parsePositiveInteger(requireOptionValue(args, "--poll-interval-ms", parseError), "--poll-interval-ms", parseError);
-      continue;
-    }
-
-    if (token === "--timeout-ms") {
-      options.timeoutMs = parseNonNegativeInteger(requireOptionValue(args, "--timeout-ms", parseError), "--timeout-ms", parseError);
       continue;
     }
 

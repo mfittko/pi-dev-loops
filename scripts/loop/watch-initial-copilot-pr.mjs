@@ -7,7 +7,7 @@
  * draft, Copilot-authored), this script implements the healthy-wait boundary
  * from the public dev-loop contract:
  *
- *   - polls detect-initial-copilot-pr-state at a configurable interval
+ *   - polls detect-initial-copilot-pr-state at the default interval
  *   - returns status="ready_for_followup" as soon as the PR leaves the
  *     bootstrap-only shape, carrying the PR number for immediate follow-up
  *   - returns status="timed_out" when the watch budget is exhausted;
@@ -43,8 +43,17 @@ import { parseIssueNumber, parseNonNegativeInteger, parsePositiveInteger, requir
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectInitialCopilotPrState, LINKED_PR_STATE } from "./detect-initial-copilot-pr-state.mjs";
 import { enforcePersistentInternalWaitTimeout } from "@pi-dev-loops/core/loop/timeout-policy";
+import {
+  DEFAULT_POLL_INTERVAL_MS,
+  COPILOT_FIRST_DURABLE_WAIT_TIMEOUT_MS,
+} from "@pi-dev-loops/core/loop/policy-constants";
 
-const USAGE = `Usage: watch-initial-copilot-pr.mjs --repo <owner/name> --issue <number> [--poll-interval-ms <ms>] [--timeout-ms <ms>]
+const REMOVED_FLAGS = new Set([
+  "--poll-interval-ms",
+  "--timeout-ms",
+]);
+
+const USAGE = `Usage: watch-initial-copilot-pr.mjs --repo <owner/name> --issue <number>
 
 Wait for the Copilot-first bootstrap-only draft PR to become substantive.
 
@@ -62,12 +71,6 @@ immediately so callers can surface a reconcile/block reason.
 Required:
   --repo <owner/name>           Repository slug (e.g. owner/repo)
   --issue <number>              Issue number
-
-Optional:
-  --poll-interval-ms <ms>       Milliseconds between polls (default: 60000, i.e. 1 minute)
-  --timeout-ms <ms>             Total watch budget in ms; 0 = explicit single-check status probe.
-                                Persistent unattended waits must be at least 3600000 (1 hour).
-                                Default: 3600000 (1 hour)
 
 Output (stdout, JSON):
   { "ok": true, "status": "ready_for_followup"|"timed_out"|"prior_linked_pr_closed_unmerged",
@@ -93,13 +96,13 @@ Exit codes:
   0  Success (ready_for_followup, timed_out, and prior_linked_pr_closed_unmerged are all ok:true)
   1  Argument error or gh failure`.trim();
 
-/** Default poll interval: 1 minute */
-const DEFAULT_POLL_INTERVAL_MS = 60_000;
-/** Default watch budget: 1 hour — Copilot-first durable-wait seam */
-const DEFAULT_TIMEOUT_MS = 3_600_000;
-
 const parseError = buildParseError(USAGE);
 
+function rejectRemovedFlag(token) {
+  throw parseError(
+    `${token} has been removed. Poll interval and timeout are centralized policy constants. Omit the flag.`,
+  );
+}
 
 export async function watchCopilotRunUntilComplete(
   { repo, runId, timeoutMs = null },
@@ -156,7 +159,7 @@ export function parseWatchInitialCopilotPrCliArgs(argv) {
     repo: undefined,
     issue: undefined,
     pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
+    timeoutMs: COPILOT_FIRST_DURABLE_WAIT_TIMEOUT_MS,
   };
 
   while (args.length > 0) {
@@ -167,6 +170,10 @@ export function parseWatchInitialCopilotPrCliArgs(argv) {
       return options;
     }
 
+    if (REMOVED_FLAGS.has(token)) {
+      rejectRemovedFlag(token);
+    }
+
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
@@ -174,24 +181,6 @@ export function parseWatchInitialCopilotPrCliArgs(argv) {
 
     if (token === "--issue") {
       options.issue = parseIssueNumber(requireOptionValue(args, "--issue", parseError), parseError);
-      continue;
-    }
-
-    if (token === "--poll-interval-ms") {
-      options.pollIntervalMs = parsePositiveInteger(
-        requireOptionValue(args, "--poll-interval-ms", parseError),
-        "--poll-interval-ms",
-        parseError,
-      );
-      continue;
-    }
-
-    if (token === "--timeout-ms") {
-      options.timeoutMs = parseNonNegativeInteger(
-        requireOptionValue(args, "--timeout-ms", parseError),
-        "--timeout-ms",
-        parseError,
-      );
       continue;
     }
 
@@ -212,7 +201,7 @@ export function parseWatchInitialCopilotPrCliArgs(argv) {
     options.timeoutMs = options.timeoutMs === 0
       ? 0
       : enforcePersistentInternalWaitTimeout({
-        timeoutMs: options.timeoutMs,
+        timeoutMs: COPILOT_FIRST_DURABLE_WAIT_TIMEOUT_MS,
         contextLabel: "watch-initial-copilot-pr persistent wait",
       });
   } catch (error) {

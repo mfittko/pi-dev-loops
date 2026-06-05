@@ -22,16 +22,10 @@ async function writeGhStub(tempDir, entries) {
   return { ...env, PI_SUBAGENT_RUN_ID: "" };
 }
 
-test("parseWatchCycleCliArgs parses required flags and optional probe mode", () => {
-  assert.deepEqual(
-    parseWatchCycleCliArgs(["--repo", "owner/repo", "--pr", "17", "--probe-only"]),
-    {
-      help: false,
-      repo: "owner/repo",
-      pr: 17,
-      forceRerequestReview: false,
-      probeOnly: true,
-    },
+test("parseWatchCycleCliArgs rejects --probe-only as a removed policy flag", () => {
+  assert.throws(
+    () => parseWatchCycleCliArgs(["--repo", "owner/repo", "--pr", "17", "--probe-only"]),
+    /--probe-only has been removed/,
   );
 });
 
@@ -141,57 +135,33 @@ test("runWatchCycle rejects persistent watch budgets below the unattended extern
   );
 });
 
-test("runWatchCycle uses zero-timeout idle probes only when explicitly requested", async () => {
+test("runWatchCycle uses emitted non-zero watchArgs for normal async waiting", async () => {
   let watcherOptions;
-
   const result = await runWatchCycle(
-    {
-      repo: "owner/repo",
-      pr: 17,
-      forceRerequestReview: false,
-      probeOnly: true,
-    },
+    { repo: "owner/repo", pr: 17 },
     {
       runHandoffImpl: async () => ({
         ok: true,
         action: "watch",
         state: "waiting_for_copilot_review",
-        allowedTransitions: ["unresolved_feedback_present"],
-        nextAction: "Wait for Copilot review via scripts/github/probe-copilot-review.mjs",
+        allowedTransitions: [],
+        nextAction: "Wait for Copilot review.",
         snapshot: { repo: "owner/repo", pr: 17 },
         loopDisposition: "pending",
         terminal: false,
-        watchArgs: {
-          repo: "owner/repo",
-          pr: 17,
-          pollIntervalMs: 60_000,
-          timeoutMs: 1_800_000,
-        },
+        watchArgs: { repo: "owner/repo", pr: 17, pollIntervalMs: 60_000, timeoutMs: 1_800_000 },
+        watchTimeoutPolicy: { classification: "external_healthy_wait", minimumTimeoutMs: 1_800_000, defaultTimeoutMs: 1_800_000 },
+        requestWatchContract: { action: "watch", nextAction: "Wait", requestStatus: "requested", routingState: "copilot_request_confirmed_waiting", watchEntryConfirmed: true, watchArgs: { repo: "owner/repo", pr: 17, pollIntervalMs: 60_000, timeoutMs: 1_800_000 } },
       }),
-      watchCopilotReviewImpl: async (options) => {
-        watcherOptions = options;
-        return {
-          ok: true,
-          status: "idle",
-          repo: options.repo,
-          pr: options.pr,
-          attempts: 1,
-          newComments: [],
-          newReviews: [],
-          newIssueComments: [],
-        };
+      watchCopilotReviewImpl: async (opts) => {
+        watcherOptions = opts;
+        return { ok: true, status: "idle", repo: "owner/repo", pr: 17, attempts: 1, newComments: [], newReviews: [], newIssueComments: [] };
       },
     },
   );
-
-  assert.equal(watcherOptions.timeoutMs, 0);
-  assert.equal(result.loopDisposition, "pending");
-  assert.equal(result.cycleDisposition, "pending");
-  assert.equal(result.terminal, false);
+  assert.equal(result.ok, true);
   assert.equal(result.watchStatus, "idle");
-  assert.equal(result.contractTrace.waitStrategy.mode, "one_shot_probe");
-  assert.equal(result.contractTrace.waitStrategy.effectiveTimeoutMs, 0);
-  assert.equal(result.contractTrace.stopReason.classification, "healthy_wait");
+  assert.equal(watcherOptions.timeoutMs, 1_800_000);
 });
 
 test("runWatchCycle keeps shared loopDisposition and reports needs_followup in cycleDisposition when fresh Copilot activity appears", async () => {
@@ -410,7 +380,7 @@ test("runWatchCycle integration keeps initial request-review -> waiting_for_copi
       },
       {
         env,
-        detectSessionActivity: true,
+        detectSessionActivity: false,
         watchCopilotReviewImpl: async (options) => {
           watcherOptions = options;
           return {
@@ -552,7 +522,7 @@ process.exit(97);
       },
       {
         env,
-        detectSessionActivity: true,
+        detectSessionActivity: false,
         watchCopilotReviewImpl: async (options) => {
           watcherOptions = options;
           return {
@@ -581,8 +551,8 @@ process.exit(97);
   }
 });
 
-test("runWatchCycle integration keeps probe-only checks non-blocking even with an active Copilot workflow run", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-cycle-session-active-probe-"));
+test("runWatchCycle integration keeps checks non-blocking with active Copilot workflow run", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-watch-cycle-session-active-"));
   let watcherOptions;
 
   try {
@@ -622,15 +592,14 @@ test("runWatchCycle integration keeps probe-only checks non-blocking even with a
           },
         ])}\n`,
       },
+      {
+        assertArgs: ["run", "watch", "444", "--repo", "owner/repo"],
+        stdout: "",
+      },
     ]);
 
     const result = await runWatchCycle(
-      {
-        repo: "owner/repo",
-        pr: 17,
-        forceRerequestReview: false,
-        probeOnly: true,
-      },
+      { repo: "owner/repo", pr: 17 },
       {
         env,
         detectSessionActivity: true,
@@ -652,13 +621,15 @@ test("runWatchCycle integration keeps probe-only checks non-blocking even with a
 
     assert.equal(result.handoffAction, "watch");
     assert.equal(result.sessionActivity.activity, "active");
-    assert.equal(watcherOptions.timeoutMs, 0);
+    assert.equal(result.sessionActivity.runId, 444);
     assert.equal(result.watchStatus, "idle");
+    assert.equal(watcherOptions.repo, "owner/repo");
+    assert.equal(watcherOptions.pr, 17);
+    assert.equal(watcherOptions.timeoutMs, 1_800_000);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
-
 test("runWatchCycle integration bounds active Copilot workflow waits by the emitted watch budget", async () => {
   let receivedTimeoutMs = null;
 
