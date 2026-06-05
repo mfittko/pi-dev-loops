@@ -7,11 +7,19 @@ import test from "node:test";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import { parseHandoffCliArgs } from "../../scripts/loop/copilot-pr-handoff.mjs";
+import { claimRunnerOwnership } from "../../scripts/loop/_pr-runner-coordination.mjs";
 import { EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY } from "../../packages/core/src/loop/timeout-policy.mjs";
 
 const scriptPath = path.resolve("scripts/loop/copilot-pr-handoff.mjs");
 
-const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, {
+  ...options,
+  env: {
+    ...process.env,
+    ...(options.env ?? {}),
+    PI_SUBAGENT_RUN_ID: options.env?.PI_SUBAGENT_RUN_ID ?? "",
+  },
+});
 
 /**
  * Write a gh stub that responds to a sequence of calls.
@@ -19,7 +27,7 @@ const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, opt
  */
 async function writeGhStub(tempDir, entries) {
   const { env } = await writeGhStubHelper(tempDir, entries);
-  return env;
+  return { ...env, PI_SUBAGENT_RUN_ID: "" };
 }
 
 const EMPTY_THREADS = JSON.stringify({
@@ -1507,6 +1515,35 @@ test("copilot-pr-handoff classifies watch timeout with CI still pending as non-t
     assert.equal(output.terminal, false);
     assert.equal(output.sameHeadCleanConverged, false);
     assert.equal(output.watchArgs, undefined);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+test("copilot-pr-handoff stops cleanly when another run already owns the PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-ownership-"));
+
+  try {
+    await claimRunnerOwnership({ repo: "owner/repo", pr: 17, runId: "run-active", cwd: tempDir });
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], {
+      cwd: tempDir,
+      env: { ...process.env, PI_SUBAGENT_RUN_ID: "run-new" },
+    });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "blocked_needs_user_decision");
+    assert.equal(output.loopDisposition, "blocked");
+    assert.equal(output.terminal, true);
+    assert.equal(output.runnerOwnership.ok, false);
+    assert.equal(output.runnerOwnership.error, "ownership_lost");
+    assert.equal(output.runnerOwnership.activeRun.runId, "run-active");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

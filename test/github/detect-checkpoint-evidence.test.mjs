@@ -16,14 +16,22 @@ import {
   parseDetectCheckpointEvidenceCliArgs,
   buildPreMergeGateCheck,
 } from "../../scripts/github/detect-checkpoint-evidence.mjs";
+import { claimRunnerOwnership } from "../../scripts/loop/_pr-runner-coordination.mjs";
 
 const scriptPath = path.resolve("scripts/github/detect-checkpoint-evidence.mjs");
 
-const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, options);
+const runNode = (args = [], options = {}) => runNodeHelper(scriptPath, args, {
+  ...options,
+  env: {
+    ...process.env,
+    ...(options.env ?? {}),
+    PI_SUBAGENT_RUN_ID: options.env?.PI_SUBAGENT_RUN_ID ?? "",
+  },
+});
 
 async function writeGhStub(tempDir, entries) {
   const { env } = await writeGhStubHelper(tempDir, entries, { repeatLastOnOverflow: true });
-  return env;
+  return { ...env, PI_SUBAGENT_RUN_ID: "" };
 }
 
 test("parseGateReviewCommentBody parses the deterministic visible gate comment format", () => {
@@ -791,4 +799,46 @@ test("buildPreMergeGateCheck passes with zero unresolved threads", () => {
   const result = buildPreMergeGateCheck(evidence, 0);
   assert.equal(result.ok, true);
   assert.deepEqual(result.failures, []);
+});
+
+
+test("detect-checkpoint-evidence fails closed when async run no longer owns the PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-checkpoint-evidence-ownership-"));
+
+  try {
+    await claimRunnerOwnership({ repo: "owner/repo", pr: 17, runId: "run-active", cwd: tempDir });
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], {
+      cwd: tempDir,
+      env: { ...process.env, PI_SUBAGENT_RUN_ID: "run-stale" },
+    });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const error = JSON.parse(result.stderr);
+    assert.equal(error.ok, false);
+    assert.equal(error.error, "ownership_lost");
+    assert.equal(error.activeRun.runId, "run-active");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-checkpoint-evidence fails closed when async run has no ownership record", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-checkpoint-evidence-ownership-"));
+
+  try {
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], {
+      cwd: tempDir,
+      env: { ...process.env, PI_SUBAGENT_RUN_ID: "run-stale" },
+    });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const error = JSON.parse(result.stderr);
+    assert.equal(error.ok, false);
+    assert.equal(error.error, "ownership_missing");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });

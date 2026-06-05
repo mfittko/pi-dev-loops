@@ -47,6 +47,7 @@ import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config"
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
 import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
+import { ensureAsyncRunnerOwnership } from "./_pr-runner-coordination.mjs";
 import {
   EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
   enforceExternalHealthyWaitTimeout,
@@ -239,6 +240,39 @@ export function parseHandoffCliArgs(argv) {
  * Returns the result payload without writing to stdout.
  */
 export async function runHandoff(options, { env = process.env, ghCommand = "gh" } = {}) {
+  const runnerOwnership = await ensureAsyncRunnerOwnership({
+    repo: options.repo,
+    pr: options.pr,
+    env,
+    cwd: path.resolve(process.cwd()),
+    claimIfMissing: true,
+  });
+  if (!runnerOwnership.ok) {
+    return {
+      ok: true,
+      action: "stop",
+      state: STATE.BLOCKED_NEEDS_USER_DECISION,
+      allowedTransitions: [],
+      nextAction: runnerOwnership.message,
+      autoRerequestEligible: false,
+      sameHeadCleanConverged: false,
+      roundCapCleanEligible: false,
+      loopDisposition: "blocked",
+      terminal: true,
+      snapshot: { repo: options.repo, pr: options.pr },
+      runnerOwnership,
+      requestWatchContract: {
+        action: "stop",
+        nextAction: runnerOwnership.message,
+        requestStatus: "none",
+        routingState: "non_ready_state",
+        watchEntryConfirmed: false,
+        watchArgs: null,
+        stopState: "blocked",
+      },
+    };
+  }
+
   let snapshot = await autoDetectSnapshot(
     { repo: options.repo, pr: options.pr },
     { env, ghCommand },
@@ -304,6 +338,10 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     terminal: interpretationSummary.terminal,
     snapshot,
   };
+
+  if (runnerOwnership.status !== "skipped_no_async_run_id") {
+    result.runnerOwnership = runnerOwnership;
+  }
 
   if (effectiveReviewRequestStatus !== undefined) {
     result.reviewRequestStatus = effectiveReviewRequestStatus;
