@@ -261,12 +261,12 @@ export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null, s
 }
 
 
-export async function detectCheckpointEvidence(options, { env = process.env, ghCommand = "gh" } = {}) {
+export async function detectCheckpointEvidence(options, { env = process.env, ghCommand = "gh", cwd = process.cwd() } = {}) {
   const runnerOwnership = await ensureAsyncRunnerOwnership({
     repo: options.repo,
     pr: options.pr,
     env,
-    cwd: process.cwd(),
+    cwd,
     claimIfMissing: false,
     requireExisting: true,
   });
@@ -280,7 +280,7 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
   const staleRunnerDetection = await detectStaleRunner({
     repo: options.repo,
     pr: options.pr,
-    cwd: process.cwd(),
+    cwd,
   });
   if (!staleRunnerDetection.ok) {
     const error = new Error(staleRunnerDetection.message);

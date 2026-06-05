@@ -70,8 +70,19 @@ function findStaleRunnerMatch(state, { now, maxAgeMs }) {
   if (!active.runId) return null;
   const claimedAt = typeof active.claimedAt === "string" ? Date.parse(active.claimedAt) : NaN;
   const updatedAt = typeof active.updatedAt === "string" ? Date.parse(active.updatedAt) : NaN;
-  if (!Number.isFinite(claimedAt) || !Number.isFinite(updatedAt)) {
-    return null;
+  // Fail closed: treat unparseable timestamps as stale rather than fresh
+  const claimedCorrupt = !Number.isFinite(claimedAt);
+  const updatedCorrupt = !Number.isFinite(updatedAt);
+  if (claimedCorrupt || updatedCorrupt) {
+    return {
+      runId: active.runId,
+      claimedAt: active.claimedAt ?? "(corrupt)",
+      updatedAt: active.updatedAt ?? "(corrupt)",
+      claimedAgeMs: claimedCorrupt ? -1 : now - claimedAt,
+      updatedAgeMs: updatedCorrupt ? -1 : now - updatedAt,
+      maxAgeMs,
+      corruptedTimestamp: true,
+    };
   }
   const claimedAgeMs = now - claimedAt;
   const updatedAgeMs = now - updatedAt;
