@@ -153,7 +153,7 @@ test("workflow-handoff-template includes the persistence rule and timeout escala
 
   assert.match(
     content,
-    /PERSISTENCE RULE: Do not exit your session until the PR is merged or you hit a hard stop that requires conductor authorization\./i,
+    /PERSISTENCE MODEL: Subagents do bounded implementation tasks and exit on external wait. The main session drives the loop and re-dispatches when continuation is feasible./i,
   );
   assert.match(
     content,

@@ -59,7 +59,7 @@ node <resolved-skill-scripts>/loop/run-watch-cycle.mjs --repo <owner/name> --pr 
 ```
 For explicit async loop entry or continuation, this is a persistent async watch/fix loop, not handoff-only behavior:
 - treat the normal PR follow-up path as one loop: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → … → pre_approval_gate → merge`
-- **PERSISTENCE RULE: Do not exit your session until the PR is merged or you hit a hard stop that requires conductor authorization.**
+- **PERSISTENCE MODEL: Subagents do bounded implementation tasks and exit on external wait. The main session drives the loop and re-dispatches when continuation is feasible.**
 - a single returned watch cycle (`changed`, `timeout`, or `idle`) is never completion by itself
 - if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary instead of reporting completion
 - after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, resume this watcher again in the same async session
