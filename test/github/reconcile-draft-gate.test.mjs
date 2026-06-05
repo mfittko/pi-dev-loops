@@ -280,7 +280,7 @@ test("reconcile-draft-gate skips CI checks when config disables draft requireCi"
         stdout: '{"data":{"convertPullRequestToDraft":{"pullRequest":{"id":"PR_kwDOScHU78000017","isDraft":true}}}}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[]}\n',
       },
       {
@@ -354,7 +354,7 @@ test("reconcile-draft-gate skips the draft conversion mutation when the PR is al
         stdout: '{"data":{"repository":{"pullRequest":{"id":"PR_kwDOScHU78000017","isDraft":true}}}}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
       },
       {
@@ -429,7 +429,7 @@ test("reconcile-draft-gate does not mark ready when upsert throws and the PR was
         stdout: '{"data":{"repository":{"pullRequest":{"id":"PR_kwDOScHU78000017","isDraft":true}}}}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
       },
       {
@@ -495,7 +495,7 @@ test("reconcile-draft-gate marks the PR ready again if gate-comment upsert throw
         stdout: '{"data":{"convertPullRequestToDraft":{"pullRequest":{"id":"PR_kwDOScHU78000017","isDraft":true}}}}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
       },
       {
@@ -565,7 +565,7 @@ test("reconcile-draft-gate converts to draft, posts clean evidence, and marks re
         stdout: '{"data":{"convertPullRequestToDraft":{"pullRequest":{"id":"PR_kwDOScHU78000017","isDraft":true}}}}\n',
       },
       {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc123456789","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
       },
       {

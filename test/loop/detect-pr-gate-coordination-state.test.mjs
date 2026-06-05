@@ -7,6 +7,7 @@ import test from "node:test";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import { detectPrGateCoordinationState, parseGitStatusConflictFiles } from "../../scripts/loop/detect-pr-gate-coordination-state.mjs";
+import { PR_CHECKPOINT, PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 
 const scriptPath = path.resolve("scripts/loop/detect-pr-gate-coordination-state.mjs");
 
@@ -83,7 +84,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 266,
           state: "OPEN",
@@ -185,6 +186,11 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
       draftGateAlreadySatisfied: true,
       gateEvidenceRequiredForMerge: true,
+      refinementArtifact: {
+        status: "unknown",
+        linkedIssue: null,
+        reason: "No deterministically resolvable linked issue (no closingIssuesReferences, no unique Closes/Fixes pattern in body).",
+      },
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -197,7 +203,7 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed for non-draft PR
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 266,
           state: "OPEN",
@@ -244,7 +250,7 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed for converged no
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 266,
           state: "OPEN",
@@ -312,7 +318,7 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed when Copilot rou
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 266,
           state: "OPEN",
@@ -408,7 +414,7 @@ test("detect-pr-gate-coordination-state auto-detects local-fix-without-reply (#4
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "269", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "269", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 269,
           state: "OPEN",
@@ -501,7 +507,7 @@ test("detectPrGateCoordinationState tolerates missing local git binary and falls
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 266,
           state: "OPEN",
@@ -549,7 +555,7 @@ test("detect-pr-gate-coordination-state preserves non-conflict mergeStateStatus 
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 266,
           state: "OPEN",
@@ -611,7 +617,7 @@ test("detect-pr-gate-coordination-state surfaces conflict_resolution for conflic
   try {
     const ghEnv = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "370", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "370", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 370,
           state: "OPEN",
@@ -671,7 +677,7 @@ test("detect-pr-gate-coordination-state with --review-mode internal_only skips C
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "267", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "267", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 267,
           state: "OPEN",
@@ -755,7 +761,7 @@ test("pre-approval-gate-detector overrides to pre_approval_gate_needed when neve
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "268", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "268", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 268,
           state: "OPEN",
@@ -836,7 +842,7 @@ test("detect-pr-gate-coordination-state blocks merge readiness when retrospectiv
 
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "271", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "271", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 271,
           state: "OPEN",
@@ -917,7 +923,7 @@ test("detect-pr-gate-coordination-state fails closed when the PR head changes mi
   try {
     const env = await writeGhStub(tempDir, [
       {
-        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
         stdout: jsonLine({
           number: 266,
           state: "OPEN",
@@ -954,5 +960,100 @@ test("detect-pr-gate-coordination-state fails closed when the PR head changes mi
     assert.match(payload.error, /PR head changed while loading gate coordination facts/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-pr-gate-coordination-state surfaces linked-issue + refinement via gh pr view", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "gate-coord-test-"));
+  try {
+    const env = await writeGhStub(tmp, [
+      // 1) PR facts (draft, with body + closingIssuesReferences)
+      {
+        stdout: JSON.stringify({
+          number: 10,
+          state: "OPEN",
+          isDraft: true,
+          headRefOid: "abc1234567",
+          mergeStateStatus: "CLEAN",
+          body: "Closes #527\n\nImplements the fix.\n",
+          closingIssuesReferences: [{ number: 527 }],
+          reviews: [],
+          statusCheckRollup: { state: "SUCCESS" },
+        }) + "\n",
+      },
+      // 2) requested reviewers
+      { stdout: "{\"users\":[]}\n" },
+      // 3) review threads (no comments)
+      { stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } } } } } }) },
+      // 4) detect-checkpoint-evidence: pr view head SHA
+      { stdout: jsonLine({ headRefOid: "abc1234567" }) },
+      // 5) detect-checkpoint-evidence: issue comments list
+      { stdout: jsonLine([[]]) },
+      // 6) issue view for #527 — body has no ACs/DoD
+      {
+        stdout: JSON.stringify({
+          body: "## Problem\n\nProse only.\n\n## Root Cause\n\nBug.\n\n## Fix\n\nChange.\n",
+        }) + "\n",
+      },
+    ]);
+
+    const result = await detectPrGateCoordinationState(
+      { repo: "owner/repo", pr: 10 },
+      { env: { ...env, PI_SUBAGENT_RUN_ID: "" } },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+    assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+    assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW));
+    assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE));
+    assert.match(result.reason, /no refinement artifact/i);
+    assert.match(result.reason, /#527/);
+    assert.equal(result.refinementArtifact?.status, "missing");
+    assert.equal(result.refinementArtifact?.linkedIssue, 527);
+    assert.equal(result.refinementArtifact?.finding, "missing_refinement_artifact");
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("detect-pr-gate-coordination-state leaves refinement=present when linked issue has ACs", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "gate-coord-test-"));
+  try {
+    const env = await writeGhStub(tmp, [
+      {
+        stdout: JSON.stringify({
+          number: 10,
+          state: "OPEN",
+          isDraft: true,
+          headRefOid: "abc1234567",
+          mergeStateStatus: "CLEAN",
+          body: "Closes #527\n",
+          closingIssuesReferences: [{ number: 527 }],
+          reviews: [],
+          statusCheckRollup: { state: "SUCCESS" },
+        }) + "\n",
+      },
+      { stdout: "{\"users\":[]}\n" },
+      { stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } } } } } }) },
+      { stdout: jsonLine({ headRefOid: "abc1234567" }) },
+      { stdout: jsonLine([[]]) },
+      {
+        stdout: JSON.stringify({
+          body: "## Acceptance criteria\n\n- [ ] First AC\n- [x] Second AC\n",
+        }) + "\n",
+      },
+    ]);
+
+    const result = await detectPrGateCoordinationState(
+      { repo: "owner/repo", pr: 10 },
+      { env: { ...env, PI_SUBAGENT_RUN_ID: "" } },
+    );
+    assert.equal(result.ok, true);
+    assert.notEqual(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+    assert.equal(result.gateBoundary, PR_CHECKPOINT.DRAFT_REVIEW);
+    assert.equal(result.refinementArtifact?.status, "present");
+    assert.deepEqual(result.refinementArtifact?.acItems, ["First AC", "Second AC"]);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
   }
 });

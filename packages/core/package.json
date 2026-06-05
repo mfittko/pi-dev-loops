@@ -14,6 +14,7 @@
     "./loop/copilot-ci-status": "./src/loop/copilot-ci-status.mjs",
     "./loop/copilot-loop-iterations": "./src/loop/copilot-loop-iterations.mjs",
     "./loop/copilot-loop-state": "./src/loop/copilot-loop-state.mjs",
+    "./loop/issue-refinement-artifact": "./src/loop/issue-refinement-artifact.mjs",
     "./loop/phase-files": "./src/loop/phase-files.mjs",
     "./loop/pr-gate-coordination": "./src/loop/pr-gate-coordination.mjs",
     "./loop/public-dev-loop-routing": "./src/loop/public-dev-loop-routing.mjs",

@@ -13,6 +13,24 @@ export const PR_CHECKPOINT = Object.freeze({
   DONE: "done",
 });
 
+
+/**
+ * Refinement-artifact gate check (issue #532).
+ *
+ * The draft gate must verify the linked issue has an explicit refinement
+ * artifact (Acceptance criteria / DoD / linked refinement doc) before it
+ * can post a clean verdict. When the artifact is missing the draft gate
+ * must post verdict=blocked with the missing_refinement_artifact finding
+ * and the PR cannot leave draft.
+ */
+export const REFINEMENT_ARTIFACT_STATUS = Object.freeze({
+  MISSING: "missing",
+  PRESENT: "present",
+  UNKNOWN: "unknown",
+});
+
+export const REFINEMENT_ARTIFACT_FINDING = "missing_refinement_artifact";
+
 export const PR_CHECKPOINT_ACTION = Object.freeze({
   RUN_DRAFT_GATE: "run_draft_gate",
   MARK_READY_FOR_REVIEW: "mark_ready_for_review",
@@ -175,6 +193,20 @@ function normalizePositiveInteger(value) {
   return Math.floor(value);
 }
 
+function normalizeRefinementArtifactStatus(value) {
+  if (value === REFINEMENT_ARTIFACT_STATUS.MISSING || value === REFINEMENT_ARTIFACT_STATUS.PRESENT) {
+    return value;
+  }
+  return REFINEMENT_ARTIFACT_STATUS.UNKNOWN;
+}
+
+function formatRefinementBlockedReason(linkedIssue, status) {
+  if (linkedIssue !== null && Number.isInteger(linkedIssue)) {
+    return `Linked issue #${linkedIssue} has no refinement artifact (Acceptance criteria / DoD / linked refinement doc). Run refinement first, add ACs/DoD to the issue, then re-open the draft PR. finding=${REFINEMENT_ARTIFACT_FINDING}`;
+  }
+  return `The draft gate cannot complete: the linked issue has no detectable refinement artifact (Acceptance criteria / DoD / linked refinement doc). finding=${REFINEMENT_ARTIFACT_FINDING}`;
+}
+
 function buildRoundExhaustionGateEvidenceNote({ copilotReviewRoundCount, maxCopilotRounds }) {
   return `Copilot review rounds exhausted (${copilotReviewRoundCount}/${maxCopilotRounds}); current head has zero unresolved threads and green or credibly green CI, so pre_approval_gate fallback is allowed without another Copilot re-request.`;
 }
@@ -283,6 +315,9 @@ function buildRetrospectiveGatePendingResult({
   });
 }
 
+// refinementArtifact is read from the closure set by evaluatePrGateCoordination
+let activeRefinementArtifact = null;
+function setActiveRefinementArtifact(value) { activeRefinementArtifact = value; }
 function buildResult({
   draftGateAlreadySatisfied = false,
   repo = null,
@@ -300,7 +335,10 @@ function buildResult({
   mergeStateStatus = null,
   conflictFiles = [],
   gateEvidenceNote = null,
+  refinementArtifact = null,
+  inputRefinementArtifact = null,
 }) {
+  const effectiveRefinementArtifact = refinementArtifact ?? inputRefinementArtifact ?? activeRefinementArtifact;
   return {
     ok: true,
     ...(repo ? { repo } : {}),
@@ -320,6 +358,7 @@ function buildResult({
     draftGateAlreadySatisfied,
     gateEvidenceRequiredForMerge: true,
     ...(gateEvidenceNote ? { gateEvidenceNote } : {}),
+    ...(effectiveRefinementArtifact ? { refinementArtifact: effectiveRefinementArtifact } : {}),
   };
 }
 
@@ -345,6 +384,12 @@ export function evaluatePrGateCoordination(input = {}) {
   const roundCapReached = maxCopilotRounds !== null && copilotReviewRoundCount >= maxCopilotRounds;
   const requireRetrospectiveGate = input.requireRetrospectiveGate === true;
   const retrospectiveCheckpoint = input.retrospectiveCheckpoint;
+  setActiveRefinementArtifact(input.refinementArtifact && typeof input.refinementArtifact === "object" ? input.refinementArtifact : null);
+  const refinementArtifact = input.refinementArtifact && typeof input.refinementArtifact === "object"
+    ? input.refinementArtifact
+    : null;
+  const refinementArtifactStatus = normalizeRefinementArtifactStatus(refinementArtifact?.status);
+  const refinementLinkedIssue = Number.isInteger(refinementArtifact?.linkedIssue) ? refinementArtifact.linkedIssue : null;
 
   const effectiveLifecycleState = lifecycleState;
 
@@ -447,6 +492,35 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (prDraft || effectiveLifecycleState === STATE.PR_DRAFT) {
+    if (refinementArtifactStatus === REFINEMENT_ARTIFACT_STATUS.MISSING) {
+      pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
+      pushUnique(forbiddenActions, [
+        PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW,
+        PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
+        PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW,
+        PR_CHECKPOINT_ACTION.WAIT_FOR_COPILOT_REVIEW,
+        PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
+        PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
+      ]);
+      return buildResult({
+        repo: input.repo ?? null,
+        pr: Number.isInteger(input.pr) ? input.pr : null,
+        currentHeadSha,
+        lifecycleState: STATE.BLOCKED_NEEDS_USER_DECISION,
+        loopDisposition: DISPOSITION.BLOCKED,
+        gateBoundary: PR_CHECKPOINT.BLOCKED,
+        draftGateAlreadySatisfied,
+        draftGate,
+        preApprovalGate,
+        allowedNextActions,
+        forbiddenActions,
+        nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
+        reason: formatRefinementBlockedReason(refinementLinkedIssue, refinementArtifactStatus),
+        mergeStateStatus,
+        conflictFiles,
+        refinementArtifact,
+      });
+    }
     const draftReviewForbidden = [
       ...(draftGate.currentHeadClean ? [] : [PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW]),
       PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW,

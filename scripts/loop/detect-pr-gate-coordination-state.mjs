@@ -203,7 +203,7 @@ async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghComm
 async function fetchPrFacts({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
-    ["pr", "view", String(pr), "--repo", repo, "--json", "number,state,isDraft,headRefOid,mergeStateStatus,reviews,statusCheckRollup"],
+    ["pr", "view", String(pr), "--repo", repo, "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
     env,
   );
 
@@ -213,6 +213,100 @@ async function fetchPrFacts({ repo, pr }, { env = process.env, ghCommand = "gh" 
   }
 
   return parseJsonText(result.stdout, { label: "gh pr view" });
+}
+
+
+/**
+ * Resolve the canonical linked issue number for a PR.
+ *
+ * Per the pre-approval gate AC-verification contract:
+ *   - if there is exactly one closing issue reference, use it
+ *   - else if the body contains a single Closes #N / Fixes #N pattern, use it
+ *   - otherwise return null (ambiguous)
+ */
+export function resolveLinkedIssueFromPr(prData) {
+  if (!prData || typeof prData !== "object") return null;
+  const closing = Array.isArray(prData.closingIssuesReferences) ? prData.closingIssuesReferences : [];
+  const closingNumbers = closing
+    .map((entry) => Number(entry?.number))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  if (closingNumbers.length === 1) {
+    return closingNumbers[0];
+  }
+  const body = typeof prData.body === "string" ? prData.body : "";
+  if (body.length === 0) return null;
+  const matches = body.match(/(?:closes|fixes|resolves)\s+#(\d+)/gi) || [];
+  const bodyNumbers = matches
+    .map((m) => Number((/(\d+)/.exec(m) || [])[1]))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  if (bodyNumbers.length === 1) {
+    return bodyNumbers[0];
+  }
+  return null;
+}
+
+async function fetchIssueBody({ repo, issue }, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    ["issue", "view", String(issue), "--repo", repo, "--json", "body"],
+    env,
+  );
+  if (result.code !== 0) {
+    return null;
+  }
+  try {
+    const payload = parseJsonText(result.stdout, { label: "gh issue view" });
+    return typeof payload?.body === "string" ? payload.body : "";
+  } catch {
+    return null;
+  }
+}
+
+async function loadRefinementArtifact({ repo, prData, prDraft, prClosed, prMerged }, { env = process.env, ghCommand = "gh" } = {}) {
+  // The refinement check is a draft-gate boundary (#532).
+  // For non-draft PRs we still surface the artifact so the result is
+  // complete, but the evaluator will not block on it for non-draft PRs.
+  // To avoid an extra gh call for non-draft PRs (where the check is
+  // a no-op for routing), we resolve the linked issue from the cached
+  // PR data only and skip the linked-issue body fetch unless we know
+  // we are looking at a draft PR.
+  const linkedIssue = resolveLinkedIssueFromPr(prData);
+  if (linkedIssue === null) {
+    return {
+      status: "unknown",
+      linkedIssue: null,
+      reason: "No deterministically resolvable linked issue (no closingIssuesReferences, no unique Closes/Fixes pattern in body).",
+    };
+  }
+  if (!prDraft && !prClosed && !prMerged) {
+    return {
+      status: "unknown",
+      linkedIssue,
+      reason: `Linked issue #${linkedIssue} detected; refinement check is a draft-gate boundary and the PR is not draft, so the check is informational only and does not fetch the issue body.`,
+    };
+  }
+  const body = await fetchIssueBody({ repo, issue: linkedIssue }, { env, ghCommand });
+  if (body === null) {
+    return {
+      status: "unknown",
+      linkedIssue,
+      reason: `Failed to fetch body for linked issue #${linkedIssue}; refinement status is unknown.`,
+    };
+  }
+  const { detectIssueRefinementArtifact } = await import("@pi-dev-loops/core/loop/issue-refinement-artifact");
+  const artifact = detectIssueRefinementArtifact({ body, issueNumber: linkedIssue });
+  return {
+    status: artifact.hasACs ? "present" : "missing",
+    linkedIssue,
+    source: artifact.source,
+    acItems: artifact.acItems,
+    dodItems: artifact.dodItems,
+    sections: artifact.sections,
+    linkedDoc: artifact.linkedDoc,
+    reason: artifact.reason,
+    finding: artifact.finding,
+    _onlyEnforcedWhenDraft: prDraft || prClosed || prMerged ? false : true,
+  };
 }
 
 async function fetchLocalConflictFiles({ env = process.env, gitCommand = "git" } = {}) {
@@ -316,6 +410,14 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     ? prData.mergeStateStatus.trim().toUpperCase()
     : null;
 
+  const isDraft = Boolean(prData?.isDraft);
+  const isClosed = String(prData?.state || "").toUpperCase() === "CLOSED";
+  const isMerged = String(prData?.state || "").toUpperCase() === "MERGED";
+  const refinementArtifact = await loadRefinementArtifact(
+    { repo: options.repo, prData, prDraft: isDraft, prClosed: isClosed, prMerged: isMerged },
+    runtime,
+  );
+
   return {
     repo: options.repo,
     pr: options.pr,
@@ -327,6 +429,7 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     gateEvidence,
     interpretation,
     disposition,
+    refinementArtifact,
   };
 }
 
@@ -363,6 +466,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     draftGateMarker: context.gateEvidence.draftGateMarker,
     preApprovalGate: context.gateEvidence.preApprovalGate,
     preApprovalGateMarker: context.gateEvidence.preApprovalGateMarker,
+    refinementArtifact: context.refinementArtifact,
   });
 
   // #442: pre_approval_gate detector — if pre_approval_gate was never entered
