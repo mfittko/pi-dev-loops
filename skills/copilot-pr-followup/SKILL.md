@@ -61,8 +61,8 @@ For explicit async loop entry or continuation, this is a persistent async watch/
 - treat the normal PR follow-up path as one loop: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → … → pre_approval_gate → merge`
 - **PERSISTENCE MODEL: Subagents do bounded implementation tasks and exit on external wait. The main session drives the loop and re-dispatches when continuation is feasible.**
 - a single returned watch cycle (`changed`, `timeout`, or `idle`) is never completion by itself
-- if `cycleDisposition` is `pending` and `terminal` is `false`, stay attached to the same PR and resume another watch boundary instead of reporting completion
-- after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, resume this watcher again in the same async session
+- if `cycleDisposition` is `pending` and `terminal` is `false`, the subagent exits on the wait boundary; the main session re-dispatches another watch boundary instead of reporting completion
+- after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, the main session re-dispatches the watcher for the next cycle
 - default max watch timeout for one Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`, set on the low-level `probe-copilot-review.mjs` helper); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
 - if the user explicitly asks for async handoff-only behavior, say that out loud and stop after the handoff boundary; otherwise do not silently reinterpret async loop entry as handoff-only
 
