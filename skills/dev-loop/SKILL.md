@@ -99,6 +99,11 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 - Intercom coordination for cross-run state updates
 - Parent session retains loop ownership; subagents handle bounded slices only
 
+**Round-cap budget check (#524, enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check `detect-copilot-loop-state.mjs` output for `snapshot.copilotReviewRoundCount >= maxCopilotRounds` (default: 5). If the cap is reached:
+- With `unresolvedThreadCount === 0` and CI green → use `round_cap_clean_fallback` to enter `pre_approval_gate`
+- With unresolved threads remaining → reply-resolve as `deferred to follow-up` and stop; do **not** re-request Copilot review
+- The round-cap check is a per-iteration gate, not an end-of-loop assertion
+
 **Deterministic routing step (#524):** The pre-delegation gate above determines whether delegation is appropriate. When it returns `action: "stop"` with `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task.
 
 ## Shorthand issue-based auto trigger contract
