@@ -218,6 +218,17 @@ Key rules:
 - if Pi async subagents or the designated async follow-up skill are not appropriate or available, stop and report rather than improvising a shell watcher
 - the async-start contract is also enforced in code: `outer-loop.mjs` fails closed unless it detects a visible Pi-managed async run id (`PI_SUBAGENT_RUN_ID`). Session-only markers (`PI_SESSION_ID`, `PI_ASYNC_CONTEXT`) and detached/local background fallback are diagnostic-only and do not satisfy startup. Snapshot/test input mode (both `--copilot-input` and `--reviewer-input`) is exempt. Use `PI_ASYNC_START_BYPASS=1` only for explicitly authorized standalone runs, never to route around the in-session async requirement.
 
+### Async delegation guard rules (#524)
+
+These rules are enforced for all async subagent dispatch in the dev-loop pipeline:
+
+- **Pre-delegation gate:** Before any async subagent delegation, run `copilot-pr-handoff.mjs`. If it returns `action: "stop"` or `watchArgs: null`, do NOT delegate — proceed inline to the next gate instead.
+- **Worktree cwd rule:** Always set `cwd` to the worktree path in `subagent()` config for dev-loop work. Never delegate with the parent's `main` branch checkout.
+- **Handoff template:** Use `workflow-handoff-template.md` for all subagent delegation. Include deterministic routing inputs, explicit `cwd`, bounded task scope, exit conditions, output artifact paths, and intercom coordination instructions.
+- **Inline-first for single-PR:** When managing one PR through its lifecycle, prefer inline commands. Use async delegation only for parallel fan-out review, bounded tasks with clear I/O, or when the parent needs to continue other work.
+- **Bounded tasks:** Break async work into discrete tasks with clear input artifacts, explicit output expectations, no shell polling loops (use `run-watch-cycle.mjs` or `gh run watch`), intercom coordination, and parent-owned loop control.
+- **Deterministic routing:** Check `copilot-pr-handoff.mjs` output before deciding delegate vs inline. When `action: "stop"` and `terminal: true`, the loop phase is complete — proceed inline to the next gate.
+
 ## Step 7: Pi review/fix follow-up loop
 
 This step covers four responsibilities: the draft gate right before `gh pr ready`, the narrower post-review follow-up loop once actionable feedback exists, the pre-approval gate before calling the PR merge-ready, and the final approval / merge boundary.
