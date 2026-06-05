@@ -72,7 +72,7 @@ test("runConductor blocks when requireRetrospective is true and checkpoint is re
     await mkdir(piDir, { recursive: true });
     await writeFile(
       path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
-      JSON.stringify({ state: "required", runId: "test-run" }),
+      JSON.stringify({ state: "required", triggeredAt: "2026-06-05T00:00:00.000Z" }),
     );
 
     const fakeLoadConfig = async () => ({
@@ -109,7 +109,7 @@ test("runConductor does NOT block when requireRetrospective is false even if che
     await mkdir(piDir, { recursive: true });
     await writeFile(
       path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
-      JSON.stringify({ state: "required", runId: "test-run" }),
+      JSON.stringify({ state: "required", triggeredAt: "2026-06-05T00:00:00.000Z" }),
     );
 
     const fakeLoadConfig = async () => ({
@@ -144,7 +144,7 @@ test("runConductor blocks when --require-retrospective override is true and chec
     await mkdir(piDir, { recursive: true });
     await writeFile(
       path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
-      JSON.stringify({ state: "required", runId: "test-run" }),
+      JSON.stringify({ state: "required", triggeredAt: "2026-06-05T00:00:00.000Z" }),
     );
 
     const fakeLoadConfig = async () => ({
@@ -338,7 +338,7 @@ test("conductor --require-retrospective CLI blocks when checkpoint is pending", 
     await mkdir(piDir, { recursive: true });
     await writeFile(
       path.join(piDir, "dev-loop-retrospective-checkpoint.json"),
-      JSON.stringify({ state: "required", runId: "test-run" }),
+      JSON.stringify({ state: "required", triggeredAt: "2026-06-05T00:00:00.000Z" }),
     );
 
     const { env } = await writeGhStubHelper(tempDir, [{

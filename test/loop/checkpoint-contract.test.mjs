@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
 
 import { runNode as runNodeHelper } from "../_helpers.mjs";
 import {

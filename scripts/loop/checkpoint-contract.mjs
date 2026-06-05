@@ -10,7 +10,7 @@ const USAGE = `Usage: checkpoint-contract.mjs --state <required|complete|skipped
 Write .pi/dev-loop-retrospective-checkpoint.json using the retrospective contract format.`.trim();
 
 const parseError = buildParseError(USAGE);
-const CHECKPOINT_FILE = path.join(".pi", "dev-loop-retrospective-checkpoint.json");
+const CHECKPOINT_FILE = ".pi/dev-loop-retrospective-checkpoint.json";
 
 const ALLOWED_STATES = new Set(["required", "complete", "skipped", "none", "missing"]);
 
