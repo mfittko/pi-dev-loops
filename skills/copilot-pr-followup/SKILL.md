@@ -222,7 +222,7 @@ Key rules:
 
 These rules are enforced for all async subagent dispatch in the dev-loop pipeline:
 
-- **Pre-delegation gate:** Before any async subagent delegation, run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>`. If it returns `action: "stop"` or `watchArgs: null`, do NOT delegate — proceed inline to the next gate instead.
+- **Pre-delegation gate:** Before any async subagent delegation, run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>`. If it returns `action: "stop"`, do NOT delegate — proceed inline to the next gate instead.
 - **Worktree cwd rule:** Always set `cwd` to the worktree path in `subagent()` config for dev-loop work. Never delegate with the parent's `main` branch checkout.
 - **Handoff template:** Use `workflow-handoff-template.md` (resolved path: `../docs/workflow-handoff-template.md` relative to the skill directory) for all subagent delegation. Include deterministic routing inputs, explicit `cwd`, bounded task scope, exit conditions, output artifact paths, and intercom coordination instructions.
 - **Inline-first for single-PR:** When managing one PR through its lifecycle, prefer inline commands. Use async delegation only for parallel fan-out review, bounded tasks with clear I/O, or when the parent needs to continue other work.
