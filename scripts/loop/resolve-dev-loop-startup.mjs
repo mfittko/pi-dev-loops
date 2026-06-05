@@ -521,8 +521,10 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
     input = buildAutoResolvedInput({ pr: options.pr, cwd: process.cwd() });
   }
 
-  const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
-  const asyncStartMode = resolveWorkflowConfig(devLoopConfig, "asyncStartMode");
+  const { config: devLoopConfig, errors: configErrors = [] } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+  const asyncStartMode = configErrors.length === 0
+    ? resolveWorkflowConfig(devLoopConfig, "asyncStartMode")
+    : "required";
   const result = buildResolveDevLoopStartupResult(input, { asyncStartMode });
 
   // #465: When async-start enforcement produces a rejection, emit to stderr
