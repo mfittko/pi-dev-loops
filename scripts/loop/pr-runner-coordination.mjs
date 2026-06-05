@@ -114,7 +114,7 @@ export async function runPrRunnerCoordination(options, { env = process.env, cwd 
     return {
       ok: true,
       command: "status",
-      repo: options.repo,
+      repo: options.repo.trim().toLowerCase(),
       pr: options.pr,
       filePath,
       state,

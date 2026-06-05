@@ -495,6 +495,7 @@ Subcommands:
 
 State path:
 - `.pi/runner-coordination/<owner>/<repo>/pr-<number>.json`
+- this is local coordination state under `.pi/`; keep it uncommitted like other repo-local runtime artifacts
 
 Integration notes:
 - `copilot-pr-handoff.mjs` uses this surface for async run ownership checks
