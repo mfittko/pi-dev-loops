@@ -30,9 +30,6 @@ const ENVELOPE_HANDOFF_VERSION = H_VER;
 const DEFAULT_NEEDS_ATTENTION_MS = 300_000; // 5 minutes
 const DEFAULT_ACTIVE_NOTICE_MS = 300_000;
 
-/** Valid repository slug pattern: owner/name */
-const REPO_SLUG_RE = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
-
 /** Maps normalized strategy name to its default stop rules */
 const STRATEGY_DEFAULT_STOP_RULES = Object.freeze({
   [INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP]: ["draft-pr", "merge"],
@@ -225,7 +222,7 @@ function deriveTarget(bundle, repo) {
       throw new Error("handoff-envelope: local_phase target must include a phase or issue");
     }
     if (phase) target.phase = phase;
-    if (artifact.issue != null) target.issue = artifact.issue;
+    if (Number.isInteger(artifact.issue) && artifact.issue > 0) target.issue = artifact.issue;
   }
 
   return target;
@@ -376,7 +373,7 @@ function resolveSubGate(strategy, gateState) {
 /**
  * Build a deterministic handoff envelope from resolver output + settings + gate state.
  */
-export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState = {}, options = {}) {
+export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState = {}, options = {}, now = null) {
   if (!resolverOutput || typeof resolverOutput !== "object") {
     throw new Error("handoff-envelope: resolverOutput is required and must be an object");
   }
@@ -405,7 +402,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
 
   const envelope = {
     handoffVersion: ENVELOPE_HANDOFF_VERSION,
-    derivedAt: new Date().toISOString(),
+    derivedAt: (now ?? new Date()).toISOString(),
 
     target,
     currentGate: subGate,

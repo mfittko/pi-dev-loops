@@ -710,6 +710,21 @@ test("backward-compat: acceptance shape has criteria with id+must+severity", () 
   }
 });
 
+test("determinism: injectable now makes derivedAt stable", () => {
+  const frozen = "2026-01-01T00:00:00.000Z";
+  const e1 = buildDevLoopHandoffEnvelope(issueBundle(99), defaultSettings, {}, defaultOptions, new Date(frozen));
+  const e2 = buildDevLoopHandoffEnvelope(issueBundle(99), defaultSettings, {}, defaultOptions, new Date(frozen));
+  assert.strictEqual(e1.derivedAt, frozen);
+  assert.strictEqual(e2.derivedAt, frozen);
+  assert.strictEqual(e1.derivedAt, e2.derivedAt);
+});
+
+test("determinism: derivedAt defaults to current time when now not provided", () => {
+  const before = new Date().toISOString();
+  const e = buildDevLoopHandoffEnvelope(issueBundle(99), defaultSettings, {}, defaultOptions);
+  assert.ok(e.derivedAt >= before);
+});
+
 test("backward-compat: envelope is frozen (top-level)", () => {
   const env = buildDevLoopHandoffEnvelope(
     issueBundle(42),
