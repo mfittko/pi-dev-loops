@@ -228,6 +228,51 @@ test("AGENTS stays compact and resolver-first", async () => {
   assert.doesNotMatch(agents, /Dev loop defaults/i);
   assert.doesNotMatch(agents, /Formal dev mode vs required post-run retrospective/i);
 });
+test("refinement docs and prompts wire the optional audit handoff into the refiner chain", async () => {
+  const [refinerAgent, defaultsConfig, localImplementationSkill, issueIntakeDoc] = await Promise.all([
+    readRepo("agents/refiner.agent.md"),
+    readRepo(".pi/dev-loop/defaults.yaml"),
+    readRepo("skills/local-implementation/SKILL.md"),
+    readRepo("skills/docs/issue-intake-procedure.md"),
+  ]);
+
+  assertMatchesAll(refinerAgent, [
+    /When an audit artifact is provided/i,
+    /highest-value follow-up candidates/i,
+    /scope\/AC/i,
+    /DoD/i,
+    /explicit non-goal \/ defer|non-goal\/defer/i,
+    /risk\/watchpoint/i,
+    /not.+rewrite or broaden/i,
+    /Do not invent audit findings when no audit artifact was provided/i,
+  ], "agents/refiner.agent.md");
+
+  assertMatchesAll(defaultsConfig, [
+    /Audit inputs/i,
+    /highest-value follow-up candidates/i,
+    /Will not rewrite\/broaden in this phase/i,
+    /do not fabricate audit evidence when none was provided/i,
+    /\n  audit:\n    persona: review/i,
+    /audit only the named files\/areas/i,
+  ], ".pi/dev-loop/defaults.yaml");
+
+  assertMatchesAll(localImplementationSkill, [
+    /run one bounded audit before variant fan-out/i,
+    /tmp\/phases\/phase-x\/audit\/refinement-audit-summary\.json/i,
+    /pass a concise audit summary into every refiner briefing/i,
+    /highest-value follow-up candidates/i,
+    /not.+rewrite or broaden/i,
+  ], "skills/local-implementation/SKILL.md");
+
+  assertMatchesAll(issueIntakeDoc, [
+    /run the bounded audit first/i,
+    /same audit artifact shape/i,
+    /tmp\/issues\/issue-<number>\/audit\/refinement-audit-summary\.json/i,
+    /translate audit findings into scope, AC\/DoD, risks, and explicit non-goals/i,
+    /without silently broadening the issue/i,
+  ], "skills/docs/issue-intake-procedure.md");
+});
+
 test("coordinator.agent.md does NOT exist as a file", async () => {
   await assert.rejects(
     () => readRepo("agents/coordinator.agent.md"),
