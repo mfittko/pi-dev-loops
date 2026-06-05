@@ -393,7 +393,71 @@ test("fails when draft_gate marker does not match current head SHA", async () =>
 
     assert.equal(result.code, 1);
     // Gate evidence exists but marker head SHA differs from PR head
-    assert.match(result.stderr, /does not match current head/i);
+    // Marker head SHA differs from PR head → effectiveHeadClean is false.
+    // Error differentiates between "mismatch" (marker visible with different head)
+    // and "missing/incomplete" (no marker at all for current head).
+    assert.match(result.stderr, /missing or incomplete|does not match current head/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("succeeds when gate comment has abbreviated SHA matching full PR head SHA", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-ready-abbrev-sha-"));
+
+  try {
+    // GitHub reports full 40-char SHA; gate comment may record abbreviated 7+ char SHA
+    const fullHeadSha = "abc123def456789012345678901234567890abcd";
+    const abbrevHeadSha = "abc123d";
+    const { env, ghLogPath } = await writeGhStub(tempDir, [
+      {
+        stdout: JSON.stringify({
+          data: {
+            repository: {
+              pullRequest: {
+                id: "PR_abc123",
+                isDraft: true,
+                headRefOid: fullHeadSha,
+                state: "OPEN",
+                mergeStateStatus: "CLEAN",
+              },
+            },
+          },
+        }),
+      },
+      {
+        stdout: JSON.stringify([
+          { name: "test", state: "success", bucket: "pass" },
+        ]),
+      },
+      {
+        stdout: JSON.stringify([
+          {
+            body: "Gate review: draft_gate\nReviewed head SHA: " + abbrevHeadSha + "\nVerdict: clean\nFindings summary: no issues found\nNext action: mark ready for review",
+            id: 101,
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
+            created_at: "2026-06-05T00:00:00Z",
+            updated_at: "2026-06-05T00:00:00Z",
+          },
+        ]),
+      },
+      { stdout: "" }, // gh pr ready
+    ]);
+
+    const result = await runNode(
+      ["--repo", "owner/repo", "--pr", "17"],
+      { env },
+    );
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "marked_ready");
+    assert.equal(output.draftGateSatisfied, true);
+
+    const calls = await readGhCalls(ghLogPath);
+    const readyCall = calls.find((c) => Array.isArray(c) && c[0] === "pr" && c[1] === "ready");
+    assert.ok(readyCall, "gh pr ready should have been called");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

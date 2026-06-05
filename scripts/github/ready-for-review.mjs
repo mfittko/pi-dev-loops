@@ -275,11 +275,23 @@ async function fetchGateEvidence({ repo, pr, headSha }, { env, ghCommand }) {
   const currentHeadClean = draftGateMarker.visible && markerHeadMatches && draftGateMarker.verdict === "clean" && draftGateMarker.contractComplete;
   const cleanEvidenceExists = draftGate.visible && draftGate.verdict === "clean" && draftGate.headSha !== null;
 
+  // #518: summarizeGateReviewCommentMarkers filters markers by exact head SHA
+  // match, which rejects abbreviated SHAs against full headRefOid. As a
+  // fallback, also check whether the PR head starts with the checkpoint
+  // comment's recorded head SHA (which may be abbreviated).
+  const checkpointHeadMatches = !currentHeadClean
+    && draftGate.headSha !== null
+    && headSha !== null
+    && headSha.startsWith(draftGate.headSha)
+    && draftGate.verdict === "clean";
+  const effectiveHeadClean = currentHeadClean || checkpointHeadMatches;
+
   return {
     draftGate,
     draftGateMarker,
     currentHeadClean,
     cleanEvidenceExists,
+    effectiveHeadClean,
   };
 }
 
@@ -327,18 +339,20 @@ export async function readyForReview(options, { env = process.env, ghCommand = "
   if (!options.skipGateCheck) {
     gateEvidence = await fetchGateEvidence({ repo: options.repo, pr: options.pr, headSha }, { env, ghCommand });
 
-    if (!gateEvidence.cleanEvidenceExists && !gateEvidence.currentHeadClean) {
+    if (!gateEvidence.cleanEvidenceExists && !gateEvidence.effectiveHeadClean) {
       throw new Error(
         `PR #${options.pr} has no visible clean draft_gate evidence on current head ${headSha.slice(0, 7)}. ` +
         `Run the draft gate before marking ready for review, or use --skip-gate-check for emergency override.`
       );
     }
 
-    if (!gateEvidence.currentHeadClean) {
+    if (!gateEvidence.effectiveHeadClean) {
+      const markerVisible = gateEvidence.draftGateMarker?.visible;
+      const markerHasHead = gateEvidence.draftGateMarker?.headSha;
       throw new Error(
-        `PR #${options.pr} draft_gate marker does not match current head ${headSha.slice(0, 7)}. ` +
-        `The draft gate evidence was recorded against a different commit. ` +
-        `Re-run the draft gate on the current head before marking ready for review.`
+        markerVisible && markerHasHead
+          ? `PR #${options.pr} draft_gate marker does not match current head ${headSha.slice(0, 7)}. The draft gate evidence was recorded against a different commit. Re-run the draft gate on the current head before marking ready for review.`
+          : `PR #${options.pr} draft_gate marker is missing or incomplete on current head ${headSha.slice(0, 7)}. Re-run the draft gate before marking ready for review.`
       );
     }
   }
@@ -359,7 +373,7 @@ export async function readyForReview(options, { env = process.env, ghCommand = "
     repo: options.repo,
     pr: options.pr,
     headSha,
-    draftGateSatisfied: gateEvidence ? gateEvidence.currentHeadClean : null,
+    draftGateSatisfied: gateEvidence ? gateEvidence.effectiveHeadClean : null,
     ciStatus: ciStatus?.status ?? null,
     gateCheckSkipped: options.skipGateCheck === true,
     ciCheckSkipped: options.skipCiCheck === true,
