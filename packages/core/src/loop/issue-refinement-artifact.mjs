@@ -122,15 +122,6 @@ export function extractChecklistItems(sectionBody) {
   return items;
 }
 
-function extractSectionText(section) {
-  if (!section) {
-    return [];
-  }
-  return section.bodyLines
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-}
-
 /**
  * Detect a linked refinement doc path from the issue body.
  * Looks for explicit `tmp/refinement/<n>-plan.md` style paths and the
@@ -157,13 +148,6 @@ export function detectLinkedRefinementDoc(body, { issueNumber = null } = {}) {
     const inlinePath = /(?:^|\s)(tmp\/refinement\/[^\s)`'"]+\.md)\b/u.exec(refinementSection.bodyLines.join("\n"));
     if (inlinePath) {
       return { found: true, path: inlinePath[1], reason: "refinement-section-path" };
-    }
-    if (Number.isInteger(issueNumber)) {
-      return {
-        found: true,
-        path: `tmp/refinement/${issueNumber}-plan.md`,
-        reason: "refinement-section-convention",
-      };
     }
   }
 
@@ -209,12 +193,6 @@ export function detectIssueRefinementArtifact({ body = "", issueNumber = null } 
 
   const acItems = acceptanceSection ? extractChecklistItems(acceptanceSection.bodyLines.join("\n")) : [];
   const dodItems = dodSection ? extractChecklistItems(dodSection.bodyLines.join("\n")) : [];
-  const acTextItems = !acceptanceSection || acItems.length === 0
-    ? extractSectionText(acceptanceSection ?? null)
-    : [];
-  const dodTextItems = !dodSection || dodItems.length === 0
-    ? extractSectionText(dodSection ?? null)
-    : [];
 
   const linkedDoc = detectLinkedRefinementDoc(body, { issueNumber });
 
@@ -248,37 +226,11 @@ export function detectIssueRefinementArtifact({ body = "", issueNumber = null } 
     return {
       hasACs: true,
       source: REFINEMENT_SOURCE.LINKED_DOC,
-      acItems: acTextItems,
-      dodItems: dodTextItems,
+      acItems: [],
+      dodItems: [],
       sections: sectionNames,
       linkedDoc,
       reason: `Issue body links a refinement doc at ${linkedDoc.path}; treating that as the refinement artifact source.`,
-      finding: null,
-    };
-  }
-
-  if (acTextItems.length > 0) {
-    return {
-      hasACs: true,
-      source: REFINEMENT_SOURCE.ISSUE_BODY_AC,
-      acItems: acTextItems,
-      dodItems: dodTextItems,
-      sections: sectionNames,
-      linkedDoc,
-      reason: `Found ${acTextItems.length} Acceptance criteria text line(s) (no checkbox) in the issue body.`,
-      finding: null,
-    };
-  }
-
-  if (dodTextItems.length > 0) {
-    return {
-      hasACs: true,
-      source: REFINEMENT_SOURCE.ISSUE_BODY_DOD,
-      acItems: acTextItems,
-      dodItems: dodTextItems,
-      sections: sectionNames,
-      linkedDoc,
-      reason: `Found ${dodTextItems.length} DoD text line(s) (no checkbox) in the issue body.`,
       finding: null,
     };
   }

@@ -272,6 +272,18 @@ async function loadRefinementArtifact({ repo, prData, prDraft, prClosed, prMerge
   // we are looking at a draft PR.
   const linkedIssue = resolveLinkedIssueFromPr(prData);
   if (linkedIssue === null) {
+    // Draft PRs with no deterministically resolvable linked issue must fail
+    // closed: the draft gate cannot verify any refinement artifact, so
+    // `gh pr ready` is forbidden. For non-draft PRs the check is informational
+    // only and stays `unknown` so the evaluator does not block on it.
+    if (prDraft) {
+      return {
+        status: "missing",
+        linkedIssue: null,
+        reason: "Draft PR has no deterministically resolvable linked issue (no closingIssuesReferences, no unique Closes/Fixes pattern in body); draft gate cannot verify a refinement artifact.",
+        finding: "missing_refinement_artifact",
+      };
+    }
     return {
       status: "unknown",
       linkedIssue: null,
@@ -287,6 +299,16 @@ async function loadRefinementArtifact({ repo, prData, prDraft, prClosed, prMerge
   }
   const body = await fetchIssueBody({ repo, issue: linkedIssue }, { env, ghCommand });
   if (body === null) {
+    // Fail-closed for draft PRs: a transient `gh issue view` failure must not
+    // allow `gh pr ready` without verifying a refinement artifact.
+    if (prDraft) {
+      return {
+        status: "missing",
+        linkedIssue,
+        reason: `Failed to fetch body for linked issue #${linkedIssue}; draft gate cannot verify a refinement artifact, treating as missing.`,
+        finding: "missing_refinement_artifact",
+      };
+    }
     return {
       status: "unknown",
       linkedIssue,
@@ -305,7 +327,7 @@ async function loadRefinementArtifact({ repo, prData, prDraft, prClosed, prMerge
     linkedDoc: artifact.linkedDoc,
     reason: artifact.reason,
     finding: artifact.finding,
-    _onlyEnforcedWhenDraft: prDraft || prClosed || prMerged ? false : true,
+    _onlyEnforcedWhenDraft: prDraft === true,
   };
 }
 

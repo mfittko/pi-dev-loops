@@ -60,23 +60,30 @@ test("detectIssueRefinementArtifact detects a linked refinement doc path", () =>
   assert.equal(result.linkedDoc.path, "tmp/refinement/532-plan.md");
 });
 
-test("detectIssueRefinementArtifact treats a Refinement section as a linked-doc convention", () => {
+test("detectIssueRefinementArtifact rejects a Refinement section without explicit path", () => {
+  // Per #532 review feedback: a `## Refinement` heading alone is not a
+  // verifiable artifact; the body must reference a real tmp/refinement/*.md
+  // path. The old convention-path fallback was removed.
   const result = detectIssueRefinementArtifact({
     body: "## Refinement\n\nA plan lives here.\n",
     issueNumber: 527,
   });
-  assert.equal(result.hasACs, true);
-  assert.equal(result.source, REFINEMENT_SOURCE.LINKED_DOC);
-  assert.equal(result.linkedDoc.path, "tmp/refinement/527-plan.md");
+  assert.equal(result.hasACs, false);
+  assert.equal(result.source, REFINEMENT_SOURCE.MISSING);
+  assert.equal(result.linkedDoc.found, false);
+  assert.equal(result.finding, "missing_refinement_artifact");
 });
 
-test("detectIssueRefinementArtifact falls back to AC text lines without checkboxes", () => {
+test("detectIssueRefinementArtifact rejects AC section without checkboxes", () => {
+  // Per #532 review feedback: prose-only AC/DoD sections must not satisfy
+  // the refinement artifact; the section must contain at least one
+  // `- [ ]` / `- [x]` checklist item.
   const result = detectIssueRefinementArtifact({
     body: "## Acceptance criteria\n\nFirst AC without checkbox\nSecond AC also without checkbox\n",
   });
-  assert.equal(result.hasACs, true);
-  assert.equal(result.source, REFINEMENT_SOURCE.ISSUE_BODY_AC);
-  assert.deepEqual(result.acItems, ["First AC without checkbox", "Second AC also without checkbox"]);
+  assert.equal(result.hasACs, false);
+  assert.equal(result.source, REFINEMENT_SOURCE.MISSING);
+  assert.equal(result.finding, "missing_refinement_artifact");
 });
 
 test("detectIssueRefinementArtifact returns finding for empty body", () => {
