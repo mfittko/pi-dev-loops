@@ -9,6 +9,7 @@ import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson a
 
 import {
   buildResolveDevLoopStartupResult,
+  buildAutoResolvedInput,
   parseResolveDevLoopStartupCliArgs,
   summarizeCanonicalState,
 } from "../../scripts/loop/resolve-dev-loop-startup.mjs";
@@ -31,11 +32,66 @@ test("parseResolveDevLoopStartupCliArgs parses --input and --help", () => {
   assert.deepEqual(parseResolveDevLoopStartupCliArgs(["--input", "state.json"]), {
     help: false,
     inputPath: "state.json",
+    issue: undefined,
+    pr: undefined,
   });
   assert.deepEqual(parseResolveDevLoopStartupCliArgs(["--help"]), {
     help: true,
     inputPath: undefined,
+    issue: undefined,
+    pr: undefined,
   });
+});
+
+test("parseResolveDevLoopStartupCliArgs parses --issue", () => {
+  const opts = parseResolveDevLoopStartupCliArgs(["--issue", "511"]);
+  assert.equal(opts.help, false);
+  assert.equal(opts.inputPath, undefined);
+  assert.equal(opts.issue, 511);
+  assert.equal(opts.pr, undefined);
+});
+
+test("parseResolveDevLoopStartupCliArgs parses --pr", () => {
+  const opts = parseResolveDevLoopStartupCliArgs(["--pr", "507"]);
+  assert.equal(opts.help, false);
+  assert.equal(opts.inputPath, undefined);
+  assert.equal(opts.issue, undefined);
+  assert.equal(opts.pr, 507);
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects --issue combined with --pr", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs(["--issue", "511", "--pr", "507"]),
+    /mutually exclusive/i,
+  );
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects --issue combined with --input", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs(["--issue", "511", "--input", "state.json"]),
+    /mutually exclusive/i,
+  );
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects --issue with non-integer value", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs(["--issue", "abc"]),
+    /must be a positive integer/i,
+  );
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects --issue missing value", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs(["--issue"]),
+    /Missing value for --issue/i,
+  );
+});
+
+test("parseResolveDevLoopStartupCliArgs rejects no input mode", () => {
+  assert.throws(
+    () => parseResolveDevLoopStartupCliArgs([]),
+    /--input.*--issue.*--pr|required/i,
+  );
 });
 
 test("buildResolveDevLoopStartupResult maps local implementation to the local route pack", () => {
