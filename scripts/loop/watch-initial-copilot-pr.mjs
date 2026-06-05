@@ -39,7 +39,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { spawn } from "node:child_process";
 
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-import { parseIssueNumber, parseNonNegativeInteger, parsePositiveInteger, requireOptionValue } from "../_cli-primitives.mjs";
+import { parseIssueNumber, requireOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectInitialCopilotPrState, LINKED_PR_STATE } from "./detect-initial-copilot-pr-state.mjs";
 import { enforcePersistentInternalWaitTimeout } from "@pi-dev-loops/core/loop/timeout-policy";

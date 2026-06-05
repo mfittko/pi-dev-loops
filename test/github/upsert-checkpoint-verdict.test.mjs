@@ -295,13 +295,14 @@ test("upsert-checkpoint-verdict rejects --force on pre_approval_gate create", as
 
 test("upsert-checkpoint-verdict keeps CI-blocked gate upserts fail-closed", async () => {
   const scenarios = [
-    { gate: "draft_gate", headSha: "abc1234", verdict: "clean", findingsSummary: "Tests pass", nextAction: "Mark ready for review", findingsSeverityCounts: { "must-fix": 0, "worth-fixing-now": 0 } },
+    { gate: "draft_gate", isDraft: true, headSha: "abc1234", verdict: "clean", findingsSummary: "Tests pass", nextAction: "Mark ready for review", findingsSeverityCounts: { "must-fix": 0, "worth-fixing-now": 0 } },
+    { gate: "pre_approval_gate", isDraft: false, headSha: "abc1234", verdict: "findings_present", findingsSummary: "CI failed", nextAction: "Fix CI and re-run", findingsSeverityCounts: { "must-fix": 0, "worth-fixing-now": 1 } },
   ];
   for (const scenario of scenarios) {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), `pi-dev-loops-upsert-gate-review-fail-closed-${scenario.gate}-`));
     try {
       const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
-        isDraft: true,
+        isDraft: scenario.isDraft,
         statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }],
       }));
       const args = ["--repo", "owner/repo", "--pr", "17", "--gate", scenario.gate, "--head-sha", scenario.headSha, "--verdict", scenario.verdict, "--findings-summary", scenario.findingsSummary, "--next-action", scenario.nextAction];
@@ -311,7 +312,7 @@ test("upsert-checkpoint-verdict keeps CI-blocked gate upserts fail-closed", asyn
       const result = await runNode(args, { env });
       assert.equal(result.code, 1);
       const payload = JSON.parse(result.stderr);
-      assert.match(payload.error, /Cannot enter gate/);
+      assert.match(payload.error, /Cannot enter/);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -495,7 +496,7 @@ test("upsert-checkpoint-verdict fails closed when pre-approval gate entry is sti
     assert.equal(result.stdout, "");
     const payload = JSON.parse(result.stderr);
     assert.equal(payload.ok, false);
-    assert.match(payload.error, /Cannot enter gate/i);
+    assert.match(payload.error, /Cannot enter/);
     assert.match(payload.error, /request Copilot review before any/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -1340,7 +1341,7 @@ test("upsert-checkpoint-verdict fails closed when draft_gate is forbidden on a n
     assert.equal(result.stdout, "");
     const payload = JSON.parse(result.stderr);
     assert.equal(payload.ok, false);
-    assert.match(payload.error, /Cannot enter gate/i);
+    assert.match(payload.error, /Cannot enter/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

@@ -408,8 +408,8 @@ function resolveGateAction(gate) {
     : PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE;
 }
 
-function buildGateEntryRefusalError({ coordination }) {
-  return `Cannot enter gate: ${coordination.reason}`;
+function buildGateEntryRefusalError({ options, coordination }) {
+  return `Cannot enter ${options.gate} on ${options.repo}#${options.pr}: ${coordination.reason}`;
 }
 
 function selectGateEvidence(evidence, gate) {
@@ -540,7 +540,7 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
   const gateActionForbidden = coordination.forbiddenActions.includes(requestedGateAction);
 
   if (gateActionForbidden) {
-    throw new Error(buildGateEntryRefusalError({ coordination }));
+    throw new Error(buildGateEntryRefusalError({ options, coordination }));
   }
 
   const activeGateConfig = options.gate === "draft_gate" ? draftGateConfig : preApprovalGateConfig;
