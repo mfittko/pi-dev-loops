@@ -24,7 +24,7 @@ test("resolveStaleRunnerMaxAgeMs prefers explicit option, then env, then default
     resolveStaleRunnerMaxAgeMs({ staleRunnerMaxAgeMs: 5000 }, { PI_DEV_LOOP_STALE_RUNNER_MAX_AGE_MS: "9000" }),
     5000,
   );
-  assert.equal(resolveStaleRunnerMaxAgeMs({ staleRunnerMaxAgeMs: -1 }), 30 * 60 * 1000);
+  assert.equal(resolveStaleRunnerMaxAgeMs({ staleRunnerMaxAgeMs: -1 }, emptyEnv), 30 * 60 * 1000);
   assert.equal(resolveStaleRunnerMaxAgeMs({}, { PI_DEV_LOOP_STALE_RUNNER_MAX_AGE_MS: "abc" }), 30 * 60 * 1000);
 });
 

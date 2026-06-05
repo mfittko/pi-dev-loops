@@ -77,7 +77,7 @@ test("detect-checkpoint-evidence fails closed when active runner is stale", asyn
       pr: 17,
       runId: "run-stale",
       cwd: tempDir,
-      now: "2026-06-05T08:00:00.000Z",
+      now: "2000-01-01T00:00:00.000Z",
     });
 
     // Pretend the run is far in the past so detectStaleRunner classifies it as stale.
