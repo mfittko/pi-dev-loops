@@ -35,11 +35,11 @@ export function parseCheckpointContractCliArgs(argv) {
     state: undefined,
     notes: null,
     reason: null,
+    help: false,
   };
 
   if (args.includes("--help") || args.includes("-h")) {
-    process.stdout.write(HELP);
-    process.exit(0);
+    return { help: true };
   }
 
   while (args.length > 0) {
@@ -104,6 +104,12 @@ export async function runCheckpointContractCli(
   { stdout = process.stdout, cwd = process.cwd(), now = new Date() } = {},
 ) {
   const options = parseCheckpointContractCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(HELP);
+    return;
+  }
+
   const payload = buildRetrospectiveCheckpointPayload(options, now);
   const checkpointPath = path.join(cwd, CHECKPOINT_FILE);
   await mkdir(path.dirname(checkpointPath), { recursive: true });

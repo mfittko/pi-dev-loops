@@ -62,11 +62,11 @@ export function parseCaptureCliArgs(argv) {
     outputPath: undefined,
     repo: undefined,
     pr: undefined,
+    help: false,
   };
 
   if (args.includes("--help") || args.includes("-h")) {
-    process.stdout.write(HELP);
-    process.exit(0);
+    return { help: true };
   }
 
   while (args.length > 0) {
@@ -163,6 +163,11 @@ export async function runCli(
   } = {},
 ) {
   const options = parseCaptureCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(HELP);
+    return;
+  }
 
   let source;
   let parsed;

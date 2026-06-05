@@ -25,7 +25,7 @@ const HELP = `Usage: detect-reviewer-loop-state.mjs [--input <path> | --repo <ow
 Detect reviewer loop state for a pull request.
 
 Modes:
-  --input <path>                Interpret a JSON snapshot from stdin or file
+  --input <path>                Interpret a JSON snapshot from file
   --repo <owner/name> --pr <n>  Auto-detect state from GitHub PR
 
 Options (auto-detect mode only):
@@ -61,11 +61,11 @@ export function parseDetectReviewerCliArgs(argv) {
     reviewerLogin: undefined,
     reviewRequestedOverride: undefined,
     localStatePath: undefined,
+    help: false,
   };
 
   if (args.includes("--help") || args.includes("-h")) {
-    process.stdout.write(HELP);
-    process.exit(0);
+    return { help: true };
   }
 
   while (args.length > 0) {
@@ -183,12 +183,8 @@ async function fetchPrView({ repo, pr }, deps) {
  */
 function isReviewInScope(review, reviewerLogin) {
   if (!reviewerLogin) {
-    // Without a reviewer scope, include all reviews so detector state reflects
-    // any pending/submitted review activity on the PR.
     return true;
   }
-  // REST `/pulls/{pr}/reviews` uses `user.login`; tests and fallback payload shims in
-  // this repo may expose reviewer identity under `author.login`, so support both.
   const login = typeof review?.user?.login === "string"
     ? review.user.login
     : (typeof review?.author?.login === "string" ? review.author.login : "");
@@ -350,6 +346,11 @@ export async function runCli(
   } = {},
 ) {
   const options = parseDetectReviewerCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(HELP);
+    return;
+  }
 
   let snapshot;
   if (options.inputPath) {

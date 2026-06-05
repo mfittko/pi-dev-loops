@@ -31,11 +31,11 @@ export function parseStageDraftCliArgs(argv) {
     pr: undefined,
     reviewFile: undefined,
     localStateOutput: undefined,
+    help: false,
   };
 
   if (args.includes("--help") || args.includes("-h")) {
-    process.stdout.write(HELP);
-    process.exit(0);
+    return { help: true };
   }
 
   while (args.length > 0) {
@@ -188,6 +188,12 @@ export async function runCli(
   } = {},
 ) {
   const options = parseStageDraftCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(HELP);
+    return;
+  }
+
   const rawReview = parseJsonText(await readFile(options.reviewFile, "utf8"));
 
   if (!rawReview || typeof rawReview !== "object") {

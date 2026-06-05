@@ -36,11 +36,11 @@ export function parseReplyResolveCliArgs(argv) {
     commentId: undefined,
     threadId: undefined,
     bodyFile: undefined,
+    help: false,
   };
 
   if (args.includes("--help") || args.includes("-h")) {
-    process.stdout.write(HELP);
-    process.exit(0);
+    return { help: true };
   }
 
   while (args.length > 0) {
@@ -94,6 +94,12 @@ export async function runCli(
   } = {},
 ) {
   const options = parseReplyResolveCliArgs(argv);
+
+  if (options.help) {
+    stdout.write(HELP);
+    return;
+  }
+
   const rawBody = await readFile(options.bodyFile, "utf8");
 
   if (rawBody.trim().length === 0) {
