@@ -17,7 +17,7 @@ Canonical owner for agent stop / wait / block conditions across all workflow fam
 
 | Condition | Strategy | Behavior |
 |---|---|---|
-| `waiting` lifecycle state | `wait_watch` | Healthy wait, auto-resume |
+| `waiting` lifecycle state | `wait_watch` | Healthy wait; re-dispatch from main session |
 | `waiting_for_initial_copilot_implementation` | `issue_intake` | Bootstrap wait with 1h watch budget |
 | `waiting_for_copilot_review` | `copilot_pr_followup` | Continuation boundary, not completion |
 | Quiet watcher observations | `wait_watch` | Observational only, do not surface |

@@ -83,8 +83,8 @@ For each Copilot review pass:
 
 ## Non-negotiable invariants
 
-- **PERSISTENCE RULE: Do not exit your session until the PR is merged or you hit a hard stop that requires conductor authorization.**
-- A single watch cycle return is not completion; stay in the same loop until merge or a hard stop
+- **PERSISTENCE MODEL: Subagents do bounded implementation tasks and exit on external wait. The main session drives the loop and re-dispatches when continuation is feasible.**
+- A single watch cycle return is not completion; the main session re-dispatches until merge or a hard stop
 - The Copilot review loop (steps 4–6) sits **between** `draft_gate` and `pre_approval_gate` — never reorder
 - `unresolvedThreadCount === 0` verification is required before step 7
 - Gate comments must be visible on the PR — no hidden/local-only evidence

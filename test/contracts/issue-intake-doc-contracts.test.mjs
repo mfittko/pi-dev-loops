@@ -141,7 +141,7 @@ test("issue-based shorthand auto dev-loop trigger is documented as one public in
   assert.match(publicContract, /inspect\/status intents may still summarize that state and exit normally/i);
   assert.match(publicContract, /linked_pr_ready_for_followup[\s\S]*isolated checkout\/worktree transition instead of treating that boundary as final completion/i);
   assert.match(publicContract, /non-terminal follow-up\/wait states[\s\S]*waiting_for_copilot_review[\s\S]*continuation boundaries/i);
-  assert.match(publicContract, /async child exits before the requested stop boundary[\s\S]*automatically resume\/restart/i);
+  assert.match(publicContract, /async child exits before the requested stop boundary[\s\S]*re-dispatch via the main session driver/i);
   assert.match(publicContract, /R --> A\[Human approval checkpoint\]/i);
   assert.match(publicContract, /R --> M\[Wait for merge authorization\]/i);
 
@@ -166,7 +166,7 @@ test("issue-intake surface requires persistent copilot follow-up loop and capped
 
   assert.match(
     content,
-    /PERSISTENCE RULE: Do not exit your session until the PR is merged or you hit a hard stop that requires conductor authorization\./i,
+    /PERSISTENCE MODEL: Subagents do bounded implementation tasks and exit on external wait. The main session drives the loop and re-dispatches when continuation is feasible./i,
   );
   assert.match(
     content,

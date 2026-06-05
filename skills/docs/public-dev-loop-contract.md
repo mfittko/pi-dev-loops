@@ -380,7 +380,7 @@ When refreshed authoritative bootstrap state instead resolves `prior_linked_pr_c
 
 When that refreshed seam state advances to `linked_pr_ready_for_followup`, durable-auto continuation must re-enter the same linked PR follow-up path. If the follow-up handoff carries `conductorRouting.handoffEnvelope.requiresLocalIsolation=true`, orchestration should continue through an isolated checkout/worktree transition instead of treating that boundary as final completion.
 
-Main conductor orchestration must treat non-terminal follow-up/wait states (for example `waiting_for_copilot_review`) as continuation boundaries rather than clean completion. If an async child exits before the requested stop boundary and continuation is feasible, automatically resume/restart the same PR flow; otherwise surface the concrete blocker.
+Main conductor orchestration must treat non-terminal follow-up/wait states (for example `waiting_for_copilot_review`) as continuation boundaries rather than clean completion. If an async child exits before the requested stop boundary and continuation is feasible, re-dispatch via the main session driver (the subagent exits on external wait; the main session re-dispatches); otherwise surface the concrete blocker.
 
 ## Internal / external model
 
