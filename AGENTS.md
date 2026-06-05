@@ -1,124 +1,18 @@
 # AGENTS.md
 
-## Project contract
+## Repo contract
+- `dev-loop` is the single public workflow entrypoint.
+- For routed work, run `node scripts/loop/resolve-dev-loop-startup.mjs ...` first, then load only the returned `requiredReads`.
+- Canonical workflow docs live under `skills/docs/`.
 
-This repository uses `dev-loop` as the single public workflow entrypoint.
-
-For the canonical public routing and shorthand contract, see [Public Dev Loop Contract](skills/docs/public-dev-loop-contract.md).
-
-Canonical skill-required docs rule:
-- any contract doc that is required by skills, read by skills, or intended to ship as part of the installed skill/runtime surface must live canonically under `skills/docs/`
-- do not create a second canonical copy of a skill-required contract under `docs/`
-- `docs/` may link to canonical skill docs for index/discovery purposes, but must not become a parallel source of truth for those contracts
-- when adding or moving a skill-required contract, update skill references to the `skills/docs/` path and keep any `docs/` reference as a thin pointer only if needed
-
-Repo-specific posture summary:
-- prefer the GitHub-first routed path when work should move through GitHub branches, pull requests, CI, and review
-- use the local implementation strategy only when the user explicitly wants a local phase-based path
-- `dev-loop` is the only public workflow entrypoint; keep one concise canonical workflow description instead of parallel skill surfaces
-- this is a greenfield, declutter-first repo: when workflow or agent guidance can be simplified safely, prefer removing or demoting extra surface area over preserving it just in case
-- this repo has no default compatibility requirements: compatibility is out of scope unless the user explicitly asks for a specific compatibility target in the current conversation
-- do not preserve backwards compatibility, legacy aliases, compatibility wrappers, or duplicate prompt/docs surfaces unless the user explicitly asks for that specific compatibility in the current conversation
-
-These skills may be provided repo-locally or globally; this contract does not assume a local skill path.
-
-## Working agreement
-
-- **No direct commits to `main`. No exceptions.** All changes — including docs, config, and single-line fixes — go through a feature branch, worktree isolation, and a pull request. This is not a judgment call; it is a hard rule enforced as a required guard step — `node scripts/loop/pre-commit-branch-guard.mjs --expected-branch <branch-name>` exits non-zero on branch mismatch, blocking the commit.
-- Work test-first for all non-trivial logic.
-- Maintain at least 90% coverage for lines, statements, functions, and branches.
-- Implement one phase at a time.
-- If durable repo docs explicitly record a reprioritization exception, follow [Implementation State](docs/IMPLEMENTATION_STATE.md) and the active phase doc as the canonical current-phase source rather than assuming numeric phase order alone.
-- Use fan-out / fan-in / review / merge before implementing each phase.
-- Default phase and issue refinement to multiple parallel variants before converging on a merged plan; do not rely on a single-plan synthesis when fan-out is practical.
-- For refinement work, follow the dedicated **Standard refinement chain pattern** section below.
-- Never route review-only comparison, synthesis, or consolidation steps through `dev-loop` + `local_implementation` (the strategy loaded by `skills/local-implementation`); reserve that path for actual implementation/edit work only.
-- Keep logs under `tmp/` in deterministic phase-scoped paths.
-- Use feature branches and small commits only after local verification.
-- Use `npm run verify` as the default repo-level local verification path when a full local validation pass is warranted.
-- For public-facing or release-bound changes, prefer GitHub issues/PRs/CI over direct local-main finalization.
-- Use detailed structured PR descriptions, not thin placeholder summaries. At minimum include: change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals, and `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge.
-- When creating GitHub issues via `gh issue create`, always include `--assignee @me` so the new artifact is self-assigned. When creating PRs in this repo, use `node scripts/github/create-draft-pr.mjs --assignee @me ...` so draft-first is enforced mechanically while preserving self-assignment.
-- In PR review/fix loops, do not stop at local code changes alone: after an accepted fix is pushed, reply to the addressed review comments with the resolving commit reference and resolve the corresponding threads when genuinely satisfied.
-- Do not merge directly to `main` without review when a PR-based remote loop is practical.
-
-### Worktree / checkout isolation
-
-- Canonical guidance lives in [Worktree Usage Guidance](docs/worktree-guidance.md).
-- Create or reuse worktrees under `tmp/worktrees/<issue-or-branch-slug>/` for mutating local work, and reserve the main checkout for inspection/control by default.
-- Check `git worktree list` before creating a new worktree, and remove merged/abandoned worktrees with `git worktree remove --force <path>` followed by `git worktree prune`.
-- **Enforcement:** The local-implementation skill mandates `scripts/loop/pre-flight-gate.mjs` as step 0 before any mutation. The startup resolver (`resolve-dev-loop-startup.mjs`) rejects `local_implementation` routing when the working directory is the main git checkout. Use `PI_WORKTREE_BYPASS=1` or `PI_PREFLIGHT_BYPASS=1` for development/testing only.
-
-### Deterministic tooling — no bash polling
-
-- **Copilot review waiting:** Use `node scripts/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number>` for persistent Copilot review watching. Do NOT use bash `sleep`, `for`, `while`, or `timeout` wrappers around tool invocations.
-- **Probes:** Use `node scripts/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number> --probe-only` for single immediate rechecks. Do NOT use bash loops to poll.
-- **Waiting in general:** Use the deterministic helper owned by the current routed strategy. Agent-authored shell polling (`sleep N`, `for i in $(seq ...)`, `while true; do ...; sleep N; done`) is a contract breach — it bypasses timeout policy, poll-interval defaults, and machine-readable output contracts.
-- **Why:** Helper-owned sleep inside `run-watch-cycle.mjs`, `probe-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed. Agent-authored shell polling is not. Defaults (timeout, poll interval) belong in tooling constants, not in agent-authored bash wrappers.
-
-## Standard refinement chain pattern
-
-Use this pattern whenever the work is refinement, comparison, review, or synthesis rather than implementation.
-
-- When the issue or phase has likely slop risk, structural drift risk, or adjacent cleanup risk, refinement may start with an **opt-in bounded audit pre-step**. When used, the sequence is explicitly `audit -> refine -> implement`.
-- Any audit pre-step must stay bounded to named files/areas. It must never silently widen into a full-repo scan.
-- Audit output must be prioritized and passed into refiner fan-out/fan-in as an input artifact, not pasted as an unstructured aside.
-- The audit handoff must say explicitly what the current phase will **not** rewrite or broaden.
-- Parallel fan-out uses the `refiner` agent with bounded aliases such as `{agent: "refiner", as: "refine-NNN", task: "Refine issue #NNN..."}`.
-- Consolidation/fan-in also uses the `refiner` agent, for example `{agent: "refiner", task: "Review {outputs.refine-NNN}... Report readiness."}`. Treat this as review-only consolidation; no code edits are expected from that step.
-- Keep the fan-out and consolidation chain inside the reusable `refiner` role. Do not route those refinement/review steps through `dev-loop` + `local_implementation`; that path is only for actual implementation/edit work.
-
-## Dev loop defaults
-
-Repo-local workflow defaults are configured under `.pi/dev-loop/settings.yaml` `workflow.*`. In this repo, that settings file is the source of truth for opting into:
-- `workflow.requireRetrospective: true`
-- `workflow.requireDraftFirst: true`
-- `workflow.devModeDefault: true`
-
-Current behavior notes:
-- Use the `dev-loop` skill in **dev mode by default** for local implementation work in this repo.
-- After every completed async dev loop run, run a **post-run audit**: inspect what the loop did, whether it followed the working agreement, what it got right and where it drifted, and record any corrective notes before the next loop starts.
-- The post-run audit should be brief but honest — it is not a formality. If the loop made a bad decision or skipped a step, say so explicitly.
-
-## Formal dev mode vs required post-run retrospective
-
-These are related but distinct requirements:
-
-| Requirement | Scope | Enforcement |
-|---|---|---|
-| **Formal local dev mode** | Local implementation/self-improvement phases; explicitly scoped in [Dev Loop Skill](skills/dev-loop/SKILL.md) | Skill procedure; operator choice |
-| **Required post-run behavioral retrospective** | Every qualifying async GitHub-first `dev-loop` completion in this repo (copilot PR follow-up, issue intake) | Machine-checkable enforcement seam |
-
-Routed GitHub-first async `dev-loop` runs in this repo do **not** need to be in full formal local dev mode, but they **do** require the post-run behavioral retrospective checkpoint when `workflow.requireRetrospective` is enabled. This repo enables that policy through `.pi/dev-loop/settings.yaml`.
-
-Authoritative checkpoint details live in [Retrospective Checkpoint Contract](skills/docs/retrospective-checkpoint-contract.md).
-
-Practical rule:
-- qualifying async `dev-loop` completions write `.pi/dev-loop-retrospective-checkpoint.json`
-- the next qualifying `dev-loop` start/resume must honor that checkpoint gate
-- complete or explicitly skip the retrospective before starting the next qualifying run
-
-## Conductor monitor pattern
-
-Use a conductor monitor as the queue-level human-in-the-loop watcher for active `dev-loop` work:
-- the conductor monitors all active `dev-loop` subagents and open PRs
-- if a subagent exits before merge and the routed state is still non-terminal, auto-resume the same loop
-- if new Copilot review threads arrive after a watcher/fixer session exits, auto-resume the same PR follow-up loop
-- when the queue completes, report that completion instead of silently idling
-- run periodic status probes for active subagents via `subagent({action:"status"})` alongside PR-state checks
-- for open PR queue checks, prefer the aggregate helper `node scripts/loop/conductor-monitor.mjs --repo <owner/name>`
-- this is a human-in-the-loop pattern for now; fully autonomous conductor ownership is a follow-up slice
-
-## Core guard rails
-
-- KISS
-- SRP
-- YAGNI
-- Structural quality: apply `deep` review angle standards during implementation; see [Local Implementation](skills/local-implementation/SKILL.md#structural-quality-from-deep-review-angle).
-- for workflow surface and agent guidance decisions, YAGNI-driven simplification takes priority over preserving speculative compatibility or extra entrypoint names
-- one concise canonical version of each workflow contract, prompt surface, and operator path; delete superseded variants instead of keeping them around for comfort
-- no backwards-compatibility-by-default posture: do not add or preserve legacy names, aliases, compatibility shims, compatibility entrypoints, or duplicate docs/tests unless that compatibility is explicitly required and approved
-- when choosing between a clean canonical replacement and legacy support, choose the clean canonical replacement
-- strict TypeScript
-- thin runtime glue
-- no production reliance on Pi private internals
+## Working rules
+- No direct commits to `main`; use feature branches, worktrees, and PRs.
+- Use `tmp/worktrees/<issue-or-branch-slug>/` for mutating local work; keep the main checkout for inspection.
+- Canonical guidance lives in `docs/worktree-guidance.md`.
+- Prefer the GitHub-first routed path for branch/PR/CI/review work; use local implementation only when explicitly requested.
+- Use `npm run verify` as the default local validation path.
+- When creating GitHub issues via `gh issue create`, always include `--assignee @me` so the new artifact is self-assigned.
+- When creating PRs in this repo, use `node scripts/github/create-draft-pr.mjs --assignee @me ...` so draft-first is enforced mechanically while preserving self-assignment.
+- Implement one phase at a time; if durable repo docs explicitly record a reprioritization exception, follow [Implementation State](docs/IMPLEMENTATION_STATE.md) and the active phase doc.
+- Keep compatibility surface minimal; do not add legacy aliases, wrappers, or duplicate docs unless explicitly requested.
+- Keep workflow procedure out of AGENTS; put shared contracts under `skills/docs/`.

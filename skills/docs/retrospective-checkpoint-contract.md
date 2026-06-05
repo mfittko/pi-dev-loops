@@ -156,4 +156,4 @@ The checkpoint file is written by `.pi/extensions/dev-loop-behavioral-review.ts`
 | Tests | `packages/core/test/retrospective-checkpoint.test.mjs` |
 | Extension (writes required marker, fires review prompt) | `.pi/extensions/dev-loop-behavioral-review.ts` |
 | Checkpoint file | `.pi/dev-loop-retrospective-checkpoint.json` |
-| AGENTS.md section | [Agent Instructions](../../AGENTS.md) — "Formal dev mode vs required post-run retrospective" |
+| AGENTS.md repo contract | [Agent Instructions](../../AGENTS.md) — concise repo contract and working rules |

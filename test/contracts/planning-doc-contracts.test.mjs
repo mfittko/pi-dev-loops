@@ -214,21 +214,27 @@ test("phase-truth docs agree that Phase 8 is active and Phase 7 is deferred", as
   assert.doesNotMatch(phase8, /defaults\.json|overrides\.json/i);
 });
 
+test("AGENTS stays compact and resolver-first", async () => {
+  const agents = await readRepo("AGENTS.md");
+  const lineCount = agents.trimEnd().split(/\r?\n/).length;
+
+  assert.ok(lineCount <= 30, `AGENTS.md should stay at or under 30 lines, got ${lineCount}`);
+  assert.match(agents, /dev-loop[\s\S]*single public workflow entrypoint/i);
+  assert.match(agents, /resolve-dev-loop-startup\.mjs/i);
+  assert.match(agents, /load only the returned[\s\S]*requiredReads/i);
+  assert.match(agents, /skills\/docs\//i);
+  assert.doesNotMatch(agents, /Standard refinement chain pattern/i);
+  assert.doesNotMatch(agents, /Conductor monitor pattern/i);
+  assert.doesNotMatch(agents, /Dev loop defaults/i);
+  assert.doesNotMatch(agents, /Formal dev mode vs required post-run retrospective/i);
+});
 test("refinement docs and prompts wire the optional audit handoff into the refiner chain", async () => {
-  const [agentsDoc, refinerAgent, defaultsConfig, localImplementationSkill, issueIntakeDoc] = await Promise.all([
-    readRepo("AGENTS.md"),
+  const [refinerAgent, defaultsConfig, localImplementationSkill, issueIntakeDoc] = await Promise.all([
     readRepo("agents/refiner.agent.md"),
     readRepo(".pi/dev-loop/defaults.yaml"),
     readRepo("skills/local-implementation/SKILL.md"),
     readRepo("skills/docs/issue-intake-procedure.md"),
   ]);
-
-  assertMatchesAll(agentsDoc, [
-    /audit -> refine -> implement/i,
-    /bounded to named files\/areas/i,
-    /input artifact/i,
-    /not.+rewrite or broaden/i,
-  ], "AGENTS.md");
 
   assertMatchesAll(refinerAgent, [
     /When an audit artifact is provided/i,
@@ -265,22 +271,6 @@ test("refinement docs and prompts wire the optional audit handoff into the refin
     /translate audit findings into scope, AC\/DoD, risks, and explicit non-goals/i,
     /without silently broadening the issue/i,
   ], "skills/docs/issue-intake-procedure.md");
-});
-
-test("AGENTS documents the conductor monitor pattern as human-in-the-loop queue oversight", async () => {
-  const agents = await readRepo("AGENTS.md");
-
-  assertMatchesAll(agents, [
-    /## Conductor monitor pattern/i,
-    /monitors all active `dev-loop` subagents and open PRs/i,
-    /subagent exits before merge[\s\S]*auto-resume/i,
-    /Copilot review threads arrive[\s\S]*auto-resume/i,
-    /when the queue completes[\s\S]*report/i,
-    /subagent\(\{action:\\?"status\\?"\}\)/i,
-    /scripts\/loop\/conductor-monitor\.mjs/i,
-    /human-in-the-loop pattern for now/i,
-    /follow-up slice/i,
-  ], "AGENTS.md");
 });
 
 test("coordinator.agent.md does NOT exist as a file", async () => {
