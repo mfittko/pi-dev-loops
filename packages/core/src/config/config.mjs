@@ -56,6 +56,7 @@ const AutonomyConfig = z.strictObject({
 });
 
 const WorkflowConfig = z.strictObject({
+  asyncStartMode: z.enum(["required", "allowed"]).default("required"),
   requireRetrospective: z.boolean(),
   requireRetrospectiveGate: z.boolean().default(false),
   requireDraftFirst: z.boolean(),
@@ -125,6 +126,7 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
   gates: Object.freeze({}),
   autonomy: Object.freeze({ stopAt: Object.freeze(["merge"]) }),
   workflow: Object.freeze({
+    asyncStartMode: "required",
     requireRetrospective: false,
     requireRetrospectiveGate: false,
     requireDraftFirst: false,
@@ -734,14 +736,18 @@ export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
 /**
  * Resolve one workflow configuration value from the merged dev-loop config.
  *
- * Returns the configured boolean when present, or the built-in default for the
- * requested key.
+ * Returns the configured workflow value when present, or the built-in default
+ * for the requested key.
  *
  * @param {DevLoopConfig} config
- * @param {"requireRetrospective"|"requireRetrospectiveGate"|"requireDraftFirst"|"devModeDefault"} key
- * @returns {boolean}
+ * @param {"asyncStartMode"|"requireRetrospective"|"requireRetrospectiveGate"|"requireDraftFirst"|"devModeDefault"} key
+ * @returns {string|boolean}
  */
 export function resolveWorkflowConfig(config, key) {
+  if (key === "asyncStartMode") {
+    return config?.workflow?.asyncStartMode ?? DEFAULT_WORKFLOW_CONFIG.asyncStartMode;
+  }
+
   if (key === "requireRetrospective") {
     return config?.workflow?.requireRetrospective ?? DEFAULT_WORKFLOW_CONFIG.requireRetrospective;
   }

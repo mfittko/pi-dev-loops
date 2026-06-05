@@ -451,7 +451,7 @@ test("outer-loop mixed live+snapshot input keeps local sourceMode", async () => 
       pr: 47,
       reviewerInputPath: reviewerSnapshotPath,
       checkpointDir: tempDir,
-    }, { env: { ...gitEnv, ...env, PI_ASYNC_START_BYPASS: "1" }, ghCommand: "gh", gitCommand: "git" });
+    }, { env: { ...gitEnv, ...env, PI_SUBAGENT_RUN_ID: "test-run-123" }, ghCommand: "gh", gitCommand: "git" });
 
     assert.equal(output.conductorRouting.handoffEnvelope.confidence, "local");
   } finally {
@@ -833,7 +833,7 @@ test("outer-loop: dirty local checkout keeps PR-draft follow-up as an isolation-
       "--pr", "47",
       "--copilot-input", copilotSnapshotPath,
       "--checkpoint-dir", tempDir,
-    ], { env: { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" } });
+    ], { env: { ...gitEnv, ...ghEnv, PI_SUBAGENT_RUN_ID: "test-run-123" } });
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);
@@ -888,7 +888,7 @@ test("outer-loop: active PR branch mismatch stops with explicit reconcile reason
       "--pr", "47",
       "--copilot-input", copilotSnapshotPath,
       "--checkpoint-dir", tempDir,
-    ], { env: { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" } });
+    ], { env: { ...gitEnv, ...ghEnv, PI_SUBAGENT_RUN_ID: "test-run-123" } });
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);
@@ -943,7 +943,7 @@ test("outer-loop: branch match but local head mismatch stops with explicit recon
       "--pr", "47",
       "--copilot-input", copilotSnapshotPath,
       "--checkpoint-dir", tempDir,
-    ], { env: { ...gitEnv, ...ghEnv, PI_ASYNC_START_BYPASS: "1" } });
+    ], { env: { ...gitEnv, ...ghEnv, PI_SUBAGENT_RUN_ID: "test-run-123" } });
 
     assert.equal(result.code, 0, `stderr: ${result.stderr}`);
     const output = JSON.parse(result.stdout);

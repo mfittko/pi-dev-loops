@@ -130,7 +130,7 @@ test("buildResolveDevLoopStartupResult maps linked Copilot follow-up to the PR f
     artifactState: "open",
     issueLinkageResolution: "resolved_linked_pr",
     loopState: "unresolved_feedback_present",
-  }, { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: os.tmpdir() });
+  }, { env: { PI_SUBAGENT_RUN_ID: "test-run-123" }, cwd: os.tmpdir() });
 
   assert.equal(result.bundleKind, "resolved");
   assert.equal(result.selectedStrategy, "copilot_pr_followup");
@@ -324,7 +324,7 @@ test("buildResolveDevLoopStartupResult maps durable-artifact 'required' to check
       "utf8",
     );
 
-    // Use the programmatic API with env bypass to test the state mapping
+    // Use the programmatic API with a valid Pi-managed run id to test the state mapping
     // without triggering async-start rejection.
     const result = buildResolveDevLoopStartupResult(
       {
@@ -338,7 +338,7 @@ test("buildResolveDevLoopStartupResult maps durable-artifact 'required' to check
         artifactState: "not_applicable",
         loopState: "active",
       },
-      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+      { env: { PI_SUBAGENT_RUN_ID: "test-run-123" }, cwd: tempDir },
     );
 
     // The resolver auto-reads the checkpoint file and maps "required" → "missing".
@@ -377,7 +377,7 @@ test("buildResolveDevLoopStartupResult overrides caller-provided state with on-d
         loopState: "active",
         retrospectiveCheckpointState: "complete",
       },
-      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+      { env: { PI_SUBAGENT_RUN_ID: "test-run-123" }, cwd: tempDir },
     );
 
     // On-disk "required" overrides caller-provided "complete". The resolver
@@ -413,7 +413,7 @@ test("buildResolveDevLoopStartupResult fails closed when checkpoint file is malf
         artifactState: "not_applicable",
         loopState: "active",
       },
-      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+      { env: { PI_SUBAGENT_RUN_ID: "test-run-123" }, cwd: tempDir },
     );
 
     // Malformed file -> fail closed with missing checkpoint state -> needs_reconcile.
@@ -448,7 +448,7 @@ test("buildResolveDevLoopStartupResult fails closed when checkpoint file has unr
         artifactState: "not_applicable",
         loopState: "active",
       },
-      { env: { PI_ASYNC_START_BYPASS: "1" }, cwd: tempDir },
+      { env: { PI_SUBAGENT_RUN_ID: "test-run-123" }, cwd: tempDir },
     );
 
     // Unrecognized state -> fail closed with missing -> needs_reconcile.
@@ -503,7 +503,7 @@ test("buildResolveDevLoopStartupResult allows async-required strategy with PI_SU
   assert.equal(result.selectedStrategy, "copilot_pr_followup");
 });
 
-test("buildResolveDevLoopStartupResult allows async-required strategy with PI_ASYNC_START_BYPASS=1", () => {
+test("buildResolveDevLoopStartupResult allows async-required strategy when asyncStartMode=allowed", () => {
   const result = buildResolveDevLoopStartupResult(
     {
       currentState: {
@@ -517,7 +517,7 @@ test("buildResolveDevLoopStartupResult allows async-required strategy with PI_AS
       issueLinkageResolution: "resolved_linked_pr",
       loopState: "unresolved_feedback_present",
     },
-    { env: { PI_ASYNC_START_BYPASS: "1" } },
+    { env: {}, asyncStartMode: "allowed" },
   );
 
   assert.equal(result.ok, true);

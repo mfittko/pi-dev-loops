@@ -19,7 +19,8 @@ import {
   validateAsyncStartContext,
   buildAsyncStartRejection,
   ASYNC_START_STATUS,
-} from "@pi-dev-loops/core/loop/async-start-contract";
+} from "../../packages/core/src/loop/async-start-contract.mjs";
+import { loadDevLoopConfig, resolveWorkflowConfig } from "../../packages/core/src/config/config.mjs";
 
 const USAGE = `Usage:
   resolve-dev-loop-startup.mjs --issue <number>
@@ -358,9 +359,10 @@ export function summarizeCanonicalState(bundle) {
  * @param {object} [options]
  * @param {Record<string,string|undefined>} [options.env] — for async-start check
  * @param {string} [options.cwd] — working directory for checkpoint file resolution (default: process.cwd())
+ * @param {"required"|"allowed"} [options.asyncStartMode] — settings-driven async-start mode
  * @returns {{ ok: true, ... } | { ok: false, error: string, asyncStartContract: "rejected" }}
  */
-export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd = process.cwd() } = {}) {
+export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd = process.cwd(), asyncStartMode = "required" } = {}) {
   // #462: Always read the retrospective checkpoint file. When the durable
   // artifact says the retrospective is required, override the caller-provided
   // value to prevent bypass. Also maps the durable-artifact "required" state
@@ -424,7 +426,7 @@ export function buildResolveDevLoopStartupResult(input, { env = process.env, cwd
 
   // #465: Async-start contract enforcement for GitHub-first strategies.
   if (requiresAsyncDispatch) {
-    const validation = validateAsyncStartContext({ env });
+    const validation = validateAsyncStartContext({ env, asyncStartMode });
     if (validation.status === ASYNC_START_STATUS.REJECTED) {
       return buildAsyncStartRejection(validation);
     }
@@ -519,7 +521,11 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
     input = buildAutoResolvedInput({ pr: options.pr, cwd: process.cwd() });
   }
 
-  const result = buildResolveDevLoopStartupResult(input);
+  const { config: devLoopConfig, errors: configErrors = [] } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+  const asyncStartMode = configErrors.length === 0
+    ? resolveWorkflowConfig(devLoopConfig, "asyncStartMode")
+    : "required";
+  const result = buildResolveDevLoopStartupResult(input, { asyncStartMode });
 
   // #465: When async-start enforcement produces a rejection, emit to stderr
   // and exit non-zero instead of writing the rejection to stdout.

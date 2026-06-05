@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  ASYNC_START_MODE,
   ASYNC_START_STATUS,
   PI_ASYNC_CONTEXT_MARKERS,
-  PI_ASYNC_START_BYPASS_VAR,
   buildAsyncStartRejection,
   validateAsyncStartContext,
 } from "../src/loop/async-start-contract.mjs";
@@ -79,28 +79,32 @@ test("validateAsyncStartContext: first matching marker wins (priority order)", (
 });
 
 // ---------------------------------------------------------------------------
-// validateAsyncStartContext: bypass
+// validateAsyncStartContext: settings-driven allowed mode
 // ---------------------------------------------------------------------------
 
-test("validateAsyncStartContext: bypassed when PI_ASYNC_START_BYPASS=1", () => {
-  const env = { [PI_ASYNC_START_BYPASS_VAR]: "1" };
-  const result = validateAsyncStartContext({ env });
-  assert.equal(result.status, ASYNC_START_STATUS.BYPASSED);
+test("validateAsyncStartContext: allowed when workflow.asyncStartMode=allowed", () => {
+  const result = validateAsyncStartContext({
+    env: {},
+    asyncStartMode: ASYNC_START_MODE.ALLOWED,
+  });
+  assert.equal(result.status, ASYNC_START_STATUS.ALLOWED);
   assert.equal(result.detectedMarker, null);
-  assert.ok(result.reason.includes("bypassed"));
+  assert.ok(result.reason.includes("workflow.asyncStartMode=allowed"));
 });
 
-test("validateAsyncStartContext: bypass does not require context markers", () => {
-  // Only bypass set, no other markers
-  const env = { PI_ASYNC_START_BYPASS: "1" };
-  const result = validateAsyncStartContext({ env });
-  assert.equal(result.status, ASYNC_START_STATUS.BYPASSED);
+test("validateAsyncStartContext: allowed mode still reports valid when run id is present", () => {
+  const result = validateAsyncStartContext({
+    env: { PI_SUBAGENT_RUN_ID: "run-1" },
+    asyncStartMode: ASYNC_START_MODE.ALLOWED,
+  });
+  assert.equal(result.status, ASYNC_START_STATUS.VALID);
+  assert.equal(result.detectedMarker, "PI_SUBAGENT_RUN_ID");
 });
 
-test("validateAsyncStartContext: bypass not triggered for non-1 values", () => {
-  const env = { PI_ASYNC_START_BYPASS: "true" };
-  const result = validateAsyncStartContext({ env });
+test("validateAsyncStartContext: rejects unrecognized workflow.asyncStartMode", () => {
+  const result = validateAsyncStartContext({ env: {}, asyncStartMode: /** @type {any} */ ("bogus") });
   assert.equal(result.status, ASYNC_START_STATUS.REJECTED);
+  assert.ok(result.reason.includes("Unrecognized workflow.asyncStartMode"));
 });
 
 // ---------------------------------------------------------------------------
@@ -113,9 +117,12 @@ test("validateAsyncStartContext: snapshot mode skips the check", () => {
   assert.equal(result.detectedMarker, null);
 });
 
-test("validateAsyncStartContext: snapshot mode takes priority over bypass", () => {
-  const env = { PI_ASYNC_START_BYPASS: "1" };
-  const result = validateAsyncStartContext({ env, isSnapshotMode: true });
+test("validateAsyncStartContext: snapshot mode takes priority over allowed mode", () => {
+  const result = validateAsyncStartContext({
+    env: {},
+    isSnapshotMode: true,
+    asyncStartMode: ASYNC_START_MODE.ALLOWED,
+  });
   assert.equal(result.status, ASYNC_START_STATUS.SNAPSHOT_MODE);
 });
 
@@ -140,9 +147,14 @@ test("PI_ASYNC_CONTEXT_MARKERS contains expected markers", () => {
   assert.equal(PI_ASYNC_CONTEXT_MARKERS.length, 1);
 });
 
+test("ASYNC_START_MODE has all expected values", () => {
+  assert.equal(ASYNC_START_MODE.REQUIRED, "required");
+  assert.equal(ASYNC_START_MODE.ALLOWED, "allowed");
+});
+
 test("ASYNC_START_STATUS has all expected values", () => {
   assert.equal(ASYNC_START_STATUS.VALID, "valid");
-  assert.equal(ASYNC_START_STATUS.BYPASSED, "bypassed");
+  assert.equal(ASYNC_START_STATUS.ALLOWED, "allowed");
   assert.equal(ASYNC_START_STATUS.SNAPSHOT_MODE, "snapshot_mode");
   assert.equal(ASYNC_START_STATUS.REJECTED, "rejected");
 });
