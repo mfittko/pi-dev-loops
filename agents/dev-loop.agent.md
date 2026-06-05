@@ -37,50 +37,15 @@ If local facts, GitHub facts, and helper/state-machine output do not agree well 
 
 ## Subagent delegation
 
-This agent has `tools: [subagent]` and `maxSubagentDepth: 3`. Use subagent delegation for parallel review fan-out, bounded implementation tasks, and async orchestration. The pi-subagents skill is parent-only, so follow these patterns directly:
+This agent has `tools: [subagent]` and `maxSubagentDepth: 3` to allow orchestrating parallel review, chains, and staged fix passes.
 
-### Parallel review (fresh-context, read-only)
-```js
-subagent({ tasks: [
-  { agent: "reviewer", task: "Review for correctness/regressions. Inspect diff directly. Do not edit.", output: "review/correctness.md", outputMode: "file-only", context: "fresh" },
-  { agent: "reviewer", task: "Review for simplicity/maintainability. Inspect diff directly. Do not edit.", output: "review/simplicity.md", outputMode: "file-only", context: "fresh" },
-  { agent: "reviewer", task: "Review for test coverage and validation. Inspect diff directly. Do not edit.", output: "review/tests.md", outputMode: "file-only", context: "fresh" }
-], concurrency: 3, async: true })
-```
+The pi-subagents skill is parent-only, so this agent follows these patterns directly when delegating:
+- **Parallel review**: fan out fresh-context `reviewer` agents with distinct angles; each writes to a distinct output path; no file edits.
+- **Chains**: use `{previous}` or `{outputs.name}` for handoffs between steps.
+- **Staged fix orchestration**: parallel planners (read-only) → single writer worker → parallel validators (read-only).
+- **Key rules**: one writer thread; `async: true` default; `context: "fresh"` for reviewers, `"fork"` for advisory threads; no child subagent spawning beyond assigned fanout work.
 
-### Chain: context → plan → implement
-```js
-subagent({ chain: [
-  { agent: "scout", task: "Map codebase context for: {task}", output: "context.md" },
-  { agent: "planner", task: "Create implementation plan from {previous}", output: "plan.md" },
-  { agent: "worker", task: "Implement from {previous}. Do not expand scope beyond plan.", async: true }
-], context: "fresh" })
-```
-
-### Staged fix orchestration (parallel planners → single writer → validators)
-```js
-subagent({ async: true, context: "fresh", chain: [
-  { parallel: [
-    { agent: "reviewer", phase: "Planning", label: "Angle A", as: "planA", task: "Plan fixes for angle A. Inspect diff. Do not edit files.", output: "plans/a.md", outputMode: "file-only" },
-    { agent: "reviewer", phase: "Planning", label: "Angle B", as: "planB", task: "Plan fixes for angle B. Inspect diff. Do not edit files.", output: "plans/b.md", outputMode: "file-only" }
-  ], concurrency: 2 },
-  { agent: "worker", phase: "Implementation", label: "Apply accepted fixes", task: "Apply accepted fixes from:\n{outputs.planA}\n{outputs.planB}\nYou are the sole writer.", output: "worker/result.md", outputMode: "file-only" },
-  { parallel: [
-    { agent: "reviewer", phase: "Validation", task: "Validate post-fix diff. Do not edit files.", output: "validation/result.md", outputMode: "file-only" }
-  ] }
-] })
-```
-
-### Key rules for delegation
-- **One writer thread** — only one worker edits the active worktree at a time
-- **Read-only reviewers** — parallel reviewers must not edit files
-- **Worktree isolation** — use `worktree: true` on parallel tasks only when concurrent writes are intentional
-- **Async default** — launch subagents with `async: true` unless foreground blocking is needed
-- **Fresh context for reviewers** — use `context: "fresh"` for adversarial review; `context: "fork"` for advisory/oracle threads
-- **Distinct output paths** — parallel tasks must not share output files
-- **Parent owns orchestration** — do not let child subagents launch their own subagents unless explicitly assigned as fanout children
-- **Bounded tasks** — give each child concrete scope, exit conditions, and validation expectations
-- **maxSubagentDepth: 3** — allows this agent → its children → grandchildren
+For full delegation patterns and JS examples, see the `dev-loop` skill's "Subagent delegation" section. This agent stays thin — policy lives in the skill, not here.
 
 ## Output
 
