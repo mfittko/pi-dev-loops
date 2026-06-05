@@ -953,6 +953,9 @@ test("conductor-monitor --auto-resume emits a feedback-fix resume plan for an or
         "Artifact state: open",
         "Loop state: unresolved_feedback_present",
         "Next action: address review feedback",
+        "Handoff ownership: subagent",
+        "Stop boundary: subagent_exit",
+        "Resume policy: resume_after_subagent_exit",
       ].join("\n"),
     });
 
@@ -981,6 +984,16 @@ test("conductor-monitor --auto-resume emits a feedback-fix resume plan for an or
     assert.equal(plan.parsedLoopState, "unresolved_feedback_present");
     assert.equal(plan.livePrState, "unresolved_feedback_present");
     assert.equal(plan.resumeAction, "needs_feedback_fix");
+    assert.deepEqual(plan.handoffContract, {
+      ownership: "subagent",
+      stopBoundary: "subagent_exit",
+      resumePolicy: "resume_after_subagent_exit",
+    });
+    assert.deepEqual(plan.recordedHandoffContract, {
+      ownership: "subagent",
+      stopBoundary: "subagent_exit",
+      resumePolicy: "resume_after_subagent_exit",
+    });
     assert.equal(
       plan.resumeMessage,
       "PR #17 is orphaned. Live state: unresolved_feedback_present. Resume the prior dev-loop from run run-fix-17. Continue by fixing the remaining review feedback, then reply to and resolve each GitHub thread. Do not merge.",
@@ -990,6 +1003,53 @@ test("conductor-monitor --auto-resume emits a feedback-fix resume plan for an or
       'subagent({ action: "resume", id: "run-fix-17", message: "PR #17 is orphaned. Live state: unresolved_feedback_present. Resume the prior dev-loop from run run-fix-17. Continue by fixing the remaining review feedback, then reply to and resolve each GitHub thread. Do not merge." })',
     );
     assert.equal(plan.staleWorktree, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume fails closed when recorded handoff contract conflicts with resume action", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-handoff-mismatch-"));
+  const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-mismatch-17",
+      cwd: repoRoot,
+      timestampMs: 1700000001500,
+      outputText: [
+        "Active PR: owner/repo#17",
+        "Artifact state: open",
+        "Loop state: unresolved_feedback_present",
+        "Next action: address review feedback",
+        "Handoff ownership: human",
+        "Stop boundary: approval_boundary",
+        "Resume policy: resume_after_human_approval",
+      ].join("\n"),
+    });
+
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 17,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        threadsPayload: mixedThreadsFixture,
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 1);
+    assert.equal(payload.needsManualAttention[0].reason, "handoff_contract_mismatch");
+    assert.equal(payload.needsManualAttention[0].evidence.resumeAction, "needs_feedback_fix");
+    assert.deepEqual(payload.needsManualAttention[0].evidence.recordedHandoffContract, {
+      ownership: "human",
+      stopBoundary: "approval_boundary",
+      resumePolicy: "resume_after_human_approval",
+    });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
