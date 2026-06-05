@@ -39,12 +39,10 @@ If local facts, GitHub facts, and helper/state-machine output do not agree well 
 
 This agent has `tools: [subagent]` and `maxSubagentDepth: 3` to allow orchestrating parallel review, chains, and staged fix passes.
 
-The pi-subagents skill is parent-only, so when this agent delegates it follows these invariants directly:
+The pi-subagents skill is parent-only, so delegated subagents do not receive orchestration patterns. This section exists as the minimal locally-enforced subset needed for correct delegation — it is not a restatement of the full policy. The `dev-loop` skill owns all procedural rules; this section only declares the invariants the agent must follow when it cannot defer to the skill:
 - One writer thread; `async: true` default; `context: "fresh"` for reviewers.
 - No child subagent spawning beyond assigned fanout work.
 - Bounded tasks with concrete scope, exit conditions, and validation expectations.
-
-For full delegation patterns, use the pi-subagents skill as reference. This agent stays thin — policy lives in the skill, not here.
 
 ## Output
 
