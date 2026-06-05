@@ -182,7 +182,7 @@ workflow:
 ```
 
 - `requireRetrospective` — when enabled by repo settings, the next qualifying GitHub-first async start/resume must honor the retrospective checkpoint gate
-- `requireRetrospectiveGate` — when enabled by repo settings, merge readiness after `pre_approval_gate` requires a completed retrospective with explicit `mergeApproved: true`
+- `requireRetrospectiveGate` — when enabled by repo settings, merge readiness after `pre_approval_gate` requires a completed retrospective checkpoint that explicitly approves merge. The retrospective must include: `state: "complete"`, `mergeApproved: true`, `followedWorkingAgreement` (boolean), `gateQuality` (string), `unexpectedFindings` (string), and `mergeRecommendation` (string). A `SKIPPED` retrospective does not satisfy the merge gate when this flag is enabled.
 - `requireDraftFirst` — marks draft-first PR creation as required workflow policy for repos that opt in
 - `devModeDefault` — declares that local implementation should default to formal dev mode; this is config-only for now and establishes source-of-truth config plus docs for future runtime consumers
 
