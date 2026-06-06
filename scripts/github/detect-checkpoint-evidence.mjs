@@ -230,7 +230,7 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
     env,
     cwd,
     claimIfMissing: false,
-    requireExisting: true,
+    requireExisting: false,
   });
   if (!runnerOwnership.ok) {
     const error = new Error(runnerOwnership.message);

@@ -838,7 +838,7 @@ test("detect-checkpoint-evidence fails closed when async run no longer owns the 
   }
 });
 
-test("detect-checkpoint-evidence fails closed when async run has no ownership record", async () => {
+test("detect-checkpoint-evidence does not fail closed when async run has no ownership record", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-checkpoint-evidence-ownership-"));
 
   try {
@@ -847,11 +847,10 @@ test("detect-checkpoint-evidence fails closed when async run has no ownership re
       env: { ...process.env, PI_SUBAGENT_RUN_ID: "run-stale" },
     });
 
-    assert.equal(result.code, 1);
-    assert.equal(result.stdout, "");
-    const error = JSON.parse(result.stderr);
-    assert.equal(error.ok, false);
-    assert.equal(error.error, "ownership_missing");
+    // With #569, missing ownership is advisory — gate operations should not
+    // be blocked when no runner record exists. The call succeeds even without
+    // an ownership record (it may fail for other reasons like missing gh data).
+    assert.notEqual(result.code, 1, "should not exit with code 1 for missing ownership");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
