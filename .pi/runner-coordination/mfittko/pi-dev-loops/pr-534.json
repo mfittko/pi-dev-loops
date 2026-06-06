@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "repo": "mfittko/pi-dev-loops",
+    "pr": 534
+  },
+  "activeRun": {
+    "runId": "dceae791-202b-4451-a969-80528187906e",
+    "claimedAt": "2026-06-05T20:46:52.494Z",
+    "updatedAt": "2026-06-05T20:46:52.494Z"
+  },
+  "previousRun": null,
+  "history": [
+    {
+      "type": "claim",
+      "runId": "dceae791-202b-4451-a969-80528187906e",
+      "at": "2026-06-05T20:46:52.494Z"
+    }
+  ]
+}
