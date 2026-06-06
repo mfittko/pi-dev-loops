@@ -29,7 +29,9 @@ It does not add new automation.
 
 ## Create or reuse flow
 
-1. Before creating anything, run `git worktree list`.
+1. **Always fetch first:** `git fetch origin` before creating or reusing any worktree.
+   Never create a worktree from a stale local `origin/main` reference.
+2. Before creating anything, run `git worktree list`.
 2. Reuse an existing matching branch/worktree when the path and branch already fit
    the task.
 3. When no matching worktree exists, create one in the canonical location, for
