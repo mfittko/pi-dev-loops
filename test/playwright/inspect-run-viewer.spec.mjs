@@ -399,7 +399,7 @@ test("webkit renders the Agent handoff tab and validates unavailable-state fallb
   }
 });
 
-test("webkit renders envelope unavailable fallback when adapter has no loadHandoffEnvelope", async ({ page }) => {
+test("webkit renders envelope unavailable fallback when loadHandoffEnvelope returns null", async ({ page }) => {
   const { server, url } = await startFixtureServer(() => createInspectRunViewerServer(
     { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
     {
@@ -407,7 +407,9 @@ test("webkit renders envelope unavailable fallback when adapter has no loadHando
         async loadSnapshot() {
           return makeInspectionSnapshot();
         },
-        // no loadHandoffEnvelope — exercises the unavailable fallback path
+        async loadHandoffEnvelope() {
+          return null; // null return triggers unavailable fallback
+        },
         async listAssignedPullRequests() {
           return [{ target: { repo: "owner/repo", pr: 55 }, title: "Current PR" }];
         },
