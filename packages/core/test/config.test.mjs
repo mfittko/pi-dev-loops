@@ -1825,7 +1825,7 @@ describe("shipped defaults docs and deep angle wiring", () => {
     }
   });
 
-  test("D2: pr-description persona resolves and appears in draft gate angles after settings opt-in", async () => {
+  test("D3: pr-description persona resolves and appears in draft gate angles after settings opt-in", async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D2-"));
     try {
       const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
@@ -1848,6 +1848,8 @@ describe("shipped defaults docs and deep angle wiring", () => {
       assert.match(result.config.personas["pr-description"].prompt, /Changes section/i);
       assert.match(result.config.personas["pr-description"].prompt, /Validation section/i);
       assert.match(result.config.personas["pr-description"].prompt, /Do not block on formatting/i);
+      assert.match(result.config.personas["pr-description"].prompt, /linked issue acceptance criteria/i);
+      assert.match(result.config.personas["pr-description"].prompt, /single sentence/i);
       assert.match(result.config.personas["pr-description"].prompt, /Closes #N/i);
       assert.match(result.config.personas["pr-description"].prompt, /operator-intended close target/i);
       assert.ok(draftAngles.includes("pr-description"), "pr-description must be in draft gate angles after settings opt-in");
