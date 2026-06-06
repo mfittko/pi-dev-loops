@@ -426,6 +426,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
+    copilotReviewRoundCount,
     });
   }
 
@@ -455,6 +456,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
+    copilotReviewRoundCount,
     });
   }
 
@@ -491,6 +493,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
+    copilotReviewRoundCount,
     });
   }
 
@@ -613,6 +616,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
+    copilotReviewRoundCount,
     });
   }
 
@@ -738,6 +742,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
+    copilotReviewRoundCount,
     });
   }
 
@@ -767,6 +772,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
+    copilotReviewRoundCount,
     });
   }
 
@@ -790,6 +796,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
+    copilotReviewRoundCount,
     });
   }
 
@@ -813,6 +820,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
+    copilotReviewRoundCount,
     });
   }
 
@@ -967,6 +975,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
       gateEvidenceNote: roundCapReached ? roundExhaustionGateEvidenceNote : null,
+    copilotReviewRoundCount,
     });
   }
 
@@ -1085,6 +1094,7 @@ export function evaluatePrGateCoordination(input = {}) {
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
+    copilotReviewRoundCount,
     });
   }
 

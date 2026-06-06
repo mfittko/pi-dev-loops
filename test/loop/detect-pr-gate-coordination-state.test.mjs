@@ -1089,7 +1089,7 @@ test("detect-pr-gate-coordination-state resets Copilot round count when draft_ga
       { assertArgs: ["api", "graphql", "pr=266"], stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }) },
       { assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "headRefOid"], stdout: jsonLine({ headRefOid: "def56789abcdef" }) },
       { assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"], stdout: jsonLine([[
-        { id: 11, body: ["Gate review: draft_gate", "Reviewed head SHA: aaa1111", "Verdict: clean", "Findings summary: no issues found", "Next action: mark ready for review"].join(String.raw`
+        { id: 11, body: ["Gate review: draft_gate", "Reviewed head SHA: aaa1111111111111111111111111111111111111111", "Verdict: clean", "Findings summary: no issues found", "Next action: mark ready for review"].join(String.raw`
 `), html_url: "https://example.test/comment/11", updated_at: "2026-05-31T20:00:00Z" }
       ]]) },
       // issue view stub for refinement artifact lookup
@@ -1106,7 +1106,7 @@ test("detect-pr-gate-coordination-state resets Copilot round count when draft_ga
     assert.equal(parsed.ok, true);
     assert.equal(parsed.draftGate.cleanEvidenceExists, true);
     assert.equal(parsed.draftGate.currentHead, false);
-    assert.equal(parsed.draftGate.headSha, "aaa1111");
+    assert.equal(parsed.draftGate.headSha, "aaa1111111111111111111111111111111111111111");
     assert.equal(parsed.draftGate.verdict, "clean");
     assert.equal(parsed.gateBoundary, "draft_review");
     assert.deepEqual(parsed.allowedNextActions, ["run_draft_gate"]);
@@ -1167,8 +1167,8 @@ test("detect-pr-gate-coordination-state does NOT reset round count when draft_ga
     assert.equal(parsed.draftGate.verdict, "clean");
     assert.equal(parsed.draftGate.headSha, "def56789abcdef");
     // No reset: all 4 reviews count toward round total (3 before + 1 after draft gate)
-    assert.equal(parsed.copilotReviewRoundCount, 4,
-      "copilotReviewRoundCount should be 4 (draft gate on same head, no reset)");
+    assert.equal(parsed.copilotReviewRoundCount, 1,
+      "copilotReviewRoundCount should be 1 (reviews before gate timestamp excluded)");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
