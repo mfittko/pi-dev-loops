@@ -359,7 +359,7 @@ function buildDraftGateNeededForMergeResult({
     allowedNextActions,
     forbiddenActions,
     nextAction: PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE,
-    reason: `Clean draft_gate evidence is required before merge (no gate exemptions, #579).${underlyingReason ? ` ${underlyingReason}` : ''}`,
+    reason: `Clean draft_gate evidence is required before merge (no gate exemptions, #579).${draftGate?.anyVisible ? " A draft_gate comment exists but is not clean; re-run draft_gate or clear the existing evidence before reconciling." : " No visible clean draft_gate comment exists for this PR; run reconcile_draft_gate before proceeding."}${underlyingReason ? ` ${underlyingReason}` : ""}`,
     mergeStateStatus,
     conflictFiles,
     refinementArtifact,

@@ -404,7 +404,9 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   if (draftGateEvidenceMissing && gateBoundariesExpectingDraftGate.has(result.gateBoundary)) {
     result.gateBoundary = PR_CHECKPOINT.DRAFT_GATE_NEEDED;
     result.nextAction = PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE;
-    result.reason = "Clean draft_gate evidence is required before merge (no gate exemptions, #579). No visible clean draft_gate comment exists for this PR; run reconcile_draft_gate before proceeding.";
+    result.reason = result.draftGate?.anyVisible
+      ? "Clean draft_gate evidence is required before merge (no gate exemptions, #579). A draft_gate comment exists but is not clean; re-run draft_gate or clear the existing evidence before reconciling."
+      : "Clean draft_gate evidence is required before merge (no gate exemptions, #579). No visible clean draft_gate comment exists for this PR; run reconcile_draft_gate before proceeding.";
     result.allowedNextActions = [PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE];
     result.forbiddenActions = [
       PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
