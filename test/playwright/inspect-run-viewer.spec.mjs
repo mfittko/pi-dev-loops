@@ -16,6 +16,30 @@ async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequ
         async loadSnapshot() {
           return snapshot;
         },
+        async loadHandoffEnvelope() {
+          return {
+            handoffVersion: 1,
+            derivedAt: new Date().toISOString(),
+            target: { kind: "pr", repo: "owner/repo", pr: 55 },
+            currentGate: "draft_gate",
+            currentHeadSha: "abc1234",
+            ciStatus: "success",
+            unresolvedThreadCount: 0,
+            copilotRoundCount: 0,
+            maxCopilotRounds: 5,
+            executionMode: "bounded_handoff",
+            nextAction: "Run draft gate review",
+            requiredReads: ["skills/docs/gate-review-comment-contract.md"],
+            gateConfig: { angles: ["scope", "coverage"], blockCleanOnFindingSeverities: ["must-fix"], requireCi: true },
+            stopRules: ["draft-pr", "merge"],
+            asyncStartMode: "required",
+            requireDraftFirst: true,
+            cwd: "/tmp/worktrees/pr-55",
+            worktreeRequired: true,
+            acceptance: { criteria: [{ id: "ac", must: "Test", severity: "required" }], evidence: ["commands-run"], maxFinalizationTurns: 4 },
+            control: { needsAttentionAfterMs: 300000, activeNoticeAfterMs: 300000 },
+          };
+        },
         async listAssignedPullRequests() {
           return normalizedAssignedPullRequests;
         },
@@ -358,14 +382,14 @@ test("webkit renders the Agent handoff tab and validates unavailable-state fallb
     const handoffSection = page.locator("#handoff-envelope-section");
     await expect(handoffSection).toBeVisible();
 
-    // Verify unavailable message content when envelope is absent
-    // Accept either unavailable fallback or structured envelope
-    const handoffText = await handoffSection.textContent();
-    if (handoffText.includes("Envelope unavailable")) {
-      await expect(handoffSection).toContainText(/buildDevLoopHandoffEnvelope/);
-    } else {
-      await expect(handoffSection).toContainText(/Current state|Target/);
-    }
+    // Verify envelope content renders with key fields
+    await expect(handoffSection).toContainText(/Agent handoff/);
+    await expect(handoffSection).not.toContainText(/Envelope unavailable/);
+    await expect(handoffSection).toContainText(/Target/);
+    await expect(handoffSection).toContainText(/Current state/);
+    await expect(handoffSection).toContainText(/draft_gate/);
+    await expect(handoffSection).toContainText(/Policy/);
+    await expect(handoffSection).toContainText(/Acceptance/);
 
     // Switch back to live view
     await liveTab.click();
