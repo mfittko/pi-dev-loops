@@ -34,7 +34,7 @@ New module `handoff-envelope-renderer.mjs` with `renderHandoffEnvelopeSection(en
 
 ### Tab UI
 
-Two tabs: "Live view" (existing) + "Agent handoff" (new). Tab switching via JavaScript. Envelope fetched on tab activation via fetch to `/handoff-envelope.json`.
+Two tabs: "Live view" (existing) + "Agent handoff" (new). Tab switching via JavaScript. Envelope built server-side during page render via `buildDevLoopHandoffEnvelope()` from resolver output. The `/handoff-envelope.json` endpoint also serves the envelope as standalone JSON.
 
 ### Validation
 

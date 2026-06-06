@@ -28,6 +28,7 @@ import {
 import { dedupeRepoSlugOptions, repoSlugEquals } from "@pi-dev-loops/core/github/repo-slug";
 import { buildDevLoopHandoffEnvelope } from "@pi-dev-loops/core/loop/handoff-envelope";
 import { loadDevLoopConfig } from "@pi-dev-loops/core/config";
+import { runChild } from "../../_cli-primitives.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -92,6 +93,21 @@ function requireSnapshotForJson(snapshot) {
   }
 
   return snapshot;
+}
+
+
+async function runResolverForTarget(target, { repoRoot = process.cwd() } = {}) {
+  const args = ["scripts/loop/resolve-dev-loop-startup.mjs", "--pr", String(target.pr)];
+  const result = await runChild("node", args, process.env);
+  if (result.code !== 0) {
+    throw new Error("Resolver failed with exit code " + result.code + ": " + (result.stderr.trim() || "(no output)"));
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch (_err) {
+    const preview = result.stdout.trim().slice(0, 300);
+    throw new Error("Invalid resolver JSON output: " + preview);
+  }
 }
 
 function parseUpdatedWithinDaysFromUrl(rawValue) {
@@ -528,12 +544,15 @@ export function createInspectRunViewerServer(options, deps = {}) {
           error = caught instanceof Error ? caught : new Error(String(caught));
         }
         try {
-          const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
-          handoffEnvelope = buildDevLoopHandoffEnvelope(
-            { target: { kind: "pr", repo: requestTarget.repo, pr: requestTarget.pr } },
-            devLoopConfig,
-            {},
-          );
+          const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
+          if (resolverResult && resolverResult.bundleKind === "resolved") {
+            const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+            handoffEnvelope = buildDevLoopHandoffEnvelope(
+              resolverResult,
+              devLoopConfig,
+              {},
+            );
+          }
         } catch {
           handoffEnvelope = null;
         }
