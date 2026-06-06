@@ -1824,6 +1824,41 @@ describe("shipped defaults docs and deep angle wiring", () => {
       await rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  test("D3: pr-description persona resolves and appears in draft gate angles after settings opt-in", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D3-"));
+    try {
+      const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+      const sourceDefaults = await readFile(path.join(repoRoot, ".pi", "dev-loop", "defaults.yaml"), "utf8");
+      const sourceSettings = await readFile(path.join(repoRoot, ".pi", "dev-loop", "settings.yaml"), "utf8");
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.yaml"), sourceDefaults);
+      await writeFile(path.join(piDir, "settings.yaml"), sourceSettings);
+
+      const { loadDevLoopConfig, resolveReviewerRole, resolveGateAngles } = await import("../src/config/config.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+
+      const prDescRole = resolveReviewerRole(result.config, "pr-description");
+      const draftAngles = resolveGateAngles(result.config, "draft");
+
+      assert.deepEqual(result.errors, []);
+      assert.equal(result.config.personas["pr-description"].persona, "review");
+      assert.match(result.config.personas["pr-description"].prompt, /Summary section/i);
+      assert.match(result.config.personas["pr-description"].prompt, /Changes section/i);
+      assert.match(result.config.personas["pr-description"].prompt, /Validation section/i);
+      assert.match(result.config.personas["pr-description"].prompt, /Do not block on formatting/i);
+      assert.match(result.config.personas["pr-description"].prompt, /linked issue acceptance criteria/i);
+      assert.match(result.config.personas["pr-description"].prompt, /single sentence/i);
+      assert.match(result.config.personas["pr-description"].prompt, /Closes #N/i);
+      assert.match(result.config.personas["pr-description"].prompt, /operator-intended close target/i);
+      assert.ok(draftAngles.includes("pr-description"), "pr-description must be in draft gate angles after settings opt-in");
+      assert.equal(prDescRole.persona, "review");
+      assert.equal(prDescRole.fallback, false);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 // ── Integration: config wiring into actual consumers ──────────────────────
 

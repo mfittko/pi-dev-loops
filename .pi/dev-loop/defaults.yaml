@@ -349,6 +349,20 @@ personas:
         judgment for link intent and anchor correctness.
     defaultModel: null
 
+  pr-description:
+    persona: review
+    prompt: >-
+      Review the PR description for completeness and contract fitness.
+      The PR body is the implementation contract — it must have:
+      - A Summary section explaining what changed and why
+      - A Changes section listing files touched and modifications
+      - A Validation section describing how to verify
+      - Reference to the linked issue acceptance criteria
+      - The "Closes #N" line must match the linked issue; flag changes that alter or remove the operator-intended close target
+      Flag PRs where the body is a single sentence or lacks these sections.
+      Do not block on formatting preferences — only on missing structure.
+    defaultModel: null
+
   config-drift:
     persona: review
     prompt: >-

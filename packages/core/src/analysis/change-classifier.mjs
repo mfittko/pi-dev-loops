@@ -62,7 +62,7 @@ const CATEGORY_ANGLE_MAP = {
  *
  * @type {Set<string>}
  */
-const ALWAYS_INCLUDE = new Set(["gate-evidence", "renderer-security"]);
+const ALWAYS_INCLUDE = new Set(["gate-evidence", "renderer-security", "pr-description"]);
 
 // ---------------------------------------------------------------------------
 // Resolution
