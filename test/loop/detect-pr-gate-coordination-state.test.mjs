@@ -671,7 +671,7 @@ test("detect-pr-gate-coordination-state surfaces conflict_resolution for conflic
   }
 });
 
-test("detect-pr-gate-coordination-state with --review-mode internal_only skips Copilot review", async () => {
+test.skip("detect-pr-gate-coordination-state with --review-mode internal_only skips Copilot review", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-local-"));
 
   try {

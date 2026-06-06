@@ -6,7 +6,7 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { detectCheckpointEvidence } from "./detect-checkpoint-evidence.mjs";
 import { upsertCheckpointVerdict } from "./upsert-checkpoint-verdict.mjs";
 
-const USAGE = `Usage: reconcile-draft-gate.mjs --repo <owner/name> --pr <number> [--skip-checks]
+const USAGE = `Usage: reconcile-draft-gate.mjs --repo <owner/name> --pr <number>
 
 Optional/manual recovery tool for an already non-draft PR when you want to
 retroactively record clean \`draft_gate\` evidence.
@@ -15,18 +15,12 @@ draft_gate comment, then marks the PR ready for review again.
 
 Fail-closed guards:
   - Refuses to reconcile if any draft_gate evidence already exists on the PR.
-  - When --skip-checks is not set, requires CI to be green on the current head
-    SHA before posting the reconciling gate comment unless config disables
-    \`gates.draft.requireCi\`.
+  - Requires CI to be green on the current head SHA before posting the
+    reconciling gate comment unless config disables \`gates.draft.requireCi\`.
 
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
-
-Optional:
-  --skip-checks         Skip head-SHA CI/check validation before posting
-                        the reconciling gate comment. Use only when the
-                        CI state is already known-green.
 
 Output (stdout, JSON):
   {
@@ -57,7 +51,6 @@ export function parseReconcileDraftGateCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
-    skipChecks: false,
   };
 
   while (args.length > 0) {
@@ -75,11 +68,6 @@ export function parseReconcileDraftGateCliArgs(argv) {
 
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
-      continue;
-    }
-
-    if (token === "--skip-checks") {
-      options.skipChecks = true;
       continue;
     }
 
@@ -316,8 +304,8 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
     );
   }
 
-  // Check CI status unless --skip-checks is set or config disables draft-gate CI.
-  if (!options.skipChecks && draftGateConfig.requireCi) {
+  // Check CI status unless config disables draft-gate CI.
+  if (draftGateConfig.requireCi) {
     const ciStatus = await checkCiStatus(
       { repo: options.repo, pr: options.pr, headSha },
       { env, ghCommand }
@@ -326,7 +314,7 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
     if (ciStatus.status !== "success") {
       throw new Error(
         `PR #${options.pr} CI is not green. ${ciStatus.blockingSummary || "No successful check state was confirmed."} ` +
-        `Refusing to post a clean draft_gate comment. Fix CI or use --skip-checks.`
+        `Refusing to post a clean draft_gate comment. Fix CI first.`
       );
     }
   }
@@ -344,11 +332,9 @@ export async function reconcileDraftGate(options, { env = process.env, ghCommand
       headSha,
       verdict: "clean",
       findingsSeverityCounts: { "must-fix": 0, "worth-fixing-now": 0, "defer": 0 },
-      findingsSummary: options.skipChecks
-        ? "Reconciled non-draft PR — draft gate auto-reconciled (checks skipped)."
-        : (draftGateConfig.requireCi
-          ? "Reconciled non-draft PR — draft gate auto-reconciled (CI green)."
-          : "Reconciled non-draft PR — draft gate auto-reconciled (CI optional by config)."),
+      findingsSummary: draftGateConfig.requireCi
+        ? "Reconciled non-draft PR — draft gate auto-reconciled (CI green)."
+        : "Reconciled non-draft PR — draft gate auto-reconciled (CI optional by config).",
       nextAction: "Mark ready for review (auto-reconciled).",
     }, { env, ghCommand, repoRoot });
   } catch (error) {

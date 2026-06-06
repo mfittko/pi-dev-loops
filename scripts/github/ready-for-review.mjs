@@ -4,7 +4,7 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { loadDevLoopConfig, resolveGateConfig } from "@pi-dev-loops/core/config";
 
-const USAGE = `Usage: ready-for-review.mjs --repo <owner/name> --pr <number> [--skip-gate-check] [--skip-ci-check]
+const USAGE = `Usage: ready-for-review.mjs --repo <owner/name> --pr <number>
 
 Wrapper around \`gh pr ready\` that enforces gate-evidence validation before
 allowing a draft→ready transition.
@@ -19,10 +19,6 @@ Behavior:
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
-
-Optional:
-  --skip-gate-check     Skip draft_gate evidence validation (emergency-only)
-  --skip-ci-check       Skip CI green validation before gate check
 
 Output (stdout, JSON):
   {
@@ -120,8 +116,6 @@ export function parseReadyForReviewCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
-    skipGateCheck: false,
-    skipCiCheck: false,
   };
 
   while (args.length > 0) {
@@ -139,16 +133,6 @@ export function parseReadyForReviewCliArgs(argv) {
 
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
-      continue;
-    }
-
-    if (token === "--skip-gate-check") {
-      options.skipGateCheck = true;
-      continue;
-    }
-
-    if (token === "--skip-ci-check") {
-      options.skipCiCheck = true;
       continue;
     }
 
@@ -298,7 +282,7 @@ async function fetchGateEvidence({ repo, pr, headSha }, { env, ghCommand }) {
 export async function readyForReview(options, { env = process.env, ghCommand = "gh", repoRoot = process.cwd() } = {}) {
   const { config } = await loadDevLoopConfig({ repoRoot });
   const draftGateConfig = resolveGateConfig(config, "draft");
-  const requireCi = draftGateConfig?.requireCi !== false && !options.skipCiCheck;
+  const requireCi = draftGateConfig?.requireCi !== false;
 
   // Step 1: Fetch PR state
   const prState = await fetchPrState({ repo: options.repo, pr: options.pr }, { env, ghCommand });
@@ -323,38 +307,35 @@ export async function readyForReview(options, { env = process.env, ghCommand = "
     if (ciStatus.status === "blocked") {
       throw new Error(
         `PR #${options.pr} has blocking CI checks: ${ciStatus.blockingSummary}. ` +
-        `Fix blocking checks before marking ready for review, or use --skip-ci-check to override.`
+        `Fix blocking checks before marking ready for review.`
       );
     }
     if (ciStatus.status !== "success") {
       throw new Error(
         `PR #${options.pr} CI is not green (status: ${ciStatus.status}). ` +
-        `Wait for CI to settle green before marking ready for review, or use --skip-ci-check to override.`
+        `Wait for CI to settle green before marking ready for review.`
       );
     }
   }
 
   // Step 4: Validate draft_gate evidence (fail-closed guard)
-  let gateEvidence = null;
-  if (!options.skipGateCheck) {
-    gateEvidence = await fetchGateEvidence({ repo: options.repo, pr: options.pr, headSha }, { env, ghCommand });
+  const gateEvidence = await fetchGateEvidence({ repo: options.repo, pr: options.pr, headSha }, { env, ghCommand });
 
-    if (!gateEvidence.cleanEvidenceExists && !gateEvidence.effectiveHeadClean) {
-      throw new Error(
-        `PR #${options.pr} has no visible clean draft_gate evidence on current head ${headSha.slice(0, 7)}. ` +
-        `Run the draft gate before marking ready for review, or use --skip-gate-check for emergency override.`
-      );
-    }
+  if (!gateEvidence.cleanEvidenceExists && !gateEvidence.effectiveHeadClean) {
+    throw new Error(
+      `PR #${options.pr} has no visible clean draft_gate evidence on current head ${headSha.slice(0, 7)}. ` +
+      `Run the draft gate before marking ready for review.`
+    );
+  }
 
-    if (!gateEvidence.effectiveHeadClean) {
-      const markerVisible = gateEvidence.draftGateMarker?.visible;
-      const markerHasHead = gateEvidence.draftGateMarker?.headSha;
-      throw new Error(
-        markerVisible && markerHasHead
-          ? `PR #${options.pr} draft_gate marker does not match current head ${headSha.slice(0, 7)}. The draft gate evidence was recorded against a different commit. Re-run the draft gate on the current head before marking ready for review.`
-          : `PR #${options.pr} draft_gate marker is missing or incomplete on current head ${headSha.slice(0, 7)}. Re-run the draft gate before marking ready for review.`
-      );
-    }
+  if (!gateEvidence.effectiveHeadClean) {
+    const markerVisible = gateEvidence.draftGateMarker?.visible;
+    const markerHasHead = gateEvidence.draftGateMarker?.headSha;
+    throw new Error(
+      markerVisible && markerHasHead
+        ? `PR #${options.pr} draft_gate marker does not match current head ${headSha.slice(0, 7)}. The draft gate evidence was recorded against a different commit. Re-run the draft gate on the current head before marking ready for review.`
+        : `PR #${options.pr} draft_gate marker is missing or incomplete on current head ${headSha.slice(0, 7)}. Re-run the draft gate before marking ready for review.`
+    );
   }
 
   // Step 5: Call gh pr ready
@@ -375,8 +356,7 @@ export async function readyForReview(options, { env = process.env, ghCommand = "
     headSha,
     draftGateSatisfied: gateEvidence ? gateEvidence.effectiveHeadClean : null,
     ciStatus: ciStatus?.status ?? null,
-    gateCheckSkipped: options.skipGateCheck === true,
-    ciCheckSkipped: options.skipCiCheck === true,
+
   };
 }
 

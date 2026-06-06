@@ -99,7 +99,7 @@ function buildGateComment({
 test("parseUpsertCheckpointVerdictCliArgs rejects malformed arguments deterministically", () => {
   assert.throws(
     () => parseUpsertCheckpointVerdictCliArgs([]),
-    /requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary .* and --next-action/i,
+    /requires --repo, --pr, --head-sha, --verdict, --findings-summary .* and --next-action/i,
   );
 
   const parsed = parseUpsertCheckpointVerdictCliArgs([
