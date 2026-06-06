@@ -4,7 +4,7 @@
 
 Installing the package exposes two thin wrappers over one shared deterministic core:
 - the Pi extension command family rooted at `/dev-loops`
-- the shell CLI entrypoint `pi-dev-loops`
+- the shell CLI entrypoint `dev-loops`
 - a bounded post-merge helper that queues one `pi update git:github.com/mfittko/pi-dev-loops` after a successful in-session `gh pr merge ...` or `git merge ...` inside this repo and flushes it on `agent_end`
 
 Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes the packaged skills through `package.json` `pi.skills`, and the extension syncs packaged agent files (`.pi/agents/*.agent.md`) into `~/.agents/` on `session_start`.
@@ -29,19 +29,19 @@ Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exp
   - stop only the recorded managed inspect-run viewer process
 - `/dev-loops inspect restart [--repo <owner/name>]`
   - explicitly restart the recorded managed inspect-run viewer; never kill an unknown listener
-- `pi-dev-loops`
+- `dev-loops`
   - defaults to help output for the available subcommands
-- `pi-dev-loops help`
+- `dev-loops help`
   - prints shell help for the shared command family
-- `pi-dev-loops status`
+- `dev-loops status`
   - prints the concise readiness summary in shell-friendly output
-- `pi-dev-loops doctor`
+- `dev-loops doctor`
   - prints the full diagnostic report in shell-friendly output
-- `pi-dev-loops gates`
+- `dev-loops gates`
   - prints active review angles with their prompts from config
 - `/dev-loops gates`
   - same as above, but inside the Pi extension
-- `pi-dev-loops hide`
+- `dev-loops hide`
   - is intentionally unsupported and exits non-zero with a shell-friendly stderr message because `hide` is session-local Pi UI behavior
 
 ## Inspect local UI lifecycle ownership
@@ -212,7 +212,7 @@ Current Phase 3+ contract:
 - Pi host expectations are documented from current peer dependencies rather than a tested pinned Pi version range
 - the extension is source-loaded from `./extension/index.ts` through `package.json` `pi.extensions`
 - the package exposes `.pi/skills` through `package.json` `pi.skills` for install-based global skill loading
-- the shell CLI is exposed through `package.json` `bin.pi-dev-loops`
+- the shell CLI is exposed through `package.json` `bin.dev-loops`
 - the extension syncs packaged agent files (`.pi/agents/*.agent.md`) into `~/.agents/` on `session_start` so user-level agents are available outside this repo
 - package install/update happens through `pi install` / `pi update`
 - this phase does not yet claim a specific supported `gh` version; it only checks `gh` presence and authentication state

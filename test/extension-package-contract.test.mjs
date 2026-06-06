@@ -9,7 +9,7 @@ test("package metadata exposes the extension entrypoint and root extension test 
   const packageJson = JSON.parse(await readRepo("package.json"));
 
   assert.deepEqual(packageJson.pi.extensions, ["./extension/index.ts"]);
-  assert.equal(packageJson.bin["pi-dev-loops"], "./cli/index.mjs");
+  assert.equal(packageJson.bin["dev-loops"], "./cli/index.mjs");
   assert.match(packageJson.engines.node, />=20/);
   assert.equal(typeof packageJson.peerDependencies["@mariozechner/pi-coding-agent"], "string");
   assert.equal(typeof packageJson.peerDependencies["@mariozechner/pi-tui"], "string");
@@ -29,7 +29,7 @@ test("extension README documents the supported command, install, and verificatio
   for (const commandPattern of [
     /\/dev-loops status/i,
     /\/dev-loops doctor/i,
-    /pi-dev-loops status/i,
+    /dev-loops status/i,
   ]) {
     assert.match(readme, commandPattern);
   }
