@@ -333,6 +333,7 @@ function buildDraftGateNeededForMergeResult({
   conflictFiles,
   underlyingReason = null,
   refinementArtifact = null,
+  effectiveLifecycleState = null,
 }) {
   const allowedNextActions = [];
   const forbiddenActions = [];
@@ -350,8 +351,8 @@ function buildDraftGateNeededForMergeResult({
     repo: input.repo ?? null,
     pr: Number.isInteger(input.pr) ? input.pr : null,
     currentHeadSha,
-    lifecycleState: STATE.BLOCKED_NEEDS_USER_DECISION,
-    loopDisposition: DISPOSITION.BLOCKED,
+    lifecycleState: effectiveLifecycleState ?? STATE.BLOCKED_NEEDS_USER_DECISION,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
     gateBoundary: PR_CHECKPOINT.DRAFT_GATE_NEEDED,
     draftGateAlreadySatisfied: false,
     draftGate,
@@ -738,6 +739,7 @@ export function evaluatePrGateCoordination(input = {}) {
             conflictFiles,
             underlyingReason: "Internal-only PR reached pre_approval_gate clean but has no clean draft_gate evidence.",
             refinementArtifact,
+            effectiveLifecycleState,
           });
         }
 
@@ -991,6 +993,7 @@ export function evaluatePrGateCoordination(input = {}) {
           conflictFiles,
           underlyingReason: "Converged PR has clean pre_approval_gate but no clean draft_gate evidence.",
           refinementArtifact,
+          effectiveLifecycleState,
         });
       }
 
@@ -1131,6 +1134,7 @@ export function evaluatePrGateCoordination(input = {}) {
           conflictFiles,
           underlyingReason: "Low-signal converged PR has clean pre_approval_gate but no clean draft_gate evidence.",
           refinementArtifact,
+          effectiveLifecycleState,
         });
       }
 
