@@ -1736,3 +1736,53 @@ test("upsert-checkpoint-verdict rejects clean verdict when --findings-severity-c
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("upsert-checkpoint-verdict rejects draft_gate when draftGateAlreadySatisfied is true", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-already-satisfied-"));
+
+  try {
+    // Simulate a non-draft PR with an existing clean draft_gate comment
+    const cleanDraftGateComment = {
+      id: 101,
+      body: [
+        "### Gate review: `draft_gate`",
+        "",
+        "**Reviewed head SHA:** `abc1234`",
+        "**Verdict:** clean",
+        "",
+        "**Findings summary:** no issues found",
+        "",
+        "**Next action:** mark ready for review",
+      ].join("\n"),
+      html_url: "https://github.com/owner/repo/pull/17#issuecomment-101",
+      updated_at: "2026-05-30T17:00:00Z",
+    };
+
+    const env = await writeGhStub(tempDir, buildGateCoordinationEntries({
+      isDraft: false,
+      statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+      issueComments: [cleanDraftGateComment],
+    }));
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Cannot enter draft_gate on owner\/repo#17/);
+    assert.match(payload.error, /draft gate was already satisfied/);
+    assert.match(payload.error, /Do not re-post draft_gate/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

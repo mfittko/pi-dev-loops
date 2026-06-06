@@ -557,6 +557,15 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
     preApprovalGateMarker: coordinationContext.gateEvidence.preApprovalGateMarker,
   });
   const requestedGateAction = resolveGateAction(options.gate);
+
+  if (options.gate === "draft_gate" && coordination.draftGateAlreadySatisfied) {
+    throw new Error(
+      `Cannot enter draft_gate on ${options.repo}#${options.pr}: draft gate was already satisfied ` +
+      `(clean evidence exists, PR is no longer draft). ` +
+      `Do not re-post draft_gate. The draft→ready transition was already recorded.`,
+    );
+  }
+
   const gateActionForbidden = coordination.forbiddenActions.includes(requestedGateAction);
 
   if (gateActionForbidden) {
