@@ -99,7 +99,7 @@ function buildGateComment({
 test("parseUpsertCheckpointVerdictCliArgs rejects malformed arguments deterministically", () => {
   assert.throws(
     () => parseUpsertCheckpointVerdictCliArgs([]),
-    /requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary/i,
+    /requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary .* and --next-action/i,
   );
 
   const parsed = parseUpsertCheckpointVerdictCliArgs([
@@ -127,6 +127,36 @@ test("parseUpsertCheckpointVerdictCliArgs rejects malformed arguments determinis
     ]),
     /7-64 character hexadecimal SHA/i,
   );
+});
+
+test("parseUpsertCheckpointVerdictCliArgs accepts --findings-file without --findings-summary", () => {
+  const parsed = parseUpsertCheckpointVerdictCliArgs([
+    "--repo", "owner/repo",
+    "--pr", "17",
+    "--gate", "draft_gate",
+    "--head-sha", "abc1234",
+    "--verdict", "findings_present",
+    "--findings-file", "/tmp/findings.md",
+    "--next-action", "stay draft and fix",
+  ]);
+  assert.equal(parsed.findingsFile, "/tmp/findings.md");
+  assert.equal(parsed.findingsSummary, undefined);
+  assert.equal(parsed.verdict, "findings_present");
+});
+
+test("parseUpsertCheckpointVerdictCliArgs accepts --findings-file with --findings-summary", () => {
+  const parsed = parseUpsertCheckpointVerdictCliArgs([
+    "--repo", "owner/repo",
+    "--pr", "17",
+    "--gate", "draft_gate",
+    "--head-sha", "abc1234",
+    "--verdict", "findings_present",
+    "--findings-summary", "fallback text",
+    "--findings-file", "/tmp/findings.md",
+    "--next-action", "stay draft and fix",
+  ]);
+  assert.equal(parsed.findingsFile, "/tmp/findings.md");
+  assert.equal(parsed.findingsSummary, "fallback text");
 });
 
 test("parseUpsertCheckpointVerdictCliArgs rejects --force as a removed policy flag", () => {

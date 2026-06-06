@@ -300,7 +300,11 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
     }
 
     if (token === "--findings-file") {
-      options.findingsFile = normalizeRequiredText(requireOptionValue(args, "--findings-file", parseError), "--findings-file");
+      const rawPath = requireOptionValue(args, "--findings-file", parseError).trim();
+      if (rawPath.length === 0) {
+        throw parseError("--findings-file must be a non-empty path");
+      }
+      options.findingsFile = rawPath;
       continue;
     }
 
@@ -394,9 +398,12 @@ export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSu
     lines.push(`**Blocking severities:** ${sevs} (clean requires no findings matching these severities)`);
   }
 
+  const findingsLabel = findingsSummary.includes("\n")
+    ? `**Findings summary:**\n${findingsSummary}`
+    : `**Findings summary:** ${findingsSummary}`;
   lines.push(
     "",
-    `**Findings summary:** ${findingsSummary}`,
+    findingsLabel,
     "",
     `**Next action:** ${nextAction}`,
   );
@@ -591,6 +598,9 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
     try {
       const fileContent = await readFile(options.findingsFile, "utf8");
       const rawSummary = fileContent.trim();
+      if (rawSummary.length === 0) {
+        throw new Error(`--findings-file "${options.findingsFile}" is empty or contains only whitespace`);
+      }
       const note = typeof coordination.gateEvidenceNote === "string" ? `; ${collapseWhitespace(coordination.gateEvidenceNote)}` : "";
       options.findingsSummary = smartTruncate(rawSummary + note, MAX_GATE_COMMENT_TEXT_LENGTH);
     } catch (err) {
