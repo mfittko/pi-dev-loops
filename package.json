@@ -32,8 +32,7 @@
     "test:docs": "node scripts/docs/validate-links.mjs && node scripts/docs/validate-no-duplicate-rules.mjs"
   },
   "bin": {
-    "dev-loops": "./cli/index.mjs",
-    "pi-dev-loops": "./cli/index.mjs"
+    "dev-loops": "./cli/index.mjs"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
