@@ -28,7 +28,6 @@ import {
 import { dedupeRepoSlugOptions, repoSlugEquals } from "@pi-dev-loops/core/github/repo-slug";
 import { buildDevLoopHandoffEnvelope } from "@pi-dev-loops/core/loop/handoff-envelope";
 import { loadDevLoopConfig } from "@pi-dev-loops/core/config";
-import { runChild } from "../../_cli-primitives.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -505,7 +504,11 @@ export function createInspectRunViewerServer(options, deps = {}) {
             writeJson(response, 400, { ok: false, target: requestTarget, error: { message: "Resolver did not return a resolved bundle; handoff envelope unavailable." } });
             return;
           }
-          const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+          const { config: devLoopConfig, errors: configErrors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+          if (configErrors && configErrors.length > 0) {
+            writeJson(response, 500, { ok: false, target: requestTarget, error: { message: "Dev-loop config has validation errors; handoff envelope unavailable." } });
+            return;
+          }
           let gateState = {};
           try {
             const snapshot = await adapter.loadSnapshot(requestTarget, adapterOptions);
@@ -561,7 +564,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
           const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
           if (resolverResult && resolverResult.bundleKind === "resolved") {
             const { config: devLoopConfig, errors: configErrors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
-            if (configErrors && configErrors.length > 0) { handoffEnvelope = null; }
+            if (configErrors && configErrors.length > 0) { handoffEnvelope = null; } else {
             const gateState = snapshot ? {
               currentHeadSha: snapshot.currentHeadSha || null,
               ciStatus: snapshot.ciStatus || null,
@@ -573,6 +576,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
               devLoopConfig,
               gateState,
             );
+            }
           }
         } catch {
           handoffEnvelope = null;

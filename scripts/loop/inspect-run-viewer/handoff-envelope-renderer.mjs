@@ -3,7 +3,7 @@
  *
  * Depends on the handoff envelope module from @pi-dev-loops/core.
  */
-import { escapeHtml, renderDefinitionList, renderList } from "./shared.mjs";
+import { escapeHtml, renderList } from "./shared.mjs";
 
 /**
  * Render a single handoff envelope field key-value pair.

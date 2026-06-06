@@ -245,7 +245,7 @@ export function renderInspectRunViewerHtml({
       <p><strong>Refresh:</strong> manual reload only.${rawSnapshotHref ? ` <strong>Raw snapshot:</strong> <a href="${escapeHtml(rawSnapshotHref)}"><code>${escapeHtml(rawSnapshotHref)}</code></a>` : ""}</p>
       ${topSummary}
     `)}
-      ${target === null ? "" : `<div class="viewer-tabs">
+      <div class="viewer-tabs">
         <button class="viewer-tab active" data-tab="live" onclick="switchTab('live')">Live view</button>
         <button class="viewer-tab" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
       </div>
@@ -260,7 +260,7 @@ export function renderInspectRunViewerHtml({
       </div>
       <div class="tab-content" id="tab-handoff">
         ${renderHandoffEnvelopeSection(handoffEnvelope)}
-      </div>`}
+      </div>
       </main>
     </div>
     ${renderInboxShellScript()}

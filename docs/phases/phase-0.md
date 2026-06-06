@@ -44,6 +44,6 @@ Two tabs: "Live view" (existing) + "Agent handoff" (new). Tab switching via Java
 ## Definition of done
 
 - Viewer accessible at `npm run test:playwright:viewer` shows both tabs
-- Clicking "Agent handoff" tab fetches and renders the envelope
+- Clicking "Agent handoff" tab displays the server-rendered envelope
 - Envelope fields match live-detector summary for same PR
 - "Envelope unavailable" shown when function inputs are missing
