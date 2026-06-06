@@ -808,7 +808,7 @@ export function evaluatePrGateCoordination(input = {}) {
         forbiddenActions,
         nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
         reason: ciStatus === "crediblyGreen"
-          ? "The current head has unconfirmed CI (credibly green), so gate progression remains blocked until verified green CI is confirmed."
+          ? "The current head has unconfirmed CI (credibly green), so gate progression remains blocked until CI is confirmed green."
           : "The current head still has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
         mergeStateStatus,
         conflictFiles,
@@ -962,7 +962,7 @@ export function evaluatePrGateCoordination(input = {}) {
         forbiddenActions,
         nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
         reason: ciStatus === "crediblyGreen"
-          ? "The low-signal heuristic indicates convergence, but the current head has unconfirmed CI (credibly green), so gate progression remains blocked until verified green CI is confirmed."
+          ? "The low-signal heuristic indicates convergence, but the current head has unconfirmed CI (credibly green), so gate progression remains blocked until CI is confirmed green."
           : "The low-signal heuristic indicates convergence, but the current head still has failing CI, so gate progression remains blocked.",
         mergeStateStatus,
         conflictFiles,

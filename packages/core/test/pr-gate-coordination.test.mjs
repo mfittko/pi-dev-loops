@@ -212,7 +212,7 @@ test("clean settled current-head review opens the pre-approval gate window", () 
   assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
-test("draft gate does not block on crediblyGreen CI — documented absent-CI exception", () => {
+test("draft gate with crediblyGreen CI routes to WAIT_FOR_CI — unconfirmed CI is not a hard block", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
     currentHeadSha: "abc123456789",
@@ -223,8 +223,9 @@ test("draft gate does not block on crediblyGreen CI — documented absent-CI exc
     draftGate: gate({ visible: false }),
     preApprovalGate: gate({ visible: false }),
   });
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.WAIT_FOR_CI);
   assert.notEqual(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
-  assert.notEqual(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.match(result.reason, /so wait for CI to settle green/i);
 });
 
 test("crediblyGreen CI blocks pre-approval progression — CI must be confirmed before gate entry", () => {
