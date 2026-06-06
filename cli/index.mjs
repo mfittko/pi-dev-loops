@@ -13,6 +13,47 @@ import {
   DEV_LOOP_CHECK_IDS,
 } from "../lib/dev-loops-core.mjs";
 
+const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
+
+const SUBCOMMAND_ROUTES = {
+  gate: {
+    "upsert-verdict":   "scripts/github/upsert-checkpoint-verdict.mjs",
+    "detect-evidence":  "scripts/github/detect-checkpoint-evidence.mjs",
+    "write-findings-log": "scripts/github/write-gate-findings-log.mjs",
+  },
+  review: {
+    "request-copilot":  "scripts/github/request-copilot-review.mjs",
+    "probe-copilot":    "scripts/github/probe-copilot-review.mjs",
+    "capture-threads":  "scripts/github/capture-review-threads.mjs",
+    "reply-resolve":    "scripts/github/reply-resolve-review-threads.mjs",
+  },
+  detect: {
+    "loop-state":           "scripts/loop/detect-copilot-loop-state.mjs",
+    "reviewer-state":       "scripts/loop/detect-reviewer-loop-state.mjs",
+    "gate-coordination":    "scripts/loop/detect-pr-gate-coordination-state.mjs",
+    "linked-issue-pr":      "scripts/github/detect-linked-issue-pr.mjs",
+    "issue-refinement":     "scripts/loop/detect-issue-refinement-artifact.mjs",
+  },
+  loop: {
+    startup:        "scripts/loop/resolve-dev-loop-startup.mjs",
+    outer:          "scripts/loop/outer-loop.mjs",
+    "watch-cycle":  "scripts/loop/run-watch-cycle.mjs",
+    handoff:        "scripts/loop/copilot-pr-handoff.mjs",
+    "watch-initial": "scripts/loop/watch-initial-copilot-pr.mjs",
+  },
+  pr: {
+    "create-draft":     "scripts/github/create-draft-pr.mjs",
+    "ready-for-review": "scripts/github/ready-for-review.mjs",
+    "reconcile-draft":  "scripts/github/reconcile-draft-gate.mjs",
+  },
+  inspect: {
+    run:    "scripts/loop/inspect-run.mjs",
+    viewer: "scripts/loop/inspect-run-viewer.mjs",
+  },
+};
+
+const TOP_LEVEL_LEGACY = new Set(["help", "status", "doctor", "gates", "hide"]);
+
 const CLI_SETUP_GUIDANCE = {
   "gh-installed": "Install GitHub CLI to enable remote GitHub/Copilot workflows.",
   "gh-auth": "Run `gh auth login` so remote GitHub/Copilot workflows can use your GitHub session.",
@@ -22,108 +63,107 @@ const CLI_SETUP_GUIDANCE = {
 
 function spawnResult(command, args, options = {}) {
   try {
-    const result = spawnSync(command, args, {
-      encoding: "utf8",
-      ...options,
-    });
-    return {
-      ok: result.status === 0,
-      stdout: result.stdout ?? "",
-      stderr: result.stderr ?? "",
-    };
+    const result = spawnSync(command, args, { encoding: "utf8", ...options });
+    return { ok: result.status === 0, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
   } catch {
     return { ok: false, stdout: "", stderr: "" };
   }
 }
 
 function executableCandidates(command, platform, pathExt) {
-  if (platform !== "win32") {
-    return [command];
-  }
-
-  if (path.extname(command)) {
-    return [command];
-  }
-
-  const extensions = [...new Set(pathExt.split(";").map((entry) => entry.trim()).filter(Boolean))];
-  return extensions.map((extension) => `${command}${extension}`);
+  if (platform !== "win32") return [command];
+  if (path.extname(command)) return [command];
+  const extensions = [...new Set(pathExt.split(";").map((e) => e.trim()).filter(Boolean))];
+  return extensions.map((ext) => `${command}${ext}`);
 }
 
 async function commandExists(
   command,
-  {
-    searchPath = process.env.PATH ?? "",
-    platform = process.platform,
-    pathExt = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
-  } = {},
+  { searchPath = process.env.PATH ?? "", platform = process.platform, pathExt = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD" } = {},
 ) {
-  if (/[\\/]/.test(command)) {
-    return false;
-  }
-
+  if (/[\\/]/.test(command)) return false;
   const accessMode = platform === "win32" ? fsConstants.F_OK : fsConstants.X_OK;
-
   for (const entry of searchPath.split(path.delimiter)) {
-    if (!entry) {
-      continue;
-    }
-
+    if (!entry) continue;
     for (const candidateName of executableCandidates(command, platform, pathExt)) {
-      const candidate = path.join(entry, candidateName);
-
-      try {
-        await access(candidate, accessMode);
-        return true;
-      } catch {
-        // Keep searching PATH entries.
-      }
+      try { await access(path.join(entry, candidateName), accessMode); return true; } catch { /* continue */ }
     }
   }
-
   return false;
+}
+
+function buildCategoryHelp(category) {
+  const routes = SUBCOMMAND_ROUTES[category];
+  if (!routes) return [`Unknown category: ${category}`];
+  return [`pi-dev-loops ${category} <subcommand> [...]`, "", "Available subcommands:", ...Object.keys(routes).map((s) => `  ${s}`)];
 }
 
 function buildCliHelpLines() {
   return [
     "pi-dev-loops help",
+    "",
     "Workflow entry:",
     "- /skill:dev-loop (in Pi) or `subagent dev-loop` — single public entrypoint; routing handles the rest",
+    "",
     "Commands:",
-    "- pi-dev-loops status",
-    "- pi-dev-loops doctor",
+    "- pi-dev-loops help                   Show this help",
+    "- pi-dev-loops status                 Show readiness snapshot",
+    "- pi-dev-loops doctor                 Show full diagnostic checks",
+    "- pi-dev-loops gates                  Print gate state (Pi extension only)",
+    "",
+    "Subcommands:",
+    "- pi-dev-loops gate <sub> [...]       Gate verdicts and evidence",
+    "    upsert-verdict    Post/update gate review comment",
+    "    detect-evidence   Check merge preconditions",
+    "    write-findings-log Write disposition ledger",
+    "- pi-dev-loops review <sub> [...]     Copilot review operations",
+    "    request-copilot   Request Copilot review",
+    "    probe-copilot     Poll for Copilot review activity",
+    "    capture-threads   Capture review threads",
+    "    reply-resolve     Reply and resolve review threads",
+    "- pi-dev-loops detect <sub> [...]     State detection",
+    "    loop-state        Detect Copilot loop state",
+    "    reviewer-state    Detect reviewer loop state",
+    "    gate-coordination Detect PR gate coordination state",
+    "    linked-issue-pr   Detect linked issue ↔ PR",
+    "    issue-refinement  Detect issue refinement artifact",
+    "- pi-dev-loops loop <sub> [...]       Loop lifecycle",
+    "    startup           Resolve dev-loop startup bundle",
+    "    outer             Run outer-loop detection",
+    "    watch-cycle       Run Copilot wait cycle",
+    "    handoff           Copilot PR handoff",
+    "    watch-initial     Watch initial Copilot PR",
+    "- pi-dev-loops pr <sub> [...]         PR helpers",
+    "    create-draft      Create draft PR",
+    "    ready-for-review  Mark PR ready for review",
+    "    reconcile-draft   Reconcile non-draft PR",
+    "- pi-dev-loops inspect <sub> [...]    Inspection (Pi extension only)",
+    "    run               Inspect run state",
+    "    viewer            Start inspection viewer",
+    "",
+    "Use `pi-dev-loops <category> <subcommand> --help` for per-subcommand usage.",
+    "",
     "`/dev-loops hide` remains an extension-only Pi command.",
-    "Use `pi install git:github.com/mfittko/pi-dev-loops` to install skills and agents, or `pi update git:github.com/mfittko/pi-dev-loops` to refresh the package.",
+    "Use `pi install git:github.com/mfittko/pi-dev-loops` to install skills and agents, or",
+    "`pi update git:github.com/mfittko/pi-dev-loops` to refresh the package.",
   ];
 }
 
 function buildCliUsageLines(action) {
   switch (action) {
-    case "help":
-    case "status":
-    case "doctor":
-    case "gates":
+    case "help": case "status": case "doctor": case "gates":
       return ["Usage:", `- pi-dev-loops ${action}`];
     case "hide":
-      return [
-        "Usage:",
-        "- pi-dev-loops hide",
-        "`hide` is only supported without extra arguments, and only inside the Pi extension.",
-      ];
+      return ["Usage:", "- pi-dev-loops hide", "`hide` is only supported without extra arguments, and only inside the Pi extension."];
     default:
       throw new Error(`Unknown CLI usage action: ${action}`);
   }
 }
 
 function orderedCliSetupSteps(checks) {
-  const byId = new Map(checks.map((check) => [check.id, check]));
-  const steps = [...new Set(DEV_LOOP_CHECK_IDS.filter((id) => byId.get(id)?.ok === false).map((id) => CLI_SETUP_GUIDANCE[id]))].map(
-    (step, index) => `${index + 1}. ${step}`,
-  );
-
-  if (steps.length > 0) {
-    return steps;
-  }
-
+  const byId = new Map(checks.map((c) => [c.id, c]));
+  const steps = [...new Set(DEV_LOOP_CHECK_IDS.filter((id) => byId.get(id)?.ok === false).map((id) => CLI_SETUP_GUIDANCE[id]))];
+  if (steps.length > 0) return steps.map((step, i) => `${i + 1}. ${step}`);
   return [
     "1. Use `/skill:dev-loop` (in Pi) or `subagent dev-loop` to start or continue a dev loop — the single public entry.",
     "2. Run `pi-dev-loops status` whenever you want a concise readiness snapshot.",
@@ -131,46 +171,89 @@ function orderedCliSetupSteps(checks) {
   ];
 }
 
-function writeLines(stream, lines) {
-  stream.write(`${lines.join("\n")}\n`);
-}
+function writeLines(stream, lines) { stream.write(`${lines.join("\n")}\n`); }
 
 export function createCliRuntime({
-  cwd = process.cwd(),
-  searchPath = process.env.PATH ?? "",
-  platform = process.platform,
-  pathExt = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
+  cwd = process.cwd(), searchPath = process.env.PATH ?? "",
+  platform = process.platform, pathExt = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
 } = {}) {
   return {
     surface: "cli",
     cwd,
-    async commandExists(command) {
-      return commandExists(command, { searchPath, platform, pathExt });
-    },
-    async ghAuthOk() {
-      return spawnResult("gh", ["auth", "status"], { cwd }).ok;
-    },
-    async insideGitRepo() {
-      return spawnResult("git", ["rev-parse", "--is-inside-work-tree"], { cwd }).ok;
-    },
+    async commandExists(command) { return commandExists(command, { searchPath, platform, pathExt }); },
+    async ghAuthOk() { return spawnResult("gh", ["auth", "status"], { cwd }).ok; },
+    async insideGitRepo() { return spawnResult("git", ["rev-parse", "--is-inside-work-tree"], { cwd }).ok; },
     async getSubagentAvailability() {
       const ok = await commandExists("subagent", { searchPath, platform, pathExt });
-      return {
-        ok,
-        availableDetail: "`subagent` command is available.",
-        unavailableDetail: "Install or enable subagent support so `subagent` is available.",
-      };
+      return { ok, availableDetail: "`subagent` command is available.", unavailableDetail: "Install or enable subagent support so `subagent` is available." };
     },
   };
 }
 
-/**
- * Run the shell CLI and return the intended process exit code.
- *
- * Callers are responsible for forwarding the returned code to
- * `process.exitCode` or `process.exit()`; this helper does not mutate
- * process exit state on its own.
- */
+// ── Subcommand routing dispatch ────────────────────────────────────
+
+function resolveSubcommandRoute(args) {
+  if (args.length === 0) return null;
+  const category = args[0];
+  const routes = SUBCOMMAND_ROUTES[category];
+  if (!routes) return null;
+
+  if (args.length < 2) {
+    const subs = Object.keys(routes).join(", ");
+    return { error: `Missing subcommand for '${category}'. Available: ${subs}` };
+  }
+
+  const subcommand = args[1];
+  const scriptPath = routes[subcommand];
+  if (!scriptPath) {
+    const subs = Object.keys(routes).join(", ");
+    return { error: `Unknown subcommand '${subcommand}' for '${category}'. Available: ${subs}` };
+  }
+
+  return {
+    scriptPath: path.resolve(REPO_ROOT, scriptPath),
+    forwardedArgs: args.slice(2),
+  };
+}
+
+function parseTopLevelCommand(argv) {
+  const args = [...argv];
+  if (args.length === 0) return { kind: "help" };
+
+  const [cmd, sub] = args;
+
+  // Bare --help / -h
+  if (cmd === "--help" || cmd === "-h") return { kind: "help" };
+
+  // Legacy top-level commands
+  if (TOP_LEVEL_LEGACY.has(cmd)) {
+    if (args.some((a) => a === "--help" || a === "-h")) return { kind: "help" };
+    if (args.length > 1) return { kind: "malformed", message: `\`${cmd}\` does not accept additional arguments.`, usageAction: cmd };
+    return { kind: "action", action: cmd };
+  }
+
+  // Subcommand routing
+  const routes = SUBCOMMAND_ROUTES[cmd];
+  if (routes) {
+    // If second arg is --help/-h or missing, show category help
+    if (!sub || sub === "--help" || sub === "-h") {
+      return { kind: "category_help", category: cmd };
+    }
+    // Check if any remaining arg is --help — delegate to script
+    if (args.slice(1).some((a) => a === "--help" || a === "-h")) {
+      const scriptPath = routes[sub];
+      if (!scriptPath) return { kind: "category_help", category: cmd };
+      return { kind: "subcommand_help", scriptPath: path.resolve(REPO_ROOT, scriptPath) };
+    }
+    const route = resolveSubcommandRoute(args);
+    if (route) return { kind: "subcommand", ...route };
+    return { kind: "category_help", category: cmd };
+  }
+
+  // Unknown
+  return { kind: "malformed", message: `Unrecognized command: ${cmd}.` };
+}
+
 export async function runCli({
   argv = process.argv.slice(2),
   stdout = process.stdout,
@@ -178,64 +261,80 @@ export async function runCli({
   runtime,
   cwd = process.cwd(),
 } = {}) {
-  const activeRuntime = runtime ?? createCliRuntime({ cwd });
-  const result = await executeDevLoopsCommand({
-    input: argv,
-    surface: "cli",
-    runtime: activeRuntime,
-  });
+  const fromTop = parseTopLevelCommand(argv);
 
-  switch (result.kind) {
-    case "help":
+  switch (fromTop.kind) {
+    case "help": {
       writeLines(stdout, buildCliHelpLines());
       return 0;
-    case "checks": {
-      const summary = summarizeChecks(result.checks);
-      const readiness = describeReadiness(result.checks);
-      const lines = [
-        `pi-dev-loops ${result.action}: ${summary.ok}/${summary.total} checks passed`,
-        `Local loop readiness: ${readiness.localReady ? "ready" : "needs setup"}`,
-        `Remote GitHub/Copilot readiness: ${readiness.remoteReady ? "ready" : "needs setup"}`,
-      ];
-
-      if (result.action === "status") {
-        lines.push("Suggested next steps:", ...orderedCliSetupSteps(result.checks));
-      } else {
-        lines.push(...renderCheckLines(result.checks));
-        lines.push("Skills load via `pi install git:github.com/mfittko/pi-dev-loops`; packaged agents sync into `~/.agents/` on session start.");
-      }
-
-      writeLines(stdout, lines);
+    }
+    case "category_help": {
+      writeLines(stdout, buildCategoryHelp(fromTop.category));
       return 0;
     }
-    case "unsupported":
-      writeLines(stderr, [result.message]);
-      return 1;
-    case "gates":
-      return 0;
-    case "malformed": {
-      const lines = [result.message, ...buildCliHelpLines()];
-      if (result.usageAction) {
-        lines.splice(1, 0, ...buildCliUsageLines(result.usageAction));
+    case "subcommand_help": {
+      const result = spawnSync("node", [fromTop.scriptPath, "--help"], {
+        cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      });
+      if (result.stdout) stdout.write(result.stdout);
+      if (result.stderr) stderr.write(result.stderr);
+      return result.status ?? (result.error ? 1 : 0);
+    }
+    case "action": {
+      const activeRuntime = runtime ?? createCliRuntime({ cwd });
+      const result = await executeDevLoopsCommand({ input: argv, surface: "cli", runtime: activeRuntime });
+      switch (result.kind) {
+        case "help": { writeLines(stdout, buildCliHelpLines()); return 0; }
+        case "checks": {
+          const summary = summarizeChecks(result.checks);
+          const readiness = describeReadiness(result.checks);
+          const lines = [
+            `pi-dev-loops ${result.action}: ${summary.ok}/${summary.total} checks passed`,
+            `Local loop readiness: ${readiness.localReady ? "ready" : "needs setup"}`,
+            `Remote GitHub/Copilot readiness: ${readiness.remoteReady ? "ready" : "needs setup"}`,
+          ];
+          if (result.action === "status") { lines.push("Suggested next steps:", ...orderedCliSetupSteps(result.checks)); }
+          else { lines.push(...renderCheckLines(result.checks)); }
+          writeLines(stdout, lines);
+          return 0;
+        }
+        case "unsupported": { writeLines(stderr, [result.message]); return 1; }
+        case "gates": { return 0; }
+        case "malformed": {
+          const lines = [result.message, ...buildCliHelpLines()];
+          if (result.usageAction) lines.splice(1, 0, ...buildCliUsageLines(result.usageAction));
+          writeLines(stderr, lines);
+          return 1;
+        }
+        default: throw new Error(`Unhandled CLI result: ${result.kind}`);
       }
+    }
+    case "subcommand": {
+      if (fromTop.error) { writeLines(stderr, [fromTop.error]); return 1; }
+      const scriptArgs = fromTop.forwardedArgs || [];
+      const result = spawnSync("node", [fromTop.scriptPath, ...scriptArgs], {
+        cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      });
+      if (result.stdout) stdout.write(result.stdout);
+      if (result.stderr) stderr.write(result.stderr);
+      return result.status ?? (result.error ? 1 : 0);
+    }
+    case "malformed": {
+      const lines = [fromTop.message, ...buildCliHelpLines()];
+      if (fromTop.usageAction) lines.splice(1, 0, ...buildCliUsageLines(fromTop.usageAction));
       writeLines(stderr, lines);
       return 1;
     }
     default:
-      throw new Error(`Unhandled CLI result: ${result.kind}`);
+      throw new Error(`Unhandled parse result: ${fromTop.kind}`);
   }
 }
 
 const invokedAsScript = (() => {
-  if (!process.argv[1]) {
-    return false;
-  }
-
+  if (!process.argv[1]) return false;
   try {
     return fileURLToPath(import.meta.url) === fileURLToPath(pathToFileURL(path.resolve(process.argv[1])));
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 })();
 
 if (invokedAsScript) {
