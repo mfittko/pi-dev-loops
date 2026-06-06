@@ -100,8 +100,7 @@ async function runResolverForTarget(target, { repoRoot = process.cwd() } = {}) {
     throw new Error("Cannot resolve handoff envelope: target repo is required");
   }
   const args = ["scripts/loop/resolve-dev-loop-startup.mjs", "--pr", String(target.pr)];
-  const env = { ...process.env, PI_SUBAGENT_RUN_ID: "viewer-operator-tool" };
-  const { stdout, stderr } = await execFile("node", args, { cwd: repoRoot, timeout: 30000, env });
+  const { stdout, stderr } = await execFile("node", args, { cwd: repoRoot, timeout: 30000 });
   try {
     return JSON.parse(stdout);
   } catch (_err) {
@@ -579,7 +578,6 @@ export function createInspectRunViewerServer(options, deps = {}) {
               resolverResult,
               devLoopConfig,
               gateState,
-              { repoSlug: requestTarget.repo },
             );
             }
           }
