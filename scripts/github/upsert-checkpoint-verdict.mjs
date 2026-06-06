@@ -597,12 +597,18 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
   if (options.findingsFile) {
     try {
       const fileContent = await readFile(options.findingsFile, "utf8");
-      const rawSummary = fileContent.trim();
-      if (rawSummary.length === 0) {
+      // Trim trailing whitespace only to preserve leading Markdown semantics
+      // (e.g. indented code blocks, nested list indentation)
+      const trimmedEnd = fileContent.replace(/\s+$/, "");
+      if (trimmedEnd.length === 0) {
         throw new Error(`--findings-file "${options.findingsFile}" is empty or contains only whitespace`);
       }
-      const note = typeof coordination.gateEvidenceNote === "string" ? `; ${collapseWhitespace(coordination.gateEvidenceNote)}` : "";
-      options.findingsSummary = smartTruncate(rawSummary + note, MAX_GATE_COMMENT_TEXT_LENGTH);
+      // Append gate evidence note as a separate paragraph for multi-line
+      // content so it doesn't merge into the last item/heading/code fence
+      const note = typeof coordination.gateEvidenceNote === "string" ? collapseWhitespace(coordination.gateEvidenceNote) : "";
+      const separator = trimmedEnd.includes("\n") ? "\n\n" : "; ";
+      const annotated = note.length > 0 ? `${trimmedEnd}${separator}${note}` : trimmedEnd;
+      options.findingsSummary = smartTruncate(annotated, MAX_GATE_COMMENT_TEXT_LENGTH);
     } catch (err) {
       throw new Error(`Cannot read --findings-file "${options.findingsFile}": ${err instanceof Error ? err.message : String(err)}`);
     }
