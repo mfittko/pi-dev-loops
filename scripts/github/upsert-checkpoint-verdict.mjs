@@ -19,7 +19,7 @@ const REMOVED_FLAGS = new Set([
   "--force-reason",
 ]);
 
-const USAGE = `Usage: upsert-checkpoint-verdict.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text> [--local-validation-head-sha <sha>]
+const USAGE = `Usage: upsert-checkpoint-verdict.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> (--findings-summary <text> | --findings-file <path>) --next-action <text> [--local-validation-head-sha <sha>]
 
 Create or update the visible checkpoint verdict comment for a gate/head pair.
 Same-head reruns are idempotent: if a visible marker already exists for the same
@@ -32,10 +32,12 @@ Required:
   --gate <draft_gate|pre_approval_gate>
   --head-sha <sha>                            Full current head SHA or hexadecimal prefix of it
   --verdict <clean|findings_present|blocked>
-  --findings-summary <text>
-  --findings-file <path>                    Read findings summary from file
+  --findings-summary <text>                 Findings summary as a single argument
+                                            (use --findings-file for multi-line)
+  --findings-file <path>                    Read findings summary from file;
+                                            alternative to --findings-summary
                                             (preserves newlines; takes precedence
-                                            over --findings-summary)
+                                            when both are present)
   --next-action <text>
 
 Optional:
