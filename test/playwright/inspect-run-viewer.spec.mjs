@@ -359,7 +359,13 @@ test("webkit renders the Agent handoff tab and validates unavailable-state fallb
     await expect(handoffSection).toBeVisible();
 
     // Verify unavailable message content when envelope is absent
-    await expect(handoffSection).toContainText(/Agent handoff/i);
+    // Accept either unavailable fallback or structured envelope
+    const handoffText = await handoffSection.textContent();
+    if (handoffText.includes("Envelope unavailable")) {
+      await expect(handoffSection).toContainText(/buildDevLoopHandoffEnvelope/);
+    } else {
+      await expect(handoffSection).toContainText(/Current state|Target/);
+    }
 
     // Switch back to live view
     await liveTab.click();

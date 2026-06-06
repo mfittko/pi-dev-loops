@@ -571,8 +571,8 @@ export function createInspectRunViewerServer(options, deps = {}) {
             const gateState = snapshot ? {
               currentHeadSha: snapshot.currentHeadSha || null,
               ciStatus: snapshot.ciStatus || null,
-              unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === 'number' ? snapshot.unresolvedThreadCount : 0,
-              copilotRoundCount: typeof snapshot.copilotRoundCount === 'number' ? snapshot.copilotRoundCount : 0,
+              unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === "number" ? snapshot.unresolvedThreadCount : 0,
+              copilotRoundCount: typeof snapshot.copilotRoundCount === "number" ? snapshot.copilotRoundCount : 0,
             } : {};
             handoffEnvelope = buildDevLoopHandoffEnvelope(
               resolverResult,
