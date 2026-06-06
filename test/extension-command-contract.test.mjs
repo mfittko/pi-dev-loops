@@ -141,27 +141,27 @@ test("help is the default action and removed install/update commands fall back t
   assert(widget.lines.some((line) => /single public entry/i.test(line)), "help should describe dev-loop as single public entry");
   assert.equal(widget.lines.some((line) => /copilot-dev-loop|copilot-autopilot/i.test(line)), false, "help should not surface internal seam names");
   assert.doesNotMatch(widget.lines.join("\n"), /\/dev-loops (?:install|update)/i);
-  assert.equal(calls.notifications.at(-1).message, "pi-dev-loops help");
+  assert.equal(calls.notifications.at(-1).message, "dev-loops help");
 
   const installContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("install repo", installContext.ctx);
   assert.match(installContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
-  assert.equal(installContext.calls.notifications.at(-1).message, "pi-dev-loops help");
+  assert.equal(installContext.calls.notifications.at(-1).message, "dev-loops help");
 
   const bareInstallContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("install", bareInstallContext.ctx);
   assert.match(bareInstallContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
-  assert.equal(bareInstallContext.calls.notifications.at(-1).message, "pi-dev-loops help");
+  assert.equal(bareInstallContext.calls.notifications.at(-1).message, "dev-loops help");
 
   const updateContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("update", updateContext.ctx);
   assert.match(updateContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
-  assert.equal(updateContext.calls.notifications.at(-1).message, "pi-dev-loops help");
+  assert.equal(updateContext.calls.notifications.at(-1).message, "dev-loops help");
 
   const bareUpdateContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("update system", bareUpdateContext.ctx);
   assert.match(bareUpdateContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
-  assert.equal(bareUpdateContext.calls.notifications.at(-1).message, "pi-dev-loops help");
+  assert.equal(bareUpdateContext.calls.notifications.at(-1).message, "dev-loops help");
 
   const statusWithExtraArgsContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("status extra", statusWithExtraArgsContext.ctx);
@@ -209,12 +209,12 @@ test("hide still clears the widget and unknown commands fall back to help", asyn
     lines: undefined,
     options: undefined,
   });
-  assert.equal(hideContext.calls.notifications.at(-1).message, "pi-dev-loops widget hidden");
+  assert.equal(hideContext.calls.notifications.at(-1).message, "dev-loops widget hidden");
 
   const fallbackContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("banana", fallbackContext.ctx);
   assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
-  assert.equal(fallbackContext.calls.notifications.at(-1).message, "pi-dev-loops help");
+  assert.equal(fallbackContext.calls.notifications.at(-1).message, "dev-loops help");
 });
 
 test("extension dispatches inspect-run open and surfaces browser warnings without failing the launch", async () => {
