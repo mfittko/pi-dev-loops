@@ -21,7 +21,7 @@ async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequ
             handoffVersion: 1,
             derivedAt: new Date().toISOString(),
             target: { kind: "pr", repo: "owner/repo", pr: 55 },
-            currentGate: "draft_gate",
+            currentGate: "draft",
             currentHeadSha: "abc1234",
             ciStatus: "success",
             unresolvedThreadCount: 0,
@@ -387,7 +387,7 @@ test("webkit renders the Agent handoff tab and validates unavailable-state fallb
     await expect(handoffSection).not.toContainText(/Envelope unavailable/);
     await expect(handoffSection).toContainText(/Target/);
     await expect(handoffSection).toContainText(/Current state/);
-    await expect(handoffSection).toContainText(/draft_gate/);
+    await expect(page.locator("#handoff-envelope-section dt:has-text('currentGate') + dd")).toHaveText("draft");
     await expect(handoffSection).toContainText(/Policy/);
     await expect(handoffSection).toContainText(/Acceptance/);
 
