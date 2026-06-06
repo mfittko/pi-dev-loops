@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
@@ -32,6 +33,9 @@ Required:
   --head-sha <sha>                            Full current head SHA or hexadecimal prefix of it
   --verdict <clean|findings_present|blocked>
   --findings-summary <text>
+  --findings-file <path>                    Read findings summary from file
+                                            (preserves newlines; takes precedence
+                                            over --findings-summary)
   --next-action <text>
 
 Optional:
@@ -235,6 +239,7 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
     headSha: undefined,
     verdict: undefined,
     findingsSummary: undefined,
+    findingsFile: undefined,
     nextAction: undefined,
     localValidationHeadSha: undefined,
     findingsSeverityCounts: undefined,
@@ -291,6 +296,11 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
 
     if (token === "--findings-summary") {
       options.findingsSummary = normalizeRequiredText(requireOptionValue(args, "--findings-summary", parseError), "--findings-summary");
+      continue;
+    }
+
+    if (token === "--findings-file") {
+      options.findingsFile = normalizeRequiredText(requireOptionValue(args, "--findings-file", parseError), "--findings-file");
       continue;
     }
 
@@ -375,7 +385,7 @@ export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSu
     `**Verdict:** ${verdict}`,
   ];
 
-  if (verdict === "clean" && blockCleanOnFindingSeverities && blockCleanOnFindingSeverities.length > 0) {
+  if ((verdict === "findings_present" || verdict === "blocked") && blockCleanOnFindingSeverities && blockCleanOnFindingSeverities.length > 0) {
     const sevs = blockCleanOnFindingSeverities.join(", ");
     lines.push(`**Blocking severities:** ${sevs} (clean requires no findings matching these severities)`);
   }
@@ -570,6 +580,15 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
       throw new Error(
         `Cannot set verdict "clean" for ${options.gate}: unresolved findings remain at blocking severities [${blocking.join(", ")}]. Fix these findings and re-gate before declaring clean.`,
       );
+    }
+  }
+
+  if (options.findingsFile) {
+    try {
+      const fileContent = await readFile(options.findingsFile, "utf8");
+      options.findingsSummary = fileContent.trim();
+    } catch (err) {
+      throw new Error(`Cannot read --findings-file "${options.findingsFile}": ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
