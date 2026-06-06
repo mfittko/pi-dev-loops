@@ -17,11 +17,10 @@ import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretati
 import { evaluatePrGateCoordination, PR_CHECKPOINT, PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { detectCheckpointEvidence } from "../github/detect-checkpoint-evidence.mjs";
-import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 
 const UNMERGED_GIT_STATUS_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
 
-const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number> [--review-mode internal_only] [--local-validation-head-sha <sha>]
+const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number>
 
 Determine which PR gate/transition is legal next for a pull request.
 
@@ -30,13 +29,7 @@ Required:
   --pr <number>         Pull request number
 
 Optional:
-  --review-mode internal_only
-  --local-validation-head-sha <sha>
-                        Assert that local npm run verify already passed for
-                        this exact head SHA so gate coordination can reuse the
-                        bounded crediblyGreen CI exception from the Copilot
-                        loop detector when GitHub created zero current-head
-                        suites/statuses.
+
 
 Output (stdout, JSON):
   {
@@ -92,8 +85,6 @@ export function parseDetectPrGateCoordinationCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
-    reviewMode: undefined,
-    localValidationHeadSha: undefined,
   };
 
   while (args.length > 0) {
@@ -114,23 +105,7 @@ export function parseDetectPrGateCoordinationCliArgs(argv) {
       continue;
     }
 
-    if (token === "--review-mode") {
-      const raw = requireOptionValue(args, "--review-mode", parseError).trim().toLowerCase();
-      if (raw === "internal_only") {
-        options.reviewMode = "internal_only";
-        continue;
-      }
-      throw parseError(`--review-mode must be "internal_only", got: ${raw}`);
-    }
 
-    if (token === "--local-validation-head-sha") {
-      const value = requireOptionValue(args, "--local-validation-head-sha", parseError).trim();
-      if (value.length === 0) {
-        throw parseError("--local-validation-head-sha must be a non-empty SHA");
-      }
-      options.localValidationHeadSha = value;
-      continue;
-    }
 
     throw parseError(`Unknown argument: ${token}`);
   }
@@ -372,42 +347,25 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     throw new Error("Invalid gh pr view payload: missing headRefOid");
   }
 
-  let snapshot;
-  let gateEvidence;
-  if (options.localValidationHeadSha === undefined) {
-    const requestedReviewers = await fetchRequestedReviewers(options, runtime);
-    const threadsPayload = await fetchGithubReviewThreadsPayload(options, runtime);
-    const parsedThreads = parseReviewThreads(threadsPayload);
-    gateEvidence = await detectCheckpointEvidence(options, runtime);
-    const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
-    const reviewRequestStatus = requestedReviewers.requested
-      ? "requested"
-      : (reviewSummary.hasPendingReviewOnCurrentHead ? "already-requested" : "none");
+  const requestedReviewers = await fetchRequestedReviewers(options, runtime);
+  const threadsPayload = await fetchGithubReviewThreadsPayload(options, runtime);
+  const parsedThreads = parseReviewThreads(threadsPayload);
+  const gateEvidence = await detectCheckpointEvidence(options, runtime);
+  const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
+  const reviewRequestStatus = requestedReviewers.requested
+    ? "requested"
+    : (reviewSummary.hasPendingReviewOnCurrentHead ? "already-requested" : "none");
 
-    snapshot = buildSnapshotFromPrFacts({
-      prData,
-      prNumber: options.pr,
-      copilotReviewRequestStatus: reviewRequestStatus,
-      copilotReviewPresent: reviewSummary.copilotReviewPresent,
-      copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
-      unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
-      actionableThreadCount: parsedThreads.summary.actionableThreads,
-      copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
-    });
-  } else {
-    const requestedReviewers = await fetchRequestedReviewers(options, runtime);
-    gateEvidence = await detectCheckpointEvidence(options, runtime);
-    const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
-    const reviewRequestStatus = requestedReviewers.requested
-      ? "requested"
-      : (reviewSummary.hasPendingReviewOnCurrentHead ? "already-requested" : "none");
-    snapshot = await autoDetectSnapshot({
-      repo: options.repo,
-      pr: options.pr,
-      reviewRequestStatusOverride: reviewRequestStatus,
-      localValidationHeadSha: options.localValidationHeadSha,
-    }, runtime);
-  }
+  const snapshot = buildSnapshotFromPrFacts({
+    prData,
+    prNumber: options.pr,
+    copilotReviewRequestStatus: reviewRequestStatus,
+    copilotReviewPresent: reviewSummary.copilotReviewPresent,
+    copilotReviewOnCurrentHead: reviewSummary.hasSubmittedReviewOnCurrentHead,
+    unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
+    actionableThreadCount: parsedThreads.summary.actionableThreads,
+    copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
+  });
 
   // #464: Auto-detect stop-at-local-fix without GitHub reply/resolve.
   // When unresolved threads exist AND the Copilot review was on an older
@@ -483,7 +441,6 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     draftGateRequireCi: draftGateConfig.requireCi,
     requireRetrospectiveGate,
     retrospectiveCheckpoint,
-    reviewMode: options.reviewMode ?? null,
     draftGate: context.gateEvidence.draftGate,
     draftGateMarker: context.gateEvidence.draftGateMarker,
     preApprovalGate: context.gateEvidence.preApprovalGate,

@@ -54,8 +54,6 @@ test("parseReadyForReviewCliArgs parses valid repo and pr", () => {
   const result = parseReadyForReviewCliArgs(["--repo", "owner/repo", "--pr", "42"]);
   assert.equal(result.repo, "owner/repo");
   assert.equal(result.pr, 42);
-  assert.equal(result.skipGateCheck, false);
-  assert.equal(result.skipCiCheck, false);
 });
 
 test("parseReadyForReviewCliArgs rejects invalid repo slug", () => {
@@ -77,16 +75,6 @@ test("parseReadyForReviewCliArgs rejects zero --pr", () => {
     () => parseReadyForReviewCliArgs(["--repo", "owner/repo", "--pr", "0"]),
     /positive integer/,
   );
-});
-
-test("parseReadyForReviewCliArgs --skip-gate-check flag", () => {
-  const result = parseReadyForReviewCliArgs(["--repo", "owner/repo", "--pr", "1", "--skip-gate-check"]);
-  assert.equal(result.skipGateCheck, true);
-});
-
-test("parseReadyForReviewCliArgs --skip-ci-check flag", () => {
-  const result = parseReadyForReviewCliArgs(["--repo", "owner/repo", "--pr", "1", "--skip-ci-check"]);
-  assert.equal(result.skipCiCheck, true);
 });
 
 test("parseReadyForReviewCliArgs --help returns help option", () => {
@@ -150,7 +138,7 @@ test("fails when PR is not in draft state", async () => {
     ]);
 
     const result = await runNode(
-      ["--repo", "owner/repo", "--pr", "17", "--skip-gate-check", "--skip-ci-check"],
+      ["--repo", "owner/repo", "--pr", "17"],
       { env },
     );
 
@@ -196,7 +184,7 @@ test("fails when draft_gate evidence is missing (fail-closed)", async () => {
   }
 });
 
-test("fails when CI is blocked (unless --skip-ci-check)", async () => {
+test("fails when CI is blocked", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-ready-ci-blocked-"));
 
   try {
@@ -301,7 +289,7 @@ test("succeeds when draft gate evidence exists and CI is green", async () => {
   }
 });
 
-test("--skip-gate-check allows transition without gate evidence", async () => {
+test.skip("--skip-gate-check allows transition without gate evidence", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-ready-skip-gate-"));
 
   try {
@@ -331,7 +319,7 @@ test("--skip-gate-check allows transition without gate evidence", async () => {
     ]);
 
     const result = await runNode(
-      ["--repo", "owner/repo", "--pr", "17", "--skip-gate-check"],
+      ["--repo", "owner/repo", "--pr", "17"],
       { env },
     );
 

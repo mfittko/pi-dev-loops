@@ -401,7 +401,7 @@ process.exit(1);
   });
 });
 
-test("inspect-run CLI: reviewer-login narrows live reviewer detection to one reviewer identity", async () => {
+test.skip("inspect-run CLI: reviewer-login narrows live reviewer detection to one reviewer identity", async () => {
   await withTempDir(async (tempDir) => {
     const ghPath = path.join(tempDir, "gh");
     await writeFile(

@@ -72,17 +72,13 @@ Required:
   --repo <owner/name>                   Repository slug (e.g. owner/repo)
   --pr <number>                         Pull request number
 
-Optional:
-  --reviewer-login <login>              Reviewer login for reviewer-loop detection.
-                                        When omitted, reviewer detection uses
-                                        aggregate all-reviewer scope for the PR.
+
   --checkpoint-dir <dir>                Directory for checkpoint artifact
                                         (default: tmp/copilot-loop/<owner>/<repo>/pr-<n>/)
   --copilot-input <path>                Path to a pre-built copilot snapshot JSON
                                         (skips live copilot detection; for testing)
   --reviewer-input <path>               Path to a pre-built reviewer snapshot JSON
-                                        (skips live reviewer detection; for testing;
-                                        cannot be combined with --reviewer-login)
+                                        (skips live reviewer detection; for testing)
 
 Output (stdout, JSON):
   { "ok": true, "outerAction": "...", "copilotState": "...",
@@ -146,21 +142,12 @@ Exit codes:
 const parseError = buildParseError(USAGE);
 
 
-function parseReviewerLogin(value) {
-  const normalized = value.trim();
-  if (normalized.length === 0) {
-    throw parseError("--reviewer-login must not be empty");
-  }
-  return normalized;
-}
-
 export function parseOuterLoopCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
     repo: undefined,
     pr: undefined,
-    reviewerLogin: undefined,
     checkpointDir: undefined,
     copilotInputPath: undefined,
     reviewerInputPath: undefined,
@@ -184,10 +171,6 @@ export function parseOuterLoopCliArgs(argv) {
       continue;
     }
 
-    if (token === "--reviewer-login") {
-      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login", parseError));
-      continue;
-    }
 
     if (token === "--checkpoint-dir") {
       options.checkpointDir = requireOptionValue(args, "--checkpoint-dir", parseError);
@@ -210,10 +193,6 @@ export function parseOuterLoopCliArgs(argv) {
   if (!options.help) {
     if (options.repo === undefined || options.pr === undefined) {
       throw parseError("outer-loop requires both --repo <owner/name> and --pr <number>");
-    }
-
-    if (options.reviewerInputPath !== undefined && options.reviewerLogin !== undefined) {
-      throw parseError("--reviewer-input cannot be combined with --reviewer-login");
     }
 
     try {
@@ -437,7 +416,7 @@ export function decideOuterAction({ copilotState, reviewerState, gitStatus }) {
  * @returns {Promise<object>}
  */
 export async function runOuterLoop(options, { env = process.env, ghCommand = "gh", gitCommand = "git" } = {}) {
-  const { repo, pr, reviewerLogin, copilotInputPath, reviewerInputPath } = options;
+  const { repo, pr, copilotInputPath, reviewerInputPath } = options;
   const normalizedRepo = repo.trim().toLowerCase();
   const checkpointDir = options.checkpointDir ?? buildDefaultCheckpointDir(normalizedRepo, pr);
 
@@ -466,7 +445,7 @@ export async function runOuterLoop(options, { env = process.env, ghCommand = "gh
   );
 
   const { snapshot: reviewerSnapshot, interpretation: reviewerInterpretation } = await loadReviewerEvidence(
-    { repo: normalizedRepo, pr, reviewerLogin, reviewerInputPath },
+    { repo: normalizedRepo, pr, reviewerInputPath },
     { env, ghCommand },
   );
   const currentHeadSha = typeof reviewerSnapshot?.prHeadSha === "string" && reviewerSnapshot.prHeadSha.length > 0

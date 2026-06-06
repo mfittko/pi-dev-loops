@@ -14,30 +14,6 @@
  *    historical request-attempt outcomes like "already-requested", "unavailable",
  *    or "failed" that are not fully observable from static state alone).
  *
- * Optional (auto-detect mode only):
- *   --steering-state-file <path>
- *     Path to a durable steering state JSON file (as written by steer-loop.mjs).
- *     When provided, the detector overlays the detected state with the current
- *     persisted steering state and reports steeringApplied,
- *     pendingStopAtNextSafeGate, terminalStopAtNextSafeGate, and
- *     effectiveConstraints. This detector is read-only: it does not promote
- *     queued steering or write
- *     the steering file. Snapshot mode does not accept this flag because repo/pr
- *     target identity cannot be proven from --input alone.
- *
- * Optional (auto-detect mode only):
- *   --review-request-status <requested|already-requested|unavailable|none|failed>
- *     Override the Copilot review request status with a known prior result.
- *     Useful when the caller already ran request-copilot-review.mjs and wants
- *     to inject its output status without re-probing the reviewers endpoint.
- *
- * Optional (auto-detect mode only):
- *   --local-validation-head-sha <sha>
- *     Assert that local `npm run verify` already passed for this exact head SHA.
- *     This enables the bounded `none -> crediblyGreen` CI promotion when
- *     GitHub created zero current-head suites/statuses but the previous head
- *     rollup was green and the current head already has a clean settled review posture.
- *
  * Success output shape (no steering file):
  *   {
  *     "ok": true,
@@ -95,18 +71,9 @@ import {
   normalizeHeadScopedCommitStatus,
   normalizeHeadScopedCiContract,
 } from "@pi-dev-loops/core/loop/copilot-ci-status";
-import {
-  createSteeringState,
-  normalizeSteeringState,
-  resolveEffectiveLoopState,
-} from "@pi-dev-loops/core/loop/steering";
-import {
-  loadStateFile,
-  validateSteeringStateTarget,
-} from "./_steering-state-file.mjs";
 
 const USAGE = `Usage:
-  detect-copilot-loop-state.mjs --repo <owner/name> --pr <number> [--review-request-status <status>] [--local-validation-head-sha <sha>]
+  detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>
   detect-copilot-loop-state.mjs --input <path>
 
 Detect or interpret the current Copilot-loop state.
@@ -125,38 +92,14 @@ Required (snapshot mode):
   --input <path>                             Path to snapshot JSON file
 
 Optional (auto-detect mode only):
-  --steering-state-file <path>               Path to a durable steering state JSON file.
-                                             When provided, nextAction is resolved through
-                                             the current persisted steering contract state.
-                                             This detector stays read-only: it never
-                                             promotes queued steering or writes the file.
-                                             Output includes steeringApplied,
-                                             pendingStopAtNextSafeGate,
-                                             terminalStopAtNextSafeGate, and
-                                             effectiveConstraints. Cannot be combined with
-                                             --input because snapshot mode cannot prove
-                                             repo/pr identity.
 
 Optional (auto-detect mode only):
-  --review-request-status <status>           Inject a known prior request result.
-                                             Values: requested|already-requested|unavailable|none|failed
-  --local-validation-head-sha <sha>          Assert that local npm run verify
-                                             already passed for this exact head SHA.
-                                             Enables bounded none -> crediblyGreen
-                                             promotion when GitHub created zero
-                                             current-head suites/statuses and the
-                                             prior rollup was green.
 
 Output (stdout, JSON):
   { "ok": true, "snapshot": {..., "copilotReviewRoundCount": N}, "state": "...", "allowedTransitions": [...], "nextAction": "...",
     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
     "loopDisposition": "...", "terminal": true|false }
 
-  When --steering-state-file is provided, also includes:
-  "steeringApplied": true|false,
-  "pendingStopAtNextSafeGate": true|false,
-  "terminalStopAtNextSafeGate": true|false,
-  "effectiveConstraints": { ... }
 
 Error output (stderr, JSON):
   Argument/usage errors:
@@ -180,9 +123,6 @@ export function parseDetectCliArgs(argv) {
     inputPath: undefined,
     repo: undefined,
     pr: undefined,
-    reviewRequestStatusOverride: undefined,
-    localValidationHeadSha: undefined,
-    steeringStateFile: undefined,
   };
 
   while (args.length > 0) {
@@ -208,28 +148,8 @@ export function parseDetectCliArgs(argv) {
       continue;
     }
 
-    if (token === "--review-request-status") {
-      const val = requireOptionValue(args, "--review-request-status", parseError);
-      if (!VALID_OVERRIDE_STATUSES.has(val)) {
-        throw parseError(`--review-request-status must be one of: ${[...VALID_OVERRIDE_STATUSES].join(", ")}`);
-      }
-      options.reviewRequestStatusOverride = val;
-      continue;
-    }
 
-    if (token === "--local-validation-head-sha") {
-      const val = requireOptionValue(args, "--local-validation-head-sha", parseError).trim();
-      if (val.length === 0) {
-        throw parseError("--local-validation-head-sha must be a non-empty SHA");
-      }
-      options.localValidationHeadSha = val;
-      continue;
-    }
 
-    if (token === "--steering-state-file") {
-      options.steeringStateFile = requireOptionValue(args, "--steering-state-file", parseError);
-      continue;
-    }
 
     throw parseError(`Unknown argument: ${token}`);
   }
@@ -238,15 +158,7 @@ export function parseDetectCliArgs(argv) {
     if (options.repo !== undefined || options.pr !== undefined) {
       throw parseError("Choose exactly one input source: --input <path> or --repo/--pr auto-detect");
     }
-    if (options.reviewRequestStatusOverride !== undefined) {
-      throw parseError("--review-request-status cannot be combined with --input");
-    }
-    if (options.localValidationHeadSha !== undefined) {
-      throw parseError("--local-validation-head-sha cannot be combined with --input");
-    }
-    if (options.steeringStateFile !== undefined) {
-      throw parseError("--steering-state-file cannot be combined with --input; use --repo/--pr auto-detect when steering integration is needed");
-    }
+
     return options;
   }
 
@@ -623,52 +535,19 @@ export async function runCli(
       {
         repo: options.repo,
         pr: options.pr,
-        reviewRequestStatusOverride: options.reviewRequestStatusOverride,
-        localValidationHeadSha: options.localValidationHeadSha,
       },
       { env, ghCommand },
     );
   }
 
-  // Overlay steering state if a file was provided; keep this detector read-only.
   let interpretation;
-  let steeringFields = {};
 
-  if (options.steeringStateFile !== undefined) {
-    const expectedPr = options.pr ?? snapshot.prNumber ?? null;
-    const steeringState = await loadStateFile(options.steeringStateFile);
-    const activeSteeringState = steeringState !== null
-      ? normalizeSteeringState(steeringState)
-      : createSteeringState(
-          `pr-${options.pr}`,
-          { repo: options.repo, pr: options.pr },
-        );
-
-    const validation = validateSteeringStateTarget(activeSteeringState, {
-      repo: options.repo,
-      pr: expectedPr,
-      runId: `pr-${expectedPr}`,
-    });
-    if (!validation.ok) {
-      throw new Error(`steering state target mismatch: ${validation.reason}`);
-    }
-
-    const resolved = resolveEffectiveLoopState(snapshot, activeSteeringState);
-    interpretation = resolved;
-    steeringFields = {
-      steeringApplied: resolved.steeringApplied,
-      pendingStopAtNextSafeGate: resolved.pendingStopAtNextSafeGate,
-      terminalStopAtNextSafeGate: resolved.terminalStopAtNextSafeGate,
-      effectiveConstraints: resolved.effectiveConstraints,
-    };
-  } else {
-    const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) });
-    // Fall back to built-in defaults when config validation has errors
-    const refinementConfig = config.errors.length > 0
-      ? resolveRefinement({ version: 1 })
-      : resolveRefinement(config.config);
-    interpretation = interpretLoopState(snapshot, refinementConfig);
-  }
+  const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) });
+  // Fall back to built-in defaults when config validation has errors
+  const refinementConfig = config.errors.length > 0
+    ? resolveRefinement({ version: 1 })
+    : resolveRefinement(config.config);
+  interpretation = interpretLoopState(snapshot, refinementConfig);
 
   const interpretationSummary = summarizeLoopInterpretation(interpretation);
 
@@ -682,7 +561,7 @@ export async function runCli(
     sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
     loopDisposition: interpretationSummary.loopDisposition,
     terminal: interpretationSummary.terminal,
-    ...steeringFields,
+
   })}\n`);
 }
 

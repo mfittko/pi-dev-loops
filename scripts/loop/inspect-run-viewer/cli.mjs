@@ -38,14 +38,6 @@ function isLoopbackHost(host) {
     || /^127(?:\.\d{1,3}){3}$/.test(host);
 }
 
-function parseReviewerLogin(rawLogin) {
-  const reviewerLogin = rawLogin.trim();
-  if (reviewerLogin.length === 0) {
-    throw parseInspectRunViewerCliError("--reviewer-login must not be empty");
-  }
-  return reviewerLogin;
-}
-
 export function normalizeCliRepoOption(rawRepo) {
   try {
     return normalizeInspectionTarget({ repo: rawRepo, pr: 1 }).repo;
@@ -62,7 +54,6 @@ export function parseInspectRunViewerCliArgs(argv) {
     host: DEFAULT_HOST,
     port: DEFAULT_PORT,
     steeringStateFile: undefined,
-    reviewerLogin: undefined,
     copilotInputPath: undefined,
     reviewerInputPath: undefined,
     allowNonLocalhost: false,
@@ -102,10 +93,6 @@ export function parseInspectRunViewerCliArgs(argv) {
       options.steeringStateFile = requireOptionValue(args, "--steering-state-file", parseInspectRunViewerCliError);
       continue;
     }
-    if (token === "--reviewer-login") {
-      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login", parseInspectRunViewerCliError));
-      continue;
-    }
     if (token === "--copilot-input") {
       options.copilotInputPath = requireOptionValue(args, "--copilot-input", parseInspectRunViewerCliError);
       continue;
@@ -118,10 +105,6 @@ export function parseInspectRunViewerCliArgs(argv) {
   }
 
   if (!options.help) {
-    if (options.reviewerInputPath !== undefined && options.reviewerLogin !== undefined) {
-      throw parseInspectRunViewerCliError("--reviewer-input cannot be combined with --reviewer-login");
-    }
-
     options.repo = options.repo === undefined ? undefined : normalizeCliRepoOption(options.repo);
     if (!options.allowNonLocalhost && !isLoopbackHost(options.host)) {
       throw parseInspectRunViewerCliError("--host must stay on localhost/loopback unless --allow-non-localhost is set");
