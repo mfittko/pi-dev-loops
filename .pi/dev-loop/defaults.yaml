@@ -358,6 +358,7 @@ personas:
       - A Changes section listing files touched and modifications
       - A Validation section describing how to verify
       - Reference to the linked issue acceptance criteria
+      - The "Closes #N" line must match the linked issue; flag changes that alter or remove the operator-intended close target
       Flag PRs where the body is a single sentence or lacks these sections.
       Do not block on formatting preferences — only on missing structure.
     defaultModel: null

@@ -1848,6 +1848,8 @@ describe("shipped defaults docs and deep angle wiring", () => {
       assert.match(result.config.personas["pr-description"].prompt, /Changes section/i);
       assert.match(result.config.personas["pr-description"].prompt, /Validation section/i);
       assert.match(result.config.personas["pr-description"].prompt, /Do not block on formatting/i);
+      assert.match(result.config.personas["pr-description"].prompt, /Closes #N/i);
+      assert.match(result.config.personas["pr-description"].prompt, /operator-intended close target/i);
       assert.ok(draftAngles.includes("pr-description"), "pr-description must be in draft gate angles after settings opt-in");
       assert.equal(prDescRole.persona, "review");
       assert.equal(prDescRole.fallback, false);
