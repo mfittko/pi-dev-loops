@@ -631,7 +631,7 @@ export function evaluatePrGateCoordination(input = {}) {
   if (effectiveLifecycleState === STATE.PR_READY_NO_FEEDBACK) {
     if (reviewMode === "internal_only") {
       // Explicitly internal-only PR: skip the external Copilot review cycle
-      if (ciStatus === "failure") {
+      if (ciStatus === "failure" || ciStatus === "crediblyGreen") {
         pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
         pushUnique(forbiddenActions, internalOnlyPostDraftForbidden);
         return buildResult({
@@ -647,7 +647,9 @@ export function evaluatePrGateCoordination(input = {}) {
           allowedNextActions,
           forbiddenActions,
           nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
-          reason: "The current head has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
+          reason: ciStatus === "crediblyGreen"
+            ? "The current head has unconfirmed CI (credibly green), so gate progression remains blocked until CI is confirmed green."
+            : "The current head has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
           mergeStateStatus,
           conflictFiles,
             refinementArtifact,

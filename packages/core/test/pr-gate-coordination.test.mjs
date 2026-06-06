@@ -724,6 +724,47 @@ test("internal-only PR with retrospective gate blocks when checkpoint missing", 
   assert.match(result.reason, /retrospective_gate_pending/i);
 });
 
+
+test("PR_READY_NO_FEEDBACK internal_only blocks on CI failure", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 553,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    reviewMode: "internal_only",
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "failure",
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+  assert.equal(result.lifecycleState, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.match(result.reason, /failing CI/i);
+});
+
+test("PR_READY_NO_FEEDBACK internal_only blocks on crediblyGreen CI", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 553,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    reviewMode: "internal_only",
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "crediblyGreen",
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+  assert.equal(result.lifecycleState, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.match(result.reason, /unconfirmed/i);
+});
+
 test("internal-only PR with retrospective gate allows when approved", () => {
   const result = evaluatePrGateCoordination({
     pr: 298,
