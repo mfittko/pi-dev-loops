@@ -19,4 +19,4 @@
 - Implement one phase at a time; if durable repo docs explicitly record a reprioritization exception, follow [Implementation State](docs/IMPLEMENTATION_STATE.md) and the active phase doc.
 - Keep compatibility surface minimal; do not add legacy aliases, wrappers, or duplicate docs unless explicitly requested.
 - Keep workflow procedure out of AGENTS; put shared contracts under `skills/docs/`.
-- No PR scope has gate exemptions (#579): docs-only, tooling-only, meta, internal, and all other narrow-scope PRs must pass `draft_gate`, Copilot review (unless internal-only), and `pre_approval_gate` before merge. PR #578 merged without gate checks is the breach precedent.
+- No PR scope has gate exemptions (#579): see skills/dev-loop/SKILL.md "No gate exemptions" section.
