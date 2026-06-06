@@ -507,6 +507,9 @@ test("upsert-checkpoint-verdict embeds --findings-file content with preserved ne
           "- item 2",
           "**bold note**",
         ],
+        assertArgNotContains: [
+          "\\n## Section A",
+        ],
         stdout: '{"id":102,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-102"}\n',
       },
     ]);
@@ -563,6 +566,9 @@ test("upsert-checkpoint-verdict --findings-file takes precedence over --findings
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
         assertArgContains: [
           "file content wins",
+        ],
+        assertArgNotContains: [
+          "should be overridden",
         ],
         stdout: '{"id":103,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-103"}\n',
       },

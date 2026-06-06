@@ -601,7 +601,7 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
       const fileContent = await readFile(options.findingsFile, "utf8");
       // Trim trailing whitespace only to preserve leading Markdown semantics
       // (e.g. indented code blocks, nested list indentation)
-      const trimmedEnd = fileContent.replace(/\s+$/, "");
+      const trimmedEnd = fileContent.replace(/\n+$/, "");
       if (trimmedEnd.length === 0) {
         throw new Error(`--findings-file "${options.findingsFile}" is empty or contains only whitespace`);
       }
