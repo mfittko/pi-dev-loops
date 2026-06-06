@@ -394,6 +394,11 @@ export function evaluatePrGateCoordination(input = {}) {
   const draftGate = toGateStatus(input.draftGate, input.draftGateMarker, currentHeadSha);
   const preApprovalGate = toGateStatus(input.preApprovalGate, input.preApprovalGateMarker, currentHeadSha);
   const draftGateAlreadySatisfied = !prDraft && (draftGate?.cleanEvidenceExists ?? false);
+  // Reset effective round count when draft gate is clean on current head —
+  // Copilot reviews on previous heads do not count toward the new round cap.
+  const effectiveCopilotRoundCount = (draftGate?.currentHeadClean && draftGate?.cleanEvidenceExists)
+    ? 0
+    : copilotReviewRoundCount;
 
   const allowedNextActions = [];
   const forbiddenActions = [];
@@ -864,7 +869,7 @@ export function evaluatePrGateCoordination(input = {}) {
     }
 
     const roundExhaustionGateEvidenceNote = roundCapReached
-      ? buildRoundExhaustionGateEvidenceNote({ copilotReviewRoundCount, maxCopilotRounds })
+      ? buildRoundExhaustionGateEvidenceNote({ copilotReviewRoundCount: effectiveCopilotRoundCount, maxCopilotRounds })
       : null;
 
     if (!sameHeadCleanConverged && !roundCapReached) {
@@ -958,7 +963,7 @@ export function evaluatePrGateCoordination(input = {}) {
       forbiddenActions,
       nextAction: PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
       reason: roundCapReached
-        ? `The Copilot round limit is exhausted (${copilotReviewRoundCount}/${maxCopilotRounds}), and the current head has zero unresolved threads with ${ciStatus === "crediblyGreen" ? "credibly green" : "green"} CI, so \`pre_approval_gate\` fallback is now the next legal boundary.`
+        ? `The Copilot round limit is exhausted (${effectiveCopilotRoundCount}/${maxCopilotRounds}), and the current head has zero unresolved threads with ${ciStatus === "crediblyGreen" ? "credibly green" : "green"} CI, so \`pre_approval_gate\` fallback is now the next legal boundary.`
         : (ciStatus === "crediblyGreen"
           ? "The current head has a clean settled post-draft review cycle, and its zero-suite CI state is accepted as credibly green, so `pre_approval_gate` is now the next legal boundary."
           : "The current head has a clean settled post-draft review cycle, so `pre_approval_gate` is now the next legal boundary."),
