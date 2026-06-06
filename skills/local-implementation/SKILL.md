@@ -72,6 +72,8 @@ For the `local_implementation` strategy, before any planning or implementation m
 node scripts/loop/pre-flight-gate.mjs --expected-branch <working-branch> --check-subagents
 ```
 
+Before creating a worktree for local implementation, always run `git fetch origin` first. Never create a worktree from a stale local `origin/main` reference. The fetched `origin/main` is the authoritative base for all worktree creation.
+
 This validates:
 - Worktree isolation (current directory is under `tmp/worktrees/`)
 - Branch identity (current branch matches the working branch)

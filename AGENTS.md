@@ -8,6 +8,7 @@
 ## Working rules
 - No direct commits to `main`; use feature branches, worktrees, and PRs.
 - Use `tmp/worktrees/<issue-or-branch-slug>/` for mutating local work; keep the main checkout for inspection.
+- Always run `git fetch origin` before creating or reusing a worktree — never create from a stale `origin/main`.
 - Canonical guidance lives in `docs/worktree-guidance.md`.
 - Prefer the GitHub-first routed path for branch/PR/CI/review work; use local implementation only when explicitly requested.
 - Use `npm run verify` as the default local validation path.
