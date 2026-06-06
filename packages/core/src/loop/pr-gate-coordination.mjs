@@ -108,7 +108,7 @@ function pushUnique(values, additions) {
   }
 }
 
-const CONFLICTING_MERGE_STATE_STATUSES = new Set(["DIRTY", "CONFLICTING"]);
+const BLOCKED_MERGE_STATE_STATUSES = new Set(["DIRTY", "CONFLICTING", "BEHIND"]);
 
 function normalizeMergeStateStatus(value) {
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -137,11 +137,22 @@ function normalizeConflictFiles(value) {
   return normalized;
 }
 
-function hasConflictStatus(mergeStateStatus) {
-  return mergeStateStatus !== null && CONFLICTING_MERGE_STATE_STATUSES.has(mergeStateStatus);
+function hasBlockedMergeStatus(mergeStateStatus) {
+  return mergeStateStatus !== null && BLOCKED_MERGE_STATE_STATUSES.has(mergeStateStatus);
 }
 
-function formatConflictResolutionReason(mergeStateStatus, conflictFiles) {
+function formatBlockedMergeReason(mergeStateStatus, conflictFiles) {
+  if (mergeStateStatus === "BEHIND") {
+    let reason = "Branch must be updated from base before entering any gate.";
+    if (mergeStateStatus !== null) {
+      reason += ` GitHub mergeStateStatus: ${mergeStateStatus}.`;
+    }
+    if (conflictFiles.length > 0) {
+      reason += ` Conflicting files: ${conflictFiles.join(", ")}.`;
+    }
+    return reason;
+  }
+
   let reason = "The current branch conflicts with the base branch, so resolve the conflict locally on the PR branch, rerun validation, rerun gate detection, and only then resume the normal gate path.";
 
   if (mergeStateStatus !== null) {
@@ -460,7 +471,7 @@ export function evaluatePrGateCoordination(input = {}) {
     });
   }
 
-  if (hasConflictStatus(mergeStateStatus) || conflictFiles.length > 0) {
+  if (hasBlockedMergeStatus(mergeStateStatus) || conflictFiles.length > 0) {
     pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.RESOLVE_MERGE_CONFLICTS]);
     pushUnique(forbiddenActions, [
       PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
@@ -489,7 +500,7 @@ export function evaluatePrGateCoordination(input = {}) {
       allowedNextActions,
       forbiddenActions,
       nextAction: PR_CHECKPOINT_ACTION.RESOLVE_MERGE_CONFLICTS,
-      reason: formatConflictResolutionReason(mergeStateStatus, conflictFiles),
+      reason: formatBlockedMergeReason(mergeStateStatus, conflictFiles),
       mergeStateStatus,
       conflictFiles,
         refinementArtifact,
