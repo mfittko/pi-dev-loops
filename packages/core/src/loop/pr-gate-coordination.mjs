@@ -531,7 +531,7 @@ export function evaluatePrGateCoordination(input = {}) {
     ];
 
     if (!draftGate.currentHeadClean && draftGateRequireCi) {
-      if (ciStatus === "failure" || ciStatus === "crediblyGreen") {
+      if (ciStatus === "failure") {
         pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
         pushUnique(forbiddenActions, [
           PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
@@ -550,9 +550,7 @@ export function evaluatePrGateCoordination(input = {}) {
           allowedNextActions,
           forbiddenActions,
           nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
-          reason: ciStatus === "crediblyGreen"
-          ? "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`. The current head has unconfirmed CI (credibly green), so verified green CI is required before retrying the draft gate."
-          : "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`. The current head is failing CI, so fix the checks before retrying the draft gate.",
+          reason: "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`. The current head is failing CI, so fix the checks before retrying the draft gate.",
           mergeStateStatus,
           conflictFiles,
             refinementArtifact,

@@ -212,6 +212,21 @@ test("clean settled current-head review opens the pre-approval gate window", () 
   assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
+test("draft gate does not block on crediblyGreen CI — documented absent-CI exception", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "abc123456789",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "crediblyGreen",
+    draftGate: gate({ visible: false }),
+    preApprovalGate: gate({ visible: false }),
+  });
+  assert.notEqual(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.notEqual(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+});
+
 test("crediblyGreen CI blocks pre-approval progression — CI must be confirmed before gate entry", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
@@ -834,6 +849,18 @@ test("LOW_SIGNAL_CONVERGED blocks on CI failure", () => {
   });
   assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
   assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+});
+test("LOW_SIGNAL_CONVERGED blocks on crediblyGreen CI", () => {
+  const result = evaluatePrGateCoordination({
+    repo: "owner/repo", pr: 17,
+    lifecycleState: STATE.LOW_SIGNAL_CONVERGED, loopDisposition: DISPOSITION.DONE,
+    prDraft: false, ciStatus: "crediblyGreen",
+    draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
+    preApprovalGate: {},
+  });
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.match(result.reason, /unconfirmed/i);
 });
 
 test("normalizeSnapshot preserves valid lastCopilotRoundMaxSignal", () => {
