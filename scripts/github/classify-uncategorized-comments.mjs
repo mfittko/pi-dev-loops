@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { requireOptionValue } from "../_cli-primitives.mjs";
 import { CATEGORY_DEFINITIONS, DEFAULT_OUTPUT_DIR } from "./audit-copilot-comments.mjs";
-
 const DEFAULT_INPUT_NAME = "uncategorized-comments.json";
 const FALLBACK_SUMMARY_NAME = "copilot-comment-summary.json";
 const DEFAULT_JSON_NAME = "uncategorized-clusters.json";
@@ -15,7 +13,6 @@ const DEFAULT_RETRY_MAX = 3;
 const DEFAULT_RETRY_BASE_MS = 1000;
 const OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const ANTHROPIC_DEFAULT_BASE_URL = "https://api.anthropic.com/v1";
-
 function normalizeBaseUrl(value) {
   const trimmed = String(value ?? "").trim().replace(/\/+$/u, "");
   if (trimmed.length === 0) {
@@ -31,15 +28,11 @@ function normalizeBaseUrl(value) {
   }
   return trimmed;
 }
-
 const USAGE = `Usage: classify-uncategorized-comments.mjs --model <model> [--provider <openai-compatible|anthropic>] [--api-key <key>] [--base-url <url>] [--input <path>] [--output-dir <path>] [--use-full-body] [--no-dedup]
-
 Classify uncategorized Copilot review comments with a single LLM pass and write
 both JSON and Markdown cluster reports. Uses built-in fetch; no extra npm deps.
-
 Required:
   --model <model>           LLM model to use. This flag is required.
-
 Optional:
   --provider <provider>     openai-compatible (default) or anthropic
   --api-key <key>           LLM API key. Falls back to LLM_API_KEY, then provider-specific env.
@@ -49,21 +42,16 @@ Optional:
   --output-dir <path>       Output directory (default: tmp/investigation)
   --use-full-body           Send full comment bodies instead of excerpts
   --no-dedup                Disable default body/excerpt deduplication
-
 Output files:
   <output-dir>/uncategorized-clusters.json
   <output-dir>/uncategorized-clusters.md
-
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
   { "ok": false, "error": "..." }
-
 Exit codes:
   0  Success
   1  Argument error, input error, LLM error, or malformed LLM JSON`.trim();
-
 const parseError = buildParseError(USAGE);
-
 function parseProvider(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (normalized === "openai-compatible" || normalized === "anthropic") {
@@ -71,7 +59,6 @@ function parseProvider(value) {
   }
   throw parseError("--provider must be openai-compatible or anthropic");
 }
-
 export function parseClassifyUncategorizedCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -85,58 +72,46 @@ export function parseClassifyUncategorizedCliArgs(argv) {
     useFullBody: false,
     dedup: true,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (token === "--model") {
       options.model = requireOptionValue(args, "--model", parseError).trim();
       continue;
     }
-
     if (token === "--provider") {
       options.provider = parseProvider(requireOptionValue(args, "--provider", parseError));
       continue;
     }
-
     if (token === "--api-key") {
       options.apiKey = requireOptionValue(args, "--api-key", parseError).trim();
       continue;
     }
-
     if (token === "--base-url") {
       options.baseUrl = normalizeBaseUrl(requireOptionValue(args, "--base-url", parseError));
       continue;
     }
-
     if (token === "--input") {
       options.input = requireOptionValue(args, "--input", parseError).trim();
       continue;
     }
-
     if (token === "--output-dir") {
       options.outputDir = requireOptionValue(args, "--output-dir", parseError).trim();
       continue;
     }
-
     if (token === "--use-full-body") {
       options.useFullBody = true;
       continue;
     }
-
     if (token === "--no-dedup") {
       options.dedup = false;
       continue;
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.model === undefined || options.model.length === 0) {
     throw parseError("classify-uncategorized-comments requires --model <model>");
   }
@@ -146,10 +121,8 @@ export function parseClassifyUncategorizedCliArgs(argv) {
   if (options.input !== undefined && options.input.length === 0) {
     throw parseError("--input must be a non-empty path");
   }
-
   return options;
 }
-
 function resolveApiKey(options, env) {
   const explicit = typeof options.apiKey === "string" && options.apiKey.trim().length > 0 ? options.apiKey.trim() : null;
   if (explicit) return explicit;
@@ -160,7 +133,6 @@ function resolveApiKey(options, env) {
   if (normalized) return normalized;
   throw new Error("classify-uncategorized-comments requires an API key via --api-key, LLM_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY");
 }
-
 async function pathExists(filePath) {
   try {
     await access(filePath);
@@ -169,7 +141,6 @@ async function pathExists(filePath) {
     return false;
   }
 }
-
 async function resolveInputPath(options) {
   if (options.input) return options.input;
   const uncategorizedPath = path.join(options.outputDir, DEFAULT_INPUT_NAME);
@@ -178,7 +149,6 @@ async function resolveInputPath(options) {
   if (await pathExists(summaryPath)) return summaryPath;
   throw new Error(`No classifier input found. Expected ${uncategorizedPath} or fallback ${summaryPath}; pass --input to use another file.`);
 }
-
 function normalizeComment(entry) {
   return {
     prNumber: Number.isInteger(entry?.prNumber) ? entry.prNumber : null,
@@ -191,7 +161,6 @@ function normalizeComment(entry) {
       : String(entry?.body ?? "").replace(/\s+/g, " ").trim().slice(0, 200),
   };
 }
-
 async function loadComments(inputPath) {
   let parsed;
   try {
@@ -199,20 +168,16 @@ async function loadComments(inputPath) {
   } catch (error) {
     throw new Error(`Unable to read input JSON at ${inputPath}: ${error instanceof Error ? error.message : String(error)}`);
   }
-
   const rawComments = Array.isArray(parsed)
     ? parsed
     : Array.isArray(parsed?.comments)
       ? parsed.comments.filter((comment) => comment?.primaryCategoryId === null)
       : null;
-
   if (!rawComments) {
     throw new Error("Input JSON must be an uncategorized comments array or an audit summary with comments[]");
   }
-
   return rawComments.map(normalizeComment).filter((comment) => comment.body.length > 0 || comment.excerpt.length > 0);
 }
-
 export function dedupeComments(comments, { useFullBody = false } = {}) {
   const byKey = new Map();
   for (const comment of comments) {
@@ -233,13 +198,11 @@ export function dedupeComments(comments, { useFullBody = false } = {}) {
   }
   return [...byKey.values()];
 }
-
 function formatCategoryList() {
   return CATEGORY_DEFINITIONS
     .map((category) => `- ${category.id}: ${category.label} — ${category.description}`)
     .join("\n");
 }
-
 export function buildClassificationPrompt({ comments, useFullBody = false, strict = false }) {
   const system = `You are a code review comment clusterer. Classify Copilot-authored review comments into emergent thematic clusters.\n\nAvoid clusters that merely restate these existing categories:\n${formatCategoryList()}\n\nReturn JSON only. ${strict ? "No prose, no markdown fences, no commentary." : ""}`;
   const commentLines = comments.map((comment, index) => {
@@ -250,7 +213,6 @@ export function buildClassificationPrompt({ comments, useFullBody = false, stric
   const user = `Repo context: mfittko/pi-dev-loops Copilot review comments that did not match the existing regex taxonomy.\n\nTask:\n1. Identify 5-15 emergent thematic clusters.\n2. For each cluster include name, label, description, frequency, priority (high/medium/low), recommendedPersona or null, personaRationale, and 3-5 examples with prNumber, path, excerpt.\n3. Include unclustered.frequency and unclustered.examples.\n4. Include optional commentAssignments as [{ commentIndex, clusterName }].\n5. Produce persona candidates for high/medium clusters through recommendedPersona and personaRationale.\n\nOutput exact JSON object shape:\n{ "clusters": [ { "name": "slug", "label": "Label", "description": "...", "frequency": 42, "priority": "high", "recommendedPersona": "persona-slug", "personaRationale": "...", "examples": [ { "prNumber": 1, "path": "file", "excerpt": "..." } ] } ], "unclustered": { "frequency": 0, "examples": [] }, "summary": { "totalCommentsProcessed": ${comments.length}, "totalClustersFound": 0 }, "commentAssignments": [] }\n\nComments:\n${commentLines.join("\n")}`;
   return { system, user };
 }
-
 function requestShape({ provider, baseUrl, model, apiKey, prompt }) {
   if (provider === "anthropic") {
     return {
@@ -271,7 +233,6 @@ function requestShape({ provider, baseUrl, model, apiKey, prompt }) {
       },
     };
   }
-
   return {
     url: `${baseUrl ?? OPENAI_DEFAULT_BASE_URL}/chat/completions`,
     init: {
@@ -291,7 +252,6 @@ function requestShape({ provider, baseUrl, model, apiKey, prompt }) {
     },
   };
 }
-
 function extractProviderText(provider, rawText) {
   let payload;
   try {
@@ -311,7 +271,6 @@ function extractProviderText(provider, rawText) {
   }
   throw new Error("LLM provider response did not contain text content");
 }
-
 function parseLlmJson(text) {
   try {
     return JSON.parse(text);
@@ -324,7 +283,6 @@ function parseLlmJson(text) {
     throw new Error("LLM response was not valid JSON");
   }
 }
-
 function validateLlmPayload(payload) {
   if (!payload || typeof payload !== "object" || !Array.isArray(payload.clusters)) {
     throw new Error("LLM JSON must include clusters[]");
@@ -357,11 +315,9 @@ function validateLlmPayload(payload) {
     commentAssignments: Array.isArray(payload.commentAssignments) ? payload.commentAssignments : [],
   };
 }
-
 async function wait(ms) {
   if (ms > 0) await new Promise((resolve) => { setTimeout(resolve, ms); });
 }
-
 async function callLlmWithRetry({ provider, baseUrl, model, apiKey, prompt, retryMax, retryBaseMs, fetchImpl }) {
   let lastError = null;
   for (let attempt = 0; attempt <= retryMax; attempt += 1) {
@@ -378,7 +334,6 @@ async function callLlmWithRetry({ provider, baseUrl, model, apiKey, prompt, retr
   }
   throw lastError ?? new Error("LLM request failed");
 }
-
 function buildPersonaCandidates(clusters, model) {
   return clusters
     .filter((cluster) => ["high", "medium"].includes(cluster.priority) && cluster.recommendedPersona)
@@ -396,7 +351,6 @@ function buildPersonaCandidates(clusters, model) {
       rationale: cluster.personaRationale,
     }));
 }
-
 function renderReport(result) {
   const lines = [];
   lines.push("# Uncategorized Copilot comment clusters");
@@ -456,7 +410,6 @@ function renderReport(result) {
   }
   return `${lines.join("\n").trimEnd()}\n`;
 }
-
 export async function classifyUncategorizedComments(options, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
   if (typeof fetchImpl !== "function") {
     throw new Error("Built-in fetch is unavailable in this Node runtime");
@@ -467,7 +420,6 @@ export async function classifyUncategorizedComments(options, { env = process.env
   const commentsForPrompt = options.dedup === false ? comments.map((comment) => ({ ...comment, occurrenceCount: 1, duplicatePrNumbers: Number.isInteger(comment.prNumber) ? [comment.prNumber] : [] })) : dedupeComments(comments, { useFullBody: options.useFullBody === true });
   const retryMax = options.retryMax ?? DEFAULT_RETRY_MAX;
   const retryBaseMs = options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
-
   let prompt = buildClassificationPrompt({ comments: commentsForPrompt, useFullBody: options.useFullBody === true });
   let text = await callLlmWithRetry({ provider: options.provider, baseUrl: options.baseUrl, model: options.model, apiKey, prompt, retryMax, retryBaseMs, fetchImpl });
   let llmPayload;
@@ -478,7 +430,6 @@ export async function classifyUncategorizedComments(options, { env = process.env
     text = await callLlmWithRetry({ provider: options.provider, baseUrl: options.baseUrl, model: options.model, apiKey, prompt, retryMax, retryBaseMs, fetchImpl });
     llmPayload = validateLlmPayload(parseLlmJson(text));
   }
-
   const outputDir = options.outputDir ?? DEFAULT_OUTPUT_DIR;
   const files = {
     outputDir,
@@ -517,14 +468,11 @@ export async function classifyUncategorizedComments(options, { env = process.env
     })),
     files,
   };
-
   await mkdir(outputDir, { recursive: true });
   await writeFile(files.jsonPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   await writeFile(files.markdownPath, renderReport(result), "utf8");
-
   return result;
 }
-
 export async function runCli(argv = process.argv.slice(2), { stdout = process.stdout, env = process.env, fetchImpl = globalThis.fetch } = {}) {
   const options = parseClassifyUncategorizedCliArgs(argv);
   if (options.help) {
@@ -534,14 +482,12 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
   const result = await classifyUncategorizedComments(options, { env, fetchImpl });
   stdout.write(`${JSON.stringify(result)}\n`);
 }
-
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error, { usage: USAGE })}\n`);
     process.exitCode = 1;
   });
 }
-
 export {
   DEFAULT_INPUT_NAME,
   DEFAULT_JSON_NAME,

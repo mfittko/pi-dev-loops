@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-
 import { spawn } from "node:child_process";
-
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
@@ -13,20 +11,15 @@ import {
   EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
   enforceExternalHealthyWaitTimeout,
 } from "@pi-dev-loops/core/loop/timeout-policy";
-
 const REMOVED_FLAGS = new Set([
   "--force-rerequest-review",
   "--probe-only",
 ]);
-
 const USAGE = `Usage: run-watch-cycle.mjs --repo <owner/name> --pr <number>
-
 Run one deterministic Copilot wait-cycle boundary.
-
 Required:
   --repo <owner/name>       Repository slug (e.g. owner/repo)
   --pr <number>             Pull request number
-
 Output (stdout, JSON):
   { "ok": true, "handoffAction": "watch"|"fix"|"stop", "state": "...",
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
@@ -40,56 +33,45 @@ Output (stdout, JSON):
     "cycleDisposition": "pending"|"needs_followup"|"terminal",
     "roundCapCleanEligible": true|false,
     "terminal": true|false }
-
 Cycle disposition:
   pending         Watch state persists; keep waiting or re-enter later
   needs_followup  Fresh review activity or fix-state follow-up needs action
   terminal        No automatic next step remains
-
 Error output (stderr, JSON):
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
   runtime failures:
     { "ok": false, "error": "..." }
-
 Exit codes:
   0  Success
   1  Argument error or runtime failure`.trim();
-
 const parseError = buildParseError(USAGE);
-
 function rejectRemovedFlag(token) {
   throw parseError(
     `${token} has been removed. Copilot re-requests and probe-only mode are managed internally. Omit the flag.`,
   );
 }
-
 async function fetchPrHeadBranch({ repo, pr }, { env, ghCommand }) {
   const result = await runChild(
     ghCommand,
     ["pr", "view", String(pr), "--repo", repo, "--json", "headRefName"],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   let payload;
   try {
     payload = JSON.parse(result.stdout);
   } catch {
     throw new Error(`Invalid JSON from gh: ${result.stdout.trim() || "<empty>"}`);
   }
-
   if (typeof payload.headRefName !== "string" || payload.headRefName.trim().length === 0) {
     throw new Error("Missing required PR facts: headRefName");
   }
-
   return payload.headRefName.trim();
 }
-
 async function watchWorkflowRun({ repo, runId, timeoutMs = null }, { env, ghCommand }) {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -97,51 +79,42 @@ async function watchWorkflowRun({ repo, runId, timeoutMs = null }, { env, ghComm
       ["run", "watch", String(runId), "--repo", repo],
       { env, stdio: ["ignore", "ignore", "pipe"] },
     );
-
     let stderr = "";
     let timedOut = false;
     let timeoutId = null;
-
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk);
     });
-
     if (Number.isInteger(timeoutMs) && timeoutMs >= 0) {
       timeoutId = setTimeout(() => {
         timedOut = true;
         child.kill("SIGTERM");
       }, timeoutMs);
     }
-
     child.on("error", reject);
     child.on("close", (code) => {
       if (timeoutId !== null) {
         clearTimeout(timeoutId);
       }
-
       if (timedOut) {
         resolve({ status: "timed_out" });
         return;
       }
-
       if (code !== 0) {
         const detail = stderr.trim() || `exit code ${code}`;
         reject(new Error(`gh command failed: ${detail}`));
         return;
       }
-
       resolve({ status: "completed" });
     });
   });
 }
-
 function determineWatchTimeout(defaultTimeoutMs) {
   return enforceExternalHealthyWaitTimeout({
     timeoutMs: defaultTimeoutMs,
     contextLabel: "Copilot review wait",
   });
 }
-
 function buildWatchCycleContractTrace({
   handoff,
   watchArgs = null,
@@ -204,7 +177,6 @@ function buildWatchCycleContractTrace({
     },
   };
 }
-
 export function parseWatchCycleCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -212,45 +184,35 @@ export function parseWatchCycleCliArgs(argv) {
     repo: undefined,
     pr: undefined,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (REMOVED_FLAGS.has(token)) {
       rejectRemovedFlag(token);
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
-
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
       continue;
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.repo === undefined || options.pr === undefined) {
     throw parseError("run-watch-cycle requires both --repo <owner/name> and --pr <number>");
   }
-
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
-
   return options;
 }
-
 export async function runWatchCycle(
   options,
   {
@@ -277,23 +239,18 @@ export async function runWatchCycle(
     cycleDisposition: handoff.action === "stop" ? "terminal" : "needs_followup",
     terminal: Boolean(handoff.terminal),
   };
-
   if (handoff.requestWatchContract !== undefined) {
     result.requestWatchContract = handoff.requestWatchContract;
   }
-
   if (handoff.reviewRequestStatus !== undefined) {
     result.reviewRequestStatus = handoff.reviewRequestStatus;
   }
-
   if (handoff.watchArgs !== undefined) {
     result.watchArgs = handoff.watchArgs;
   }
-
   if (handoff.watchTimeoutPolicy !== undefined) {
     result.watchTimeoutPolicy = handoff.watchTimeoutPolicy;
   }
-
   if (handoff.action !== "watch") {
     result.contractTrace = buildWatchCycleContractTrace({
       handoff,
@@ -304,15 +261,12 @@ export async function runWatchCycle(
     });
     return result;
   }
-
   if (result.watchTimeoutPolicy === undefined) {
     result.watchTimeoutPolicy = EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY;
   }
-
   const persistentWatchTimeoutMs = determineWatchTimeout(
     handoff.watchArgs.timeoutMs,
   );
-
   let workflowRunWatch = null;
   if (detectSessionActivity) {
     const headBranch = await fetchPrHeadBranchImpl({ repo: options.repo, pr: options.pr }, { env, ghCommand });
@@ -324,7 +278,6 @@ export async function runWatchCycle(
       { env, ghCommand },
     );
     result.sessionActivity = session;
-
     if (
       session.activity === "active"
       && Number.isInteger(session.runId)
@@ -345,13 +298,11 @@ export async function runWatchCycle(
       };
     }
   }
-
   const watchOptions = {
     ...handoff.watchArgs,
     timeoutMs: persistentWatchTimeoutMs,
   };
   const watch = await watchCopilotReviewImpl(watchOptions, { env, ghCommand });
-
   result.watchArgs = watchOptions;
   result.watchStatus = watch.status;
   result.watch = watch;
@@ -375,7 +326,6 @@ export async function runWatchCycle(
   });
   return result;
 }
-
 export async function runCli(
   argv = process.argv.slice(2),
   {
@@ -387,12 +337,10 @@ export async function runCli(
   } = {},
 ) {
   const options = parseWatchCycleCliArgs(argv);
-
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return;
   }
-
   const result = await runWatchCycle(options, {
     env,
     ghCommand,
@@ -402,7 +350,6 @@ export async function runCli(
   });
   stdout.write(`${JSON.stringify(result)}\n`);
 }
-
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);

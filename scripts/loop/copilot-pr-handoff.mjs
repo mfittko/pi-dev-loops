@@ -1,43 +1,4 @@
 #!/usr/bin/env node
-/**
- * Thin high-level helper for the common Copilot PR follow-up handoff path.
- *
- * Flow:
- *   1. Detect current Copilot-loop state for the given PR.
- *   2. If the state suggests requesting review (pr_ready_no_feedback, or
- *      ready_to_rerequest_review when a meaningful remediation event made
- *      automatic re-request eligible), request Copilot review and re-interpret
- *      the state from the shared post-request wait-cycle snapshot.
- *   3. Emit a single JSON payload describing the current state, the
- *      recommended action ("watch", "fix", or "stop"), and — when the action
- *      is "watch" — the exact watch parameters to pass to probe-copilot-review.mjs.
- *
- * This helper does not run the full fix loop and does not perform any GitHub
- * mutations beyond the explicit Copilot review request step.
- *
- * Success output shape:
- *   { "ok": true, "action": "watch"|"fix"|"stop", "state": "...",
- *     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
- *     "reviewRequestStatus"?: "...", "watchStatus"?: "...",
- *     "autoRerequestEligible": true|false, "sameHeadCleanConverged": true|false,
- *     "roundCapCleanEligible": true|false, "loopDisposition": "...", "terminal": true|false,
- *     "requestWatchContract": {
- *       "action": "watch"|"fix"|"stop",
- *       "nextAction": "...",
- *       "requestStatus": "requested"|"already-requested"|"unavailable"|"failed"|"none",
- *       "routingState": "copilot_request_confirmed_waiting"|"ready_state_needs_copilot_request"|"draft_reset_requires_ready_state_reentry"|"non_ready_state",
- *       "watchEntryConfirmed": true|false,
- *       "watchArgs": { ... }|null,
- *       "stopState"?: "unavailable"|"blocked"|"draft_requires_ready_state_reentry"|"no_automatic_next_step"
- *     },
- *     "watchTimeoutPolicy"?: { "classification": "...", "minimumTimeoutMs": N, "defaultTimeoutMs": N },
- *     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
- *
- * Failure behavior:
- *   Argument/usage errors emit { "ok": false, "error": "...", "usage": "..." }
- *   on stderr and exit non-zero.
- *   gh failures emit { "ok": false, "error": "..." } on stderr and exit non-zero.
- */
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
@@ -55,28 +16,21 @@ import {
   DEFAULT_POLL_INTERVAL_MS,
   COPILOT_REVIEW_WAIT_TIMEOUT_MS,
 } from "@pi-dev-loops/core/loop/policy-constants";
-
 const VALID_WATCH_STATUSES = new Set(["changed", "timeout", "idle"]);
-
 const REMOVED_FLAGS = new Set([
   "--force-rerequest-review",
 ]);
-
 const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number> [--watch-status <changed|timeout|idle>]
-
 Detect the Copilot-loop state for a PR, request Copilot review only when
 a new request is still needed, and emit the recommended next action with
 exact parameters.
-
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
-
 Optional:
   --watch-status <status>   Refresh deterministic loop state after a prior
                            watcher result (changed|timeout|idle). This mode
                            never requests review; it only re-detects state.
-
 Output (stdout, JSON):
   { "ok": true, "action": "watch"|"fix"|"stop", "state": "...",
     "allowedTransitions": [...], "nextAction": "...", "snapshot": {...},
@@ -94,40 +48,32 @@ Output (stdout, JSON):
     },
     "watchTimeoutPolicy"?: { "classification": "...", "minimumTimeoutMs": N, "defaultTimeoutMs": N },
     "watchArgs"?: { "repo": "...", "pr": N, "pollIntervalMs": N, "timeoutMs": N } }
-
 Actions:
   watch   Copilot review was requested; use watchArgs with probe-copilot-review.mjs
   fix     Unresolved feedback exists; address it before re-requesting review
   stop    No automatic next step; report the current state (terminal, blocked, or operator-decision-required) and do not proceed
-
 Watch refresh rule:
   watcher timeout/idle is observational only. Re-run this helper with
   --watch-status and stop only when terminal=true. Pending or unresolved
   states remain non-terminal even after a timeout.
-
 Watch defaults:
   pollIntervalMs  60000  (1 minute)
   timeoutMs       1800000   (30 minutes)
-
 Error output (stderr, JSON):
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
   gh/runtime failures:
     { "ok": false, "error": "..." }
-
 Exit codes:
   0  Success
   1  Argument error or gh failure`.trim();
-
 const WATCH_STATES = new Set([
   STATE.WAITING_FOR_COPILOT_REVIEW,
 ]);
-
 const FIX_STATES = new Set([
   STATE.UNRESOLVED_FEEDBACK_PRESENT,
   STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE,
 ]);
-
 function summarizeRequestWatchContract({
   interpretation,
   action,
@@ -135,7 +81,6 @@ function summarizeRequestWatchContract({
   watchArgs,
 }) {
   let routingState = "non_ready_state";
-
   if (action === "watch" && (requestStatus === "requested" || requestStatus === "already-requested")) {
     routingState = "copilot_request_confirmed_waiting";
   } else if (interpretation.state === STATE.PR_DRAFT) {
@@ -147,7 +92,6 @@ function summarizeRequestWatchContract({
   ) {
     routingState = "ready_state_needs_copilot_request";
   }
-
   let stopState;
   if (action === "stop") {
     if (interpretation.state === STATE.REVIEW_REQUEST_UNAVAILABLE) {
@@ -160,7 +104,6 @@ function summarizeRequestWatchContract({
       stopState = "no_automatic_next_step";
     }
   }
-
   return {
     action,
     nextAction: interpretation.nextAction,
@@ -171,15 +114,12 @@ function summarizeRequestWatchContract({
     stopState,
   };
 }
-
 const parseError = buildParseError(USAGE);
-
 function rejectRemovedFlag(token) {
   throw parseError(
     `${token} has been removed. Copilot re-requests are managed internally. Omit the flag.`,
   );
 }
-
 export function parseHandoffCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -188,29 +128,23 @@ export function parseHandoffCliArgs(argv) {
     pr: undefined,
     watchStatus: undefined,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (REMOVED_FLAGS.has(token)) {
       rejectRemovedFlag(token);
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
-
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
       continue;
     }
-
     if (token === "--watch-status") {
       const watchStatus = requireOptionValue(args, "--watch-status", parseError).trim().toLowerCase();
       if (!VALID_WATCH_STATUSES.has(watchStatus)) {
@@ -219,27 +153,18 @@ export function parseHandoffCliArgs(argv) {
       options.watchStatus = watchStatus;
       continue;
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.repo === undefined || options.pr === undefined) {
     throw parseError("copilot-pr-handoff requires both --repo <owner/name> and --pr <number>");
   }
-
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
-
   return options;
 }
-
-/**
- * Perform the detect → optional-request → interpret handoff.
- * Returns the result payload without writing to stdout.
- */
 export async function runHandoff(options, { env = process.env, ghCommand = "gh" } = {}) {
   const runnerOwnership = await ensureAsyncRunnerOwnership({
     repo: options.repo,
@@ -273,7 +198,6 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       },
     };
   }
-
   let snapshot = await autoDetectSnapshot(
     { repo: options.repo, pr: options.pr },
     { env, ghCommand },
@@ -287,12 +211,10 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     : resolveRefinement(config.config);
   let interpretation = interpretLoopState(snapshot, refinementConfig);
   let reviewRequestStatus;
-
   const shouldRequestReview = options.watchStatus === undefined
     && (interpretation.state === STATE.PR_READY_NO_FEEDBACK
     || interpretation.state === STATE.READY_TO_REREQUEST_REVIEW
     && interpretation.autoRerequestEligible);
-
   if (shouldRequestReview) {
     const requestResult = await performCopilotReviewRequest(
       {
@@ -303,17 +225,14 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       { env, ghCommand },
     );
     reviewRequestStatus = requestResult.status;
-
     snapshot = applyConfirmedReviewRequest(snapshot, reviewRequestStatus);
     interpretation = interpretLoopState(snapshot, refinementConfig);
   }
-
   const interpretationSummary = summarizeLoopInterpretation(interpretation, refinementConfig);
   const effectiveReviewRequestStatus = reviewRequestStatus
     ?? (snapshot.copilotReviewRequestStatus === "requested" || snapshot.copilotReviewRequestStatus === "already-requested"
       ? snapshot.copilotReviewRequestStatus
       : undefined);
-
   let action;
   if (reviewRequestStatus === "requested" || reviewRequestStatus === "already-requested") {
     action = "watch";
@@ -324,7 +243,6 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   } else {
     action = "stop";
   }
-
   const result = {
     ok: true,
     action,
@@ -338,19 +256,15 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     terminal: interpretationSummary.terminal,
     snapshot,
   };
-
   if (runnerOwnership.status !== "skipped_no_async_run_id") {
     result.runnerOwnership = runnerOwnership;
   }
-
   if (effectiveReviewRequestStatus !== undefined) {
     result.reviewRequestStatus = effectiveReviewRequestStatus;
   }
-
   if (options.watchStatus !== undefined) {
     result.watchStatus = options.watchStatus;
   }
-
   if (action === "watch") {
     result.watchTimeoutPolicy = EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY;
     result.watchArgs = {
@@ -363,23 +277,19 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       }),
     };
   }
-
   const normalizedRequestStatus = effectiveReviewRequestStatus
     ?? (snapshot.copilotReviewRequestStatus === "unavailable"
       || snapshot.copilotReviewRequestStatus === "failed"
       ? snapshot.copilotReviewRequestStatus
       : "none");
-
   result.requestWatchContract = summarizeRequestWatchContract({
     interpretation,
     action,
     requestStatus: normalizedRequestStatus,
     watchArgs: result.watchArgs,
   });
-
   return result;
 }
-
 export async function runCli(
   argv = process.argv.slice(2),
   {
@@ -389,16 +299,13 @@ export async function runCli(
   } = {},
 ) {
   const options = parseHandoffCliArgs(argv);
-
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return;
   }
-
   const result = await runHandoff(options, { env, ghCommand });
   stdout.write(`${JSON.stringify(result)}\n`);
 }
-
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);

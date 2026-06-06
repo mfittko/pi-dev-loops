@@ -7,27 +7,22 @@ export function validateUiDesignerReviewInput(input = {}) {
       missing: [],
     };
   }
-
   const missing = [];
   const acceptanceCriteria = Array.isArray(input.acceptanceCriteria) ? input.acceptanceCriteria.filter((entry) => typeof entry === 'string' && entry.trim().length > 0) : [];
   if (acceptanceCriteria.length === 0) {
     missing.push('acceptanceCriteria');
   }
-
   if (typeof input.reviewBrief !== 'string' || input.reviewBrief.trim().length === 0) {
     missing.push('reviewBrief');
   }
-
   const artifactBundle = input.artifactBundle ?? {};
   if (typeof artifactBundle.sliceId !== 'string' || artifactBundle.sliceId.trim().length === 0) {
     missing.push('artifactBundle.sliceId');
   }
-
   const namedStates = Array.isArray(artifactBundle.namedStates) ? artifactBundle.namedStates : [];
   if (namedStates.length === 0) {
     missing.push('artifactBundle.namedStates');
   }
-
   if (missing.length > 0) {
     return {
       ok: false,
@@ -36,7 +31,6 @@ export function validateUiDesignerReviewInput(input = {}) {
       missing,
     };
   }
-
   const incompleteArtifacts = [];
   namedStates.forEach((state, index) => {
     if (typeof state.stateName !== 'string' || state.stateName.trim().length === 0) {
@@ -49,7 +43,6 @@ export function validateUiDesignerReviewInput(input = {}) {
       incompleteArtifacts.push(`artifactBundle.namedStates[${index}].statePath`);
     }
   });
-
   if (incompleteArtifacts.length > 0) {
     return {
       ok: false,
@@ -58,7 +51,6 @@ export function validateUiDesignerReviewInput(input = {}) {
       missing: incompleteArtifacts,
     };
   }
-
   return {
     ok: true,
     status: 'ready_for_designer_review',

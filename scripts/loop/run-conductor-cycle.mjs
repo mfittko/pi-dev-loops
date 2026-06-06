@@ -1,44 +1,4 @@
 #!/usr/bin/env node
-/**
- * Deterministic conductor cycle: polls all open PRs, detects state via
- * existing detectors and gate coordination, and outputs an ordered action
- * queue for the Pi parent agent to consume.
- *
- * Node scripts CANNOT spawn subagents. This script is read-only: it produces
- * the queue; the Pi parent agent (or a conductor agent) reads the queue and
- * spawns subagents or executes merges based on the action type.
- *
- * Usage:
- *   run-conductor-cycle.mjs --repo <owner/name>
- *
- * Output (stdout, JSON):
- *   {
- *     "ok": true,
- *     "repo": "owner/repo",
- *     "checkedAt": "<ISO>",
- *     "prCount": N,
- *     "actions": [
- *       {
- *         "pr": N, "title": "...", "url": "...", "isDraft": bool, "headRefName": "...",
- *         "action": "fix_threads"|"draft_gate"|"request_review"|"rerequest_review"|
- *                   "run_pre_approval"|"watch"|"merge"|"await_approval"|
- *                   "resolve_conflicts"|"blocked"|"done"|"error",
- *         "priority": N, "state": "...", "lifecycleState": "...",
- *         "loopDisposition": "...", "gateBoundary": "...", "reason": "...",
- *         "snapshot": {...}, "gateState": {...}, "requiresSubagent": bool,
- *         "requiresApproval": bool,
- *         "handoffContract": {
- *           "ownership": "subagent"|"parent"|"human"|"terminal",
- *           "stopBoundary": "...",
- *           "resumePolicy": "..."
- *         }
- *       }
- *     ],
- *     "summary": { "needsSubagent": N, "readyToMerge": N, "waiting": N,
- *                   "blocked": N, "done": N, "errors": N }
- *   }
- */
-
 import { runChild, requireOptionValue } from "../_cli-primitives.mjs";
 import {
   buildParseError,
@@ -54,25 +14,9 @@ import {
   SUBAGENT_ACTIONS as SHARED_SUBAGENT_ACTIONS,
   buildHandoffContractForConductorAction,
 } from "./_handoff-contract.mjs";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const USAGE = `Usage: run-conductor-cycle.mjs --repo <owner/name>
-
 Poll all open PRs, detect state, and output an ordered action queue.`.trim();
-
 const OPEN_PR_LIST_LIMIT = 1000;
-
-/**
- * Map PR_CHECKPOINT_ACTION values to conductor action types.
- *
- * Subagent-requiring actions: fix_threads, draft_gate, request_review,
- *   rerequest_review, run_pre_approval
- * Parent-executable actions: merge (gh pr merge), watch (poll),
- *   await_approval (stop), resolve_conflicts (stop), blocked (stop), done (stop)
- */
 export const CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION = Object.freeze({
   [PR_CHECKPOINT_ACTION.ADDRESS_REVIEW_FEEDBACK]: "fix_threads",
   [PR_CHECKPOINT_ACTION.REPLY_RESOLVE_REVIEW_THREADS]: "fix_threads",
@@ -90,10 +34,6 @@ export const CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION = Object.freeze({
   [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]: "blocked",
   [PR_CHECKPOINT_ACTION.REPORT_DONE]: "done",
 });
-
-/**
- * Priority for each conductor action type. Higher = process first.
- */
 export const ACTION_PRIORITY = Object.freeze({
   merge: 100,
   fix_threads: 90,
@@ -108,90 +48,48 @@ export const ACTION_PRIORITY = Object.freeze({
   done: 0,
   error: -1,
 });
-
 export const SUBAGENT_ACTIONS = SHARED_SUBAGENT_ACTIONS;
-
-/**
- * Map autonomy.stopAt gates to the conductor actions that require approval.
- *
- * When a gate is in autonomy.stopAt, the corresponding actions are flagged
- * with requiresApproval: true. The parent agent must obtain explicit operator
- * authorization before executing those actions.
- *
- * Gate → conductor action mapping:
- *   "merge"        → merge
- *   "pre-approval" → run_pre_approval
- *   "draft-pr"     → draft_gate, request_review, rerequest_review
- *   "refinement"   → n/a (refinement happens before the conductor lifecycle)
- */
 export const AUTONOMY_GATE_ACTION_MAP = Object.freeze({
   merge: ["merge"],
   "pre-approval": ["run_pre_approval"],
   "draft-pr": ["draft_gate", "request_review", "rerequest_review"],
   refinement: [],
 });
-
-/**
- * Determine whether a conductor action requires operator approval based on
- * the configured autonomy stop-at list.
- *
- * @param {string} action - Conductor action name
- * @param {string[]} autonomyStopAt - Configured stop-at gates (e.g. ["merge"])
- * @returns {boolean}
- */
 export function actionRequiresApproval(action, autonomyStopAt = ["merge"]) {
   const stopSet = new Set(
     autonomyStopAt.flatMap((gate) => AUTONOMY_GATE_ACTION_MAP[gate] ?? [])
   );
   return stopSet.has(action);
 }
-
-// ---------------------------------------------------------------------------
-// Argument parsing
-// ---------------------------------------------------------------------------
-
 const parseError = buildParseError(USAGE);
-
 export function parseCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
     repo: undefined,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.repo === undefined) {
     throw parseError("run-conductor-cycle requires --repo <owner/name>");
   }
-
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
-
   return options;
 }
-
-// ---------------------------------------------------------------------------
-// PR listing
-// ---------------------------------------------------------------------------
-
 export async function listOpenPrs({ repo }, { env, ghCommand }) {
   const result = await runChild(
     ghCommand,
@@ -209,17 +107,14 @@ export async function listOpenPrs({ repo }, { env, ghCommand }) {
     ],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   const payload = parseJsonText(result.stdout);
   if (!Array.isArray(payload)) {
     throw new Error("Invalid gh pr list payload: expected an array");
   }
-
   return payload
     .map((pr) => ({
       number: Number.isInteger(pr?.number) ? pr.number : null,
@@ -232,20 +127,6 @@ export async function listOpenPrs({ repo }, { env, ghCommand }) {
     .filter((pr) => pr.number !== null)
     .sort((left, right) => left.number - right.number);
 }
-
-// ---------------------------------------------------------------------------
-// Per-PR detection (injectable for testing)
-// ---------------------------------------------------------------------------
-
-/**
- * Detect state for a single PR.
- *
- * Accepts injectable detection functions so tests can supply mocks.
- *
- * @param {object} pr
- * @param {object} opts
- * @param {string[]} [opts.autonomyStopAt] - Configured autonomy stop-at gates
- */
 export async function detectPrState(
   pr,
   {
@@ -263,7 +144,6 @@ export async function detectPrState(
       { repo, pr: pr.number },
       { env, ghCommand, repoRoot },
     );
-
     let snapshot = null;
     try {
       snapshot = await detectSnapshotImpl(
@@ -271,9 +151,7 @@ export async function detectPrState(
         { env, ghCommand },
       );
     } catch {
-      // Snapshot is supplementary; gate state is primary
     }
-
     const action = CHECKPOINT_ACTION_TO_CONDUCTOR_ACTION[gateState.nextAction] ?? "error";
     const priority = ACTION_PRIORITY[action] ?? -1;
     const requiresApproval = actionRequiresApproval(action, autonomyStopAt);
@@ -282,7 +160,6 @@ export async function detectPrState(
       gateBoundary: gateState.gateBoundary,
       requiresApproval,
     });
-
     return {
       pr: pr.number,
       title: pr.title,
@@ -334,15 +211,6 @@ export async function detectPrState(
     };
   }
 }
-
-// ---------------------------------------------------------------------------
-// Queue building
-// ---------------------------------------------------------------------------
-
-/**
- * Build ordered action queue from detection results.
- * Sort: priority descending, then PR number ascending for stability.
- */
 export function buildActionQueue(detectionResults) {
   return [...detectionResults].sort((left, right) => {
     const priorityDiff = right.priority - left.priority;
@@ -352,10 +220,6 @@ export function buildActionQueue(detectionResults) {
     return left.pr - right.pr;
   });
 }
-
-/**
- * Build summary statistics from the action queue.
- */
 export function buildSummary(actions) {
   const summary = {
     needsSubagent: 0,
@@ -365,7 +229,6 @@ export function buildSummary(actions) {
     done: 0,
     errors: 0,
   };
-
   for (const action of actions) {
     switch (action.action) {
       case "error":
@@ -388,23 +251,12 @@ export function buildSummary(actions) {
       default:
         break;
     }
-
     if (action.requiresSubagent) {
       summary.needsSubagent += 1;
     }
   }
-
   return summary;
 }
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
-
-/**
- * @param {{ repo: string, autonomyStopAt?: string[], gateConfig?: object }} params
- * @param {object} runtime
- */
 export async function runConductorCycle(
   { repo, autonomyStopAt, gateConfig },
   {
@@ -416,7 +268,6 @@ export async function runConductorCycle(
   } = {},
 ) {
   const prs = await listPrsImpl({ repo }, { env, ghCommand });
-
   const stopAt = autonomyStopAt ?? ["merge"];
   const detectionResults = [];
   for (const pr of prs) {
@@ -429,10 +280,8 @@ export async function runConductorCycle(
     });
     detectionResults.push(result);
   }
-
   const actions = buildActionQueue(detectionResults);
   const summary = buildSummary(actions);
-
   return {
     ok: true,
     repo,
@@ -444,7 +293,6 @@ export async function runConductorCycle(
     autonomyStopAt: stopAt,
   };
 }
-
 export async function runCli(
   argv = process.argv.slice(2),
   {
@@ -455,12 +303,10 @@ export async function runCli(
   } = {},
 ) {
   const options = parseCliArgs(argv);
-
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return;
   }
-
   const result = await runConductorCycle(options, {
     env,
     ghCommand,
@@ -468,7 +314,6 @@ export async function runCli(
   });
   stdout.write(`${JSON.stringify(result)}\n`);
 }
-
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);

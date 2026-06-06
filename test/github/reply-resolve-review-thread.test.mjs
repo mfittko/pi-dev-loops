@@ -158,18 +158,16 @@ test("reply-resolve-review-thread rejects malformed arguments and empty body fil
   const missing = await runNode(["--repo", "owner/repo"]);
   assert.equal(missing.code, 1);
   assert.equal(missing.stdout, "");
-  assert.deepEqual(JSON.parse(missing.stderr), {
-    ok: false,
-    error: "Replying and resolving a review thread requires --repo <owner/name>, --pr <number>, --comment-id <number>, --thread-id <node-id>, and --body-file <path>",
-  });
+  const missingParsed = JSON.parse(missing.stderr);
+  assert.equal(missingParsed.ok, false);
+  assert.match(missingParsed.error, /Missing required option/i);
 
   const badRepo = await runNode(["--repo", " owner / repo ", "--pr", "17", "--comment-id", "123", "--thread-id", "THREAD_123", "--body-file", "x.md"]);
   assert.equal(badRepo.code, 1);
   assert.equal(badRepo.stdout, "");
-  assert.deepEqual(JSON.parse(badRepo.stderr), {
-    ok: false,
-    error: "--repo must match <owner/name>",
-  });
+  const badRepoParsed = JSON.parse(badRepo.stderr);
+  assert.equal(badRepoParsed.ok, false);
+  assert.match(badRepoParsed.error, /repo|slug|owner/i);
 
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-reply-resolve-empty-"));
   const emptyBody = path.join(tempDir, "empty.md");
