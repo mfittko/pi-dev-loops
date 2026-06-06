@@ -842,23 +842,37 @@ test("detect-checkpoint-evidence does not fail closed when async run has no owne
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-checkpoint-evidence-ownership-"));
 
   try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: "[]\n",
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: JSON.stringify({
+          data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } }
+        }) + "\n",
+      },
+    ]);
+
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], {
       cwd: tempDir,
-      env: { ...process.env, PI_SUBAGENT_RUN_ID: "run-stale" },
+      env: { ...env, PI_SUBAGENT_RUN_ID: "run-stale" },
     });
 
     // With #569, missing ownership is advisory — gate operations should not
-    // be blocked when no runner record exists. The call succeeds even without
-    // an ownership record (it may fail for other reasons like missing gh data).
-    if (result.stderr) {
-      try {
-        const err = JSON.parse(result.stderr);
-        assert.notEqual(err.error, "ownership_missing", "should not block on missing ownership");
-        assert.notEqual(err.error, "ownership_lost", "should not block on ownership lost");
-      } catch {
-        // stderr may not be JSON; that's fine as long as it's not ownership-related
-      }
-    }
+    // be blocked when no runner record exists. The command proceeds past
+    // ownership and reaches the pre-merge gate check (which fails because
+    // no gate comments exist), reporting staleRunner.status: no_owner_record.
+    assert.equal(result.code, 1);
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Pre-merge gate evidence check failed/i);
+    assert.equal(payload.staleRunner.status, "no_owner_record");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
