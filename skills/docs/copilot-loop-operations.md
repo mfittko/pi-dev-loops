@@ -182,7 +182,7 @@ Preferred defaults for this repo:
 - parent/subagent no-activity threshold for watcher-style runs: at least **15 minutes**
 - active-long-running notice threshold for watcher-style runs: about **30 minutes**
 
-These are the defaults built into `probe-copilot-review.mjs`, `run-watch-cycle.mjs`, and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Pass them explicitly when overriding.
+These are the defaults built into `probe-copilot-review.mjs`, `run-watch-cycle.mjs`, and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Do not pass removed CLI policy flags (`--poll-interval-ms`, `--timeout-ms`, `--probe-only`) — helpers hard-error when they are provided. Timeouts and intervals are derived from `packages/core/src/loop/policy-constants.mjs`.
 
 ### Hard rule: no agent-authored shell polling
 

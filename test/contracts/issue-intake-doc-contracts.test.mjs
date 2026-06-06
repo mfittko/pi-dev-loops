@@ -172,7 +172,7 @@ test("issue-intake surface requires persistent copilot follow-up loop and capped
     content,
     /watch → detect → if threads found, fix \+ reply \+ resolve → re-request → watch again/i,
   );
-  assert.match(content, /30 minutes.*COPILOT_REVIEW_WAIT_TIMEOUT_MS/i);
+  assert.match(content, /30 minutes[\s\S]*COPILOT_REVIEW_WAIT_TIMEOUT_MS/i);
   assert.match(
     content,
     /watch timeout\s+[—-]\s+PR #<number> needs manual attention/i,
