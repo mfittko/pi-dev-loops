@@ -708,6 +708,55 @@ test("upsert-checkpoint-verdict fails closed when pre-approval gate entry is sti
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+
+test("upsert-checkpoint-verdict rejects pre_approval_gate when PR is still draft", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-gate-review-draft-preapproval-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "543", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
+        stdout: '{"number":543,"state":"OPEN","isDraft":true,"headRefOid":"f7a611b7234af479","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/543/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=543"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "543", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"f7a611b7234af479"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/543/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "543",
+      "--gate", "pre_approval_gate",
+      "--head-sha", "f7a611b",
+      "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
+      "--findings-summary", "no issues found",
+      "--next-action", "await final human approval",
+    ], { env });
+
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Cannot enter/);
+    assert.match(payload.error, /draft_gate.*is now the legal gate boundary/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 });
 
 test("upsert-checkpoint-verdict appends the round-cap fallback note to pre-approval evidence", async () => {
