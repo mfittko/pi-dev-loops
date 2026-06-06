@@ -550,7 +550,9 @@ export function evaluatePrGateCoordination(input = {}) {
           allowedNextActions,
           forbiddenActions,
           nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
-          reason: "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`. The current head is failing CI, so fix the checks before retrying the draft gate.",
+          reason: ciStatus === "crediblyGreen"
+          ? "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`. The current head has unconfirmed CI (credibly green), so verified green CI is required before retrying the draft gate."
+          : "The PR is still draft, and this repo requires green current-head CI before entering `draft_gate`. The current head is failing CI, so fix the checks before retrying the draft gate.",
           mergeStateStatus,
           conflictFiles,
             refinementArtifact,
@@ -807,7 +809,9 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
-        reason: "The current head still has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
+        reason: ciStatus === "crediblyGreen"
+          ? "The current head has unconfirmed CI (credibly green), so gate progression remains blocked until verified green CI is confirmed."
+          : "The current head still has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
         mergeStateStatus,
         conflictFiles,
           refinementArtifact,
@@ -959,7 +963,9 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
-        reason: "The low-signal heuristic indicates convergence, but the current head still has failing CI, so gate progression remains blocked.",
+        reason: ciStatus === "crediblyGreen"
+          ? "The low-signal heuristic indicates convergence, but the current head has unconfirmed CI (credibly green), so gate progression remains blocked until verified green CI is confirmed."
+          : "The low-signal heuristic indicates convergence, but the current head still has failing CI, so gate progression remains blocked.",
         mergeStateStatus,
         conflictFiles,
           refinementArtifact,

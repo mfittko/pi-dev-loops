@@ -230,7 +230,7 @@ test("crediblyGreen CI blocks pre-approval progression — CI must be confirmed 
   assert.equal(result.lifecycleState, STATE.BLOCKED_NEEDS_USER_DECISION);
   assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
   assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
-  assert.match(result.reason, /failing/i);
+  assert.match(result.reason, /unconfirmed/i);
 });
 
 test("round-cap exhaustion opens the pre-approval gate window even without a current-head Copilot rereview", () => {
