@@ -145,7 +145,7 @@ If a same-head clean-converged re-request is intentionally authorized, use:
 node <resolved-skill-scripts>/github/request-copilot-review.mjs \
   --repo <owner/name> \
   --pr <number> \
-  
+  --force-rerequest-review
 ```
 Do **not** request Copilot by posting literal `/copilot` or `/copilot re-review` PR comments.
 `request-copilot-review.mjs` now detects bypass `@copilot`/`/copilot` PR comments from non-Copilot authors and returns `blocked_by_copilot_comment` status; delete the violating comment(s) and retry through the helper.
@@ -162,7 +162,7 @@ Do not treat an attempted request as equivalent to a confirmed request.
 For the resolved `request-copilot-review.mjs` helper, branch on the machine-readable result:
 - `requested`: if another Copilot pass is actually desired, immediately re-baseline with `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` and branch on returned `state`, `snapshot.copilotReviewOnCurrentHead`, `snapshot.ciStatus`, and `nextAction`; only enter persistent waiting through `run-watch-cycle.mjs` or `gh run watch`, otherwise report the wait state and resume later without bash polling
 - `already-requested`: apply the same detector-first rebasing and wait branching as `requested`; do not keep the session alive with ad hoc bash polling
-- `suppressed_same_head_clean`: report the clean-converged state and stop unless an explicit `dev-loops review request --rerequest` bypass is intentionally authorized
+- `suppressed_same_head_clean`: report the clean-converged state and stop unless an explicit `--force-rerequest-review` bypass is intentionally authorized
 - `unavailable`: report the limitation and stop unless the user explicitly wants passive waiting without a fresh request
 - non-zero / unexpected failure: stop and report the error rather than entering a sleep/watch loop
 
@@ -312,7 +312,7 @@ node <resolved-skill-scripts>/github/upsert-checkpoint-verdict.mjs \
 
 Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.
 
-`dev-loops gate draft` can be run operator-authorized CI override for the helper itself, not the default gate path. Use it only when the helper refuses gate entry solely because the current head is `blocked_needs_user_decision` with `ciStatus="failure"`, and only after the user explicitly authorizes ignoring that current-head CI failure for this one gate-comment upsert. It does **not** bypass stale-head checks, unresolved-thread / unsettled-review refusal, non-draft `draft_gate` refusal, merge conflicts, or other legality checks.
+`--force --force-reason` on `upsert-checkpoint-verdict.mjs` is a narrow operator-authorized CI override for the helper itself, not the default gate path. Use it only when the helper refuses gate entry solely because the current head is `blocked_needs_user_decision` with `ciStatus="failure"`, and only after the user explicitly authorizes ignoring that current-head CI failure for this one gate-comment upsert. It does **not** bypass stale-head checks, unresolved-thread / unsettled-review refusal, non-draft `draft_gate` refusal, merge conflicts, or other legality checks.
 
 ### Draft gate contract (before marking PR ready for review)
 
