@@ -31,9 +31,9 @@ test("issue-intake surface still contains its core workflow guidance", async () 
   assert.match(content, /Preferred defaults for this repo:/);
   // Validation policy now in canonical doc; skill references it
   assert.match(content, /Validation Policy|validation policy/i);
-  assert.match(content, /start each reviewer in fresh context/i);
-  assert.match(content, /concise focus-specific briefing summary/i);
-  assert.match(content, /do not fork the parent session/i);
+  // Reviewer context rules now owned by gate-review-sub-loop-contract.md; skill references it
+  assert.match(content, /Gate Review Sub-Loop Contract/i);
+  assert.match(content, /checkpoint review chain/i);
 });
 
 test("issue-intake surface requires github reply/resolve follow-up and gates waiting on confirmed review-request state", async () => {

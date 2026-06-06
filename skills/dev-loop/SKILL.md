@@ -35,7 +35,7 @@ Run the deterministic startup resolver first and only load the files it names fo
 
 Source-repo CLI:
 ```sh
-node scripts/loop/resolve-dev-loop-startup.mjs --input <path-to-authoritative-state.json>
+dev-loops loop startup --input <path-to-authoritative-state.json>
 ```
 
 The resolver wraps `resolveAuthoritativeStartupResumeBundle` and returns:
