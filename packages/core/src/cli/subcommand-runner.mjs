@@ -17,6 +17,7 @@ import { requireOptionValue, parsePrNumber, parseIssueNumber,
  *
  * @typedef {Object} CliOption
  * @property {string} flag       - e.g. "--repo"
+ * @property {string} [key]      - override output key name; defaults to dashed→camelCase (e.g. "--head-sha" → "headSha")
  * @property {string} [valueName] - human-readable value name for usage
  * @property {string} [description] - help text
  * @property {"string"|"number"|"boolean"|"pr"|"issue"|"positiveInt"|"nonNegativeInt"} [type] - default "string"
@@ -25,6 +26,18 @@ import { requireOptionValue, parsePrNumber, parseIssueNumber,
  * @property {string[]} [choices] - allowed values
  * @property {string[]} [removedAliases] - flags that should be rejected with a message
  */
+
+/** Convert a dashed flag name (e.g. "--head-sha") to camelCase (e.g. "headSha"). */
+function dashedToCamel(flag) {
+  const stem = flag.replace(/^--/, "");
+  return stem.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+/** Return the parsed output key for an option. Respects opt.key override. */
+function optionKey(opt) {
+  if (opt.key) return opt.key;
+  return dashedToCamel(opt.flag);
+}
 
 /**
  * Define a subcommand with auto-generated usage, arg parsing, and help.
@@ -37,7 +50,7 @@ import { requireOptionValue, parsePrNumber, parseIssueNumber,
  * @param {Function} def.run       - async (parsed, { args, stdout, stderr }) => exitCode
  * @param {Object} [def.extraUsage] - extra usage lines
  * @param {Object} [def.outputSchema] - stdout JSON schema description
- * @returns {{ parseArgs, runAsScript }}
+ * @returns {{ parseArgs, runAsScript, usage, parseError }}
  */
 export function defineSubcommand(def) {
   const {
@@ -136,8 +149,9 @@ export function defineSubcommand(def) {
     const parsed = {};
     // Initialize defaults for all options
     for (const opt of options) {
-      const key = opt.flag.replace(/^--/, "").replace(/-/g, "");
-      if (opt.default !== undefined) parsed[key] = opt.default;
+      if (opt.default !== undefined) {
+        parsed[optionKey(opt)] = opt.default;
+      }
     }
 
     while (args.length > 0) {
@@ -156,7 +170,7 @@ export function defineSubcommand(def) {
       const opt = options.find((o) => o.flag === token);
       if (opt) {
         const raw = requireOptionValue(args, opt.flag, parseError);
-        parsed[opt.flag.replace(/^--/, "").replace(/-/g, "")] = parseValue(raw, opt);
+        parsed[optionKey(opt)] = parseValue(raw, opt);
         continue;
       }
 
@@ -165,7 +179,7 @@ export function defineSubcommand(def) {
 
     // Check required
     for (const opt of requiredOpts) {
-      const key = opt.flag.replace(/^--/, "").replace(/-/g, "");
+      const key = optionKey(opt);
       if (parsed[key] === undefined) {
         throw parseError(`Missing required option: ${opt.flag}`);
       }
@@ -185,10 +199,11 @@ export function defineSubcommand(def) {
       const code = await run(result.parsed, { args: scriptArgv, usage });
       process.exitCode = typeof code === "number" ? code : 0;
     } catch (error) {
-      if (error.usage) {
-        process.stderr.write(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error), usage: error.usage }) + "\n");
+      const msg = error instanceof Error ? error.message : String(error);
+      if (error instanceof Error && error.usage) {
+        process.stderr.write(JSON.stringify({ ok: false, error: msg, usage: error.usage }) + "\n");
       } else {
-        process.stderr.write(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }) + "\n");
+        process.stderr.write(JSON.stringify({ ok: false, error: msg }) + "\n");
       }
       process.exitCode = 1;
     }
@@ -226,7 +241,7 @@ export function runAsMain(fn, { formatError } = {}) {
     (error) => {
       const msg = formatError
         ? formatError(error)
-        : JSON.stringify({ ok: false, error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
+        : JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) });
       process.stderr.write(`${msg}\n`);
       process.exitCode = 1;
     },

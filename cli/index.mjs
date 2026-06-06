@@ -109,7 +109,7 @@ function buildCliHelpLines() {
     "- pi-dev-loops help                   Show this help",
     "- pi-dev-loops status                 Show readiness snapshot",
     "- pi-dev-loops doctor                 Show full diagnostic checks",
-    "- pi-dev-loops gates                  Print gate state (Pi extension only)",
+    "- pi-dev-loops gates                  Print gate state",
     "",
     "Subcommands:",
     "- pi-dev-loops gate <sub> [...]       Gate verdicts and evidence",

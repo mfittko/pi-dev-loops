@@ -54,3 +54,44 @@ test('defineSubcommand shows help', () => {
   const { help } = sub.parseArgs(['--help']);
   assert.equal(help, true);
 });
+
+test('defineSubcommand maps dashed flags to camelCase keys', () => {
+  const sub = defineSubcommand({
+    name: 'test-cmd',
+    description: 'Dashed flag test.',
+    options: [
+      { flag: '--head-sha', type: 'string', required: true },
+      { flag: '--local-state-path', type: 'string', default: '' },
+      { flag: '--review-request-status', type: 'string' },
+    ],
+    async run() { return 0; },
+  });
+
+  const { parsed } = sub.parseArgs([
+    '--head-sha', 'abc123',
+    '--local-state-path', '/tmp/state.json',
+    '--review-request-status', 'requested',
+  ]);
+  assert.equal(parsed.headSha, 'abc123');
+  assert.equal(parsed.localStatePath, '/tmp/state.json');
+  assert.equal(parsed.reviewRequestStatus, 'requested');
+});
+
+test('defineSubcommand respects opt.key override for dashed flags', () => {
+  const sub = defineSubcommand({
+    name: 'test-cmd',
+    description: 'Key override test.',
+    options: [
+      { flag: '--head-sha', key: 'headSha', type: 'string', required: true },
+      { flag: '--local-validation-head-sha', key: 'localValidationHeadSha', type: 'string' },
+    ],
+    async run() { return 0; },
+  });
+
+  const { parsed } = sub.parseArgs([
+    '--head-sha', 'abc123',
+    '--local-validation-head-sha', 'def456',
+  ]);
+  assert.equal(parsed.headSha, 'abc123');
+  assert.equal(parsed.localValidationHeadSha, 'def456');
+});
