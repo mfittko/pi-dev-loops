@@ -17,6 +17,7 @@ gates:
       - state-concurrency
       - config-drift
       - gate-evidence
+      - pr-description
     requireCi: true
     blockCleanOnFindingSeverities:
       - must-fix
