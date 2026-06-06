@@ -96,6 +96,9 @@ function requireSnapshotForJson(snapshot) {
 
 
 async function runResolverForTarget(target, { repoRoot = process.cwd() } = {}) {
+  if (typeof target.repo !== "string" || target.repo.trim().length === 0) {
+    throw new Error("Cannot resolve handoff envelope: target repo is required");
+  }
   const args = ["scripts/loop/resolve-dev-loop-startup.mjs", "--pr", String(target.pr)];
   const { stdout, stderr } = await execFile("node", args, { cwd: repoRoot, timeout: 30000 });
   try {

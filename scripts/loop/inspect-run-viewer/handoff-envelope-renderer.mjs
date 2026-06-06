@@ -46,13 +46,23 @@ export function renderHandoffEnvelopeSection(envelope) {
     </section>`;
   }
 
-  const identity = envelope.target
-    ? `${envelope.target.repo}#${envelope.target.pr ?? envelope.target.issue}`
-    : "unknown";
+  let identity = "unknown";
+  if (envelope.target) {
+    const t = envelope.target;
+    if (t.kind === "pr" || t.kind === "issue") {
+      identity = `${t.repo || "?"}#${t.pr ?? t.issue ?? "?"}`;
+    } else if (t.kind === "local_branch") {
+      identity = t.branch ? `branch:${t.branch}` : "branch:?";
+    } else if (t.kind === "local_phase") {
+      identity = t.phase ? `phase:${t.phase}` : "phase:?";
+    } else {
+      identity = `${t.repo || "?"}#${t.pr ?? t.issue ?? "?"}`;
+    }
+  }
 
   return `<section id="handoff-envelope-section">
     <h2>Agent handoff — ${escapeHtml(identity)}</h2>
-    <p><em>Derived ${envelope.derivedAt ? `at ${escapeHtml(envelope.derivedAt)}` : ""}. Version ${escapeHtml(String(envelope.handoffVersion ?? "unknown"))}.</em></p>
+    <p><em>Derived${envelope.derivedAt ? ` at ${escapeHtml(envelope.derivedAt)}` : ""}. Version ${escapeHtml(String(envelope.handoffVersion ?? "unknown"))}.</em></p>
 
     <h3>Target</h3>
     ${renderEnvelopeDefinitionList(envelope.target ? Object.entries(envelope.target).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, renderEnvelopeValue(v)]) : [["target", "<em>missing</em>"]])}
