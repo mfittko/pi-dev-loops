@@ -400,12 +400,9 @@ export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSu
     lines.push(`**Blocking severities:** ${sevs} (clean requires no findings matching these severities)`);
   }
 
-  const findingsLabel = findingsSummary.includes("\n")
-    ? `**Findings summary:**\n${findingsSummary}`
-    : `**Findings summary:** ${findingsSummary}`;
   lines.push(
     "",
-    findingsLabel,
+    `**Findings summary:** ${findingsSummary}`,
     "",
     `**Next action:** ${nextAction}`,
   );
