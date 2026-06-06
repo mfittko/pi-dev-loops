@@ -128,12 +128,6 @@ export function defineSubcommand(def) {
       }
       case "pr": return parsePrNumber(raw, parseError);
       case "issue": return parseIssueNumber(raw, parseError);
-      case "boolean": {
-        const v = raw.toLowerCase();
-        if (v === "true" || v === "1" || v === "yes") return true;
-        if (v === "false" || v === "0" || v === "no") return false;
-        throw parseError(`${opt.flag} must be true/false`);
-      }
       case "string":
       default: {
         const v = raw.trim();
@@ -183,6 +177,13 @@ export function defineSubcommand(def) {
       throw parseError(`Unknown argument: ${token}`);
     }
 
+    // Validate option definitions
+    for (const opt of options) {
+      if (opt.required && opt.default !== undefined) {
+        throw new Error(`Option ${opt.flag}: 'required' and 'default' conflict`);
+      }
+    }
+
     // Check required
     for (const opt of requiredOpts) {
       const key = optionKey(opt);
@@ -206,7 +207,7 @@ export function defineSubcommand(def) {
       process.exitCode = typeof code === "number" ? code : 0;
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      if (error instanceof Error && error.usage) {
+      if (error instanceof Error && typeof error.usage === "string") {
         process.stderr.write(JSON.stringify({ ok: false, error: msg, usage: error.usage }) + "\n");
       } else {
         process.stderr.write(JSON.stringify({ ok: false, error: msg }) + "\n");

@@ -23,7 +23,8 @@ test("checkpoint-contract CLI rejects invalid --state values", async () => {
   assert.equal(code, 1);
   const parsed = JSON.parse(stderr);
   assert.equal(parsed.ok, false);
-  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /must be one of/);
+  assert.match(parsed.usage, /Usage:/);
 });
 
 test("checkpoint-contract CLI enforces state-specific metadata", async () => {

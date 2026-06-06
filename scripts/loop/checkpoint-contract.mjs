@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { defineSubcommand, runAsMain, isDirectCliRun } from "@pi-dev-loops/core/cli/subcommand-runner";
+import { defineSubcommand, isDirectCliRun } from "@pi-dev-loops/core/cli/subcommand-runner";
 
 const CHECKPOINT_FILE = ".pi/dev-loop-retrospective-checkpoint.json";
 const ALLOWED_STATES = new Set(["required", "complete", "skipped", "none", "missing"]);
@@ -25,15 +25,15 @@ const { runAsScript } = defineSubcommand({
     { flag: "--notes", type: "string", description: "Required when --state is complete" },
     { flag: "--reason", type: "string", description: "Required when --state is skipped" },
   ],
-  async run({ state, notes, reason }, { args: _args }) {
+  async run({ state, notes, reason }, { args: _args, usage }) {
     if (!ALLOWED_STATES.has(state)) {
-      throw Object.assign(new Error(`Invalid --state: "${state}". Allowed: ${[...ALLOWED_STATES].join(", ")}.`), { usage: true });
+      throw Object.assign(new Error(`Invalid --state: "${state}". Allowed: ${[...ALLOWED_STATES].join(", ")}.`), { usage });
     }
     if (state === "complete" && !notes) {
-      throw Object.assign(new Error('state "complete" requires --notes'), { usage: true });
+      throw Object.assign(new Error('state "complete" requires --notes'), { usage });
     }
     if (state === "skipped" && !reason) {
-      throw Object.assign(new Error('state "skipped" requires --reason'), { usage: true });
+      throw Object.assign(new Error('state "skipped" requires --reason'), { usage });
     }
 
     const cwd = process.cwd();

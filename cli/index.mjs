@@ -282,7 +282,7 @@ export async function runCli({
     }
     case "action": {
       const activeRuntime = runtime ?? createCliRuntime({ cwd });
-      const result = await executeDevLoopsCommand({ input: argv, surface: "cli", runtime: activeRuntime });
+      const result = await executeDevLoopsCommand({ input: argv, surface: "cli", runtime: activeRuntime, stdout });
       switch (result.kind) {
         case "help": { writeLines(stdout, buildCliHelpLines()); return 0; }
         case "checks": {
