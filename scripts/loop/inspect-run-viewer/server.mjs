@@ -26,6 +26,8 @@ import {
   normalizeInspectionTarget,
 } from "../_inspect-run-viewer-adapter.mjs";
 import { dedupeRepoSlugOptions, repoSlugEquals } from "@pi-dev-loops/core/github/repo-slug";
+import { buildDevLoopHandoffEnvelope } from "@pi-dev-loops/core/loop/handoff-envelope";
+import { loadDevLoopConfig } from "@pi-dev-loops/core/config";
 
 const execFile = promisify(execFileCallback);
 
@@ -355,7 +357,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         return;
       }
 
-      if (requestPath !== "/" && requestPath !== "/snapshot.json" && requestPath !== MERMAID_BROWSER_ASSET_ROUTE) {
+      if (requestPath !== "/" && requestPath !== "/snapshot.json" && requestPath !== "/handoff-envelope.json" && requestPath !== MERMAID_BROWSER_ASSET_ROUTE) {
         writeText(response, 404, "Not Found", {
           "content-type": "text/plain; charset=utf-8",
         });
@@ -479,6 +481,23 @@ export function createInspectRunViewerServer(options, deps = {}) {
       const pagedEntries = assignedEntries.slice(pageStart, pageStart + DEFAULT_INBOX_PAGE_SIZE);
       const requestTarget = requestedView.target ?? effectiveSelectedTarget ?? pagedEntries[0]?.target ?? null;
 
+      if (requestPath === "/handoff-envelope.json") {
+        if (requestTarget === null) {
+          writeJson(response, 400, jsonErrorPayload(jsonErrorTarget, new Error("handoff-envelope.json requires ?pr=<number> when no PR is currently selected")));
+          return;
+        }
+        try {
+          const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+          const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
+          const gateState = {};
+          const envelope = buildDevLoopHandoffEnvelope(resolverResult, devLoopConfig, gateState);
+          writeJson(response, 200, envelope);
+        } catch (error) {
+          writeJson(response, 500, jsonErrorPayload(requestTarget, error));
+        }
+        return;
+      }
+
       if (requestPath === "/snapshot.json") {
         if (requestTarget === null) {
           writeJson(response, 400, jsonErrorPayload(jsonErrorTarget, new Error("snapshot.json requires ?pr=<number> when no PR is currently selected")));
@@ -497,6 +516,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
       const inboxEntries = dedupeInboxEntries(pagedEntries);
 
       let snapshot = null;
+      let handoffEnvelope = null;
       let error = null;
       if (requestTarget !== null) {
         try {
@@ -506,6 +526,16 @@ export function createInspectRunViewerServer(options, deps = {}) {
           }
         } catch (caught) {
           error = caught instanceof Error ? caught : new Error(String(caught));
+        }
+        try {
+          const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+          handoffEnvelope = buildDevLoopHandoffEnvelope(
+            { target: { kind: "pr", repo: requestTarget.repo, pr: requestTarget.pr } },
+            devLoopConfig,
+            {},
+          );
+        } catch {
+          handoffEnvelope = null;
         }
       }
 
@@ -526,6 +556,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         repo: requestedView.scopeFilter,
         target: requestTarget,
         snapshot: snapshot ?? null,
+        handoffEnvelope,
         error,
         inboxItems,
         selectedTitle: requestTarget === null
