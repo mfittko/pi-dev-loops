@@ -134,7 +134,7 @@ test("help is the default action and removed install/update commands fall back t
 
   const widget = calls.widgets.at(-1);
   assert.equal(widget.key, "pi-dev-loops.setup");
-  assert.match(widget.lines[0], /pi-dev-loops help/);
+  assert.match(widget.lines[0], /dev-loops help/);
   assert(widget.lines.some((line) => /\/dev-loops status/i.test(line)));
   assert(widget.lines.some((line) => /pi install git:github.com\/mfittko\/pi-dev-loops/i.test(line)));
   assert(widget.lines.some((line) => /\/skill:dev-loop/i.test(line)), "help should mention /skill:dev-loop as workflow entry");
@@ -145,28 +145,28 @@ test("help is the default action and removed install/update commands fall back t
 
   const installContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("install repo", installContext.ctx);
-  assert.match(installContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.match(installContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
   assert.equal(installContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const bareInstallContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("install", bareInstallContext.ctx);
-  assert.match(bareInstallContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.match(bareInstallContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
   assert.equal(bareInstallContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const updateContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("update", updateContext.ctx);
-  assert.match(updateContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.match(updateContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
   assert.equal(updateContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const bareUpdateContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("update system", bareUpdateContext.ctx);
-  assert.match(bareUpdateContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.match(bareUpdateContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
   assert.equal(bareUpdateContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 
   const statusWithExtraArgsContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("status extra", statusWithExtraArgsContext.ctx);
-  assert.match(statusWithExtraArgsContext.calls.widgets.at(-1).lines[0], /pi-dev-loops status:/);
-  assert.equal(statusWithExtraArgsContext.calls.notifications.at(-1).message, "pi-dev-loops status: 4/4 checks passed");
+  assert.match(statusWithExtraArgsContext.calls.widgets.at(-1).lines[0], /dev-loops status:/);
+  assert.equal(statusWithExtraArgsContext.calls.notifications.at(-1).message, "dev-loops status: 4/4 checks passed");
 });
 
 test("status and doctor use the reduced readiness surface", async () => {
@@ -213,7 +213,7 @@ test("hide still clears the widget and unknown commands fall back to help", asyn
 
   const fallbackContext = createCommandContext();
   await pi.registeredCommands.get("dev-loops").handler("banana", fallbackContext.ctx);
-  assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /pi-dev-loops help/);
+  assert.match(fallbackContext.calls.widgets.at(-1).lines[0], /dev-loops help/);
   assert.equal(fallbackContext.calls.notifications.at(-1).message, "pi-dev-loops help");
 });
 

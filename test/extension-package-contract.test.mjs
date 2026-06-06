@@ -29,7 +29,7 @@ test("extension README documents the supported command, install, and verificatio
   for (const commandPattern of [
     /\/dev-loops status/i,
     /\/dev-loops doctor/i,
-    /dev-loops status/i,
+    /`dev-loops status`/i,
   ]) {
     assert.match(readme, commandPattern);
   }

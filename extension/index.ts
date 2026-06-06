@@ -94,7 +94,7 @@ export default function (pi: ExtensionAPI, runtimeOverrides: ExtensionRuntimeOve
           ctx.ui.notify(buildNotificationMessage(result.action as Extract<DevLoopsAction, 'doctor' | 'status'>, result.checks), 'info');
           return;
         case 'gates':
-          ctx.ui.notify('Gate angles printed to console. Run `pi-dev-loops gates` in a terminal to see review prompts.', 'info');
+          ctx.ui.notify('Gate angles printed to console. Run `dev-loops gates` in a terminal to see review prompts.', 'info');
           return;
         case 'inspect_result': {
           const structuredStoppedSuccess = result.state === 'stopped'
