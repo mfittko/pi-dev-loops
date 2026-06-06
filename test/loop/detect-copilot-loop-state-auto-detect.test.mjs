@@ -16,7 +16,7 @@ import {
   writeJson,
 } from "./detect-copilot-loop-state-test-helpers.mjs";
 test("detect-copilot-loop-state auto-detect returns waiting_for_ci for open PR with no review when checks have not materialized", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-ready-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-ready-"));
 
   try {
     // Fixture has unresolved threads, but we use a clean threads response here
@@ -75,7 +75,7 @@ test("detect-copilot-loop-state auto-detect returns waiting_for_ci for open PR w
 
 
 test("detect-copilot-loop-state auto-detect returns unresolved_feedback_present when threads exist", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-unresolved-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-unresolved-"));
   const fixtureText = await readFile(fixturePath, "utf8");
 
   try {
@@ -118,7 +118,7 @@ test("detect-copilot-loop-state auto-detect returns unresolved_feedback_present 
 
 
 test("detect-copilot-loop-state auto-detect returns waiting_for_copilot_review when Copilot is requested", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-waiting-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-waiting-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -162,7 +162,7 @@ test("detect-copilot-loop-state auto-detect returns waiting_for_copilot_review w
 
 
 test("detect-copilot-loop-state auto-detect treats a pending Copilot review as in-progress evidence", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-pending-copilot-review-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-pending-copilot-review-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -209,7 +209,7 @@ test("detect-copilot-loop-state auto-detect treats a pending Copilot review as i
 });
 
 test("detect-copilot-loop-state fails closed from old-head green to new-head pending", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-old-green-new-pending-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-old-green-new-pending-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -269,7 +269,7 @@ test("detect-copilot-loop-state fails closed from old-head green to new-head pen
 });
 
 test("detect-copilot-loop-state fails closed from old-head green to new-head none", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-old-green-new-none-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-old-green-new-none-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -329,7 +329,7 @@ test("detect-copilot-loop-state fails closed from old-head green to new-head non
 });
 
 test.skip("detect-copilot-loop-state promotes zero-suite current-head CI to crediblyGreen when same-head local validation is supplied", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-credibly-green-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-credibly-green-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -401,7 +401,7 @@ test.skip("detect-copilot-loop-state promotes zero-suite current-head CI to cred
 });
 
 test.skip("detect-copilot-loop-state accepts case-insensitive local-validation SHA prefixes for crediblyGreen promotion", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-credibly-green-prefix-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-credibly-green-prefix-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -472,7 +472,7 @@ test.skip("detect-copilot-loop-state accepts case-insensitive local-validation S
 });
 
 test("detect-copilot-loop-state keeps zero-suite current-head CI at none without same-head local validation", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-no-credibly-green-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-no-credibly-green-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -540,7 +540,7 @@ test("detect-copilot-loop-state keeps zero-suite current-head CI at none without
 });
 
 test.skip("detect-copilot-loop-state does not treat malformed zero-suite payloads as explicit empty arrays", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-malformed-zero-suite-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-malformed-zero-suite-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -627,7 +627,7 @@ test.skip("detect-copilot-loop-state keeps pending and failure current-head CI a
       expectedState: "blocked_needs_user_decision",
     },
   ]) {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), `pi-dev-loops-detect-credibly-green-${scenario.name}-`));
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), `dev-loops-detect-credibly-green-${scenario.name}-`));
 
     try {
       const emptyThreads = JSON.stringify({
@@ -699,7 +699,7 @@ test.skip("detect-copilot-loop-state keeps pending and failure current-head CI a
 });
 
 test("detect-copilot-loop-state auto-detect ignores stale pending Copilot reviews from older commits", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-stale-pending-copilot-review-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-stale-pending-copilot-review-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -758,7 +758,7 @@ test("detect-copilot-loop-state auto-detect ignores stale pending Copilot review
 });
 
 test("detect-copilot-loop-state refreshes current-head CI for a commented old-head review", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-commented-old-head-new-pending-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-commented-old-head-new-pending-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -817,7 +817,7 @@ test("detect-copilot-loop-state refreshes current-head CI for a commented old-he
 });
 
 test("detect-copilot-loop-state fails closed from old-head green to new-head success", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-old-green-new-success-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-old-green-new-success-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -876,7 +876,7 @@ test("detect-copilot-loop-state fails closed from old-head green to new-head suc
 });
 
 test("detect-copilot-loop-state fails closed from old-head green to new-head failure", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-old-green-new-failure-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-old-green-new-failure-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -939,7 +939,7 @@ test("detect-copilot-loop-state fails closed from old-head green to new-head fai
 // ---------------------------------------------------------------------------
 
 test("detect-copilot-loop-state uses head-scoped check-runs when commit status refresh is unavailable", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-head-check-runs-only-failure-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-head-check-runs-only-failure-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -999,7 +999,7 @@ test("detect-copilot-loop-state uses head-scoped check-runs when commit status r
 });
 
 test("detect-copilot-loop-state refreshes head-scoped CI probes in parallel for stale-success cases", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-head-refresh-parallel-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-head-refresh-parallel-"));
 
   try {
     const ghPath = path.join(tempDir, "gh");
@@ -1096,7 +1096,7 @@ process.exit(97);
 });
 
 test("detect-copilot-loop-state keeps cancelled check-runs from being masked by commit-status success", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-cancelled-plus-status-success-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-cancelled-plus-status-success-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -1154,7 +1154,7 @@ test("detect-copilot-loop-state keeps cancelled check-runs from being masked by 
 });
 
 test("detect-copilot-loop-state treats cancelled head-scoped check runs as none", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-head-cancelled-none-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-head-cancelled-none-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -1213,7 +1213,7 @@ test("detect-copilot-loop-state treats cancelled head-scoped check runs as none"
 });
 
 test("detect-copilot-loop-state treats mixed head-scoped failure-plus-pending checks as failure", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-old-green-new-failure-over-pending-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-old-green-new-failure-over-pending-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -1275,7 +1275,7 @@ test("detect-copilot-loop-state allows clean convergence when only stale request
   // requested_reviewers can briefly still list Copilot after a submitted
   // current-head review. With no pending current-head review, auto-detect should
   // treat that as settled rather than over-blocking forever.
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-review-on-head-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-review-on-head-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -1341,7 +1341,7 @@ test("detect-copilot-loop-state allows clean convergence when only stale request
 test("detect-copilot-loop-state keeps request active when timeline re-request is newer than submitted review", async () => {
   // A deliberate same-head re-request was made AFTER the existing submitted review.
   // The detector must keep the request active (not demote to stale).
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-fresh-rerequest-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-fresh-rerequest-"));
 
   try {
     const emptyThreads = JSON.stringify({
@@ -1400,7 +1400,7 @@ test("detect-copilot-loop-state keeps request active when timeline re-request is
 });
 
 test.skip("detect-copilot-loop-state allows clean convergence once current-head request status is settled", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-review-on-head-settled-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-detect-auto-review-on-head-settled-"));
 
   try {
     const emptyThreads = JSON.stringify({

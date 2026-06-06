@@ -95,66 +95,66 @@ async function commandExists(
 function buildCategoryHelp(category) {
   const routes = SUBCOMMAND_ROUTES[category];
   if (!routes) return [`Unknown category: ${category}`];
-  return [`pi-dev-loops ${category} <subcommand> [...]`, "", "Available subcommands:", ...Object.keys(routes).map((s) => `  ${s}`)];
+  return [`dev-loops ${category} <subcommand> [...]`, "", "Available subcommands:", ...Object.keys(routes).map((s) => `  ${s}`)];
 }
 
 function buildCliHelpLines() {
   return [
-    "pi-dev-loops help",
+    "dev-loops help",
     "",
     "Workflow entry:",
     "- /skill:dev-loop (in Pi) or `subagent dev-loop` — single public entrypoint; routing handles the rest",
     "",
     "Commands:",
-    "- pi-dev-loops help                   Show this help",
-    "- pi-dev-loops status                 Show readiness snapshot",
-    "- pi-dev-loops doctor                 Show full diagnostic checks",
-    "- pi-dev-loops gates                  Print gate state",
+    "- dev-loops help                   Show this help",
+    "- dev-loops status                 Show readiness snapshot",
+    "- dev-loops doctor                 Show full diagnostic checks",
+    "- dev-loops gates                  Print gate state",
     "",
     "Subcommands:",
-    "- pi-dev-loops gate <sub> [...]       Gate verdicts and evidence",
+    "- dev-loops gate <sub> [...]       Gate verdicts and evidence",
     "    upsert-verdict    Post/update gate review comment",
     "    detect-evidence   Check merge preconditions",
     "    write-findings-log Write disposition ledger",
-    "- pi-dev-loops review <sub> [...]     Copilot review operations",
+    "- dev-loops review <sub> [...]     Copilot review operations",
     "    request-copilot   Request Copilot review",
     "    probe-copilot     Poll for Copilot review activity",
     "    capture-threads   Capture review threads",
     "    reply-resolve     Reply and resolve review threads",
-    "- pi-dev-loops detect <sub> [...]     State detection",
+    "- dev-loops detect <sub> [...]     State detection",
     "    loop-state        Detect Copilot loop state",
     "    reviewer-state    Detect reviewer loop state",
     "    gate-coordination Detect PR gate coordination state",
     "    linked-issue-pr   Detect linked issue ↔ PR",
     "    issue-refinement  Detect issue refinement artifact",
-    "- pi-dev-loops loop <sub> [...]       Loop lifecycle",
+    "- dev-loops loop <sub> [...]       Loop lifecycle",
     "    startup           Resolve dev-loop startup bundle",
     "    outer             Run outer-loop detection",
     "    watch-cycle       Run Copilot wait cycle",
     "    handoff           Copilot PR handoff",
     "    watch-initial     Watch initial Copilot PR",
-    "- pi-dev-loops pr <sub> [...]         PR helpers",
+    "- dev-loops pr <sub> [...]         PR helpers",
     "    create-draft      Create draft PR",
     "    ready-for-review  Mark PR ready for review",
     "    reconcile-draft   Reconcile non-draft PR",
-    "- pi-dev-loops inspect <sub> [...]    Inspection (Pi extension only)",
+    "- dev-loops inspect <sub> [...]    Inspection (Pi extension only)",
     "    run               Inspect run state",
     "    viewer            Start inspection viewer",
     "",
-    "Use `pi-dev-loops <category> <subcommand> --help` for per-subcommand usage.",
+    "Use `dev-loops <category> <subcommand> --help` for per-subcommand usage.",
     "",
     "`/dev-loops hide` remains an extension-only Pi command.",
-    "Use `pi install git:github.com/mfittko/pi-dev-loops` to install skills and agents, or",
-    "`pi update git:github.com/mfittko/pi-dev-loops` to refresh the package.",
+    "Use `pi install git:github.com/mfittko/dev-loops` to install skills and agents, or",
+    "`pi update git:github.com/mfittko/dev-loops` to refresh the package.",
   ];
 }
 
 function buildCliUsageLines(action) {
   switch (action) {
     case "help": case "status": case "doctor": case "gates":
-      return ["Usage:", `- pi-dev-loops ${action}`];
+      return ["Usage:", `- dev-loops ${action}`];
     case "hide":
-      return ["Usage:", "- pi-dev-loops hide", "`hide` is only supported without extra arguments, and only inside the Pi extension."];
+      return ["Usage:", "- dev-loops hide", "`hide` is only supported without extra arguments, and only inside the Pi extension."];
     default:
       throw new Error(`Unknown CLI usage action: ${action}`);
   }
@@ -166,8 +166,8 @@ function orderedCliSetupSteps(checks) {
   if (steps.length > 0) return steps.map((step, i) => `${i + 1}. ${step}`);
   return [
     "1. Use `/skill:dev-loop` (in Pi) or `subagent dev-loop` to start or continue a dev loop — the single public entry.",
-    "2. Run `pi-dev-loops status` whenever you want a concise readiness snapshot.",
-    "3. Use `pi install git:github.com/mfittko/pi-dev-loops` to install the package, or `pi update git:github.com/mfittko/pi-dev-loops` to refresh it.",
+    "2. Run `dev-loops status` whenever you want a concise readiness snapshot.",
+    "3. Use `pi install git:github.com/mfittko/dev-loops` to install the package, or `pi update git:github.com/mfittko/dev-loops` to refresh it.",
   ];
 }
 
@@ -289,7 +289,7 @@ export async function runCli({
           const summary = summarizeChecks(result.checks);
           const readiness = describeReadiness(result.checks);
           const lines = [
-            `pi-dev-loops ${result.action}: ${summary.ok}/${summary.total} checks passed`,
+            `dev-loops ${result.action}: ${summary.ok}/${summary.total} checks passed`,
             `Local loop readiness: ${readiness.localReady ? "ready" : "needs setup"}`,
             `Remote GitHub/Copilot readiness: ${readiness.remoteReady ? "ready" : "needs setup"}`,
           ];

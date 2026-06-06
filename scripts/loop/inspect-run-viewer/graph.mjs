@@ -7,17 +7,17 @@ import {
 import {
   STATE as COPILOT_STATE,
   TRANSITIONS as COPILOT_TRANSITIONS,
-} from "@pi-dev-loops/core/loop/copilot-loop-state";
+} from "@dev-loops/core/loop/copilot-loop-state";
 import {
   OUTER_GRAPH,
   OUTER_STATE,
   OUTER_TERMINAL_STATES,
   OUTER_TRANSITIONS,
-} from "@pi-dev-loops/core/loop/conductor-routing";
+} from "@dev-loops/core/loop/conductor-routing";
 import {
   REVIEWER_STATE,
   REVIEWER_TRANSITIONS,
-} from "@pi-dev-loops/core/loop/reviewer-loop-state";
+} from "@dev-loops/core/loop/reviewer-loop-state";
 import {
   escapeHtml,
   formatStateToken,

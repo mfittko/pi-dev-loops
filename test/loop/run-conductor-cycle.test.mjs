@@ -16,7 +16,7 @@ import {
   runConductorCycle,
   parseCliArgs,
 } from "../../scripts/loop/run-conductor-cycle.mjs";
-import { PR_CHECKPOINT_ACTION, PR_CHECKPOINT } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { PR_CHECKPOINT_ACTION, PR_CHECKPOINT } from "@dev-loops/core/loop/pr-gate-coordination";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper } from "../_helpers.mjs";
 
 const scriptPath = path.resolve("scripts/loop/run-conductor-cycle.mjs");
@@ -505,7 +505,7 @@ test("parseCliArgs handles --help", () => {
 // ---------------------------------------------------------------------------
 
 test("run-conductor-cycle CLI reports empty queue when no open PRs exist", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-rc-cycle-empty-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-rc-cycle-empty-"));
 
   try {
     const { env } = await writeGhStubHelper(tempDir, [{
@@ -529,7 +529,7 @@ test("run-conductor-cycle CLI reports empty queue when no open PRs exist", async
 });
 
 test("run-conductor-cycle CLI fails gracefully on gh pr list failure", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-rc-cycle-gh-fail-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-rc-cycle-gh-fail-"));
 
   try {
     const { env } = await writeGhStubHelper(tempDir, [{
@@ -551,7 +551,7 @@ test("run-conductor-cycle CLI fails gracefully on gh pr list failure", async () 
 });
 
 test("run-conductor-cycle CLI fails closed on non-array pr list response", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-rc-cycle-bad-list-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-rc-cycle-bad-list-"));
 
   try {
     const { env } = await writeGhStubHelper(tempDir, [{

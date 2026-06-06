@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { requireOptionValue, runChild } from "../_cli-primitives.mjs";
-import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { parseRepoSlug } from "@dev-loops/core/github/repo-slug";
 const DEFAULT_OUTPUT_DIR = "tmp/investigation";
 const DEFAULT_JSON_NAME = "copilot-comment-summary.json";
 const DEFAULT_MARKDOWN_NAME = "copilot-comment-categories.md";

@@ -72,7 +72,7 @@ export function defineSubcommand(def) {
   const requiredOpts = options.filter((o) => o.required);
   const optionalOpts = options.filter((o) => !o.required);
 
-  const usageLines = [`Usage: pi-dev-loops ${name}`];
+  const usageLines = [`Usage: dev-loops ${name}`];
   for (const opt of requiredOpts) {
     usageLines.push(`  ${optionUsageFragment(opt)}`);
   }

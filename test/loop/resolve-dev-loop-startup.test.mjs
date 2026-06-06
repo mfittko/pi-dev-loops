@@ -718,7 +718,7 @@ test("buildAutoResolvedInput returns warnings array for failed detection", () =>
   const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
   try {
     execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
-    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/dev-loops.git"], { cwd: tmp, stdio: "ignore" });
     const result = buildAutoResolvedInput({ issue: 999999, cwd: tmp });
     assert.equal(result.intent, "start_issue_locally");
     assert.equal(result.artifactState, "not_applicable");
@@ -737,7 +737,7 @@ test("buildAutoResolvedInput sets linkedPr null when detection fails", () => {
   const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
   try {
     execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
-    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/dev-loops.git"], { cwd: tmp, stdio: "ignore" });
     const result = buildAutoResolvedInput({ issue: 999999, cwd: tmp });
     assert.equal(result.currentState.target.linkedPr, null);
     assert.equal(result.issueLinkageResolution, "resolved_no_open_pr");
@@ -750,7 +750,7 @@ test("buildAutoResolvedInput for PR returns pr_followup_start", () => {
   const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
   try {
     execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
-    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/dev-loops.git"], { cwd: tmp, stdio: "ignore" });
     const result = buildAutoResolvedInput({ pr: 999999, cwd: tmp });
     assert.equal(result.intent, "continue_on_pr");
     assert.equal(result.loopState, "pr_followup_start");
@@ -765,7 +765,7 @@ test("buildAutoResolvedInput returns valid targetPreference", () => {
   const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
   try {
     execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
-    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/dev-loops.git"], { cwd: tmp, stdio: "ignore" });
     const result = buildAutoResolvedInput({ issue: 999999, cwd: tmp });
     assert.ok(
       result.targetPreference === "prefer_local" || result.targetPreference === "prefer_github_first",

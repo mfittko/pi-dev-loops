@@ -10,7 +10,7 @@ Harden the newly public repository with the minimum release-readiness assets nee
 
 ## Why this phase exists now
 
-The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a formal license and any automated public quality gate. Those are the smallest missing pieces blocking a credible public-facing baseline before broader reuse and second-repo pilot work continues.
+The repository is now public at `mfittko/dev-loops`, but it still lacks a formal license and any automated public quality gate. Those are the smallest missing pieces blocking a credible public-facing baseline before broader reuse and second-repo pilot work continues.
 
 ## In scope
 
@@ -54,7 +54,7 @@ The repository is now public at `mfittko/pi-dev-loops`, but it still lacks a for
 
 ## Durable decisions
 
-- MIT is the chosen initial public license for `pi-dev-loops`
+- MIT is the chosen initial public license for `dev-loops`
 - the first public CI baseline should stay intentionally small and run the existing root test suite only
 - the initial public CI baseline should default to Node 24 only
 - broader release automation and repository-governance setup remain separate follow-up work

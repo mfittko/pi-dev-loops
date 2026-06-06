@@ -54,8 +54,8 @@ test("package CLI entrypoint prints help and rejects hide as unsupported", () =>
     encoding: "utf8",
   });
   assert.equal(help.status, 0);
-  assert.match(help.stdout, /pi-dev-loops help/);
-  assert.match(help.stdout, /pi-dev-loops status/);
+  assert.match(help.stdout, /dev-loops help/);
+  assert.match(help.stdout, /dev-loops status/);
   assert.equal(help.stderr, "");
 
   const hide = spawnSync("node", ["./cli/index.mjs", "hide"], {
@@ -95,7 +95,7 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
   assert.equal(removedExitCode, 1);
   assert.equal(removedStdout.read(), "");
   assert.match(removedStderr.read(), /Unrecognized command: install\./);
-  assert.match(removedStderr.read(), /pi-dev-loops help/);
+  assert.match(removedStderr.read(), /dev-loops help/);
 
   const malformedStdout = createBufferStream();
   const malformedStderr = createBufferStream();
@@ -109,7 +109,7 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
   assert.equal(malformedExitCode, 1);
   assert.equal(malformedStdout.read(), "");
   assert.match(malformedStderr.read(), /`status` does not accept additional arguments\./);
-  assert.match(malformedStderr.read(), /Usage:\n- pi-dev-loops status/);
+  assert.match(malformedStderr.read(), /Usage:\n- dev-loops status/);
 });
 
 test("CLI help leads with dev-loop as the primary workflow entry", async () => {
@@ -125,7 +125,7 @@ test("CLI help leads with dev-loop as the primary workflow entry", async () => {
   assert.equal(helpExitCode, 0);
   assert.match(helpStdout.read(), /\/skill:dev-loop/, "CLI help should mention /skill:dev-loop as workflow entry");
   assert.match(helpStdout.read(), /single public entry/, "CLI help should describe dev-loop as single public entry");
-  assert.doesNotMatch(helpStdout.read(), /pi-dev-loops (?:install|update)/);
+  assert.doesNotMatch(helpStdout.read(), /dev-loops (?:install|update)/);
   assert.doesNotMatch(helpStdout.read(), /copilot-dev-loop|copilot-autopilot/i, "CLI help should not surface internal seam names");
   assert.equal(helpStderr.read(), "");
 });
@@ -149,7 +149,7 @@ test("CLI status next steps lead with dev-loop when all checks pass", async () =
 
 
 test("createCliRuntime rejects path-like command probes", async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-path-guard-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "dev-loops-cli-path-guard-"));
   const binDir = path.join(tempRoot, "bin");
   const nestedDir = path.join(binDir, "foo");
   await mkdir(nestedDir, { recursive: true });
@@ -172,7 +172,7 @@ exit 0
 
 
 test("createCliRuntime probes PATH commands and git repositories without a login shell", async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-runtime-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "dev-loops-cli-runtime-"));
   const binDir = path.join(tempRoot, "bin");
   const repoDir = path.join(tempRoot, "repo");
   await mkdir(binDir, { recursive: true });
@@ -214,7 +214,7 @@ exit 0
 
 
 test("createCliRuntime honors PATHEXT lookups when simulating Windows PATH resolution", async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-win-runtime-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "dev-loops-cli-win-runtime-"));
   const binDir = path.join(tempRoot, "bin");
   await mkdir(binDir, { recursive: true });
   await writeFile(path.join(binDir, "gh.EXE"), "");
@@ -238,7 +238,7 @@ test("createCliRuntime honors PATHEXT lookups when simulating Windows PATH resol
 });
 
 test("CLI rejects removed update command", async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-cli-update-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "dev-loops-cli-update-"));
   const stdout = createBufferStream();
   const stderr = createBufferStream();
 
@@ -253,7 +253,7 @@ test("CLI rejects removed update command", async () => {
     assert.equal(exitCode, 1);
     assert.equal(stdout.read(), "");
     assert.match(stderr.read(), /Unrecognized command: update\./);
-    assert.match(stderr.read(), /pi-dev-loops help/);
+    assert.match(stderr.read(), /dev-loops help/);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

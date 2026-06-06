@@ -1,4 +1,4 @@
-import { OUTER_STATE } from "@pi-dev-loops/core/loop/conductor-routing";
+import { OUTER_STATE } from "@dev-loops/core/loop/conductor-routing";
 
 import { renderStateVisualizationSection } from "./graph.mjs";
 import {

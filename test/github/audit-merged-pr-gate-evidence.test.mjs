@@ -64,7 +64,7 @@ test("parseAuditMergedPrGateEvidenceCliArgs rejects malformed arguments", () => 
 });
 
 test("audit-merged-pr-gate-evidence reports missing gate evidence among recent merged PRs", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-merged-gates-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-merged-gates-"));
   const outputPath = path.join(tempDir, "audit.json");
 
   try {
@@ -121,7 +121,7 @@ test("audit-merged-pr-gate-evidence reports missing gate evidence among recent m
 
 
 test("audit-merged-pr-gate-evidence reports gh failures deterministically", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-merged-gates-fail-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-merged-gates-fail-"));
 
   try {
     const env = await writeGhStub(tempDir, [

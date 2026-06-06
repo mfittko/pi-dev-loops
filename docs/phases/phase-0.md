@@ -1,7 +1,7 @@
 # Phase 0 — Handoff Envelope Viewer Tab
 
-**Issue:** [#538](https://github.com/mfittko/pi-dev-loops/issues/538)
-**Depends on:** [#536](https://github.com/mfittko/pi-dev-loops/issues/536) (handoff envelope function — already merged)
+**Issue:** [#538](https://github.com/mfittko/dev-loops/issues/538)
+**Depends on:** [#536](https://github.com/mfittko/dev-loops/issues/536) (handoff envelope function — already merged)
 **Status:** refinement-complete → implementation
 
 ## Objective

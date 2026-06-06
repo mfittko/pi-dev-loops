@@ -79,7 +79,7 @@ test("buildClassificationPrompt uses excerpts by default and full bodies when re
 });
 
 test("validateLlmPayload uses unique fallback names for unnamed clusters", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-classify-unnamed-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-classify-unnamed-"));
 
   try {
     const input = path.join(tempDir, "uncategorized-comments.json");
@@ -102,7 +102,7 @@ test("validateLlmPayload uses unique fallback names for unnamed clusters", async
 });
 
 test("classifyUncategorizedComments reads input, retries malformed JSON once, and writes JSON and Markdown", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-classify-uncategorized-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-classify-uncategorized-"));
 
   try {
     const input = path.join(tempDir, "uncategorized-comments.json");
@@ -154,7 +154,7 @@ test("classifyUncategorizedComments reads input, retries malformed JSON once, an
 });
 
 test("classifyUncategorizedComments falls back from summary JSON and retries 429", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-classify-summary-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-classify-summary-"));
 
   try {
     const input = path.join(tempDir, "copilot-comment-summary.json");
@@ -184,7 +184,7 @@ test("classifyUncategorizedComments falls back from summary JSON and retries 429
 });
 
 test("classifyUncategorizedComments reports both default input candidates when missing", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-classify-missing-input-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-classify-missing-input-"));
 
   try {
     await assert.rejects(

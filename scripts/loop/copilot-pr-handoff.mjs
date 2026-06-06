@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue } from "../_cli-primitives.mjs";
-import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { parseRepoSlug } from "@dev-loops/core/github/repo-slug";
 import path from "node:path";
-import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
+import { loadDevLoopConfig, resolveRefinement } from "@dev-loops/core/config";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
-import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
+import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "@dev-loops/core/loop/copilot-loop-state";
 import { ensureAsyncRunnerOwnership } from "./_pr-runner-coordination.mjs";
 import {
   EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
   enforceExternalHealthyWaitTimeout,
-} from "@pi-dev-loops/core/loop/timeout-policy";
+} from "@dev-loops/core/loop/timeout-policy";
 import {
   DEFAULT_POLL_INTERVAL_MS,
   COPILOT_REVIEW_WAIT_TIMEOUT_MS,
-} from "@pi-dev-loops/core/loop/policy-constants";
+} from "@dev-loops/core/loop/policy-constants";
 const VALID_WATCH_STATUSES = new Set(["changed", "timeout", "idle"]);
 const REMOVED_FLAGS = new Set([
   "--force-rerequest-review",

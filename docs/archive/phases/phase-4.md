@@ -6,7 +6,7 @@ Completed
 
 ## Objective
 
-Create the first intentionally reusable shared deterministic support layer in `@pi-dev-loops/core` by:
+Create the first intentionally reusable shared deterministic support layer in `@dev-loops/core` by:
 - moving the existing phase-file/path/index logic out of the skill-local script and into the package as the new source of truth
 - adding one minimal fixture-backed GitHub parsing seam for review-thread parsing and actionable-comment detection
 - exposing the new shared helpers through stable JS and CLI entrypoints with explicit machine-readable output contracts
@@ -74,7 +74,7 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
 
 ## Acceptance criteria
 
-- `@pi-dev-loops/core` exports a shared loop helper module for deterministic phase paths, manifests, indexes, and phase-file updates
+- `@dev-loops/core` exports a shared loop helper module for deterministic phase paths, manifests, indexes, and phase-file updates
 - the phase leaves behind a bounded skill audit identifying non-deterministic logic that is a realistic candidate for replacement by shared deterministic helpers or CLI tooling, with explicit prioritization rather than a blanket rewrite mandate
 - `skills/dev-loop/scripts/phase-files.mjs` becomes a thin compatibility wrapper and is no longer the source of truth for phase-file logic
 - the shared phase-file contract remains stable for the existing workflow fields:
@@ -82,8 +82,8 @@ This phase exists now to centralize the smallest proven reusable slice before Ph
   - validation fields: `check`, `test`, `coverage`
   - index shape: `{ phases: [...] }` with deterministic phase ordering and `manifestPath` tracking
   - path shape includes the current resolved paths needed by callers, including `phaseDir`, `phasePlanPath`, `manifestPath`, `indexPath`, and `bashExitOnePath`
-- `@pi-dev-loops/core` provides a new Phase 4-relevant CLI for phase-file creation/update, and its success output is machine-readable JSON that includes `ok: true` plus the resolved phase-path information needed by callers
-- `@pi-dev-loops/core` exports a shared GitHub helper module for review-thread parsing and actionable-comment / actionable-thread detection from stored JSON input only
+- `@dev-loops/core` provides a new Phase 4-relevant CLI for phase-file creation/update, and its success output is machine-readable JSON that includes `ok: true` plus the resolved phase-path information needed by callers
+- `@dev-loops/core` exports a shared GitHub helper module for review-thread parsing and actionable-comment / actionable-thread detection from stored JSON input only
 - the normalized review-thread result has an explicit, stable machine-readable shape at minimum:
   - `summary` with counts for total threads, unresolved threads, actionable threads, and actionable comments
   - `threads[]` entries with stable identifiers plus resolution/actionability state and deterministic ordering

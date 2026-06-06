@@ -122,7 +122,7 @@ test('managed seam writes and reads the repo-local record on open/status', async
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-managed-'));
   const { manager, browserOpens, launches } = createManager();
 
-  const opened = await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const opened = await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
   assert.equal(opened.state, 'running');
   assert.equal(opened.startedFresh, true);
   assert.equal(opened.reusedExisting, false);
@@ -133,11 +133,11 @@ test('managed seam writes and reads the repo-local record on open/status', async
   const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
   const record = JSON.parse(await readFile(recordPath, 'utf8'));
   assert.equal(record.surfaceId, 'inspect-run-viewer');
-  assert.equal(record.launchArgs.repo, 'mfittko/pi-dev-loops');
+  assert.equal(record.launchArgs.repo, 'mfittko/dev-loops');
   assert.equal(record.pid, launches[0].pid);
   assert.equal(record.cwd, repoRoot);
 
-  const status = await manager.status({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const status = await manager.status({ repoRoot, repo: 'mfittko/dev-loops' });
   assert.equal(status.state, 'running');
   assert.equal(status.url, 'http://127.0.0.1:4311');
   assert.match(status.detail, /managed/i);
@@ -172,8 +172,8 @@ test('open reuses a matching live managed instance instead of relaunching', asyn
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-reuse-'));
   const { manager, launches, browserOpens } = createManager();
 
-  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
-  const reopened = await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
+  const reopened = await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
 
   assert.equal(reopened.state, 'running');
   assert.equal(reopened.reusedExisting, true);
@@ -186,7 +186,7 @@ test('open keeps the managed record when a running viewer ignores SIGTERM during
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-open-running-stubborn-'));
   const { manager, launches, stopCalls, currentPid } = createStubbornManagedProcessManager();
 
-  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
   const result = await manager.open({ repoRoot, repo: 'other/repo' });
 
   assert.equal(result.state, 'stale_record');
@@ -202,7 +202,7 @@ test('resume fails closed and does not auto-start when nothing live is managed',
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-resume-'));
   const { manager, launches, browserOpens } = createManager();
 
-  const resumed = await manager.resume({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const resumed = await manager.resume({ repoRoot, repo: 'mfittko/dev-loops' });
   assert.equal(resumed.state, 'stopped');
   assert.equal(resumed.resumedExisting, false);
   assert.equal(resumed.url, null);
@@ -229,8 +229,8 @@ test('restart keeps the managed record when a running viewer ignores SIGTERM', a
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-restart-running-stubborn-'));
   const { manager, launches, stopCalls, currentPid } = createStubbornManagedProcessManager();
 
-  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
-  const result = await manager.restart({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
+  const result = await manager.restart({ repoRoot, repo: 'mfittko/dev-loops' });
 
   assert.equal(result.state, 'stale_record');
   assert.match(result.detail, /keeping the managed record instead of restarting it/i);
@@ -245,14 +245,14 @@ test('restart only replaces managed ownership and fails closed on an unknown lis
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-restart-'));
   const { manager, listenersByPort, processes, stopped, launches } = createManager();
 
-  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
   const managedPid = launches[0].pid;
   processes.get(managedPid).alive = false;
   processes.get(managedPid).healthy = false;
   listenersByPort.set(4311, [9111]);
   processes.set(9111, { alive: true, healthy: true, port: 4311, url: 'http://127.0.0.1:4311' });
 
-  const restarted = await manager.restart({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const restarted = await manager.restart({ repoRoot, repo: 'mfittko/dev-loops' });
   assert.equal(restarted.state, 'conflict_unmanaged_listener');
   assert.match(restarted.detail, /port 4311 is occupied/i);
   assert.doesNotMatch(restarted.detail, /restarted the managed inspect-run viewer/i);
@@ -333,7 +333,7 @@ test('stop fails closed with explicit guidance when --repo does not match the ma
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-stop-mismatch-'));
   const { manager, launches, stopped } = createManager();
 
-  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
   const result = await manager.stop({ repoRoot, repo: 'other/repo' });
 
   assert.equal(result.state, 'stopped');
@@ -459,7 +459,7 @@ test('open tolerates ESRCH while replacing a managed instance', async () => {
     async openBrowserImpl() {},
   });
 
-  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
   const reopened = await manager.open({ repoRoot, repo: 'other/repo' });
   assert.equal(reopened.state, 'running');
   assert.deepEqual(stopCalls, [5000]);
@@ -504,12 +504,12 @@ test('stop and restart treat ESRCH as already-stopped', async () => {
     async openBrowserImpl() {},
   });
 
-  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
-  const stopped = await manager.stop({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
+  const stopped = await manager.stop({ repoRoot, repo: 'mfittko/dev-loops' });
   assert.equal(stopped.state, 'stopped');
 
-  await manager.open({ repoRoot, repo: 'mfittko/pi-dev-loops' });
-  const restarted = await manager.restart({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  await manager.open({ repoRoot, repo: 'mfittko/dev-loops' });
+  const restarted = await manager.restart({ repoRoot, repo: 'mfittko/dev-loops' });
   assert.equal(restarted.state, 'running');
   assert.equal(stopCalls, 2);
 });
@@ -520,7 +520,7 @@ test('status returns the raw conflict URL instead of appending a scoped query to
   listenersByPort.set(4311, [9444]);
   processes.set(9444, { alive: true, healthy: true, port: 4311, url: 'http://127.0.0.1:4311' });
 
-  const status = await manager.status({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  const status = await manager.status({ repoRoot, repo: 'mfittko/dev-loops' });
   assert.equal(status.state, 'conflict_unmanaged_listener');
   assert.equal(status.url, 'http://127.0.0.1:4311');
 });

@@ -10,7 +10,7 @@ import {
   summarizeGateReviewComments,
 } from "../_core-helpers.mjs";
 import { parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
-import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { parseRepoSlug } from "@dev-loops/core/github/repo-slug";
 const DEFAULT_LIMIT = 20;
 const USAGE = `Usage: audit-merged-pr-gate-evidence.mjs --repo <owner/name> [--limit <n>] [--output <path>]
 Audit the most recent merged pull requests for visible dev-loop gate evidence.

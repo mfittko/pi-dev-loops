@@ -1,4 +1,4 @@
-# Copilot instructions — pi-dev-loops
+# Copilot instructions — dev-loops
 
 Single entrypoint: `dev-loop`. Prefer GitHub-first path. KISS, SRP, YAGNI.
 Work test-first, ≥90% coverage. `npm run verify` for full validation.

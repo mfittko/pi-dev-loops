@@ -16,7 +16,7 @@ node scripts/github/audit-copilot-comments.mjs --repo <owner/name> [--output-dir
 
 | Flag | Required | Default | Description |
 |---|---|---|---|
-| `--repo` | yes | — | Repository slug (e.g. `mfittko/pi-dev-loops`) |
+| `--repo` | yes | — | Repository slug (e.g. `mfittko/dev-loops`) |
 | `--output-dir` | no | `tmp/investigation` | Directory for JSON and Markdown output files |
 | `--sleep-ms` | no | `0` | Sleep this many ms between top-level fetches (non-negative int) |
 | `--checkpoint-file` | no | — | Save/load coarse-grain checkpoint for resume |

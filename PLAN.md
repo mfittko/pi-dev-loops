@@ -1,6 +1,6 @@
-# pi-dev-loops Plan
+# dev-loops Plan
 
-`pi-dev-loops` is a shared home for Pi-centered development workflow infrastructure.
+`dev-loops` is a shared home for Pi-centered development workflow infrastructure.
 
 The durable goal is to ship a reusable toolkit for Pi-based local and GitHub-first development loops without letting workflow mechanics drift back into ad hoc markdown or repo-specific shell glue.
 
@@ -24,7 +24,7 @@ Do **not** use `PLAN.md` for one-off issue execution plans, PR-specific checklis
 - For active implementation and release work in this repo, the default routed path should still prefer the GitHub-first internal strategies when practical.
 - The local implementation strategy remains supported when the user explicitly wants local phase-bounded work.
 - GitHub issues are the backlog and GitHub PRs are the main execution trail for remote-loop work.
-- Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes packaged skills through `package.json` `pi.skills`; `/dev-loops install` and `/dev-loops update` are removed — use `pi install` / `pi update` directly.
+- Installing the package with `pi install git:github.com/mfittko/dev-loops` exposes packaged skills through `package.json` `pi.skills`; `/dev-loops install` and `/dev-loops update` are removed — use `pi install` / `pi update` directly.
 
 ## Product intent
 
@@ -114,7 +114,7 @@ Whenever a merged slice changes durable project truth, update the affected durab
 Today the repository already includes:
 - reusable role agents
 - packaged workflow skills for local and GitHub-first work
-- a `/dev-loops` extension and `pi-dev-loops` shell CLI
+- a `/dev-loops` extension and `dev-loops` shell CLI
 - deterministic GitHub helpers for review-thread capture, Copilot request/watch, issue-to-PR detection, and reviewer draft staging
 - deterministic loop-state helpers for Copilot, reviewer, tracker, and outer-loop orchestration
 - conductor-adjacent ownership, routing, inspection, and steering contracts in the source tree

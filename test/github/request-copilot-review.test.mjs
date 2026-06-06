@@ -16,7 +16,7 @@ async function writeGhStub(tempDir, entries) {
 }
 
 test("request-copilot-review requests Copilot deterministically and verifies via requested_reviewers", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-review-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-review-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -59,7 +59,7 @@ test("request-copilot-review requests Copilot deterministically and verifies via
 });
 
 test("request-copilot-review recognizes Copilot under the requested reviewer login returned by GitHub", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-login-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-login-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -90,7 +90,7 @@ test("request-copilot-review recognizes Copilot under the requested reviewer log
 });
 
 test("request-copilot-review reports already-requested without mutating PR state again", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-already-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-already-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -121,7 +121,7 @@ test("request-copilot-review reports already-requested without mutating PR state
 });
 
 test("request-copilot-review suppresses same-head clean re-request by default", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-suppressed-same-head-clean-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-suppressed-same-head-clean-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -161,7 +161,7 @@ test("request-copilot-review suppresses same-head clean re-request by default", 
 
 
 test("request-copilot-review treats pending review as already-requested even when a submitted current-head review exists", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-pending-with-submitted-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-pending-with-submitted-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -193,7 +193,7 @@ test("request-copilot-review treats pending review as already-requested even whe
 });
 
 test("request-copilot-review treats a pending Copilot review as already-requested before mutating", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-pending-before-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-pending-before-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -231,7 +231,7 @@ test("request-copilot-review rejects --force-rerequest-review as a removed polic
 });
 
 test("request-copilot-review accepts an immediate Copilot review as proof the request succeeded", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-immediate-review-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-immediate-review-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -274,7 +274,7 @@ test("request-copilot-review accepts an immediate Copilot review as proof the re
 });
 
 test("request-copilot-review normalizes known unrequestable/unavailable failures", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-unavailable-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-unavailable-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -321,7 +321,7 @@ test("request-copilot-review normalizes known unrequestable/unavailable failures
 });
 
 test("request-copilot-review returns already-requested when 422 but Copilot is in requested_reviewers", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-422-in-progress-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-422-in-progress-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -368,7 +368,7 @@ test("request-copilot-review returns already-requested when 422 but Copilot is i
 });
 
 test("request-copilot-review returns already-requested when 422 but Copilot has a pending review", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-422-pending-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-422-pending-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -415,7 +415,7 @@ test("request-copilot-review returns already-requested when 422 but Copilot has 
 });
 
 test("request-copilot-review does not treat a stale pending Copilot review as already-requested before mutating", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-stale-pending-before-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-stale-pending-before-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -458,7 +458,7 @@ test("request-copilot-review does not treat a stale pending Copilot review as al
 });
 
 test("request-copilot-review ignores a stale pending Copilot review after 422 and stays unavailable", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-stale-pending-422-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-stale-pending-422-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -503,7 +503,7 @@ test("request-copilot-review ignores a stale pending Copilot review after 422 an
 });
 
 test("request-copilot-review wraps invalid gh JSON deterministically", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-json-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-json-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -587,7 +587,7 @@ test("request-copilot-review --help prints usage and exits 0", async () => {
 });
 
 test("checkForCopilotComments blocks when @copilot comment found from non-Copilot author", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-blocked-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-blocked-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -608,7 +608,7 @@ test("checkForCopilotComments blocks when @copilot comment found from non-Copilo
 });
 
 test("checkForCopilotComments passes when no @copilot comments found", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-noblock-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-noblock-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -629,7 +629,7 @@ test("checkForCopilotComments passes when no @copilot comments found", async () 
 });
 
 test("checkForCopilotComments ignores @copilot in Copilot-authored comments", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-copilot-author-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-copilot-author-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -650,7 +650,7 @@ test("checkForCopilotComments ignores @copilot in Copilot-authored comments", as
 });
 
 test("checkForCopilotComments reports all violation comments when multiple found", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-request-copilot-multiviolation-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-request-copilot-multiviolation-"));
 
   try {
     const env = await writeGhStub(tempDir, [

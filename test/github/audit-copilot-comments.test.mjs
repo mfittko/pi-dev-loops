@@ -238,7 +238,7 @@ test("buildCopilotAuditSummary counts categories and ranks recommendations", () 
 });
 
 test("audit-copilot-comments surfaces malformed gh JSON with command context", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-copilot-comments-json-error-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-copilot-comments-json-error-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -261,7 +261,7 @@ test("audit-copilot-comments surfaces malformed gh JSON with command context", a
 
 
 test("auditCopilotComments includes the configured gh command in parse errors", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-copilot-comments-custom-gh-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-copilot-comments-custom-gh-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -282,7 +282,7 @@ test("auditCopilotComments includes the configured gh command in parse errors", 
 
 
 test("audit-copilot-comments CLI writes JSON summary and markdown report", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-copilot-comments-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-copilot-comments-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -344,7 +344,7 @@ test("audit-copilot-comments CLI writes JSON summary and markdown report", async
 // ── New resilience tests ────────────────────────────────────────────
 
 test("runGhJsonWithRetry retries on 403", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-403-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-retry-403-"));
 
   try {
     // Sequence: 403 stderr + non-zero exit → then success
@@ -373,7 +373,7 @@ test("runGhJsonWithRetry retries on 403", async () => {
 });
 
 test("runGhJsonWithRetry retries on 429", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-429-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-retry-429-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -401,7 +401,7 @@ test("runGhJsonWithRetry retries on 429", async () => {
 });
 
 test("runGhJsonWithRetry throws after max retries", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-max-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-retry-max-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -438,7 +438,7 @@ test("runGhJsonWithRetry throws after max retries", async () => {
 });
 
 test("runGhJsonWithRetry uses default ghCommand when omitted", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-default-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-retry-default-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -462,7 +462,7 @@ test("runGhJsonWithRetry uses default ghCommand when omitted", async () => {
 });
 
 test("runGhJsonWithRetry fails immediately on 401", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-retry-401-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-retry-401-"));
 
   try {
     const env = await writeGhStub(tempDir, [
@@ -489,7 +489,7 @@ test("runGhJsonWithRetry fails immediately on 401", async () => {
 // ── Checkpoint tests ────────────────────────────────────────────────
 
 test("audit-copilot-comments saves and resumes from checkpoint", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-checkpoint-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-checkpoint-"));
 
   try {
     const checkpointPath = path.join(tempDir, "ckpt.json");
@@ -534,7 +534,7 @@ test("audit-copilot-comments saves and resumes from checkpoint", async () => {
 });
 
 test("audit-copilot-comments resume from after-comments stage re-fetches only PRs", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-checkpoint-comments-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-checkpoint-comments-"));
 
   try {
     const checkpointPath = path.join(tempDir, "ckpt.json");
@@ -573,7 +573,7 @@ test("audit-copilot-comments resume from after-comments stage re-fetches only PR
 });
 
 test("audit-copilot-comments resume with after-prs checkpoint missing prs falls back to fresh fetch", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-checkpoint-noprs-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-checkpoint-noprs-"));
 
   try {
     const checkpointPath = path.join(tempDir, "ckpt.json");
@@ -614,7 +614,7 @@ test("audit-copilot-comments resume with after-prs checkpoint missing prs falls 
 });
 
 test("audit-copilot-comments resume with corrupt checkpoint falls back to fresh fetch", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-checkpoint-corrupt-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-checkpoint-corrupt-"));
 
   try {
     const checkpointPath = path.join(tempDir, "ckpt.json");
@@ -652,7 +652,7 @@ test("parseAuditCopilotCommentsCliArgs parses --save-uncategorized", () => {
 });
 
 test("audit-copilot-comments --save-uncategorized writes only uncategorized comments", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-audit-uncategorized-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loops-audit-uncategorized-"));
 
   try {
     const env = await writeGhStub(tempDir, [
