@@ -100,7 +100,8 @@ async function runResolverForTarget(target, { repoRoot = process.cwd() } = {}) {
     throw new Error("Cannot resolve handoff envelope: target repo is required");
   }
   const args = ["scripts/loop/resolve-dev-loop-startup.mjs", "--pr", String(target.pr)];
-  const { stdout, stderr } = await execFile("node", args, { cwd: repoRoot, timeout: 30000 });
+  const env = { ...process.env, PI_SUBAGENT_RUN_ID: "viewer-operator-tool" };
+  const { stdout, stderr } = await execFile("node", args, { cwd: repoRoot, timeout: 30000, env });
   try {
     return JSON.parse(stdout);
   } catch (_err) {
@@ -564,24 +565,30 @@ export function createInspectRunViewerServer(options, deps = {}) {
           error = caught instanceof Error ? caught : new Error(String(caught));
         }
         try {
-          const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
-          if (resolverResult && resolverResult.bundleKind === "resolved") {
-            const { config: devLoopConfig, errors: configErrors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
-            if (configErrors && configErrors.length > 0) { handoffEnvelope = null; } else {
-            const gateState = snapshot ? {
-              currentHeadSha: snapshot.currentHeadSha || null,
-              ciStatus: snapshot.ciStatus || null,
-              unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === "number" ? snapshot.unresolvedThreadCount : 0,
-              copilotRoundCount: typeof snapshot.copilotRoundCount === "number" ? snapshot.copilotRoundCount : 0,
-            } : {};
-            handoffEnvelope = buildDevLoopHandoffEnvelope(
-              resolverResult,
-              devLoopConfig,
-              gateState,
-            );
+          if (typeof adapter.loadHandoffEnvelope === "function") {
+            handoffEnvelope = await adapter.loadHandoffEnvelope(requestTarget, snapshot, adapterOptions);
+          } else {
+            const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
+            if (resolverResult && resolverResult.bundleKind === "resolved") {
+              const { config: devLoopConfig, errors: configErrors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+              if (!configErrors || configErrors.length === 0) {
+                const gateState = snapshot ? {
+                  currentHeadSha: snapshot.currentHeadSha || null,
+                  ciStatus: snapshot.ciStatus || null,
+                  unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === "number" ? snapshot.unresolvedThreadCount : 0,
+                  copilotRoundCount: typeof snapshot.copilotRoundCount === "number" ? snapshot.copilotRoundCount : 0,
+                } : {};
+                handoffEnvelope = buildDevLoopHandoffEnvelope(
+                  resolverResult,
+                  devLoopConfig,
+                  gateState,
+                  { repoSlug: requestTarget.repo },
+                );
+              }
             }
           }
-        } catch {
+        } catch (caught) {
+          logErrorImpl(Object.assign(new Error("handoff envelope resolution failed"), { cause: caught }));
           handoffEnvelope = null;
         }
       }

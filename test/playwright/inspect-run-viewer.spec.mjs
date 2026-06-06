@@ -16,6 +16,30 @@ async function startViewer(snapshot = makeInspectionSnapshot(), assignedPullRequ
         async loadSnapshot() {
           return snapshot;
         },
+        async loadHandoffEnvelope() {
+          return {
+            handoffVersion: 1,
+            derivedAt: new Date().toISOString(),
+            target: { kind: "pr", repo: "owner/repo", pr: 55 },
+            currentGate: "draft",
+            currentHeadSha: "abc1234",
+            ciStatus: "success",
+            unresolvedThreadCount: 0,
+            copilotRoundCount: 0,
+            maxCopilotRounds: 5,
+            executionMode: "bounded_handoff",
+            nextAction: "Run draft gate review",
+            requiredReads: ["skills/docs/gate-review-comment-contract.md"],
+            gateConfig: { angles: ["scope", "coverage"], blockCleanOnFindingSeverities: ["must-fix"], requireCi: true },
+            stopRules: ["draft-pr", "merge"],
+            asyncStartMode: "required",
+            requireDraftFirst: true,
+            cwd: "/tmp/worktrees/pr-55",
+            worktreeRequired: true,
+            acceptance: { criteria: [{ id: "ac", must: "Test", severity: "required" }], evidence: ["commands-run"], maxFinalizationTurns: 4 },
+            control: { needsAttentionAfterMs: 300000, activeNoticeAfterMs: 300000 },
+          };
+        },
         async listAssignedPullRequests() {
           return normalizedAssignedPullRequests;
         },
@@ -333,7 +357,7 @@ test("webkit shows the unavailable-state fallback for unavailable snapshots", as
   }
 });
 
-test("webkit renders the Agent handoff tab and validates unavailable-state fallback", async ({ page }, testInfo) => {
+test("webkit renders the Agent handoff tab and validates structured envelope rendering", async ({ page }, testInfo) => {
   const { server, url } = await startViewer(makeInspectionSnapshot());
 
   try {
@@ -358,18 +382,51 @@ test("webkit renders the Agent handoff tab and validates unavailable-state fallb
     const handoffSection = page.locator("#handoff-envelope-section");
     await expect(handoffSection).toBeVisible();
 
-    // Verify unavailable message content when envelope is absent
-    // Accept either unavailable fallback or structured envelope
-    const handoffText = await handoffSection.textContent();
-    if (handoffText.includes("Envelope unavailable")) {
-      await expect(handoffSection).toContainText(/buildDevLoopHandoffEnvelope/);
-    } else {
-      await expect(handoffSection).toContainText(/Current state|Target/);
-    }
+    // Verify envelope content renders with key fields
+    await expect(handoffSection).toContainText(/Agent handoff/);
+    await expect(handoffSection).not.toContainText(/Envelope unavailable/);
+    await expect(handoffSection).toContainText(/Target/);
+    await expect(handoffSection).toContainText(/Current state/);
+    await expect(page.locator("#handoff-envelope-section dt:has-text('currentGate') + dd")).toHaveText("draft");
+    await expect(handoffSection).toContainText(/Policy/);
+    await expect(handoffSection).toContainText(/Acceptance/);
 
     // Switch back to live view
     await liveTab.click();
     await expect(liveTab).toHaveClass(/active/);
+  } finally {
+    await stopFixtureServer(server);
+  }
+});
+
+test("webkit renders envelope unavailable fallback when loadHandoffEnvelope returns null", async ({ page }) => {
+  const { server, url } = await startFixtureServer(() => createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    {
+      adapter: {
+        async loadSnapshot() {
+          return makeInspectionSnapshot();
+        },
+        async loadHandoffEnvelope() {
+          return null; // null return triggers unavailable fallback
+        },
+        async listAssignedPullRequests() {
+          return [{ target: { repo: "owner/repo", pr: 55 }, title: "Current PR" }];
+        },
+      },
+    },
+  ));
+
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+
+    const handoffTab = page.locator('.viewer-tab[data-tab="handoff"]');
+    await handoffTab.click();
+
+    const handoffSection = page.locator("#handoff-envelope-section");
+    await expect(handoffSection).toBeVisible();
+    await expect(handoffSection).toContainText(/Envelope unavailable/);
+    await expect(handoffSection).toContainText(/buildDevLoopHandoffEnvelope/);
   } finally {
     await stopFixtureServer(server);
   }
