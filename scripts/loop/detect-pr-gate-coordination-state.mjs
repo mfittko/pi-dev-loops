@@ -294,6 +294,7 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     && currentHeadSha.startsWith(draftGateHeadSha);
   const draftGateResetAtMs = gateEvidence.draftGate?.verdict === "clean"
     && typeof draftGateHeadSha === "string"
+    && !draftGateOnCurrentHead
     && typeof gateEvidence.draftGate?.updatedAt === "string"
     ? normalizeTimestamp(gateEvidence.draftGate.updatedAt)
     : null;

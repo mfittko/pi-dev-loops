@@ -1167,8 +1167,8 @@ test("detect-pr-gate-coordination-state does NOT reset round count when draft_ga
     assert.equal(parsed.draftGate.verdict, "clean");
     assert.equal(parsed.draftGate.headSha, "def56789abcdef");
     // No reset: all 4 reviews count toward round total (3 before + 1 after draft gate)
-    assert.equal(parsed.copilotReviewRoundCount, 1,
-      "copilotReviewRoundCount should be 1 (reviews before gate timestamp excluded)");
+    assert.equal(parsed.copilotReviewRoundCount, 4,
+      "copilotReviewRoundCount should be 4 (draft gate on same head, no reset)");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
