@@ -333,7 +333,7 @@ test("webkit shows the unavailable-state fallback for unavailable snapshots", as
   }
 });
 
-test("webkit renders the Agent handoff tab with structured envelope content", async ({ page }, testInfo) => {
+test("webkit renders the Agent handoff tab and validates unavailable-state fallback", async ({ page }, testInfo) => {
   const { server, url } = await startViewer(makeInspectionSnapshot());
 
   try {

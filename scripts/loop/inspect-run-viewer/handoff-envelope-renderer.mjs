@@ -18,7 +18,7 @@ function renderEnvelopeValue(value) {
     return renderList(value.map((v) => (typeof v === "object" ? JSON.stringify(v) : String(v))));
   }
   if (typeof value === "object") {
-    return renderEnvelopeDefinitionList(Object.entries(value).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)]));
+    return renderEnvelopeDefinitionList(Object.entries(value).map(([k, v]) => [k, typeof v === "string" ? escapeHtml(v) : escapeHtml(JSON.stringify(v))]));
   }
   return escapeHtml(String(value));
 }

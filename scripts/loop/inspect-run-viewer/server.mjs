@@ -98,14 +98,11 @@ function requireSnapshotForJson(snapshot) {
 
 async function runResolverForTarget(target, { repoRoot = process.cwd() } = {}) {
   const args = ["scripts/loop/resolve-dev-loop-startup.mjs", "--pr", String(target.pr)];
-  const result = await runChild("node", args, { ...process.env, cwd: repoRoot });
-  if (result.code !== 0) {
-    throw new Error("Resolver failed with exit code " + result.code + ": " + (result.stderr.trim() || "(no output)"));
-  }
+  const { stdout, stderr } = await execFile("node", args, { cwd: repoRoot, timeout: 30000 });
   try {
-    return JSON.parse(result.stdout);
+    return JSON.parse(stdout);
   } catch (_err) {
-    const preview = result.stdout.trim().slice(0, 300);
+    const preview = (stdout || stderr || "").trim().slice(0, 300);
     throw new Error("Invalid resolver JSON output: " + preview);
   }
 }
@@ -563,13 +560,14 @@ export function createInspectRunViewerServer(options, deps = {}) {
         try {
           const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
           if (resolverResult && resolverResult.bundleKind === "resolved") {
-            const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
-          const gateState = snapshot ? {
-            currentHeadSha: snapshot.currentHeadSha || null,
-            ciStatus: snapshot.ciStatus || null,
-            unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === 'number' ? snapshot.unresolvedThreadCount : 0,
-            copilotRoundCount: typeof snapshot.copilotRoundCount === 'number' ? snapshot.copilotRoundCount : 0,
-          } : {};
+            const { config: devLoopConfig, errors: configErrors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+            if (configErrors && configErrors.length > 0) { handoffEnvelope = null; }
+            const gateState = snapshot ? {
+              currentHeadSha: snapshot.currentHeadSha || null,
+              ciStatus: snapshot.ciStatus || null,
+              unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === 'number' ? snapshot.unresolvedThreadCount : 0,
+              copilotRoundCount: typeof snapshot.copilotRoundCount === 'number' ? snapshot.copilotRoundCount : 0,
+            } : {};
             handoffEnvelope = buildDevLoopHandoffEnvelope(
               resolverResult,
               devLoopConfig,
