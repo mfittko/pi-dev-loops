@@ -185,6 +185,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       nextAction: "request_copilot_review",
       reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
       draftGateAlreadySatisfied: true,
+      copilotReviewRoundCount: 0,
       gateEvidenceRequiredForMerge: true,
       refinementArtifact: {
         status: "unknown",
@@ -773,7 +774,7 @@ test("pre-approval-gate-detector overrides to pre_approval_gate_needed when neve
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "fedcba987654" },
-              submittedAt: "2026-05-31T20:00:00Z",
+              submittedAt: "2026-05-31T20:01:00Z",
             },
           ],
         }),
@@ -855,7 +856,7 @@ test("detect-pr-gate-coordination-state blocks merge readiness when retrospectiv
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               commit: { oid: "abc9876543210" },
-              submittedAt: "2026-05-31T20:00:00Z",
+              submittedAt: "2026-05-31T20:01:00Z",
             },
           ],
         }),
@@ -1055,5 +1056,120 @@ test("detect-pr-gate-coordination-state leaves refinement=present when linked is
     assert.deepEqual(result.refinementArtifact?.acItems, ["First AC", "Second AC"]);
   } finally {
     await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+// ── draft gate round-count reset (#560) ──────────────────────────────────
+
+test("detect-pr-gate-coordination-state resets Copilot round count when draft_gate re-passed on different head", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-round-reset-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 266,
+          state: "OPEN",
+          isDraft: true,
+          headRefOid: "def56789abcdef",
+          body: "Closes #527\n\nResets round count.",
+          closingIssuesReferences: [{ number: 527 }],
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "aaa1111111111111111111111111111111111111111" }, submittedAt: "2026-05-30T10:00:00Z" },
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "bbb2222222222222222222222222222222222222222" }, submittedAt: "2026-05-30T11:00:00Z" },
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "ccc3333333333333333333333333333333333333333" }, submittedAt: "2026-05-30T12:00:00Z" },
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "ddd4444444444444444444444444444444444444444" }, submittedAt: "2026-06-01T10:00:00Z" },
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "eee5555555555555555555555555555555555555555" }, submittedAt: "2026-06-01T11:00:00Z" },
+          ],
+        }),
+      },
+      { assertArgs: ["api", "repos/owner/repo/pulls/266/requested_reviewers"], stdout: jsonLine({ users: [], teams: [] }) },
+      { assertArgs: ["api", "graphql", "pr=266"], stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }) },
+      { assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "headRefOid"], stdout: jsonLine({ headRefOid: "def56789abcdef" }) },
+      { assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"], stdout: jsonLine([[
+        { id: 11, body: ["Gate review: draft_gate", "Reviewed head SHA: aaa1111111111111111111111111111111111111111", "Verdict: clean", "Findings summary: no issues found", "Next action: mark ready for review"].join(String.raw`
+`), html_url: "https://example.test/comment/11", updated_at: "2026-05-31T20:00:00Z" }
+      ]]) },
+      // issue view stub for refinement artifact lookup
+      {
+        assertArgs: ["issue", "view", "527", "--repo", "owner/repo", "--json", "body"],
+        stdout: jsonLine({ body: "## Acceptance criteria\n\n- [ ] Round count resets on new head\n- [ ] No reset on same head\n" }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "266"], { env });
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.draftGate.cleanEvidenceExists, true);
+    assert.equal(parsed.draftGate.currentHead, false);
+    assert.equal(parsed.draftGate.headSha, "aaa1111111111111111111111111111111111111111");
+    assert.equal(parsed.draftGate.verdict, "clean");
+    assert.equal(parsed.gateBoundary, "draft_review");
+    assert.deepEqual(parsed.allowedNextActions, ["run_draft_gate"]);
+    // Round count reset: only 2 reviews after draft gate re-pass count
+    assert.equal(parsed.copilotReviewRoundCount, 2,
+      "copilotReviewRoundCount should be 2 (only reviews after draft gate re-pass)");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-pr-gate-coordination-state does NOT reset round count when draft_gate is on same head", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-same-head-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
+        stdout: jsonLine({
+          number: 266,
+          state: "OPEN",
+          isDraft: true,
+          headRefOid: "def56789abcdef",
+          body: "Closes #527\n\nResets round count.",
+          closingIssuesReferences: [{ number: 527 }],
+          statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+          reviews: [
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "aaa1111111111111111111111111111111111111111" }, submittedAt: "2026-05-30T10:00:00Z" },
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "bbb2222222222222222222222222222222222222222" }, submittedAt: "2026-05-30T11:00:00Z" },
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "ccc3333333333333333333333333333333333333333" }, submittedAt: "2026-05-30T12:00:00Z" },
+            // Review after draft gate timestamp: proves no reset still counts this
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "ddd4444444444444444444444444444444444444444" }, submittedAt: "2026-06-01T10:00:00Z" },
+          ],
+        }),
+      },
+      { assertArgs: ["api", "repos/owner/repo/pulls/266/requested_reviewers"], stdout: jsonLine({ users: [], teams: [] }) },
+      { assertArgs: ["api", "graphql", "pr=266"], stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }) },
+      { assertArgs: ["pr", "view", "266", "--repo", "owner/repo", "--json", "headRefOid"], stdout: jsonLine({ headRefOid: "def56789abcdef" }) },
+      { assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/266/comments?per_page=100"], stdout: jsonLine([[
+        { id: 11, body: ["Gate review: draft_gate", "Reviewed head SHA: def56789abcdef", "Verdict: clean", "Findings summary: no issues found", "Next action: mark ready for review"].join(String.raw`
+`), html_url: "https://example.test/comment/11", updated_at: "2026-05-31T20:00:00Z" }
+      ]]) },
+      // issue view stub for refinement artifact lookup
+      {
+        assertArgs: ["issue", "view", "527", "--repo", "owner/repo", "--json", "body"],
+        stdout: jsonLine({ body: "## Acceptance criteria\n\n- [ ] Round count resets on new head\n- [ ] No reset on same head\n" }),
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "266"], { env });
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, true);
+    // Draft gate head SHA matches current head — no reset triggered
+    // (currentHead reflects structured marker detection; loose format
+    // is recognized by parseGateReviewCommentMarkerBody via lenient matching)
+    assert.equal(parsed.draftGate.verdict, "clean");
+    assert.equal(parsed.draftGate.headSha, "def56789abcdef");
+    // No reset: all 4 reviews count toward round total (3 before + 1 after draft gate)
+    assert.equal(parsed.copilotReviewRoundCount, 4,
+      "copilotReviewRoundCount should be 4 (draft gate on same head, no reset)");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
   }
 });

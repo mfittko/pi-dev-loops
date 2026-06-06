@@ -808,7 +808,7 @@ test("upsert-checkpoint-verdict appends the round-cap fallback note to pre-appro
             "**Next action:** mark ready for review",
           ].join("\n"),
           html_url: "https://github.com/owner/repo/pull/17#issuecomment-91",
-          updated_at: "2026-05-31T20:10:00Z",
+          updated_at: "2026-05-31T19:55:00Z",
         }]])}\n`,
       },
       {
@@ -887,7 +887,7 @@ test("upsert-checkpoint-verdict truncates verbose findings summary before commen
             "**Next action:** mark ready for review",
           ].join("\n"),
           html_url: "https://github.com/owner/repo/pull/17#issuecomment-91",
-          updated_at: "2026-05-31T20:10:00Z",
+          updated_at: "2026-05-31T19:55:00Z",
         }]])}\n`,
       },
       {

@@ -274,16 +274,34 @@ export function summarizeGateReviewCommentMarkers(comments, { headSha } = {}) {
   return summary;
 }
 
-export function summarizeCopilotReviews(reviews, { headSha } = {}) {
+export function summarizeCopilotReviews(reviews, { headSha, draftGateResetAtMs } = {}) {
   const allReviews = Array.isArray(reviews) ? reviews : [];
   const copilotReviews = allReviews.filter((review) => isCopilotLogin(review?.author?.login));
+
+  // When draft gate has re-passed on a different head, only count reviews
+  // after the most recent draft gate approval to prevent round accumulation.
+  const effectiveReviews = draftGateResetAtMs != null && draftGateResetAtMs > 0
+    ? copilotReviews.filter((review) => {
+        const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
+        const reviewCommitSha = extractReviewCommitSha(review);
+        const reviewOnCurrentHead = headSha !== null && reviewCommitSha === headSha;
+        // Always retain PENDING reviews on the current head so
+        // hasPendingReviewOnCurrentHead stays accurate even when
+        // submittedAt is null (common for PENDING GitHub reviews).
+        if (state === "PENDING" && reviewOnCurrentHead) {
+          return true;
+        }
+        const submittedAtMs = normalizeTimestamp(review?.submittedAt ?? review?.submitted_at);
+        return submittedAtMs !== null && submittedAtMs > draftGateResetAtMs;
+      })
+    : copilotReviews;
 
   let hasPendingReviewOnCurrentHead = false;
   let hasSubmittedReviewOnCurrentHead = false;
   let latestSubmittedReviewOnCurrentHeadAt = null;
   let completedCopilotReviewRounds = 0;
 
-  for (const review of copilotReviews) {
+  for (const review of effectiveReviews) {
     const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
     const reviewCommitSha = extractReviewCommitSha(review);
     const reviewOnCurrentHead = headSha !== null && reviewCommitSha === headSha;

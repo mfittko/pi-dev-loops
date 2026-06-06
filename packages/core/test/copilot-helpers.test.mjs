@@ -317,3 +317,150 @@ test("parseGateReviewCommentMarkerBody context matcher uses word boundaries on h
   assert.equal(result.headSha, "e284c2e341");
   assert.equal(result.contractComplete, false);
 });
+
+// ── draftGateResetAtMs round-count reset (#560) ─────────────────────────
+
+test("summarizeCopilotReviews filters reviews before draftGateResetAtMs", () => {
+  const reviews = [
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "aaa1111" },
+      submittedAt: "2024-01-08T00:00:00Z",
+    },
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "bbb2222" },
+      submittedAt: "2024-01-10T00:00:00Z",
+    },
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "ccc3333" },
+      submittedAt: "2024-01-12T00:00:00Z",
+    },
+  ];
+
+  // Reset at 2024-01-09: only reviews after this time count
+  const resetAtMs = Date.parse("2024-01-09T00:00:00Z");
+  const result = summarizeCopilotReviews(reviews, {
+    headSha: "ccc3333",
+    draftGateResetAtMs: resetAtMs,
+  });
+
+  // Only the Jan 10 and Jan 12 reviews count → 2 rounds (2 reviews after reset (Jan 10 + Jan 12))
+  assert.equal(result.copilotReviewPresent, true);
+  assert.equal(result.completedCopilotReviewRounds, 2);
+  assert.equal(result.hasSubmittedReviewOnCurrentHead, true);
+  assert.equal(result.latestSubmittedReviewOnCurrentHeadAt, "2024-01-12T00:00:00Z");
+});
+
+test("summarizeCopilotReviews returns zero rounds when all reviews are before draftGateResetAtMs", () => {
+  const reviews = [
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "aaa1111" },
+      submittedAt: "2024-01-05T00:00:00Z",
+    },
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "bbb2222" },
+      submittedAt: "2024-01-06T00:00:00Z",
+    },
+  ];
+
+  // Reset at 2024-01-10: no reviews after this time
+  const resetAtMs = Date.parse("2024-01-10T00:00:00Z");
+  const result = summarizeCopilotReviews(reviews, {
+    headSha: "bbb2222",
+    draftGateResetAtMs: resetAtMs,
+  });
+
+  // copilotReviewPresent reflects all reviews, not just effective ones
+  assert.equal(result.copilotReviewPresent, true);
+  assert.equal(result.completedCopilotReviewRounds, 0);
+  assert.equal(result.hasSubmittedReviewOnCurrentHead, false);
+});
+
+test("summarizeCopilotReviews with null/undefined draftGateResetAtMs behaves same as before (backward compat)", () => {
+  const reviews = [
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "aaa1111" },
+      submittedAt: "2024-01-08T00:00:00Z",
+    },
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "bbb2222" },
+      submittedAt: "2024-01-10T00:00:00Z",
+    },
+  ];
+
+  const resultNull = summarizeCopilotReviews(reviews, {
+    headSha: "bbb2222",
+    draftGateResetAtMs: null,
+  });
+  const resultUndefined = summarizeCopilotReviews(reviews, { headSha: "bbb2222" });
+
+  assert.equal(resultNull.completedCopilotReviewRounds, 2);
+  assert.equal(resultUndefined.completedCopilotReviewRounds, 2);
+  assert.equal(resultNull.completedCopilotReviewRounds, resultUndefined.completedCopilotReviewRounds);
+});
+
+test("summarizeCopilotReviews excludes reviews with exactly draftGateResetAtMs timestamp", () => {
+  const reviews = [
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "aaa1111" },
+      submittedAt: "2024-01-10T00:00:00Z",
+    },
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "bbb2222" },
+      submittedAt: "2024-01-10T00:00:01Z",
+    },
+  ];
+
+  // Reset at exactly 2024-01-10T00:00:00Z — the first review is at same time, excluded
+  const resetAtMs = Date.parse("2024-01-10T00:00:00Z");
+  const result = summarizeCopilotReviews(reviews, {
+    headSha: "bbb2222",
+    draftGateResetAtMs: resetAtMs,
+  });
+
+  assert.equal(result.completedCopilotReviewRounds, 1); // only the +1s review
+});
+
+test("summarizeCopilotReviews draftGateResetAtMs does not affect non-Copilot reviews", () => {
+  const reviews = [
+    {
+      author: { login: "human-reviewer" },
+      state: "APPROVED",
+      commit: { oid: "aaa1111" },
+      submittedAt: "2024-01-10T00:00:00Z",
+    },
+    {
+      author: { login: "copilot-swe-agent" },
+      state: "COMMENTED",
+      commit: { oid: "bbb2222" },
+      submittedAt: "2024-01-12T00:00:00Z",
+    },
+  ];
+
+  const resetAtMs = Date.parse("2024-01-11T00:00:00Z");
+  const result = summarizeCopilotReviews(reviews, {
+    headSha: "bbb2222",
+    draftGateResetAtMs: resetAtMs,
+  });
+
+  // Human review ignored, only Copilot after reset counts
+  assert.equal(result.copilotReviewPresent, true);
+  assert.equal(result.completedCopilotReviewRounds, 1);
+});
