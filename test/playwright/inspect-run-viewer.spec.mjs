@@ -398,3 +398,34 @@ test("webkit renders the Agent handoff tab and validates unavailable-state fallb
     await stopFixtureServer(server);
   }
 });
+
+test("webkit renders envelope unavailable fallback when adapter has no loadHandoffEnvelope", async ({ page }) => {
+  const { server, url } = await startFixtureServer(() => createInspectRunViewerServer(
+    { repo: "owner/repo", pr: "55", host: "127.0.0.1", port: 0 },
+    {
+      adapter: {
+        async loadSnapshot() {
+          return makeInspectionSnapshot();
+        },
+        // no loadHandoffEnvelope — exercises the unavailable fallback path
+        async listAssignedPullRequests() {
+          return [{ target: { repo: "owner/repo", pr: 55 }, title: "Current PR" }];
+        },
+      },
+    },
+  ));
+
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+
+    const handoffTab = page.locator('.viewer-tab[data-tab="handoff"]');
+    await handoffTab.click();
+
+    const handoffSection = page.locator("#handoff-envelope-section");
+    await expect(handoffSection).toBeVisible();
+    await expect(handoffSection).toContainText(/Envelope unavailable/);
+    await expect(handoffSection).toContainText(/buildDevLoopHandoffEnvelope/);
+  } finally {
+    await stopFixtureServer(server);
+  }
+});

@@ -588,7 +588,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
             }
           }
         } catch (caught) {
-          console.error("loadHandoffEnvelope failed:", caught);
+          logErrorImpl(Object.assign(new Error("loadHandoffEnvelope failed"), { cause: caught }));
           handoffEnvelope = null;
         }
       }
