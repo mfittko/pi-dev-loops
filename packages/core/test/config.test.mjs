@@ -1750,7 +1750,7 @@ describe("role resolution", () => {
 describe("shipped defaults docs and deep angle wiring", () => {
 
   test("D2: shipped defaults wire contract-surface by default and expose cluster-derived opt-in prompts", async () => {
-    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D2-cluster-prompts-"));
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D3-cluster-prompts-"));
     try {
       const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
       const sourceDefaults = await readFile(path.join(repoRoot, ".pi", "dev-loop", "defaults.yaml"), "utf8");
@@ -1826,7 +1826,7 @@ describe("shipped defaults docs and deep angle wiring", () => {
   });
 
   test("D3: pr-description persona resolves and appears in draft gate angles after settings opt-in", async () => {
-    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D2-"));
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D3-"));
     try {
       const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
       const sourceDefaults = await readFile(path.join(repoRoot, ".pi", "dev-loop", "defaults.yaml"), "utf8");
