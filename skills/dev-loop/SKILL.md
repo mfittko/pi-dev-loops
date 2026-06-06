@@ -10,9 +10,9 @@ allowed-tools: read bash edit write subagent review_loop
 user-invocable: true
 ---
 
-**No-implicit-start rule (#577, mandatory):** Never start implementation (file mutation, branch creation, PR creation) without explicit instruction. "Queue," "add to list," "track," "note" are NOT implementation triggers. Only proceed with "start," "go," "implement," "do it," "work on," or equivalent imperative. Confirm if unsure.
+**No-implicit-start rule:** Never start implementation (file mutation, branch creation, PR creation) without explicit instruction. "Queue," "add to list," "track," "note" are NOT implementation triggers. Only proceed with "start," "go," "implement," "do it," "work on," or equivalent imperative. Confirm if unsure.
 
-**Work-origin rule (#577, mandatory):** All work must originate from a tracked artifact: a GitHub issue (tracker-first) or a persisted markdown plan file. No work may originate from a PR or direct local change unless explicitly requested by the user. Every change must have a document trail.
+**Work-origin rule:** All work must originate from a tracked artifact: a GitHub issue (tracker-first) or a persisted markdown plan file. No work may originate from a PR or direct local change unless explicitly requested by the user. Every change must have a document trail.
 
 # Unified Dev Loop
 
