@@ -91,6 +91,32 @@ test("draft PR forbids mark-ready until current-head clean draft gate evidence e
   assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW));
 });
 
+test("draft PR rejects pre_approval_gate entry — must pass draft gate before pre-approval", () => {
+  // A draft PR with no draft-gate evidence at all must forbid pre_approval_gate.
+  const result = evaluatePrGateCoordination({
+    pr: 543,
+    currentHeadSha: "f7a611b723",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "success",
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+  });
+
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.DRAFT_REVIEW);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE);
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert(!result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
+  assert.match(
+    result.reason,
+    /`draft_gate` is now the legal gate boundary before `gh pr ready`/i,
+  );
+  // Mark-ready is also forbidden (no current-head clean draft gate evidence yet).
+  assert(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW));
+  assert(!result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW));
+});
+
 test("stale gate markers do not report current-head contract completeness", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
