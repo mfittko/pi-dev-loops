@@ -5,8 +5,8 @@ State vocabulary: `waiting`, `waiting_for_initial_copilot_implementation`, `wait
 Next-action sentence: "Enter healthy-watch mode with configured timeout; escalate only on genuine blocked/authorization/reconcile states."
 
 Helpers to run first:
-1. `node scripts/loop/watch-initial-copilot-pr.mjs --repo <owner/name> --pr <N>` — bootstrap watcher
-2. `node scripts/loop/run-watch-cycle.mjs` — cycle watcher
+1. `dev-loops loop watch-initial --repo <owner/name> --issue <N>` — bootstrap watcher
+2. `dev-loops loop watch-cycle --repo <owner/name> --pr <N>` — cycle watcher
 
 Required reading:
 - [Public Dev Loop Contract](public-dev-loop-contract.md)
