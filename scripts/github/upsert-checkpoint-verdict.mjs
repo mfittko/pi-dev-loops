@@ -345,8 +345,12 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
 
   const missing = ["repo", "pr", "gate", "headSha", "verdict", "findingsSummary", "nextAction"]
     .filter((key) => options[key] === undefined);
+  if (options.findingsFile) {
+    const fsIdx = missing.indexOf("findingsSummary");
+    if (fsIdx !== -1) missing.splice(fsIdx, 1);
+  }
   if (missing.length > 0) {
-    throw parseError("upsert-checkpoint-verdict requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary, and --next-action");
+    throw parseError("upsert-checkpoint-verdict requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary (or --findings-file), and --next-action");
   }
 
   try {
@@ -586,13 +590,17 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
   if (options.findingsFile) {
     try {
       const fileContent = await readFile(options.findingsFile, "utf8");
-      options.findingsSummary = fileContent.trim();
+      const rawSummary = fileContent.trim();
+      const note = typeof coordination.gateEvidenceNote === "string" ? `; ${collapseWhitespace(coordination.gateEvidenceNote)}` : "";
+      options.findingsSummary = smartTruncate(rawSummary + note, MAX_GATE_COMMENT_TEXT_LENGTH);
     } catch (err) {
       throw new Error(`Cannot read --findings-file "${options.findingsFile}": ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
-  const effectiveFindingsSummary = appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
+  const effectiveFindingsSummary = options.findingsFile
+    ? options.findingsSummary
+    : appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
   const desiredBody = renderGateReviewCommentBody({
     ...options,
     headSha: canonicalHeadSha,
