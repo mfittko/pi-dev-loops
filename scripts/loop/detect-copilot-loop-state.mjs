@@ -540,9 +540,7 @@ export async function runCli(
     );
   }
 
-  // Overlay steering state if a file was provided; keep this detector read-only.
   let interpretation;
-  let steeringFields = {};
 
   const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) });
   // Fall back to built-in defaults when config validation has errors
@@ -563,7 +561,7 @@ export async function runCli(
     sameHeadCleanConverged: interpretation.sameHeadCleanConverged,
     loopDisposition: interpretationSummary.loopDisposition,
     terminal: interpretationSummary.terminal,
-    ...steeringFields,
+
   })}\n`);
 }
 

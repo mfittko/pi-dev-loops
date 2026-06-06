@@ -25,7 +25,7 @@ Optional:
 
   --copilot-input <path>                Pass-through to inspect-run
   --reviewer-input <path>               Pass-through to inspect-run
-                                        (cannot be combined with
+                                                                                  (pass-through to inspect-run)
 )`.trim();
 
 export const DEFAULT_HOST = "127.0.0.1";

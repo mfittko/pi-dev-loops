@@ -319,24 +319,23 @@ export async function readyForReview(options, { env = process.env, ghCommand = "
   }
 
   // Step 4: Validate draft_gate evidence (fail-closed guard)
-  let gateEvidence = null;
-  gateEvidence = await fetchGateEvidence({ repo: options.repo, pr: options.pr, headSha }, { env, ghCommand });
+  const gateEvidence = await fetchGateEvidence({ repo: options.repo, pr: options.pr, headSha }, { env, ghCommand });
 
-    if (!gateEvidence.cleanEvidenceExists && !gateEvidence.effectiveHeadClean) {
-      throw new Error(
-        `PR #${options.pr} has no visible clean draft_gate evidence on current head ${headSha.slice(0, 7)}. ` +
-        `Run the draft gate before marking ready for review.`
-      );
-    }
+  if (!gateEvidence.cleanEvidenceExists && !gateEvidence.effectiveHeadClean) {
+    throw new Error(
+      `PR #${options.pr} has no visible clean draft_gate evidence on current head ${headSha.slice(0, 7)}. ` +
+      `Run the draft gate before marking ready for review.`
+    );
+  }
 
-    if (!gateEvidence.effectiveHeadClean) {
-      const markerVisible = gateEvidence.draftGateMarker?.visible;
-      const markerHasHead = gateEvidence.draftGateMarker?.headSha;
-      throw new Error(
-        markerVisible && markerHasHead
-          ? `PR #${options.pr} draft_gate marker does not match current head ${headSha.slice(0, 7)}. The draft gate evidence was recorded against a different commit. Re-run the draft gate on the current head before marking ready for review.`
-          : `PR #${options.pr} draft_gate marker is missing or incomplete on current head ${headSha.slice(0, 7)}. Re-run the draft gate before marking ready for review.`
-      );
+  if (!gateEvidence.effectiveHeadClean) {
+    const markerVisible = gateEvidence.draftGateMarker?.visible;
+    const markerHasHead = gateEvidence.draftGateMarker?.headSha;
+    throw new Error(
+      markerVisible && markerHasHead
+        ? `PR #${options.pr} draft_gate marker does not match current head ${headSha.slice(0, 7)}. The draft gate evidence was recorded against a different commit. Re-run the draft gate on the current head before marking ready for review.`
+        : `PR #${options.pr} draft_gate marker is missing or incomplete on current head ${headSha.slice(0, 7)}. Re-run the draft gate before marking ready for review.`
+    );
   }
 
   // Step 5: Call gh pr ready
