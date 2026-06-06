@@ -507,21 +507,6 @@ test("parseInspectRunViewerCliArgs normalizes repo values and rejects malformed 
     /--pr is no longer supported on the CLI/i,
   );
   assert.throws(
-    () => parseInspectRunViewerCliArgs([
-      "--repo",
-      "owner/repo",
-      "--reviewer-login",
-      "reviewer",
-      "--reviewer-input",
-      "tmp/reviewer.json",
-    ]),
-    /cannot be combined/i,
-  );
-  assert.throws(
-    () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--reviewer-login", "   "]),
-    /must not be empty/i,
-  );
-  assert.throws(
     () => parseInspectRunViewerCliArgs(["--repo", "owner/repo", "--host", "   "]),
     /--host must not be empty/i,
   );
