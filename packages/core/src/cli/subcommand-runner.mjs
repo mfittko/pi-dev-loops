@@ -6,9 +6,7 @@
  * removed-flags handling, and direct-invocation boilerplate.
  */
 
-import { fileURLToPath } from "node:url";
-import { realpathSync } from "node:fs";
-import { buildParseError } from "./helpers.mjs";
+import { buildParseError, isDirectCliRun } from "./helpers.mjs";
 import { requireOptionValue, parsePrNumber, parseIssueNumber,
          parsePositiveInteger, parseNonNegativeInteger } from "./primitives.mjs";
 
@@ -18,7 +16,7 @@ import { requireOptionValue, parsePrNumber, parseIssueNumber,
  * @typedef {Object} CliOption
  * @property {string} flag       - e.g. "--repo"
  * @property {string} [key]      - override output key name; defaults to dashed→camelCase (e.g. "--head-sha" → "headSha")
- * @property {string} [valueName] - human-readable value name for usage
+ * @property {string} [valueName] - human-readable value name for usage (ignored for boolean flags)
  * @property {string} [description] - help text
  * @property {"string"|"number"|"boolean"|"pr"|"issue"|"positiveInt"|"nonNegativeInt"} [type] - default "string"
  * @property {boolean} [required] - default false
@@ -37,6 +35,13 @@ function dashedToCamel(flag) {
 function optionKey(opt) {
   if (opt.key) return opt.key;
   return dashedToCamel(opt.flag);
+}
+
+/** Render a single option's usage fragment for the generated help text. */
+function optionUsageFragment(opt) {
+  if (opt.type === "boolean") return opt.flag;
+  const vn = opt.valueName || opt.flag.replace(/^--/, "").replace(/-/g, "_").toUpperCase();
+  return `${opt.flag} <${vn}>`;
 }
 
 /**
@@ -69,14 +74,10 @@ export function defineSubcommand(def) {
 
   const usageLines = [`Usage: pi-dev-loops ${name}`];
   for (const opt of requiredOpts) {
-    const vn = opt.valueName || opt.flag.replace(/^--/, "").replace(/-/g, "_").toUpperCase();
-    usageLines.push(`  ${opt.flag} <${vn}>`);
+    usageLines.push(`  ${optionUsageFragment(opt)}`);
   }
   if (optionalOpts.length > 0) {
-    const optStrs = optionalOpts.map((o) => {
-      const vn = o.valueName || o.flag.replace(/^--/, "").replace(/-/g, "_").toUpperCase();
-      return `${o.flag} <${vn}>`;
-    });
+    const optStrs = optionalOpts.map((o) => optionUsageFragment(o));
     usageLines.push(`  [${optStrs.join("] [")}]`);
   }
 
@@ -86,14 +87,14 @@ export function defineSubcommand(def) {
   if (requiredOpts.length > 0) {
     usageLines.push("", "Required:");
     for (const opt of requiredOpts) {
-      usageLines.push(`  ${opt.flag} <${opt.valueName || opt.flag.replace(/^--/, "").replace(/-/g, "_").toUpperCase()}>${opt.description ? `    ${opt.description}` : ""}`);
+      usageLines.push(`  ${optionUsageFragment(opt)}${opt.description ? `    ${opt.description}` : ""}`);
     }
   }
 
   if (optionalOpts.length > 0) {
     usageLines.push("", "Optional:");
     for (const opt of optionalOpts) {
-      usageLines.push(`  ${opt.flag} <${opt.valueName || opt.flag.replace(/^--/, "").replace(/-/g, "_").toUpperCase()}>${opt.description ? `    ${opt.description}` : ""}`);
+      usageLines.push(`  ${optionUsageFragment(opt)}${opt.description ? `    ${opt.description}` : ""}`);
     }
   }
 
@@ -169,8 +170,13 @@ export function defineSubcommand(def) {
 
       const opt = options.find((o) => o.flag === token);
       if (opt) {
-        const raw = requireOptionValue(args, opt.flag, parseError);
-        parsed[optionKey(opt)] = parseValue(raw, opt);
+        if (opt.type === "boolean") {
+          // Boolean flags are presence-only: --flag sets true, no value required.
+          parsed[optionKey(opt)] = true;
+        } else {
+          const raw = requireOptionValue(args, opt.flag, parseError);
+          parsed[optionKey(opt)] = parseValue(raw, opt);
+        }
         continue;
       }
 
@@ -210,18 +216,6 @@ export function defineSubcommand(def) {
   }
 
   return { parseArgs, runAsScript, usage, parseError };
-}
-
-/**
- * Check if the current module is being run directly (not imported).
- */
-export function isDirectCliRun(importMetaUrl, argv1 = process.argv[1]) {
-  if (typeof argv1 !== "string" || argv1.length === 0) return false;
-  try {
-    return realpathSync(argv1) === realpathSync(fileURLToPath(importMetaUrl));
-  } catch {
-    return false;
-  }
 }
 
 /**
