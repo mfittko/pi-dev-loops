@@ -212,7 +212,23 @@ test("clean settled current-head review opens the pre-approval gate window", () 
   assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
-test("crediblyGreen CI allows pre-approval progression once the review loop is already settled", () => {
+test("draft gate with crediblyGreen CI routes to WAIT_FOR_CI — unconfirmed CI is not a hard block", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "abc123456789",
+    prDraft: true,
+    lifecycleState: STATE.PR_DRAFT,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "crediblyGreen",
+    draftGate: gate({ visible: false }),
+    preApprovalGate: gate({ visible: false }),
+  });
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.WAIT_FOR_CI);
+  assert.notEqual(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.match(result.reason, /so wait for CI to settle green/i);
+});
+
+test("crediblyGreen CI blocks pre-approval progression — CI must be confirmed before gate entry", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
     currentHeadSha: "fedcba987654",
@@ -227,10 +243,29 @@ test("crediblyGreen CI allows pre-approval progression once the review loop is a
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.lifecycleState, STATE.READY_TO_REREQUEST_REVIEW);
-  assert.equal(result.gateBoundary, PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW);
-  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
-  assert.match(result.reason, /credibly green/i);
+  assert.equal(result.lifecycleState, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.match(result.reason, /unconfirmed/i);
+});
+test("ciStatus failure blocks READY_TO_REREQUEST_REVIEW — primary issue-#552 scenario", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: DISPOSITION.CLEAN_CONVERGED,
+    sameHeadCleanConverged: true,
+    ciStatus: "failure",
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+  assert.equal(result.lifecycleState, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.match(result.reason, /failing/i);
 });
 
 test("round-cap exhaustion opens the pre-approval gate window even without a current-head Copilot rereview", () => {
@@ -689,6 +724,47 @@ test("internal-only PR with retrospective gate blocks when checkpoint missing", 
   assert.match(result.reason, /retrospective_gate_pending/i);
 });
 
+
+test("PR_READY_NO_FEEDBACK internal_only blocks on CI failure", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 553,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    reviewMode: "internal_only",
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "failure",
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+  assert.equal(result.lifecycleState, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.match(result.reason, /failing CI/i);
+});
+
+test("PR_READY_NO_FEEDBACK internal_only blocks on crediblyGreen CI", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 553,
+    currentHeadSha: "fedcba987654",
+    prDraft: false,
+    reviewMode: "internal_only",
+    lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    ciStatus: "crediblyGreen",
+    draftGate: gate({ visible: true, headSha: "fedcba9", verdict: "clean" }),
+    draftGateMarker: gate({ visible: true, headSha: "fedcba9", verdict: "clean", contractComplete: true }),
+    preApprovalGate: gate({ visible: false }),
+    preApprovalGateMarker: gate({ visible: false }),
+  });
+  assert.equal(result.lifecycleState, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.match(result.reason, /unconfirmed/i);
+});
+
 test("internal-only PR with retrospective gate allows when approved", () => {
   const result = evaluatePrGateCoordination({
     pr: 298,
@@ -834,6 +910,18 @@ test("LOW_SIGNAL_CONVERGED blocks on CI failure", () => {
   });
   assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
   assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+});
+test("LOW_SIGNAL_CONVERGED blocks on crediblyGreen CI", () => {
+  const result = evaluatePrGateCoordination({
+    repo: "owner/repo", pr: 17,
+    lifecycleState: STATE.LOW_SIGNAL_CONVERGED, loopDisposition: DISPOSITION.DONE,
+    prDraft: false, ciStatus: "crediblyGreen",
+    draftGate: { visible: true, verdict: "clean", headSha: "abc1234" },
+    preApprovalGate: {},
+  });
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.match(result.reason, /unconfirmed/i);
 });
 
 test("normalizeSnapshot preserves valid lastCopilotRoundMaxSignal", () => {

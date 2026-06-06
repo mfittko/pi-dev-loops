@@ -631,6 +631,30 @@ export function evaluatePrGateCoordination(input = {}) {
   if (effectiveLifecycleState === STATE.PR_READY_NO_FEEDBACK) {
     if (reviewMode === "internal_only") {
       // Explicitly internal-only PR: skip the external Copilot review cycle
+      if (ciStatus === "failure" || ciStatus === "crediblyGreen") {
+        pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
+        pushUnique(forbiddenActions, internalOnlyPostDraftForbidden);
+        return buildResult({
+          repo: input.repo ?? null,
+          pr: Number.isInteger(input.pr) ? input.pr : null,
+          currentHeadSha,
+          lifecycleState: STATE.BLOCKED_NEEDS_USER_DECISION,
+          loopDisposition: DISPOSITION.BLOCKED,
+          gateBoundary: PR_CHECKPOINT.BLOCKED,
+          draftGateAlreadySatisfied,
+          draftGate,
+          preApprovalGate,
+          allowedNextActions,
+          forbiddenActions,
+          nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
+          reason: ciStatus === "crediblyGreen"
+            ? "The current head has unconfirmed CI (credibly green), so gate progression remains blocked until CI is confirmed green."
+            : "The current head has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
+          mergeStateStatus,
+          conflictFiles,
+            refinementArtifact,
+        });
+      }
       if (preApprovalGate.currentHeadClean) {
         if (requireRetrospectiveGate) {
           const retrospectiveGate = evaluateRetrospectiveMergeApproval(retrospectiveCheckpoint);
@@ -791,7 +815,7 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (effectiveLifecycleState === STATE.READY_TO_REREQUEST_REVIEW) {
-    if (ciStatus === "failure") {
+    if (ciStatus === "failure" || ciStatus === "crediblyGreen") {
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
       pushUnique(forbiddenActions, postDraftForbidden);
       return buildResult({
@@ -807,7 +831,9 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
-        reason: "The current head still has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
+        reason: ciStatus === "crediblyGreen"
+          ? "The current head has unconfirmed CI (credibly green), so gate progression remains blocked until CI is confirmed green."
+          : "The current head still has failing CI, so gate progression remains blocked until the failing checks are fixed and revalidated.",
         mergeStateStatus,
         conflictFiles,
           refinementArtifact,
@@ -943,7 +969,7 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (effectiveLifecycleState === STATE.LOW_SIGNAL_CONVERGED) {
-    if (ciStatus === "failure") {
+    if (ciStatus === "failure" || ciStatus === "crediblyGreen") {
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
       pushUnique(forbiddenActions, postDraftForbidden);
       return buildResult({
@@ -959,7 +985,9 @@ export function evaluatePrGateCoordination(input = {}) {
         allowedNextActions,
         forbiddenActions,
         nextAction: PR_CHECKPOINT_ACTION.REPORT_BLOCKED,
-        reason: "The low-signal heuristic indicates convergence, but the current head still has failing CI, so gate progression remains blocked.",
+        reason: ciStatus === "crediblyGreen"
+          ? "The low-signal heuristic indicates convergence, but the current head has unconfirmed CI (credibly green), so gate progression remains blocked until CI is confirmed green."
+          : "The low-signal heuristic indicates convergence, but the current head still has failing CI, so gate progression remains blocked.",
         mergeStateStatus,
         conflictFiles,
           refinementArtifact,
