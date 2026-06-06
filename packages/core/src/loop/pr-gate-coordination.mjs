@@ -531,7 +531,7 @@ export function evaluatePrGateCoordination(input = {}) {
     ];
 
     if (!draftGate.currentHeadClean && draftGateRequireCi) {
-      if (ciStatus === "failure") {
+      if (ciStatus === "failure" || ciStatus === "crediblyGreen") {
         pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
         pushUnique(forbiddenActions, [
           PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
@@ -791,7 +791,7 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (effectiveLifecycleState === STATE.READY_TO_REREQUEST_REVIEW) {
-    if (ciStatus === "failure") {
+    if (ciStatus === "failure" || ciStatus === "crediblyGreen") {
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
       pushUnique(forbiddenActions, postDraftForbidden);
       return buildResult({
@@ -943,7 +943,7 @@ export function evaluatePrGateCoordination(input = {}) {
   }
 
   if (effectiveLifecycleState === STATE.LOW_SIGNAL_CONVERGED) {
-    if (ciStatus === "failure") {
+    if (ciStatus === "failure" || ciStatus === "crediblyGreen") {
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.REPORT_BLOCKED]);
       pushUnique(forbiddenActions, postDraftForbidden);
       return buildResult({

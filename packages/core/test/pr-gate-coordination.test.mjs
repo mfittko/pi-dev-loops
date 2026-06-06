@@ -212,7 +212,7 @@ test("clean settled current-head review opens the pre-approval gate window", () 
   assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
-test("crediblyGreen CI allows pre-approval progression once the review loop is already settled", () => {
+test("crediblyGreen CI blocks pre-approval progression — CI must be confirmed before gate entry", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
     currentHeadSha: "fedcba987654",
@@ -227,10 +227,10 @@ test("crediblyGreen CI allows pre-approval progression once the review loop is a
     preApprovalGateMarker: gate({ visible: false }),
   });
 
-  assert.equal(result.lifecycleState, STATE.READY_TO_REREQUEST_REVIEW);
-  assert.equal(result.gateBoundary, PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW);
-  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE);
-  assert.match(result.reason, /credibly green/i);
+  assert.equal(result.lifecycleState, STATE.BLOCKED_NEEDS_USER_DECISION);
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.REPORT_BLOCKED);
+  assert.match(result.reason, /failing/i);
 });
 
 test("round-cap exhaustion opens the pre-approval gate window even without a current-head Copilot rereview", () => {
