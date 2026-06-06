@@ -19,17 +19,20 @@ const REMOVED_FLAGS = new Set([
   "--force-reason",
 ]);
 
-const USAGE = `Usage: upsert-checkpoint-verdict.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> (--findings-summary <text> | --findings-file <path>) --next-action <text> [--local-validation-head-sha <sha>]
+const USAGE = `Usage: upsert-checkpoint-verdict.mjs --repo <owner/name> --pr <number> --head-sha <sha> --verdict <clean|findings_present|blocked> (--findings-summary <text> | --findings-file <path>) --next-action <text> [--gate <draft_gate|pre_approval_gate>]
 
 Create or update the visible checkpoint verdict comment for a gate/head pair.
 Same-head reruns are idempotent: if a visible marker already exists for the same
 \`gate + headSha\`, this helper updates it in place when correction is needed and
 suppresses duplicate reposts when the existing visible comment already matches.
 
+The gate (draft_gate or pre_approval_gate) is auto-resolved from the PR gate
+coordination state when --gate is not provided. Explicit --gate is still accepted
+but must match the coordination state's allowed next actions.
+
 Required:
   --repo <owner/name>
   --pr <number>
-  --gate <draft_gate|pre_approval_gate>
   --head-sha <sha>                            Full current head SHA or hexadecimal prefix of it
   --verdict <clean|findings_present|blocked>
   --findings-summary <text>                 Findings summary as a single argument
@@ -41,12 +44,9 @@ Required:
   --next-action <text>
 
 Optional:
-  --local-validation-head-sha <sha>          Assert that local npm run verify
-                                             already passed for this exact head
-                                             SHA so pre_approval gate legality can
-                                             reuse the bounded crediblyGreen CI
-                                             exception when GitHub created zero
-                                             current-head suites/statuses.
+  --gate <draft_gate|pre_approval_gate>     Auto-resolved from coordination state
+                                            when omitted. Explicit gate is validated
+                                            against allowed coordination actions.
   --findings-severity-counts <json>         JSON object mapping severity to count
                                              (e.g. '{"must-fix":0,"worth-fixing-now":0}').
                                              Required for --verdict clean when
@@ -243,7 +243,6 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
     findingsSummary: undefined,
     findingsFile: undefined,
     nextAction: undefined,
-    localValidationHeadSha: undefined,
     findingsSeverityCounts: undefined,
   };
 
@@ -315,15 +314,6 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
       continue;
     }
 
-    if (token === "--local-validation-head-sha") {
-      const localValidationHeadSha = normalizeHeadSha(requireOptionValue(args, "--local-validation-head-sha", parseError));
-      if (!localValidationHeadSha) {
-        throw parseError("--local-validation-head-sha must be a 7-64 character hexadecimal SHA");
-      }
-      options.localValidationHeadSha = localValidationHeadSha;
-      continue;
-    }
-
     if (token === "--findings-severity-counts") {
       const raw = requireOptionValue(args, "--findings-severity-counts", parseError);
       let parsed;
@@ -349,14 +339,14 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
     throw parseError(`Unknown argument: ${token}`);
   }
 
-  const missing = ["repo", "pr", "gate", "headSha", "verdict", "findingsSummary", "nextAction"]
+  const missing = ["repo", "pr", "headSha", "verdict", "findingsSummary", "nextAction"]
     .filter((key) => options[key] === undefined);
   if (options.findingsFile) {
     const fsIdx = missing.indexOf("findingsSummary");
     if (fsIdx !== -1) missing.splice(fsIdx, 1);
   }
   if (missing.length > 0) {
-    throw parseError("upsert-checkpoint-verdict requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary (or --findings-file), and --next-action");
+    throw parseError("upsert-checkpoint-verdict requires --repo, --pr, --head-sha, --verdict, --findings-summary (or --findings-file), and --next-action");
   }
 
   try {
@@ -530,7 +520,7 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
 }
 
 export async function upsertCheckpointVerdict(options, { env = process.env, ghCommand = "gh", repoRoot = process.cwd() } = {}) {
-  const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr, localValidationHeadSha: options.localValidationHeadSha }, { env, ghCommand });
+  const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr }, { env, ghCommand });
   const evidence = coordinationContext.gateEvidence;
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
   const { config } = await loadDevLoopConfig({ repoRoot });
@@ -556,6 +546,18 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
     preApprovalGate: coordinationContext.gateEvidence.preApprovalGate,
     preApprovalGateMarker: coordinationContext.gateEvidence.preApprovalGateMarker,
   });
+  // Auto-resolve gate from coordination state when not explicitly provided
+  if (!options.gate) {
+    if (coordination.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE)) {
+      options.gate = "draft_gate";
+    } else if (coordination.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE)) {
+      options.gate = "pre_approval_gate";
+    } else if (coordination.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE)) {
+      options.gate = "draft_gate";
+    } else {
+      throw new Error(`Cannot auto-resolve gate for ${options.repo}#${options.pr}: no gate action is currently allowed (${coordination.reason})`);
+    }
+  }
   const requestedGateAction = resolveGateAction(options.gate);
   const gateActionForbidden = coordination.forbiddenActions.includes(requestedGateAction);
 

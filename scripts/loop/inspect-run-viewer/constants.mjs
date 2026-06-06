@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 export const USAGE = `Usage: inspect-run-viewer.mjs [--repo <owner/name>]
   [--host <host>] [--port <port>] [--allow-non-localhost] [--restart]
-  [--steering-state-file <path>] [--reviewer-login <login>]
+  [--steering-state-file <path>]
   [--copilot-input <path>] [--reviewer-input <path>]
 
 Owned read-only local/operator inspection dashboard for inspect-run snapshots.
@@ -22,11 +22,11 @@ Optional:
                                         (requires lsof/POSIX; sends
                                         SIGTERM to all listeners)
   --steering-state-file <path>          Pass-through to inspect-run
-  --reviewer-login <login>              Pass-through to inspect-run
+
   --copilot-input <path>                Pass-through to inspect-run
   --reviewer-input <path>               Pass-through to inspect-run
                                         (cannot be combined with
-                                        --reviewer-login)`.trim();
+)`.trim();
 
 export const DEFAULT_HOST = "127.0.0.1";
 export const DEFAULT_PORT = 4311;

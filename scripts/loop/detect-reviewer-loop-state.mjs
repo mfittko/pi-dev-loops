@@ -20,7 +20,7 @@ import {
   normalizeReviewerSnapshot,
 } from "@pi-dev-loops/core/loop/reviewer-loop-state";
 
-const HELP = `Usage: detect-reviewer-loop-state.mjs [--input <path> | --repo <owner/name> --pr <number>] [--reviewer-login <login>] [--review-requested <true|false>] [--local-state <path>]
+const HELP = `Usage: detect-reviewer-loop-state.mjs [--input <path> | --repo <owner/name> --pr <number>] [--review-requested <true|false>] [--local-state <path>]
 
 Detect reviewer loop state for a pull request.
 
@@ -29,10 +29,10 @@ Modes:
   --repo <owner/name> --pr <n>  Auto-detect state from GitHub PR
 
 Options (auto-detect mode only):
-  --reviewer-login <login>      Filter reviews by reviewer login
   --review-requested <bool>     Override review-requested detection (true/false)
   --local-state <path>          Path to local state file for snapshot merging
 
+Reviewer scope is auto-resolved from PR requested reviewers.
 Exit codes:
   0   Success
   1   Error
@@ -44,21 +44,12 @@ function parseBool(value, flag) {
   throw new Error(`${flag} must be true or false`);
 }
 
-function parseReviewerLogin(value) {
-  const normalized = value.trim();
-  if (normalized.length === 0) {
-    throw new Error("--reviewer-login must not be empty");
-  }
-  return normalized;
-}
-
 export function parseDetectReviewerCliArgs(argv) {
   const args = [...argv];
   const options = {
     inputPath: undefined,
     repo: undefined,
     pr: undefined,
-    reviewerLogin: undefined,
     reviewRequestedOverride: undefined,
     localStatePath: undefined,
     help: false,
@@ -87,10 +78,6 @@ export function parseDetectReviewerCliArgs(argv) {
       continue;
     }
 
-    if (token === "--reviewer-login") {
-      options.reviewerLogin = parseReviewerLogin(requireOptionValue(args, "--reviewer-login"));
-      continue;
-    }
 
     if (token === "--review-requested") {
       options.reviewRequestedOverride = parseBool(
@@ -113,10 +100,9 @@ export function parseDetectReviewerCliArgs(argv) {
       throw new Error("Choose exactly one input source: --input <path> or --repo/--pr auto-detect");
     }
     const hasInputOnlyConflict = options.localStatePath !== undefined
-      || options.reviewRequestedOverride !== undefined
-      || options.reviewerLogin !== undefined;
+      || options.reviewRequestedOverride !== undefined;
     if (hasInputOnlyConflict) {
-      throw new Error("--input cannot be combined with --reviewer-login, --review-requested, or --local-state");
+      throw new Error("--input cannot be combined with --review-requested or --local-state");
     }
     return options;
   }
@@ -274,16 +260,34 @@ export async function autoDetectReviewerSnapshot(
 ) {
   const prView = await fetchPrView({ repo, pr }, deps);
   if (prView === null) return normalizeReviewerSnapshot({ prExists: false, reviewerLogin });
+
+  // Auto-resolve reviewer login from PR requested reviewers when not explicitly provided
+  let effectiveReviewerLogin = reviewerLogin;
+  if (effectiveReviewerLogin === undefined) {
+    try {
+      const reviewersPayload = await runGhJson(["api", `repos/${repo}/pulls/${pr}/requested_reviewers`], deps);
+      const users = Array.isArray(reviewersPayload?.users) ? reviewersPayload.users : [];
+      const humanReviewers = users.filter((user) => {
+        const login = typeof user?.login === "string" ? user.login : "";
+        return login.length > 0 && login !== "copilot-pull-request-reviewer";
+      });
+      if (humanReviewers.length === 1) {
+        effectiveReviewerLogin = humanReviewers[0].login;
+      }
+    } catch {
+      // If we cannot fetch reviewers, fall back to aggregate scope (undefined)
+    }
+  }
   const localState = await readLocalState(localStatePath);
   const prState = typeof prView.state === "string" ? prView.state.toUpperCase() : "OPEN";
   const prMerged = prState === "MERGED";
   const prClosed = prState === "CLOSED";
   if (prMerged || prClosed) {
-    return normalizeReviewerSnapshot({ ...localState, prExists: true, prNumber: typeof prView.number === "number" ? prView.number : pr, prMerged, prClosed, prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null, reviewerLogin });
+    return normalizeReviewerSnapshot({ ...localState, prExists: true, prNumber: typeof prView.number === "number" ? prView.number : pr, prMerged, prClosed, prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null, reviewerLogin: effectiveReviewerLogin });
   }
-  const reviewRequested = await fetchReviewRequested({ repo, pr, reviewerLogin, reviewRequestedOverride }, deps);
-  const reviewState = await fetchReviewState({ repo, pr, reviewerLogin }, deps);
-  return normalizeReviewerSnapshot({ ...localState, prExists: true, prNumber: typeof prView.number === "number" ? prView.number : pr, prDraft: Boolean(prView.isDraft), prMerged: false, prClosed: false, prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null, reviewerLogin, reviewRequested, ...reviewState });
+  const reviewRequested = await fetchReviewRequested({ repo, pr, reviewerLogin: effectiveReviewerLogin, reviewRequestedOverride }, deps);
+  const reviewState = await fetchReviewState({ repo, pr, reviewerLogin: effectiveReviewerLogin }, deps);
+  return normalizeReviewerSnapshot({ ...localState, prExists: true, prNumber: typeof prView.number === "number" ? prView.number : pr, prDraft: Boolean(prView.isDraft), prMerged: false, prClosed: false, prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null, reviewerLogin: effectiveReviewerLogin, reviewRequested, ...reviewState });
 }
 
 export async function runCli(

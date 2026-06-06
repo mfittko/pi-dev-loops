@@ -291,28 +291,16 @@ test("outer-loop rejects malformed arguments with usage guidance", async () => {
   assert.equal(unknownErr.ok, false);
   assert.equal(unknownErr.error, "Unknown argument: --unexpected");
 
-  const conflictingReviewerScope = await runNode([
+  // --reviewer-login removed from CLI; unknown argument test
+  const unknownFlag = await runNode([
     "--repo", "owner/repo",
     "--pr", "17",
-    "--reviewer-input", "/tmp/reviewer.json",
-    "--reviewer-login", "pi-reviewer",
+    "--unknown-flag", "value",
   ]);
-  assert.equal(conflictingReviewerScope.code, 1);
-  const conflictingErr = JSON.parse(conflictingReviewerScope.stderr);
-  assert.equal(conflictingErr.ok, false);
-  assert.match(conflictingErr.error, /--reviewer-input/);
-  assert.match(conflictingErr.error, /--reviewer-login/);
-
-  const blankReviewerLogin = await runNode([
-    "--repo", "owner/repo",
-    "--pr", "17",
-    "--reviewer-login", "   ",
-  ]);
-  assert.equal(blankReviewerLogin.code, 1);
-  const blankReviewerLoginErr = JSON.parse(blankReviewerLogin.stderr);
-  assert.equal(blankReviewerLoginErr.ok, false);
-  assert.match(blankReviewerLoginErr.error, /--reviewer-login/);
-  assert.match(blankReviewerLoginErr.error, /empty/);
+  assert.equal(unknownFlag.code, 1);
+  const unknownFlagErr = JSON.parse(unknownFlag.stderr);
+  assert.equal(unknownFlagErr.ok, false);
+  assert.match(unknownFlagErr.error, /Unknown argument: --unknown-flag/);
 });
 
 // ---------------------------------------------------------------------------
