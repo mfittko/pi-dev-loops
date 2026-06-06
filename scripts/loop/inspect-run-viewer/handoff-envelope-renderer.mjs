@@ -18,7 +18,7 @@ function renderEnvelopeValue(value) {
     return renderList(value.map((v) => (typeof v === "object" ? JSON.stringify(v) : String(v))));
   }
   if (typeof value === "object") {
-    return renderDefinitionList(Object.entries(value).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)]));
+    return renderEnvelopeDefinitionList(Object.entries(value).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)]));
   }
   return escapeHtml(String(value));
 }
@@ -29,6 +29,15 @@ function renderEnvelopeValue(value) {
  * @param {object|null} envelope - The handoff envelope object, or null when unavailable.
  * @returns {string} HTML
  */
+
+/**
+ * Render a definition list where values are already HTML-safe (pre-escaped by renderEnvelopeValue).
+ * Unlike renderDefinitionList, this does NOT escape values, only keys.
+ */
+function renderEnvelopeDefinitionList(entries) {
+  return `<dl>${entries.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${value}</dd>`).join("")}</dl>`;
+}
+
 export function renderHandoffEnvelopeSection(envelope) {
   if (!envelope) {
     return `<section id="handoff-envelope-section">
@@ -46,10 +55,10 @@ export function renderHandoffEnvelopeSection(envelope) {
     <p><em>Derived ${envelope.derivedAt ? `at ${escapeHtml(envelope.derivedAt)}` : ""}. Version ${escapeHtml(String(envelope.handoffVersion ?? "unknown"))}.</em></p>
 
     <h3>Target</h3>
-    ${renderDefinitionList(envelope.target ? Object.entries(envelope.target).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, renderEnvelopeValue(v)]) : [["target", "<em>missing</em>"]])}
+    ${renderEnvelopeDefinitionList(envelope.target ? Object.entries(envelope.target).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, renderEnvelopeValue(v)]) : [["target", "<em>missing</em>"]])}
 
     <h3>Current state</h3>
-    ${renderDefinitionList([
+    ${renderEnvelopeDefinitionList([
       ["currentGate", renderEnvelopeValue(envelope.currentGate)],
       ["currentHeadSha", renderEnvelopeValue(envelope.currentHeadSha)],
       ["ciStatus", renderEnvelopeValue(envelope.ciStatus)],
@@ -60,14 +69,14 @@ export function renderHandoffEnvelopeSection(envelope) {
     ])}
 
     <h3>Work directive</h3>
-    ${renderDefinitionList([
+    ${renderEnvelopeDefinitionList([
       ["nextAction", renderEnvelopeValue(envelope.nextAction)],
     ])}
     <h4>Required reads</h4>
     ${renderEnvelopeValue(envelope.requiredReads)}
 
     ${envelope.gateConfig ? `<h3>Gate configuration</h3>
-    ${renderDefinitionList([
+    ${renderEnvelopeDefinitionList([
       ["angles", renderEnvelopeValue(envelope.gateConfig.angles)],
       ["excludeAngles", renderEnvelopeValue(envelope.gateConfig.excludeAngles)],
       ["blockCleanOnFindingSeverities", renderEnvelopeValue(envelope.gateConfig.blockCleanOnFindingSeverities)],
@@ -75,7 +84,7 @@ export function renderHandoffEnvelopeSection(envelope) {
     ])}` : ""}
 
     <h3>Policy</h3>
-    ${renderDefinitionList([
+    ${renderEnvelopeDefinitionList([
       ["asyncStartMode", renderEnvelopeValue(envelope.asyncStartMode)],
       ["requireDraftFirst", renderEnvelopeValue(envelope.requireDraftFirst)],
     ])}
@@ -83,21 +92,21 @@ export function renderHandoffEnvelopeSection(envelope) {
     ${renderEnvelopeValue(envelope.stopRules)}
 
     <h3>Worktree / isolation</h3>
-    ${renderDefinitionList([
+    ${renderEnvelopeDefinitionList([
       ["cwd", renderEnvelopeValue(envelope.cwd)],
       ["worktreeRequired", renderEnvelopeValue(envelope.worktreeRequired)],
     ])}
 
     ${envelope.acceptance ? `<h3>Acceptance contract</h3>
     <h4>Criteria</h4>
-    ${renderEnvelopeValue(envelope.acceptance.criteria?.map((c) => `[${escapeHtml(c.severity)}] ${escapeHtml(c.id)}: ${escapeHtml(c.must)}`))}
-    ${renderDefinitionList([
+    ${renderEnvelopeValue(envelope.acceptance.criteria?.map((c) => `[${c.severity}] ${c.id}: ${c.must}`))}
+    ${renderEnvelopeDefinitionList([
       ["evidence", renderEnvelopeValue(envelope.acceptance.evidence)],
       ["maxFinalizationTurns", renderEnvelopeValue(envelope.acceptance.maxFinalizationTurns)],
     ])}` : ""}
 
     ${envelope.control ? `<h3>Runtime control</h3>
-    ${renderDefinitionList([
+    ${renderEnvelopeDefinitionList([
       ["needsAttentionAfterMs", renderEnvelopeValue(envelope.control.needsAttentionAfterMs)],
       ["activeNoticeAfterMs", renderEnvelopeValue(envelope.control.activeNoticeAfterMs)],
     ])}` : ""}

@@ -358,8 +358,9 @@ test("webkit renders the Agent handoff tab with structured envelope content", as
     const handoffSection = page.locator("#handoff-envelope-section");
     await expect(handoffSection).toBeVisible();
 
-    // Either shows envelope content or "unavailable" message
-    await expect(handoffSection).toContainText(/Agent handoff|Envelope unavailable/i);
+    // Verify unavailable message content when envelope is absent
+    await expect(handoffSection).toContainText(/Envelope unavailable/i);
+    await expect(handoffSection).toContainText(/buildDevLoopHandoffEnvelope/);
 
     // Switch back to live view
     await liveTab.click();

@@ -98,7 +98,7 @@ function requireSnapshotForJson(snapshot) {
 
 async function runResolverForTarget(target, { repoRoot = process.cwd() } = {}) {
   const args = ["scripts/loop/resolve-dev-loop-startup.mjs", "--pr", String(target.pr)];
-  const result = await runChild("node", args, process.env);
+  const result = await runChild("node", args, { ...process.env, cwd: repoRoot });
   if (result.code !== 0) {
     throw new Error("Resolver failed with exit code " + result.code + ": " + (result.stderr.trim() || "(no output)"));
   }
@@ -503,9 +503,26 @@ export function createInspectRunViewerServer(options, deps = {}) {
           return;
         }
         try {
-          const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
           const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
-          const gateState = {};
+          if (!resolverResult || resolverResult.bundleKind !== "resolved") {
+            writeJson(response, 400, { ok: false, target: requestTarget, error: { message: "Resolver did not return a resolved bundle; handoff envelope unavailable." } });
+            return;
+          }
+          const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+          let gateState = {};
+          try {
+            const snapshot = await adapter.loadSnapshot(requestTarget, adapterOptions);
+            if (snapshot) {
+              gateState = {
+                currentHeadSha: snapshot.currentHeadSha || null,
+                ciStatus: snapshot.ciStatus || null,
+                unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === "number" ? snapshot.unresolvedThreadCount : 0,
+                copilotRoundCount: typeof snapshot.copilotRoundCount === "number" ? snapshot.copilotRoundCount : 0,
+              };
+            }
+          } catch {
+            // Snapshot unavailable — gateState stays empty
+          }
           const envelope = buildDevLoopHandoffEnvelope(resolverResult, devLoopConfig, gateState);
           writeJson(response, 200, envelope);
         } catch (error) {
@@ -547,10 +564,16 @@ export function createInspectRunViewerServer(options, deps = {}) {
           const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
           if (resolverResult && resolverResult.bundleKind === "resolved") {
             const { config: devLoopConfig } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+          const gateState = snapshot ? {
+            currentHeadSha: snapshot.currentHeadSha || null,
+            ciStatus: snapshot.ciStatus || null,
+            unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === 'number' ? snapshot.unresolvedThreadCount : 0,
+            copilotRoundCount: typeof snapshot.copilotRoundCount === 'number' ? snapshot.copilotRoundCount : 0,
+          } : {};
             handoffEnvelope = buildDevLoopHandoffEnvelope(
               resolverResult,
               devLoopConfig,
-              {},
+              gateState,
             );
           }
         } catch {
