@@ -144,12 +144,7 @@ function hasBlockedMergeStatus(mergeStateStatus) {
 function formatBlockedMergeReason(mergeStateStatus, conflictFiles) {
   if (mergeStateStatus === "BEHIND") {
     let reason = "Branch must be updated from base before entering any gate.";
-    if (mergeStateStatus !== null) {
-      reason += ` GitHub mergeStateStatus: ${mergeStateStatus}.`;
-    }
-    if (conflictFiles.length > 0) {
-      reason += ` Conflicting files: ${conflictFiles.join(", ")}.`;
-    }
+    reason += ` GitHub mergeStateStatus: ${mergeStateStatus}.`;
     return reason;
   }
 
