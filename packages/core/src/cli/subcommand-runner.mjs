@@ -54,7 +54,7 @@ export function defineSubcommand(def) {
   const requiredOpts = options.filter((o) => o.required);
   const optionalOpts = options.filter((o) => !o.required);
 
-  const usageLines = [`Usage: dev-loops ${name}`];
+  const usageLines = [`Usage: pi-dev-loops ${name}`];
   for (const opt of requiredOpts) {
     const vn = opt.valueName || opt.flag.replace(/^--/, "").replace(/-/g, "_").toUpperCase();
     usageLines.push(`  ${opt.flag} <${vn}>`);
@@ -174,7 +174,7 @@ export function defineSubcommand(def) {
     return { parsed };
   }
 
-  async function runAsScript(importMetaUrl, scriptArgv = process.argv.slice(2)) {
+  async function runAsScript(scriptArgv = process.argv.slice(2)) {
     try {
       const result = parseArgs(scriptArgv);
       if (result.help) {
@@ -182,12 +182,13 @@ export function defineSubcommand(def) {
         process.exitCode = 0;
         return;
       }
-      process.exitCode = await run(result.parsed, { args: scriptArgv, usage });
+      const code = await run(result.parsed, { args: scriptArgv, usage });
+      process.exitCode = typeof code === "number" ? code : 0;
     } catch (error) {
       if (error.usage) {
-        process.stderr.write(JSON.stringify({ ok: false, error: error.message, usage: error.usage }) + "\n");
+        process.stderr.write(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error), usage: error.usage }) + "\n");
       } else {
-        process.stderr.write(JSON.stringify({ ok: false, error: error.message }) + "\n");
+        process.stderr.write(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }) + "\n");
       }
       process.exitCode = 1;
     }
@@ -225,7 +226,7 @@ export function runAsMain(fn, { formatError } = {}) {
     (error) => {
       const msg = formatError
         ? formatError(error)
-        : JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) });
+        : JSON.stringify({ ok: false, error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
       process.stderr.write(`${msg}\n`);
       process.exitCode = 1;
     },

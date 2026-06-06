@@ -278,7 +278,7 @@ export async function runCli({
       });
       if (result.stdout) stdout.write(result.stdout);
       if (result.stderr) stderr.write(result.stderr);
-      return result.status ?? (result.error ? 1 : 0);
+      return result.status ?? (result.signal ? 1 : result.error ? 1 : 0);
     }
     case "action": {
       const activeRuntime = runtime ?? createCliRuntime({ cwd });
@@ -317,7 +317,7 @@ export async function runCli({
       });
       if (result.stdout) stdout.write(result.stdout);
       if (result.stderr) stderr.write(result.stderr);
-      return result.status ?? (result.error ? 1 : 0);
+      return result.status ?? (result.signal ? 1 : result.error ? 1 : 0);
     }
     case "malformed": {
       const lines = [fromTop.message, ...buildCliHelpLines()];

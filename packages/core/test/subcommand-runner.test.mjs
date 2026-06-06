@@ -4,7 +4,7 @@ import { defineSubcommand } from '@pi-dev-loops/core/cli/subcommand-runner';
 
 test('defineSubcommand creates parser with auto-usage', () => {
   const sub = defineSubcommand({
-    name: 'test-cmd --repo <slug> --pr <n>',
+    name: 'test-cmd',
     description: 'Test command.',
     options: [
       { flag: '--repo', type: 'string', required: true },
