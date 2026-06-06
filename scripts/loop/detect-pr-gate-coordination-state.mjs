@@ -6,6 +6,7 @@ import {
   formatCliError,
   isCopilotLogin,
   isDirectCliRun,
+  normalizeTimestamp,
   parseJsonText,
   parseReviewThreads,
   summarizeCopilotReviews,
@@ -283,7 +284,15 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
   const threadsPayload = await fetchGithubReviewThreadsPayload(options, runtime);
   const parsedThreads = parseReviewThreads(threadsPayload);
   const gateEvidence = await detectCheckpointEvidence(options, runtime);
-  const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha });
+  // When draft gate was re-passed on a different head, use its timestamp
+  // to reset the Copilot round count — only reviews after the re-pass count.
+  const draftGateResetAtMs = gateEvidence.draftGate?.verdict === "clean"
+    && typeof gateEvidence.draftGate?.headSha === "string"
+    && gateEvidence.draftGate.headSha !== currentHeadSha
+    && typeof gateEvidence.draftGate?.updatedAt === "string"
+    ? normalizeTimestamp(gateEvidence.draftGate.updatedAt)
+    : null;
+  const reviewSummary = summarizeCopilotReviews(prData?.reviews, { headSha: currentHeadSha, draftGateResetAtMs });
   const reviewRequestStatus = requestedReviewers.requested
     ? "requested"
     : (reviewSummary.hasPendingReviewOnCurrentHead ? "already-requested" : "none");

@@ -271,7 +271,7 @@ function hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, currentHeadSha) 
   }
   return false;
 }
-export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride, localValidationHeadSha }, { env = process.env, ghCommand = "gh" } = {}) {
+export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride, localValidationHeadSha, draftGateResetAtMs }, { env = process.env, ghCommand = "gh" } = {}) {
   const prData = await fetchPrView({ repo, pr }, { env, ghCommand });
   if (prData === null) {
     return normalizeSnapshot({ prExists: false });
@@ -290,7 +290,7 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
   const prHeadSha = typeof prData.headRefOid === "string" && prData.headRefOid.trim().length > 0
     ? prData.headRefOid.trim()
     : null;
-  const reviewSummary = summarizeCopilotReviews(prData.reviews, { headSha: prHeadSha });
+  const reviewSummary = summarizeCopilotReviews(prData.reviews, { headSha: prHeadSha, draftGateResetAtMs });
   const fallbackCiStatus = normalizeStatusCheckRollupContract(prData.statusCheckRollup).overallStatus;
   let copilotReviewRequestStatus;
   if (reviewRequestStatusOverride !== undefined) {
