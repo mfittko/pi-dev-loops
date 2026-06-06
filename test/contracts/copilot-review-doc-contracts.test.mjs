@@ -80,9 +80,9 @@ test("copilot-pr-followup skill routes review requests and wait seams through de
   const step6 = step6Match ? step6Match[0] : "";
   assert.ok(step6.length > 0, "copilot-pr-followup Step 6 section not found");
   assert.match(step6, /detect-copilot-loop-state\.mjs/i);
-  assert.match(step6, /run-watch-cycle\.mjs/i);
+  assert.match(step6, /dev-loops loop watch-cycle/i);
   assert.match(step6, /gh run watch <run-id> --repo <owner\/name>/i);
-  assert.match(step6, /helper-owned sleep inside `run-watch-cycle\.mjs`, `probe-copilot-review\.mjs`, or `watch-initial-copilot-pr\.mjs` is allowed/i);
+  assert.match(step6, /helper-owned sleep inside `dev-loops loop watch-cycle`, `dev-loops review probe-copilot`, or `dev-loops loop watch-initial` is allowed/i);
   assert.match(step6, /agent-authored shell polling is forbidden/i);
   assert.match(step6, /for i in \$\(seq \.\.\.\)/i);
   assert.match(step6, /while true/i);
@@ -95,7 +95,7 @@ test("copilot-pr-followup skill keeps async watch persistence explicit", async (
     readRepo("scripts/README.md"),
     readRepo("docs/copilot-loop-state-graph.md"),
   ]);
-  assert.match(skillContent, /run-watch-cycle\.mjs/i);
+  assert.match(skillContent, /dev-loops loop watch-cycle/i);
   assert.match(skillContent, /zero-timeout `idle` probes are for explicit one-shot status\/reattach checks only/i);
   assert.match(skillContent, /returning to `waiting_for_copilot_review` is a persistence boundary: resume the watcher instead of reporting completion/i);
   assert.match(skillContent, /persistent async watch\/fix loop, not handoff-only behavior/i);
@@ -170,7 +170,7 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   assert.ok(verificationIndex >= 0 && resolveIndex > verificationIndex, "verification checkpoint must appear before the resolve step");
   assert.match(
     step7,
-    /verify `unresolvedThreadCount === 0` via `capture-review-threads\.mjs` before proceeding/i,
+    /verify `unresolvedThreadCount === 0` via `dev-loops review capture-threads` before proceeding/i,
     "Step 7 should require deterministic unresolved-thread verification before advancing",
   );
   assert.match(
@@ -195,7 +195,7 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   );
   assert.match(
     step7,
-    /unresolvedThreadCount === 0.*capture-review-threads\.mjs/i,
+    /unresolvedThreadCount === 0.*dev-loops review capture-threads/i,
     "merge-ready preconditions should require deterministic thread-state verification",
   );
   assert.match(
