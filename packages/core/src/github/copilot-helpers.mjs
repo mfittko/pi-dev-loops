@@ -282,6 +282,15 @@ export function summarizeCopilotReviews(reviews, { headSha, draftGateResetAtMs }
   // after the most recent draft gate approval to prevent round accumulation.
   const effectiveReviews = draftGateResetAtMs != null && draftGateResetAtMs > 0
     ? copilotReviews.filter((review) => {
+        const state = typeof review?.state === "string" ? review.state.toUpperCase() : "";
+        const reviewCommitSha = extractReviewCommitSha(review);
+        const reviewOnCurrentHead = headSha !== null && reviewCommitSha === headSha;
+        // Always retain PENDING reviews on the current head so
+        // hasPendingReviewOnCurrentHead stays accurate even when
+        // submittedAt is null (common for PENDING GitHub reviews).
+        if (state === "PENDING" && reviewOnCurrentHead) {
+          return true;
+        }
         const submittedAtMs = normalizeTimestamp(review?.submittedAt ?? review?.submitted_at);
         return submittedAtMs !== null && submittedAtMs > draftGateResetAtMs;
       })

@@ -336,6 +336,7 @@ function buildResult({
   gateEvidenceNote = null,
   refinementArtifact = null,
   inputRefinementArtifact = null,
+  copilotReviewRoundCount = null,
 }) {
   const effectiveRefinementArtifact = refinementArtifact ?? inputRefinementArtifact ?? null;
   return {
@@ -355,6 +356,7 @@ function buildResult({
     mergeStateStatus,
     conflictFiles,
     draftGateAlreadySatisfied,
+    copilotReviewRoundCount,
     gateEvidenceRequiredForMerge: true,
     ...(gateEvidenceNote ? { gateEvidenceNote } : {}),
     ...(effectiveRefinementArtifact ? { refinementArtifact: effectiveRefinementArtifact } : {}),

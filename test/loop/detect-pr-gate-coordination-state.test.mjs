@@ -185,6 +185,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
       nextAction: "request_copilot_review",
       reason: "The PR is ready for review but the post-draft external review cycle has not started yet; request Copilot review before any `pre_approval_gate` entry.",
       draftGateAlreadySatisfied: true,
+      copilotReviewRoundCount: 0,
       gateEvidenceRequiredForMerge: true,
       refinementArtifact: {
         status: "unknown",
@@ -1109,6 +1110,9 @@ test("detect-pr-gate-coordination-state resets Copilot round count when draft_ga
     assert.equal(parsed.draftGate.verdict, "clean");
     assert.equal(parsed.gateBoundary, "draft_review");
     assert.deepEqual(parsed.allowedNextActions, ["run_draft_gate"]);
+    // Round count reset: only 2 reviews after draft gate re-pass count
+    assert.equal(parsed.copilotReviewRoundCount, 2,
+      "copilotReviewRoundCount should be 2 (only reviews after draft gate re-pass)");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1156,9 +1160,13 @@ test("detect-pr-gate-coordination-state does NOT reset round count when draft_ga
     const parsed = JSON.parse(result.stdout);
     assert.equal(parsed.ok, true);
     // Draft gate head SHA matches current head — no reset triggered
-    // (currentHead is false because loose format doesn't produce structured marker)
+    // (currentHead reflects structured marker detection; loose format
+    // is recognized by parseGateReviewCommentMarkerBody via lenient matching)
     assert.equal(parsed.draftGate.verdict, "clean");
     assert.equal(parsed.draftGate.headSha, "def56789abcdef");
+    // No reset: all 3 reviews count toward round total
+    assert.equal(parsed.copilotReviewRoundCount, 3,
+      "copilotReviewRoundCount should be 3 (draft gate on same head, no reset)");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

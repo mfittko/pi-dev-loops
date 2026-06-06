@@ -286,9 +286,15 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
   const gateEvidence = await detectCheckpointEvidence(options, runtime);
   // When draft gate was re-passed on a different head, use its timestamp
   // to reset the Copilot round count — only reviews after the re-pass count.
+  // Use prefix matching for the head SHA comparison so shortened SHAs (7+)
+  // from gate comments match the full headRefOid.
+  const draftGateHeadSha = gateEvidence.draftGate?.headSha;
+  const draftGateOnCurrentHead = typeof draftGateHeadSha === "string"
+    && typeof currentHeadSha === "string"
+    && currentHeadSha.startsWith(draftGateHeadSha);
   const draftGateResetAtMs = gateEvidence.draftGate?.verdict === "clean"
-    && typeof gateEvidence.draftGate?.headSha === "string"
-    && gateEvidence.draftGate.headSha !== currentHeadSha
+    && typeof draftGateHeadSha === "string"
+    && !draftGateOnCurrentHead
     && typeof gateEvidence.draftGate?.updatedAt === "string"
     ? normalizeTimestamp(gateEvidence.draftGate.updatedAt)
     : null;
@@ -410,6 +416,8 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     ];
     result.gateEvidenceNote = null;
   }
+  // Expose effective round count in output for testability (#560)
+  result.copilotReviewRoundCount = context.snapshot?.copilotReviewRoundCount ?? 0;
   return result;
 }
 async function main() {
