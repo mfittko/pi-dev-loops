@@ -838,20 +838,41 @@ test("detect-checkpoint-evidence fails closed when async run no longer owns the 
   }
 });
 
-test("detect-checkpoint-evidence fails closed when async run has no ownership record", async () => {
+test("detect-checkpoint-evidence does not fail closed when async run has no ownership record", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-checkpoint-evidence-ownership-"));
 
   try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: "[]\n",
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: JSON.stringify({
+          data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } }
+        }) + "\n",
+      },
+    ]);
+
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], {
       cwd: tempDir,
-      env: { ...process.env, PI_SUBAGENT_RUN_ID: "run-stale" },
+      env: { ...env, PI_SUBAGENT_RUN_ID: "run-stale" },
     });
 
+    // With #569, missing ownership is advisory — gate operations should not
+    // be blocked when no runner record exists. The command proceeds past
+    // ownership and reaches the pre-merge gate check (which fails because
+    // no gate comments exist), reporting staleRunner.status: no_owner_record.
     assert.equal(result.code, 1);
-    assert.equal(result.stdout, "");
-    const error = JSON.parse(result.stderr);
-    assert.equal(error.ok, false);
-    assert.equal(error.error, "ownership_missing");
+    const payload = JSON.parse(result.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Pre-merge gate evidence check failed/i);
+    assert.equal(payload.staleRunner.status, "no_owner_record");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
