@@ -25,7 +25,7 @@ Its main surfaces are:
 2. **Workflow skills** in `skills/`
    - `dev-loop` is the public façade; internal routed logic stays internal
 3. **Extension and CLI UX** in `extension/` and `cli/`
-   - `/dev-loops` readiness checks plus the `pi-dev-loops` shell command
+   - `/dev-loops` readiness checks plus the `dev-loops` shell command
 4. **Deterministic support code** in `packages/core/`, `scripts/`, and `lib/`
    - shared helpers, loop-state detectors, and GitHub/Copilot support code
 
@@ -35,7 +35,7 @@ Thin workflow entrypoint agents are allowed when they only load a skill and defe
 
 Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes:
 - the `/dev-loops` extension command surface
-- the `pi-dev-loops` shell CLI
+- the `dev-loops` shell CLI
 - the packaged skills from `package.json` `pi.skills`
 
 For project-local installs, use `pi install -l git:github.com/mfittko/pi-dev-loops`.
@@ -50,7 +50,7 @@ Gate review angles, refinement settings, persona mappings, workflow defaults, an
 
 ```bash
 # See what reviewers will check before handing off code
-pi-dev-loops gates
+dev-loops gates
 ```
 
 Key configurable surfaces:
@@ -89,7 +89,7 @@ Notes:
 
 - `agents/` — reusable role-agent definitions
 - `docs/` — durable workflow contracts, implementation status, and phase docs
-- `cli/` — shell-facing `pi-dev-loops` entrypoint
+- `cli/` — shell-facing `dev-loops` entrypoint
 - `extension/` — `/dev-loops` extension implementation and docs
 - `lib/` — shared command helpers used by the extension and shell CLI
 - `packages/core/` — private deterministic support package

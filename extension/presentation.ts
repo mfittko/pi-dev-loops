@@ -37,7 +37,7 @@ export function orderedSetupSteps(checks: DevLoopCheck[]): string[] {
 
 export function buildHelpLines(): string[] {
   return [
-    'pi-dev-loops help',
+    'dev-loops help',
     'Workflow entry:',
     '- /skill:dev-loop — single public entrypoint; routing handles the rest',
     'Commands:',
@@ -57,7 +57,7 @@ export function buildWidgetLines(action: Extract<DevLoopsAction, 'doctor' | 'sta
   const summary = summarizeChecks(checks);
   const readiness = describeReadiness(checks);
   const lines = [
-    `pi-dev-loops ${action}: ${summary.ok}/${summary.total} checks passed`,
+    `dev-loops ${action}: ${summary.ok}/${summary.total} checks passed`,
     `Local loop readiness: ${readinessLabel(readiness.localReady)}`,
     `Remote GitHub/Copilot readiness: ${readinessLabel(readiness.remoteReady)}`,
   ];
@@ -99,7 +99,7 @@ export function buildInspectLines(action: InspectAction, result: { state: string
 
 export function buildNotificationMessage(action: Extract<DevLoopsAction, 'doctor' | 'status'>, checks: DevLoopCheck[]): string {
   const summary = summarizeChecks(checks);
-  return `pi-dev-loops ${action}: ${summary.ok}/${summary.total} checks passed`;
+  return `dev-loops ${action}: ${summary.ok}/${summary.total} checks passed`;
 }
 
 export function buildInspectNotification(action: InspectAction, state: string): string {

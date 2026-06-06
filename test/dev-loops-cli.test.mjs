@@ -54,8 +54,8 @@ test("package CLI entrypoint prints help and rejects hide as unsupported", () =>
     encoding: "utf8",
   });
   assert.equal(help.status, 0);
-  assert.match(help.stdout, /pi-dev-loops help/);
-  assert.match(help.stdout, /pi-dev-loops status/);
+  assert.match(help.stdout, /dev-loops help/);
+  assert.match(help.stdout, /dev-loops status/);
   assert.equal(help.stderr, "");
 
   const hide = spawnSync("node", ["./cli/index.mjs", "hide"], {
@@ -95,7 +95,7 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
   assert.equal(removedExitCode, 1);
   assert.equal(removedStdout.read(), "");
   assert.match(removedStderr.read(), /Unrecognized command: install\./);
-  assert.match(removedStderr.read(), /pi-dev-loops help/);
+  assert.match(removedStderr.read(), /dev-loops help/);
 
   const malformedStdout = createBufferStream();
   const malformedStderr = createBufferStream();
@@ -109,7 +109,7 @@ test("CLI renderer keeps shared status behavior and shell-friendly argument erro
   assert.equal(malformedExitCode, 1);
   assert.equal(malformedStdout.read(), "");
   assert.match(malformedStderr.read(), /`status` does not accept additional arguments\./);
-  assert.match(malformedStderr.read(), /Usage:\n- pi-dev-loops status/);
+  assert.match(malformedStderr.read(), /Usage:\n- dev-loops status/);
 });
 
 test("CLI help leads with dev-loop as the primary workflow entry", async () => {
@@ -253,7 +253,7 @@ test("CLI rejects removed update command", async () => {
     assert.equal(exitCode, 1);
     assert.equal(stdout.read(), "");
     assert.match(stderr.read(), /Unrecognized command: update\./);
-    assert.match(stderr.read(), /pi-dev-loops help/);
+    assert.match(stderr.read(), /dev-loops help/);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

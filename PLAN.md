@@ -114,7 +114,7 @@ Whenever a merged slice changes durable project truth, update the affected durab
 Today the repository already includes:
 - reusable role agents
 - packaged workflow skills for local and GitHub-first work
-- a `/dev-loops` extension and `pi-dev-loops` shell CLI
+- a `/dev-loops` extension and `dev-loops` shell CLI
 - deterministic GitHub helpers for review-thread capture, Copilot request/watch, issue-to-PR detection, and reviewer draft staging
 - deterministic loop-state helpers for Copilot, reviewer, tracker, and outer-loop orchestration
 - conductor-adjacent ownership, routing, inspection, and steering contracts in the source tree

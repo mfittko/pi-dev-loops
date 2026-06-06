@@ -46,7 +46,7 @@ test("parser maintains extension and CLI parity with the hide exception", () => 
   assert.deepEqual(parseDevLoopsCommand(["hide"], { surface: "cli" }), {
     kind: "unsupported",
     action: "hide",
-    message: "`pi-dev-loops hide` is not supported outside the Pi extension; use `/dev-loops hide` inside Pi instead.",
+    message: "`dev-loops hide` is not supported outside the Pi extension; use `/dev-loops hide` inside Pi instead.",
     tokens: ["hide"],
   });
   assert.deepEqual(parseDevLoopsCommand(["install", "moon"], { surface: "extension" }), {

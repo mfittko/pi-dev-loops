@@ -81,11 +81,11 @@ export default function (pi: ExtensionAPI, runtimeOverrides: ExtensionRuntimeOve
       switch (result.kind) {
         case 'hide':
           ctx.ui.setWidget(WIDGET_KEY, undefined);
-          ctx.ui.notify('pi-dev-loops widget hidden', 'info');
+          ctx.ui.notify('dev-loops widget hidden', 'info');
           return;
         case 'help':
           ctx.ui.setWidget(WIDGET_KEY, buildHelpLines(), { placement: 'belowEditor' });
-          ctx.ui.notify('pi-dev-loops help', 'info');
+          ctx.ui.notify('dev-loops help', 'info');
           return;
         case 'checks':
           ctx.ui.setWidget(WIDGET_KEY, buildWidgetLines(result.action as Extract<DevLoopsAction, 'doctor' | 'status'>, result.checks), {
@@ -94,7 +94,7 @@ export default function (pi: ExtensionAPI, runtimeOverrides: ExtensionRuntimeOve
           ctx.ui.notify(buildNotificationMessage(result.action as Extract<DevLoopsAction, 'doctor' | 'status'>, result.checks), 'info');
           return;
         case 'gates':
-          ctx.ui.notify('Gate angles printed to console. Run `pi-dev-loops gates` in a terminal to see review prompts.', 'info');
+          ctx.ui.notify('Gate angles printed to console. Run `dev-loops gates` in a terminal to see review prompts.', 'info');
           return;
         case 'inspect_result': {
           const structuredStoppedSuccess = result.state === 'stopped'
@@ -113,7 +113,7 @@ export default function (pi: ExtensionAPI, runtimeOverrides: ExtensionRuntimeOve
         }
         case 'malformed':
           ctx.ui.setWidget(WIDGET_KEY, [result.message, ...buildHelpLines()], { placement: 'belowEditor' });
-          ctx.ui.notify(`pi-dev-loops ${result.usageAction ?? 'help'}: invalid arguments`, 'error');
+          ctx.ui.notify(`dev-loops ${result.usageAction ?? 'help'}: invalid arguments`, 'error');
           return;
         case 'unsupported': {
           const message = result.message || 'This command is not supported here.';
