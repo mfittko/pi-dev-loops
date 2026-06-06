@@ -1137,6 +1137,8 @@ test("detect-pr-gate-coordination-state does NOT reset round count when draft_ga
             { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "aaa1111111111111111111111111111111111111111" }, submittedAt: "2026-05-30T10:00:00Z" },
             { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "bbb2222222222222222222222222222222222222222" }, submittedAt: "2026-05-30T11:00:00Z" },
             { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "ccc3333333333333333333333333333333333333333" }, submittedAt: "2026-05-30T12:00:00Z" },
+            // Review after draft gate timestamp: proves no reset still counts this
+            { author: { login: "copilot-pull-request-reviewer[bot]" }, state: "COMMENTED", commit: { oid: "ddd4444444444444444444444444444444444444444" }, submittedAt: "2026-06-01T10:00:00Z" },
           ],
         }),
       },
@@ -1164,9 +1166,9 @@ test("detect-pr-gate-coordination-state does NOT reset round count when draft_ga
     // is recognized by parseGateReviewCommentMarkerBody via lenient matching)
     assert.equal(parsed.draftGate.verdict, "clean");
     assert.equal(parsed.draftGate.headSha, "def56789abcdef");
-    // No reset: all 3 reviews count toward round total
-    assert.equal(parsed.copilotReviewRoundCount, 3,
-      "copilotReviewRoundCount should be 3 (draft gate on same head, no reset)");
+    // No reset: all 4 reviews count toward round total (3 before + 1 after draft gate)
+    assert.equal(parsed.copilotReviewRoundCount, 4,
+      "copilotReviewRoundCount should be 4 (draft gate on same head, no reset)");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

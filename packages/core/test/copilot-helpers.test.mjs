@@ -349,7 +349,7 @@ test("summarizeCopilotReviews filters reviews before draftGateResetAtMs", () => 
     draftGateResetAtMs: resetAtMs,
   });
 
-  // Only the Jan 10 and Jan 12 reviews count → 2 rounds (3 distinct SHAs but only 2 after reset)
+  // Only the Jan 10 and Jan 12 reviews count → 2 rounds (2 reviews after reset (Jan 10 + Jan 12))
   assert.equal(result.copilotReviewPresent, true);
   assert.equal(result.completedCopilotReviewRounds, 2);
   assert.equal(result.hasSubmittedReviewOnCurrentHead, true);
@@ -380,7 +380,7 @@ test("summarizeCopilotReviews returns zero rounds when all reviews are before dr
   });
 
   // copilotReviewPresent reflects all reviews, not just effective ones
-    assert.equal(result.copilotReviewPresent, true);
+  assert.equal(result.copilotReviewPresent, true);
   assert.equal(result.completedCopilotReviewRounds, 0);
   assert.equal(result.hasSubmittedReviewOnCurrentHead, false);
 });
