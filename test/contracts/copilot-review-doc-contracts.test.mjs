@@ -70,7 +70,6 @@ test("copilot-pr-followup skill routes review requests and wait seams through de
   const requestSection = requestSectionMatch ? requestSectionMatch[0] : "";
   assert.ok(requestSection.length > 0, "request/wait section not found");
   assert.match(requestSection, /request-copilot-review\.mjs/i);
-  assert.match(requestSection, /--force-rerequest-review/i);
   assert.match(requestSection, /Do \*\*not\*\* request Copilot by posting literal `\/copilot` or `\/copilot re-review` PR comments\./i);
   assert.match(requestSection, /`requested`:/i);
   assert.match(requestSection, /`already-requested`:/i);

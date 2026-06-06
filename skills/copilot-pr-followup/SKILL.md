@@ -55,7 +55,7 @@ Use this helper output as source of truth for the normal routing seam. Interpret
 
 **3. Preferred async wait-boundary helper**
 ```sh
-node <resolved-skill-scripts>/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number> [--probe-only]
+node <resolved-skill-scripts>/loop/run-watch-cycle.mjs --repo <owner/name> --pr <number>
 ```
 For explicit async loop entry or continuation, this is a persistent async watch/fix loop, not handoff-only behavior:
 - treat the normal PR follow-up path as one loop: `watch → detect → if threads found, fix + reply + resolve → re-request → watch again → … → pre_approval_gate → merge`
@@ -63,7 +63,7 @@ For explicit async loop entry or continuation, this is a persistent async watch/
 - a single returned watch cycle (`changed`, `timeout`, or `idle`) is never completion by itself
 - if `cycleDisposition` is `pending` and `terminal` is `false`, the subagent exits on the wait boundary; the main session re-dispatches another watch boundary instead of reporting completion
 - after Step 7 finishes a fix / reply-resolve / re-request cycle and the deterministic state returns to `waiting_for_copilot_review`, the main session re-dispatches the watcher for the next cycle
-- default max watch timeout for one Copilot watch boundary is **30 minutes** (`--timeout-ms 1800000`, set on the low-level `probe-copilot-review.mjs` helper); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
+- default max watch timeout for one Copilot watch boundary is **30 minutes** (derived from `packages/core/src/loop/policy-constants.mjs` COPILOT_REVIEW_WAIT_TIMEOUT_MS); if that watch budget expires and a refreshed authoritative check still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention.`
 - if the user explicitly asks for async handoff-only behavior, say that out loud and stop after the handoff boundary; otherwise do not silently reinterpret async loop entry as handoff-only
 
 **4. Low-level helpers**
@@ -145,7 +145,7 @@ If a same-head clean-converged re-request is intentionally authorized, use:
 node <resolved-skill-scripts>/github/request-copilot-review.mjs \
   --repo <owner/name> \
   --pr <number> \
-  --force-rerequest-review
+  
 ```
 Do **not** request Copilot by posting literal `/copilot` or `/copilot re-review` PR comments.
 `request-copilot-review.mjs` now detects bypass `@copilot`/`/copilot` PR comments from non-Copilot authors and returns `blocked_by_copilot_comment` status; delete the violating comment(s) and retry through the helper.
@@ -162,7 +162,7 @@ Do not treat an attempted request as equivalent to a confirmed request.
 For the resolved `request-copilot-review.mjs` helper, branch on the machine-readable result:
 - `requested`: if another Copilot pass is actually desired, immediately re-baseline with `node <resolved-skill-scripts>/loop/detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>` and branch on returned `state`, `snapshot.copilotReviewOnCurrentHead`, `snapshot.ciStatus`, and `nextAction`; only enter persistent waiting through `run-watch-cycle.mjs` or `gh run watch`, otherwise report the wait state and resume later without bash polling
 - `already-requested`: apply the same detector-first rebasing and wait branching as `requested`; do not keep the session alive with ad hoc bash polling
-- `suppressed_same_head_clean`: report the clean-converged state and stop unless an explicit `--force-rerequest-review` bypass is intentionally authorized
+- `suppressed_same_head_clean`: report the clean-converged state and stop unless an explicit `dev-loops review request --rerequest` bypass is intentionally authorized
 - `unavailable`: report the limitation and stop unless the user explicitly wants passive waiting without a fresh request
 - non-zero / unexpected failure: stop and report the error rather than entering a sleep/watch loop
 
@@ -312,7 +312,7 @@ node <resolved-skill-scripts>/github/upsert-checkpoint-verdict.mjs \
 
 Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments.
 
-`--force --force-reason` on `upsert-checkpoint-verdict.mjs` is a narrow operator-authorized CI override for the helper itself, not the default gate path. Use it only when the helper refuses gate entry solely because the current head is `blocked_needs_user_decision` with `ciStatus="failure"`, and only after the user explicitly authorizes ignoring that current-head CI failure for this one gate-comment upsert. It does **not** bypass stale-head checks, unresolved-thread / unsettled-review refusal, non-draft `draft_gate` refusal, merge conflicts, or other legality checks.
+`dev-loops gate draft` can be run operator-authorized CI override for the helper itself, not the default gate path. Use it only when the helper refuses gate entry solely because the current head is `blocked_needs_user_decision` with `ciStatus="failure"`, and only after the user explicitly authorizes ignoring that current-head CI failure for this one gate-comment upsert. It does **not** bypass stale-head checks, unresolved-thread / unsettled-review refusal, non-draft `draft_gate` refusal, merge conflicts, or other legality checks.
 
 ### Draft gate contract (before marking PR ready for review)
 
