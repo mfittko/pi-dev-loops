@@ -175,14 +175,14 @@ MUST use `node <resolved-skill-scripts>/github/create-draft-pr.mjs --repo <owner
 This workflow is intentionally long-lived, but one Copilot review watch boundary must still be capped.
 
 Preferred defaults for this repo:
-- poll interval for review/activity watchers: **1 minute** (`--poll-interval-ms 60000`)
-- max watch timeout per Copilot review boundary: **30 minutes** (`--timeout-ms 1800000`)
+- poll interval for review/activity watchers: **1 minute** (derived from `packages/core/src/loop/policy-constants.mjs` DEFAULT_POLL_INTERVAL_MS)
+- max watch timeout per Copilot review boundary: **30 minutes** (derived from `packages/core/src/loop/policy-constants.mjs` COPILOT_REVIEW_WAIT_TIMEOUT_MS)
 - if that 30-minute watch budget expires, refresh authoritative state once; if the refreshed state still resolves `waiting_for_copilot_review`, stop with `watch timeout — PR #<number> needs manual attention`
 - do not silently extend that 30-minute cap unless the user or conductor explicitly authorizes a longer watch budget for the active PR
 - parent/subagent no-activity threshold for watcher-style runs: at least **15 minutes**
 - active-long-running notice threshold for watcher-style runs: about **30 minutes**
 
-These are the defaults built into `probe-copilot-review.mjs`, `run-watch-cycle.mjs`, and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Pass them explicitly when overriding.
+These are the defaults built into `probe-copilot-review.mjs`, `run-watch-cycle.mjs`, and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Do not pass removed CLI policy flags (`--poll-interval-ms`, `--timeout-ms`, `--probe-only`) — helpers hard-error when they are provided. Timeouts and intervals are derived from `packages/core/src/loop/policy-constants.mjs`.
 
 ### Hard rule: no agent-authored shell polling
 
