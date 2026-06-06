@@ -393,7 +393,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     result.reason = "No contract-complete pre_approval_gate marker exists for the current head SHA; run pre_approval_gate before proceeding.";
     result.allowedNextActions = [PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE];
   }
-  const draftGateEvidenceMissing = !(result.draftGate?.anyVisible);
+  const draftGateEvidenceMissing = !(result.draftGate?.cleanEvidenceExists);
   const gateBoundariesExpectingDraftGate = new Set([
     PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW,
     PR_CHECKPOINT.FEEDBACK_RESOLUTION,
@@ -404,7 +404,7 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   if (draftGateEvidenceMissing && gateBoundariesExpectingDraftGate.has(result.gateBoundary)) {
     result.gateBoundary = PR_CHECKPOINT.DRAFT_GATE_NEEDED;
     result.nextAction = PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE;
-    result.reason = "The PR is non-draft but no visible draft_gate comment or marker exists at all (one-time boundary); run reconcile_draft_gate before proceeding.";
+    result.reason = "Clean draft_gate evidence is required before merge (no gate exemptions, #579). No visible clean draft_gate comment exists for this PR; run reconcile_draft_gate before proceeding.";
     result.allowedNextActions = [PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE];
     result.forbiddenActions = [
       PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
