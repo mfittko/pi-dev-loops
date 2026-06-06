@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
@@ -18,7 +19,7 @@ const REMOVED_FLAGS = new Set([
   "--force-reason",
 ]);
 
-const USAGE = `Usage: upsert-checkpoint-verdict.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings-summary <text> --next-action <text> [--local-validation-head-sha <sha>]
+const USAGE = `Usage: upsert-checkpoint-verdict.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> (--findings-summary <text> | --findings-file <path>) --next-action <text> [--local-validation-head-sha <sha>]
 
 Create or update the visible checkpoint verdict comment for a gate/head pair.
 Same-head reruns are idempotent: if a visible marker already exists for the same
@@ -31,7 +32,12 @@ Required:
   --gate <draft_gate|pre_approval_gate>
   --head-sha <sha>                            Full current head SHA or hexadecimal prefix of it
   --verdict <clean|findings_present|blocked>
-  --findings-summary <text>
+  --findings-summary <text>                 Findings summary as a single argument
+                                            (use --findings-file for multi-line)
+  --findings-file <path>                    Read findings summary from file;
+                                            alternative to --findings-summary
+                                            (preserves newlines; takes precedence
+                                            when both are present)
   --next-action <text>
 
 Optional:
@@ -235,6 +241,7 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
     headSha: undefined,
     verdict: undefined,
     findingsSummary: undefined,
+    findingsFile: undefined,
     nextAction: undefined,
     localValidationHeadSha: undefined,
     findingsSeverityCounts: undefined,
@@ -294,6 +301,15 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
       continue;
     }
 
+    if (token === "--findings-file") {
+      const rawPath = requireOptionValue(args, "--findings-file", parseError).trim();
+      if (rawPath.length === 0) {
+        throw parseError("--findings-file must be a non-empty path");
+      }
+      options.findingsFile = rawPath;
+      continue;
+    }
+
     if (token === "--next-action") {
       options.nextAction = normalizeRequiredText(requireOptionValue(args, "--next-action", parseError), "--next-action");
       continue;
@@ -335,8 +351,12 @@ export function parseUpsertCheckpointVerdictCliArgs(argv) {
 
   const missing = ["repo", "pr", "gate", "headSha", "verdict", "findingsSummary", "nextAction"]
     .filter((key) => options[key] === undefined);
+  if (options.findingsFile) {
+    const fsIdx = missing.indexOf("findingsSummary");
+    if (fsIdx !== -1) missing.splice(fsIdx, 1);
+  }
   if (missing.length > 0) {
-    throw parseError("upsert-checkpoint-verdict requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary, and --next-action");
+    throw parseError("upsert-checkpoint-verdict requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary (or --findings-file), and --next-action");
   }
 
   try {
@@ -375,7 +395,7 @@ export function renderGateReviewCommentBody({ gate, headSha, verdict, findingsSu
     `**Verdict:** ${verdict}`,
   ];
 
-  if (verdict === "clean" && blockCleanOnFindingSeverities && blockCleanOnFindingSeverities.length > 0) {
+  if ((verdict === "findings_present" || verdict === "blocked") && blockCleanOnFindingSeverities && blockCleanOnFindingSeverities.length > 0) {
     const sevs = blockCleanOnFindingSeverities.join(", ");
     lines.push(`**Blocking severities:** ${sevs} (clean requires no findings matching these severities)`);
   }
@@ -573,7 +593,29 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
     }
   }
 
-  const effectiveFindingsSummary = appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
+  if (options.findingsFile) {
+    try {
+      const fileContent = await readFile(options.findingsFile, "utf8");
+      // Trim trailing whitespace only to preserve leading Markdown semantics
+      // (e.g. indented code blocks, nested list indentation)
+      const trimmedEnd = fileContent.replace(/\n+$/, "");
+      if (trimmedEnd.length === 0) {
+        throw new Error(`--findings-file "${options.findingsFile}" is empty or contains only whitespace`);
+      }
+      // Append gate evidence note as a separate paragraph for multi-line
+      // content so it doesn't merge into the last item/heading/code fence
+      const note = typeof coordination.gateEvidenceNote === "string" ? collapseWhitespace(coordination.gateEvidenceNote) : "";
+      const separator = trimmedEnd.includes("\n") ? "\n\n" : "; ";
+      const annotated = note.length > 0 ? `${trimmedEnd}${separator}${note}` : trimmedEnd;
+      options.findingsSummary = smartTruncate(annotated, MAX_GATE_COMMENT_TEXT_LENGTH);
+    } catch (err) {
+      throw new Error(`Cannot read --findings-file "${options.findingsFile}": ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const effectiveFindingsSummary = options.findingsFile
+    ? options.findingsSummary
+    : appendGateEvidenceNote(options.findingsSummary, coordination.gateEvidenceNote ?? null);
   const desiredBody = renderGateReviewCommentBody({
     ...options,
     headSha: canonicalHeadSha,

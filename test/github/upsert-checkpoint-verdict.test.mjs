@@ -99,7 +99,7 @@ function buildGateComment({
 test("parseUpsertCheckpointVerdictCliArgs rejects malformed arguments deterministically", () => {
   assert.throws(
     () => parseUpsertCheckpointVerdictCliArgs([]),
-    /requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary, and --next-action/i,
+    /requires --repo, --pr, --gate, --head-sha, --verdict, --findings-summary .* and --next-action/i,
   );
 
   const parsed = parseUpsertCheckpointVerdictCliArgs([
@@ -127,6 +127,36 @@ test("parseUpsertCheckpointVerdictCliArgs rejects malformed arguments determinis
     ]),
     /7-64 character hexadecimal SHA/i,
   );
+});
+
+test("parseUpsertCheckpointVerdictCliArgs accepts --findings-file without --findings-summary", () => {
+  const parsed = parseUpsertCheckpointVerdictCliArgs([
+    "--repo", "owner/repo",
+    "--pr", "17",
+    "--gate", "draft_gate",
+    "--head-sha", "abc1234",
+    "--verdict", "findings_present",
+    "--findings-file", "/tmp/findings.md",
+    "--next-action", "stay draft and fix",
+  ]);
+  assert.equal(parsed.findingsFile, "/tmp/findings.md");
+  assert.equal(parsed.findingsSummary, undefined);
+  assert.equal(parsed.verdict, "findings_present");
+});
+
+test("parseUpsertCheckpointVerdictCliArgs accepts --findings-file with --findings-summary", () => {
+  const parsed = parseUpsertCheckpointVerdictCliArgs([
+    "--repo", "owner/repo",
+    "--pr", "17",
+    "--gate", "draft_gate",
+    "--head-sha", "abc1234",
+    "--verdict", "findings_present",
+    "--findings-summary", "fallback text",
+    "--findings-file", "/tmp/findings.md",
+    "--next-action", "stay draft and fix",
+  ]);
+  assert.equal(parsed.findingsFile, "/tmp/findings.md");
+  assert.equal(parsed.findingsSummary, "fallback text");
 });
 
 test("parseUpsertCheckpointVerdictCliArgs rejects --force as a removed policy flag", () => {
@@ -435,6 +465,183 @@ test("upsert-checkpoint-verdict creates a new comment when no same-head marker e
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
       blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-checkpoint-verdict embeds --findings-file content with preserved newlines", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-findings-file-"));
+
+  try {
+    const findingsPath = path.join(tempDir, "findings.md");
+    await writeFile(findingsPath, "## Section A\n\n- item 1\n- item 2\n\n**bold note**\n");
+
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc1234","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+        assertArgContains: [
+          "body=### Gate review: `draft_gate`",
+          "## Section A",
+          "- item 1",
+          "- item 2",
+          "**bold note**",
+        ],
+        assertArgNotContains: [
+          "\\n## Section A",
+        ],
+        stdout: '{"id":102,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-102"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "findings_present",
+      "--findings-file", findingsPath,
+      "--next-action", "stay draft and fix",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.action, "created");
+    assert.equal(parsed.gate, "draft_gate");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-checkpoint-verdict --findings-file takes precedence over --findings-summary", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-findings-precedence-"));
+
+  try {
+    const findingsPath = path.join(tempDir, "findings.md");
+    await writeFile(findingsPath, "file content wins\n");
+
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc1234","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+        assertArgContains: [
+          "file content wins",
+        ],
+        assertArgNotContains: [
+          "should be overridden",
+        ],
+        stdout: '{"id":103,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-103"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "findings_present",
+      "--findings-summary", "should be overridden",
+      "--findings-file", findingsPath,
+      "--next-action", "stay draft and fix",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.action, "created");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-checkpoint-verdict omits Blocking severities line on clean verdict", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-clean-no-blocking-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
+        stdout: '{"number":17,"state":"OPEN","isDraft":true,"headRefOid":"abc1234","reviews":[],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql", "pr=17"],
+        stdout: '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
+        assertArgContains: ["**Verdict:** clean"],
+        assertArgNotContains: ["Blocking severities"],
+        stdout: '{"id":104,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-104"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-summary", "all clear, no issues",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
+      "--next-action", "mark ready for review",
+    ], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.action, "created");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
