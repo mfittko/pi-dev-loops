@@ -161,7 +161,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     });
     await expect(graphBox.locator("[data-graph-zoom-value]")).toHaveText("125%");
 
-    await page.locator(".inspection-details > summary").click();
+    await page.locator(".inspection-details").first().locator("summary").click();
     await expect(page.getByRole("link", { name: /\/snapshot\.json\?repo=owner%2Frepo&pr=55/ })).toBeVisible();
 
     await captureNamedUiState({
@@ -328,6 +328,48 @@ test("webkit shows the unavailable-state fallback for unavailable snapshots", as
         reviewHint: "Captures the no-graph fallback for unavailable snapshots.",
       },
     });
+  } finally {
+    await stopFixtureServer(server);
+  }
+});
+
+test("webkit renders the Agent handoff tab and validates unavailable-state fallback", async ({ page }, testInfo) => {
+  const { server, url } = await startViewer(makeInspectionSnapshot());
+
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+
+    // Tab navigation is visible
+    const handoffTab = page.locator('.viewer-tab[data-tab="handoff"]');
+    await expect(handoffTab).toBeVisible();
+    await expect(handoffTab).toHaveText("Agent handoff");
+
+    // Live view tab is visible and active by default
+    const liveTab = page.locator('.viewer-tab[data-tab="live"]');
+    await expect(liveTab).toBeVisible();
+    await expect(liveTab).toHaveClass(/active/);
+
+    // Handoff tab content is present (may show "Envelope unavailable" if resolver unavailable)
+    await handoffTab.click();
+    await expect(handoffTab).toHaveClass(/active/);
+    await expect(liveTab).not.toHaveClass(/active/);
+
+    // Handoff content section is visible
+    const handoffSection = page.locator("#handoff-envelope-section");
+    await expect(handoffSection).toBeVisible();
+
+    // Verify unavailable message content when envelope is absent
+    // Accept either unavailable fallback or structured envelope
+    const handoffText = await handoffSection.textContent();
+    if (handoffText.includes("Envelope unavailable")) {
+      await expect(handoffSection).toContainText(/buildDevLoopHandoffEnvelope/);
+    } else {
+      await expect(handoffSection).toContainText(/Current state|Target/);
+    }
+
+    // Switch back to live view
+    await liveTab.click();
+    await expect(liveTab).toHaveClass(/active/);
   } finally {
     await stopFixtureServer(server);
   }

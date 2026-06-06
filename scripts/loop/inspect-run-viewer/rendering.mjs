@@ -29,6 +29,7 @@ import {
   renderSnapshotStateLabel,
   renderTargetKey,
 } from "./shared.mjs";
+import { renderHandoffEnvelopeSection } from "./handoff-envelope-renderer.mjs";
 
 export {
   buildInspectionMermaidGraph,
@@ -43,6 +44,7 @@ export function renderInspectRunViewerHtml({
   repo = null,
   target = null,
   snapshot = null,
+  handoffEnvelope = null,
   error = null,
   inboxItems = [],
   selectedTitle = null,
@@ -201,6 +203,12 @@ export function renderInspectRunViewerHtml({
       dl { display: grid; grid-template-columns: 14rem 1fr; gap: 0.35rem 0.75rem; }
       dt { font-weight: 600; }
       section { border: 1px solid #ddd; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; }
+      .viewer-tabs { display: flex; gap: 0; margin: 1rem 0 0 0; border-bottom: 2px solid #ddd; }
+      .viewer-tab { padding: 0.5rem 1rem; cursor: pointer; border: none; background: none; font: inherit; font-weight: 600; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.15s, border-color 0.15s; }
+      .viewer-tab:hover { color: #1565c0; }
+      .viewer-tab.active { color: #1565c0; border-bottom-color: #1565c0; }
+      .tab-content { display: none; }
+      .tab-content.active { display: block; }
       .current-pr-state-banner section,
       .current-pr-state-banner .state-graph-block,
       .current-pr-state-banner .current-pr-state-visualization { border: none; padding: 0; margin-top: 0; }
@@ -236,15 +244,34 @@ export function renderInspectRunViewerHtml({
       <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
       <p><strong>Refresh:</strong> manual reload only.${rawSnapshotHref ? ` <strong>Raw snapshot:</strong> <a href="${escapeHtml(rawSnapshotHref)}"><code>${escapeHtml(rawSnapshotHref)}</code></a>` : ""}</p>
       ${topSummary}
-      ${target === null ? "" : renderOuterLoopSummarySection(normalizedSnapshot)}
-      ${target === null ? "" : renderCopilotLoopIterationsSection(normalizedSnapshot)}
-      ${target === null ? "" : renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
-      ${target === null ? "" : renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
-      ${target === null ? "" : renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
     `)}
+      <div class="viewer-tabs">
+        <button class="viewer-tab active" data-tab="live" onclick="switchTab('live')">Live view</button>
+        <button class="viewer-tab" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
+      </div>
+      <div class="tab-content active" id="tab-live">
+        ${renderCollapsedDetailsPanel(`
+      ${renderOuterLoopSummarySection(normalizedSnapshot)}
+      ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
+      ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
+      ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
+      ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
+        `)}
+      </div>
+      <div class="tab-content" id="tab-handoff">
+        ${renderHandoffEnvelopeSection(handoffEnvelope)}
+      </div>
       </main>
     </div>
     ${renderInboxShellScript()}
+    <script>
+      function switchTab(tabName) {
+        document.querySelectorAll('.viewer-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelector('.viewer-tab[data-tab="' + tabName + '"]').classList.add('active');
+        document.getElementById('tab-' + tabName).classList.add('active');
+      }
+    </script>
     ${graph === null ? "" : renderMermaidBootScript()}
   </body>
 </html>`;

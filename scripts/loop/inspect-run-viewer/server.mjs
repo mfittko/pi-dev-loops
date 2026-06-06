@@ -26,6 +26,8 @@ import {
   normalizeInspectionTarget,
 } from "../_inspect-run-viewer-adapter.mjs";
 import { dedupeRepoSlugOptions, repoSlugEquals } from "@pi-dev-loops/core/github/repo-slug";
+import { buildDevLoopHandoffEnvelope } from "@pi-dev-loops/core/loop/handoff-envelope";
+import { loadDevLoopConfig } from "@pi-dev-loops/core/config";
 
 const execFile = promisify(execFileCallback);
 
@@ -90,6 +92,21 @@ function requireSnapshotForJson(snapshot) {
   }
 
   return snapshot;
+}
+
+
+async function runResolverForTarget(target, { repoRoot = process.cwd() } = {}) {
+  if (typeof target.repo !== "string" || target.repo.trim().length === 0) {
+    throw new Error("Cannot resolve handoff envelope: target repo is required");
+  }
+  const args = ["scripts/loop/resolve-dev-loop-startup.mjs", "--pr", String(target.pr)];
+  const { stdout, stderr } = await execFile("node", args, { cwd: repoRoot, timeout: 30000 });
+  try {
+    return JSON.parse(stdout);
+  } catch (_err) {
+    const preview = (stdout || stderr || "").trim().slice(0, 300);
+    throw new Error("Invalid resolver JSON output: " + preview);
+  }
 }
 
 function parseUpdatedWithinDaysFromUrl(rawValue) {
@@ -355,7 +372,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         return;
       }
 
-      if (requestPath !== "/" && requestPath !== "/snapshot.json" && requestPath !== MERMAID_BROWSER_ASSET_ROUTE) {
+      if (requestPath !== "/" && requestPath !== "/snapshot.json" && requestPath !== "/handoff-envelope.json" && requestPath !== MERMAID_BROWSER_ASSET_ROUTE) {
         writeText(response, 404, "Not Found", {
           "content-type": "text/plain; charset=utf-8",
         });
@@ -479,6 +496,44 @@ export function createInspectRunViewerServer(options, deps = {}) {
       const pagedEntries = assignedEntries.slice(pageStart, pageStart + DEFAULT_INBOX_PAGE_SIZE);
       const requestTarget = requestedView.target ?? effectiveSelectedTarget ?? pagedEntries[0]?.target ?? null;
 
+      if (requestPath === "/handoff-envelope.json") {
+        if (requestTarget === null) {
+          writeJson(response, 400, jsonErrorPayload(jsonErrorTarget, new Error("handoff-envelope.json requires ?pr=<number> when no PR is currently selected")));
+          return;
+        }
+        try {
+          const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
+          if (!resolverResult || resolverResult.bundleKind !== "resolved") {
+            writeJson(response, 400, { ok: false, target: requestTarget, error: { message: "Resolver did not return a resolved bundle; handoff envelope unavailable." } });
+            return;
+          }
+          const { config: devLoopConfig, errors: configErrors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+          if (configErrors && configErrors.length > 0) {
+            writeJson(response, 500, { ok: false, target: requestTarget, error: { message: "Dev-loop config has validation errors; handoff envelope unavailable." } });
+            return;
+          }
+          let gateState = {};
+          try {
+            const snapshot = await adapter.loadSnapshot(requestTarget, adapterOptions);
+            if (snapshot) {
+              gateState = {
+                currentHeadSha: snapshot.currentHeadSha || null,
+                ciStatus: snapshot.ciStatus || null,
+                unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === "number" ? snapshot.unresolvedThreadCount : 0,
+                copilotRoundCount: typeof snapshot.copilotRoundCount === "number" ? snapshot.copilotRoundCount : 0,
+              };
+            }
+          } catch {
+            // Snapshot unavailable — gateState stays empty
+          }
+          const envelope = buildDevLoopHandoffEnvelope(resolverResult, devLoopConfig, gateState);
+          writeJson(response, 200, envelope);
+        } catch (error) {
+          writeJson(response, 500, jsonErrorPayload(requestTarget, error));
+        }
+        return;
+      }
+
       if (requestPath === "/snapshot.json") {
         if (requestTarget === null) {
           writeJson(response, 400, jsonErrorPayload(jsonErrorTarget, new Error("snapshot.json requires ?pr=<number> when no PR is currently selected")));
@@ -497,6 +552,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
       const inboxEntries = dedupeInboxEntries(pagedEntries);
 
       let snapshot = null;
+      let handoffEnvelope = null;
       let error = null;
       if (requestTarget !== null) {
         try {
@@ -506,6 +562,27 @@ export function createInspectRunViewerServer(options, deps = {}) {
           }
         } catch (caught) {
           error = caught instanceof Error ? caught : new Error(String(caught));
+        }
+        try {
+          const resolverResult = await runResolverForTarget(requestTarget, { repoRoot: process.cwd() });
+          if (resolverResult && resolverResult.bundleKind === "resolved") {
+            const { config: devLoopConfig, errors: configErrors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+            if (configErrors && configErrors.length > 0) { handoffEnvelope = null; } else {
+            const gateState = snapshot ? {
+              currentHeadSha: snapshot.currentHeadSha || null,
+              ciStatus: snapshot.ciStatus || null,
+              unresolvedThreadCount: typeof snapshot.unresolvedThreadCount === "number" ? snapshot.unresolvedThreadCount : 0,
+              copilotRoundCount: typeof snapshot.copilotRoundCount === "number" ? snapshot.copilotRoundCount : 0,
+            } : {};
+            handoffEnvelope = buildDevLoopHandoffEnvelope(
+              resolverResult,
+              devLoopConfig,
+              gateState,
+            );
+            }
+          }
+        } catch {
+          handoffEnvelope = null;
         }
       }
 
@@ -526,6 +603,7 @@ export function createInspectRunViewerServer(options, deps = {}) {
         repo: requestedView.scopeFilter,
         target: requestTarget,
         snapshot: snapshot ?? null,
+        handoffEnvelope,
         error,
         inboxItems,
         selectedTitle: requestTarget === null

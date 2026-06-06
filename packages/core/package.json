@@ -14,6 +14,7 @@
     "./loop/copilot-ci-status": "./src/loop/copilot-ci-status.mjs",
     "./loop/copilot-loop-iterations": "./src/loop/copilot-loop-iterations.mjs",
     "./loop/copilot-loop-state": "./src/loop/copilot-loop-state.mjs",
+    "./loop/handoff-envelope": "./src/loop/handoff-envelope.mjs",
     "./loop/issue-refinement-artifact": "./src/loop/issue-refinement-artifact.mjs",
     "./loop/phase-files": "./src/loop/phase-files.mjs",
     "./loop/pr-gate-coordination": "./src/loop/pr-gate-coordination.mjs",
@@ -27,8 +28,7 @@
     "./debt/signal": "./src/debt/debt-signal.mjs",
     "./debt/finding": "./src/debt/debt-finding.mjs",
     "./debt/signals": "./src/debt/deep-persona-signals.mjs",
-    "./analysis": "./src/analysis/index.mjs",
-    "./loop/handoff-envelope": "./src/loop/handoff-envelope.mjs"
+    "./analysis": "./src/analysis/index.mjs"
   },
   "bin": {
     "pi-dev-loops-log-bash-exit-1": "./bin/log-bash-exit-1.mjs",
