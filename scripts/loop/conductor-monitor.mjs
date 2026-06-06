@@ -3,7 +3,6 @@ import { existsSync } from "node:fs";
 import { access, open, readFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-
 import { runChild, requireOptionValue } from "../_cli-primitives.mjs";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
@@ -14,18 +13,13 @@ import {
   parseRecordedHandoffContract,
 } from "./_handoff-contract.mjs";
 import { interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
-
 const USAGE = `Usage: conductor-monitor.mjs --repo <owner/name> [--auto-resume]
-
 Aggregate Copilot-loop status across all open PRs in one repo.
-
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
-
 Optional:
   --auto-resume         Inspect documented async run artifacts, detect orphaned
                         PR follow-up runs, and emit deterministic resume plans.
-
 Success output (stdout, JSON):
   {
     "ok": true,
@@ -64,7 +58,6 @@ Success output (stdout, JSON):
       }
     ]
   }
-
 Additional success fields when --auto-resume is present:
   {
     "autoResumeRequested": true,
@@ -74,22 +67,18 @@ Additional success fields when --auto-resume is present:
     "resumePlans": [...],
     "needsManualAttention": [...]
   }
-
 Queue status values:
   queue_complete   No open PRs remain in the repo queue
   monitoring       Open PRs exist, but all are in healthy wait states
   attention_needed At least one open PR needs human-in-the-loop follow-up
-
 Error output (stderr, JSON):
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
   gh/runtime failures:
     { "ok": false, "error": "..." }
-
 Exit codes:
   0  Success
   1  Argument error, gh failure, or indeterminate PR status`.trim();
-
 const parseError = buildParseError(USAGE);
 const OPEN_PR_LIST_LIMIT = 1000;
 const DEFAULT_SESSION_ROOT = path.join(os.homedir(), ".pi", "agent", "sessions");
@@ -123,7 +112,6 @@ const MANUAL_REASON = {
   HANDOFF_CONTRACT_INVALID: "handoff_contract_invalid",
   HANDOFF_CONTRACT_MISMATCH: "handoff_contract_mismatch",
 };
-
 function parseCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -131,41 +119,32 @@ function parseCliArgs(argv) {
     repo: undefined,
     autoResume: false,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
-
     if (token === "--auto-resume") {
       options.autoResume = true;
       continue;
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.repo === undefined) {
     throw parseError("conductor-monitor requires --repo <owner/name>");
   }
-
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
-
   return options;
 }
-
 async function listOpenPrs({ repo }, { env, ghCommand }) {
   const result = await runChild(
     ghCommand,
@@ -183,17 +162,14 @@ async function listOpenPrs({ repo }, { env, ghCommand }) {
     ],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   const payload = parseJsonText(result.stdout);
   if (!Array.isArray(payload)) {
     throw new Error("Invalid gh pr list payload: expected an array");
   }
-
   return payload
     .map((pr) => ({
       number: Number.isInteger(pr?.number) ? pr.number : null,
@@ -206,7 +182,6 @@ async function listOpenPrs({ repo }, { env, ghCommand }) {
     .filter((pr) => pr.number !== null)
     .sort((left, right) => left.number - right.number);
 }
-
 function summarizePrDisposition(loopDisposition) {
   switch (loopDisposition) {
     case "pending":
@@ -223,10 +198,8 @@ function summarizePrDisposition(loopDisposition) {
       return { bucket: "needsAttention", needsAttention: true };
   }
 }
-
 function buildPrReport(pr, interpretation, interpretationSummary, snapshot) {
   const disposition = summarizePrDisposition(interpretationSummary.loopDisposition);
-
   return {
     number: pr.number,
     title: pr.title,
@@ -250,20 +223,16 @@ function buildPrReport(pr, interpretation, interpretationSummary, snapshot) {
     },
   };
 }
-
 async function buildPrReports(prs, { repo, env, ghCommand }) {
   const reports = [];
-
   for (const pr of prs) {
     const snapshot = await autoDetectSnapshot({ repo, pr: pr.number }, { env, ghCommand });
     const interpretation = interpretLoopState(snapshot);
     const interpretationSummary = summarizeLoopInterpretation(interpretation);
     reports.push(buildPrReport(pr, interpretation, interpretationSummary, snapshot));
   }
-
   return reports;
 }
-
 function buildQueueSummary(reports) {
   return reports.reduce((accumulator, pr) => {
     accumulator[pr.bucket] += 1;
@@ -275,14 +244,12 @@ function buildQueueSummary(reports) {
     done: 0,
   });
 }
-
 function buildBaseResult(repo, reports) {
   const summary = buildQueueSummary(reports);
   const needsAttentionCount = summary.needsAttention + summary.blocked;
   const queueStatus = reports.length === 0
     ? "queue_complete"
     : (needsAttentionCount > 0 ? "attention_needed" : "monitoring");
-
   return {
     ok: true,
     repo,
@@ -294,18 +261,15 @@ function buildBaseResult(repo, reports) {
     prs: reports.map(({ bucket, ...pr }) => pr),
   };
 }
-
 function splitPathList(value) {
   if (typeof value !== "string" || value.trim().length === 0) {
     return [];
   }
-
   return value
     .split(path.delimiter)
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
 }
-
 async function pathExists(filePath) {
   try {
     await access(filePath);
@@ -314,7 +278,6 @@ async function pathExists(filePath) {
     return false;
   }
 }
-
 async function listDirectoriesIfExists(root) {
   try {
     const entries = await readdir(root, { withFileTypes: true });
@@ -325,44 +288,36 @@ async function listDirectoriesIfExists(root) {
     return [];
   }
 }
-
 async function readTextIfExists(filePath) {
   if (typeof filePath !== "string" || filePath.length === 0) {
     return null;
   }
-
   try {
     return await readFile(filePath, "utf8");
   } catch {
     return null;
   }
 }
-
-
 async function readFirstLineIfExists(filePath, chunkSize = 4096) {
   if (typeof filePath !== "string" || filePath.length === 0) {
     return null;
   }
-
   let handle;
   try {
     handle = await open(filePath, "r");
     let position = 0;
     let collected = "";
-
     while (true) {
       const buffer = Buffer.alloc(chunkSize);
       const { bytesRead } = await handle.read(buffer, 0, chunkSize, position);
       if (bytesRead === 0) {
         return collected.length > 0 ? collected : null;
       }
-
       const chunk = buffer.toString("utf8", 0, bytesRead);
       const newlineIndex = chunk.search(/\r?\n/u);
       if (newlineIndex >= 0) {
         return `${collected}${chunk.slice(0, newlineIndex)}`;
       }
-
       collected += chunk;
       position += bytesRead;
     }
@@ -372,20 +327,17 @@ async function readFirstLineIfExists(filePath, chunkSize = 4096) {
     await handle?.close().catch(() => {});
   }
 }
-
 async function readJsonIfExists(filePath) {
   const text = await readTextIfExists(filePath);
   if (text === null) {
     return null;
   }
-
   try {
     return parseJsonText(text);
   } catch {
     return null;
   }
 }
-
 function normalizeRunState(value) {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
   switch (normalized) {
@@ -408,7 +360,6 @@ function normalizeRunState(value) {
       return RUN_STATE.UNKNOWN;
   }
 }
-
 function normalizeRunStateForPlan(value) {
   const normalized = normalizeRunState(value);
   if (normalized === RUN_STATE.UNKNOWN) {
@@ -416,19 +367,16 @@ function normalizeRunStateForPlan(value) {
   }
   return normalized;
 }
-
 function isRunningLikeState(value) {
   const normalized = normalizeRunState(value);
   return normalized === RUN_STATE.RUNNING || normalized === RUN_STATE.QUEUED;
 }
-
 function isExitedState(value) {
   const normalized = normalizeRunState(value);
   return normalized === RUN_STATE.COMPLETED
     || normalized === RUN_STATE.FAILED
     || normalized === RUN_STATE.PAUSED;
 }
-
 function runStatePriority(value) {
   switch (normalizeRunState(value)) {
     case RUN_STATE.RUNNING:
@@ -445,7 +393,6 @@ function runStatePriority(value) {
       return 0;
   }
 }
-
 function createRunRecord(runId, childIndex = 0) {
   return {
     runId,
@@ -466,20 +413,16 @@ function createRunRecord(runId, childIndex = 0) {
     evidence: {},
   };
 }
-
 function mergeRunRecord(target, patch) {
   const merged = { ...target };
-
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined || value === null) {
       continue;
     }
-
     if (key === "evidence") {
       merged.evidence = { ...merged.evidence, ...value };
       continue;
     }
-
     if (key === "timestampMs") {
       const numeric = Number.isFinite(value) ? value : null;
       if (numeric !== null) {
@@ -489,7 +432,6 @@ function mergeRunRecord(target, patch) {
       }
       continue;
     }
-
     if (key === "runState") {
       const normalized = normalizeRunState(value);
       if (runStatePriority(normalized) > runStatePriority(merged.runState)) {
@@ -497,23 +439,18 @@ function mergeRunRecord(target, patch) {
       }
       continue;
     }
-
     merged[key] = value;
   }
-
   return merged;
 }
-
 function recordKey(runId, childIndex) {
   return `${runId}:${childIndex}`;
 }
-
 function parseArtifactFileName(name) {
   const match = name.match(/^(?<runId>.+)_(?<agent>[^_]+)_(?<index>\d+)_(?<kind>meta\.json|output\.md|input\.md)$/u);
   if (!match?.groups) {
     return null;
   }
-
   return {
     runId: match.groups.runId,
     agent: match.groups.agent,
@@ -521,28 +458,23 @@ function parseArtifactFileName(name) {
     kind: match.groups.kind,
   };
 }
-
 async function scanSessionArtifactRoot(artifactsDir, records) {
   const entries = await readdir(artifactsDir, { withFileTypes: true }).catch(() => null);
   if (entries === null) {
     return;
   }
-
   for (const entry of entries) {
     if (!entry.isFile()) {
       continue;
     }
-
     const parsedName = parseArtifactFileName(entry.name);
     if (parsedName === null) {
       continue;
     }
-
     const { runId, childIndex, agent } = parsedName;
     const key = recordKey(runId, childIndex);
     const record = records.get(key) ?? createRunRecord(runId, childIndex);
     const filePath = path.join(artifactsDir, entry.name);
-
     if (entry.name.endsWith("_meta.json")) {
       const meta = await readJsonIfExists(filePath);
       if (meta && typeof meta === "object") {
@@ -561,7 +493,6 @@ async function scanSessionArtifactRoot(artifactsDir, records) {
       }
       continue;
     }
-
     if (entry.name.endsWith("_output.md")) {
       records.set(key, mergeRunRecord(record, {
         outputArtifactPath: filePath,
@@ -571,42 +502,34 @@ async function scanSessionArtifactRoot(artifactsDir, records) {
     }
   }
 }
-
 async function scanSessionRunRoot(root, records) {
   const topLevelEntries = await readdir(root, { withFileTypes: true }).catch(() => null);
   if (topLevelEntries === null) {
     return;
   }
-
   for (const topLevelEntry of topLevelEntries) {
     if (!topLevelEntry.isDirectory()) {
       continue;
     }
-
     if (topLevelEntry.name === "subagent-artifacts") {
       await scanSessionArtifactRoot(path.join(root, topLevelEntry.name), records);
       continue;
     }
-
     const topLevelPath = path.join(root, topLevelEntry.name);
     await scanSessionArtifactRoot(path.join(topLevelPath, "subagent-artifacts"), records).catch(() => {});
     const runIdEntries = await readdir(topLevelPath, { withFileTypes: true }).catch(() => []);
-
     for (const runIdEntry of runIdEntries) {
       if (!runIdEntry.isDirectory() || runIdEntry.name === "subagent-artifacts") {
         continue;
       }
-
       const runId = runIdEntry.name;
       const runRoot = path.join(topLevelPath, runId);
       const runDirectories = await readdir(runRoot, { withFileTypes: true }).catch(() => []);
-
       for (const runDirectory of runDirectories) {
         const indexMatch = runDirectory.name.match(/^run-(\d+)$/u);
         if (!runDirectory.isDirectory() || indexMatch === null) {
           continue;
         }
-
         const childIndex = Number(indexMatch[1]);
         const sessionPath = path.join(runRoot, runDirectory.name, "session.jsonl");
         const firstLine = await readFirstLineIfExists(sessionPath);
@@ -620,7 +543,6 @@ async function scanSessionRunRoot(root, records) {
         }
         const key = recordKey(runId, childIndex);
         const record = records.get(key) ?? createRunRecord(runId, childIndex);
-
         records.set(key, mergeRunRecord(record, {
           sessionPath,
           cwd: typeof header?.cwd === "string" ? header.cwd : null,
@@ -630,15 +552,12 @@ async function scanSessionRunRoot(root, records) {
     }
   }
 }
-
 async function scanAsyncRunRoot(asyncRoot, records) {
   const runDirs = await readdir(asyncRoot, { withFileTypes: true }).catch(() => []);
-
   for (const runDirEntry of runDirs) {
     if (!runDirEntry.isDirectory()) {
       continue;
     }
-
     const asyncDir = path.join(asyncRoot, runDirEntry.name);
     const statusPath = path.join(asyncDir, "status.json");
     const eventsPath = path.join(asyncDir, "events.jsonl");
@@ -646,7 +565,6 @@ async function scanAsyncRunRoot(asyncRoot, records) {
     if (!status || typeof status !== "object") {
       continue;
     }
-
     const runId = typeof status.runId === "string" && status.runId.trim().length > 0
       ? status.runId.trim()
       : runDirEntry.name;
@@ -655,7 +573,6 @@ async function scanAsyncRunRoot(asyncRoot, records) {
     const defaultSessionPath = typeof status.sessionFile === "string" ? status.sessionFile : null;
     const baseTimestamp = [status.endedAt, status.lastUpdate, status.lastActivityAt, status.startedAt]
       .find((value) => typeof value === "number");
-
     const steps = Array.isArray(status.steps) && status.steps.length > 0
       ? status.steps
       : [{
@@ -663,18 +580,15 @@ async function scanAsyncRunRoot(asyncRoot, records) {
         status: status.state,
         sessionFile: status.sessionFile,
       }];
-
     steps.forEach((step, index) => {
       if (typeof step?.agent !== "string" || step.agent !== "dev-loop") {
         return;
       }
-
       const key = recordKey(runId, index);
       const record = records.get(key) ?? createRunRecord(runId, index);
       const explicitOutputFile = typeof status.outputFile === "string"
         ? status.outputFile
         : path.join(asyncDir, `output-${index}.log`);
-
       records.set(key, mergeRunRecord(record, {
         agent: step.agent,
         runState: step.status ?? rootState,
@@ -694,45 +608,36 @@ async function scanAsyncRunRoot(asyncRoot, records) {
     });
   }
 }
-
 function extractResultOutputArtifactPath(result) {
   const value = result?.artifactPaths;
   if (!value || typeof value !== "object") {
     return null;
   }
-
   if (typeof value.outputPath === "string") {
     return value.outputPath;
   }
-
   if (typeof value.output === "string") {
     return value.output;
   }
-
   for (const entry of Object.values(value)) {
     if (typeof entry === "string" && entry.endsWith("_output.md")) {
       return entry;
     }
   }
-
   return null;
 }
-
 function parseRunIdFromTextSummary(text, fallbackName) {
   const runLine = text.match(/^Run(?: ID)?:\s*(.+)$/imu);
   if (runLine && typeof runLine[1] === "string" && runLine[1].trim().length > 0) {
     return runLine[1].trim();
   }
-
   return fallbackName;
 }
-
 function parseSummaryPointers(text) {
   const outputArtifactMatch = text.match(/^Output artifact:\s*(.+)$/imu);
   const sessionMatch = text.match(/^Session:\s*(.+)$/imu);
   const stateMatch = text.match(/^State:\s*(.+)$/imu);
   const agentMatch = text.match(/^Agent:\s*(.+)$/imu);
-
   return {
     outputArtifactPath: outputArtifactMatch?.[1]?.trim() || null,
     sessionPath: sessionMatch?.[1]?.trim() || null,
@@ -740,29 +645,24 @@ function parseSummaryPointers(text) {
     agent: agentMatch?.[1]?.trim() || null,
   };
 }
-
 async function scanAsyncResultRoot(resultsRoot, records) {
   const entries = await readdir(resultsRoot, { withFileTypes: true }).catch(() => []);
-
   for (const entry of entries) {
     if (!entry.isFile()) {
       continue;
     }
-
     const filePath = path.join(resultsRoot, entry.name);
     if (entry.name.endsWith(".json")) {
       const result = await readJsonIfExists(filePath);
       if (!result || typeof result !== "object") {
         continue;
       }
-
       const runId = typeof result.runId === "string" && result.runId.trim().length > 0
         ? result.runId.trim()
         : (typeof result.id === "string" && result.id.trim().length > 0 ? result.id.trim() : null);
       if (runId === null) {
         continue;
       }
-
       const resultEntries = Array.isArray(result.results) && result.results.length > 0
         ? result.results
         : [{
@@ -773,12 +673,10 @@ async function scanAsyncResultRoot(resultsRoot, records) {
         }];
       const baseTimestamp = typeof result.timestamp === "number" ? result.timestamp : null;
       const cwd = typeof result.cwd === "string" ? result.cwd : null;
-
       resultEntries.forEach((child, index) => {
         if (typeof child?.agent !== "string" || child.agent !== "dev-loop") {
           return;
         }
-
         const key = recordKey(runId, index);
         const record = records.get(key) ?? createRunRecord(runId, index);
         records.set(key, mergeRunRecord(record, {
@@ -793,25 +691,20 @@ async function scanAsyncResultRoot(resultsRoot, records) {
           evidence: { resultPath: filePath },
         }));
       });
-
       continue;
     }
-
     if (!/\.(md|txt)$/iu.test(entry.name)) {
       continue;
     }
-
     const text = await readTextIfExists(filePath);
     if (text === null || (!text.includes("Output artifact:") && !text.includes("Session:"))) {
       continue;
     }
-
     const runId = parseRunIdFromTextSummary(text, path.parse(entry.name).name);
     const childIndex = 0;
     const key = recordKey(runId, childIndex);
     const record = records.get(key) ?? createRunRecord(runId, childIndex);
     const pointers = parseSummaryPointers(text);
-
     records.set(key, mergeRunRecord(record, {
       agent: pointers.agent,
       runState: pointers.runState,
@@ -823,20 +716,16 @@ async function scanAsyncResultRoot(resultsRoot, records) {
     }));
   }
 }
-
 function collectConfiguredRoots(explicitRoots, envValue, fallbackRoots) {
   if (Array.isArray(explicitRoots) && explicitRoots.length > 0) {
     return [...new Set(explicitRoots.map((root) => path.resolve(root)))];
   }
-
   const fromEnv = splitPathList(envValue);
   if (fromEnv.length > 0) {
     return [...new Set(fromEnv.map((root) => path.resolve(root)))];
   }
-
   return [...new Set((fallbackRoots ?? []).map((root) => path.resolve(root)))];
 }
-
 async function detectDefaultAsyncRoots(kind) {
   const tempDir = os.tmpdir();
   const entries = await readdir(tempDir, { withFileTypes: true }).catch(() => []);
@@ -845,60 +734,45 @@ async function detectDefaultAsyncRoots(kind) {
     .map((entry) => path.join(tempDir, entry.name, kind))
     .filter((candidate) => existsSync(candidate));
 }
-
 async function resolveRepoIsolation(repoRoot) {
   const normalizedRepoRoot = path.resolve(repoRoot);
   const worktreeRoot = path.join(normalizedRepoRoot, "tmp", "worktrees");
   const existingWorktrees = await listDirectoriesIfExists(worktreeRoot);
-
   return {
     repoRoot: normalizedRepoRoot,
     worktreeRoot,
     worktrees: existingWorktrees.map((entry) => path.resolve(entry)),
   };
 }
-
 function isPathWithinRoot(candidate, root) {
   if (typeof candidate !== "string" || typeof root !== "string") {
     return false;
   }
-
   const normalizedCandidate = path.resolve(candidate);
   const normalizedRoot = path.resolve(root);
   return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${path.sep}`);
 }
-
 function recordMatchesRepo(record, repoIsolation) {
   if (typeof record.cwd !== "string" || record.cwd.trim().length === 0) {
     return false;
   }
-
   if (isPathWithinRoot(record.cwd, repoIsolation.repoRoot)) {
     return true;
   }
-
   if (isPathWithinRoot(record.cwd, repoIsolation.worktreeRoot)) {
     return true;
   }
-
   return repoIsolation.worktrees.some((worktree) => isPathWithinRoot(record.cwd, worktree));
 }
-
 function isStaleWorktreePath(filePath, repoIsolation) {
   if (typeof filePath !== "string" || filePath.trim().length === 0) {
     return false;
   }
-
   if (!isPathWithinRoot(filePath, repoIsolation.worktreeRoot)) {
     return false;
   }
-
   return !existsSync(filePath);
 }
-
-
-// ── Local phase subagent scanning ───────────────────────────────────────────
-
 const LOCAL_PHASE_AGENTS = new Set([
   "developer",
   "quality",
@@ -907,7 +781,6 @@ const LOCAL_PHASE_AGENTS = new Set([
   "refiner",
   "review",
 ]);
-
 const RUN_STATE_LABELS = Object.freeze({
   queued: RUN_STATE.QUEUED,
   pending: RUN_STATE.QUEUED,
@@ -921,23 +794,19 @@ const RUN_STATE_LABELS = Object.freeze({
   failure: RUN_STATE.FAILED,
   error: RUN_STATE.FAILED,
 });
-
 function normalizeSummaryState(label) {
   return RUN_STATE_LABELS[String(label).trim().toLowerCase()] ?? RUN_STATE.UNKNOWN;
 }
-
 function parseLocalSubagentSummary(text, filePath) {
   const agentMatch = text.match(/^[-*]\s*agent(?:\s*name)?:\s*(.+)$/imu);
   const statusMatch = text.match(/^[-*]\s*(?:status|state):\s*(.+)$/imu);
   const runIdMatch = text.match(/^[-*]\s*run(?:\s*id)?:\s*(.+)$/imu);
   const cwdMatch = text.match(/^[-*]\s*(?:cwd|working\s*directory):\s*(.+)$/imu);
   const taskMatch = text.match(/^[-*]\s*(?:task|prompt\s*summary):\s*(.+)$/imu);
-
   const agent = agentMatch?.[1]?.trim().toLowerCase() ?? null;
   if (agent === null || !LOCAL_PHASE_AGENTS.has(agent)) {
     return null;
   }
-
   return {
     agent,
     runState: normalizeSummaryState(statusMatch?.[1] ?? ""),
@@ -950,12 +819,10 @@ function parseLocalSubagentSummary(text, filePath) {
     timestampMs: null,
   };
 }
-
 async function scanLocalPhaseSubagents(repoRoot) {
   const phasesRoot = path.join(repoRoot, "tmp", "phases");
   const phaseDirs = await listDirectoriesIfExists(phasesRoot);
   const runs = [];
-
   for (const phaseDir of phaseDirs) {
     const subagentsDir = path.join(phaseDir, "subagents");
     let entries;
@@ -964,18 +831,15 @@ async function scanLocalPhaseSubagents(repoRoot) {
     } catch {
       continue;
     }
-
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(".md")) {
         continue;
       }
-
       const filePath = path.join(subagentsDir, entry.name);
       const text = await readTextIfExists(filePath);
       if (text === null) {
         continue;
       }
-
       const parsed = parseLocalSubagentSummary(text, filePath);
       if (parsed !== null && isExitedState(parsed.runState)) {
         runs.push({
@@ -985,8 +849,6 @@ async function scanLocalPhaseSubagents(repoRoot) {
         });
       }
     }
-
-    // Also scan raw subagent outputs
     const rawDir = path.join(subagentsDir, "raw");
     let rawEntries;
     try {
@@ -994,18 +856,15 @@ async function scanLocalPhaseSubagents(repoRoot) {
     } catch {
       continue;
     }
-
     for (const entry of rawEntries) {
       if (!entry.isFile() || !entry.name.endsWith(".md")) {
         continue;
       }
-
       const filePath = path.join(rawDir, entry.name);
       const text = await readTextIfExists(filePath);
       if (text === null) {
         continue;
       }
-
       const parsed = parseLocalSubagentSummary(text, filePath);
       if (parsed !== null && isExitedState(parsed.runState)) {
         runs.push({
@@ -1016,14 +875,11 @@ async function scanLocalPhaseSubagents(repoRoot) {
       }
     }
   }
-
   return runs;
 }
-
 function buildLocalPhaseResumePlan(localRun) {
   const phaseName = path.basename(localRun.phaseDir);
   const taskDesc = localRun.taskSummary ?? "unknown";
-
   let resumeMessage;
   if (localRun.runState === RUN_STATE.COMPLETED) {
     resumeMessage = `Local phase ${phaseName} subagent ${localRun.agent} (${localRun.runId}) completed. Task: ${taskDesc}. Consolidate and review results from ${localRun.phaseDir}.`;
@@ -1032,7 +888,6 @@ function buildLocalPhaseResumePlan(localRun) {
   } else {
     resumeMessage = `Local phase ${phaseName} subagent ${localRun.agent} (${localRun.runId}) exited (${localRun.runState}). Task: ${taskDesc}. Resume the phase from the last deterministic checkpoint in ${localRun.phaseDir}.`;
   }
-
   return {
     kind: "local_phase",
     phase: phaseName,
@@ -1045,7 +900,6 @@ function buildLocalPhaseResumePlan(localRun) {
     summaryPath: localRun.summaryPath,
   };
 }
-
 export async function listRepoAsyncRuns(
   { repo },
   {
@@ -1073,27 +927,22 @@ export async function listRepoAsyncRuns(
     env.PI_SUBAGENT_ASYNC_RESULTS_DIR,
     await detectDefaultAsyncRoots("async-subagent-results"),
   );
-
   const records = new Map();
-
   for (const sessionRoot of resolvedSessionRoots) {
     if (await pathExists(sessionRoot)) {
       await scanSessionRunRoot(sessionRoot, records);
     }
   }
-
   for (const asyncRoot of resolvedAsyncRunRoots) {
     if (await pathExists(asyncRoot)) {
       await scanAsyncRunRoot(asyncRoot, records);
     }
   }
-
   for (const resultsRoot of resolvedAsyncResultRoots) {
     if (await pathExists(resultsRoot)) {
       await scanAsyncResultRoot(resultsRoot, records);
     }
   }
-
   return [...records.values()]
     .filter((record) => record.agent === "dev-loop")
     .filter((record) => recordMatchesRepo(record, repoIsolation))
@@ -1104,78 +953,63 @@ export async function listRepoAsyncRuns(
       worktreeRoot: repoIsolation.worktreeRoot,
     }));
 }
-
 function stripFormatting(value) {
   return value
     .replace(/`/gu, "")
     .replace(/^\*+|\*+$/gu, "")
     .trim();
 }
-
 function extractPrNumberFromLine(line) {
   const trimmed = stripFormatting(line);
   if (/\bActive PR:\s*none\b/i.test(trimmed)) {
     return null;
   }
-
   const urlMatch = trimmed.match(/\/pull\/(\d+)\b/u);
   if (urlMatch) {
     return Number(urlMatch[1]);
   }
-
   const hashMatch = trimmed.match(/\bPR\s*#(\d+)\b/u);
   if (hashMatch) {
     return Number(hashMatch[1]);
   }
-
   const activePrMatch = trimmed.match(/^Active PR:\s*.+#(\d+)\b/ui);
   if (activePrMatch) {
     return Number(activePrMatch[1]);
   }
-
   const prLineMatch = trimmed.match(/^PR:\s*.+#(\d+)\b/ui);
   if (prLineMatch) {
     return Number(prLineMatch[1]);
   }
-
   const artifactMatch = trimmed.match(/^[-*]\s*Artifact(?:\/state)? inspected:\s*PR\s*#(\d+)\b/ui);
   if (artifactMatch) {
     return Number(artifactMatch[1]);
   }
-
   const mergedMatch = trimmed.match(/^PR merged:\s*#(\d+)\b/ui);
   if (mergedMatch) {
     return Number(mergedMatch[1]);
   }
-
   const statusMatch = trimmed.match(/^Status:.*\bPR\s*#(\d+)\b/ui);
   if (statusMatch) {
     return Number(statusMatch[1]);
   }
-
   return null;
 }
-
 function extractPrNumbersFromArtifactText(text) {
   const numbers = new Set();
   const lines = text.split(/\r?\n/u);
-
   for (const line of lines) {
     const number = extractPrNumberFromLine(line);
     if (Number.isInteger(number)) {
       numbers.add(number);
     }
   }
-
   return [...numbers].sort((left, right) => left - right);
 }
-
 function parseArtifactState(text) {
   const artifactStateLine = text.match(/^\**Artifact state:\**\s*(.+)$/imu)?.[1];
   const statusLine = text.match(/^Status:\s*(.+)$/imu)?.[1];
   const normalizedArtifact = stripFormatting(artifactStateLine ?? "").toLowerCase();
   const normalizedStatus = stripFormatting(statusLine ?? "").toLowerCase();
-
   const combined = `${normalizedArtifact}\n${normalizedStatus}`;
   if (/\bmerged\b/u.test(combined)) {
     return "merged";
@@ -1189,10 +1023,8 @@ function parseArtifactState(text) {
   if (/final human approval|waiting_for_merge_authorization|advanced to the final human approval boundary|inspected and advanced/u.test(combined)) {
     return "open";
   }
-
   return null;
 }
-
 function parseLoopState(text) {
   const patterns = [
     /^\**Loop state:\**\s*(.+)$/imu,
@@ -1200,29 +1032,23 @@ function parseLoopState(text) {
     /^-?\s*Copilot loop state:\s*(.+)$/imu,
     /^-?\s*Routed strategy:\s*(.+)$/imu,
   ];
-
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match?.[1]) {
       return stripFormatting(match[1]);
     }
   }
-
   return null;
 }
-
 function parseNextActionText(text) {
   const match = text.match(/^(?:Next action|Next recommended action):\s*(.+)$/imu);
   if (match?.[1]) {
     return stripFormatting(match[1]);
   }
-
   return null;
 }
-
 function classifyResumeBucket(text, parsedArtifactState) {
   const normalized = text.toLowerCase();
-
   if (
     parsedArtifactState === "merged"
     || /\bpr merged:\s*#\d+\b/u.test(normalized)
@@ -1230,7 +1056,6 @@ function classifyResumeBucket(text, parsedArtifactState) {
   ) {
     return RESUME_ACTION.DONE_OR_MERGED;
   }
-
   if (
     /\bstop(?:ped)? at waiting_for_merge_authorization\b/u.test(normalized)
     || /\bcurrent stop boundary:\s*waiting_for_merge_authorization\b/u.test(normalized)
@@ -1239,7 +1064,6 @@ function classifyResumeBucket(text, parsedArtifactState) {
   ) {
     return RESUME_ACTION.AWAIT_MERGE_AUTHORIZATION;
   }
-
   if (
     /\bfinal human approval boundary\b/u.test(normalized)
     || /\bfinal human approval readiness\b/u.test(normalized)
@@ -1249,7 +1073,6 @@ function classifyResumeBucket(text, parsedArtifactState) {
   ) {
     return RESUME_ACTION.AWAIT_FINAL_APPROVAL;
   }
-
   if (
     /\balready_fixed_needs_reply_resolve\b/u.test(normalized)
     || /\breply(?:ing)? to and resolving the addressed github threads\b/u.test(normalized)
@@ -1257,7 +1080,6 @@ function classifyResumeBucket(text, parsedArtifactState) {
   ) {
     return RESUME_ACTION.NEEDS_REPLY_RESOLVE;
   }
-
   if (
     /\bunresolved_feedback_present\b/u.test(normalized)
     || /\baddress(?:ing)? review feedback\b/u.test(normalized)
@@ -1266,7 +1088,6 @@ function classifyResumeBucket(text, parsedArtifactState) {
   ) {
     return RESUME_ACTION.NEEDS_FEEDBACK_FIX;
   }
-
   if (
     /\bwaiting_for_copilot_review\b/u.test(normalized)
     || /\bready_to_rerequest_review\b/u.test(normalized)
@@ -1276,7 +1097,6 @@ function classifyResumeBucket(text, parsedArtifactState) {
   ) {
     return RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH;
   }
-
   if (
     /\bauthorization boundary\b/u.test(normalized)
     || /\bdo not perform the next mutation without explicit approval\b/u.test(normalized)
@@ -1286,14 +1106,11 @@ function classifyResumeBucket(text, parsedArtifactState) {
   ) {
     return RESUME_ACTION.AWAIT_READY_FOR_REVIEW_AUTHORIZATION;
   }
-
   return null;
 }
-
 function buildSourceSelection(record, outputArtifactText, resultSummaryText, outputLogText) {
   const resultSummaryPath = record.resultSummaryPath ?? record.resultPath ?? null;
   const candidates = [];
-
   if (outputArtifactText !== null) {
     candidates.push({
       text: outputArtifactText,
@@ -1310,7 +1127,6 @@ function buildSourceSelection(record, outputArtifactText, resultSummaryText, out
         reportingIssue: MANUAL_REASON.MISSING_OUTPUT_ARTIFACT,
       });
     }
-
     if (outputLogText !== null) {
       candidates.push({
         text: outputLogText,
@@ -1319,7 +1135,6 @@ function buildSourceSelection(record, outputArtifactText, resultSummaryText, out
         reportingIssue: MANUAL_REASON.MISSING_OUTPUT_ARTIFACT,
       });
     }
-
     return {
       candidates,
       primarySource: "missing_output_artifact",
@@ -1327,7 +1142,6 @@ function buildSourceSelection(record, outputArtifactText, resultSummaryText, out
       outputArtifactMissing: true,
     };
   }
-
   if (resultSummaryText !== null) {
     candidates.push({
       text: resultSummaryText,
@@ -1336,7 +1150,6 @@ function buildSourceSelection(record, outputArtifactText, resultSummaryText, out
       reportingIssue: null,
     });
   }
-
   if (outputLogText !== null) {
     candidates.push({
       text: outputLogText,
@@ -1345,7 +1158,6 @@ function buildSourceSelection(record, outputArtifactText, resultSummaryText, out
       reportingIssue: null,
     });
   }
-
   return {
     candidates,
     primarySource: candidates.length > 0 ? candidates[0].source : "weak_fallback_only",
@@ -1353,22 +1165,18 @@ function buildSourceSelection(record, outputArtifactText, resultSummaryText, out
     outputArtifactMissing: false,
   };
 }
-
 function parseWeakFallbackPr(text) {
   if (typeof text !== "string" || text.trim().length === 0) {
     return null;
   }
-
   const prNumbers = extractPrNumbersFromArtifactText(text);
   return prNumbers.length === 1 ? prNumbers[0] : null;
 }
-
 export async function parseDevLoopArtifact(record) {
   const outputArtifactText = await readTextIfExists(record.outputArtifactPath);
   const resultSummaryText = record.resultSummaryText ?? await readTextIfExists(record.resultSummaryPath);
   const outputLogText = await readTextIfExists(record.outputLogPath);
   const selection = buildSourceSelection(record, outputArtifactText, resultSummaryText, outputLogText);
-
   if (selection.candidates.length === 0) {
     const weakFallbackPr = parseWeakFallbackPr(selection.weakFallbackText);
     return {
@@ -1386,7 +1194,6 @@ export async function parseDevLoopArtifact(record) {
       source: selection.primarySource,
     };
   }
-
   let lastFailure = null;
   for (const candidate of selection.candidates) {
     const prNumbers = extractPrNumbersFromArtifactText(candidate.text);
@@ -1407,7 +1214,6 @@ export async function parseDevLoopArtifact(record) {
       };
       continue;
     }
-
     if (prNumbers.length === 0) {
       lastFailure = {
         ok: false,
@@ -1424,7 +1230,6 @@ export async function parseDevLoopArtifact(record) {
       };
       continue;
     }
-
     const parsedArtifactState = parseArtifactState(candidate.text);
     const parsedLoopState = parseLoopState(candidate.text);
     const nextAction = parseNextActionText(candidate.text);
@@ -1468,9 +1273,7 @@ export async function parseDevLoopArtifact(record) {
       };
       continue;
     }
-
     const resumeBucket = classifyResumeBucket(candidate.text, parsedArtifactState);
-
     if (resumeBucket === null) {
       lastFailure = {
         ok: false,
@@ -1491,7 +1294,6 @@ export async function parseDevLoopArtifact(record) {
       };
       continue;
     }
-
     return {
       ok: true,
       pr: prNumbers[0],
@@ -1506,7 +1308,6 @@ export async function parseDevLoopArtifact(record) {
       reportingIssue: candidate.reportingIssue,
     };
   }
-
   if (selection.outputArtifactMissing) {
     const weakFallbackPr = parseWeakFallbackPr(selection.weakFallbackText);
     return {
@@ -1524,7 +1325,6 @@ export async function parseDevLoopArtifact(record) {
       source: selection.primarySource,
     };
   }
-
   return lastFailure ?? {
     ok: false,
     reason: MANUAL_REASON.UNCLASSIFIED_ARTIFACT_STATE,
@@ -1539,7 +1339,6 @@ export async function parseDevLoopArtifact(record) {
     weakFallbackText: selection.weakFallbackText,
   };
 }
-
 function buildResumeMessage({ pr, runId, resumeAction, livePrState }) {
   switch (resumeAction) {
     case RESUME_ACTION.NEEDS_FEEDBACK_FIX:
@@ -1558,15 +1357,12 @@ function buildResumeMessage({ pr, runId, resumeAction, livePrState }) {
       return `PR #${pr} is orphaned. Resume the prior dev-loop from run ${runId}. Continue from the last deterministic state and do not merge.`;
   }
 }
-
 function buildResumeCommandPreview({ runId, childIndex, childCount, resumeMessage }) {
   if (childCount > 1 || childIndex !== 0) {
     return `subagent({ action: "resume", id: "${runId}", index: ${childIndex}, message: ${JSON.stringify(resumeMessage)} })`;
   }
-
   return `subagent({ action: "resume", id: "${runId}", message: ${JSON.stringify(resumeMessage)} })`;
 }
-
 function buildManualAttentionEntry({
   pr = null,
   runId = null,
@@ -1582,20 +1378,17 @@ function buildManualAttentionEntry({
     suggestedNextStep,
   };
 }
-
 export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
   const activeMatch = activeRuns.filter((candidate) => candidate.parsedArtifact?.ok && candidate.parsedArtifact.pr === pr.number);
   const matches = exitedRuns.filter((candidate) => candidate.parsedArtifact?.ok && candidate.parsedArtifact.pr === pr.number);
   if (matches.length === 0) {
     return { kind: "none" };
   }
-
   const sorted = [...matches].sort((left, right) => {
     const leftTs = left.run.timestampMs ?? Number.NEGATIVE_INFINITY;
     const rightTs = right.run.timestampMs ?? Number.NEGATIVE_INFINITY;
     return rightTs - leftTs;
   });
-
   if (sorted.length > 1) {
     const firstTimestamp = sorted[0].run.timestampMs;
     const secondTimestamp = sorted[1].run.timestampMs;
@@ -1613,7 +1406,6 @@ export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
       };
     }
   }
-
   const selected = sorted[0];
   const selectedTimestamp = selected.run.timestampMs;
   if (activeMatch.length > 0) {
@@ -1621,7 +1413,6 @@ export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
       typeof candidate.run.timestampMs !== "number"
       || typeof selectedTimestamp !== "number"
     ));
-
     if (indeterminateActiveRuns.length > 0) {
       return {
         kind: "manual_attention",
@@ -1646,7 +1437,6 @@ export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
       };
     }
   }
-
   const sameTimestampActiveRuns = activeMatch.filter((candidate) => candidate.run.timestampMs === selectedTimestamp);
   if (sameTimestampActiveRuns.length > 0) {
     return {
@@ -1671,19 +1461,15 @@ export function selectLatestExitedRunForPr({ pr, exitedRuns, activeRuns }) {
       ],
     };
   }
-
   const newerActiveRuns = activeMatch.filter((candidate) => candidate.run.timestampMs > selectedTimestamp);
-
   if (newerActiveRuns.length > 0) {
     return {
       kind: "suppressed_by_active_run",
       runIds: newerActiveRuns.map((candidate) => candidate.run.runId),
     };
   }
-
   return { kind: "selected", candidate: selected };
 }
-
 function classifyLiveStateForResume(resumeAction, prReport) {
   switch (resumeAction) {
     case RESUME_ACTION.NEEDS_FEEDBACK_FIX:
@@ -1702,31 +1488,24 @@ function classifyLiveStateForResume(resumeAction, prReport) {
       return prReport.state;
   }
 }
-
 function hasMaterialConflict(resumeAction, prReport, parsedArtifact) {
   if (parsedArtifact.parsedArtifactState === "merged" || resumeAction === RESUME_ACTION.DONE_OR_MERGED) {
     return true;
   }
-
   if (resumeAction === RESUME_ACTION.AWAIT_FINAL_APPROVAL) {
     return prReport.snapshot.unresolvedThreadCount > 0 || prReport.snapshot.ciStatus === "failure";
   }
-
   if (resumeAction === RESUME_ACTION.AWAIT_MERGE_AUTHORIZATION) {
     return prReport.snapshot.unresolvedThreadCount > 0 || prReport.snapshot.ciStatus !== "success";
   }
-
   if (resumeAction === RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH) {
     return prReport.state === "unresolved_feedback_present" && parsedArtifact.resumeBucket !== RESUME_ACTION.NEEDS_REPLY_RESOLVE;
   }
-
   return false;
 }
-
 export function buildResumePlan({ prReport, candidate, childCounts }) {
   const { run, parsedArtifact } = candidate;
   const resumeAction = parsedArtifact.resumeBucket;
-
   if (hasMaterialConflict(resumeAction, prReport, parsedArtifact)) {
     return {
       kind: "manual_attention",
@@ -1746,7 +1525,6 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
       }),
     };
   }
-
   if (run.staleWorktree && !run.sessionPath && !run.outputArtifactPath && !run.resultSummaryPath && !run.resultPath) {
     return {
       kind: "manual_attention",
@@ -1764,7 +1542,6 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
       }),
     };
   }
-
   const livePrState = classifyLiveStateForResume(resumeAction, prReport);
   const expectedHandoffContract = buildHandoffContractForResumeAction(resumeAction);
   const recordedHandoffContract = parsedArtifact.recordedHandoffContract ?? null;
@@ -1790,7 +1567,6 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
       }),
     };
   }
-
   const resumeMessage = buildResumeMessage({
     pr: prReport.number,
     runId: run.runId,
@@ -1798,7 +1574,6 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
     livePrState,
   });
   const childCount = childCounts.get(run.runId) ?? 1;
-
   return {
     kind: "resume_plan",
     entry: {
@@ -1825,7 +1600,6 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
     },
   };
 }
-
 async function analyzeAutoResume({ repo, reports }, options) {
   const openPrNumbers = new Set(reports.map((report) => report.number));
   const runs = await listRepoAsyncRuns({ repo }, options);
@@ -1833,15 +1607,12 @@ async function analyzeAutoResume({ repo, reports }, options) {
     map.set(run.runId, (map.get(run.runId) ?? 0) + 1);
     return map;
   }, new Map());
-
   const activeRuns = [];
   const exitedRuns = [];
   const manualAttention = [];
-
   for (const run of runs) {
     const parsedArtifact = await parseDevLoopArtifact(run);
     let candidate = { run, parsedArtifact };
-
     if (!parsedArtifact.ok) {
       if (isRunningLikeState(run.runState)) {
         const runningPr = parseWeakFallbackPr(parsedArtifact.weakFallbackText ?? null);
@@ -1862,7 +1633,6 @@ async function analyzeAutoResume({ repo, reports }, options) {
         }
         continue;
       }
-
       const parsedNumbers = Array.isArray(parsedArtifact.evidence?.prNumbers)
         ? parsedArtifact.evidence.prNumbers.filter((value) => Number.isInteger(value))
         : [];
@@ -1886,18 +1656,15 @@ async function analyzeAutoResume({ repo, reports }, options) {
       }
       continue;
     }
-
     candidate = { run, parsedArtifact };
     if (isRunningLikeState(run.runState)) {
       activeRuns.push(candidate);
       continue;
     }
-
     if (isExitedState(run.runState)) {
       exitedRuns.push(candidate);
       continue;
     }
-
     if (run.runState === RUN_STATE.UNKNOWN && openPrNumbers.has(parsedArtifact.pr)) {
       manualAttention.push(buildManualAttentionEntry({
         pr: parsedArtifact.pr,
@@ -1912,11 +1679,9 @@ async function analyzeAutoResume({ repo, reports }, options) {
       }));
     }
   }
-
   const resumePlans = [];
   for (const prReport of reports) {
     const selection = selectLatestExitedRunForPr({ pr: prReport, exitedRuns, activeRuns });
-
     if (selection.kind === "manual_attention") {
       manualAttention.push(buildManualAttentionEntry({
         pr: prReport.number,
@@ -1926,25 +1691,20 @@ async function analyzeAutoResume({ repo, reports }, options) {
       }));
       continue;
     }
-
     if (selection.kind !== "selected") {
       continue;
     }
-
     const built = buildResumePlan({
       prReport,
       candidate: selection.candidate,
       childCounts,
     });
-
     if (built.kind === "manual_attention") {
       manualAttention.push(built.entry);
       continue;
     }
-
     resumePlans.push(built.entry);
   }
-
   const orphanedPrs = new Set();
   resumePlans.forEach((plan) => orphanedPrs.add(plan.pr));
   manualAttention.forEach((entry) => {
@@ -1952,12 +1712,9 @@ async function analyzeAutoResume({ repo, reports }, options) {
       orphanedPrs.add(entry.pr);
     }
   });
-
-  // Scan local phase subagents
   const localPhaseRuns = await scanLocalPhaseSubagents(options.repoRoot ?? process.cwd());
   const localPhaseResumePlans = localPhaseRuns
     .map((run) => buildLocalPhaseResumePlan(run));
-
   return {
     orphanedPrCount: orphanedPrs.size,
     resumePlanCount: resumePlans.length,
@@ -1968,7 +1725,6 @@ async function analyzeAutoResume({ repo, reports }, options) {
     localPhaseResumePlans,
   };
 }
-
 function applyAutoResumeToBaseResult(baseResult, autoResume) {
   const orphanAttentionPrs = new Set();
   autoResume.resumePlans.forEach((entry) => orphanAttentionPrs.add(entry.pr));
@@ -1977,7 +1733,6 @@ function applyAutoResumeToBaseResult(baseResult, autoResume) {
       orphanAttentionPrs.add(entry.pr);
     }
   });
-
   const localPhaseAttention = (autoResume.localPhaseResumePlans?.filter(p => p.runState !== RUN_STATE.COMPLETED)?.length ?? 0) > 0;
   const queueNeedsAttention = baseResult.queueStatus === "attention_needed"
     || autoResume.resumePlanCount > 0
@@ -1988,7 +1743,6 @@ function applyAutoResumeToBaseResult(baseResult, autoResume) {
     : (queueNeedsAttention ? "attention_needed" : "monitoring");
   const liveAttentionPrs = new Set(baseResult.prs.filter((pr) => pr.needsAttention).map((pr) => pr.number));
   const needsAttentionCount = new Set([...liveAttentionPrs, ...orphanAttentionPrs]).size;
-
   return {
     ...baseResult,
     queueStatus,
@@ -2003,7 +1757,6 @@ function applyAutoResumeToBaseResult(baseResult, autoResume) {
     localPhaseResumePlans: autoResume.localPhaseResumePlans ?? [],
   };
 }
-
 export async function runConductorMonitor(
   { repo, autoResume = false },
   {
@@ -2019,7 +1772,6 @@ export async function runConductorMonitor(
   if (prs.length === 0) {
     const baseResult = buildBaseResult(repo, []);
     if (!autoResume) {
-      // Still scan local phases for informational reporting
       const localRuns = await scanLocalPhaseSubagents(repoRoot);
       if (localRuns.length > 0) {
         return {
@@ -2030,7 +1782,6 @@ export async function runConductorMonitor(
       }
       return baseResult;
     }
-
     const localPhaseRuns = await scanLocalPhaseSubagents(repoRoot);
     return applyAutoResumeToBaseResult(baseResult, {
       orphanedPrCount: 0,
@@ -2042,13 +1793,11 @@ export async function runConductorMonitor(
       localPhaseResumePlans: localPhaseRuns.map((run) => buildLocalPhaseResumePlan(run)),
     });
   }
-
   const reports = await buildPrReports(prs, { repo, env, ghCommand });
   const baseResult = buildBaseResult(repo, reports);
   if (!autoResume) {
     return baseResult;
   }
-
   const autoResumeResult = await analyzeAutoResume({ repo, reports }, {
     env,
     repoRoot,
@@ -2058,18 +1807,15 @@ export async function runConductorMonitor(
   });
   return applyAutoResumeToBaseResult(baseResult, autoResumeResult);
 }
-
 export async function runCli(
   argv = process.argv.slice(2),
   { stdout = process.stdout, env = process.env, ghCommand = "gh", cwd = process.cwd() } = {},
 ) {
   const options = parseCliArgs(argv);
-
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return;
   }
-
   const result = await runConductorMonitor(options, {
     env,
     ghCommand,
@@ -2077,7 +1823,6 @@ export async function runCli(
   });
   stdout.write(`${JSON.stringify(result)}\n`);
 }
-
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);

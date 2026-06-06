@@ -241,3 +241,5 @@ export function runAsMain(fn, { formatError } = {}) {
     },
   );
 }
+
+export { isDirectCliRun };

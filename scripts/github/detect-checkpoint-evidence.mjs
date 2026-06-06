@@ -13,19 +13,15 @@ import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { ensureAsyncRunnerOwnership } from "../loop/_pr-runner-coordination.mjs";
 import { detectStaleRunner } from "../loop/_stale-runner-detection.mjs";
-
 const USAGE = `Usage: detect-checkpoint-evidence.mjs --repo <owner/name> --pr <number>
-
 Fetch the live PR head SHA and visible PR issue comments, then summarize the
 latest valid draft-gate and pre-approval checkpoint verdict comments. Always fail
 closed (exit 1) unless both required gate comments exist: a clean draft_gate
 comment for the one-time draft boundary and a clean current-head
 pre_approval_gate comment.
-
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
-
 Output (stdout, JSON; always includes preMergeGateCheck):
   {
     "ok": true,
@@ -80,18 +76,13 @@ Output (stdout, JSON; always includes preMergeGateCheck):
       "failures": []
     }
   }
-
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
   { "ok": false, "error": "..." }
-
 Exit codes:
   0  Success (gate evidence is valid)
   1  Argument error, gh failure, malformed gh JSON, or missing required pre-merge gate evidence.`.trim();
-
 const parseError = buildParseError(USAGE);
-
-
 export function parseDetectCheckpointEvidenceCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -99,45 +90,35 @@ export function parseDetectCheckpointEvidenceCliArgs(argv) {
     repo: undefined,
     pr: undefined,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
-
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
       continue;
     }
-
     if (token === "--require-before-merge") {
       throw parseError(`--require-before-merge has been removed: gate evidence enforcement is now always-on by default. Omit the flag.`);
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.repo === undefined || options.pr === undefined) {
     throw parseError("detect-checkpoint-evidence requires both --repo <owner/name> and --pr <number>");
   }
-
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
-
   return options;
 }
-
 async function runGhJson(args, { env, ghCommand }) {
   const result = await runChild(ghCommand, args, env);
   if (result.code !== 0) {
@@ -146,19 +127,15 @@ async function runGhJson(args, { env, ghCommand }) {
   }
   return parseJsonText(result.stdout, { label: `gh ${args.slice(0, 2).join(" ")}` });
 }
-
 function normalizeIssueCommentsPayload(payload) {
   if (!Array.isArray(payload)) {
     throw new Error("Invalid gh issue comments payload: expected an array");
   }
-
   if (payload.every((entry) => Array.isArray(entry))) {
     return payload.flat();
   }
-
   return payload;
 }
-
 function emptyGateSummary() {
   return {
     visible: false,
@@ -171,12 +148,10 @@ function emptyGateSummary() {
     updatedAt: null,
   };
 }
-
 function normalizeGateSummary(summary) {
   if (!summary) {
     return emptyGateSummary();
   }
-
   return {
     visible: true,
     headSha: summary.headSha,
@@ -188,7 +163,6 @@ function normalizeGateSummary(summary) {
     updatedAt: summary.updatedAt,
   };
 }
-
 function emptyGateMarkerSummary() {
   return {
     visible: false,
@@ -202,12 +176,10 @@ function emptyGateMarkerSummary() {
     updatedAt: null,
   };
 }
-
 function normalizeGateMarkerSummary(summary) {
   if (!summary) {
     return emptyGateMarkerSummary();
   }
-
   return {
     visible: true,
     headSha: summary.headSha,
@@ -220,14 +192,11 @@ function normalizeGateMarkerSummary(summary) {
     updatedAt: summary.updatedAt,
   };
 }
-
 export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null, staleRunnerCheck = null) {
   const failures = [];
-
   if (!(evidence.draftGate.visible && evidence.draftGate.verdict === "clean")) {
     failures.push("missing visible clean draft_gate comment");
   }
-
   const preApproval = evidence.preApprovalGateMarker;
   if (!(
     preApproval.visible
@@ -237,8 +206,6 @@ export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null, s
   )) {
     failures.push("missing visible clean current-head pre_approval_gate comment");
   }
-
-  // #443: verify zero unresolved review threads before pre-merge gate passes
   if (typeof unresolvedThreadCount === "number" && unresolvedThreadCount !== 0) {
     if (unresolvedThreadCount === -1) {
       failures.push("could not fetch review thread state from GitHub API; re-run gate evidence check when API connectivity is restored");
@@ -246,21 +213,16 @@ export function buildPreMergeGateCheck(evidence, unresolvedThreadCount = null, s
       failures.push(`unresolved review threads present (${unresolvedThreadCount}); must resolve all threads before merge`);
     }
   }
-
-  // #508: incorporate stale-runner / exit-signal failures into pre-merge gate check
   if (staleRunnerCheck && !staleRunnerCheck.ok) {
     for (const failure of staleRunnerCheck.failures) {
       failures.push(failure);
     }
   }
-
   return {
     ok: failures.length === 0,
     failures,
   };
 }
-
-
 export async function detectCheckpointEvidence(options, { env = process.env, ghCommand = "gh", cwd = process.cwd() } = {}) {
   const runnerOwnership = await ensureAsyncRunnerOwnership({
     repo: options.repo,
@@ -275,8 +237,6 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
     error.runnerOwnership = runnerOwnership;
     throw error;
   }
-
-  // #508: refuse to merge if the active runner is stale or has received an exit signal
   const staleRunnerDetection = await detectStaleRunner({
     repo: options.repo,
     pr: options.pr,
@@ -287,21 +247,16 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
     error.staleRunner = staleRunnerDetection;
     throw error;
   }
-
   const prPayload = await runGhJson(["pr", "view", String(options.pr), "--repo", options.repo, "--json", "headRefOid"], { env, ghCommand });
   const commentsPayload = normalizeIssueCommentsPayload(await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/issues/${options.pr}/comments?per_page=100`], { env, ghCommand }));
-
   const currentHeadSha = typeof prPayload?.headRefOid === "string" && prPayload.headRefOid.trim().length > 0
     ? prPayload.headRefOid.trim()
     : null;
-
   if (!currentHeadSha) {
     throw new Error("Invalid gh pr view payload: missing headRefOid");
   }
-
   const commentSummary = summarizeGateReviewComments(commentsPayload);
   const markerSummary = summarizeGateReviewCommentMarkers(commentsPayload, { headSha: currentHeadSha });
-
   return {
     ok: true,
     repo: options.repo,
@@ -323,7 +278,6 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
     },
   };
 }
-
 async function main() {
   let options;
   try {
@@ -333,26 +287,20 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-
   if (options.help) {
     process.stdout.write(`${USAGE}\n`);
     return;
   }
-
   try {
     const result = await detectCheckpointEvidence(options);
-
-    // #443: fetch review threads to verify zero unresolved threads before passing
     let unresolvedThreadCount = -1;
     try {
       const threadsPayload = await fetchGithubReviewThreadsPayload(options, { env: process.env });
       const parsedThreads = parseReviewThreads(threadsPayload);
       unresolvedThreadCount = parsedThreads?.summary?.unresolvedThreads ?? 0;
     } catch {
-      // API unavailable — fail closed: pass -1 so buildPreMergeGateCheck rejects merge when thread state cannot be verified
       unresolvedThreadCount = -1;
     }
-
     const staleRunnerCheck = {
       ok: result.staleRunner.status === "fresh_runner" || result.staleRunner.status === "no_owner_record",
       failures: result.staleRunner.status === "stale_runner"
@@ -363,7 +311,6 @@ async function main() {
     };
     const preMergeGateCheck = buildPreMergeGateCheck(result, unresolvedThreadCount, staleRunnerCheck);
     const output = { ...result, preMergeGateCheck, staleRunnerCheck };
-
     if (!preMergeGateCheck.ok) {
       process.stderr.write(`${JSON.stringify({
         ok: false,
@@ -378,7 +325,6 @@ async function main() {
       process.exitCode = 1;
       return;
     }
-
     process.stdout.write(`${JSON.stringify(output)}\n`);
   } catch (error) {
     if (error && typeof error === "object" && "staleRunner" in error && error.staleRunner) {
@@ -417,7 +363,6 @@ async function main() {
     process.exitCode = 1;
   }
 }
-
 if (isDirectCliRun(import.meta.url)) {
   await main();
 }

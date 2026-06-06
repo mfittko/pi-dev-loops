@@ -12,32 +12,24 @@ import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState } from "@pi-dev-loops/core/loop/copilot-loop-state";
 import { loadDevLoopConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
-
 const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
 const ROUND_CAP_REACHED_STATUS = "round_cap_reached";
-
 const REMOVED_FLAGS = new Set([
   "--force-rerequest-review",
 ]);
-
 const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number>
-
 Request Copilot as a reviewer on a GitHub pull request.
-
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
-
 Debug:
   PI_DEV_LOOPS_DEBUG=1      Emit stderr traces when best-effort same-head clean
                             convergence detection falls back to unsuppressed behavior
-
 Output (stdout, JSON):
   { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
     "sameHeadCleanConverged"?: true, "violationCommentIds"?: [N], "completedRounds"?: N, "maxRounds"?: N }
-
 Request statuses:
   requested           Copilot review was successfully requested
   already-requested   Copilot review was already observably in progress; no new request needed
@@ -45,105 +37,82 @@ Request statuses:
   suppressed_same_head_clean  Current head is already clean-converged; no new request is made
   blocked_by_copilot_comment  A non-Copilot PR comment contains @copilot or /copilot; delete the comment(s) first
   round_cap_reached    Maximum Copilot review rounds reached; no further re-requests will be made
-
 Error output (stderr, JSON):
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
   gh/runtime failures:
     { "ok": false, "error": "..." }
-
 Exit codes:
   0  Success (including unavailable)
   1  Argument error or gh failure`.trim();
-
 const parseError = buildParseError(USAGE);
-
 function rejectRemovedFlag(token) {
   throw parseError(
     `${token} has been removed. Copilot re-requests are managed internally. Omit the flag.`,
   );
 }
-
 export function parseRequestCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
     repo: undefined,
     pr: undefined,
-
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (REMOVED_FLAGS.has(token)) {
       rejectRemovedFlag(token);
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
-
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
       continue;
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.repo === undefined || options.pr === undefined) {
     throw parseError("Requesting Copilot review requires both --repo <owner/name> and --pr <number>");
   }
-
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
-
   return options;
 }
-
 function parseRequestedReviewersPayload(text) {
   let payload;
-
   try {
     payload = JSON.parse(text);
   } catch {
     throw new Error(`Invalid JSON from gh: ${text.trim() || "<empty>"}`);
   }
-
   const users = Array.isArray(payload?.users) ? payload.users : [];
   const teams = Array.isArray(payload?.teams) ? payload.teams : [];
-
   return {
     users,
     teams,
     requested: users.some((user) => isCopilotLogin(user?.login)),
   };
 }
-
 function parseReviewsPayload(text) {
   let payload;
-
   try {
     payload = JSON.parse(text);
   } catch {
     throw new Error(`Invalid JSON from gh: ${text.trim() || "<empty>"}`);
   }
-
   const headSha = typeof payload?.headRefOid === "string" && payload.headRefOid.trim().length > 0
     ? payload.headRefOid.trim()
     : null;
   const reviewSummary = summarizeCopilotReviews(payload?.reviews, { headSha });
-
   return {
     prData: payload,
     headSha,
@@ -154,41 +123,33 @@ function parseReviewsPayload(text) {
     completedCopilotReviewRounds: reviewSummary.completedCopilotReviewRounds,
   };
 }
-
 async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
     ["api", `repos/${repo}/pulls/${pr}/requested_reviewers`],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   return parseRequestedReviewersPayload(result.stdout);
 }
-
 async function fetchCopilotReviewIds({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
     ["pr", "view", String(pr), "--repo", repo, "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   return parseReviewsPayload(result.stdout);
 }
-
 async function fetchCopilotReviewState(options, runtime) {
   const requestedReviewers = await fetchRequestedReviewers(options, runtime);
   const reviews = await fetchCopilotReviewIds(options, runtime);
-
   return {
     requested: requestedReviewers.requested,
     prData: reviews.prData,
@@ -199,7 +160,6 @@ async function fetchCopilotReviewState(options, runtime) {
     completedCopilotReviewRounds: reviews.completedCopilotReviewRounds,
   };
 }
-
 async function detectSameHeadCleanConvergence(options, runtime, priorReviewState = {}) {
   const {
     requested = false,
@@ -208,15 +168,12 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     hasPendingReviewOnCurrentHead = false,
     hasSubmittedReviewOnCurrentHead = false,
   } = priorReviewState;
-
   if (typeof options.sameHeadCleanConverged === "boolean") {
     return options.sameHeadCleanConverged;
   }
-
   if (hasPendingReviewOnCurrentHead || !hasSubmittedReviewOnCurrentHead || prData === null) {
     return false;
   }
-
   try {
     const threadsPayload = await fetchGithubReviewThreadsPayload(
       { repo: options.repo, pr: options.pr },
@@ -243,10 +200,8 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     return false;
   }
 }
-
 function classifyRequestFailure(detail) {
   const normalized = detail.toLowerCase();
-
   if (
     normalized.includes("not a collaborator") ||
     normalized.includes("not requestable") ||
@@ -255,21 +210,17 @@ function classifyRequestFailure(detail) {
   ) {
     return "unavailable";
   }
-
   return undefined;
 }
-
 async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
     ["pr", "edit", String(pr), "--repo", repo, "--add-reviewer", "@copilot"],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     const classified = classifyRequestFailure(detail);
-
     if (classified === "unavailable") {
       return {
         ok: true,
@@ -280,10 +231,8 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
         detail,
       };
     }
-
     throw new Error(`gh command failed: ${detail}`);
   }
-
   return {
     ok: true,
     status: "requested",
@@ -292,24 +241,16 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
     reviewer: "Copilot",
   };
 }
-
-/**
- * Perform the full Copilot review-request logic and return the result payload.
- * Exported for use by higher-level orchestration helpers.
- */
-
 export async function checkForCopilotComments({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
     ["api", `repos/${repo}/issues/${pr}/comments`, "--paginate", "--jq", ".[]"],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   const lines = result.stdout.trim().split("\n").filter(Boolean);
   let comments;
   try {
@@ -317,33 +258,26 @@ export async function checkForCopilotComments({ repo, pr }, { env = process.env,
   } catch (e) {
     throw new Error(`Invalid JSON from gh: ${e.message} (${result.stdout.trim().slice(0, 200) || "<empty>"})`);
   }
-
   if (!Array.isArray(comments)) {
     return { blocked: false, violationCommentIds: [] };
   }
-
   const violationCommentIds = [];
   for (const comment of comments) {
     const author = comment?.user?.login ?? "";
     const body = comment?.body ?? "";
-
     if (isCopilotLogin(author)) {
       continue;
     }
-
     if (/(?:^|\W)(@copilot|\/copilot)(?:$|\W)/i.test(body)) {
       violationCommentIds.push(comment.id);
     }
   }
-
   return {
     blocked: violationCommentIds.length > 0,
     violationCommentIds,
   };
 }
-
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
-  // #461: Preflight check for bypass @copilot PR comments (skipped in stub/test envs)
   if (!env.GH_SEQUENCE_PATH) {
     const copilotCommentCheck = await checkForCopilotComments(options, { env, ghCommand });
     if (copilotCommentCheck.blocked) {
@@ -358,10 +292,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       };
     }
   }
-
   const before = await fetchCopilotReviewState(options, { env, ghCommand });
-
-  // #500: Round-cap enforcement — refuse re-request when max rounds reached
   let maxRounds = 5; // Built-in default; overridden by config when loadable
   try {
     const { config, errors } = await loadDevLoopConfig();
@@ -372,7 +303,6 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       }
     }
   } catch {
-    // Fail closed to default 5 on config errors
   }
   if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds) {
     return {
@@ -386,13 +316,11 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. No further re-requests will be made.`,
     };
   }
-
   const sameHeadCleanConverged = await detectSameHeadCleanConvergence(
     options,
     { env, ghCommand },
     before,
   );
-
   if (sameHeadCleanConverged) {
     return {
       ok: true,
@@ -404,7 +332,6 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       detail: "Current head already has a clean submitted Copilot review; same-head clean-convergence suppression is always enforced.",
     };
   }
-
   if (before.requested || before.hasPendingReviewOnCurrentHead) {
     return {
       ok: true,
@@ -414,9 +341,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       reviewer: "Copilot",
     };
   }
-
   const requestResult = await requestCopilotReview(options, { env, ghCommand });
-
   if (requestResult.status === "unavailable") {
     const after = await fetchCopilotReviewState(options, { env, ghCommand });
     if (after.requested || after.hasPendingReviewOnCurrentHead) {
@@ -432,20 +357,16 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       ...requestResult,
     };
   }
-
   const after = await fetchCopilotReviewState(options, { env, ghCommand });
   const reviewCountIncreased = after.copilotReviewIds.length > before.copilotReviewIds.length;
   const reviewNowObservablyInProgress = after.requested || after.hasPendingReviewOnCurrentHead || reviewCountIncreased;
-
   if (!reviewNowObservablyInProgress) {
     throw new Error("Copilot review request did not appear in requested reviewers or fresh/in-progress Copilot reviews after gh pr edit");
   }
-
   return {
     ...requestResult,
   };
 }
-
 export async function runCli(
   argv = process.argv.slice(2),
   {
@@ -455,16 +376,13 @@ export async function runCli(
   } = {},
 ) {
   const options = parseRequestCliArgs(argv);
-
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return;
   }
-
   const result = await performCopilotReviewRequest(options, { env, ghCommand });
   stdout.write(`${JSON.stringify(result)}\n`);
 }
-
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);

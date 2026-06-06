@@ -3,11 +3,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parsePrNumber, requireOptionValue } from "../_cli-primitives.mjs";
 import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-
 const USAGE = `Usage: write-gate-findings-log.mjs --repo <owner/name> --pr <number> --gate <draft_gate|pre_approval_gate> --head-sha <sha> --verdict <clean|findings_present|blocked> --findings <json> [--tmp-root <path>]
-
 Write a durable <gate>-<headSha>.json log under deterministic tmp/ paths.
-
 Required:
   --repo <owner/name>
   --pr <number>
@@ -15,56 +12,28 @@ Required:
   --head-sha <sha>
   --verdict <clean|findings_present|blocked>
   --findings <json>              JSON array of finding objects with severity, disposition, angle, and summary
-
 Optional:
   --tmp-root <path>              Root tmp directory (default: tmp/)
 `.trim();
-
 function parseError(message) {
   return Object.assign(new Error(message), { usage: USAGE });
 }
-
 function normalizeGate(value) {
   const gates = new Set(["draft_gate", "pre_approval_gate"]);
   const normalized = String(value).trim().toLowerCase();
   return gates.has(normalized) ? normalized : null;
 }
-
 function normalizeVerdict(value) {
   const verdicts = new Set(["clean", "findings_present", "blocked"]);
   const normalized = String(value).trim().toLowerCase();
   return verdicts.has(normalized) ? normalized : null;
 }
-
 function normalizeHeadSha(value) {
   const normalized = String(value).trim().toLowerCase();
   return /^[0-9a-f]{7,64}$/i.test(normalized) ? normalized : null;
 }
-
-/**
- * @typedef {object} Finding
- * @property {string} severity - "must-fix" | "worth-fixing-now" | "defer"
- * @property {string} [disposition] - "accepted-for-fix" | "deferred" | "disputed" | "operator_acknowledged"
- * @property {string} angle - review angle that produced the finding
- * @property {string} summary - finding description
- * @property {string[]} [files] - affected files
- * @property {string} [resolvedIn] - head SHA that resolved this finding (only for resolved findings)
- */
-
-/**
- * @typedef {object} GateFindingsLog
- * @property {string} repo
- * @property {number} pr
- * @property {string} gate
- * @property {string} headSha
- * @property {string} verdict
- * @property {string} loggedAt - ISO timestamp
- * @property {Finding[]} findings
- */
-
 const VALID_SEVERITIES = new Set(["must-fix", "worth-fixing-now", "defer"]);
 const VALID_DISPOSITIONS = new Set(["accepted-for-fix", "deferred", "disputed", "operator_acknowledged"]);
-
 function parseFindingsJson(raw) {
   let parsed;
   try {
@@ -72,11 +41,9 @@ function parseFindingsJson(raw) {
   } catch {
     throw parseError("--findings must be valid JSON");
   }
-
   if (!Array.isArray(parsed)) {
     throw parseError("--findings must be a JSON array");
   }
-
   return parsed.map((f, i) => {
     if (!f || typeof f !== "object") {
       throw parseError(`--findings[${i}] must be an object`);
@@ -90,13 +57,11 @@ function parseFindingsJson(raw) {
     if (!f.summary || typeof f.summary !== "string" || f.summary.trim().length === 0) {
       throw parseError(`--findings[${i}].summary is required`);
     }
-
     const entry = {
       severity: f.severity,
       angle: f.angle.trim(),
       summary: f.summary.trim(),
     };
-
     if ("disposition" in f) {
       if (typeof f.disposition !== "string" || f.disposition.trim().length === 0) {
         throw parseError(`--findings[${i}].disposition must be a non-empty string`);
@@ -107,11 +72,9 @@ function parseFindingsJson(raw) {
       }
       entry.disposition = disp;
     }
-
     if (Array.isArray(f.files)) {
       entry.files = f.files.filter(x => typeof x === "string" && x.trim().length > 0);
     }
-
     if ("resolvedIn" in f) {
       if (typeof f.resolvedIn !== "string" || f.resolvedIn.trim().length === 0) {
         throw parseError(`--findings[${i}].resolvedIn must be a non-empty string`);
@@ -122,11 +85,9 @@ function parseFindingsJson(raw) {
       }
       entry.resolvedIn = sha;
     }
-
     return entry;
   });
 }
-
 export function parseWriteGateFindingsLogCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -138,14 +99,11 @@ export function parseWriteGateFindingsLogCliArgs(argv) {
     findings: undefined,
     tmpRoot: "tmp",
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       return { help: true };
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
@@ -180,23 +138,15 @@ export function parseWriteGateFindingsLogCliArgs(argv) {
       options.tmpRoot = requireOptionValue(args, "--tmp-root", parseError).trim();
       continue;
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   const missing = ["repo", "pr", "gate", "headSha", "verdict", "findings"]
     .filter(k => options[k] === undefined);
   if (missing.length > 0) {
     throw parseError(`Missing required arguments: ${missing.join(", ")}`);
   }
-
   return options;
 }
-
-/**
- * Determine the deterministic log path:
- *   <tmpRoot>/gate-findings/<repo-slug>/pr-<N>/<gate>-<headSha>.json
- */
 function buildLogPath({ repo, pr, gate, headSha, tmpRoot }) {
   const parts = repo.split("/");
   if (parts.length !== 2 || parts.some(p => p.length === 0)) {
@@ -210,19 +160,6 @@ function buildLogPath({ repo, pr, gate, headSha, tmpRoot }) {
   const repoSlug = parts.join("-");
   return path.join(tmpRoot, "gate-findings", repoSlug, `pr-${pr}`, `${gate}-${headSha}.json`);
 }
-
-/**
- * Write the gate findings log.
- * @param {object} options
- * @param {string} options.repo
- * @param {number} options.pr
- * @param {string} options.gate
- * @param {string} options.headSha
- * @param {string} options.verdict
- * @param {string} options.findings - raw JSON string
- * @param {string} [options.tmpRoot]
- * @returns {Promise<{ ok: boolean, path: string, log: GateFindingsLog }>}
- */
 export async function writeGateFindingsLog(options, { repoRoot = process.cwd() } = {}) {
   const findings = parseFindingsJson(options.findings);
   const logPath = buildLogPath({
@@ -232,10 +169,7 @@ export async function writeGateFindingsLog(options, { repoRoot = process.cwd() }
     headSha: options.headSha,
     tmpRoot: options.tmpRoot || "tmp",
   });
-
   const fullPath = path.resolve(repoRoot, logPath);
-
-  /** @type {GateFindingsLog} */
   const log = {
     repo: options.repo,
     pr: options.pr,
@@ -245,13 +179,10 @@ export async function writeGateFindingsLog(options, { repoRoot = process.cwd() }
     loggedAt: new Date().toISOString(),
     findings,
   };
-
   await mkdir(path.dirname(fullPath), { recursive: true });
   await writeFile(fullPath, JSON.stringify(log, null, 2) + "\n", "utf8");
-
   return { ok: true, path: logPath, log };
 }
-
 async function main() {
   let options;
   try {
@@ -261,12 +192,10 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-
   if (options.help) {
     process.stdout.write(`${USAGE}\n`);
     return;
   }
-
   try {
     const result = await writeGateFindingsLog(options);
     process.stdout.write(JSON.stringify(result) + "\n");
@@ -278,7 +207,6 @@ async function main() {
     process.exitCode = 1;
   }
 }
-
 if (isDirectCliRun(import.meta.url)) {
   await main();
 }

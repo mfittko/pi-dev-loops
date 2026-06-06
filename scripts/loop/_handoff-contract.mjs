@@ -5,7 +5,6 @@ const HANDOFF_OWNERSHIP = Object.freeze({
   HUMAN: "human",
   TERMINAL: "terminal",
 });
-
 const HANDOFF_STOP_BOUNDARY = Object.freeze({
   SUBAGENT_EXIT: "subagent_exit",
   WATCH_BOUNDARY: "watch_boundary",
@@ -14,7 +13,6 @@ const HANDOFF_STOP_BOUNDARY = Object.freeze({
   CONFLICT_BOUNDARY: "conflict_boundary",
   TERMINAL: "terminal_boundary",
 });
-
 const HANDOFF_RESUME_POLICY = Object.freeze({
   RESUME_AFTER_SUBAGENT_EXIT: "resume_after_subagent_exit",
   RESUME_AFTER_STATE_REFRESH: "resume_after_state_refresh",
@@ -23,9 +21,7 @@ const HANDOFF_RESUME_POLICY = Object.freeze({
   MANUAL_ATTENTION: "manual_attention",
   NONE: "none",
 });
-
 const GATE_BOUNDARY_STOP_VALUES = new Set(Object.values(PR_CHECKPOINT));
-
 const SUBAGENT_ACTIONS = new Set([
   "fix_threads",
   "draft_gate",
@@ -33,11 +29,9 @@ const SUBAGENT_ACTIONS = new Set([
   "rerequest_review",
   "run_pre_approval",
 ]);
-
 function normalizeContractValue(value) {
   return typeof value === "string" ? value.trim().toLowerCase() : null;
 }
-
 function buildContract({ ownership, stopBoundary, resumePolicy }) {
   return {
     ownership,
@@ -45,10 +39,8 @@ function buildContract({ ownership, stopBoundary, resumePolicy }) {
     resumePolicy,
   };
 }
-
 export function buildHandoffContractForConductorAction({ action, gateBoundary, requiresApproval = false } = {}) {
   const normalizedAction = normalizeContractValue(action);
-
   if (SUBAGENT_ACTIONS.has(normalizedAction)) {
     if (requiresApproval) {
       return buildContract({
@@ -63,7 +55,6 @@ export function buildHandoffContractForConductorAction({ action, gateBoundary, r
       resumePolicy: HANDOFF_RESUME_POLICY.RESUME_AFTER_SUBAGENT_EXIT,
     });
   }
-
   switch (normalizedAction) {
     case "watch":
       return buildContract({
@@ -107,10 +98,8 @@ export function buildHandoffContractForConductorAction({ action, gateBoundary, r
       });
   }
 }
-
 export function buildHandoffContractForResumeAction(resumeAction) {
   const normalizedAction = normalizeContractValue(resumeAction);
-
   switch (normalizedAction) {
     case "needs_feedback_fix":
       return buildContract({
@@ -163,27 +152,22 @@ export function buildHandoffContractForResumeAction(resumeAction) {
       });
   }
 }
-
 function parseContractLine(text, label) {
   const pattern = new RegExp(String.raw`(?:^|\n)\s*[-*]?\s*${label}:\s*(.+)$`, "imu");
   const match = text.match(pattern);
   return match?.[1]?.trim() ?? null;
 }
-
 export function parseRecordedHandoffContract(text) {
   if (typeof text !== "string" || text.length === 0) {
     return { contract: null, reason: null };
   }
-
   const ownership = normalizeContractValue(parseContractLine(text, "Handoff ownership"));
   const stopBoundary = normalizeContractValue(parseContractLine(text, "Stop boundary"));
   const resumePolicy = normalizeContractValue(parseContractLine(text, "Resume policy"));
-
   const foundCount = [ownership, stopBoundary, resumePolicy].filter((value) => value !== null).length;
   if (foundCount === 0) {
     return { contract: null, reason: null };
   }
-
   if (foundCount !== 3) {
     return {
       contract: null,
@@ -195,12 +179,10 @@ export function parseRecordedHandoffContract(text) {
       },
     };
   }
-
   const validOwnership = Object.values(HANDOFF_OWNERSHIP).includes(ownership);
   const validStopBoundary = Object.values(HANDOFF_STOP_BOUNDARY).includes(stopBoundary)
     || GATE_BOUNDARY_STOP_VALUES.has(stopBoundary);
   const validResumePolicy = Object.values(HANDOFF_RESUME_POLICY).includes(resumePolicy);
-
   if (!validOwnership || !validStopBoundary || !validResumePolicy) {
     return {
       contract: null,
@@ -212,7 +194,6 @@ export function parseRecordedHandoffContract(text) {
       },
     };
   }
-
   return {
     contract: buildContract({
       ownership,
@@ -222,30 +203,25 @@ export function parseRecordedHandoffContract(text) {
     reason: null,
   };
 }
-
 export function compareHandoffContracts(recorded, expected) {
   if (!recorded || !expected) {
     return null;
   }
-
   const mismatches = [];
   for (const key of ["ownership", "stopBoundary", "resumePolicy"]) {
     if (recorded[key] !== expected[key]) {
       mismatches.push(key);
     }
   }
-
   if (mismatches.length === 0) {
     return null;
   }
-
   return {
     mismatches,
     recorded,
     expected,
   };
 }
-
 export {
   HANDOFF_OWNERSHIP,
   HANDOFF_STOP_BOUNDARY,

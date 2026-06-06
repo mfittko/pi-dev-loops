@@ -1,14 +1,5 @@
 #!/usr/bin/env node
-/**
- * Copilot review probe supporting persistent polling (30-minute
- * watch) and one-shot status checks. Used
- * internally by `scripts/loop/run-watch-cycle.mjs` for persistent watch cycles.
- *
- * For new watch/fix workflows, prefer using `run-watch-cycle.mjs` as the primary
- * entrypoint rather than calling this script directly.
- */
 import { setTimeout as delay } from "node:timers/promises";
-
 import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText, parseReviewThreads } from "../_core-helpers.mjs";
 import { parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
@@ -16,39 +7,30 @@ import {
   DEFAULT_POLL_INTERVAL_MS,
   COPILOT_REVIEW_WAIT_TIMEOUT_MS,
 } from "@pi-dev-loops/core/loop/policy-constants";
-
 const REMOVED_FLAGS = new Set([
   "--poll-interval-ms",
   "--timeout-ms",
 ]);
-
 const USAGE = `Usage: probe-copilot-review.mjs --repo <owner/name> --pr <number>
-
 Poll for fresh Copilot review activity on a GitHub pull request.
-
 Required:
   --repo <owner/name>           Repository slug (e.g. owner/repo)
   --pr <number>                 Pull request number
-
 Output (stdout, JSON):
   { "ok": true, "status": "changed"|"timeout"|"idle", "repo": "...", "pr": N, "attempts": N,
     "newComments": [...], "newReviews": [...], "newIssueComments": [...] }
-
 Activity statuses:
   changed    Fresh Copilot review activity found (check newComments/newReviews/newIssueComments)
   timeout    Watch period elapsed with no fresh Copilot activity
   idle       Zero-timeout single check found no change
-
 Error output (stderr, JSON):
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
   gh/runtime failures:
     { "ok": false, "error": "..." }
-
 Exit codes:
   0  Success
   1  Argument error or gh failure`.trim();
-
 const COPILOT_ACTIVITY_QUERY = [
   "query($owner: String!, $name: String!, $pr: Int!) {",
   "  repository(owner: $owner, name: $name) {",
@@ -93,15 +75,12 @@ const COPILOT_ACTIVITY_QUERY = [
   "  }",
   "}",
 ].join("\n");
-
 const parseError = buildParseError(USAGE);
-
 function rejectRemovedFlag(token) {
   throw parseError(
     `${token} has been removed. Poll interval and timeout are centralized policy constants. Omit the flag.`,
   );
 }
-
 export function parseWatchCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -111,45 +90,35 @@ export function parseWatchCliArgs(argv) {
     pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
     timeoutMs: COPILOT_REVIEW_WAIT_TIMEOUT_MS,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (REMOVED_FLAGS.has(token)) {
       rejectRemovedFlag(token);
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
-
     if (token === "--pr") {
       options.pr = parsePositiveInteger(requireOptionValue(args, "--pr", parseError), "--pr", parseError);
       continue;
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.repo === undefined || options.pr === undefined) {
     throw parseError("Watching Copilot review requires both --repo <owner/name> and --pr <number>");
   }
-
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
-
   return options;
 }
-
 async function fetchGithubCopilotActivityPayload(
   { repo, pr },
   { env = process.env, ghCommand = "gh" } = {},
@@ -171,30 +140,23 @@ async function fetchGithubCopilotActivityPayload(
     ],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   return parseJsonText(result.stdout);
 }
-
 function normalizeAuthorLogin(author) {
   return typeof author?.login === "string" ? author.login : "";
 }
-
 function normalizeBody(body) {
   return typeof body === "string" ? body.trim() : "";
 }
-
 function extractCopilotReviews(payload) {
   const reviews = payload?.data?.repository?.pullRequest?.reviews?.nodes;
-
   if (!Array.isArray(reviews)) {
     return [];
   }
-
   return reviews
     .filter((review) => isCopilotLogin(normalizeAuthorLogin(review?.author)))
     .map((review) => ({
@@ -204,14 +166,11 @@ function extractCopilotReviews(payload) {
     }))
     .filter((review) => review.id.length > 0);
 }
-
 function extractCopilotIssueComments(payload) {
   const comments = payload?.data?.repository?.pullRequest?.comments?.nodes;
-
   if (!Array.isArray(comments)) {
     return [];
   }
-
   return comments
     .filter((comment) => isCopilotLogin(normalizeAuthorLogin(comment?.author)))
     .map((comment) => ({
@@ -221,7 +180,6 @@ function extractCopilotIssueComments(payload) {
     }))
     .filter((comment) => comment.id.length > 0);
 }
-
 function parseCopilotActivity(payload) {
   const parsedThreads = parseReviewThreads(payload);
   const newComments = (parsedThreads?.comments ?? [])
@@ -232,26 +190,22 @@ function parseCopilotActivity(payload) {
       authorLogin: comment.author?.login ?? "",
       body: comment.body,
     }));
-
   return {
     reviewThreadComments: newComments,
     reviews: extractCopilotReviews(payload),
     issueComments: extractCopilotIssueComments(payload),
   };
 }
-
 export function findFreshCopilotActivity(baseline, current) {
   const baselineCommentIds = new Set((baseline?.reviewThreadComments ?? []).map((comment) => comment.id));
   const baselineReviewIds = new Set((baseline?.reviews ?? []).map((review) => review.id));
   const baselineIssueCommentIds = new Set((baseline?.issueComments ?? []).map((comment) => comment.id));
-
   return {
     newComments: (current?.reviewThreadComments ?? []).filter((comment) => !baselineCommentIds.has(comment.id)),
     newReviews: (current?.reviews ?? []).filter((review) => !baselineReviewIds.has(review.id)),
     newIssueComments: (current?.issueComments ?? []).filter((comment) => !baselineIssueCommentIds.has(comment.id)),
   };
 }
-
 function buildNoChangePayload(status, repo, pr, attempts) {
   return {
     ok: true,
@@ -264,7 +218,6 @@ function buildNoChangePayload(status, repo, pr, attempts) {
     newIssueComments: [],
   };
 }
-
 export async function watchCopilotReview(
   options,
   {
@@ -278,7 +231,6 @@ export async function watchCopilotReview(
   ));
   const attemptBudget = buildAttemptBudget(options.timeoutMs, options.pollIntervalMs);
   const watchStartedAtMs = Date.now();
-
   for (let attempt = 1; attempt <= attemptBudget; attempt += 1) {
     if (!(options.timeoutMs === 0 && attempt === 1)) {
       const pollDelayMs = buildPollDelayMs(
@@ -291,13 +243,11 @@ export async function watchCopilotReview(
         await delay(pollDelayMs);
       }
     }
-
     const current = parseCopilotActivity(await fetchGithubCopilotActivityPayload(
       { repo: options.repo, pr: options.pr },
       { env, ghCommand },
     ));
     const activity = findFreshCopilotActivity(baseline, current);
-
     if (activity.newComments.length > 0 || activity.newReviews.length > 0 || activity.newIssueComments.length > 0) {
       return {
         ok: true,
@@ -309,28 +259,22 @@ export async function watchCopilotReview(
       };
     }
   }
-
   const status = options.timeoutMs === 0 ? "idle" : "timeout";
   return buildNoChangePayload(status, options.repo, options.pr, attemptBudget);
 }
-
 export function buildAttemptBudget(timeoutMs, pollIntervalMs) {
   if (timeoutMs === 0) {
     return 1;
   }
-
   return Math.max(1, Math.ceil(timeoutMs / pollIntervalMs));
 }
-
 export function buildPollDelayMs(watchStartedAtMs, timeoutMs, pollIntervalMs, attempt, nowMs = Date.now()) {
   if (timeoutMs === 0) {
     return 0;
   }
-
   const scheduledAtMs = watchStartedAtMs + Math.min(timeoutMs, attempt * pollIntervalMs);
   return Math.max(0, scheduledAtMs - nowMs);
 }
-
 export async function runCli(
   argv = process.argv.slice(2),
   {
@@ -340,16 +284,13 @@ export async function runCli(
   } = {},
 ) {
   const options = parseWatchCliArgs(argv);
-
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return;
   }
-
   const result = await watchCopilotReview(options, { env, ghCommand });
   stdout.write(`${JSON.stringify(result)}\n`);
 }
-
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);

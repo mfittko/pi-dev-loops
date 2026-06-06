@@ -1,46 +1,36 @@
 #!/usr/bin/env node
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-
 import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
-
 const DEFAULT_OUTPUT_DIR = "tmp/investigation";
 const DEFAULT_JSON_NAME = "copilot-comment-summary.json";
 const DEFAULT_MARKDOWN_NAME = "copilot-comment-categories.md";
 const DEFAULT_UNCATEGORIZED_NAME = "uncategorized-comments.json";
 const DEFAULT_RETRY_MAX = 5;
 const DEFAULT_RETRY_BASE_MS = 1000;
-
 const USAGE = `Usage: audit-copilot-comments.mjs --repo <owner/name> [--output-dir <path>] [--sleep-ms <ms>] [--checkpoint-file <path>] [--resume] [--save-uncategorized]
-
 Scan all pull-request review comments in a repository via the GitHub REST API,
 filter to Copilot-authored comments, classify them into workflow categories, and
 write both a JSON summary and a Markdown report under the requested output directory.
-
 Required:
   --repo <owner/name>       Repository slug (e.g. owner/repo)
-
 Optional:
   --output-dir <path>       Output directory (default: tmp/investigation)
   --sleep-ms <ms>           Sleep this many ms between top-level fetches (non-negative int, default: 0)
   --checkpoint-file <path>  Save/load coarse-grain checkpoint for resume
   --resume                  Resume from checkpoint file (requires --checkpoint-file)
   --save-uncategorized      Also write uncategorized-comments.json with only primaryCategoryId=null comments
-
 Checkpoint stages:
   after-comments  — comments fetch complete, saved
   after-prs       — PRs fetch complete, saved (full checkpoint)
-
 On --resume with a valid checkpoint:
   - If stage is after-comments: re-fetch only PRs, then complete.
   - If stage is after-prs: skip fetches and rebuild summary from checkpoint directly.
-
 Resilience:
   - 403 and 429 responses trigger exponential backoff (${DEFAULT_RETRY_MAX} retries, ${DEFAULT_RETRY_BASE_MS}ms base).
   - Auth failures (401) and other non-retryable errors fail immediately.
-
 Output (stdout, JSON summary; abbreviated example):
   {
     "ok": true,
@@ -65,25 +55,18 @@ Output (stdout, JSON summary; abbreviated example):
       "markdownReportPath": "<output-dir>/copilot-comment-categories.md"
     }
   }
-
   With --save-uncategorized, the real summary also includes files.uncategorizedCommentsPath.
-
   This example is abbreviated; the real summary includes additional fields on
   categories, recommendations, comments, and files. Stdout emits the same full
   summary object that is written to <output-dir>/copilot-comment-summary.json
   (default output dir: tmp/investigation).
-
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
   { "ok": false, "error": "..." }
-
 Exit codes:
   0  Success
   1  Argument error, gh failure, or malformed gh JSON`.trim();
-
 const parseError = buildParseError(USAGE);
-
-
 const CATEGORY_DEFINITIONS = [
   {
     id: "placeholder_404",
@@ -320,7 +303,6 @@ const CATEGORY_DEFINITIONS = [
     ],
   },
 ];
-
 const RECOMMENDATION_DEFINITIONS = [
   {
     key: "coverage-angle",
@@ -379,27 +361,16 @@ const RECOMMENDATION_DEFINITIONS = [
     rationale: "The workflow should flag tool invocations that look successful but do nothing or silently drop important effects.",
   },
 ];
-
-// ── Resilience helpers ──────────────────────────────────────────────
-
 function isRetryableHttpError(stderrText) {
   return /\bHTTP 403\b/i.test(stderrText) || /\bHTTP 429\b/i.test(stderrText);
 }
-
 function isAuthError(stderrText) {
   return /\bHTTP 401\b/i.test(stderrText);
 }
-
-/**
- * Retry a gh JSON call with exponential backoff on 403/429.
- * Fails immediately on 401 (auth) or other non-retryable errors.
- */
 export async function runGhJsonWithRetry(args, { env = process.env, ghCommand = "gh", retryMax = DEFAULT_RETRY_MAX, retryBaseMs = DEFAULT_RETRY_BASE_MS } = {}) {
   let lastError = null;
-
   for (let attempt = 0; attempt <= retryMax; attempt += 1) {
     const result = await runChild(ghCommand, args, env);
-
     if (result.code === 0) {
       const commandLabel = `${ghCommand} ${args.join(" ")}`;
       try {
@@ -408,28 +379,20 @@ export async function runGhJsonWithRetry(args, { env = process.env, ghCommand = 
         throw new Error(`Invalid JSON from ${commandLabel}`);
       }
     }
-
     const stderrText = result.stderr || "";
-
     if (isAuthError(stderrText)) {
       throw new Error(`gh command failed: ${stderrText.trim()}`);
     }
-
     if (!isRetryableHttpError(stderrText) || attempt === retryMax) {
       const detail = stderrText.trim() || `exit code ${result.code}`;
       throw new Error(`gh command failed: ${detail}`);
     }
-
     lastError = new Error(`gh command failed: ${stderrText.trim()}`);
     const delay = retryBaseMs * (2 ** attempt);
     await new Promise((resolve) => { setTimeout(resolve, delay); });
   }
-
   throw lastError;
 }
-
-// ── Checkpoint helpers ──────────────────────────────────────────────
-
 async function loadCheckpoint(checkpointPath) {
   let raw;
   try {
@@ -437,7 +400,6 @@ async function loadCheckpoint(checkpointPath) {
   } catch {
     return null;
   }
-
   try {
     const data = JSON.parse(raw);
     if (data && typeof data === "object" && data.stage) {
@@ -448,22 +410,15 @@ async function loadCheckpoint(checkpointPath) {
     return null;
   }
 }
-
 async function saveCheckpoint(checkpointPath, data) {
   await mkdir(path.dirname(checkpointPath), { recursive: true });
   await writeFile(checkpointPath, `${JSON.stringify(data)}\n`, "utf8");
 }
-
-// ── Sleep helper ─────────────────────────────────────────────────────
-
 async function sleepStep(sleepMs) {
   if (sleepMs > 0) {
     await new Promise((resolve) => { setTimeout(resolve, sleepMs); });
   }
 }
-
-// ── Core script functions ────────────────────────────────────────────
-
 function excerptText(body, maxLength = 200) {
   const normalized = String(body ?? "").replace(/\s+/g, " ").trim();
   if (normalized.length <= maxLength) {
@@ -471,49 +426,39 @@ function excerptText(body, maxLength = 200) {
   }
   return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
-
 function parsePrNumberFromPullRequestUrl(pullRequestUrl) {
   const match = String(pullRequestUrl ?? "").match(/\/pulls\/(\d+)$/u);
   return match ? Number(match[1]) : null;
 }
-
 function normalizePaginatedArrayPayload(payload, label) {
   if (!Array.isArray(payload)) {
     throw new Error(`Invalid ${label} payload: expected an array`);
   }
-
   if (payload.every((entry) => Array.isArray(entry))) {
     return payload.flat();
   }
-
   return payload;
 }
-
 function matchesCategory(comment, definition) {
   const haystack = typeof comment?.body === "string" ? comment.body.trim() : "";
   return haystack.length > 0 && definition.patterns.some((pattern) => pattern.test(haystack));
 }
-
 export function classifyCopilotComment(comment, definitions = CATEGORY_DEFINITIONS) {
   const matched = definitions
     .filter((definition) => matchesCategory(comment, definition))
     .map((definition) => definition.id);
-
   const primaryCategory = matched.length > 0
     ? definitions.find((definition) => definition.id === matched[0]) ?? null
     : null;
-
   return {
     matchedCategoryIds: matched,
     primaryCategoryId: primaryCategory?.id ?? null,
   };
 }
-
 function normalizeComment(comment, prMap) {
   const prNumber = parsePrNumberFromPullRequestUrl(comment?.pull_request_url);
   const pr = prNumber !== null ? prMap.get(prNumber) ?? null : null;
   const classification = classifyCopilotComment(comment);
-
   return {
     id: Number.isInteger(comment?.id) ? comment.id : null,
     prNumber,
@@ -532,7 +477,6 @@ function normalizeComment(comment, prMap) {
     primaryCategoryId: classification.primaryCategoryId,
   };
 }
-
 function buildPrMap(prs) {
   const map = new Map();
   for (const pr of prs) {
@@ -543,12 +487,10 @@ function buildPrMap(prs) {
   }
   return map;
 }
-
 function buildCategorySummaries(normalizedComments) {
   const summaries = CATEGORY_DEFINITIONS.map((definition) => {
     const matches = normalizedComments.filter((comment) => comment.primaryCategoryId === definition.id);
     const prSet = new Set(matches.map((comment) => comment.prNumber).filter((value) => Number.isInteger(value)));
-
     return {
       id: definition.id,
       label: definition.label,
@@ -570,7 +512,6 @@ function buildCategorySummaries(normalizedComments) {
       })),
     };
   });
-
   return summaries.sort((left, right) => {
     if (right.count !== left.count) {
       return right.count - left.count;
@@ -581,10 +522,8 @@ function buildCategorySummaries(normalizedComments) {
     return left.label.localeCompare(right.label);
   });
 }
-
 function rankRecommendations(categorySummaries) {
   const countsByCategory = new Map(categorySummaries.map((summary) => [summary.id, summary]));
-
   const active = RECOMMENDATION_DEFINITIONS
     .map((definition) => {
       const related = definition.categories
@@ -593,7 +532,6 @@ function rankRecommendations(categorySummaries) {
       const commentCount = related.reduce((sum, summary) => sum + summary.count, 0);
       const prCount = new Set(related.flatMap((summary) => summary.prNumbers ?? [])).size;
       const score = related.reduce((sum, summary) => sum + (summary.count * summary.priorityWeight), 0);
-
       return {
         key: definition.key,
         label: definition.label,
@@ -620,10 +558,8 @@ function rankRecommendations(categorySummaries) {
       priorityOrder: index + 1,
       priorityBand: index < 3 ? "high" : index < 6 ? "medium" : "low",
     }));
-
   return active;
 }
-
 function buildCopilotOwnedCategories(categorySummaries) {
   return categorySummaries
     .filter((summary) => summary.count > 0 && (summary.automationFit === "copilot" || summary.automationFit === "hybrid"))
@@ -638,19 +574,16 @@ function buildCopilotOwnedCategories(categorySummaries) {
         : "A deterministic check can catch part of this category, but Copilot/human review still adds value for nuance and false-positive control.",
     }));
 }
-
 export function buildCopilotAuditSummary({ repo, comments, prs, outputDir = DEFAULT_OUTPUT_DIR, generatedAt = new Date().toISOString() }) {
   const prMap = buildPrMap(prs);
   const normalizedComments = comments
     .filter((comment) => isCopilotLogin(comment?.user?.login))
     .map((comment) => normalizeComment(comment, prMap));
-
   const categorySummaries = buildCategorySummaries(normalizedComments);
   const uncategorizedComments = normalizedComments.filter((comment) => comment.primaryCategoryId === null);
   const recommendations = rankRecommendations(categorySummaries);
   const prsWithCopilotComments = new Set(normalizedComments.map((comment) => comment.prNumber).filter((value) => Number.isInteger(value))).size;
   const matchedComments = normalizedComments.length - uncategorizedComments.length;
-
   return {
     ok: true,
     repo,
@@ -685,11 +618,9 @@ export function buildCopilotAuditSummary({ repo, comments, prs, outputDir = DEFA
     },
   };
 }
-
 export function renderMarkdownReport(summary) {
   const lines = [];
   const topCategories = summary.categories.filter((category) => category.count > 0).slice(0, 10);
-
   lines.push(`# Copilot review comment audit — ${summary.repo}`);
   lines.push("");
   lines.push(`Generated: ${summary.generatedAt}`);
@@ -740,7 +671,6 @@ export function renderMarkdownReport(summary) {
     }
     lines.push("");
   }
-
   lines.push("## Categories Copilot should still own");
   lines.push("");
   if (summary.copilotOwnedCategories.length === 0) {
@@ -751,7 +681,6 @@ export function renderMarkdownReport(summary) {
     }
   }
   lines.push("");
-
   if (summary.uncategorizedExamples.length > 0) {
     lines.push("## Uncategorized sample");
     lines.push("");
@@ -760,12 +689,8 @@ export function renderMarkdownReport(summary) {
     }
     lines.push("");
   }
-
   return `${lines.join("\n").trimEnd()}\n`;
 }
-
-// ── Fetch with retry ─────────────────────────────────────────────────
-
 async function fetchAllReviewComments(repo, { env, ghCommand, retryMax, retryBaseMs }) {
   const payload = await runGhJsonWithRetry(
     ["api", "--paginate", "--slurp", `repos/${repo}/pulls/comments?per_page=100`],
@@ -773,7 +698,6 @@ async function fetchAllReviewComments(repo, { env, ghCommand, retryMax, retryBas
   );
   return normalizePaginatedArrayPayload(payload, "Copilot review comments");
 }
-
 async function fetchAllPullRequests(repo, { env, ghCommand, retryMax, retryBaseMs }) {
   const payload = await runGhJsonWithRetry(
     ["api", "--paginate", "--slurp", `repos/${repo}/pulls?state=all&per_page=100`],
@@ -781,9 +705,6 @@ async function fetchAllPullRequests(repo, { env, ghCommand, retryMax, retryBaseM
   );
   return normalizePaginatedArrayPayload(payload, "pull requests");
 }
-
-// ── Output writer ────────────────────────────────────────────────────
-
 export function buildUncategorizedComments(summary) {
   const comments = Array.isArray(summary?.comments) ? summary.comments : [];
   return comments
@@ -797,22 +718,15 @@ export function buildUncategorizedComments(summary) {
       body: typeof comment?.body === "string" ? comment.body : "",
     }));
 }
-
-// ── Output writer ────────────────────────────────────────────────────
-
 async function writeOutputs(summary, markdown, { saveUncategorized = false } = {}) {
   await mkdir(summary.files.outputDir, { recursive: true });
   await writeFile(summary.files.jsonSummaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   await writeFile(summary.files.markdownReportPath, markdown, "utf8");
-
   if (saveUncategorized) {
     const uncategorized = buildUncategorizedComments(summary);
     await writeFile(summary.files.uncategorizedCommentsPath, `${JSON.stringify(uncategorized, null, 2)}\n`, "utf8");
   }
 }
-
-// ── CLI argument parsing ─────────────────────────────────────────────
-
 export function parseAuditCopilotCommentsCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -824,25 +738,20 @@ export function parseAuditCopilotCommentsCliArgs(argv) {
     resume: false,
     saveUncategorized: false,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
-
     if (token === "--output-dir") {
       options.outputDir = requireOptionValue(args, "--output-dir", parseError).trim();
       continue;
     }
-
     if (token === "--sleep-ms") {
       const raw = requireOptionValue(args, "--sleep-ms", parseError).trim();
       const parsed = Number(raw);
@@ -852,68 +761,51 @@ export function parseAuditCopilotCommentsCliArgs(argv) {
       options.sleepMs = parsed;
       continue;
     }
-
     if (token === "--checkpoint-file") {
       options.checkpointFile = requireOptionValue(args, "--checkpoint-file", parseError).trim();
       continue;
     }
-
     if (token === "--resume") {
       options.resume = true;
       continue;
     }
-
     if (token === "--save-uncategorized") {
       options.saveUncategorized = true;
       continue;
     }
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.repo === undefined) {
     throw parseError("audit-copilot-comments requires --repo <owner/name>");
   }
-
   if (options.outputDir.length === 0) {
     throw parseError("--output-dir must be a non-empty path");
   }
-
   if (options.checkpointFile !== undefined && options.checkpointFile.length === 0) {
     throw parseError("--checkpoint-file must be a non-empty path");
   }
-
   if (options.resume && !options.checkpointFile) {
     throw parseError("--resume requires --checkpoint-file");
   }
-
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
-
   return options;
 }
-
-// ── Main orchestration ───────────────────────────────────────────────
-
 export async function auditCopilotComments(options, { env = process.env, ghCommand = "gh" } = {}) {
   const sleepMs = options.sleepMs ?? 0;
   const checkpointFile = options.checkpointFile;
   const resume = options.resume ?? false;
   const retryMax = options.retryMax ?? DEFAULT_RETRY_MAX;
   const retryBaseMs = options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
-
   let comments = null;
   let prs = null;
-
-  // ── Resume path ──────────────────────────────────────────────────
   if (resume && checkpointFile) {
     const checkpoint = await loadCheckpoint(checkpointFile);
     if (checkpoint && Array.isArray(checkpoint.comments) && checkpoint.repo === options.repo) {
       comments = checkpoint.comments;
-
       if (checkpoint.stage === "after-prs" && Array.isArray(checkpoint.prs)) {
         prs = checkpoint.prs;
       } else if (checkpoint.stage === "after-comments") {
@@ -921,32 +813,22 @@ export async function auditCopilotComments(options, { env = process.env, ghComma
         prs = await fetchAllPullRequests(options.repo, { env, ghCommand, retryMax, retryBaseMs });
         await saveCheckpoint(checkpointFile, { stage: "after-prs", repo: options.repo, comments, prs });
       } else {
-        // Unrecognized stage or missing prs in after-prs — treat as corrupt, fall through to fresh fetch
         comments = null;
         prs = null;
       }
     }
-
-    // If checkpoint was corrupted/absent, fall through to fresh fetch.
   }
-
-  // ── Fresh fetch path ─────────────────────────────────────────────
   if (comments === null) {
     comments = await fetchAllReviewComments(options.repo, { env, ghCommand, retryMax, retryBaseMs });
-
     if (checkpointFile) {
       await saveCheckpoint(checkpointFile, { stage: "after-comments", repo: options.repo, comments });
     }
-
     await sleepStep(sleepMs);
-
     prs = await fetchAllPullRequests(options.repo, { env, ghCommand, retryMax, retryBaseMs });
-
     if (checkpointFile) {
       await saveCheckpoint(checkpointFile, { stage: "after-prs", repo: options.repo, comments, prs });
     }
   }
-
   const summary = buildCopilotAuditSummary({
     repo: options.repo,
     comments,
@@ -957,34 +839,27 @@ export async function auditCopilotComments(options, { env = process.env, ghComma
     summary.files.uncategorizedCommentsPath = path.join(summary.files.outputDir, DEFAULT_UNCATEGORIZED_NAME);
   }
   const markdown = renderMarkdownReport(summary);
-
   await writeOutputs(summary, markdown, { saveUncategorized: options.saveUncategorized === true });
-
   return summary;
 }
-
 export async function runCli(argv = process.argv.slice(2), { stdout = process.stdout, stderr = process.stderr, env = process.env, ghCommand = "gh" } = {}) {
   const options = parseAuditCopilotCommentsCliArgs(argv);
-
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return;
   }
-
   const summary = await auditCopilotComments(options, { env, ghCommand });
   if (options.saveUncategorized === true && summary.totals.uncategorizedComments === 0) {
     stderr.write(`No uncategorized Copilot comments found; wrote ${summary.files.uncategorizedCommentsPath} as an empty array.\n`);
   }
   stdout.write(`${JSON.stringify(summary)}\n`);
 }
-
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error, { usage: USAGE })}\n`);
     process.exitCode = 1;
   });
 }
-
 export {
   CATEGORY_DEFINITIONS,
   DEFAULT_JSON_NAME,

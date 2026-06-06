@@ -1,17 +1,5 @@
 #!/usr/bin/env node
-/**
- * Deterministic reviewer-loop state detector.
- *
- * Two modes:
- * 1) --input <path> snapshot interpretation
- * 2) --repo <owner/name> --pr <number> auto-detect from GitHub (+ optional local state file)
- *
- * Exit codes:
- *   0   Success
- *   1   Error
- */
 import { readFile } from "node:fs/promises";
-
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
@@ -19,31 +7,24 @@ import {
   interpretReviewerLoopState,
   normalizeReviewerSnapshot,
 } from "@pi-dev-loops/core/loop/reviewer-loop-state";
-
 const HELP = `Usage: detect-reviewer-loop-state.mjs [--input <path> | --repo <owner/name> --pr <number>] [--review-requested <true|false>] [--local-state <path>]
-
 Detect reviewer loop state for a pull request.
-
 Modes:
   --input <path>                Interpret a JSON snapshot from file
   --repo <owner/name> --pr <n>  Auto-detect state from GitHub PR
-
 Options (auto-detect mode only):
   --review-requested <bool>     Override review-requested detection (true/false)
   --local-state <path>          Path to local state file for snapshot merging
-
 Reviewer scope is auto-resolved from PR requested reviewers.
 Exit codes:
   0   Success
   1   Error
 `;
-
 function parseBool(value, flag) {
   if (value === "true") return true;
   if (value === "false") return false;
   throw new Error(`${flag} must be true or false`);
 }
-
 export function parseDetectReviewerCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -54,31 +35,24 @@ export function parseDetectReviewerCliArgs(argv) {
     localStatePath: undefined,
     help: false,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (token === "--input") {
       options.inputPath = requireOptionValue(args, "--input");
       continue;
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo").trim();
       continue;
     }
-
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr"));
       continue;
     }
-
-
     if (token === "--review-requested") {
       options.reviewRequestedOverride = parseBool(
         requireOptionValue(args, "--review-requested"),
@@ -86,15 +60,12 @@ export function parseDetectReviewerCliArgs(argv) {
       );
       continue;
     }
-
     if (token === "--local-state") {
       options.localStatePath = requireOptionValue(args, "--local-state");
       continue;
     }
-
     throw new Error(`Unknown argument: ${token}`);
   }
-
   if (options.inputPath !== undefined) {
     if (options.repo !== undefined || options.pr !== undefined) {
       throw new Error("Choose exactly one input source: --input <path> or --repo/--pr auto-detect");
@@ -106,10 +77,8 @@ export function parseDetectReviewerCliArgs(argv) {
     }
     return options;
   }
-
   const hasRepo = options.repo !== undefined;
   const hasPr = options.pr !== undefined;
-
   if (hasRepo || hasPr) {
     if (!hasRepo || !hasPr) {
       throw new Error("Auto-detect mode requires both --repo <owner/name> and --pr <number>");
@@ -118,32 +87,26 @@ export function parseDetectReviewerCliArgs(argv) {
   } else {
     throw new Error("Provide either --input <path> or --repo <owner/name> --pr <number>");
   }
-
   return options;
 }
-
 async function runGhJson(args, { env, ghCommand }) {
   const result = await runChild(ghCommand, args, env);
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   try {
     return JSON.parse(result.stdout);
   } catch {
     throw new Error(`Invalid JSON from gh: ${result.stdout.trim() || "<empty>"}`);
   }
 }
-
 async function fetchPrView({ repo, pr }, deps) {
   const result = await runChild(
     deps.ghCommand,
     ["pr", "view", String(pr), "--repo", repo, "--json", "isDraft,state,number,headRefOid"],
     deps.env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     if (/no pull requests found/i.test(detail) || /could not find pull request/i.test(detail)) {
@@ -151,33 +114,12 @@ async function fetchPrView({ repo, pr }, deps) {
     }
     throw new Error(`gh command failed: ${detail}`);
   }
-
   try {
     return JSON.parse(result.stdout);
   } catch {
     throw new Error(`Invalid JSON from gh: ${result.stdout.trim() || "<empty>"}`);
   }
 }
-
-
-/**
- * Check whether a PR review belongs to the reviewer scope.
- * Accepts either `user.login` (GitHub REST shape) or `author.login` (fixture/fallback shape).
- * When no reviewer login is provided, all reviews are considered in scope.
- *
- * @param {object} review
- * @param {string|undefined} reviewerLogin
- * @returns {boolean}
- */
-/**
- * Check whether a PR review belongs to the reviewer scope.
- * Accepts either `user.login` (GitHub REST shape) or `author.login` (fixture/fallback shape).
- * When no reviewer login is provided, all reviews are considered in scope.
- *
- * @param {object} review
- * @param {string|undefined} reviewerLogin
- * @returns {boolean}
- */
 function isReviewInScope(review, reviewerLogin) {
   if (!reviewerLogin) return true;
   const login = typeof review?.user?.login === "string"
@@ -185,23 +127,9 @@ function isReviewInScope(review, reviewerLogin) {
     : (typeof review?.author?.login === "string" ? review.author.login : "");
   return login.toLowerCase() === reviewerLogin.toLowerCase();
 }
-
-/**
- * Return true when a GitHub review state represents a submitted (non-pending) review.
- *
- * @param {string} state
- * @returns {boolean}
- */
 function isSubmittedReviewState(state) {
   return ["APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"].includes(state);
 }
-
-/**
- * Return the item with the highest numeric `id`.
- *
- * @param {Array<object>} items
- * @returns {object|null}
- */
 function pickLatestById(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   return items.filter(Boolean).slice().sort((a, b) => {
@@ -210,7 +138,6 @@ function pickLatestById(items) {
     return bid - aid;
   })[0] ?? null;
 }
-
 async function fetchReviewRequested({ repo, pr, reviewerLogin, reviewRequestedOverride }, deps) {
   if (typeof reviewRequestedOverride === "boolean") return reviewRequestedOverride;
   const payload = await runGhJson(["api", `repos/${repo}/pulls/${pr}/requested_reviewers`], deps);
@@ -223,7 +150,6 @@ async function fetchReviewRequested({ repo, pr, reviewerLogin, reviewRequestedOv
   }
   return users.length > 0;
 }
-
 async function fetchReviewState({ repo, pr, reviewerLogin }, deps) {
   const payload = await runGhJson(["api", `repos/${repo}/pulls/${pr}/reviews`], deps);
   const reviews = Array.isArray(payload) ? payload : [];
@@ -244,7 +170,6 @@ async function fetchReviewState({ repo, pr, reviewerLogin }, deps) {
     submittedReviewState: typeof submittedReview?.state === "string" ? submittedReview.state.toUpperCase() : null,
   };
 }
-
 async function readLocalState(pathname) {
   if (!pathname) return {};
   let text;
@@ -254,14 +179,11 @@ async function readLocalState(pathname) {
   if (!parsed || typeof parsed !== "object") throw new Error("Local state file must contain a JSON object");
   return parsed;
 }
-
 export async function autoDetectReviewerSnapshot(
   { repo, pr, reviewerLogin, reviewRequestedOverride, localStatePath }, deps,
 ) {
   const prView = await fetchPrView({ repo, pr }, deps);
   if (prView === null) return normalizeReviewerSnapshot({ prExists: false, reviewerLogin });
-
-  // Auto-resolve reviewer login from PR requested reviewers when not explicitly provided
   let effectiveReviewerLogin = reviewerLogin;
   if (effectiveReviewerLogin === undefined) {
     try {
@@ -275,7 +197,6 @@ export async function autoDetectReviewerSnapshot(
         effectiveReviewerLogin = humanReviewers[0].login;
       }
     } catch {
-      // If we cannot fetch reviewers, fall back to aggregate scope (undefined)
     }
   }
   const localState = await readLocalState(localStatePath);
@@ -289,7 +210,6 @@ export async function autoDetectReviewerSnapshot(
   const reviewState = await fetchReviewState({ repo, pr, reviewerLogin: effectiveReviewerLogin }, deps);
   return normalizeReviewerSnapshot({ ...localState, prExists: true, prNumber: typeof prView.number === "number" ? prView.number : pr, prDraft: Boolean(prView.isDraft), prMerged: false, prClosed: false, prHeadSha: typeof prView.headRefOid === "string" ? prView.headRefOid : null, reviewerLogin: effectiveReviewerLogin, reviewRequested, ...reviewState });
 }
-
 export async function runCli(
   argv = process.argv.slice(2),
   { stdout = process.stdout, env = process.env, ghCommand = "gh" } = {},
@@ -306,7 +226,6 @@ export async function runCli(
   const interpretation = interpretReviewerLoopState(snapshot);
   stdout.write(`${JSON.stringify({ ok: true, snapshot, state: interpretation.state, allowedTransitions: interpretation.allowedTransitions, nextAction: interpretation.nextAction })}\n`);
 }
-
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => { process.stderr.write(`${formatCliError(error)}\n`); process.exitCode = 1; });
 }

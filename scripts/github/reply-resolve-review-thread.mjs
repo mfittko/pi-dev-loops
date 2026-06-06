@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
-
-import { formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-import { parsePositiveInteger, requireOptionValue } from "../_cli-primitives.mjs";
+import { defineSubcommand, runAsMain, isDirectCliRun } from "@pi-dev-loops/core/cli/subcommand-runner";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import {
   replyAndMaybeResolve,
@@ -11,131 +9,34 @@ import {
 
 export { hasCommitShaReference } from "./_review-thread-mutations.mjs";
 
-const HELP = `Usage: reply-resolve-review-thread.mjs --repo <owner/name> --pr <number> --comment-id <number> --thread-id <node-id> --body-file <path>
+const { runAsScript } = defineSubcommand({
+  name: "reply-resolve-review-thread --repo <owner/name> --pr <n> --comment-id <n> --thread-id <id> --body-file <path>",
+  description: "Reply to a review thread comment and resolve the thread.",
+  options: [
+    { flag: "--repo", type: "string", required: true, description: "GitHub repository slug" },
+    { flag: "--pr", type: "pr", required: true, description: "Pull request number" },
+    { flag: "--comment-id", type: "positiveInt", required: true, description: "GraphQL databaseId of the comment to reply to" },
+    { flag: "--thread-id", type: "string", required: true, description: "GraphQL node ID of the review thread" },
+    { flag: "--body-file", type: "string", required: true, description: "Path to file containing the reply body text" },
+  ],
+  async run({ repo, pr, commentId, threadId, bodyFile }) {
+    parseRepoSlug(repo);
 
-Reply to a review thread comment and resolve the thread.
+    const rawBody = await readFile(bodyFile, "utf8");
+    if (rawBody.trim().length === 0) throw new Error("--body-file must contain non-empty text");
+    validateResolutionMessage(rawBody);
 
-Options:
-  --repo <owner/name>   GitHub repository slug (required)
-  --pr <number>         Pull request number (required)
-  --comment-id <id>     GraphQL databaseId of the comment to reply to (required)
-  --thread-id <id>      GraphQL node ID of the review thread (required)
-  --body-file <path>    Path to file containing the reply body text (required)
-  --help, -h            Show this help
-
-Exit codes:
-  0   Success
-  1   Error
-`;
-
-export function parseReplyResolveCliArgs(argv) {
-  const args = [...argv];
-  const options = {
-    repo: undefined,
-    pr: undefined,
-    commentId: undefined,
-    threadId: undefined,
-    bodyFile: undefined,
-    help: false,
-  };
-
-  while (args.length > 0) {
-    const token = args.shift();
-
-    if (token === "--help" || token === "-h") {
-      options.help = true;
-      return options;
-    }
-
-    if (token === "--repo") {
-      options.repo = requireOptionValue(args, "--repo").trim();
-      continue;
-    }
-
-    if (token === "--pr") {
-      options.pr = parsePositiveInteger(requireOptionValue(args, "--pr"), "--pr");
-      continue;
-    }
-
-    if (token === "--comment-id") {
-      options.commentId = parsePositiveInteger(requireOptionValue(args, "--comment-id"), "--comment-id");
-      continue;
-    }
-
-    if (token === "--thread-id") {
-      options.threadId = requireOptionValue(args, "--thread-id");
-      continue;
-    }
-
-    if (token === "--body-file") {
-      options.bodyFile = requireOptionValue(args, "--body-file");
-      continue;
-    }
-
-    throw new Error(`Unknown argument: ${token}`);
-  }
-
-  if (!options.repo || !options.pr || !options.commentId || !options.threadId || !options.bodyFile) {
-    throw new Error(
-      "Replying and resolving a review thread requires --repo <owner/name>, --pr <number>, --comment-id <number>, --thread-id <node-id>, and --body-file <path>",
+    const result = await replyAndMaybeResolve(
+      { repo, pr, commentId, threadId, body: rawBody, resolve: true },
+      { env: process.env, ghCommand: "gh" },
     );
-  }
 
-  parseRepoSlug(options.repo);
+    process.stdout.write(JSON.stringify({
+      ok: true, repo, pr, commentId, threadId,
+      replyId: result.replyId, replyUrl: result.replyUrl, resolved: true,
+    }) + "\n");
+    return 0;
+  },
+});
 
-  return options;
-}
-
-export async function runCli(
-  argv = process.argv.slice(2),
-  {
-    stdout = process.stdout,
-    env = process.env,
-    ghCommand = "gh",
-  } = {},
-) {
-  const options = parseReplyResolveCliArgs(argv);
-
-  if (options.help) {
-    stdout.write(HELP);
-    return;
-  }
-
-  const rawBody = await readFile(options.bodyFile, "utf8");
-
-  if (rawBody.trim().length === 0) {
-    throw new Error("--body-file must contain non-empty text");
-  }
-
-  validateResolutionMessage(rawBody);
-
-  const result = await replyAndMaybeResolve(
-    {
-      repo: options.repo,
-      pr: options.pr,
-      commentId: options.commentId,
-      threadId: options.threadId,
-      body: rawBody,
-      resolve: true,
-    },
-    { env, ghCommand },
-  );
-
-  stdout.write(`${JSON.stringify({
-    ok: true,
-    repo: options.repo,
-    pr: options.pr,
-    commentId: options.commentId,
-    threadId: options.threadId,
-    replyId: result.replyId,
-    replyUrl: result.replyUrl,
-    resolved: true,
-  })}\n`);
-}
-
-if (isDirectCliRun(import.meta.url)) {
-  runCli().catch((error) => {
-    process.stderr.write(`${formatCliError(error)}\n`);
-    process.exitCode = 1;
-  });
-}
+if (isDirectCliRun(import.meta.url)) { runAsScript(); }

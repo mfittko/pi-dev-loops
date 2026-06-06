@@ -17,20 +17,13 @@ import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretati
 import { evaluatePrGateCoordination, PR_CHECKPOINT, PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { detectCheckpointEvidence } from "../github/detect-checkpoint-evidence.mjs";
-
 const UNMERGED_GIT_STATUS_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
-
 const USAGE = `Usage: detect-pr-gate-coordination-state.mjs --repo <owner/name> --pr <number>
-
 Determine which PR gate/transition is legal next for a pull request.
-
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
-
 Optional:
-
-
 Output (stdout, JSON):
   {
     "ok": true,
@@ -67,18 +60,13 @@ Output (stdout, JSON):
     "nextAction": "resolve_merge_conflicts",
     "reason": "..."
   }
-
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }
   { "ok": false, "error": "..." }
-
 Exit codes:
   0  Success
   1  Argument error or gh/runtime failure`.trim();
-
 const parseError = buildParseError(USAGE);
-
-
 export function parseDetectPrGateCoordinationCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -86,43 +74,32 @@ export function parseDetectPrGateCoordinationCliArgs(argv) {
     repo: undefined,
     pr: undefined,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
     }
-
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
       continue;
     }
-
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
       continue;
     }
-
-
-
     throw parseError(`Unknown argument: ${token}`);
   }
-
   if (options.repo === undefined || options.pr === undefined) {
     throw parseError("detect-pr-gate-coordination-state requires both --repo <owner/name> and --pr <number>");
   }
-
   try {
     parseRepoSlug(options.repo);
   } catch (error) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
-
   return options;
 }
-
 function parseRequestedReviewersPayload(text) {
   const payload = parseJsonText(text, { label: "gh requested reviewers" });
   const users = Array.isArray(payload?.users) ? payload.users : [];
@@ -130,75 +107,53 @@ function parseRequestedReviewersPayload(text) {
     requested: users.some((user) => isCopilotLogin(user?.login)),
   };
 }
-
 export function parseGitStatusConflictFiles(text) {
   if (typeof text !== "string" || text.length === 0) {
     return [];
   }
-
   const records = text.includes("\0")
     ? text.split("\0")
     : text.split(/\r?\n/);
-
   const conflictFiles = [];
   for (const rawRecord of records) {
     if (rawRecord.length < 4) {
       continue;
     }
-
     const status = rawRecord.slice(0, 2);
     if (!UNMERGED_GIT_STATUS_CODES.has(status)) {
       continue;
     }
-
     const rawPath = rawRecord.slice(3);
     if (rawPath.trim().length > 0 && !conflictFiles.includes(rawPath)) {
       conflictFiles.push(rawPath);
     }
   }
-
   return conflictFiles;
 }
-
 async function fetchRequestedReviewers({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
     ["api", `repos/${repo}/pulls/${pr}/requested_reviewers`],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   return parseRequestedReviewersPayload(result.stdout);
 }
-
 async function fetchPrFacts({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
     ["pr", "view", String(pr), "--repo", repo, "--json", "number,state,isDraft,headRefOid,mergeStateStatus,body,closingIssuesReferences,reviews,statusCheckRollup"],
     env,
   );
-
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh command failed: ${detail}`);
   }
-
   return parseJsonText(result.stdout, { label: "gh pr view" });
 }
-
-
-/**
- * Resolve the canonical linked issue number for a PR.
- *
- * Per the pre-approval gate AC-verification contract:
- *   - if there is exactly one closing issue reference, use it
- *   - else if the body contains a single Closes #N / Fixes #N pattern, use it
- *   - otherwise return null (ambiguous)
- */
 export function resolveLinkedIssueFromPr(prData) {
   if (!prData || typeof prData !== "object") return null;
   const closing = Array.isArray(prData.closingIssuesReferences) ? prData.closingIssuesReferences : [];
@@ -219,7 +174,6 @@ export function resolveLinkedIssueFromPr(prData) {
   }
   return null;
 }
-
 async function fetchIssueBody({ repo, issue }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
@@ -236,21 +190,9 @@ async function fetchIssueBody({ repo, issue }, { env = process.env, ghCommand = 
     return null;
   }
 }
-
 async function loadRefinementArtifact({ repo, prData, prDraft, prClosed, prMerged }, { env = process.env, ghCommand = "gh" } = {}) {
-  // The refinement check is a draft-gate boundary (#532).
-  // For non-draft PRs we still surface the artifact so the result is
-  // complete, but the evaluator will not block on it for non-draft PRs.
-  // To avoid an extra gh call for non-draft PRs (where the check is
-  // a no-op for routing), we resolve the linked issue from the cached
-  // PR data only and skip the linked-issue body fetch unless we know
-  // we are looking at a draft PR.
   const linkedIssue = resolveLinkedIssueFromPr(prData);
   if (linkedIssue === null) {
-    // Draft PRs with no deterministically resolvable linked issue must fail
-    // closed: the draft gate cannot verify any refinement artifact, so
-    // `gh pr ready` is forbidden. For non-draft PRs the check is informational
-    // only and stays `unknown` so the evaluator does not block on it.
     if (prDraft) {
       return {
         status: "missing",
@@ -274,8 +216,6 @@ async function loadRefinementArtifact({ repo, prData, prDraft, prClosed, prMerge
   }
   const body = await fetchIssueBody({ repo, issue: linkedIssue }, { env, ghCommand });
   if (body === null) {
-    // Fail-closed for draft PRs: a transient `gh issue view` failure must not
-    // allow `gh pr ready` without verifying a refinement artifact.
     if (prDraft) {
       return {
         status: "missing",
@@ -305,7 +245,6 @@ async function loadRefinementArtifact({ repo, prData, prDraft, prClosed, prMerge
     _onlyEnforcedWhenDraft: prDraft === true,
   };
 }
-
 async function fetchLocalConflictFiles({ env = process.env, gitCommand = "git" } = {}) {
   let result;
   try {
@@ -317,17 +256,13 @@ async function fetchLocalConflictFiles({ env = process.env, gitCommand = "git" }
   } catch {
     return [];
   }
-
   if (result.code !== 0) {
     return [];
   }
-
   return parseGitStatusConflictFiles(result.stdout);
 }
-
 async function loadRetrospectiveCheckpoint(repoRoot) {
   const checkpointPath = path.join(repoRoot, ".pi", "dev-loop-retrospective-checkpoint.json");
-
   try {
     const checkpointText = await readFile(checkpointPath, "utf8");
     const checkpoint = parseJsonText(checkpointText, { label: "retrospective checkpoint" });
@@ -336,17 +271,14 @@ async function loadRetrospectiveCheckpoint(repoRoot) {
     return null;
   }
 }
-
 export async function loadPrGateCoordinationContext(options, runtime = {}) {
   const prData = await fetchPrFacts(options, runtime);
-
   const currentHeadSha = typeof prData?.headRefOid === "string" && prData.headRefOid.trim().length > 0
     ? prData.headRefOid.trim()
     : null;
   if (!currentHeadSha) {
     throw new Error("Invalid gh pr view payload: missing headRefOid");
   }
-
   const requestedReviewers = await fetchRequestedReviewers(options, runtime);
   const threadsPayload = await fetchGithubReviewThreadsPayload(options, runtime);
   const parsedThreads = parseReviewThreads(threadsPayload);
@@ -355,7 +287,6 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
   const reviewRequestStatus = requestedReviewers.requested
     ? "requested"
     : (reviewSummary.hasPendingReviewOnCurrentHead ? "already-requested" : "none");
-
   const snapshot = buildSnapshotFromPrFacts({
     prData,
     prNumber: options.pr,
@@ -366,30 +297,20 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     actionableThreadCount: parsedThreads.summary.actionableThreads,
     copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
   });
-
-  // #464: Auto-detect stop-at-local-fix without GitHub reply/resolve.
-  // When unresolved threads exist AND the Copilot review was on an older
-  // commit than current HEAD, auto-set agentFixStatus = "applied" so the
-  // state machine routes to ALREADY_FIXED_NEEDS_REPLY_RESOLVE instead of
-  // UNRESOLVED_FEEDBACK_PRESENT (implying code fixes still needed).
   if (snapshot.unresolvedThreadCount > 0
       && !snapshot.copilotReviewOnCurrentHead
       && snapshot.copilotReviewPresent) {
     snapshot.agentFixStatus = "applied";
   }
-
   const conflictFiles = await fetchLocalConflictFiles(runtime);
-
   if (gateEvidence.currentHeadSha !== currentHeadSha) {
     throw new Error(`PR head changed while loading gate coordination facts for ${options.repo}#${options.pr}; refuse to evaluate mixed-head gate state.`);
   }
-
   const interpretation = interpretLoopState(snapshot);
   const disposition = summarizeLoopInterpretation(interpretation);
   const mergeStateStatus = typeof prData?.mergeStateStatus === "string" && prData.mergeStateStatus.trim().length > 0
     ? prData.mergeStateStatus.trim().toUpperCase()
     : null;
-
   const isDraft = Boolean(prData?.isDraft);
   const isClosed = String(prData?.state || "").toUpperCase() === "CLOSED";
   const isMerged = String(prData?.state || "").toUpperCase() === "MERGED";
@@ -397,7 +318,6 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     { repo: options.repo, prData, prDraft: isDraft, prClosed: isClosed, prMerged: isMerged },
     runtime,
   );
-
   return {
     repo: options.repo,
     pr: options.pr,
@@ -412,7 +332,6 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     refinementArtifact,
   };
 }
-
 export async function detectPrGateCoordinationState(options, runtime = {}) {
   const context = await loadPrGateCoordinationContext(options, runtime);
   const repoRoot = runtime.repoRoot ?? process.cwd();
@@ -447,26 +366,18 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     preApprovalGateMarker: context.gateEvidence.preApprovalGateMarker,
     refinementArtifact: context.refinementArtifact,
   });
-
-  // #442: pre_approval_gate detector — if pre_approval_gate was never entered
-  // for the current head (no visible contract-complete marker), force the
-  // PRE_APPROVAL_GATE_NEEDED boundary regardless of what the state machine says.
   const preApprovalNeverEntered = !(result.preApprovalGate?.contractComplete === true);
   const gateBoundariesExpectingPreApproval = new Set([
     PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED,
     PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
     PR_CHECKPOINT.FINAL_APPROVAL_READY,
   ]);
-
   if (preApprovalNeverEntered && gateBoundariesExpectingPreApproval.has(result.gateBoundary)) {
     result.gateBoundary = PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED;
     result.nextAction = PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE;
     result.reason = "No contract-complete pre_approval_gate marker exists for the current head SHA; run pre_approval_gate before proceeding.";
     result.allowedNextActions = [PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE];
   }
-  // #460: draft_gate detector — if PR is non-draft and no visible
-  // draft_gate evidence (comment or marker) exists at all
-  // (one-time boundary), force the DRAFT_GATE_NEEDED boundary.
   const draftGateEvidenceMissing = !(result.draftGate?.anyVisible);
   const gateBoundariesExpectingDraftGate = new Set([
     PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW,
@@ -475,7 +386,6 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
     PR_CHECKPOINT.FINAL_APPROVAL_READY,
   ]);
-
   if (draftGateEvidenceMissing && gateBoundariesExpectingDraftGate.has(result.gateBoundary)) {
     result.gateBoundary = PR_CHECKPOINT.DRAFT_GATE_NEEDED;
     result.nextAction = PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE;
@@ -491,10 +401,8 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     ];
     result.gateEvidenceNote = null;
   }
-
   return result;
 }
-
 async function main() {
   let options;
   try {
@@ -504,12 +412,10 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-
   if (options.help) {
     process.stdout.write(`${USAGE}\n`);
     return;
   }
-
   try {
     const result = await detectPrGateCoordinationState(options);
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -518,7 +424,6 @@ async function main() {
     process.exitCode = 1;
   }
 }
-
 if (isDirectCliRun(import.meta.url)) {
   await main();
 }

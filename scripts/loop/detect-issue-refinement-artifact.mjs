@@ -1,47 +1,4 @@
 #!/usr/bin/env node
-/**
- * Deterministic issue refinement-artifact detector.
- *
- * Inspects a GitHub issue body (or a pre-fetched JSON payload) and reports
- * whether the issue carries an explicit refinement artifact that the
- * draft gate can verify against. The check is the bounded contract from
- * issue #532:
- *
- *   - Acceptance criteria section with at least one `- [ ]` / `- [x]` item
- *   - DoD / Definition of Done section with at least one `- [ ]` / `- [x]`
- *   - A linked refinement doc referenced from the body
- *
- * When none of those are present the helper emits
- *   { source: "missing", finding: "missing_refinement_artifact" }
- * so the draft gate can post `verdict=blocked` deterministically.
- *
- * Usage:
- *   detect-issue-refinement-artifact.mjs --repo <owner/name> --issue <number>
- *   detect-issue-refinement-artifact.mjs --input <path>
- *
- *   --input <path>  Path to a JSON file with shape:
- *                    { "repo": "...", "issue": <n>, "body": "..." }
- *                   Useful for offline detection and unit tests.
- *
- * Success output (stdout, JSON):
- *   {
- *     "ok": true,
- *     "repo": "owner/name",
- *     "issue": 532,
- *     "source": "issue-body-ac" | "issue-body-dod" | "linked-doc" | "missing",
- *     "hasACs": true | false,
- *     "acItems": ["..."],
- *     "dodItems": ["..."],
- *     "linkedDoc": { "found": true, "path": "...", "reason": "..." },
- *     "sections": ["Problem", "Acceptance criteria", ...],
- *     "finding": "missing_refinement_artifact" | null,
- *     "reason": "..."
- *   }
- *
- * Error output (stderr, JSON):
- *   Argument/usage errors: { "ok": false, "error": "...", "usage": "..." }
- *   Runtime failures:      { "ok": false, "error": "..." }
- */
 import { readFile } from "node:fs/promises";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { requireOptionValue, runChild } from "../_cli-primitives.mjs";
@@ -50,19 +7,15 @@ import {
   detectIssueRefinementArtifact,
   REFINEMENT_SOURCE,
 } from "@pi-dev-loops/core/loop/issue-refinement-artifact";
-
 const USAGE = `Usage:
   detect-issue-refinement-artifact.mjs --repo <owner/name> --issue <number>
   detect-issue-refinement-artifact.mjs --input <path>
-
 Detect whether a GitHub issue carries an explicit refinement artifact
 (Acceptance criteria section, DoD section, or linked refinement doc).
-
 Required (exactly one):
   --repo <owner/name>   Repository slug (e.g. owner/name)
   --issue <number>      Issue number
   --input <path>        Path to a JSON file with { "repo", "issue", "body" }
-
 Success output (stdout, JSON):
   {
     "ok": true,
@@ -76,12 +29,9 @@ Success output (stdout, JSON):
     "finding": "missing_refinement_artifact" | null,
     "reason": "..."
   }
-
 Error output (stderr, JSON):
   { "ok": false, "error": "...", "usage": "..." }`.trim();
-
 const parseError = buildParseError(USAGE);
-
 export function parseDetectIssueRefinementArtifactCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -90,10 +40,8 @@ export function parseDetectIssueRefinementArtifactCliArgs(argv) {
     issue: undefined,
     input: undefined,
   };
-
   while (args.length > 0) {
     const token = args.shift();
-
     if (token === "--help" || token === "-h") {
       options.help = true;
       return options;
@@ -116,7 +64,6 @@ export function parseDetectIssueRefinementArtifactCliArgs(argv) {
     }
     throw parseError(`Unknown argument: ${token}`);
   }
-
   const hasInput = typeof options.input === "string" && options.input.length > 0;
   const hasRemote = typeof options.repo === "string" && options.repo.length > 0 && Number.isInteger(options.issue);
   if (options.help) {
@@ -127,7 +74,6 @@ export function parseDetectIssueRefinementArtifactCliArgs(argv) {
   }
   return options;
 }
-
 async function fetchIssueBody({ repo, issue }, { env = process.env, ghCommand = "gh" } = {}) {
   const result = await runChild(
     ghCommand,
@@ -144,7 +90,6 @@ async function fetchIssueBody({ repo, issue }, { env = process.env, ghCommand = 
   }
   return typeof payload.body === "string" ? payload.body : "";
 }
-
 async function loadInputPayload(inputPath) {
   const text = await readFile(inputPath, "utf8");
   const payload = parseJsonText(text, { label: `input file ${inputPath}` });
@@ -153,7 +98,6 @@ async function loadInputPayload(inputPath) {
   }
   return payload;
 }
-
 function toOutput(repo, issue, artifact) {
   return {
     ok: true,
@@ -170,7 +114,6 @@ function toOutput(repo, issue, artifact) {
     sources: REFINEMENT_SOURCE,
   };
 }
-
 export async function detectIssueRefinementArtifactFromOptions(options, { env = process.env, ghCommand = "gh" } = {}) {
   if (typeof options.input === "string" && options.input.length > 0) {
     const payload = await loadInputPayload(options.input);
@@ -180,17 +123,14 @@ export async function detectIssueRefinementArtifactFromOptions(options, { env = 
     const artifact = detectIssueRefinementArtifact({ body, issueNumber: issue });
     return toOutput(repo, issue, artifact);
   }
-
   if (typeof options.repo === "string" && options.repo.length > 0 && Number.isInteger(options.issue)) {
     parseRepoSlug(options.repo);
     const body = await fetchIssueBody({ repo: options.repo, issue: options.issue }, { env, ghCommand });
     const artifact = detectIssueRefinementArtifact({ body, issueNumber: options.issue });
     return toOutput(options.repo, options.issue, artifact);
   }
-
   throw new Error("detect-issue-refinement-artifact requires either --input <path> or --repo/--issue");
 }
-
 export async function runCli(
   argv = process.argv.slice(2),
   { stdout = process.stdout, stderr = process.stderr, env = process.env, ghCommand = "gh" } = {},
@@ -202,12 +142,10 @@ export async function runCli(
     stderr.write(`${formatCliError(error, { usage: USAGE })}\n`);
     return 1;
   }
-
   if (options.help) {
     stdout.write(`${USAGE}\n`);
     return 0;
   }
-
   try {
     const result = await detectIssueRefinementArtifactFromOptions(options, { env, ghCommand });
     stdout.write(`${JSON.stringify(result)}\n`);
@@ -217,7 +155,6 @@ export async function runCli(
     return 1;
   }
 }
-
 if (isDirectCliRun(import.meta.url)) {
   const code = await runCli();
   if (code !== 0) {
