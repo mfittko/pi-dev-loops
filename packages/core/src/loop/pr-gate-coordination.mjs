@@ -323,6 +323,49 @@ function buildRetrospectiveGatePendingResult({
   });
 }
 
+
+function buildDraftGateNeededForMergeResult({
+  input,
+  currentHeadSha,
+  draftGate,
+  preApprovalGate,
+  mergeStateStatus,
+  conflictFiles,
+  underlyingReason = null,
+  refinementArtifact = null,
+  effectiveLifecycleState = null,
+}) {
+  const allowedNextActions = [];
+  const forbiddenActions = [];
+  pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE]);
+  pushUnique(forbiddenActions, [
+    PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
+    PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW,
+    PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW,
+    PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
+    PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
+    PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
+  ]);
+
+  return buildResult({
+    repo: input.repo ?? null,
+    pr: Number.isInteger(input.pr) ? input.pr : null,
+    currentHeadSha,
+    lifecycleState: effectiveLifecycleState ?? STATE.BLOCKED_NEEDS_USER_DECISION,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED,
+    gateBoundary: PR_CHECKPOINT.DRAFT_GATE_NEEDED,
+    draftGateAlreadySatisfied: false,
+    draftGate,
+    preApprovalGate,
+    allowedNextActions,
+    forbiddenActions,
+    nextAction: PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE,
+    reason: `Clean draft_gate evidence is required before merge (no gate exemptions, #579).${draftGate?.anyVisible ? " A draft_gate comment exists but is not clean; convert the PR back to draft before re-running draft_gate, or clear the existing evidence before running reconcile_draft_gate." : " No visible clean draft_gate comment exists for this PR; run reconcile_draft_gate before proceeding."}${underlyingReason ? ` ${underlyingReason}` : ""}`,
+    mergeStateStatus,
+    conflictFiles,
+    refinementArtifact,
+  });
+}
 function buildResult({
   draftGateAlreadySatisfied = false,
   repo = null,
@@ -685,6 +728,21 @@ export function evaluatePrGateCoordination(input = {}) {
           }
         }
 
+
+        if (!draftGate.cleanEvidenceExists) {
+          return buildDraftGateNeededForMergeResult({
+            input,
+            currentHeadSha,
+            draftGate,
+            preApprovalGate,
+            mergeStateStatus,
+            conflictFiles,
+            underlyingReason: "Internal-only PR reached pre_approval_gate clean but has no clean draft_gate evidence.",
+            refinementArtifact,
+            effectiveLifecycleState,
+          });
+        }
+
         pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
         pushUnique(forbiddenActions, internalOnlyPostDraftForbidden);
         return buildResult({
@@ -924,6 +982,21 @@ export function evaluatePrGateCoordination(input = {}) {
         }
       }
 
+
+      if (!draftGate.cleanEvidenceExists) {
+        return buildDraftGateNeededForMergeResult({
+          input,
+          currentHeadSha,
+          draftGate,
+          preApprovalGate,
+          mergeStateStatus,
+          conflictFiles,
+          underlyingReason: "Converged PR has clean pre_approval_gate but no clean draft_gate evidence.",
+          refinementArtifact,
+          effectiveLifecycleState,
+        });
+      }
+
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);
       pushUnique(forbiddenActions, [
         PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
@@ -1048,6 +1121,21 @@ export function evaluatePrGateCoordination(input = {}) {
           refinementArtifact,
           });
         }
+      }
+
+
+      if (!draftGate.cleanEvidenceExists) {
+        return buildDraftGateNeededForMergeResult({
+          input,
+          currentHeadSha,
+          draftGate,
+          preApprovalGate,
+          mergeStateStatus,
+          conflictFiles,
+          underlyingReason: "Low-signal converged PR has clean pre_approval_gate but no clean draft_gate evidence.",
+          refinementArtifact,
+          effectiveLifecycleState,
+        });
       }
 
       pushUnique(allowedNextActions, [PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL]);

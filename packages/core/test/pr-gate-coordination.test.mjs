@@ -835,7 +835,7 @@ test("converged non-draft PR without clean draft_gate evidence still enters pre-
   assert(!result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE));
 });
 
-test("converged non-draft PR without clean draft_gate evidence can still reach final approval", () => {
+test("converged non-draft PR without clean draft_gate evidence is blocked from final approval (#579 enforcement)", () => {
   const result = evaluatePrGateCoordination({
     pr: 266,
     currentHeadSha: "abc123456789",
@@ -850,10 +850,12 @@ test("converged non-draft PR without clean draft_gate evidence can still reach f
     preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
   });
 
-  assert.equal(result.gateBoundary, PR_CHECKPOINT.FINAL_APPROVAL_READY);
-  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+  // #579: FINAL_APPROVAL_READY requires clean draft_gate evidence — no exemptions
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.DRAFT_GATE_NEEDED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE);
   assert.equal(result.draftGate.cleanEvidenceExists, false);
   assert.equal(result.preApprovalGate.currentHeadClean, true);
+  assert.match(result.reason, /no gate exemptions, #579/i);
 });
 
 
@@ -923,6 +925,56 @@ test("LOW_SIGNAL_CONVERGED blocks on crediblyGreen CI", () => {
   assert.equal(result.gateBoundary, PR_CHECKPOINT.BLOCKED);
   assert.match(result.reason, /unconfirmed/i);
 });
+
+test("LOW_SIGNAL_CONVERGED without clean draft_gate evidence is blocked from final approval (#579)", () => {
+  const result = evaluatePrGateCoordination({
+    repo: "owner/repo", pr: 17, currentHeadSha: "abc1234",
+    lifecycleState: STATE.LOW_SIGNAL_CONVERGED, loopDisposition: DISPOSITION.DONE,
+    prDraft: false, ciStatus: "success",
+    preApprovalGate: { visible: true, verdict: "clean", headSha: "abc1234" },
+    preApprovalGateMarker: { visible: true, verdict: "clean", headSha: "abc1234", contractComplete: true },
+    draftGate: { visible: false },
+  });
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.DRAFT_GATE_NEEDED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE);
+  assert.equal(result.draftGate.cleanEvidenceExists, false);
+  assert.match(result.reason, /no gate exemptions, #579/i);
+});
+
+test("internal-only PR without clean draft_gate evidence is blocked from final approval (#579)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 298, currentHeadSha: "abc123456789",
+    prDraft: false, lifecycleState: STATE.PR_READY_NO_FEEDBACK,
+    loopDisposition: DISPOSITION.ACTION_REQUIRED, reviewMode: "internal_only",
+    draftGate: gate({ visible: false }),
+    preApprovalGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+  });
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.DRAFT_GATE_NEEDED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE);
+  assert.equal(result.draftGate.cleanEvidenceExists, false);
+  assert.match(result.reason, /no gate exemptions, #579/i);
+  assert.ok(result.forbiddenActions.includes(PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
+});
+
+test("converged PR with findings_present draft_gate is blocked from final approval (#579 cleanEvidenceExists)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266, currentHeadSha: "abc123456789",
+    prDraft: false, lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: DISPOSITION.CLEAN_CONVERGED, sameHeadCleanConverged: true,
+    ciStatus: "success",
+    draftGate: gate({ visible: true, headSha: "old1111", verdict: "findings_present" }),
+    preApprovalGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+  });
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.DRAFT_GATE_NEEDED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE);
+  assert.equal(result.draftGate.cleanEvidenceExists, false);
+  assert.equal(result.draftGate.anyVisible, true);
+  assert.match(result.reason, /no gate exemptions, #579/i);
+});
+
+
 
 test("normalizeSnapshot preserves valid lastCopilotRoundMaxSignal", () => {
   assert.equal(normalizeSnapshot({ prExists: true, prNumber: 17, lastCopilotRoundMaxSignal: "high" }).lastCopilotRoundMaxSignal, "high");

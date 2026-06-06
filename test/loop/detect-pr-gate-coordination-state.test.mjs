@@ -313,6 +313,7 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed for converged no
   }
 });
 
+
 test("detect-pr-gate-coordination-state flags draft_gate_needed when Copilot round cap is exhausted without draft_gate", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-pr-gate-round-cap-"));
 
@@ -402,8 +403,9 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed when Copilot rou
     assert.equal(parsed.gateEvidenceNote, null);
     assert.deepEqual(parsed.allowedNextActions, ["reconcile_draft_gate"]);
     assert.ok(parsed.forbiddenActions.includes("run_pre_approval_gate"));
+    assert.ok(parsed.forbiddenActions.includes("await_final_human_approval"));
     assert.ok(parsed.forbiddenActions.includes("declare_merge_ready"));
-    assert.match(parsed.reason, /no visible draft_gate/i);
+    assert.match(parsed.reason, /no gate exemptions, #579/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

@@ -124,6 +124,18 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 - continue through the normal GitHub/Copilot loop until the next genuine stop condition or the human approval checkpoint
 - stop at the human approval checkpoint by default unless merge was explicitly authorized
 
+
+## No gate exemptions (#579)
+
+All pull requests must pass the full gate pipeline before merge, regardless of scope or change category. No PR type is exempt:
+
+- **Docs-only PRs** must still pass `draft_gate`, Copilot review, and `pre_approval_gate`.
+- **Tooling-only, meta, configuration, internal-process, or any other narrow-scope PRs** must pass the full gate pipeline.
+- **Internal-only PRs** skip external Copilot review by design but must still have clean `draft_gate` and `pre_approval_gate` evidence.
+- **Every merge** requires visible clean `draft_gate` evidence and current-head clean `pre_approval_gate` evidence.
+
+PR #578 (docs-only, 2 files) was merged without gate checks and serves as the breach precedent. This contract exists to prevent recurrence: no PR scope has gate exemptions.
+
 ## Authority boundary and stop rules
 
 - Source code, tests, config, CI, and shared contract docs are authoritative.
