@@ -736,7 +736,7 @@ export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
   const candidatePool = staticAngles.filter(a => !mandatory.has(a));
 
   // Dynamic resolution
-  const { analyzeDiff } = await import("../analysis/index.mjs");
+  const { analyzeDiff } = await import("../analysis/diff-analyzer.mjs");
   const analysis = analyzeDiff({
     nameStatusOutput: diff.nameStatusOutput,
     diffOutput: diff.diffOutput,
