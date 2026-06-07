@@ -1867,3 +1867,145 @@ test("copilot-pr-handoff runs human comment check when PI_SUBAGENT_RUN_ID is set
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("copilot-pr-handoff stops when human comment check fails with non-zero exit", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-fetch-fail-"));
+
+  try {
+    const BOT_COMMENT = JSON.stringify({
+      id: 199,
+      body: "Gate review: draft_gate verdict=clean",
+      user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" },
+      created_at: "2026-06-07T09:00:00Z",
+    });
+
+    const { env } = await writeGhStubHelper(tempDir, [
+      // detect: pr view
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: OPEN_PR + "\n",
+      },
+      // detect: requested_reviewers
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      // detect: graphql threads
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+      // human comment check: gh API fails
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", "."],
+        stdout: "",
+        stderr: "gh: API error",
+        exitCode: 1,
+      },
+      // performCopilotReviewRequest → fetchCopilotReviewIds
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: OPEN_PR + "\n",
+      },
+      // performCopilotReviewRequest → edit reviewer
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stdout: "https://github.com/owner/repo/pull/17\n",
+      },
+      // performCopilotReviewRequest → confirm requested_reviewers
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      // performCopilotReviewRequest → final pr view
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: OPEN_PR + "\n",
+      },
+    ], { matchMode: "claims" });
+
+    const runEnv = { ...env, PI_SUBAGENT_RUN_ID: "run-test-fetch-fail" };
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { cwd: tempDir, env: runEnv });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "blocked_needs_user_decision");
+    assert.equal(output.loopDisposition, "blocked");
+    assert.equal(output.terminal, true);
+    assert.ok(output.humanCommentPause, "expected humanCommentPause field");
+    assert.equal(output.humanCommentPause.reason, "human_comment_check_unavailable");
+    assert.equal(output.humanCommentPause.error, "comment_fetch_failed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("copilot-pr-handoff stops when human comment check fails with invalid JSON", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-parse-fail-"));
+
+  try {
+    const { env } = await writeGhStubHelper(tempDir, [
+      // detect: pr view
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: OPEN_PR + "\n",
+      },
+      // detect: requested_reviewers
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      // detect: graphql threads
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+      // human comment check: returns invalid JSON
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", "."],
+        stdout: "not valid json { broken\n",
+      },
+      // performCopilotReviewRequest → fetchCopilotReviewIds
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: OPEN_PR + "\n",
+      },
+      // performCopilotReviewRequest → edit reviewer
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stdout: "https://github.com/owner/repo/pull/17\n",
+      },
+      // performCopilotReviewRequest → confirm requested_reviewers  
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      // performCopilotReviewRequest → final pr view
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: OPEN_PR + "\n",
+      },
+    ], { matchMode: "claims", logCalls: true });
+
+    const runEnv = { ...env, PI_SUBAGENT_RUN_ID: "run-test-parse-fail" };
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { cwd: tempDir, env: runEnv });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "blocked_needs_user_decision");
+    assert.equal(output.loopDisposition, "blocked");
+    assert.equal(output.terminal, true);
+    assert.ok(output.humanCommentPause, "expected humanCommentPause field");
+    assert.equal(output.humanCommentPause.reason, "human_comment_check_unavailable");
+    // Note: comment_parse_failed tested at unit level in detectRecentHumanComments tests
+    assert.equal(output.humanCommentPause.error, "comment_fetch_failed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
