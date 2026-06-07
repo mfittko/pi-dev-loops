@@ -5,8 +5,8 @@ State vocabulary: `waiting_for_initial_copilot_implementation`, `waiting_for_cop
 Next-action sentence: "Load PR state from `detect-copilot-loop-state.mjs`, resolve gate coordination, then execute the appropriate follow-up action (fix, review, wait, or escalate)."
 
 Helpers to run first:
-1. `dev-loops detect loop-state --repo <owner/name> --pr <N>` — resolve loop state
-2. `dev-loops detect gate-coordination --repo <owner/name> --pr <N>` — resolve gate state
+1. `dev-loops loop loop-state --repo <owner/name> --pr <N>` — resolve loop state
+2. `dev-loops loop gate-coordination --repo <owner/name> --pr <N>` — resolve gate state
 3. `dev-loops gate upsert-verdict` — post/update gate comments
 
 Required reading:
