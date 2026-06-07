@@ -146,3 +146,4 @@ PR #578 (docs-only, 2 files) was merged without gate checks and serves as the br
 - Questions, preferences, future-tense statements, and implied approval are not confirmation.
 - The bare response `ok` is not confirmation.
 - Stop and ask for human direction rather than guessing when local facts, GitHub facts, and helper/state-machine output do not agree.
+- A question requires an answer, not an action. When the user asks a question — even one implying criticism or correction — answer first before taking any action. Do not treat a question as implicit authorization to act.
