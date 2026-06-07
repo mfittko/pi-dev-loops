@@ -1174,6 +1174,82 @@ test("validate: multiple errors reported together", () => {
   assert.ok(result.errors.some(e => e.field === "acceptance"));
 });
 
+test("validate: missing executionMode returns error", () => {
+  const env = { ...validEnvelope() }; delete env.executionMode;
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "executionMode"));
+});
+
+test("validate: missing asyncStartMode returns error", () => {
+  const env = { ...validEnvelope() }; delete env.asyncStartMode;
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "asyncStartMode"));
+});
+
+test("validate: target.repo with invalid slug returns error", () => {
+  const env = { ...validEnvelope(), target: { kind: "issue", issue: 1, repo: "invalid slug with spaces" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.repo"));
+});
+
+test("validate: target.issue with zero value returns error", () => {
+  const env = { ...validEnvelope(), target: { kind: "issue", issue: 0, repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.issue"));
+});
+
+test("validate: target.issue with negative value returns error", () => {
+  const env = { ...validEnvelope(), target: { kind: "issue", issue: -1, repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.issue"));
+});
+
+test("validate: target.pr with zero value returns error", () => {
+  const env = { ...validEnvelope(), target: { kind: "pr", pr: 0, repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.pr"));
+});
+
+test("validate: target.local_phase without phase or issue returns error", () => {
+  const env = { ...validEnvelope(), target: { kind: "local_phase", repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.phase"));
+});
+
+test("validate: target.local_phase with valid issue but no phase is ok", () => {
+  const env = { ...validEnvelope(), target: { kind: "local_phase", issue: 42, repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, true);
+});
+
+test("validate: target.local_phase with valid phase is ok", () => {
+  const env = { ...validEnvelope(), target: { kind: "local_phase", phase: "implementation", repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, true);
+});
+
+test("validate: criteria entry with invalid severity returns error", () => {
+  const base = validEnvelope();
+  const env = { ...base, acceptance: { ...base.acceptance, criteria: [{ id: "test", must: "do something", severity: "critical" }] } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "acceptance.criteria"));
+});
+
+test("validate: criteria entry without severity is ok (field optional)", () => {
+  const base = validEnvelope();
+  const env = { ...base, acceptance: { ...base.acceptance, criteria: [{ id: "test", must: "do something" }] } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, true);
+});
+
 test("validate: errors include got values for diagnostics", () => {
   const env = { ...validEnvelope(), handoffVersion: "v1" };
   const result = validateHandoffEnvelope(env);
@@ -1183,7 +1259,7 @@ test("validate: errors include got values for diagnostics", () => {
   assert.equal(err.got, "v1");
 });
 
-test("validate: accepts valid enclope from all strategies", () => {
+test("validate: accepts valid envelope from all strategies", () => {
   const strategies = [
     { s: INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP, f: issueBundle },
     { s: INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE, f: issueBundle },
@@ -1204,7 +1280,7 @@ test("validate: accepts valid enclope from all strategies", () => {
   }
 });
 
-// // Invariant: strategy-template coverage
+// Invariant: strategy-template coverage
 // ===========================================================================
 
 test("invariant: every strategy with default stop rules has an acceptance template", () => {

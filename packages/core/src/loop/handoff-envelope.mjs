@@ -543,17 +543,37 @@ export function validateHandoffEnvelope(envelope) {
         reason: "must be a non-empty owner/name string",
         got: envelope.target.repo,
       });
+    } else {
+      const normalized = normalizeRepoSlug(envelope.target.repo);
+      if (!normalized || normalized !== envelope.target.repo) {
+        errors.push({
+          field: "target.repo",
+          reason: "must be a valid normalized repo slug (owner/name)",
+          got: envelope.target.repo,
+        });
+      }
     }
     // target-kind specific required fields
     const kind = envelope.target.kind;
-    if (kind === "issue" && !Number.isInteger(envelope.target.issue)) {
-      errors.push({ field: "target.issue", reason: "required for issue target kind" });
+    if (kind === "issue") {
+      if (!Number.isInteger(envelope.target.issue) || envelope.target.issue < 1) {
+        errors.push({ field: "target.issue", reason: "must be a positive integer", got: envelope.target.issue });
+      }
     }
-    if (kind === "pr" && !Number.isInteger(envelope.target.pr)) {
-      errors.push({ field: "target.pr", reason: "required for pr target kind" });
+    if (kind === "pr") {
+      if (!Number.isInteger(envelope.target.pr) || envelope.target.pr < 1) {
+        errors.push({ field: "target.pr", reason: "must be a positive integer", got: envelope.target.pr });
+      }
     }
     if (kind === "local_branch" && (typeof envelope.target.branch !== "string" || !envelope.target.branch.trim())) {
       errors.push({ field: "target.branch", reason: "required for local_branch target kind" });
+    }
+    if (kind === "local_phase") {
+      if (!Number.isInteger(envelope.target.issue) || envelope.target.issue < 1) {
+        if (typeof envelope.target.phase !== "string" || !envelope.target.phase.trim()) {
+          errors.push({ field: "target.phase", reason: "required for local_phase target kind" });
+        }
+      }
     }
   }
 
@@ -595,18 +615,21 @@ export function validateHandoffEnvelope(envelope) {
     } else if (envelope.acceptance.criteria.length === 0) {
       errors.push({ field: "acceptance.criteria", reason: "must not be empty" });
     } else {
+      const VALID_SEVERITIES = ["required", "recommended"];
       const bad = [];
       for (let i = 0; i < envelope.acceptance.criteria.length; i++) {
         const c = envelope.acceptance.criteria[i];
         if (!c || typeof c !== "object" || typeof c.id !== "string" || !c.id.trim() ||
             typeof c.must !== "string" || !c.must.trim()) {
           bad.push(i);
+        } else if (c.severity !== undefined && !VALID_SEVERITIES.includes(c.severity)) {
+          bad.push(i);
         }
       }
       if (bad.length > 0) {
         errors.push({
           field: "acceptance.criteria",
-          reason: `entries at indices [${bad.join(",")}] must have valid id and must fields`,
+          reason: `entries at indices [${bad.join(",")}] must have valid id, must, and severity fields`,
         });
       }
     }
@@ -630,8 +653,14 @@ export function validateHandoffEnvelope(envelope) {
     }
   }
 
-  // ----- executionMode (optional field, validate if present) -----
-  if (envelope.executionMode !== undefined && !VALID_EXECUTION_MODES.includes(envelope.executionMode)) {
+  // ----- executionMode (required field) -----
+  if (envelope.executionMode === undefined || envelope.executionMode === null) {
+    errors.push({
+      field: "executionMode",
+      reason: "must be present",
+      got: envelope.executionMode,
+    });
+  } else if (!VALID_EXECUTION_MODES.includes(envelope.executionMode)) {
     errors.push({
       field: "executionMode",
       reason: `must be one of: ${VALID_EXECUTION_MODES.join(", ")}`,
@@ -639,8 +668,14 @@ export function validateHandoffEnvelope(envelope) {
     });
   }
 
-  // ----- asyncStartMode (optional field, validate if present) -----
-  if (envelope.asyncStartMode !== undefined && !VALID_ASYNC_START_MODES.includes(envelope.asyncStartMode)) {
+  // ----- asyncStartMode (required field) -----
+  if (envelope.asyncStartMode === undefined || envelope.asyncStartMode === null) {
+    errors.push({
+      field: "asyncStartMode",
+      reason: "must be present",
+      got: envelope.asyncStartMode,
+    });
+  } else if (!VALID_ASYNC_START_MODES.includes(envelope.asyncStartMode)) {
     errors.push({
       field: "asyncStartMode",
       reason: `must be one of: ${VALID_ASYNC_START_MODES.join(", ")}`,
