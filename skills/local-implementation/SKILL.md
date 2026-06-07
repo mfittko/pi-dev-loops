@@ -471,10 +471,10 @@ If the subagent ran asynchronously, update its summary when results arrive so fr
 ## Workflow-run subagent hand-off contract
 
 When handing off a full workflow run to a subagent (draft PR → gates → Copilot → merge),
-use the canonical hand-off template. Do not rely on abbreviated task summaries or operator
+use the canonical hand-off contract. Do not rely on abbreviated task summaries or operator
 memory.
 
-The canonical template is [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) (source-tree path: `skills/docs/workflow-handoff-contract.md`). It includes:
+The canonical contract is [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) (source-tree path: `skills/docs/workflow-handoff-contract.md`). It includes:
 - direct contract-doc references the subagent must read before executing
 - a mandatory 8-step checklist (draft PR → draft_gate → ready → Copilot → resolve → pre_approval_gate → merge)
 - non-negotiable invariants (Copilot review loop between gates, `unresolvedThreadCount === 0`, visible gate comments)
