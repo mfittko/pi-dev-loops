@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -1485,6 +1486,338 @@ test("copilot-pr-handoff stops cleanly when another run already owns the PR", as
     assert.equal(output.runnerOwnership.ok, false);
     assert.equal(output.runnerOwnership.error, "ownership_lost");
     assert.equal(output.runnerOwnership.activeRun.runId, "run-active");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Human comment detection (detectRecentHumanComments) unit tests
+// ---------------------------------------------------------------------------
+
+test("detectRecentHumanComments detects human comment after last bot comment", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-detect-"));
+
+  try {
+    const { detectRecentHumanComments } = await import("../../scripts/loop/copilot-pr-handoff.mjs");
+
+    const BOT_COMMENT = JSON.stringify({
+      id: 100,
+      body: "**draft_gate** verdict=clean",
+      user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" },
+      created_at: "2026-06-07T09:00:00Z",
+    });
+    const HUMAN_COMMENT = JSON.stringify({
+      id: 101,
+      body: "Let's reconsider the approach here.",
+      user: { login: "human-dev", type: "User" },
+      created_at: "2026-06-07T10:00:00Z",
+    });
+
+    const { env } = await writeGhStubHelper(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: BOT_COMMENT + "\n" + HUMAN_COMMENT + "\n",
+      },
+    ]);
+
+    const result = await detectRecentHumanComments(
+      { repo: "owner/repo", pr: 17 },
+      { env },
+    );
+
+    assert.equal(result.paused, true);
+    assert.ok(result.humanComments, "expected humanComments array");
+    assert.equal(result.humanComments.length, 1);
+    assert.equal(result.humanComments[0].author, "human-dev");
+    assert.equal(result.humanComments[0].id, 101);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detectRecentHumanComments does not pause when human comment is before bot", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-before-bot-"));
+
+  try {
+    const { detectRecentHumanComments } = await import("../../scripts/loop/copilot-pr-handoff.mjs");
+
+    const BOT_COMMENT = JSON.stringify({
+      id: 100,
+      body: "**pre_approval_gate** verdict=clean",
+      user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" },
+      created_at: "2026-06-07T10:00:00Z",
+    });
+    const HUMAN_COMMENT = JSON.stringify({
+      id: 101,
+      body: "Looks good.",
+      user: { login: "human-dev", type: "User" },
+      created_at: "2026-06-07T09:00:00Z",
+    });
+
+    const { env } = await writeGhStubHelper(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: BOT_COMMENT + "\n" + HUMAN_COMMENT + "\n",
+      },
+    ]);
+
+    const result = await detectRecentHumanComments(
+      { repo: "owner/repo", pr: 17 },
+      { env },
+    );
+
+    assert.equal(result.paused, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detectRecentHumanComments skips gate-pattern human comments", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-gate-"));
+
+  try {
+    const { detectRecentHumanComments } = await import("../../scripts/loop/copilot-pr-handoff.mjs");
+
+    const BOT_COMMENT = JSON.stringify({
+      id: 100,
+      body: "**draft_gate** verdict=clean",
+      user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" },
+      created_at: "2026-06-07T09:00:00Z",
+    });
+    const HUMAN_GATE = JSON.stringify({
+      id: 101,
+      body: "**pre_approval_gate** manual check done",
+      user: { login: "human-dev", type: "User" },
+      created_at: "2026-06-07T10:00:00Z",
+    });
+
+    const { env } = await writeGhStubHelper(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: BOT_COMMENT + "\n" + HUMAN_GATE + "\n",
+      },
+    ]);
+
+    const result = await detectRecentHumanComments(
+      { repo: "owner/repo", pr: 17 },
+      { env },
+    );
+
+    assert.equal(result.paused, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detectRecentHumanComments returns false when only bots commented", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-bots-"));
+
+  try {
+    const { detectRecentHumanComments } = await import("../../scripts/loop/copilot-pr-handoff.mjs");
+
+    const BOT1 = JSON.stringify({
+      id: 100,
+      body: "**draft_gate** verdict=clean",
+      user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" },
+      created_at: "2026-06-07T09:00:00Z",
+    });
+    const BOT2 = JSON.stringify({
+      id: 101,
+      body: "**pre_approval_gate** verdict=clean",
+      user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" },
+      created_at: "2026-06-07T10:00:00Z",
+    });
+
+    const { env } = await writeGhStubHelper(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: BOT1 + "\n" + BOT2 + "\n",
+      },
+    ]);
+
+    const result = await detectRecentHumanComments(
+      { repo: "owner/repo", pr: 17 },
+      { env },
+    );
+
+    assert.equal(result.paused, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detectRecentHumanComments returns false when no bot baseline exists", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-no-baseline-"));
+
+  try {
+    const { detectRecentHumanComments } = await import("../../scripts/loop/copilot-pr-handoff.mjs");
+
+    const HUMAN_COMMENT = JSON.stringify({
+      id: 101,
+      body: "Just a regular comment.",
+      user: { login: "human-dev", type: "User" },
+      created_at: "2026-06-07T10:00:00Z",
+    });
+
+    const { env } = await writeGhStubHelper(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: HUMAN_COMMENT + "\n",
+      },
+    ]);
+
+    const result = await detectRecentHumanComments(
+      { repo: "owner/repo", pr: 17 },
+      { env },
+    );
+
+    assert.equal(result.paused, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detectRecentHumanComments detects multiple human comments after last bot", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-multi-"));
+
+  try {
+    const { detectRecentHumanComments } = await import("../../scripts/loop/copilot-pr-handoff.mjs");
+
+    const BOT = JSON.stringify({
+      id: 100,
+      body: "bot action",
+      user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" },
+      created_at: "2026-06-07T09:00:00Z",
+    });
+    const HUMAN1 = JSON.stringify({
+      id: 101,
+      body: "First human note.",
+      user: { login: "dev-1", type: "User" },
+      created_at: "2026-06-07T10:00:00Z",
+    });
+    const HUMAN2 = JSON.stringify({
+      id: 102,
+      body: "Second human note.",
+      user: { login: "dev-2", type: "User" },
+      created_at: "2026-06-07T11:00:00Z",
+    });
+
+    const { env } = await writeGhStubHelper(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: BOT + "\n" + HUMAN1 + "\n" + HUMAN2 + "\n",
+      },
+    ]);
+
+    const result = await detectRecentHumanComments(
+      { repo: "owner/repo", pr: 17 },
+      { env },
+    );
+
+    assert.equal(result.paused, true);
+    assert.equal(result.humanComments.length, 2);
+    assert.equal(result.humanComments[0].author, "dev-1");
+    assert.equal(result.humanComments[1].author, "dev-2");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("copilot-pr-handoff skips human comment check when PI_SUBAGENT_RUN_ID not set", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-skip-"));
+
+  try {
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: OPEN_PR + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+    ]);
+
+    // PI_SUBAGENT_RUN_ID is "" (empty/falsy) from writeGhStub defaults
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "watch");
+    // No humanCommentPause field since check was skipped
+    assert.equal(output.humanCommentPause, undefined);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+
+test("copilot-pr-handoff runs human comment check when PI_SUBAGENT_RUN_ID is set", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-active-"));
+
+  // Clean up any stale runner coordination state from other tests
+  try { await rm(".pi/runner-coordination", { recursive: true, force: true }); } catch {}
+  try {
+    const HUMAN_COMMENT = JSON.stringify({
+      id: 200,
+      body: "Please stop and reconsider the approach.",
+      user: { login: "human-dev", type: "User" },
+      created_at: "2026-06-07T10:00:00Z",
+    });
+    const BOT_COMMENT = JSON.stringify({
+      id: 199,
+      body: "**draft_gate** verdict=clean",
+      user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" },
+      created_at: "2026-06-07T09:00:00Z",
+    });
+
+    const { env } = await writeGhStubHelper(tempDir, [
+      // detect: pr view
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: OPEN_PR + "\n",
+      },
+      // detect: requested_reviewers
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      // detect: graphql threads
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+      // human comment check
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: BOT_COMMENT + "\n" + HUMAN_COMMENT + "\n",
+      },
+    ]);
+
+    const runEnv = { ...env, PI_SUBAGENT_RUN_ID: "run-test-human-pause" };
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env: runEnv });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.action, "stop");
+    assert.equal(output.state, "blocked_needs_user_decision");
+    assert.equal(output.loopDisposition, "blocked");
+    assert.equal(output.terminal, true);
+    assert.ok(output.humanCommentPause, "expected humanCommentPause field");
+    assert.equal(output.humanCommentPause.reason, "human_comment_detected");
+    assert.equal(output.humanCommentPause.humanComments.length, 1);
+    assert.equal(output.humanCommentPause.humanComments[0].author, "human-dev");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
