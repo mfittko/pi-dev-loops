@@ -1686,7 +1686,45 @@ describe("role resolution", () => {
       assert.equal(result.success, false);
     });
 
-    test("resolveGateAngles filters when excludeAngles has angles not in angles list", () => {
+    test("GateConfig accepts valid mandatoryAngles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope"],
+            mandatoryAngles: ["pr-description", "correctness"],
+          },
+        },
+      };
+      const result = FileConfigSchema.safeParse(config);
+      assert.equal(result.success, true);
+    });
+
+    test("GateConfig rejects mandatoryAngles with empty strings", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            mandatoryAngles: [""],
+          },
+        },
+      };
+      const result = FileConfigSchema.safeParse(config);
+      assert.equal(result.success, false);
+    });
+
+    test("GateConfig accepts mandatoryAngles as optional (absent)", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: { angles: ["scope"] },
+        },
+      };
+      const result = FileConfigSchema.safeParse(config);
+      assert.equal(result.success, true);
+    });
+
+        test("resolveGateAngles filters when excludeAngles has angles not in angles list", () => {
       const config = {
         version: 1,
         gates: {
