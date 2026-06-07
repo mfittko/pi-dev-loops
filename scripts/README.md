@@ -108,7 +108,7 @@ Contract:
 Success output shape:
 - `{ "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
 - `unavailable` also includes a `detail` string with the normalized GitHub/CLI limitation
-- `suppressed_same_head_clean` indicates clean convergence on the current head and includes an override hint
+- `suppressed_same_head_clean` indicates clean convergence on the current head (suppression is always enforced; bypass requires --force-rerequest-review)
 - forced bypass results include `bypassedSameHeadCleanSuppression: true`
 
 Failure behavior:
