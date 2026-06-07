@@ -202,11 +202,19 @@ function normalizeSubIssue(raw) {
   }
   return { id, number, title, state };
 }
-async function ghApi(ghCommand, args, env) {
+
+/**
+ * Call gh api with optional JSON parsing.
+ * @param {boolean} [expectJson=true] - When false, skip JSON parsing (for empty-body responses like PATCH reorder).
+ */
+async function ghApi(ghCommand, args, env, expectJson = true) {
   const result = await runChild(ghCommand, ["api", ...args], env);
   if (result.code !== 0) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw new Error(`gh api command failed: ${detail}`);
+  }
+  if (!expectJson) {
+    return null;
   }
   return parseJsonText(result.stdout);
 }
@@ -249,7 +257,7 @@ export async function runAdd({ repo, issue, child }, { env = process.env, ghComm
   const { owner, name } = parseRepoSlug(repo);
   const childId = await getIssueId(owner, name, child, { env, ghCommand });
   const path = buildSubIssueAddPath(owner, name, issue);
-  await ghApi(ghCommand, ["-X", "POST", path, "-F", `sub_issue_id=${childId}`], env);
+  await ghApi(ghCommand, ["-X", "POST", path, "-F", `sub_issue_id=${childId}`], env, false);
   return {
     ok: true,
     repo,
@@ -272,7 +280,7 @@ export async function runReorder({ repo, issue, order }, { env = process.env, gh
   for (const n of order) {
     const subIssueId = idByNumber.get(n);
     const fieldArgs = ["-F", `sub_issue_id=${subIssueId}`, "-F", `after_id=${afterId}`];
-    await ghApi(ghCommand, ["-X", "PATCH", reorderPath, ...fieldArgs], env);
+    await ghApi(ghCommand, ["-X", "PATCH", reorderPath, ...fieldArgs], env, false);
     afterId = subIssueId;
   }
   return {
