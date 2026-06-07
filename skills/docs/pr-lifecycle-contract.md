@@ -90,7 +90,7 @@ The family-local lifecycle should be modeled in this vocabulary. These state ide
 | `draft_local_remediation` | draft-stage findings require more local remediation while the PR remains draft |
 | `ready_state_needs_copilot_request` | draft gate is clear for the current head; Copilot request is the next legal step |
 | `waiting_for_copilot_review` | Copilot request/re-review is observably in progress for the current head |
-| `copilot_feedback_remediation` | actionable Copilot feedback exists; fixes are the next active step |
+| `copilot_feedback_remediation` | unresolved Copilot feedback exists; fixes are the next active step |
 | `copilot_reply_resolve_pending` | fixes were applied, but GitHub thread reply/resolve work still remains |
 | `merge_conflict_resolution` | current PR head conflicts with base or local reconcile is in progress; resolve conflicts before any further gate progression |
 | `final_local_preapproval_gate` | current-head post-Copilot convergence is ready for the final local gate |
@@ -117,7 +117,7 @@ At minimum, the lifecycle must enforce these transitions:
 - `ready_state_needs_copilot_request` -> `stopped_needs_user_decision`
   - request unavailable or blocked
 - `waiting_for_copilot_review` -> `copilot_feedback_remediation`
-  - actionable Copilot feedback exists
+  - unresolved Copilot feedback exists
 - `copilot_feedback_remediation` -> `copilot_reply_resolve_pending`
   - fixes applied but reply/resolve still remains
 - `copilot_reply_resolve_pending` -> `ready_state_needs_copilot_request`
@@ -127,7 +127,7 @@ At minimum, the lifecycle must enforce these transitions:
 - `merge_conflict_resolution` -> normal lifecycle re-entry state
   - only after local conflict resolution produces a new head, validation is rerun for the touched conflict slice, and gate state is re-detected for that new head
 - `waiting_for_copilot_review` -> `final_local_preapproval_gate`
-  - the current-head request/re-review cycle has settled cleanly with no actionable feedback and no further Copilot pass is needed
+  - the current-head request/re-review cycle has settled cleanly with no unresolved feedback and no further Copilot pass is needed
 - `final_local_preapproval_gate` -> `final_gate_remediation`
   - pre-approval gate findings require changes
 - `final_local_preapproval_gate` -> `waiting_for_human_pr_approval`
@@ -151,7 +151,7 @@ At minimum, the lifecycle must enforce these transitions:
 
 The lifecycle must keep the next action class explicit:
 - draft-stage local findings route to `draft_local_remediation`
-- actionable Copilot feedback routes to `copilot_feedback_remediation`
+- unresolved Copilot feedback routes to `copilot_feedback_remediation`
 - fixes applied but unresolved GitHub reply/resolve work remains route to `copilot_reply_resolve_pending`
 - pre-approval gate findings route to `final_gate_remediation`
 - merge conflicts route to `merge_conflict_resolution` and must be reconciled locally on the PR branch before lifecycle re-entry
