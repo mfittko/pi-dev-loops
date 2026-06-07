@@ -309,6 +309,9 @@ test("isGhPrReadyCommand matches gh pr ready variants", () => {
   assert.equal(isGhPrReadyCommand("gh pr merge 42"), false);
   assert.equal(isGhPrReadyCommand("git merge origin/main"), false);
   assert.equal(isGhPrReadyCommand("echo gh pr ready"), false);
+  assert.equal(isGhPrReadyCommand("false && gh pr ready 42"), false);
+  assert.equal(isGhPrReadyCommand("echo ok; gh pr ready 42"), false);
+  assert.equal(isGhPrReadyCommand("gh pr ready 42 && echo ok"), true);
 });
 
 test("extractPrNumberFromGhPrReady extracts the PR number", () => {
@@ -316,9 +319,12 @@ test("extractPrNumberFromGhPrReady extracts the PR number", () => {
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready 123"), 123);
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready 42 --repo mfittko/pi-dev-loops"), 42);
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready --repo mfittko/pi-dev-loops 42"), 42);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready -r other/repo 42"), 42);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready --REPO other/repo 42"), 42);
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready"), null);
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready --help"), null);
   assert.equal(extractPrNumberFromGhPrReady("gh pr merge 42"), null);
+  assert.equal(extractPrNumberFromGhPrReady("false && gh pr ready 42"), null);
 });
 
 test("extractRepoFlagFromGhPrReady extracts -R/--repo", () => {
@@ -330,6 +336,7 @@ test("extractRepoFlagFromGhPrReady extracts -R/--repo", () => {
   assert.equal(extractRepoFlagFromGhPrReady("gh pr ready"), null);
   assert.equal(extractRepoFlagFromGhPrReady("gh pr ready 42 --undo"), null);
   assert.equal(extractRepoFlagFromGhPrReady("gh pr merge 42 -R other/repo"), null);
+  assert.equal(extractRepoFlagFromGhPrReady("false && gh pr ready 42 -R other/repo"), null);
 });
 
 test("extractRepoFlagFromGhPrReady handles -R with --repo in same segment", () => {
@@ -341,6 +348,22 @@ test("extractRepoFlagFromGhPrReady handles -R with --repo in same segment", () =
   assert.equal(extractRepoFlagFromGhPrReady("gh pr ready 42 -R=other/repo"), "other/repo");
   // Case variations in flag
   assert.equal(extractRepoFlagFromGhPrReady("gh pr ready 42 -r other/repo"), "other/repo");
+});
+
+test("gh pr ready later in a shell chain passes through", async () => {
+  const calls = [];
+  const hook = createPostMergeUpdateHook({
+    resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
+    runCommand: async ({ command, cwd }) => {
+      calls.push({ command, cwd });
+      return { code: 0, stdout: "ok", stderr: "", killed: false };
+    },
+  });
+  const { ctx } = createUiCalls();
+
+  const result = await hook.onUserBash({ command: "false && gh pr ready 42", cwd: "/repo" }, ctx);
+  assert.equal(result, undefined);
+  assert.equal(calls.length, 0);
 });
 
 test("gh pr ready passes through when -R targets non-target repo", async () => {
