@@ -247,6 +247,15 @@ function parseTopLevelCommand(argv) {
     if (!sub || sub === "--help" || sub === "-h") {
       return { kind: "review_deprecation_help" };
     }
+    // review <sub> --help → show deprecation + script help
+    if (args.slice(1).some((a) => a === "--help" || a === "-h")) {
+      const gateRoutes = SUBCOMMAND_ROUTES["gate"];
+      const scriptPath = gateRoutes[sub];
+      if (!scriptPath) {
+        return { kind: "review_deprecation_subcommand_error", error: `Unknown subcommand '${sub}' for 'gate'. Available: ${Object.keys(gateRoutes).join(', ')}` };
+      }
+      return { kind: "review_deprecation_subcommand_help", subcommand: sub, scriptPath: path.resolve(REPO_ROOT, scriptPath) };
+    }
     // Route through gate routes so all 7 subcommands are available
     const route = resolveSubcommandRoute(["gate", ...args.slice(1)]);
     if (route) {
