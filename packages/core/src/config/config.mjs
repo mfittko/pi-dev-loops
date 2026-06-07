@@ -737,8 +737,10 @@ export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
     ambiguous: analysis.ambiguous,
   });
 
-  // Merge: mandatory always included + dynamically-selected candidates
-  const recommendedAngles = [...new Set([...gateConfig.mandatoryAngles, ...dynamicResult.recommendedAngles])];
+  // Merge: mandatory always included (filtered by excludeAngles) + dynamically-selected candidates
+  const excluded = new Set(gateConfig.excludeAngles);
+  const filteredMandatory = gateConfig.mandatoryAngles.filter(a => !excluded.has(a));
+  const recommendedAngles = [...new Set([...filteredMandatory, ...dynamicResult.recommendedAngles])];
 
   return {
     recommendedAngles,

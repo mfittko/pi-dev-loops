@@ -2394,4 +2394,25 @@ describe("resolveGateAnglesDynamic", () => {
     assert.equal(occurrences, 1);
     assert.ok(result.recommendedAngles.includes("pr-description"));
   });
+  test("excluded mandatoryAngles are NOT reintroduced in dynamic path", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: {
+          angles: ["scope"],
+          mandatoryAngles: ["pr-description", "correctness"],
+          excludeAngles: ["correctness"],
+          dynamicAngles: true,
+        },
+      },
+    };
+    const result = await resolveGateAnglesDynamic(config, "draft", {
+      diff: {
+        nameStatusOutput: "M\tsrc/main.mjs",
+      },
+    });
+    assert.ok(!result.recommendedAngles.includes("correctness"));
+    assert.ok(result.recommendedAngles.includes("pr-description"));
+  });
+
 });
