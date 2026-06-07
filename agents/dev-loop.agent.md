@@ -26,7 +26,7 @@ The envelope is the primary handoff artifact — it is derived from resolver out
 
 **Construction sequence:**
 1. Run the deterministic startup resolver (`dev-loops loop startup --input <path-to-authoritative-state.json>`) to produce the authoritative state bundle.
-2. Pass the resolver output, settings (`.pi/dev-loop/settings.yaml`), and current gate state to `buildDevLoopHandoffEnvelope()`.
+2. Pass the resolver output, resolved settings (merged from `.pi/dev-loop/settings.yaml` and `.pi/dev-loop/defaults.yaml`), and current gate state to `buildDevLoopHandoffEnvelope()`.
 3. Read the envelope as the first artifact.
 4. Load every path listed in `requiredReads` (in order).
 5. Execute `nextAction` constrained by `stopRules` and `acceptance`.
