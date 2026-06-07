@@ -224,6 +224,30 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     const classified = classifyRequestFailure(detail);
     if (classified === "unavailable") {
+      let existing;
+      try {
+        existing = await fetchCopilotReviewIds({ repo, pr }, { env, ghCommand });
+      } catch {
+        // Best-effort: if gh pr view fails transiently (rate limit, network, auth),
+        // return unavailable rather than throwing — the 422 failure is already stable.
+        return {
+          ok: true,
+          status: "unavailable",
+          repo,
+          pr,
+          reviewer: "Copilot",
+          detail,
+        };
+      }
+      if (existing.hasCopilotPendingReviewOnCurrentHead || existing.hasCopilotSubmittedReviewOnCurrentHead) {
+        return {
+          ok: true,
+          status: "already-requested",
+          repo,
+          pr,
+          reviewer: "Copilot",
+        };
+      }
       return {
         ok: true,
         status: "unavailable",
@@ -356,7 +380,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   const requestResult = await requestCopilotReview(options, { env, ghCommand });
   if (requestResult.status === "unavailable") {
     const after = await fetchCopilotReviewState(options, { env, ghCommand });
-    if (after.requested || after.hasPendingReviewOnCurrentHead) {
+    if (after.requested || after.hasPendingReviewOnCurrentHead || after.hasSubmittedReviewOnCurrentHead) {
       return {
         ok: true,
         status: "already-requested",
@@ -368,6 +392,9 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     return {
       ...requestResult,
     };
+  }
+  if (requestResult.status === "already-requested") {
+    return requestResult;
   }
   const after = await fetchCopilotReviewState(options, { env, ghCommand });
   const reviewCountIncreased = after.copilotReviewIds.length > before.copilotReviewIds.length;

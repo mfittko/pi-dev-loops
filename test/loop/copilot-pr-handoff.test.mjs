@@ -432,6 +432,11 @@ test("copilot-pr-handoff emits stop action when Copilot review is unavailable", 
         stderr: "gh: Reviews may only be requested from collaborators.\n",
         exitCode: 1,
       },
+      // post-422: check if Copilot already has a review on current head
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: '{"reviews":[]}\n',
+      },
       // post-failure verification: Copilot still not in requested_reviewers
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -501,6 +506,11 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot is in requested
         stderr: "gh: Reviews may only be requested from collaborators.\n",
         exitCode: 1,
       },
+      // post-422: check if Copilot already has a review on current head
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: '{"reviews":[]}\n',
+      },
       // post-failure verification: Copilot is now in requested_reviewers (GitHub queued it internally)
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -566,6 +576,11 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot has a pending r
         assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
         stderr: "gh: Reviews may only be requested from collaborators.\n",
         exitCode: 1,
+      },
+      // post-422: check if Copilot already has a review on current head — finds pending review
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: '{"headRefOid":"abc123","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}}]}\n',
       },
       // post-failure verification: Copilot not in requested_reviewers but has a PENDING review
       {
@@ -759,8 +774,8 @@ process.exit(97);
     const env = {
       ...process.env,
       PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
-      GH_REREQUEST_STATE_PATH: requestedStatePath,
       GH_SEQUENCE_PATH: path.join(tempDir, "gh-sequence.json"),
+      GH_REREQUEST_STATE_PATH: requestedStatePath,
     };
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -1057,8 +1072,8 @@ process.exit(97);
     const env = {
       ...process.env,
       PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
-      GH_REREQUEST_STATE_PATH: requestedStatePath,
       GH_SEQUENCE_PATH: path.join(tempDir, "gh-sequence.json"),
+      GH_REREQUEST_STATE_PATH: requestedStatePath,
     };
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
