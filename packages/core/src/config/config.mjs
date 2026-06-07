@@ -31,9 +31,9 @@ const RefinementConfig = z.strictObject({
 });
 
 const GateConfig = z.strictObject({
-  angles: z.array(z.string().trim().min(1)),
+  angles: z.array(z.string().trim().min(1)).optional(),
   excludeAngles: z.array(z.string().trim().min(1)).default([]),
-  mandatoryAngles: z.array(z.string().trim().min(1)).optional(),
+  mandatoryAngles: z.array(z.string().trim().min(1)).default([]),
   required: z.boolean().default(true),
   requireCi: z.boolean().default(true),
   blockCleanOnFindingSeverities: z
@@ -668,9 +668,10 @@ export function resolveLightMode(config) {
 /**
  * Resolve review angles for a specific gate from the merged dev-loop config.
  *
- * Returns the configured angle names for the given gate, or null when the
- * config does not specify angles for that gate (caller falls back to its
- * skill-defined defaults).
+ * Merges mandatoryAngles with the configured candidate angles, filters
+ * through excludeAngles, and deduplicates. Returns null only when both
+ * angles and mandatoryAngles are absent/empty for the given gate (caller
+ * falls back to skill-defined defaults).
  *
  * @param {DevLoopConfig} config
  * @param {"draft"|"preApproval"} gate
