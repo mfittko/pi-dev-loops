@@ -1897,7 +1897,7 @@ test("copilot-pr-handoff stops when human comment check fails with non-zero exit
       },
       // human comment check: gh API fails
       {
-        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", "."],
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
         stdout: "",
         stderr: "gh: API error",
         exitCode: 1,
@@ -1965,7 +1965,7 @@ test("copilot-pr-handoff stops when human comment check fails with invalid JSON"
       },
       // human comment check: returns invalid JSON
       {
-        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", "."],
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
         stdout: "not valid json { broken\n",
       },
       // performCopilotReviewRequest → fetchCopilotReviewIds
@@ -2003,8 +2003,7 @@ test("copilot-pr-handoff stops when human comment check fails with invalid JSON"
     assert.equal(output.terminal, true);
     assert.ok(output.humanCommentPause, "expected humanCommentPause field");
     assert.equal(output.humanCommentPause.reason, "human_comment_check_unavailable");
-    // Note: comment_parse_failed tested at unit level in detectRecentHumanComments tests
-    assert.equal(output.humanCommentPause.error, "comment_fetch_failed");
+    assert.equal(output.humanCommentPause.error, "comment_parse_failed");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
