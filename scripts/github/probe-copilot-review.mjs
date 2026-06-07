@@ -27,7 +27,9 @@ Activity statuses:
   changed    Fresh Copilot review activity found (check newComments/newReviews/newIssueComments)
   timeout    Watch period elapsed with no fresh Copilot activity
   idle       Zero-timeout single check found no change
-Error output (stderr, JSON):
+Diagnostic output (stderr):
+  Progress/heartbeat (during watch):
+    { "ok": true, "type": "watch_heartbeat", "elapsedMs": N, "totalBudgetMs": N, "poll": N, "maxPolls": N }
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
   gh/runtime failures:
