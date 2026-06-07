@@ -915,8 +915,6 @@ test("templates: no duplicate registrations", () => {
 });
 
 // ===========================================================================
-
-// ===========================================================================
 // 19. validateHandoffEnvelope — consumer-side envelope validation
 // ===========================================================================
 
@@ -1256,11 +1254,12 @@ test("validate: criteria entry with invalid severity returns error", () => {
   assert.ok(result.errors.some(e => e.field === "acceptance.criteria"));
 });
 
-test("validate: criteria entry without severity is ok (field optional)", () => {
+test("validate: criteria entry without severity returns error (severity is required)", () => {
   const base = validEnvelope();
   const env = { ...base, acceptance: { ...base.acceptance, criteria: [{ id: "test", must: "do something" }] } };
   const result = validateHandoffEnvelope(env);
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "acceptance.criteria"));
 });
 
 test("validate: errors include got values for diagnostics", () => {

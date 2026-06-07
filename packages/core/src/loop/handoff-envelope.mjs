@@ -486,7 +486,7 @@ const VALID_ASYNC_START_MODES = Object.freeze(["required", "allowed"]);
 
 /**
  * Validate a handoff envelope on the consumer side before reading requiredReads
- * or executing nextAction. Returns `{ ok: true }` for valid envelopes, or
+ * or executing nextAction. Returns `{ ok: true, errors: [], warnings?: [...] }` for valid envelopes, or
  * `{ ok: false, errors, warnings? }` with structured field-level error details
  * for malformed envelopes.
  *
@@ -626,9 +626,8 @@ export function validateHandoffEnvelope(envelope) {
       for (let i = 0; i < envelope.acceptance.criteria.length; i++) {
         const c = envelope.acceptance.criteria[i];
         if (!c || typeof c !== "object" || typeof c.id !== "string" || !c.id.trim() ||
-            typeof c.must !== "string" || !c.must.trim()) {
-          bad.push(i);
-        } else if (c.severity !== undefined && !VALID_SEVERITIES.includes(c.severity)) {
+            typeof c.must !== "string" || !c.must.trim() ||
+            typeof c.severity !== "string" || !VALID_SEVERITIES.includes(c.severity)) {
           bad.push(i);
         }
       }
