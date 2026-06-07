@@ -339,10 +339,10 @@ test("public dev-loop agent is a thin executable entrypoint that defers to the p
 });
 test("thin pointer docs reference canonical contract content", async () => {
   const [trackerPointer, trackerCanonical, conductorContent, ciContent, skillContent] = await Promise.all([
-    readRepo("docs/tracker-first-mvp-state-graph.md"),
+    readRepo("docs/tracker-story-pr-contract.md"),
     readRepo("skills/docs/tracker-first-loop-state.md"),
     readRepo("docs/outer-loop-state-graph.md"),
-    readRepo("docs/copilot-ci-status-contract.md"),
+    readRepo("skills/docs/copilot-ci-status-contract.md"),
     readCopilotSkillSurface(),
   ]);
   // Pointer file references canonical location; content verified from canonical file.
