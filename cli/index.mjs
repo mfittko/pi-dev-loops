@@ -26,13 +26,6 @@ const SUBCOMMAND_ROUTES = {
     "capture-threads":    "scripts/github/capture-review-threads.mjs",
     "reply-resolve":      "scripts/github/reply-resolve-review-threads.mjs",
   },
-  // Backward-compat alias: dev-loops review <sub> → dev-loops gate <sub> (deprecated)
-  review: {
-    "request-copilot":  "scripts/github/request-copilot-review.mjs",
-    "probe-copilot":    "scripts/github/probe-copilot-review.mjs",
-    "capture-threads":  "scripts/github/capture-review-threads.mjs",
-    "reply-resolve":    "scripts/github/reply-resolve-review-threads.mjs",
-  },
   loop: {
     startup:        "scripts/loop/resolve-dev-loop-startup.mjs",
     outer:          "scripts/loop/outer-loop.mjs",
@@ -60,7 +53,7 @@ const SUBCOMMAND_ROUTES = {
   },
 };
 
-const TOP_LEVEL_LEGACY = new Set(["help", "status", "doctor", "gates", "hide"]);
+const TOP_LEVEL_COMMANDS = new Set(["help", "status", "doctor", "gates", "hide"]);
 
 const CLI_SETUP_GUIDANCE = {
   "gh-installed": "Install GitHub CLI to enable remote GitHub/Copilot workflows.",
@@ -231,37 +224,11 @@ function parseTopLevelCommand(argv) {
   // Bare --help / -h
   if (cmd === "--help" || cmd === "-h") return { kind: "help" };
 
-  // Legacy top-level commands
-  if (TOP_LEVEL_LEGACY.has(cmd)) {
+  // Top-level commands
+  if (TOP_LEVEL_COMMANDS.has(cmd)) {
     if (args.some((a) => a === "--help" || a === "-h")) return { kind: "help" };
     if (args.length > 1) return { kind: "malformed", message: `\`${cmd}\` does not accept additional arguments.`, usageAction: cmd };
     return { kind: "action", action: cmd };
-  }
-
-  // Backward compat: dev-loops review <sub> → dev-loops gate <sub> (deprecated)
-  if (cmd === "review") {
-    // Bare review / review --help → show deprecation + gate help
-    if (!sub || sub === "--help" || sub === "-h") {
-      return { kind: "review_deprecation_help" };
-    }
-    // review <sub> --help → show deprecation + script help
-    if (args.slice(1).some((a) => a === "--help" || a === "-h")) {
-      const gateRoutes = SUBCOMMAND_ROUTES["gate"];
-      const scriptPath = gateRoutes[sub];
-      if (!scriptPath) {
-        return { kind: "review_deprecation_subcommand_error", error: `Unknown subcommand '${sub}' for 'gate'. Available: ${Object.keys(gateRoutes).join(', ')}` };
-      }
-      return { kind: "review_deprecation_subcommand_help", subcommand: sub, scriptPath: path.resolve(REPO_ROOT, scriptPath) };
-    }
-    // Route through gate routes so all 7 subcommands are available
-    const route = resolveSubcommandRoute(["gate", ...args.slice(1)]);
-    if (route) {
-      if (route.error) {
-        return { kind: "review_deprecation_subcommand_error", error: route.error };
-      }
-      return { kind: "review_deprecation_subcommand", subcommand: sub, ...route };
-    }
-    return { kind: "review_deprecation_help" };
   }
 
   // Subcommand routing
@@ -340,48 +307,6 @@ export async function runCli({
         }
         default: throw new Error(`Unhandled CLI result: ${result.kind}`);
       }
-    }
-    case "review_deprecation_help": {
-      writeLines(stderr, ["Note: `dev-loops review` is deprecated. Use `dev-loops gate` instead."]);
-      writeLines(stdout, buildCategoryHelp("gate"));
-      return 0;
-    }
-    case "review_deprecation_subcommand_help": {
-      writeLines(stderr, [`Note: \`dev-loops review\` is deprecated. Use \`dev-loops gate ${fromTop.subcommand}\` instead.`]);
-      const result = spawnSync("node", [fromTop.scriptPath, "--help"], {
-        cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-      });
-      if (result.stdout) stdout.write(result.stdout);
-      if (result.stderr) stderr.write(result.stderr);
-      return result.status ?? (result.signal ? 1 : result.error ? 1 : 0);
-    }
-    case "review_deprecation_subcommand_error": {
-      writeLines(stderr, [
-        `Note: \`dev-loops review\` is deprecated. Use \`dev-loops gate\` instead.`,
-        fromTop.error,
-      ]);
-      return 1;
-    }
-    case "review_deprecation_subcommand": {
-      writeLines(stderr, [`Note: \`dev-loops review\` is deprecated. Use \`dev-loops gate ${fromTop.subcommand}\` instead.`]);
-      const scriptArgs = fromTop.forwardedArgs || [];
-      const result = spawnSync("node", [fromTop.scriptPath, ...scriptArgs], {
-        cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-      });
-      if (result.status !== 0 && isUsageError(result.stderr)) {
-        const correctedArgs = buildCorrectedArgs(scriptArgs, result.stderr);
-        if (correctedArgs && correctedArgs.length > 0) {
-          const retryResult = spawnSync("node", [fromTop.scriptPath, ...correctedArgs], {
-            cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-          });
-          if (retryResult.stdout) stdout.write(retryResult.stdout);
-          if (retryResult.stderr) stderr.write(retryResult.stderr);
-          return retryResult.status ?? (retryResult.signal ? 1 : retryResult.error ? 1 : 0);
-        }
-      }
-      if (result.stdout) stdout.write(result.stdout);
-      if (result.stderr) stderr.write(result.stderr);
-      return result.status ?? (result.signal ? 1 : result.error ? 1 : 0);
     }
     case "subcommand": {
       if (fromTop.error) { writeLines(stderr, [fromTop.error]); return 1; }
