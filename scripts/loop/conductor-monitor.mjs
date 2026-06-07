@@ -1503,6 +1503,19 @@ function hasMaterialConflict(resumeAction, prReport, parsedArtifact) {
   }
   return false;
 }
+const HEALTHY_CI_STATUSES = new Set(["success", "crediblyGreen"]);
+
+export function isPrHealthy(prReport) {
+  return prReport.snapshot.unresolvedThreadCount === 0
+    && HEALTHY_CI_STATUSES.has(prReport.snapshot.ciStatus);
+}
+
+const FIX_FEEDBACK_RESUME_ACTIONS = new Set([
+  RESUME_ACTION.NEEDS_FEEDBACK_FIX,
+  RESUME_ACTION.NEEDS_REPLY_RESOLVE,
+  RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH,
+]);
+
 export function buildResumePlan({ prReport, candidate, childCounts }) {
   const { run, parsedArtifact } = candidate;
   const resumeAction = parsedArtifact.resumeBucket;
@@ -1524,6 +1537,9 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
         suggestedNextStep: "Reconcile the live PR state against the exited run artifact before resuming.",
       }),
     };
+  }
+  if (FIX_FEEDBACK_RESUME_ACTIONS.has(resumeAction) && isPrHealthy(prReport)) {
+    return { kind: "suppressed_healthy" };
   }
   if (run.staleWorktree && !run.sessionPath && !run.outputArtifactPath && !run.resultSummaryPath && !run.resultPath) {
     return {
@@ -1699,6 +1715,9 @@ async function analyzeAutoResume({ repo, reports }, options) {
       candidate: selection.candidate,
       childCounts,
     });
+    if (built.kind === "suppressed_healthy") {
+      continue;
+    }
     if (built.kind === "manual_attention") {
       manualAttention.push(built.entry);
       continue;

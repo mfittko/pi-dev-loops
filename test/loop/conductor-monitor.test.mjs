@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { runConductorMonitor } from "../../scripts/loop/conductor-monitor.mjs";
+import { runConductorMonitor, isPrHealthy } from "../../scripts/loop/conductor-monitor.mjs";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper } from "../_helpers.mjs";
 
 const scriptPath = path.resolve("scripts/loop/conductor-monitor.mjs");
@@ -1318,4 +1318,117 @@ test("conductor-monitor --auto-resume ignores non-dev-loop runs and runs from ot
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("conductor-monitor --auto-resume suppresses orphan alert for healthy PR (no unresolved threads, CI green) with fix/feedback artifact", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-healthy-"));
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    // Exited run with artifact indicating unresolved feedback
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-healthy-40",
+      cwd: repoRoot,
+      timestampMs: 1700000001000,
+      outputText: [
+        "Active PR: owner/repo#40",
+        "Artifact state: open",
+        "Loop state: unresolved_feedback_present",
+        "Next action: address review feedback",
+      ].join("\n"),
+    });
+
+    // Healthy PR: CI green, no unresolved threads
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 40,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        // No threadsPayload → defaults to empty (0 unresolved threads)
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+
+    assert.equal(payload.autoResumeRequested, true);
+    // Orphan detection suppressed — no resume plan for healthy PR
+    assert.equal(payload.resumePlanCount, 0);
+    assert.equal(payload.manualAttentionCount, 0);
+    assert.equal(payload.orphanedPrCount, 0);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conductor-monitor --auto-resume still flags orphan for unhealthy PR (unresolved threads present) with fix/feedback artifact", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-conductor-monitor-orphan-unhealthy-"));
+  const mixedThreadsFixture = await readFile(mixedThreadsFixturePath, "utf8");
+
+  try {
+    const { repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot } = await createAutoResumeRoots(tempDir);
+    await writeSessionRun({
+      sessionsRoot,
+      runId: "run-unhealthy-41",
+      cwd: repoRoot,
+      timestampMs: 1700000001000,
+      outputText: [
+        "Active PR: owner/repo#41",
+        "Artifact state: open",
+        "Loop state: unresolved_feedback_present",
+        "Next action: address review feedback",
+        "Handoff ownership: subagent",
+        "Stop boundary: subagent_exit",
+        "Resume policy: resume_after_subagent_exit",
+      ].join("\n"),
+    });
+
+    // Unhealthy PR: CI green but has unresolved threads
+    const env = await writeGhStub(tempDir, buildGhEntries({
+      prs: [{
+        number: 41,
+        reviews: [{ id: "r-1", author: { login: "copilot-pull-request-reviewer[bot]" } }],
+        statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        threadsPayload: mixedThreadsFixture,
+      }],
+    }));
+
+    const payload = await runAutoResumeMonitor({ repoRoot, sessionsRoot, asyncRunsRoot, asyncResultsRoot, repo: "owner/repo", env });
+
+    // Should still flag as orphan — PR has unresolved threads
+    assert.equal(payload.orphanedPrCount, 1);
+    assert.equal(payload.queueStatus, "attention_needed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("isPrHealthy treats crediblyGreen as healthy", () => {
+  const healthy = isPrHealthy({
+    snapshot: {
+      unresolvedThreadCount: 0,
+      ciStatus: "crediblyGreen",
+    },
+  });
+  assert.equal(healthy, true);
+});
+
+test("isPrHealthy treats failure as unhealthy", () => {
+  const healthy = isPrHealthy({
+    snapshot: {
+      unresolvedThreadCount: 0,
+      ciStatus: "failure",
+    },
+  });
+  assert.equal(healthy, false);
+});
+
+test("isPrHealthy treats unresolved threads as unhealthy with crediblyGreen CI", () => {
+  const healthy = isPrHealthy({
+    snapshot: {
+      unresolvedThreadCount: 3,
+      ciStatus: "crediblyGreen",
+    },
+  });
+  assert.equal(healthy, false);
 });

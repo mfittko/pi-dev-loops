@@ -645,3 +645,56 @@ test("invalid targetPreference produces NEEDS_RECONCILE whose reason references 
   assert.match(bundle.reason, /invalid targetPreference/i);
   assert.match(bundle.reason, /allowed values/i);
 });
+
+test("authoritative startup/resume bundle auto-synthesizes canonical state from issue shorthand — start_issue_locally", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    issue: 484,
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY,
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.activeArtifact.kind, DEV_LOOP_TARGET_KIND.LOCAL_PHASE);
+  assert.equal(bundle.activeArtifact.issue, 484);
+  assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION);
+  assert.match(bundle.nextAction, /local implementation strategy/i);
+});
+
+test("authoritative startup/resume bundle auto-synthesizes canonical state from issue shorthand — start_on_issue", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    issue: 485,
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR,
+    issueReadiness: DEV_LOOP_ISSUE_READINESS.READY,
+    issueAssignmentState: DEV_LOOP_ISSUE_ASSIGNMENT_STATE.ASSIGNED_TO_COPILOT,
+    loopState: "awaiting_triage",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.activeArtifact.kind, DEV_LOOP_TARGET_KIND.ISSUE);
+  assert.equal(bundle.activeArtifact.issue, 485);
+  assert.equal(bundle.selectedStrategy, INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE);
+  assert.match(bundle.nextAction, /issue #485 is ready/i);
+});
+
+test("authoritative startup/resume bundle falls back to reconcile when issue shorthand has no intent", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    issue: 486,
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+});
+
+test("authoritative startup/resume bundle falls back to reconcile when issue shorthand uses unsupported intent", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    issue: 487,
+    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
+});
