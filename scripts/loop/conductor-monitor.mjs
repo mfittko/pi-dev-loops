@@ -1503,9 +1503,10 @@ function hasMaterialConflict(resumeAction, prReport, parsedArtifact) {
   }
   return false;
 }
-function isPrHealthy(prReport) {
+export function isPrHealthy(prReport) {
+  const HEALTHY_CI_STATUSES = new Set(["success", "crediblyGreen"]);
   return prReport.snapshot.unresolvedThreadCount === 0
-    && prReport.snapshot.ciStatus === "success";
+    && HEALTHY_CI_STATUSES.has(prReport.snapshot.ciStatus);
 }
 
 export function buildResumePlan({ prReport, candidate, childCounts }) {

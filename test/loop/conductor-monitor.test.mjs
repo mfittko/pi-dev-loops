@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { runConductorMonitor } from "../../scripts/loop/conductor-monitor.mjs";
+import { runConductorMonitor, isPrHealthy } from "../../scripts/loop/conductor-monitor.mjs";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper } from "../_helpers.mjs";
 
 const scriptPath = path.resolve("scripts/loop/conductor-monitor.mjs");
@@ -1401,4 +1401,34 @@ test("conductor-monitor --auto-resume still flags orphan for unhealthy PR (unres
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("isPrHealthy treats crediblyGreen as healthy", () => {
+  const healthy = isPrHealthy({
+    snapshot: {
+      unresolvedThreadCount: 0,
+      ciStatus: "crediblyGreen",
+    },
+  });
+  assert.equal(healthy, true);
+});
+
+test("isPrHealthy treats failure as unhealthy", () => {
+  const healthy = isPrHealthy({
+    snapshot: {
+      unresolvedThreadCount: 0,
+      ciStatus: "failure",
+    },
+  });
+  assert.equal(healthy, false);
+});
+
+test("isPrHealthy treats unresolved threads as unhealthy with crediblyGreen CI", () => {
+  const healthy = isPrHealthy({
+    snapshot: {
+      unresolvedThreadCount: 3,
+      ciStatus: "crediblyGreen",
+    },
+  });
+  assert.equal(healthy, false);
 });
