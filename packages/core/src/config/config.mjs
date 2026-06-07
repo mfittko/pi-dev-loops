@@ -73,6 +73,12 @@ const LocalImplementationConfig = z.strictObject({
   }).optional(),
 });
 
+/** Queue mode config */
+const QueueConfig = z.strictObject({
+  maxParallel: z.number().int().min(1).max(10).default(3),
+  maxAutoFiledIssues: z.number().int().min(0).max(100).default(10),
+  reDispatchMaxRetries: z.number().int().min(0).max(10).default(1),
+});
 
 const PersonaEntry = z.strictObject({
   persona: z.string().min(1),
@@ -136,6 +142,11 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
   localImplementation: Object.freeze({
     lightMode: Object.freeze({ enabled: false, maxFiles: 3, maxLines: 200 }),
   }),
+  queue: Object.freeze({
+    maxParallel: 3,
+    maxAutoFiledIssues: 10,
+    reDispatchMaxRetries: 1,
+  }),
   personas: Object.freeze({}),
 });
 
@@ -152,6 +163,7 @@ export const FileConfigSchema = z.strictObject({
   autonomy: AutonomyConfig.partial().optional(),
   workflow: WorkflowConfig.partial().optional(),
   localImplementation: LocalImplementationConfig.partial().optional(),
+  queue: QueueConfig.partial().optional(),
   personas: FilePersonasConfig.optional(),
 });
 
