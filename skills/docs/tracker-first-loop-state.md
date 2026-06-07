@@ -18,7 +18,7 @@ Implementation for each:
 | Loop state machine (tracker-first) | `packages/core/src/loop/tracker-first-loop-state.mjs` |
 | Loop state CLI detector | `scripts/loop/detect-tracker-first-loop-state.mjs` |
 | Loop state contract doc | this file |
-| Entrypoint briefing | `skills/docs/entrypoint-briefing-tracker-first.md` |
+| Entrypoint briefing | `skills/docs/entrypoint-strategies.md#tracker-first` |
 
 ## 1. Artifact Subset and MVP Invariant
 

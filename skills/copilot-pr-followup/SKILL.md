@@ -77,7 +77,7 @@ For detailed machine guarantees, judgment calls, pre-follow-up planning rules, P
 
 ## Required startup reads
 
-Read the canonical entrypoint briefing first: [Entrypoint Briefing (Copilot PR Follow-up)](../docs/entrypoint-briefing-copilot-pr-followup.md). Then read only the contract docs needed for the current step:
+Read the canonical entrypoint briefing first: [Entrypoint Strategies](../docs/entrypoint-strategies.md#copilot-pr-follow-up). Then read only the contract docs needed for the current step:
 
 - [Agent Instructions](../../AGENTS.md) (repo constitution)
 - [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) (always)

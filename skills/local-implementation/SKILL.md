@@ -31,7 +31,7 @@ Everything else is optional and may be bootstrapped by this skill.
 
 ## Required startup reads
 
-Read the canonical entrypoint briefing first: [Entrypoint Briefing (Local Implementation)](../docs/entrypoint-briefing-local-implementation.md). Then read only what the current step needs:
+Read the canonical entrypoint briefing first: [Entrypoint Strategies](../docs/entrypoint-strategies.md#local-implementation). Then read only what the current step needs:
 
 - [Agent Instructions](../../AGENTS.md) (repo constitution)
 - [Public Dev Loop Contract](../docs/public-dev-loop-contract.md)
