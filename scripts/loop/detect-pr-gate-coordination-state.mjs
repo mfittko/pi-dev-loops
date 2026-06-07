@@ -16,6 +16,7 @@ import { loadDevLoopConfig, resolveGateConfig, resolveRefinementConfig, resolveW
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
 import { evaluatePrGateCoordination, PR_CHECKPOINT, PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
+import { shouldGuardCopilotReviewRequest } from "../../packages/core/src/loop/pr-gate-coordination.mjs";
 import { fetchGithubReviewThreadsPayload } from "../github/capture-review-threads.mjs";
 import { detectCheckpointEvidence } from "../github/detect-checkpoint-evidence.mjs";
 const UNMERGED_GIT_STATUS_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
@@ -347,6 +348,22 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     refinementArtifact,
   };
 }
+
+async function fetchCopilotEverFormallyRequested({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    ["api", `repos/${repo}/issues/${pr}/timeline`, "--paginate", "--jq",
+      '.[] | select(.event == "review_requested") | select(.requested_reviewer.login != null) | .requested_reviewer.login'],
+    env,
+  );
+  if (result.code !== 0) return false;
+  for (const line of result.stdout.trim().split("\n")) {
+    const login = line.trim();
+    if (login && isCopilotLogin(login)) return true;
+  }
+  return false;
+}
+
 export async function detectPrGateCoordinationState(options, runtime = {}) {
   const context = await loadPrGateCoordinationContext(options, runtime);
   const repoRoot = runtime.repoRoot ?? process.cwd();
@@ -381,6 +398,49 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     preApprovalGateMarker: context.gateEvidence.preApprovalGateMarker,
     refinementArtifact: context.refinementArtifact,
   });
+  // Copilot review request guard (#613): When Copilot has reviewed the PR
+  // but no formal review request was made, block pre-approval gate entry.
+  // Only query timeline when cheap preconditions pass — avoids unnecessary
+  // API call when guard cannot possibly trigger.
+  const copilotReviewRequestStatus = context.snapshot?.copilotReviewRequestStatus ?? "none";
+  const guardBoundaries = new Set([
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED,
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+    PR_CHECKPOINT.FINAL_APPROVAL_READY,
+  ]);
+  const roundCapReached = maxCopilotRounds !== null
+    && typeof (context.snapshot?.copilotReviewRoundCount) === "number"
+    && context.snapshot?.copilotReviewRoundCount >= maxCopilotRounds;
+  const sameHeadCleanConverged = context.interpretation?.sameHeadCleanConverged ?? false;
+  const copilotReviewEverFormallyRequested = copilotReviewRequestStatus === "none"
+    && guardBoundaries.has(result.gateBoundary)
+    && !(roundCapReached && sameHeadCleanConverged)
+    ? await fetchCopilotEverFormallyRequested(
+        { repo: context.repo, pr: context.pr },
+        runtime,
+      )
+    : false;
+  if (shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus,
+    copilotReviewRoundCount: context.snapshot?.copilotReviewRoundCount ?? 0,
+    copilotReviewEverFormallyRequested,
+    maxCopilotRounds,
+    sameHeadCleanConverged: context.interpretation?.sameHeadCleanConverged ?? false,
+    gateBoundary: result.gateBoundary,
+  })) {
+    result.gateBoundary = PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW;
+    result.nextAction = PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW;
+    result.reason = "No formal Copilot review request found — run request-copilot-review.mjs first.";
+    result.allowedNextActions = [PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW];
+    result.forbiddenActions = [
+      PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
+      PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW,
+      PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
+      PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
+      PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,
+    ];
+  }
+
   const preApprovalNeverEntered = !(result.preApprovalGate?.contractComplete === true);
   const gateBoundariesExpectingPreApproval = new Set([
     PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED,
