@@ -27,9 +27,10 @@ The envelope is the primary handoff artifact — it is derived from resolver out
 **Construction sequence:**
 1. Run the deterministic startup resolver (`dev-loops loop startup --input <path-to-authoritative-state.json>`) to produce the authoritative state bundle.
 2. Pass the resolver output, resolved settings (merged from `.pi/dev-loop/settings.yaml` and `.pi/dev-loop/defaults.yaml`), and current gate state to `buildDevLoopHandoffEnvelope()`.
-3. Read the envelope as the first artifact.
-4. Load every path listed in `requiredReads` (in order).
-5. Execute `nextAction` constrained by `stopRules` and `acceptance`.
+3. **Validate the envelope** with `validateHandoffEnvelope()` before consuming any field. If validation returns `ok: false`, reject the handoff with the structured error — do not load requiredReads, do not execute nextAction, do not delegate.
+4. Read the envelope as the first artifact.
+5. Load every path listed in `requiredReads` (in order).
+6. Execute `nextAction` constrained by `stopRules` and `acceptance`.
 
 **The agent must not load skills, route packs, or delegate work before the envelope is built and read.** The derivation contract is [Workflow Handoff Contract](../skills/docs/workflow-handoff-contract.md).
 

@@ -476,6 +476,190 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
   return deepFreeze(envelope);
 }
 
+// ---------------------------------------------------------------------------
+// Consumer-side validation
+// ---------------------------------------------------------------------------
+
+const VALID_TARGET_KINDS = Object.freeze(["issue", "pr", "local_branch", "local_phase"]);
+const VALID_EXECUTION_MODES = Object.freeze(["bounded_handoff", "durable_auto"]);
+const VALID_ASYNC_START_MODES = Object.freeze(["required", "allowed"]);
+
+/**
+ * Validate a handoff envelope on the consumer side before reading requiredReads
+ * or executing nextAction. Returns `{ ok: true }` for valid envelopes, or
+ * `{ ok: false, errors, warnings? }` with structured field-level error details
+ * for malformed envelopes.
+ *
+ * Rejects envelopes with:
+ *   - Missing or wrong-type root fields (handoffVersion, target, nextAction,
+ *     requiredReads, acceptance, stopRules)
+ *   - Missing required sub-fields (target.kind, target.repo, acceptance.criteria)
+ *   - Malformed acceptance criteria entries
+ *   - Wrong handoffVersion (unknown version)
+ *   - Type errors in requiredReads, stopRules, etc.
+ *
+ * Does not throw — always returns a structured result.
+ */
+export function validateHandoffEnvelope(envelope) {
+  const errors = [];
+  const warnings = [];
+
+  // ----- structural check -----
+  if (!envelope || typeof envelope !== "object") {
+    return {
+      ok: false,
+      errors: [{ field: "_root", reason: "envelope must be a non-null object", got: String(envelope) }],
+    };
+  }
+
+  // ----- handoffVersion -----
+  if (!Number.isInteger(envelope.handoffVersion) || envelope.handoffVersion < 1) {
+    errors.push({
+      field: "handoffVersion",
+      reason: `must be a positive integer (current: ${ENVELOPE_HANDOFF_VERSION})`,
+      got: envelope.handoffVersion,
+    });
+  } else if (envelope.handoffVersion !== ENVELOPE_HANDOFF_VERSION) {
+    warnings.push({
+      field: "handoffVersion",
+      reason: `expected version ${ENVELOPE_HANDOFF_VERSION}, got ${envelope.handoffVersion}`,
+    });
+  }
+
+  // ----- target -----
+  if (!envelope.target || typeof envelope.target !== "object") {
+    errors.push({ field: "target", reason: "must be an object with kind and repo" });
+  } else {
+    if (!envelope.target.kind || !VALID_TARGET_KINDS.includes(envelope.target.kind)) {
+      errors.push({
+        field: "target.kind",
+        reason: `must be one of: ${VALID_TARGET_KINDS.join(", ")}`,
+        got: envelope.target.kind,
+      });
+    }
+    if (typeof envelope.target.repo !== "string" || !envelope.target.repo.includes("/")) {
+      errors.push({
+        field: "target.repo",
+        reason: "must be a non-empty owner/name string",
+        got: envelope.target.repo,
+      });
+    }
+    // target-kind specific required fields
+    const kind = envelope.target.kind;
+    if (kind === "issue" && !Number.isInteger(envelope.target.issue)) {
+      errors.push({ field: "target.issue", reason: "required for issue target kind" });
+    }
+    if (kind === "pr" && !Number.isInteger(envelope.target.pr)) {
+      errors.push({ field: "target.pr", reason: "required for pr target kind" });
+    }
+    if (kind === "local_branch" && (typeof envelope.target.branch !== "string" || !envelope.target.branch.trim())) {
+      errors.push({ field: "target.branch", reason: "required for local_branch target kind" });
+    }
+  }
+
+  // ----- nextAction -----
+  if (typeof envelope.nextAction !== "string" || !envelope.nextAction.trim()) {
+    errors.push({
+      field: "nextAction",
+      reason: "must be a non-empty string",
+      got: envelope.nextAction,
+    });
+  }
+
+  // ----- requiredReads -----
+  if (!Array.isArray(envelope.requiredReads)) {
+    errors.push({ field: "requiredReads", reason: "must be an array", got: String(envelope.requiredReads) });
+  } else if (envelope.requiredReads.length === 0) {
+    warnings.push({ field: "requiredReads", reason: "array is empty — no files to load" });
+  } else {
+    const bad = [];
+    for (let i = 0; i < envelope.requiredReads.length; i++) {
+      if (typeof envelope.requiredReads[i] !== "string" || !envelope.requiredReads[i].trim()) {
+        bad.push(i);
+      }
+    }
+    if (bad.length > 0) {
+      errors.push({
+        field: "requiredReads",
+        reason: `entries at indices [${bad.join(",")}] must be non-empty strings`,
+      });
+    }
+  }
+
+  // ----- acceptance -----
+  if (!envelope.acceptance || typeof envelope.acceptance !== "object") {
+    errors.push({ field: "acceptance", reason: "must be an object with criteria array" });
+  } else {
+    if (!Array.isArray(envelope.acceptance.criteria)) {
+      errors.push({ field: "acceptance.criteria", reason: "must be an array", got: String(envelope.acceptance.criteria) });
+    } else if (envelope.acceptance.criteria.length === 0) {
+      errors.push({ field: "acceptance.criteria", reason: "must not be empty" });
+    } else {
+      const bad = [];
+      for (let i = 0; i < envelope.acceptance.criteria.length; i++) {
+        const c = envelope.acceptance.criteria[i];
+        if (!c || typeof c !== "object" || typeof c.id !== "string" || !c.id.trim() ||
+            typeof c.must !== "string" || !c.must.trim()) {
+          bad.push(i);
+        }
+      }
+      if (bad.length > 0) {
+        errors.push({
+          field: "acceptance.criteria",
+          reason: `entries at indices [${bad.join(",")}] must have valid id and must fields`,
+        });
+      }
+    }
+  }
+
+  // ----- stopRules -----
+  if (!Array.isArray(envelope.stopRules)) {
+    errors.push({ field: "stopRules", reason: "must be an array", got: String(envelope.stopRules) });
+  } else {
+    const bad = [];
+    for (let i = 0; i < envelope.stopRules.length; i++) {
+      if (typeof envelope.stopRules[i] !== "string") {
+        bad.push(i);
+      }
+    }
+    if (bad.length > 0) {
+      errors.push({
+        field: "stopRules",
+        reason: `entries at indices [${bad.join(",")}] must be strings`,
+      });
+    }
+  }
+
+  // ----- executionMode (optional field, validate if present) -----
+  if (envelope.executionMode !== undefined && !VALID_EXECUTION_MODES.includes(envelope.executionMode)) {
+    errors.push({
+      field: "executionMode",
+      reason: `must be one of: ${VALID_EXECUTION_MODES.join(", ")}`,
+      got: envelope.executionMode,
+    });
+  }
+
+  // ----- asyncStartMode (optional field, validate if present) -----
+  if (envelope.asyncStartMode !== undefined && !VALID_ASYNC_START_MODES.includes(envelope.asyncStartMode)) {
+    errors.push({
+      field: "asyncStartMode",
+      reason: `must be one of: ${VALID_ASYNC_START_MODES.join(", ")}`,
+      got: envelope.asyncStartMode,
+    });
+  }
+
+  // ----- derivedAt (informational, warn on missing) -----
+  if (typeof envelope.derivedAt !== "string" || !envelope.derivedAt.trim()) {
+    warnings.push({ field: "derivedAt", reason: "should be an ISO 8601 timestamp" });
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+    ...(warnings.length > 0 && { warnings }),
+  };
+}
+
 export {
   ACCEPTANCE_TEMPLATES,
   ENVELOPE_HANDOFF_VERSION,

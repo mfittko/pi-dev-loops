@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildDevLoopHandoffEnvelope,
+  validateHandoffEnvelope,
   ACCEPTANCE_TEMPLATES,
   ENVELOPE_HANDOFF_VERSION,
   STRATEGY_DEFAULT_STOP_RULES,
@@ -914,7 +915,296 @@ test("templates: no duplicate registrations", () => {
 });
 
 // ===========================================================================
-// Invariant: strategy-template coverage
+
+// ===========================================================================
+// 19. validateHandoffEnvelope — consumer-side envelope validation
+// ===========================================================================
+
+function validEnvelope(opts = {}) {
+  return buildDevLoopHandoffEnvelope(
+    issueBundle(opts.issue ?? 42, { strategy: opts.strategy, requiredReads: opts.requiredReads }),
+    defaultSettings,
+    opts.gateState ?? {},
+    { ...defaultOptions, ...opts.options }
+  );
+}
+
+test("validate: fn-exists", () => {
+  assert.equal(typeof validateHandoffEnvelope, "function");
+});
+
+test("validate: valid envelope returns ok: true", () => {
+  const env = validEnvelope();
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.warnings, undefined);
+});
+
+test("validate: null envelope returns error", () => {
+  const result = validateHandoffEnvelope(null);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "_root"));
+});
+
+test("validate: undefined envelope returns error", () => {
+  const result = validateHandoffEnvelope(undefined);
+  assert.equal(result.ok, false);
+});
+
+test("validate: non-object envelope returns error", () => {
+  const result = validateHandoffEnvelope("not-an-object");
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "_root"));
+});
+
+test("validate: missing handoffVersion returns error", () => {
+  const env = { ...validEnvelope() }; delete env.handoffVersion;
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "handoffVersion"));
+});
+
+test("validate: negative handoffVersion returns error", () => {
+  const env = { ...validEnvelope(), handoffVersion: -1 };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "handoffVersion"));
+});
+
+test("validate: wrong handoffVersion returns warning", () => {
+  const env = { ...validEnvelope(), handoffVersion: 99 };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, true);
+  assert.ok(result.warnings.some(w => w.field === "handoffVersion"));
+});
+
+test("validate: missing target returns error", () => {
+  const env = { ...validEnvelope() }; delete env.target;
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target"));
+});
+
+test("validate: missing target.kind returns error", () => {
+  const env = { ...validEnvelope(), target: { repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.kind"));
+});
+
+test("validate: invalid target.kind returns error", () => {
+  const env = { ...validEnvelope(), target: { kind: "unknown", repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.kind"));
+});
+
+test("validate: missing target.repo returns error", () => {
+  const env = { ...validEnvelope(), target: { kind: "issue", issue: 1 } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.repo"));
+});
+
+test("validate: issue target without issue number returns error", () => {
+  const env = { ...validEnvelope(), target: { kind: "issue", repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.issue"));
+});
+
+test("validate: pr target without pr number returns error", () => {
+  const env = buildDevLoopHandoffEnvelope(
+    prBundle(10),
+    defaultSettings,
+    {},
+    defaultOptions
+  );
+  const mutated = { ...env, target: { kind: "pr", repo: "a/b" } };
+  const result = validateHandoffEnvelope(mutated);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.pr"));
+});
+
+test("validate: local_branch target without branch returns error", () => {
+  const env = { ...validEnvelope(), target: { kind: "local_branch", repo: "a/b" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.branch"));
+});
+
+test("validate: missing nextAction returns error", () => {
+  const env = { ...validEnvelope() }; delete env.nextAction;
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "nextAction"));
+});
+
+test("validate: empty nextAction returns error", () => {
+  const env = { ...validEnvelope(), nextAction: "  " };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "nextAction"));
+});
+
+test("validate: missing requiredReads returns error", () => {
+  const env = { ...validEnvelope() }; delete env.requiredReads;
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "requiredReads"));
+});
+
+test("validate: requiredReads not an array returns error", () => {
+  const env = { ...validEnvelope(), requiredReads: "not-an-array" };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "requiredReads"));
+});
+
+test("validate: empty requiredReads returns warning only", () => {
+  const env = { ...validEnvelope(), requiredReads: [] };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, true);
+  assert.ok(result.warnings.some(w => w.field === "requiredReads"));
+});
+
+test("validate: requiredReads with empty string entries returns error", () => {
+  const env = { ...validEnvelope(), requiredReads: ["valid.md", "", "  ", "also-valid.md"] };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "requiredReads"));
+});
+
+test("validate: missing acceptance returns error", () => {
+  const env = { ...validEnvelope() }; delete env.acceptance;
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "acceptance"));
+});
+
+test("validate: acceptance.criteria missing returns error", () => {
+  const env = { ...validEnvelope(), acceptance: { evidence: [], maxFinalizationTurns: 4 } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "acceptance.criteria"));
+});
+
+test("validate: acceptance.criteria not an array returns error", () => {
+  const env = { ...validEnvelope(), acceptance: { criteria: "not-array", evidence: [], maxFinalizationTurns: 4 } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "acceptance.criteria"));
+});
+
+test("validate: empty acceptance.criteria returns error", () => {
+  const env = { ...validEnvelope(), acceptance: { criteria: [], evidence: [], maxFinalizationTurns: 4 } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "acceptance.criteria"));
+});
+
+test("validate: malformed criteria entry (missing id) returns error", () => {
+  const base = validEnvelope();
+  const env = { ...base, acceptance: { ...base.acceptance, criteria: [{ must: "do something" }] } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "acceptance.criteria"));
+});
+
+test("validate: malformed criteria entry (missing must) returns error", () => {
+  const base = validEnvelope();
+  const env = { ...base, acceptance: { ...base.acceptance, criteria: [{ id: "test", severity: "required" }] } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "acceptance.criteria"));
+});
+
+test("validate: missing stopRules returns error", () => {
+  const env = { ...validEnvelope() }; delete env.stopRules;
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "stopRules"));
+});
+
+test("validate: stopRules not an array returns error", () => {
+  const env = { ...validEnvelope(), stopRules: "not-an-array" };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "stopRules"));
+});
+
+test("validate: stopRules with non-string entries returns error", () => {
+  const env = { ...validEnvelope(), stopRules: ["merge", 42, "draft-pr"] };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "stopRules"));
+});
+
+test("validate: invalid executionMode returns error", () => {
+  const env = { ...validEnvelope(), executionMode: "invalid_mode" };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "executionMode"));
+});
+
+test("validate: missing derivedAt returns warning", () => {
+  const env = { ...validEnvelope() }; delete env.derivedAt;
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, true);
+  assert.ok(result.warnings.some(w => w.field === "derivedAt"));
+});
+
+test("validate: multiple errors reported together", () => {
+  const env = {
+    handoffVersion: -5,
+    target: { kind: "issue" }, // missing repo
+    nextAction: "",
+    requiredReads: "not-array",
+    stopRules: null,
+  };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.length >= 4, `expected >=4 errors, got ${result.errors.length}`);
+  assert.ok(result.errors.some(e => e.field === "handoffVersion"));
+  assert.ok(result.errors.some(e => e.field === "target.repo"));
+  assert.ok(result.errors.some(e => e.field === "nextAction"));
+  assert.ok(result.errors.some(e => e.field === "requiredReads"));
+  assert.ok(result.errors.some(e => e.field === "stopRules"));
+  assert.ok(result.errors.some(e => e.field === "acceptance"));
+});
+
+test("validate: errors include got values for diagnostics", () => {
+  const env = { ...validEnvelope(), handoffVersion: "v1" };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  const err = result.errors.find(e => e.field === "handoffVersion");
+  assert.ok(err);
+  assert.equal(err.got, "v1");
+});
+
+test("validate: accepts valid enclope from all strategies", () => {
+  const strategies = [
+    { s: INTERNAL_DEV_LOOP_STRATEGY.COPILOT_PR_FOLLOWUP, f: issueBundle },
+    { s: INTERNAL_DEV_LOOP_STRATEGY.ISSUE_INTAKE, f: issueBundle },
+    { s: INTERNAL_DEV_LOOP_STRATEGY.EXTERNAL_PR_FOLLOWUP, f: prBundle },
+    { s: INTERNAL_DEV_LOOP_STRATEGY.REVIEWER_FIXER, f: prBundle },
+    { s: INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH, f: prBundle },
+    { s: INTERNAL_DEV_LOOP_STRATEGY.FINAL_APPROVAL, f: prBundle },
+    { s: INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION, f: localBranchBundle },
+  ];
+  for (const { s, f } of strategies) {
+    const env = f === issueBundle
+      ? buildDevLoopHandoffEnvelope(f(99, { strategy: s }), defaultSettings, {}, defaultOptions)
+      : f === prBundle
+        ? buildDevLoopHandoffEnvelope(f(10, { strategy: s }), defaultSettings, {}, defaultOptions)
+        : buildDevLoopHandoffEnvelope(f("feature/x", { strategy: s }), defaultSettings, {}, defaultOptions);
+    const result = validateHandoffEnvelope(env);
+    assert.equal(result.ok, true, `strategy ${s} should produce valid envelope`);
+  }
+});
+
+// // Invariant: strategy-template coverage
 // ===========================================================================
 
 test("invariant: every strategy with default stop rules has an acceptance template", () => {
