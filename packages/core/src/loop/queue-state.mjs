@@ -6,9 +6,8 @@
  *   any state → blocked | failed
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 // ── Schema constants ────────────────────────────────────────────────
 
@@ -71,9 +70,10 @@ export async function readQueue(repoRoot) {
 export async function writeQueue(repoRoot, queue) {
   const fp = queueFilePath(repoRoot);
   await mkdir(path.dirname(fp), { recursive: true });
-  // Atomic-ish: write to temp then rename would be better, but for
-  // a local git-tracked file this is fine.
-  await writeFile(fp, JSON.stringify(queue, null, 2) + "\n", "utf8");
+  // Atomic write: write to temp file then rename
+  const tmp = fp + ".tmp." + Date.now();
+  await writeFile(tmp, JSON.stringify(queue, null, 2) + "\n", "utf8");
+  await rename(tmp, fp);
 }
 
 // ── Entry helpers ────────────────────────────────────────────────────
@@ -91,6 +91,10 @@ export function createEntry(target, kind, dependsOn = []) {
     failureKind: null,
     retryCount: 0,
   };
+}
+
+export function snapshotEntry(entry) {
+  return { ...entry };
 }
 
 export function findEntry(queue, target) {
