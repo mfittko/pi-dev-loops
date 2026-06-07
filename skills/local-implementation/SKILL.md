@@ -493,6 +493,7 @@ After the phase plan passes review:
    - `npm run verify`
    - when a narrower local check is more honest for the touched slice, say so explicitly and run the narrowest justified subset instead of pretending the full verify path was unnecessary
    - for user-facing HTML/UI/component slices when the user opts in, add a bounded deterministic browser smoke harness (prefer fixture-backed Playwright WebKit plus screenshot capture); use `npm run test:playwright:viewer` when that viewer/browser surface is part of the slice, and wire it into CI once it becomes required validation for that slice
+   - **Commit immediately after validation passes.** Once `npm run verify` (or the narrowest justified validation subset) is green, stage and commit the current slice of work with an atomic commit message. For tracker-backed sessions, also push the commit. In non-interactive subagent sessions, commit authorization is implicit — the subagent was dispatched to implement and must commit before exiting. In interactive sessions, wait for coordination agent authorization. Do not defer commits — uncommitted changes when the session terminates are a workflow defect.
 4. Review the implementation against the merged phase plan.
 5. Run the default pre-approval gate as a full review / fix loop on the branch before calling it review-complete, approval-ready, merge-ready, or ready for final handoff:
    - resolve review angles from config: `resolveGateAngles(config, "preApproval")` from `@pi-dev-loops/core/config` (shipped defaults enable all 11 pre-approval gate angle families; consumer repos may opt out individual angles via `excludeAngles`); run via the chain prescription below
@@ -511,9 +512,10 @@ After the phase plan passes review:
 9. Write `Retrospective` (`tmp/phases/phase-x/retrospective.md`) using [Retrospective Template](../dev-loop/templates/retrospective.md).
 10. Update `tmp/phases/phase-x/manifest.json` and `tmp/phases/index.json`.
 11. Update [Implementation State](../../docs/IMPLEMENTATION_STATE.md).
-12. Make sure the phase branch history is captured with atomic commits once the phase is review-ready and authorized for commit.
-13. If authorized, merge the fully reviewed, locally validated phase branch back into local `main`.
-14. If authorization for commit or merge is still pending, mark the phase as `awaiting-finalization` rather than `completed`, and record exactly which finalization step is pending.
+12. **Exit validation gate — no uncommitted changes.** Before the subagent session terminates, run `git status --porcelain` and verify the output is empty. If uncommitted changes exist, first determine whether they are intended implementation changes or unintended/post-validation deltas. Revert any unintended or speculative changes. For intended changes, rerun the narrowest justified validation (`npm run verify` or equivalent) before staging and committing with an appropriate message; for tracker-backed sessions, also push the branch. A subagent session that exits with uncommitted changes in the worktree is a workflow defect and must not be treated as a clean completion. After committing, verify `git status --porcelain` is empty before declaring phase completion.
+13. For tracker-backed sessions, create a draft PR from the working branch using `dev-loops pr create-draft --assignee @me --repo <owner/name> --base main --head <branch> --title "..." --body-file <body-file>`. When the `dev-loops` CLI helper is unavailable, use the equivalent `create-draft-pr.mjs` script directly: `node <resolved-skill-scripts>/github/create-draft-pr.mjs --repo <owner/name> --assignee @me --base main --head <branch> --title "..." --body-file <body-file>`. The PR body must contain `Closes #N` (or `Fixes #N`) for the linked issue. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy.
+14. If authorized, merge the fully reviewed, locally validated phase branch back into local `main` (phase-doc-backed sessions) or proceed through the PR gate pipeline (tracker-backed sessions).
+15. If authorization for PR creation or merge is still pending (commit authorization is already enforced by the exit validation gate in step 12), mark the phase as `awaiting-finalization` rather than `completed`, and record exactly which finalization step is pending.
 
 ## Retrospective requirements
 
@@ -629,8 +631,9 @@ See [Stop Conditions](../docs/stop-conditions.md). Local-specific stops: phase c
 - Immediately before every `git add && git commit` sequence, assert branch identity with `git branch --show-current` and stop if it does not match the intended local working branch.
 - Keep commits small and phase-bounded.
 - Do not leave completed phase work stranded off `main`; once the reviewed branch is ready and authorized, finalize it according to session type (merge into local `main` for phase-doc-backed sessions; complete via PR merge for tracker-backed sessions).
-- Commit only when the coordination/main agent has decided the slice or phase is ready.
+- Commit only when the coordination/main agent has decided the slice or phase is ready. **Exception:** in non-interactive subagent sessions, commit authorization is implicit — the subagent was dispatched to implement and must commit before exiting (see the commit sub-bullet under implementation loop step 3 and the exit validation gate in step 12).
 - If commit/merge authorization has not yet been given, do not call the phase `completed`; call it `awaiting-finalization` instead.
+- **Subagent exit contract:** before a subagent session terminates, the exit validation gate (implementation loop step 12) must pass — `git status --porcelain` must be empty. A subagent that exits with uncommitted changes in the worktree has not completed its task, regardless of what was implemented.
 
 ## Anti-patterns
 
