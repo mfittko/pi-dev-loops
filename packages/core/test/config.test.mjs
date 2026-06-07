@@ -1433,6 +1433,7 @@ describe("role resolution", () => {
       assert.deepEqual(result, {
         angles: null,
         excludeAngles: [],
+        mandatoryAngles: [],
         required: true,
         requireCi: true,
         dynamicAngles: false,
@@ -1450,6 +1451,7 @@ describe("role resolution", () => {
       assert.deepEqual(result, {
         angles: ["scope", "coverage", "correctness"],
         excludeAngles: [],
+        mandatoryAngles: [],
         required: false,
         requireCi: false,
         dynamicAngles: false,
@@ -1698,7 +1700,97 @@ describe("role resolution", () => {
       assert.deepEqual(result, ["scope", "coverage"]);
     });
 
-    test("resolveRefinement returns new roles array (not reference to config)", () => {
+    // --- mandatoryAngles ---
+    test("resolveGateConfig returns mandatoryAngles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope", "coverage"],
+            mandatoryAngles: ["pr-description", "correctness"],
+          },
+        },
+      };
+      const result = resolveGateConfig(config, "draft");
+      assert.deepEqual(result.mandatoryAngles, ["pr-description", "correctness"]);
+    });
+
+    test("resolveGateConfig returns empty mandatoryAngles when absent", () => {
+      const config = {
+        version: 1,
+        gates: { draft: { angles: ["scope"] } },
+      };
+      const result = resolveGateConfig(config, "draft");
+      assert.deepEqual(result.mandatoryAngles, []);
+    });
+
+    test("resolveGateAngles merges mandatoryAngles with regular angles (no duplicates)", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope", "coverage"],
+            mandatoryAngles: ["pr-description", "correctness"],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, ["pr-description", "correctness", "scope", "coverage"]);
+    });
+
+    test("resolveGateAngles deduplicates overlap between mandatory and regular angles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope", "coverage", "pr-description"],
+            mandatoryAngles: ["pr-description", "correctness"],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, ["pr-description", "correctness", "scope", "coverage"]);
+    });
+
+    test("resolveGateAngles excludes mandatoryAngles matching excludeAngles", () => {
+      const config = {
+        version: 1,
+        gates: {
+          draft: {
+            angles: ["scope"],
+            mandatoryAngles: ["pr-description", "correctness", "gate-evidence"],
+            excludeAngles: ["correctness"],
+          },
+        },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, ["pr-description", "gate-evidence", "scope"]);
+    });
+
+    test("resolveGateAngles returns null when both angles and mandatoryAngles empty", () => {
+      const config = {
+        version: 1,
+        gates: { draft: { mandatoryAngles: [] } },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, null);
+    });
+
+    test("resolveGateAngles returns only mandatoryAngles when angles not configured", () => {
+      const config = {
+        version: 1,
+        gates: { draft: { mandatoryAngles: ["pr-description", "correctness"] } },
+      };
+      const result = resolveGateAngles(config, "draft");
+      assert.deepEqual(result, ["pr-description", "correctness"]);
+    });
+
+    test("resolveGateConfig default booleans include empty mandatoryAngles", () => {
+      const result = resolveGateConfig({ version: 1 }, "draft");
+      assert.deepEqual(result.mandatoryAngles, []);
+    });
+
+        test("resolveRefinement returns new roles array (not reference to config)", () => {
       const config = { version: 1, refinement: { fanOut: 2, mode: "parallel", roles: ["security"] } };
       const result = resolveRefinement(config);
       result.roles.push("style");
@@ -2212,5 +2304,94 @@ describe("resolveGateAnglesDynamic", () => {
     for (const angle of result.skippedAngles) {
       assert.ok(result.reasons[angle], `reason missing for ${angle}`);
     }
+  });
+
+  test("includes mandatoryAngles always regardless of diff analysis", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: {
+          angles: ["scope", "coverage"],
+          mandatoryAngles: ["pr-description", "correctness", "gate-evidence"],
+          dynamicAngles: true,
+        },
+      },
+    };
+    const result = await resolveGateAnglesDynamic(config, "draft", {
+      diff: {
+        nameStatusOutput: "M\tdocs/guide.md\nM\tREADME.md",
+      },
+    });
+    assert.equal(result.dynamicAnglesActive, true);
+    // mandatoryAngles always included
+    assert.ok(result.recommendedAngles.includes("pr-description"));
+    assert.ok(result.recommendedAngles.includes("correctness"));
+    assert.ok(result.recommendedAngles.includes("gate-evidence"));
+    // mandatoryAngles never appear in skipped
+    assert.ok(!result.skippedAngles.includes("pr-description"));
+    assert.ok(!result.skippedAngles.includes("correctness"));
+    assert.ok(!result.skippedAngles.includes("gate-evidence"));
+  });
+
+  test("mandatoryAngles also included in non-dynamic fallback", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: {
+          angles: ["scope"],
+          mandatoryAngles: ["pr-description"],
+          dynamicAngles: true,
+        },
+      },
+    };
+    // no diff → dynamicAnglesActive is false, but mandatoryAngles still in result via resolveGateAngles
+    const result = await resolveGateAnglesDynamic(config, "draft");
+    assert.equal(result.dynamicAnglesActive, false);
+    assert.deepEqual(result.recommendedAngles, ["pr-description", "scope"]);
+  });
+
+  test("backward compat: no mandatoryAngles = all angles are candidates", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: {
+          angles: ["scope", "coverage", "docs"],
+          dynamicAngles: true,
+        },
+      },
+    };
+    const result = await resolveGateAnglesDynamic(config, "draft", {
+      diff: {
+        nameStatusOutput: "M\tdocs/guide.md\nM\tREADME.md",
+      },
+    });
+    assert.equal(result.dynamicAnglesActive, true);
+    // No mandatoryAngles config, all angles are candidates for filtering
+    // docs change -> docs angle should be recommended
+    assert.ok(result.recommendedAngles.includes("docs"));
+    assert.ok(result.skippedAngles.includes("scope") || result.recommendedAngles.includes("scope"));
+    assert.ok(result.skippedAngles.includes("coverage") || result.recommendedAngles.includes("coverage"));
+  });
+
+  test("deduplicates mandatoryAngles and candidate pool recommendations", async () => {
+    const config = {
+      version: 1,
+      gates: {
+        draft: {
+          angles: ["scope", "pr-description"],
+          mandatoryAngles: ["pr-description", "correctness"],
+          dynamicAngles: true,
+        },
+      },
+    };
+    const result = await resolveGateAnglesDynamic(config, "draft", {
+      diff: {
+        nameStatusOutput: "M\tsrc/main.mjs",
+      },
+    });
+    // pr-description is in both mandatory and candidate pool — no duplicate
+    const occurrences = result.recommendedAngles.filter(a => a === "pr-description").length;
+    assert.equal(occurrences, 1);
+    assert.ok(result.recommendedAngles.includes("pr-description"));
   });
 });

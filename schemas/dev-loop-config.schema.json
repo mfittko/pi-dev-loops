@@ -154,6 +154,14 @@
           "type": "boolean",
           "default": false,
           "description": "Enable dynamic gate angle resolution based on PR diff analysis."
+        },
+        "mandatoryAngles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Angles that always run regardless of diff-based dynamic selection."
         }
       }
     },

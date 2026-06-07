@@ -33,6 +33,7 @@ const RefinementConfig = z.strictObject({
 const GateConfig = z.strictObject({
   angles: z.array(z.string().trim().min(1)),
   excludeAngles: z.array(z.string().trim().min(1)).default([]),
+  mandatoryAngles: z.array(z.string().trim().min(1)).optional(),
   required: z.boolean().default(true),
   requireCi: z.boolean().default(true),
   blockCleanOnFindingSeverities: z
@@ -619,7 +620,7 @@ export function resolveRefinement(config) {
  *
  * @param {DevLoopConfig} config
  * @param {"draft"|"preApproval"} gate
- * @returns {{ angles: string[]|null, excludeAngles: string[], required: boolean, requireCi: boolean, blockCleanOnFindingSeverities: string[], dynamicAngles: boolean }}
+ * @returns {{ angles: string[]|null, excludeAngles: string[], mandatoryAngles: string[], required: boolean, requireCi: boolean, blockCleanOnFindingSeverities: string[], dynamicAngles: boolean }}
  */
 export function resolveGateConfig(config, gate) {
   const gateConfig = config?.gates?.[gate];
@@ -629,6 +630,9 @@ export function resolveGateConfig(config, gate) {
       : null,
     excludeAngles: gateConfig?.excludeAngles && Array.isArray(gateConfig.excludeAngles)
       ? gateConfig.excludeAngles.map(a => (typeof a === "string" ? a.trim() : "")).filter(a => a.length > 0)
+      : [],
+    mandatoryAngles: gateConfig?.mandatoryAngles && Array.isArray(gateConfig.mandatoryAngles)
+      ? gateConfig.mandatoryAngles.map(a => (typeof a === "string" ? a.trim() : "")).filter(a => a.length > 0)
       : [],
     required: gateConfig?.required ?? true,
     requireCi: gateConfig?.requireCi ?? true,
@@ -674,9 +678,10 @@ export function resolveLightMode(config) {
  */
 export function resolveGateAngles(config, gate) {
   const gateConfig = resolveGateConfig(config, gate);
-  if (gateConfig.angles === null) return null;
+  if (gateConfig.angles === null && gateConfig.mandatoryAngles.length === 0) return null;
   const excluded = new Set(gateConfig.excludeAngles);
-  return gateConfig.angles.filter(a => !excluded.has(a));
+  const merged = [...new Set([...gateConfig.mandatoryAngles, ...(gateConfig.angles ?? [])])];
+  return merged.filter(a => !excluded.has(a));
 }
 
 /**
@@ -695,12 +700,12 @@ export function resolveGateAngles(config, gate) {
  * @returns {{ recommendedAngles: string[] | null, skippedAngles: string[], reasons: Record<string,string>, fallbackToAll: boolean, dynamicAnglesActive: boolean }}
  */
 export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
+  const gateConfig = resolveGateConfig(config, gate);
   const staticAngles = resolveGateAngles(config, gate);
   if (staticAngles === null) {
     return { recommendedAngles: null, skippedAngles: [], reasons: {}, fallbackToAll: false, dynamicAnglesActive: false };
   }
 
-  const gateConfig = resolveGateConfig(config, gate);
   if (!gateConfig.dynamicAngles || !diff) {
     return {
       recommendedAngles: staticAngles,
@@ -710,6 +715,11 @@ export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
       dynamicAnglesActive: false,
     };
   }
+
+  // Split into mandatory (always run) and candidate pool (dynamic selection)
+  // staticAngles is already filtered by excludeAngles via resolveGateAngles
+  const mandatory = new Set(gateConfig.mandatoryAngles);
+  const candidatePool = staticAngles.filter(a => !mandatory.has(a));
 
   // Dynamic resolution
   const { analyzeDiff } = await import("../analysis/index.mjs");
@@ -722,13 +732,19 @@ export async function resolveGateAnglesDynamic(config, gate, { diff } = {}) {
 
   const { resolveDynamicAngles: resolve } = await import("../analysis/change-classifier.mjs");
   const dynamicResult = resolve({
-    configuredAngles: staticAngles,
+    configuredAngles: candidatePool,
     changeCategories: categories,
     ambiguous: analysis.ambiguous,
   });
 
+  // Merge: mandatory always included + dynamically-selected candidates
+  const recommendedAngles = [...new Set([...gateConfig.mandatoryAngles, ...dynamicResult.recommendedAngles])];
+
   return {
-    ...dynamicResult,
+    recommendedAngles,
+    skippedAngles: dynamicResult.skippedAngles,
+    reasons: dynamicResult.reasons,
+    fallbackToAll: dynamicResult.fallbackToAll,
     dynamicAnglesActive: true,
   };
 }
