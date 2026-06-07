@@ -18,10 +18,15 @@ const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 const SUBCOMMAND_ROUTES = {
   gate: {
-    "upsert-verdict":   "scripts/github/upsert-checkpoint-verdict.mjs",
-    "detect-evidence":  "scripts/github/detect-checkpoint-evidence.mjs",
+    "upsert-verdict":     "scripts/github/upsert-checkpoint-verdict.mjs",
+    "detect-evidence":    "scripts/github/detect-checkpoint-evidence.mjs",
     "write-findings-log": "scripts/github/write-gate-findings-log.mjs",
+    "request-copilot":    "scripts/github/request-copilot-review.mjs",
+    "probe-copilot":      "scripts/github/probe-copilot-review.mjs",
+    "capture-threads":    "scripts/github/capture-review-threads.mjs",
+    "reply-resolve":      "scripts/github/reply-resolve-review-threads.mjs",
   },
+  // Backward-compat alias: dev-loops review <sub> → dev-loops gate <sub> (deprecated)
   review: {
     "request-copilot":  "scripts/github/request-copilot-review.mjs",
     "probe-copilot":    "scripts/github/probe-copilot-review.mjs",
@@ -117,11 +122,10 @@ function buildCliHelpLines() {
     "- dev-loops gates                  Print gate state",
     "",
     "Subcommands:",
-    "- dev-loops gate <sub> [...]       Gate verdicts and evidence",
+    "- dev-loops gate <sub> [...]       Gate verdicts, evidence, and review operations",
     "    upsert-verdict    Post/update gate review comment",
     "    detect-evidence   Check merge preconditions",
     "    write-findings-log Write disposition ledger",
-    "- dev-loops review <sub> [...]     Copilot review operations",
     "    request-copilot   Request Copilot review",
     "    probe-copilot     Poll for Copilot review activity",
     "    capture-threads   Capture review threads",
@@ -237,6 +241,32 @@ function parseTopLevelCommand(argv) {
     return { kind: "action", action: cmd };
   }
 
+  // Backward compat: dev-loops review <sub> → dev-loops gate <sub> (deprecated)
+  if (cmd === "review") {
+    // Bare review / review --help → show deprecation + gate help
+    if (!sub || sub === "--help" || sub === "-h") {
+      return { kind: "review_deprecation_help" };
+    }
+    // review <sub> --help → show deprecation + script help
+    if (args.slice(1).some((a) => a === "--help" || a === "-h")) {
+      const gateRoutes = SUBCOMMAND_ROUTES["gate"];
+      const scriptPath = gateRoutes[sub];
+      if (!scriptPath) {
+        return { kind: "review_deprecation_subcommand_error", error: `Unknown subcommand '${sub}' for 'gate'. Available: ${Object.keys(gateRoutes).join(', ')}` };
+      }
+      return { kind: "review_deprecation_subcommand_help", subcommand: sub, scriptPath: path.resolve(REPO_ROOT, scriptPath) };
+    }
+    // Route through gate routes so all 7 subcommands are available
+    const route = resolveSubcommandRoute(["gate", ...args.slice(1)]);
+    if (route) {
+      if (route.error) {
+        return { kind: "review_deprecation_subcommand_error", error: route.error };
+      }
+      return { kind: "review_deprecation_subcommand", subcommand: sub, ...route };
+    }
+    return { kind: "review_deprecation_help" };
+  }
+
   // Subcommand routing
   const routes = SUBCOMMAND_ROUTES[cmd];
   if (routes) {
@@ -313,6 +343,48 @@ export async function runCli({
         }
         default: throw new Error(`Unhandled CLI result: ${result.kind}`);
       }
+    }
+    case "review_deprecation_help": {
+      writeLines(stderr, ["Note: `dev-loops review` is deprecated. Use `dev-loops gate` instead."]);
+      writeLines(stdout, buildCategoryHelp("gate"));
+      return 0;
+    }
+    case "review_deprecation_subcommand_help": {
+      writeLines(stderr, [`Note: \`dev-loops review\` is deprecated. Use \`dev-loops gate ${fromTop.subcommand}\` instead.`]);
+      const result = spawnSync("node", [fromTop.scriptPath, "--help"], {
+        cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      });
+      if (result.stdout) stdout.write(result.stdout);
+      if (result.stderr) stderr.write(result.stderr);
+      return result.status ?? (result.signal ? 1 : result.error ? 1 : 0);
+    }
+    case "review_deprecation_subcommand_error": {
+      writeLines(stderr, [
+        `Note: \`dev-loops review\` is deprecated. Use \`dev-loops gate\` instead.`,
+        fromTop.error,
+      ]);
+      return 1;
+    }
+    case "review_deprecation_subcommand": {
+      writeLines(stderr, [`Note: \`dev-loops review\` is deprecated. Use \`dev-loops gate ${fromTop.subcommand}\` instead.`]);
+      const scriptArgs = fromTop.forwardedArgs || [];
+      const result = spawnSync("node", [fromTop.scriptPath, ...scriptArgs], {
+        cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      });
+      if (result.status !== 0 && isUsageError(result.stderr)) {
+        const correctedArgs = buildCorrectedArgs(scriptArgs, result.stderr);
+        if (correctedArgs && correctedArgs.length > 0) {
+          const retryResult = spawnSync("node", [fromTop.scriptPath, ...correctedArgs], {
+            cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+          });
+          if (retryResult.stdout) stdout.write(retryResult.stdout);
+          if (retryResult.stderr) stderr.write(retryResult.stderr);
+          return retryResult.status ?? (retryResult.signal ? 1 : retryResult.error ? 1 : 0);
+        }
+      }
+      if (result.stdout) stdout.write(result.stdout);
+      if (result.stderr) stderr.write(result.stderr);
+      return result.status ?? (result.signal ? 1 : result.error ? 1 : 0);
     }
     case "subcommand": {
       if (fromTop.error) { writeLines(stderr, [fromTop.error]); return 1; }
