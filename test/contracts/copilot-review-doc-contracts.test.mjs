@@ -158,7 +158,7 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   assert.match(
     step7,
     /including the unresolved thread count/i,
-    "verification checkpoint should require refreshed API-backed unresolvedThreadCount data",
+    "verification checkpoint should require refreshed API-backed unresolved thread count data",
   );
   assert.match(
     step7,

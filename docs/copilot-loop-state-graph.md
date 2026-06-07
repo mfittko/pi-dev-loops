@@ -135,7 +135,7 @@ The interpreter applies rules in priority order. The first matching rule wins.
 13. `ciStatus === "pending" || ciStatus === "none"` → `waiting_for_ci`
 14. Default → `pr_ready_no_feedback`
 
-When rule 11 yields `ready_to_rerequest_review`, the interpreter also emits two machine-readable flags:
+When rule 11 yields `ready_to_rerequest_review`, the interpreter also emits two behavioral indicators:
 
 - Automatic re-request eligibility — available only when a meaningful remediation event has occurred since the last Copilot review basis (deterministically: there is no submitted Copilot review on the current head).
 - Clean convergence on current head — when the current head already has a clean submitted Copilot review and no unresolved/actionable threads remain, automatic same-head re-request is suppressed.
