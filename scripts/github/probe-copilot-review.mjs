@@ -250,12 +250,12 @@ export async function watchCopilotReview(
           await delay(chunkMs);
           remainingMs -= chunkMs;
           if (remainingMs > 0) {
-            const elapsedSec = Math.floor((Date.now() - watchStartedAtMs) / 1000);
-            const totalBudgetSec = Math.floor(options.timeoutMs / 1000);
+            const nowMs = Date.now();
             process.stderr.write(
               JSON.stringify({
+                ok: true,
                 type: "watch_heartbeat",
-                elapsedMs: Date.now() - watchStartedAtMs,
+                elapsedMs: nowMs - watchStartedAtMs,
                 totalBudgetMs: options.timeoutMs,
                 poll: attempt,
                 maxPolls: attemptBudget,

@@ -28,8 +28,8 @@ import { COPILOT_REVIEW_WAIT_TIMEOUT_MS } from "./policy-constants.mjs";
 const H_VER = 1;
 const ENVELOPE_HANDOFF_VERSION = H_VER;
 
-const WATCH_NEEDS_ATTENTION_MS = COPILOT_REVIEW_WAIT_TIMEOUT_MS; // 30 minutes — external healthy wait budget
-const WATCH_ACTIVE_NOTICE_MS = COPILOT_REVIEW_WAIT_TIMEOUT_MS; // 30 minutes — match external healthy wait
+const WATCH_NEEDS_ATTENTION_MS = COPILOT_REVIEW_WAIT_TIMEOUT_MS; // matches external healthy wait budget (policy-constants)
+const WATCH_ACTIVE_NOTICE_MS = COPILOT_REVIEW_WAIT_TIMEOUT_MS; // matches external healthy wait budget (policy-constants)
 const DEFAULT_NEEDS_ATTENTION_MS = 300_000; // 5 minutes
 const DEFAULT_ACTIVE_NOTICE_MS = 300_000;
 
@@ -121,7 +121,7 @@ register(INTERNAL_DEV_LOOP_STRATEGY.LOCAL_IMPLEMENTATION, "default", {
   activeNoticeAfterMs: DEFAULT_ACTIVE_NOTICE_MS,
 });
 
-// wait_watch — dedicated window matching external healthy wait budget
+// wait_watch — dedicated window matching external healthy wait budget (policy-constants)
 register(INTERNAL_DEV_LOOP_STRATEGY.WAIT_WATCH, "default", {
   criteria: [
     { id: "contract-compliance", must: "Implementation complies with the governing contract and acceptance criteria.", severity: "required" },
