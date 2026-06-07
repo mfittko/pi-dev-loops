@@ -257,7 +257,7 @@ function parseTopLevelCommand(argv) {
     const route = resolveSubcommandRoute(["review", ...args.slice(1)]);
     if (route) {
       if (route.error) {
-        return { kind: "review_deprecation_subcommand_error", error: route.error };
+        return { kind: "review_deprecation_subcommand_error", error: route.error.replace("'review'", "'gate'") };
       }
       return { kind: "review_deprecation_subcommand", subcommand: sub, ...route };
     }
