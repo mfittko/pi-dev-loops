@@ -124,7 +124,14 @@ export async function prePrReadyGate(options, { env = process.env, ghCommand = "
 
   const gate = await fetchGateEvidence({ repo: options.repo, pr: options.pr, headSha }, { env, ghCommand });
 
-  if (!gate.effectiveHeadClean) {
+  // When the PR is no longer draft, a visible clean draft_gate comment that
+  // exists at all (one-time transition record) is sufficient — don't require
+  // head-SHA matching after draft has been left.
+  const gateSatisfied = prState.isDraft
+    ? gate.effectiveHeadClean
+    : gate.cleanEvidenceExists;
+
+  if (!gateSatisfied) {
     const shortSha = headSha.slice(0, 7);
     const reason = gate.cleanEvidenceExists
       ? `PR #${options.pr} draft_gate evidence exists but does not match current head ${shortSha}. Re-run draft gate for the current head.`
@@ -170,7 +177,7 @@ export async function runCli(argv = process.argv.slice(2), runtime = {}) {
 
 if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
-    process.stderr.write(`${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`);
+                process.stderr.write(`${formatCliError(error, { usage: USAGE })}\n`);
     process.exitCode = 1;
   });
 }

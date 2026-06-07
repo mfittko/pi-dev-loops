@@ -17,6 +17,9 @@ const POST_MERGE_UPDATE_TIMEOUT_MS = 10 * 60 * 1000;
 const REPO_RESOLUTION_TIMEOUT_MS = 5_000;
 const PR_READY_GATE_TIMEOUT_MS = 30_000;
 
+// Flags known to take a value argument for gh pr ready (not boolean flags)
+const FLAGS_THAT_TAKE_VALUE = new Set(["-R", "--repo"]);
+
 type RepoContext = {
   repoRoot: string | null;
   repoSlug: string | null;
@@ -256,8 +259,9 @@ export function extractPrNumberFromGhPrReady(command: string): number | null {
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
       if (token.startsWith('-')) {
-        // Skip flag-value pairs (e.g., --repo owner/name)
-        if (!token.includes('=')) {
+        // Only skip the next token for flags known to take a value argument
+        const flagName = token.replace(/=.*$/, '');
+        if (!token.includes('=') && FLAGS_THAT_TAKE_VALUE.has(flagName)) {
           i++; // skip next token (the flag value)
         }
         continue;
