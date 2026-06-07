@@ -408,8 +408,13 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
     PR_CHECKPOINT.FINAL_APPROVAL_READY,
   ]);
+  const roundCapReached = maxCopilotRounds !== null
+    && typeof (context.snapshot?.copilotReviewRoundCount) === "number"
+    && context.snapshot?.copilotReviewRoundCount >= maxCopilotRounds;
+  const sameHeadCleanConverged = context.interpretation?.sameHeadCleanConverged ?? false;
   const copilotReviewEverFormallyRequested = copilotReviewRequestStatus === "none"
     && guardBoundaries.has(result.gateBoundary)
+    && !(roundCapReached && sameHeadCleanConverged)
     ? await fetchCopilotEverFormallyRequested(
         { repo: context.repo, pr: context.pr },
         runtime,
