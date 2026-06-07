@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
-import { runChild } from "../_cli-primitives.mjs";
+import { runChild as _runChild } from "../_cli-primitives.mjs";
 
 const USAGE = `Usage: node scripts/projects/ensure-queue-board.mjs --repo <owner/name> [--title <title>]
 
@@ -35,7 +35,7 @@ function parseArgs(argv) {
 
 // ── API helpers ──────────────────────────────────────────────────────────
 
-async function ghGraphql(query, vars, env) {
+async function ghGraphql(query, vars, env, runChild = _runChild) {
   const fieldArgs = [];
   for (const [key, value] of Object.entries(vars)) {
     fieldArgs.push("--field", `${key}=${value}`);
@@ -133,7 +133,8 @@ const CREATE_SINGLE_SELECT_FIELD = [
 
 // ── Main logic ──────────────────────────────────────────────────────────
 
-async function main(args, { env = process.env } = {}) {
+async function main(args, { env = process.env, runChild } = {}) {
+  const child = runChild ?? _runChild;
   const repo = args.repo;
   if (!repo || typeof repo !== "string" || !repo.includes("/")) {
     throw Object.assign(
@@ -145,7 +146,7 @@ async function main(args, { env = process.env } = {}) {
   const title = args.title || "Dev Loop Queue";
 
   // 1. Resolve owner ID
-  const userIdPayload = await ghGraphql(GET_USER_ID, { login: owner }, env);
+  const userIdPayload = await ghGraphql(GET_USER_ID, { login: owner }, env, child);
   const ownerId = userIdPayload?.data?.user?.id;
   if (!ownerId) {
     throw Object.assign(
@@ -155,13 +156,13 @@ async function main(args, { env = process.env } = {}) {
   }
 
   // 2. Look for existing project by title
-  const listPayload = await ghGraphql(LIST_PROJECTS, { login: owner }, env);
+  const listPayload = await ghGraphql(LIST_PROJECTS, { login: owner }, env, child);
   const projects = listPayload?.data?.user?.projectsV2?.nodes ?? [];
   let project = projects.find((p) => p.title === title);
 
   if (project) {
     // Project exists — verify Status field
-    const fieldsPayload = await ghGraphql(GET_PROJECT_FIELDS, { projectId: project.id }, env);
+    const fieldsPayload = await ghGraphql(GET_PROJECT_FIELDS, { projectId: project.id }, env, child);
     const fieldNodes = fieldsPayload?.data?.node?.fields?.nodes ?? [];
     const statusField = fieldNodes.find(
       (f) => f.name === "Status" && f.options,
@@ -207,7 +208,7 @@ async function main(args, { env = process.env } = {}) {
           { name: "Done", color: "GREEN" },
         ],
       }),
-    }, env);
+    }, env, child);
     const newField = createFieldPayload?.data?.createProjectV2Field?.projectV2Field;
     if (!newField) {
       throw Object.assign(new Error("Failed to create Status field"), { code: "CREATE_FIELD_FAILED" });
@@ -227,7 +228,7 @@ async function main(args, { env = process.env } = {}) {
   // 3. Create project
   const createPayload = await ghGraphql(CREATE_PROJECT, {
     input: JSON.stringify({ ownerId, title }),
-  }, env);
+  }, env, child);
   project = createPayload?.data?.createProjectV2?.projectV2;
   if (!project) {
     throw Object.assign(new Error("Failed to create project board"), { code: "CREATE_PROJECT_FAILED" });
@@ -246,7 +247,7 @@ async function main(args, { env = process.env } = {}) {
         { name: "Done", color: "GREEN" },
       ],
     }),
-  }, env);
+  }, env, child);
   const newField = createFieldPayload?.data?.createProjectV2Field?.projectV2Field;
   if (!newField) {
     throw Object.assign(new Error("Failed to create Status field on new project"), { code: "CREATE_FIELD_FAILED" });
