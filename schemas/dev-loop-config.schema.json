@@ -141,6 +141,14 @@
             "minLength": 1
           }
         },
+        "excludeAngles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Angles to remove from the resolved angle list."
+        },
         "required": {
           "type": "boolean",
           "default": true
@@ -149,6 +157,16 @@
           "type": "boolean",
           "default": true,
           "description": "Draft gate CI prerequisite toggle. preApproval remains CI-gated regardless of this flag."
+        },
+        "blockCleanOnFindingSeverities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["must-fix", "worth-fixing-now", "defer"]
+          },
+          "minItems": 1,
+          "default": ["must-fix"],
+          "description": "Finding severities that block a clean gate verdict."
         },
         "dynamicAngles": {
           "type": "boolean",
