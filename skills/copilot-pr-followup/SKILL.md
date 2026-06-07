@@ -224,11 +224,11 @@ See [Async delegation guard rules](../dev-loop/SKILL.md#async-delegation-guard-r
 
 ## Step 7: Pi review/fix follow-up loop
 
-This step covers four responsibilities: the draft gate right before `gh pr ready`, the narrower post-review follow-up loop once actionable feedback exists, the pre-approval gate before calling the PR merge-ready, and the final approval / merge boundary.
+This step covers four responsibilities: the draft gate right before `gh pr ready`, the narrower post-review follow-up loop once unresolved feedback exists, the pre-approval gate before calling the PR merge-ready, and the final approval / merge boundary.
 
-### Follow-up loop when actionable review feedback exists
+### Follow-up loop when unresolved feedback exists
 
-When actionable review feedback exists, use a narrow follow-up loop:
+When unresolved feedback exists, use a narrow follow-up loop:
 
 1. inspect unresolved comments/threads and failing checks
 2. before the first local file write in each fixer pass on a Copilot-assigned PR, run `node <resolved-skill-scripts>/loop/pre-write-remote-freshness-guard.mjs --branch <headRefName>` as a required fail-closed guard
@@ -274,7 +274,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
       - **Mid** — meaningful improvements, design questions, refactoring suggestions → fix once; suppress re-request when round threshold met
       - **Low** — cosmetic nits, phrasing preferences, trivial cleanup → fix once; do NOT re-request
     - when low-signal detection is enabled and more review rounds than the low-signal threshold have passed and actionable review threads are at or below the low-signal max, and the last Copilot round's maximum signal level is `mid` or `low` (not `high`), the state machine returns a low-signal-converged terminal state instead of a ready-to-rerequest state, routing to `pre_approval_gate` without further re-requests
-    - when signal classification data is unavailable (null), the heuristic falls back to checking whether actionable threads are at or below the low-signal max
+    - when signal classification data is unavailable (null), the heuristic falls back to checking whether unresolved threads are at or below the low-signal max
     - the low-signal heuristic is applied by `detect-copilot-loop-state.mjs` through the shared `interpretLoopState` / `summarizeLoopInterpretation` contract
     - if yes and the round cap has not been reached, run the smallest honest local validation for the accepted fix scope
     - if that local validation is still known red, continue remediation instead of re-requesting Copilot
@@ -421,7 +421,7 @@ See [Confirmation Rules](../docs/confirmation-rules.md). Stop and ask before Git
 
 ## Stop conditions
 
-Follow [Stop Conditions](../docs/stop-conditions.md). Genuine stops: `blocked` state, `done`/terminal, `approval_ready` without merge auth, ambiguous state, scope drift. Non-stops: `waiting` watcher states, quiet observations.
+Follow [Stop Conditions](../docs/stop-conditions.md). Genuine stops: `blocked` state, `done`, `approval_ready` without merge auth, ambiguous state, scope drift. Non-stops: `waiting` watcher states, quiet observations.
 
 ## Anti-patterns
 

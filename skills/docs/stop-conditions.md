@@ -7,7 +7,7 @@ Canonical owner for agent stop / wait / block conditions across all workflow fam
 | Condition | Strategy | Behavior |
 |---|---|---|
 | `blocked` lifecycle state | all | Stop for human decision |
-| `done` / terminal state | all | Terminal stop |
+| `done` state | all | Terminal stop |
 | `approval_ready` without explicit merge auth | `final_approval` | Stop at approval gate |
 | `merge_ready` without explicit merge auth | all | Stop at `waiting_for_merge_authorization` |
 | Ambiguous / contradictory state | all | Fail closed to `needs_reconcile` |
