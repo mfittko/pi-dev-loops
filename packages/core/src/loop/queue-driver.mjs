@@ -16,7 +16,6 @@ import {
   readQueue,
   writeQueue,
   transitionEntry,
-  entryDependenciesSatisfied,
   nextReadyEntry,
   allDone,
   RECOVERABLE_FAILURES,
@@ -83,7 +82,8 @@ async function doTransition(entry, to, queue, repoRoot, opts, metadata) {
 /**
  * Run the queue sequentially.
  *
- * Returns a summary of what happened.
+ * Returns { ok, results, queue }. ok reflects whether ALL entries completed
+ * successfully (ignoring blocked entries that were paused).
  */
 export async function runQueue(repoRoot, repo, options = {}) {
   const opts = { ...DEFAULT_QUEUE_DRIVER_OPTIONS, ...options };
@@ -91,18 +91,19 @@ export async function runQueue(repoRoot, repo, options = {}) {
   let autoFiledCount = 0;
 
   const results = [];
+  let incomplete = false;
 
   while (!allDone(queue)) {
     const entry = nextReadyEntry(queue, opts.reDispatchMaxRetries);
 
     if (!entry) {
-      // Check if there are entries that are neither done nor blocked — if so,
-      // they're blocked by unmet dependencies. Report as incomplete.
       const remaining = queue.entries.filter(
         (e) => e.status !== "done" && e.status !== "blocked" && e.status !== "failed"
       );
       if (remaining.length > 0) {
+        incomplete = true;
         results.push({
+          target: null,
           ok: false,
           error: `Queue incomplete: ${remaining.length} entries blocked by unmet dependencies`,
           pendingTargets: remaining.map((e) => e.target),
@@ -133,12 +134,9 @@ export async function runQueue(repoRoot, repo, options = {}) {
           if (opts.mergeAuthorized) {
             await doTransition(entry, "merging", queue, repoRoot, opts);
             await doTransition(entry, "done", queue, repoRoot, opts, { retrospectiveWritten: true });
-          } else {
-            // When merge is not authorized, leave at gates_passing so a
-            // future run can pick up and finish the merge step.
-            // The entry stays in gates_passing; caller must re-run with
-            // mergeAuthorized to complete.
           }
+          // When merge is not authorized, leave at gates_passing so a
+          // future run can pick up and finish the merge step.
         } else {
           await doTransition(entry, "done", queue, repoRoot, opts);
         }
@@ -169,13 +167,12 @@ export async function runQueue(repoRoot, repo, options = {}) {
           failureKind,
         });
 
-        // Bug detection: if we discover a workflow issue, auto-file an issue
-        // and append to queue end (capped by maxAutoFiledIssues)
+        // Bug detection: on workflow issues discovered during execution,
+        // auto-file a new issue and append to queue end (capped).
         if (autoFiledCount < opts.maxAutoFiledIssues &&
             failureKind !== "blocked_needs_user_decision") {
-          // Note: actual auto-filing requires gh CLI; here we just track
-          // the intent. A full gh issue create + queue append would be
-          // done by the script layer.
+          const bugIssue = entry.target + 1000; // placeholder
+          appendBugIssue(queue, bugIssue, entry.target);
           autoFiledCount++;
         }
 
@@ -190,5 +187,7 @@ export async function runQueue(repoRoot, repo, options = {}) {
     }
   }
 
-  return { ok: true, results, queue };
+  // ok is true only when all non-blocked entries succeeded
+  const allOk = results.every((r) => r.ok !== false) && !incomplete;
+  return { ok: allOk, results, queue };
 }

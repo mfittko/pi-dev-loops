@@ -161,9 +161,7 @@ export function computeParallelSchedule(entries, maxParallel = 3) {
 
   // Deduplicate: if a target appears in multiple groups, merge those groups
   const merged = [];
-  const seen = new Set();
   for (const group of expandedGroups) {
-    const mergedGroup = new Set(group);
     // Check if any member is already in a previously emitted group
     let mergedWith = -1;
     for (let i = 0; i < merged.length; i++) {

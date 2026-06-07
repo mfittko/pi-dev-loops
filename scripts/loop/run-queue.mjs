@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 /**
- * run-queue.mjs — Thin CLI wrapper for the queue driver.
+ * run-queue.mjs — Queue runner for dev-loop queue mode.
  *
  * Usage:
- *   dev-loops queue run --repo <owner/name> [--merge-authorized] [--parallel]
+ *   dev-loops queue run --repo <owner/name> [--merge-authorized] [--parallel] [--redispatch-max-retries <n>]
  *
- * Accepts queue config from .pi/dev-loop-queue.json.
+ * Reads queue state from .pi/dev-loop-queue.json and drives entries
+ * through the sequential queue driver. Queue config (maxParallel etc.)
+ * lives in .pi/dev-loop/settings.yaml.
+ *
+ * For parallel execution, use --parallel (file-overlap detection is
+ * deferred to a future phase; currently falls back to sequential).
  */
 
 import { fileURLToPath } from "node:url";
@@ -44,10 +49,10 @@ function parseArgs(argv) {
         args.parallel = true;
         break;
       case "--redispatch-max-retries":
-        args.reDispatchMaxRetries = parsePositiveInteger(argv[++i]);
+        args.reDispatchMaxRetries = parsePositiveInteger(argv[++i], "--redispatch-max-retries");
         break;
       case "--max-parallel":
-        args.maxParallel = parsePositiveInteger(argv[++i]);
+        args.maxParallel = parsePositiveInteger(argv[++i], "--max-parallel");
         break;
       case "--help":
       case "-h":
@@ -83,6 +88,9 @@ async function main() {
   console.error(`Queue: ${queue.entries.length} entries, ${pending.length} pending`);
 
   if (args.parallel && pending.length > 1) {
+    // Note: file lists are not resolved from issues yet; real overlap
+    // detection requires fetching issue bodies via gh CLI. For now,
+    // compute a schedule from entry metadata and fall back to sequential.
     const schedule = computeParallelSchedule(
       pending.map((e) => ({
         target: e.target,

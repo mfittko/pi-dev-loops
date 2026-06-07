@@ -14,7 +14,6 @@
 
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { parsePositiveInteger } from "../../packages/core/src/cli/primitives.mjs";
 
 const USAGE = `Usage:
   detect-file-overlap.mjs --repo <owner/name> --issues <n1,n2,...>

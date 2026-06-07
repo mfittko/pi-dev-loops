@@ -177,7 +177,7 @@ test("runQueue pauses on blocked entry, continues others", async () => {
       },
     });
 
-    assert.equal(result.ok, true);
+    assert.equal(result.ok, false);
     const e1 = result.queue.entries.find((e) => e.target === 1);
     const e2 = result.queue.entries.find((e) => e.target === 2);
     assert.equal(e1.status, "blocked");
