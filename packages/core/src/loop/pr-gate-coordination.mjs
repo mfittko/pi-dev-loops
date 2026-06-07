@@ -412,6 +412,53 @@ function buildResult({
   };
 }
 
+
+/**
+ * Guard: detect when Copilot has reviewed the PR without a formal
+ * review request and the gate boundary is pre_approval_gate territory.
+ * Returns true when the pre-approval gate should be blocked and the
+ * caller must run request-copilot-review.mjs first.
+ *
+ * Exception: round-cap clean fallback (rounds exhausted + clean converged)
+ * does not require a formal re-request (#613).
+ *
+ * @param {object} params
+ * @param {string} params.copilotReviewRequestStatus - "none"|"requested"|"already-requested"|"unavailable"|"failed"
+ * @param {number} params.copilotReviewRoundCount
+ * @param {number|null} params.maxCopilotRounds
+ * @param {boolean} params.sameHeadCleanConverged
+ * @param {string} params.gateBoundary - current gate boundary
+ * @returns {boolean}
+ */
+export function shouldGuardCopilotReviewRequest({
+  copilotReviewRequestStatus,
+  copilotReviewRoundCount = 0,
+  maxCopilotRounds = null,
+  sameHeadCleanConverged = false,
+  gateBoundary,
+}) {
+  const gateBoundariesRequiringCopilotFormalRequest = new Set([
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED,
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+    PR_CHECKPOINT.FINAL_APPROVAL_READY,
+  ]);
+  if (!gateBoundariesRequiringCopilotFormalRequest.has(gateBoundary)) {
+    return false;
+  }
+  if (copilotReviewRequestStatus !== "none") {
+    return false;
+  }
+  // Round-cap clean fallback: exhausted rounds + clean converged
+  // does not require a formal re-request.
+  const roundCapReached = maxCopilotRounds !== null
+    && typeof copilotReviewRoundCount === "number"
+    && copilotReviewRoundCount >= maxCopilotRounds;
+  if (roundCapReached && sameHeadCleanConverged) {
+    return false;
+  }
+  return true;
+}
+
 export function evaluatePrGateCoordination(input = {}) {
   const currentHeadSha = typeof input.currentHeadSha === "string" && input.currentHeadSha.trim().length > 0
     ? input.currentHeadSha.trim()

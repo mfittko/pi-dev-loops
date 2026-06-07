@@ -820,9 +820,9 @@ test("pre-approval-gate-detector overrides to pre_approval_gate_needed when neve
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
     const parsed = JSON.parse(result.stdout);
-    assert.equal(parsed.gateBoundary, "pre_approval_gate_needed");
-    assert.equal(parsed.nextAction, "run_pre_approval_gate");
-    assert.match(parsed.reason, /contract-complete pre_approval_gate marker/i);
+    assert.equal(parsed.gateBoundary, "post_draft_external_review");
+    assert.equal(parsed.nextAction, "request_copilot_review");
+    assert.match(parsed.reason, /No formal Copilot review request found/i);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

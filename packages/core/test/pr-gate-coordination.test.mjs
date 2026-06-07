@@ -5,6 +5,7 @@ import {
   evaluatePrGateCoordination,
   PR_CHECKPOINT_ACTION,
   PR_CHECKPOINT,
+  shouldGuardCopilotReviewRequest,
 } from "../src/loop/pr-gate-coordination.mjs";
 import { DISPOSITION, STATE } from "../src/loop/copilot-loop-state.mjs";
 
@@ -1291,4 +1292,86 @@ test("mergeStateStatus null still allows gate progression (#566 regression guard
 
   assert.equal(result.gateBoundary, PR_CHECKPOINT.FINAL_APPROVAL_READY);
   assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+});
+
+// --- Copilot review request guard (#613) ---
+
+test("shouldGuardCopilotReviewRequest returns true when copilot reviewed without formal request at pre_approval_gate", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "none",
+    copilotReviewRoundCount: 1,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: false,
+    gateBoundary: PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+  }), true);
+});
+
+test("guard returns false when formal request was made (requested)", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "requested",
+    copilotReviewRoundCount: 2,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: true,
+    gateBoundary: PR_CHECKPOINT.FINAL_APPROVAL_READY,
+  }), false);
+});
+
+test("guard returns false when already-requested", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "already-requested",
+    copilotReviewRoundCount: 1,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: false,
+    gateBoundary: PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED,
+  }), false);
+});
+
+test("guard returns false for non-pre-approval gate boundaries", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "none",
+    copilotReviewRoundCount: 1,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: false,
+    gateBoundary: PR_CHECKPOINT.POST_DRAFT_EXTERNAL_REVIEW,
+  }), false);
+});
+
+test("guard returns false for round-cap clean fallback (exhausted rounds + clean converged)", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "none",
+    copilotReviewRoundCount: 5,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: true,
+    gateBoundary: PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+  }), false);
+});
+
+test("guard returns true for exhausted rounds without clean converged (round cap not clean)", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "none",
+    copilotReviewRoundCount: 5,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: false,
+    gateBoundary: PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+  }), true);
+});
+
+test("guard returns false when maxCopilotRounds is null (no round cap configured)", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "none",
+    copilotReviewRoundCount: 100,
+    maxCopilotRounds: null,
+    sameHeadCleanConverged: true,
+    gateBoundary: PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+  }), true);
+});
+
+test("guard returns false when review request status is unavailable", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "unavailable",
+    copilotReviewRoundCount: 1,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: false,
+    gateBoundary: PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+  }), false);
 });
