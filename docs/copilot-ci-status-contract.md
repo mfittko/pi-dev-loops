@@ -1,1 +1,0 @@
-../skills/docs/copilot-ci-status-contract.md
