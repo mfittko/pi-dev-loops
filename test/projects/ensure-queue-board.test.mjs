@@ -316,7 +316,7 @@ describe("ensure-queue-board", () => {
   });
 
   describe("exit code classification", () => {
-    it("MISSING_COLUMNS gets code 3 not 2", async () => {
+    it("MISSING_COLUMNS error has code MISSING_COLUMNS", async () => {
       const partialField = {
         id: "PVTSSF_partial", name: "Status",
         options: [{ id: "opt1", name: "Backlog" }],

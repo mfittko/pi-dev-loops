@@ -4,7 +4,7 @@ One-time manual setup for the GitHub Projects V2 board that `dev-loop queue` hel
 
 ## Why a Projects V2 board?
 
-The board provides durable, visible, shared state for queue ordering and item status — without introducing local queue persistence files. Board state is:
+The board provides durable, visible, shared state for queue ordering and item status — complementing the local queue persistence in `.pi/dev-loop-queue.json`. Board state is Board state is:
 
 - **Durable** — survives CI restarts, local machine wipes, and session boundaries
 - **Visible** — operators can inspect and reorder the queue from the GitHub UI

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { runChild as _runChild } from "../_cli-primitives.mjs";
 
 const USAGE = `Usage: node scripts/projects/ensure-queue-board.mjs --repo <owner/name> [--title <title>]
@@ -57,23 +57,32 @@ function parseArgs(argv) {
 
 // ── Validation ───────────────────────────────────────────────────────────
 
-const REPO_SLUG_RE = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
+// Reject: empty segments, `.` / `..` segments, leading/trailing dots, segments
+// that start/end with dot-dash, and anything that isn't exactly owner/name.
+const REPO_SLUG_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9]\/[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9]$/;
 
 function validateRepo(repo) {
   if (!repo || typeof repo !== "string") {
-    throw Object.assign(new Error("--repo is required"), { code: "INVALID_REPO" });
+    throw Object.assign(new Error("--repo is required"), { code: "INVALID_REPO", usage: USAGE });
   }
   const trimmed = repo.trim();
   if (trimmed !== repo) {
     throw Object.assign(
       new Error(`--repo must not have leading/trailing whitespace, got "${repo}"`),
-      { code: "INVALID_REPO" },
+      { code: "INVALID_REPO", usage: USAGE },
     );
   }
   if (!REPO_SLUG_RE.test(repo)) {
     throw Object.assign(
       new Error(`--repo must be exactly owner/name, got "${repo}"`),
-      { code: "INVALID_REPO" },
+      { code: "INVALID_REPO", usage: USAGE },
+    );
+  }
+  // Extra guard: reject path-traversal patterns that could pass regex
+  if (repo.includes("..")) {
+    throw Object.assign(
+      new Error(`--repo must be exactly owner/name, got "${repo}"`),
+      { code: "INVALID_REPO", usage: USAGE },
     );
   }
   return repo;
@@ -216,14 +225,10 @@ async function resolveOwner(login, env, runChild) {
   if (userPayload?.data?.user?.id) {
     return { id: userPayload.data.user.id, kind: "user" };
   }
-  // Try organization
-  try {
-    const orgPayload = await ghGraphql(GET_ORG_ID, { login }, env, runChild);
-    if (orgPayload?.data?.organization?.id) {
-      return { id: orgPayload.data.organization.id, kind: "org" };
-    }
-  } catch {
-    // If org query fails (e.g., not an org), fall through
+  // Try organization (only if user returned null — not for API errors)
+  const orgPayload = await ghGraphql(GET_ORG_ID, { login }, env, runChild);
+  if (orgPayload?.data?.organization?.id) {
+    return { id: orgPayload.data.organization.id, kind: "org" };
   }
   throw Object.assign(
     new Error(`Could not resolve owner ID for "${login}" (not a user or organization)`),
@@ -395,7 +400,6 @@ async function runCli(argv, { stdout = process.stdout, stderr = process.stderr, 
     args = parseArgs(argv);
   } catch (err) {
     stderr.write(`${formatCliError(err)}\n`);
-    if (err.usage) stderr.write(err.usage);
     process.exitCode = 1;
     return;
   }
