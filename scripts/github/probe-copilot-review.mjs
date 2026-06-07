@@ -7,6 +7,10 @@ import {
   DEFAULT_POLL_INTERVAL_MS,
   COPILOT_REVIEW_WAIT_TIMEOUT_MS,
 } from "@pi-dev-loops/core/loop/policy-constants";
+
+/** Maximum interval between heartbeat outputs during watch delays.
+ *  Must be shorter than pi-subagents default needsAttentionAfterMs (60s). */
+const WATCH_HEARTBEAT_MS = 45_000; // 45 seconds
 const REMOVED_FLAGS = new Set([
   "--poll-interval-ms",
   "--timeout-ms",
@@ -240,7 +244,19 @@ export async function watchCopilotReview(
         attempt,
       );
       if (pollDelayMs > 0) {
-        await delay(pollDelayMs);
+        let remainingMs = pollDelayMs;
+        while (remainingMs > 0) {
+          const chunkMs = Math.min(WATCH_HEARTBEAT_MS, remainingMs);
+          await delay(chunkMs);
+          remainingMs -= chunkMs;
+          if (remainingMs > 0) {
+            const elapsedSec = Math.floor((Date.now() - watchStartedAtMs) / 1000);
+            const totalBudgetSec = Math.floor(options.timeoutMs / 1000);
+            process.stdout.write(
+              `Still watching for Copilot review activity... ${elapsedSec}s elapsed of ${totalBudgetSec}s budget (poll ${attempt}/${attemptBudget})\n`,
+            );
+          }
+        }
       }
     }
     const current = parseCopilotActivity(await fetchGithubCopilotActivityPayload(

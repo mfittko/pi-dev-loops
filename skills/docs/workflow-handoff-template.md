@@ -27,14 +27,14 @@ and `control.*` are derived from a static strategy+gate mapping table:
 | Strategy | Gate | criteria | evidence | maxFinalizationTurns | needsAttentionAfterMs |
 |---|---|---|---|---|---|
 | `copilot_pr_followup` | `draft` | AC check, scope, coverage, DoD alignment | commands-run, validation-output, review-findings | 4 | 300000 |
-| `copilot_pr_followup` | `watch` | Copilot activity detection, no stuck watch | commands-run | 2 | 300000 |
+| `copilot_pr_followup` | `watch` | Copilot activity detection, no stuck watch | commands-run | 2 | 1800000 |
 | `copilot_pr_followup` | `pre-approval` | Full pre-approval gate chain, clean verdict, unresolved threads, CI green | commands-run, validation-output, review-findings, residual-risks | 6 | 300000 |
 | `final_approval` | `default` | Gate evidence, human confirmation, CI green | validation-output, manual-notes | 2 | 300000 |
 | `local_implementation` | `default` | Phase-acceptance criteria, verify green | commands-run, validation-output, changed-files | 6 | 300000 |
 | `issue_intake` | `default` | Contract compliance | commands-run, validation-output | 4 | 300000 |
 | `external_pr_followup` | `default` | Contract compliance | commands-run, validation-output | 4 | 300000 |
 | `reviewer_fixer` | `default` | Contract compliance | commands-run, validation-output | 4 | 300000 |
-| `wait_watch` | `default` | Contract compliance | commands-run, validation-output | 4 | 300000 |
+| `wait_watch` | `default` | Contract compliance | commands-run, validation-output | 4 | 1800000 |
 
 Unknown strategy+gate combinations throw an explicit error listing known combos.
 
