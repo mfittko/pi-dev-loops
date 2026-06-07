@@ -46,6 +46,10 @@ const SUBCOMMAND_ROUTES = {
     "ready-for-review": "scripts/github/ready-for-review.mjs",
     "reconcile-draft":  "scripts/github/reconcile-draft-gate.mjs",
   },
+  queue: {
+    parse:          "scripts/loop/run-queue.mjs",
+    run:            "scripts/loop/run-queue.mjs",
+  },
   inspect: {
     run:    "scripts/loop/inspect-run.mjs",
     viewer: "scripts/loop/inspect-run-viewer.mjs",
