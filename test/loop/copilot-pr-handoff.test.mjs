@@ -774,8 +774,8 @@ process.exit(97);
     const env = {
       ...process.env,
       PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
-      GH_REREQUEST_STATE_PATH: requestedStatePath,
       GH_SEQUENCE_PATH: path.join(tempDir, "gh-sequence.json"),
+      GH_REREQUEST_STATE_PATH: requestedStatePath,
     };
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -1072,8 +1072,8 @@ process.exit(97);
     const env = {
       ...process.env,
       PATH: `${tempDir}${path.delimiter}${process.env.PATH}`,
-      GH_REREQUEST_STATE_PATH: requestedStatePath,
       GH_SEQUENCE_PATH: path.join(tempDir, "gh-sequence.json"),
+      GH_REREQUEST_STATE_PATH: requestedStatePath,
     };
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
