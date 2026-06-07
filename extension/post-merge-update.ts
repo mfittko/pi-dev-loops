@@ -238,8 +238,9 @@ export function isGhPrReadyCommand(command: string): boolean {
       if (!remainder) {
         return true;
       }
-      const firstArg = remainder.match(/^(\S+)/)?.[1]?.toLowerCase() ?? '';
-      return !['--help', '-h'].includes(firstArg);
+      // Block interception if --help or -h appears anywhere in the arguments
+      const args = remainder.split(/\s+/).map(a => a.toLowerCase());
+      return !args.includes('--help') && !args.includes('-h');
     });
 }
 
@@ -299,8 +300,8 @@ export function extractRepoFlagFromGhPrReady(command: string): string | null {
           return tokens[i + 1];
         }
       }
-      // Handle --repo=value or -R=value (though -R= is unusual)
-      const repoEqMatch = token.match(/^--repo=(.+)$/i);
+      // Handle --repo=value and -R=value
+      const repoEqMatch = token.match(/^(?:--repo|-R)=(.+)$/i);
       if (repoEqMatch) {
         return repoEqMatch[1];
       }
@@ -362,7 +363,7 @@ export function createPostMergeUpdateHook(
       if (isGhPrReadyCommand(event.command)) {
         // Check if the command explicitly targets a different repo via -R/--repo
         const explicitRepo = extractRepoFlagFromGhPrReady(event.command);
-        if (explicitRepo && explicitRepo !== TARGET_REPO_SLUG) {
+        if (explicitRepo && explicitRepo.toLowerCase() !== TARGET_REPO_SLUG.toLowerCase()) {
           // Explicitly targeting a different repo — pass through
           return undefined;
         }

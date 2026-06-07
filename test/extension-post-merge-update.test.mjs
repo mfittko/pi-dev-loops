@@ -303,6 +303,9 @@ test("isGhPrReadyCommand matches gh pr ready variants", () => {
   assert.equal(isGhPrReadyCommand("gh pr ready 42 --repo mfittko/pi-dev-loops"), true);
   assert.equal(isGhPrReadyCommand("gh pr ready --help"), false);
   assert.equal(isGhPrReadyCommand("gh pr ready -h"), false);
+  assert.equal(isGhPrReadyCommand("gh pr ready 42 --help"), false);
+  assert.equal(isGhPrReadyCommand("gh pr ready 42 -h"), false);
+  assert.equal(isGhPrReadyCommand("gh pr ready --undo 42 --help"), false);
   assert.equal(isGhPrReadyCommand("gh pr merge 42"), false);
   assert.equal(isGhPrReadyCommand("git merge origin/main"), false);
   assert.equal(isGhPrReadyCommand("echo gh pr ready"), false);
@@ -334,6 +337,10 @@ test("extractRepoFlagFromGhPrReady handles -R with --repo in same segment", () =
   assert.equal(extractRepoFlagFromGhPrReady("gh pr ready 42 -R first/repo --repo second/repo"), "first/repo");
   // Only --repo with = syntax
   assert.equal(extractRepoFlagFromGhPrReady("gh pr ready 42 --repo=eq/repo"), "eq/repo");
+  // -R with = syntax
+  assert.equal(extractRepoFlagFromGhPrReady("gh pr ready 42 -R=other/repo"), "other/repo");
+  // Case variations in flag
+  assert.equal(extractRepoFlagFromGhPrReady("gh pr ready 42 -r other/repo"), "other/repo");
 });
 
 test("gh pr ready passes through when -R targets non-target repo", async () => {
@@ -369,7 +376,7 @@ test("gh pr ready passes through when --repo targets non-target repo", async () 
   assert.equal(calls.length, 0);
 });
 
-test("gh pr ready still intercepts when -R targets same repo", async () => {
+test("gh pr ready still intercepts when -R targets same repo (case-insensitive)", async () => {
   const calls = [];
   const hook = createPostMergeUpdateHook({
     resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
@@ -384,9 +391,25 @@ test("gh pr ready still intercepts when -R targets same repo", async () => {
   });
   const { ctx } = createUiCalls();
 
-  const result = await hook.onUserBash({ command: `gh pr ready 42 -R ${TARGET_REPO_SLUG}`, cwd: "/repo" }, ctx);
+  // Exact match
+  let result = await hook.onUserBash({ command: `gh pr ready 42 -R ${TARGET_REPO_SLUG}`, cwd: "/repo" }, ctx);
   assert.notEqual(result, undefined);
-  assert.equal(calls.length, 2);
+
+  // Case-insensitive match
+  const calls2 = [];
+  const hook2 = createPostMergeUpdateHook({
+    resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
+    runCommand: async ({ command, cwd }) => {
+      calls2.push({ command, cwd });
+      if (command.startsWith("node scripts/loop/pre-pr-ready-gate.mjs")) {
+        return { code: 0, stdout: JSON.stringify({ ok: true, draftGateSatisfied: true }), stderr: "", killed: false };
+      }
+      return { code: 0, stdout: "ok", stderr: "", killed: false };
+    },
+  });
+  const upperSlug = TARGET_REPO_SLUG.toUpperCase();
+  const result2 = await hook2.onUserBash({ command: `gh pr ready 42 -R ${upperSlug}`, cwd: "/repo" }, ctx);
+  assert.notEqual(result2, undefined);
 });
 
 test("gh pr ready blocks when draft-gate script fails", async () => {
