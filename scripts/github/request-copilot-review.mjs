@@ -280,6 +280,17 @@ export async function checkForCopilotComments({ repo, pr }, { env = process.env,
   };
 }
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
+  const before = await fetchCopilotReviewState(options, { env, ghCommand });
+  if (before.prData?.isDraft) {
+    return {
+      ok: true,
+      status: SUPPRESSED_DRAFT_STATUS,
+      repo: options.repo,
+      pr: options.pr,
+      reviewer: "Copilot",
+      detail: "PR is in draft state; review requests are blocked until the PR is marked ready for review.",
+    };
+  }
   if (!env.GH_SEQUENCE_PATH) {
     const copilotCommentCheck = await checkForCopilotComments(options, { env, ghCommand });
     if (copilotCommentCheck.blocked) {
@@ -293,17 +304,6 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
         violationCommentIds: copilotCommentCheck.violationCommentIds,
       };
     }
-  }
-  const before = await fetchCopilotReviewState(options, { env, ghCommand });
-  if (before.prData?.isDraft) {
-    return {
-      ok: true,
-      status: SUPPRESSED_DRAFT_STATUS,
-      repo: options.repo,
-      pr: options.pr,
-      reviewer: "Copilot",
-      detail: "PR is in draft state; review requests are blocked until the PR is marked ready for review.",
-    };
   }
   let maxRounds = 5; // Built-in default; overridden by config when loadable
   try {

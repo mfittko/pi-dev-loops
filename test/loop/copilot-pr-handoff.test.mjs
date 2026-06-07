@@ -1764,8 +1764,6 @@ test("copilot-pr-handoff skips human comment check when PI_SUBAGENT_RUN_ID not s
 test("copilot-pr-handoff runs human comment check when PI_SUBAGENT_RUN_ID is set", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-active-"));
 
-  // Clean up any stale runner coordination state from other tests
-  try { await rm(".pi/runner-coordination", { recursive: true, force: true }); } catch {}
   try {
     const HUMAN_COMMENT = JSON.stringify({
       id: 200,
@@ -1804,7 +1802,7 @@ test("copilot-pr-handoff runs human comment check when PI_SUBAGENT_RUN_ID is set
     ]);
 
     const runEnv = { ...env, PI_SUBAGENT_RUN_ID: "run-test-human-pause" };
-    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env: runEnv });
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { cwd: tempDir, env: runEnv });
 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");

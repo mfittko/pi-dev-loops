@@ -182,29 +182,27 @@ export async function detectRecentHumanComments({ repo, pr }, { env = process.en
       env,
     );
     if (result.code !== 0) {
-      // If we can't fetch comments, don't block — best-effort detection
-      return { paused: false };
+      return { paused: false, error: "comment_fetch_failed", detail: "Failed to fetch PR comments; human comment detection unavailable." };
     }
     const lines = result.stdout.trim().split("\n").filter(Boolean);
     if (lines.length === 0) {
-      return { paused: false };
+      return { paused: false, error: "no_comments_fetched", detail: "No comments returned from PR; human comment detection unavailable." };
     }
     let comments;
     try {
       comments = lines.map((line) => JSON.parse(line));
     } catch {
-      return { paused: false };
+      return { paused: false, error: "comment_parse_failed", detail: "Failed to parse PR comments JSON; human comment detection unavailable." };
     }
     if (!Array.isArray(comments)) {
-      return { paused: false };
+      return { paused: false, error: "unexpected_comment_format", detail: "Unexpected PR comments response format; human comment detection unavailable." };
     }
 
     // Find the most recent bot/Copilot comment timestamp (last subagent action)
     let lastBotActionMs = null;
     for (const comment of comments) {
       const authorLogin = comment?.user?.login ?? "";
-      const authorType = comment?.user?.type ?? "";
-      if (authorType !== "Bot" && !isCopilotLogin(authorLogin)) {
+      if (!isCopilotLogin(authorLogin)) {
         continue;
       }
       const createdAt = normalizeTimestamp(comment?.created_at);
@@ -249,7 +247,7 @@ export async function detectRecentHumanComments({ repo, pr }, { env = process.en
       lastBotCommentAt: lastBotActionMs !== null ? new Date(lastBotActionMs).toISOString() : undefined,
     };
   } catch {
-    return { paused: false };
+    return { paused: false, error: "unexpected_error", detail: "Unexpected error during human comment detection." };
   }
 }
 
@@ -308,7 +306,8 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       { env, ghCommand },
     );
   }
-  if (humanCommentCheck.paused) {
+  const TERMINAL_STATES = new Set([STATE.NO_PR, STATE.DONE, STATE.BLOCKED_NEEDS_USER_DECISION]);
+  if (humanCommentCheck.paused && !TERMINAL_STATES.has(interpretation.state)) {
     return {
       ok: true,
       action: "stop",
@@ -321,6 +320,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       loopDisposition: "blocked",
       terminal: true,
       snapshot,
+      runnerOwnership,
       humanCommentPause: {
         reason: "human_comment_detected",
         humanComments: humanCommentCheck.humanComments,
