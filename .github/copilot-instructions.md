@@ -14,7 +14,7 @@ Structural quality → `../skills/docs/structural-quality.md`
 
 ## Per-strategy entrypoint briefings (30-50 lines each)
 
-`../skills/docs/entrypoint-briefing-*.md` — load the one for the routed strategy.
+`../skills/docs/entrypoint-strategies.md` — load the per-strategy section for the routed strategy.
 
 ## Key helpers
 
