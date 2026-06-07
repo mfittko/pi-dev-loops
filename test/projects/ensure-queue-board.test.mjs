@@ -20,13 +20,45 @@ function mockRunChild(responses) {
 
 // ── Fixtures ────────────────────────────────────────────────────────────
 
-const USER_ID_RESPONSE = {
-  data: { user: { id: "U_kgDOABC123" } },
-};
+function userPayload() {
+  return { data: { user: { id: "U_kgDOABC123" } } };
+}
 
-function listProjectsResponse(projects) {
+function orgPayload() {
+  return { data: { organization: { id: "O_kgDOXYZ789" } } };
+}
+
+function noUserPayload() {
+  return { data: { user: null } };
+}
+
+function noOrgPayload() {
+  return { data: { organization: null } };
+}
+
+function listUserProjectsResponse(projects) {
   return {
-    data: { user: { projectsV2: { nodes: projects } } },
+    data: {
+      user: {
+        projectsV2: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: projects,
+        },
+      },
+    },
+  };
+}
+
+function listOrgProjectsResponse(projects) {
+  return {
+    data: {
+      organization: {
+        projectsV2: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: projects,
+        },
+      },
+    },
   };
 }
 
@@ -70,10 +102,10 @@ const EXISTING_PROJECT = {
 
 describe("ensure-queue-board", () => {
   describe("create path", () => {
-    it("creates project and Status field when board does not exist", async () => {
+    it("creates project and Status field when board does not exist (user)", async () => {
       const responses = [
-        { payload: USER_ID_RESPONSE },
-        { payload: listProjectsResponse([]) },
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([]) },
         {
           payload: createProjectResponse({
             id: "PVT_new",
@@ -83,10 +115,7 @@ describe("ensure-queue-board", () => {
           }),
         },
         {
-          payload: createFieldResponse({
-            id: "PVTSSF_new",
-            name: "Status",
-          }),
+          payload: createFieldResponse({ id: "PVTSSF_new", name: "Status" }),
         },
       ];
       const result = await main(
@@ -101,23 +130,43 @@ describe("ensure-queue-board", () => {
       assert.equal(result.project.statusFieldId, "PVTSSF_new");
     });
 
-    it("uses custom title", async () => {
+    it("creates project for org owner", async () => {
       const responses = [
-        { payload: USER_ID_RESPONSE },
-        { payload: listProjectsResponse([]) },
+        { payload: noUserPayload() },
+        { payload: orgPayload() },
+        { payload: listOrgProjectsResponse([]) },
         {
           payload: createProjectResponse({
-            id: "PVT_custom",
-            number: 3,
-            title: "My Queue",
+            id: "PVT_org",
+            number: 1,
+            title: "Dev Loop Queue",
+            url: "https://github.com/orgs/myorg/projects/1",
+          }),
+        },
+        {
+          payload: createFieldResponse({ id: "PVTSSF_org", name: "Status" }),
+        },
+      ];
+      const result = await main(
+        { repo: "myorg/repo" },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.project.number, 1);
+    });
+
+    it("uses custom title", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([]) },
+        {
+          payload: createProjectResponse({
+            id: "PVT_custom", number: 3, title: "My Queue",
             url: "https://github.com/users/mfittko/projects/3",
           }),
         },
         {
-          payload: createFieldResponse({
-            id: "PVTSSF_custom",
-            name: "Status",
-          }),
+          payload: createFieldResponse({ id: "PVTSSF_custom", name: "Status" }),
         },
       ];
       const result = await main(
@@ -132,8 +181,8 @@ describe("ensure-queue-board", () => {
   describe("already-exists path", () => {
     it("returns existing project when board and Status field exist", async () => {
       const responses = [
-        { payload: USER_ID_RESPONSE },
-        { payload: listProjectsResponse([EXISTING_PROJECT]) },
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
         { payload: getFieldsResponse([STATUS_FIELD]) },
       ];
       const result = await main(
@@ -149,14 +198,11 @@ describe("ensure-queue-board", () => {
 
     it("creates Status field when project exists but field is missing", async () => {
       const responses = [
-        { payload: USER_ID_RESPONSE },
-        { payload: listProjectsResponse([EXISTING_PROJECT]) },
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
         { payload: getFieldsResponse([]) },
         {
-          payload: createFieldResponse({
-            id: "PVTSSF_new",
-            name: "Status",
-          }),
+          payload: createFieldResponse({ id: "PVTSSF_new", name: "Status" }),
         },
       ];
       const result = await main(
@@ -168,42 +214,79 @@ describe("ensure-queue-board", () => {
     });
 
     it("throws on missing columns in existing Status field", async () => {
-      const partialStatusField = {
-        id: "PVTSSF_partial",
-        name: "Status",
-        options: [{ id: "opt1", name: "Backlog" }], // missing Next Up, In Progress, Done
+      const partialField = {
+        id: "PVTSSF_partial", name: "Status",
+        options: [{ id: "opt1", name: "Backlog" }],
       };
       const responses = [
-        { payload: USER_ID_RESPONSE },
-        { payload: listProjectsResponse([EXISTING_PROJECT]) },
-        { payload: getFieldsResponse([partialStatusField]) },
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([partialField]) },
       ];
       await assert.rejects(
         () => main({ repo: "mfittko/pi-dev-loops" }, { env: {}, runChild: mockRunChild(responses) }),
         /missing columns/,
       );
     });
+
+    it("handles paginated project listing (>50 projects)", async () => {
+      const page1 = {
+        data: {
+          user: {
+            projectsV2: {
+              pageInfo: { hasNextPage: true, endCursor: "cursor1" },
+              nodes: Array.from({ length: 50 }, (_, i) => ({
+                id: `PVT_${i}`, number: i, title: `Project ${i}`,
+                url: `https://github.com/users/mfittko/projects/${i}`,
+              })),
+            },
+          },
+        },
+      };
+      const page2 = {
+        data: {
+          user: {
+            projectsV2: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [EXISTING_PROJECT],
+            },
+          },
+        },
+      };
+      const responses = [
+        { payload: userPayload() },
+        { payload: page1 },
+        { payload: page2 },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops" },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.project.number, 1);
+    });
   });
 
   describe("error paths", () => {
-    it("throws on invalid repo", async () => {
-      await assert.rejects(
-        () => main({ repo: "not-a-repo" }),
-        /owner\/name/,
-      );
+    it("throws on invalid repo format", async () => {
+      await assert.rejects(() => main({ repo: "not-a-repo" }), /owner\/name/);
+    });
+
+    it("throws on repo with extra segments", async () => {
+      await assert.rejects(() => main({ repo: "a/b/c" }), /owner\/name/);
+    });
+
+    it("throws on whitespace-padded repo", async () => {
+      await assert.rejects(() => main({ repo: " owner/repo " }), /whitespace/);
     });
 
     it("throws on missing repo", async () => {
-      await assert.rejects(
-        () => main({}),
-        /owner\/name/,
-      );
+      await assert.rejects(() => main({}), /required/);
     });
 
     it("throws on GraphQL API error", async () => {
-      const responses = [
-        { error: "gh: authentication required" },
-      ];
+      const responses = [{ error: "gh: authentication required" }];
       await assert.rejects(
         () => main({ repo: "mfittko/pi-dev-loops" }, { env: {}, runChild: mockRunChild(responses) }),
         /gh api graphql failed/,
@@ -211,27 +294,44 @@ describe("ensure-queue-board", () => {
     });
 
     it("throws on GraphQL errors in payload", async () => {
-      const responses = [
-        {
-          payload: {
-            errors: [{ message: "Could not resolve to a User" }],
-          },
-        },
-      ];
+      const responses = [{
+        payload: { errors: [{ message: "Could not resolve to a User" }] },
+      }];
       await assert.rejects(
         () => main({ repo: "mfittko/pi-dev-loops" }, { env: {}, runChild: mockRunChild(responses) }),
         /GraphQL errors/,
       );
     });
 
-    it("throws when user ID cannot be resolved", async () => {
+    it("throws when neither user nor org resolves", async () => {
       const responses = [
-        { payload: { data: { user: null } } },
+        { payload: noUserPayload() },
+        { payload: noOrgPayload() },
       ];
       await assert.rejects(
         () => main({ repo: "mfittko/pi-dev-loops" }, { env: {}, runChild: mockRunChild(responses) }),
-        /Could not resolve user ID/,
+        /Could not resolve owner ID/,
       );
+    });
+  });
+
+  describe("exit code classification", () => {
+    it("MISSING_COLUMNS gets code 3 not 2", async () => {
+      const partialField = {
+        id: "PVTSSF_partial", name: "Status",
+        options: [{ id: "opt1", name: "Backlog" }],
+      };
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([partialField]) },
+      ];
+      try {
+        await main({ repo: "mfittko/pi-dev-loops" }, { env: {}, runChild: mockRunChild(responses) });
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "MISSING_COLUMNS");
+      }
     });
   });
 });

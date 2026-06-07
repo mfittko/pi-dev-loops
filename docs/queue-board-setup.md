@@ -80,7 +80,7 @@ Dev-loop queue wrappers will:
 - **Reorder** items when the operator adjusts priority via `--after` dependencies or manual intervention
 - **Fall back** gracefully when the board is absent: positional argument order takes over, and no board mutations are attempted
 
-Helper commands for these operations live in `scripts/projects/` alongside the bootstrap wrapper.
+Helper commands for these operations will be added in future PRs alongside the bootstrap wrapper.
 
 ### Fail-closed behavior
 

@@ -17,20 +17,66 @@ Exit codes:
   0 — board exists or was created successfully (idempotent)
   1 — usage or argument error
   2 — GitHub API error
+  3 — board schema/config mismatch (manual reconciliation needed)
 `;
+
+const VALID_ARGS = new Set(["--repo", "--title", "--help", "-h"]);
 
 function parseArgs(argv) {
   const args = { title: "Dev Loop Queue" };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--repo" && i + 1 < argv.length) {
+    const arg = argv[i];
+    if (!VALID_ARGS.has(arg) && arg.startsWith("-")) {
+      throw Object.assign(
+        new Error(`Unknown flag: ${arg}`),
+        { code: "INVALID_REPO", usage: USAGE },
+      );
+    }
+    if (arg === "--repo") {
+      if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+        throw Object.assign(
+          new Error("--repo requires a value (owner/name)"),
+          { code: "INVALID_REPO", usage: USAGE },
+        );
+      }
       args.repo = argv[++i];
-    } else if (argv[i] === "--title" && i + 1 < argv.length) {
+    } else if (arg === "--title") {
+      if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+        throw Object.assign(
+          new Error("--title requires a value"),
+          { code: "INVALID_REPO", usage: USAGE },
+        );
+      }
       args.title = argv[++i];
-    } else if (argv[i] === "--help" || argv[i] === "-h") {
+    } else if (arg === "--help" || arg === "-h") {
       args.help = true;
     }
   }
   return args;
+}
+
+// ── Validation ───────────────────────────────────────────────────────────
+
+const REPO_SLUG_RE = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
+
+function validateRepo(repo) {
+  if (!repo || typeof repo !== "string") {
+    throw Object.assign(new Error("--repo is required"), { code: "INVALID_REPO" });
+  }
+  const trimmed = repo.trim();
+  if (trimmed !== repo) {
+    throw Object.assign(
+      new Error(`--repo must not have leading/trailing whitespace, got "${repo}"`),
+      { code: "INVALID_REPO" },
+    );
+  }
+  if (!REPO_SLUG_RE.test(repo)) {
+    throw Object.assign(
+      new Error(`--repo must be exactly owner/name, got "${repo}"`),
+      { code: "INVALID_REPO" },
+    );
+  }
+  return repo;
 }
 
 // ── API helpers ──────────────────────────────────────────────────────────
@@ -69,10 +115,41 @@ const GET_USER_ID = [
   "}"
 ].join("\n");
 
-const LIST_PROJECTS = [
+const GET_ORG_ID = [
   "query($login:String!) {",
+  "  organization(login:$login) {",
+  "    id",
+  "  }",
+  "}"
+].join("\n");
+
+const LIST_USER_PROJECTS = [
+  "query($login:String!, $after:String) {",
   "  user(login:$login) {",
-  "    projectsV2(first:50) {",
+  "    projectsV2(first:50, after:$after) {",
+  "      pageInfo {",
+  "        hasNextPage",
+  "        endCursor",
+  "      }",
+  "      nodes {",
+  "        id",
+  "        number",
+  "        title",
+  "        url",
+  "      }",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+const LIST_ORG_PROJECTS = [
+  "query($login:String!, $after:String) {",
+  "  organization(login:$login) {",
+  "    projectsV2(first:50, after:$after) {",
+  "      pageInfo {",
+  "        hasNextPage",
+  "        endCursor",
+  "      }",
   "      nodes {",
   "        id",
   "        number",
@@ -131,33 +208,78 @@ const CREATE_SINGLE_SELECT_FIELD = [
   "}"
 ].join("\n");
 
+// ── Owner resolution ────────────────────────────────────────────────────
+
+async function resolveOwner(login, env, runChild) {
+  // Try user first
+  const userPayload = await ghGraphql(GET_USER_ID, { login }, env, runChild);
+  if (userPayload?.data?.user?.id) {
+    return { id: userPayload.data.user.id, kind: "user" };
+  }
+  // Try organization
+  try {
+    const orgPayload = await ghGraphql(GET_ORG_ID, { login }, env, runChild);
+    if (orgPayload?.data?.organization?.id) {
+      return { id: orgPayload.data.organization.id, kind: "org" };
+    }
+  } catch {
+    // If org query fails (e.g., not an org), fall through
+  }
+  throw Object.assign(
+    new Error(`Could not resolve owner ID for "${login}" (not a user or organization)`),
+    { code: "NO_USER_ID" },
+  );
+}
+
+// ── Paginated project listing ────────────────────────────────────────────
+
+async function listAllProjects(login, kind, env, runChild) {
+  const query = kind === "org" ? LIST_ORG_PROJECTS : LIST_USER_PROJECTS;
+  const projects = [];
+  let after = null;
+  while (true) {
+    const vars = { login };
+    if (after) vars.after = after;
+    const payload = await ghGraphql(query, vars, env, runChild);
+    const connection = kind === "org"
+      ? payload?.data?.organization?.projectsV2
+      : payload?.data?.user?.projectsV2;
+    const nodes = connection?.nodes ?? [];
+    projects.push(...nodes);
+    const pageInfo = connection?.pageInfo ?? {};
+    if (!pageInfo.hasNextPage) break;
+    if (!pageInfo.endCursor) {
+      throw Object.assign(
+        new Error("Invalid projects list payload: hasNextPage is true but endCursor is missing"),
+        { code: "GH_API_ERROR" },
+      );
+    }
+    after = pageInfo.endCursor;
+  }
+  return projects;
+}
+
+// ── Exit code classification ────────────────────────────────────────────
+
+function classifyExitCode(err) {
+  if (err.code === "INVALID_REPO") return 1;
+  if (err.code === "MISSING_COLUMNS") return 3;
+  return 2;
+}
+
 // ── Main logic ──────────────────────────────────────────────────────────
 
 async function main(args, { env = process.env, runChild } = {}) {
   const child = runChild ?? _runChild;
-  const repo = args.repo;
-  if (!repo || typeof repo !== "string" || !repo.includes("/")) {
-    throw Object.assign(
-      new Error(`--repo is required and must be owner/name, got "${repo}"`),
-      { code: "INVALID_REPO" },
-    );
-  }
+  const repo = validateRepo(args.repo);
   const [owner] = repo.split("/");
   const title = args.title || "Dev Loop Queue";
 
-  // 1. Resolve owner ID
-  const userIdPayload = await ghGraphql(GET_USER_ID, { login: owner }, env, child);
-  const ownerId = userIdPayload?.data?.user?.id;
-  if (!ownerId) {
-    throw Object.assign(
-      new Error(`Could not resolve user ID for "${owner}"`),
-      { code: "NO_USER_ID" },
-    );
-  }
+  // 1. Resolve owner (user or org)
+  const { id: ownerId, kind: ownerKind } = await resolveOwner(owner, env, child);
 
-  // 2. Look for existing project by title
-  const listPayload = await ghGraphql(LIST_PROJECTS, { login: owner }, env, child);
-  const projects = listPayload?.data?.user?.projectsV2?.nodes ?? [];
+  // 2. Look for existing project by title (paginated)
+  const projects = await listAllProjects(owner, ownerKind, env, child);
   let project = projects.find((p) => p.title === title);
 
   if (project) {
@@ -268,7 +390,15 @@ async function main(args, { env = process.env, runChild } = {}) {
 // ── CLI entrypoint ──────────────────────────────────────────────────────
 
 async function runCli(argv, { stdout = process.stdout, stderr = process.stderr, env = process.env } = {}) {
-  const args = parseArgs(argv);
+  let args;
+  try {
+    args = parseArgs(argv);
+  } catch (err) {
+    stderr.write(`${formatCliError(err)}\n`);
+    if (err.usage) stderr.write(err.usage);
+    process.exitCode = 1;
+    return;
+  }
   if (args.help) {
     stdout.write(USAGE);
     return;
@@ -277,13 +407,8 @@ async function runCli(argv, { stdout = process.stdout, stderr = process.stderr, 
     const result = await main(args, { env });
     stdout.write(JSON.stringify(result) + "\n");
   } catch (err) {
-    if (err.code === "INVALID_REPO") {
-      stderr.write(`${formatCliError(err)}\n`);
-      process.exitCode = 1;
-      return;
-    }
     stderr.write(`${formatCliError(err)}\n`);
-    process.exitCode = 2;
+    process.exitCode = classifyExitCode(err);
   }
 }
 
