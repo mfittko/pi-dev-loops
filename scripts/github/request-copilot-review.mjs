@@ -224,7 +224,21 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     const classified = classifyRequestFailure(detail);
     if (classified === "unavailable") {
-      const existing = await fetchCopilotReviewIds({ repo, pr }, { env, ghCommand });
+      let existing;
+      try {
+        existing = await fetchCopilotReviewIds({ repo, pr }, { env, ghCommand });
+      } catch {
+        // Best-effort: if gh pr view fails transiently (rate limit, network, auth),
+        // return unavailable rather than throwing — the 422 failure is already stable.
+        return {
+          ok: true,
+          status: "unavailable",
+          repo,
+          pr,
+          reviewer: "Copilot",
+          detail,
+        };
+      }
       if (existing.hasCopilotPendingReviewOnCurrentHead || existing.hasCopilotSubmittedReviewOnCurrentHead) {
         return {
           ok: true,
