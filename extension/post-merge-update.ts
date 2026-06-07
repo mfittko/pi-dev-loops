@@ -262,9 +262,11 @@ export function extractPrNumberFromGhPrReady(command: string): number | null {
       }
       continue;
     }
-    const num = parseInt(token, 10);
-    if (!isNaN(num) && num > 0) {
-      return num;
+    if (/^\d+$/.test(token)) {
+      const num = Number(token);
+      if (num > 0) {
+        return num;
+      }
     }
     // Non-numeric non-flag token — not a PR number
     return null;

@@ -321,6 +321,8 @@ test("extractPrNumberFromGhPrReady extracts the PR number", () => {
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready --repo mfittko/pi-dev-loops 42"), 42);
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready -r other/repo 42"), 42);
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready --REPO other/repo 42"), 42);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready 42abc"), null);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready abc42"), null);
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready"), null);
   assert.equal(extractPrNumberFromGhPrReady("gh pr ready --help"), null);
   assert.equal(extractPrNumberFromGhPrReady("gh pr merge 42"), null);
