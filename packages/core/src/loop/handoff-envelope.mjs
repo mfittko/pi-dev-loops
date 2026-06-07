@@ -528,7 +528,7 @@ export function validateHandoffEnvelope(envelope) {
 
   // ----- target -----
   if (!envelope.target || typeof envelope.target !== "object") {
-    errors.push({ field: "target", reason: "must be an object with kind and repo" });
+    errors.push({ field: "target", reason: "must be an object with kind and repo", got: String(envelope.target) });
   } else {
     if (!envelope.target.kind || !VALID_TARGET_KINDS.includes(envelope.target.kind)) {
       errors.push({
@@ -571,12 +571,12 @@ export function validateHandoffEnvelope(envelope) {
       }
     }
     if (kind === "local_branch" && (typeof envelope.target.branch !== "string" || !envelope.target.branch.trim())) {
-      errors.push({ field: "target.branch", reason: "required for local_branch target kind" });
+      errors.push({ field: "target.branch", reason: "required for local_branch target kind", got: envelope.target.branch });
     }
     if (kind === "local_phase") {
       if (!Number.isInteger(envelope.target.issue) || envelope.target.issue < 1) {
         if (typeof envelope.target.phase !== "string" || !envelope.target.phase.trim()) {
-          errors.push({ field: "target.phase", reason: "required for local_phase target kind" });
+          errors.push({ field: "target.phase", reason: "required for local_phase target kind", got: envelope.target.phase });
         }
       }
     }
@@ -593,7 +593,7 @@ export function validateHandoffEnvelope(envelope) {
 
   // ----- requiredReads -----
   if (!Array.isArray(envelope.requiredReads)) {
-    errors.push({ field: "requiredReads", reason: "must be an array", got: String(envelope.requiredReads) });
+    errors.push({ field: "requiredReads", reason: "must be an array", got: envelope.requiredReads });
   } else if (envelope.requiredReads.length === 0) {
     warnings.push({ field: "requiredReads", reason: "array is empty — no files to load" });
   } else {
@@ -607,18 +607,19 @@ export function validateHandoffEnvelope(envelope) {
       errors.push({
         field: "requiredReads",
         reason: `entries at indices [${bad.join(",")}] must be non-empty strings`,
+        got: envelope.requiredReads,
       });
     }
   }
 
   // ----- acceptance -----
   if (!envelope.acceptance || typeof envelope.acceptance !== "object") {
-    errors.push({ field: "acceptance", reason: "must be an object with criteria array" });
+    errors.push({ field: "acceptance", reason: "must be an object with criteria array", got: String(envelope.acceptance) });
   } else {
     if (!Array.isArray(envelope.acceptance.criteria)) {
-      errors.push({ field: "acceptance.criteria", reason: "must be an array", got: String(envelope.acceptance.criteria) });
+      errors.push({ field: "acceptance.criteria", reason: "must be an array", got: envelope.acceptance.criteria });
     } else if (envelope.acceptance.criteria.length === 0) {
-      errors.push({ field: "acceptance.criteria", reason: "must not be empty" });
+      errors.push({ field: "acceptance.criteria", reason: "must not be empty", got: envelope.acceptance.criteria });
     } else {
       const VALID_SEVERITIES = ["required", "recommended"];
       const bad = [];
@@ -635,6 +636,7 @@ export function validateHandoffEnvelope(envelope) {
         errors.push({
           field: "acceptance.criteria",
           reason: `entries at indices [${bad.join(",")}] must have valid id, must, and severity fields`,
+          got: envelope.acceptance.criteria,
         });
       }
     }
@@ -642,7 +644,7 @@ export function validateHandoffEnvelope(envelope) {
 
   // ----- stopRules -----
   if (!Array.isArray(envelope.stopRules)) {
-    errors.push({ field: "stopRules", reason: "must be an array", got: String(envelope.stopRules) });
+    errors.push({ field: "stopRules", reason: "must be an array", got: envelope.stopRules });
   } else {
     const bad = [];
     for (let i = 0; i < envelope.stopRules.length; i++) {
@@ -654,6 +656,7 @@ export function validateHandoffEnvelope(envelope) {
       errors.push({
         field: "stopRules",
         reason: `entries at indices [${bad.join(",")}] must be strings`,
+        got: envelope.stopRules,
       });
     }
   }
