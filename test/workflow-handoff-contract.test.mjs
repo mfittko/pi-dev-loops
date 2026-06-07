@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
-const templatePath = path.resolve("skills/docs/workflow-handoff-template.md");
+const templatePath = path.resolve("skills/docs/workflow-handoff-contract.md");
 
 let templateContent = null;
 
@@ -14,18 +14,18 @@ async function readTemplate() {
   return templateContent;
 }
 
-test("workflow-handoff-template exists and is non-empty", async () => {
+test("workflow-handoff-contract exists and is non-empty", async () => {
   const content = await readTemplate();
   assert.ok(content.length > 100, "template should have substantial content");
 });
 
-test("workflow-handoff-template declares itself as a derivation contract", async () => {
+test("workflow-handoff-contract declares itself as a derivation contract", async () => {
   const content = await readTemplate();
   assert.match(content, /derivation contract/i);
   assert.match(content, /buildDevLoopHandoffEnvelope/);
 });
 
-test("workflow-handoff-template documents three authoritative sources", async () => {
+test("workflow-handoff-contract documents three authoritative sources", async () => {
   const content = await readTemplate();
 
   assert.match(content, /Resolver output/i);
@@ -35,7 +35,7 @@ test("workflow-handoff-template documents three authoritative sources", async ()
   assert.match(content, /Gate state/i);
 });
 
-test("workflow-handoff-template includes acceptance template table", async () => {
+test("workflow-handoff-contract includes acceptance template table", async () => {
   const content = await readTemplate();
 
   // Each strategy+gate combo must be documented
@@ -47,7 +47,7 @@ test("workflow-handoff-template includes acceptance template table", async () =>
   assert.match(content, /issue_intake/i);
 });
 
-test("workflow-handoff-template documents stop rules derivation", async () => {
+test("workflow-handoff-contract documents stop rules derivation", async () => {
   const content = await readTemplate();
 
   assert.match(content, /stop rules/i);
@@ -55,7 +55,7 @@ test("workflow-handoff-template documents stop rules derivation", async () => {
   assert.match(content, /strategy defaults/i);
 });
 
-test("workflow-handoff-template includes envelope schema", async () => {
+test("workflow-handoff-contract includes envelope schema", async () => {
   const content = await readTemplate();
 
   assert.match(content, /handoffVersion:\s*1/);
@@ -69,7 +69,7 @@ test("workflow-handoff-template includes envelope schema", async () => {
   assert.match(content, /needsAttentionAfterMs:\s*number/);
 });
 
-test("workflow-handoff-template documents agent consumption pattern", async () => {
+test("workflow-handoff-contract documents agent consumption pattern", async () => {
   const content = await readTemplate();
 
   assert.match(content, /Agent consumption pattern/i);
@@ -78,7 +78,7 @@ test("workflow-handoff-template documents agent consumption pattern", async () =
   assert.match(content, /nextAction/);
 });
 
-test("workflow-handoff-template includes backward compatibility note", async () => {
+test("workflow-handoff-contract includes backward compatibility note", async () => {
   const content = await readTemplate();
 
   assert.match(content, /Backward compatibility/i);
@@ -86,7 +86,7 @@ test("workflow-handoff-template includes backward compatibility note", async () 
   assert.match(content, /subagent/);
 });
 
-test("workflow-handoff-template lists non-goals", async () => {
+test("workflow-handoff-contract lists non-goals", async () => {
   const content = await readTemplate();
 
   assert.match(content, /Non-goals/i);
@@ -94,7 +94,7 @@ test("workflow-handoff-template lists non-goals", async () => {
   assert.match(content, /UI\/UX/i);
 });
 
-test("workflow-handoff-template mentions unknown combos throw explicit errors", async () => {
+test("workflow-handoff-contract mentions unknown combos throw explicit errors", async () => {
   const content = await readTemplate();
 
   assert.match(content, /Unknown strategy.*gate combinations throw/i);
