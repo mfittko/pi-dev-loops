@@ -243,21 +243,15 @@ function parseTopLevelCommand(argv) {
 
   // Backward compat: dev-loops review <sub> → dev-loops gate <sub> (deprecated)
   if (cmd === "review") {
-    const reviewRoutes = SUBCOMMAND_ROUTES["review"];
-    // If second arg is --help/-h or missing, show deprecation + gate category help
+    // Bare review / review --help → show deprecation + gate help
     if (!sub || sub === "--help" || sub === "-h") {
       return { kind: "review_deprecation_help" };
     }
-    // Check if any remaining arg is --help — delegate to script
-    if (args.slice(1).some((a) => a === "--help" || a === "-h")) {
-      const scriptPath = reviewRoutes[sub];
-      if (!scriptPath) return { kind: "review_deprecation_help" };
-      return { kind: "review_deprecation_subcommand_help", subcommand: sub, scriptPath: path.resolve(REPO_ROOT, scriptPath) };
-    }
-    const route = resolveSubcommandRoute(["review", ...args.slice(1)]);
+    // Route through gate routes so all 7 subcommands are available
+    const route = resolveSubcommandRoute(["gate", ...args.slice(1)]);
     if (route) {
       if (route.error) {
-        return { kind: "review_deprecation_subcommand_error", error: route.error.replace("'review'", "'gate'") };
+        return { kind: "review_deprecation_subcommand_error", error: route.error };
       }
       return { kind: "review_deprecation_subcommand", subcommand: sub, ...route };
     }
