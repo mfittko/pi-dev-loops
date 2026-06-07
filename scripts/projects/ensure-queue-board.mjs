@@ -57,9 +57,10 @@ function parseArgs(argv) {
 
 // ── Validation ───────────────────────────────────────────────────────────
 
-// Reject: empty segments, `.` / `..` segments, leading/trailing dots, segments
-// that start/end with dot-dash, and anything that isn't exactly owner/name.
-const REPO_SLUG_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9]\/[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9]$/;
+// GitHub slug rules: 1-39 alnum/dash chars, no leading/trailing dash, no consecutive dashes.
+// Single-char owner/repo names are valid (e.g. a/b).
+const OWNER_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
+const REPO_NAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])?$/;
 
 function validateRepo(repo) {
   if (!repo || typeof repo !== "string") {
@@ -72,14 +73,22 @@ function validateRepo(repo) {
       { code: "INVALID_REPO", usage: USAGE },
     );
   }
-  if (!REPO_SLUG_RE.test(repo)) {
+  const slashIdx = repo.indexOf("/");
+  if (slashIdx === -1) {
     throw Object.assign(
       new Error(`--repo must be exactly owner/name, got "${repo}"`),
       { code: "INVALID_REPO", usage: USAGE },
     );
   }
-  // Extra guard: reject path-traversal patterns that could pass regex
-  if (repo.includes("..")) {
+  const owner = repo.slice(0, slashIdx);
+  const name = repo.slice(slashIdx + 1);
+  if (!owner || !name) {
+    throw Object.assign(
+      new Error(`--repo must be exactly owner/name, got "${repo}"`),
+      { code: "INVALID_REPO", usage: USAGE },
+    );
+  }
+  if (!OWNER_RE.test(owner) || !REPO_NAME_RE.test(name)) {
     throw Object.assign(
       new Error(`--repo must be exactly owner/name, got "${repo}"`),
       { code: "INVALID_REPO", usage: USAGE },
@@ -184,10 +193,14 @@ const CREATE_PROJECT = [
 ].join("\n");
 
 const GET_PROJECT_FIELDS = [
-  "query($projectId:ID!) {",
+  "query($projectId:ID!, $after:String) {",
   "  node(id:$projectId) {",
   "    ... on ProjectV2 {",
-  "      fields(first:50) {",
+  "      fields(first:50, after:$after) {",
+  "        pageInfo {",
+  "          hasNextPage",
+  "          endCursor",
+  "        }",
   "        nodes {",
   "          ... on ProjectV2SingleSelectField {",
   "            id",
@@ -264,6 +277,31 @@ async function listAllProjects(login, kind, env, runChild) {
   return projects;
 }
 
+// ── Paginated field listing ──────────────────────────────────────────────
+
+async function listAllFields(projectId, env, runChild) {
+  const fields = [];
+  let after = null;
+  while (true) {
+    const vars = { projectId };
+    if (after) vars.after = after;
+    const payload = await ghGraphql(GET_PROJECT_FIELDS, vars, env, runChild);
+    const connection = payload?.data?.node?.fields;
+    const nodes = connection?.nodes ?? [];
+    fields.push(...nodes);
+    const pageInfo = connection?.pageInfo ?? {};
+    if (!pageInfo.hasNextPage) break;
+    if (!pageInfo.endCursor) {
+      throw Object.assign(
+        new Error("Invalid fields payload: hasNextPage is true but endCursor is missing"),
+        { code: "GH_API_ERROR" },
+      );
+    }
+    after = pageInfo.endCursor;
+  }
+  return fields;
+}
+
 // ── Exit code classification ────────────────────────────────────────────
 
 function classifyExitCode(err) {
@@ -288,9 +326,8 @@ async function main(args, { env = process.env, runChild } = {}) {
   let project = projects.find((p) => p.title === title);
 
   if (project) {
-    // Project exists — verify Status field
-    const fieldsPayload = await ghGraphql(GET_PROJECT_FIELDS, { projectId: project.id }, env, child);
-    const fieldNodes = fieldsPayload?.data?.node?.fields?.nodes ?? [];
+    // Project exists — verify Status field (paginated)
+    const fieldNodes = await listAllFields(project.id, env, child);
     const statusField = fieldNodes.find(
       (f) => f.name === "Status" && f.options,
     );

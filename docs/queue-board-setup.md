@@ -4,7 +4,7 @@ One-time manual setup for the GitHub Projects V2 board that `dev-loop queue` hel
 
 ## Why a Projects V2 board?
 
-The board provides durable, visible, shared state for queue ordering and item status — complementing the local queue persistence in `.pi/dev-loop-queue.json`. Board state is Board state is:
+The board provides durable, visible, shared state for queue ordering and item status — complementing the local queue persistence in `.pi/dev-loop-queue.json`. Board state is:
 
 - **Durable** — survives CI restarts, local machine wipes, and session boundaries
 - **Visible** — operators can inspect and reorder the queue from the GitHub UI
@@ -48,7 +48,7 @@ node scripts/projects/ensure-queue-board.mjs --repo mfittko/pi-dev-loops --title
 The wrapper creates a **Status** single-select field with these columns:
 
 | Column | Meaning |
-|---|---|
+| --- | --- |
 | **Backlog** | Not yet scheduled |
 | **Next Up** | Next item(s) the queue should pick up |
 | **In Progress** | Currently running through the dev-loop |
@@ -87,10 +87,10 @@ Helper commands for these operations will be added in future PRs alongside the b
 Queue helpers never silently assume board state is correct:
 
 | What | Behavior |
-|---|---|
+| --- | --- |
 | Board not found | Fall back to positional argument ordering; no board mutations |
 | Board found but Status field missing | Error — must be reconciled before queue operations |
-| Board found but Status column missing expected option | Warning — item stays in current column |
+| Board found but Status column missing expected option | Error (exit code 3) — manual reconciliation needed; bootstrap wrapper fails closed |
 | GitHub API returns an error | Operation fails; queue continues with next item |
 
 ## Configuration
