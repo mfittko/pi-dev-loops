@@ -118,10 +118,10 @@ At the issue-assignment seam, use `detect-initial-copilot-pr-state.mjs` and keep
 When confirming whether Copilot is requested as a reviewer, do not rely solely on `gh pr view --json reviewRequests`. Use `request-copilot-review.mjs` (see [Operational cookbook](#operational-cookbook)). Do **not** request Copilot by posting literal `/copilot` or `/copilot re-review` PR comments. After draft→ready or fix push, explicitly decide whether another pass is desired; if yes, ensure green/credibly green posture first.
 
 Branch on the `request-copilot-review.mjs` machine-readable result:
-- `requested`: re-baseline with `detect-copilot-loop-state.mjs` and follow its `nextAction` (enter persistent wait only through `dev-loops loop watch-cycle` or `gh run watch`)
+- `requested`: if another Copilot pass is actually desired, immediately re-baseline with `detect-copilot-loop-state.mjs` and follow its `nextAction` (enter persistent wait only through `dev-loops loop watch-cycle` or `gh run watch`)
 - `already-requested`: apply the same detector-first rebasing and wait branching as `requested`
 - `suppressed_same_head_clean`: report clean-converged state and stop unless `--force-rerequest-review` bypass is intentionally authorized
-- `unavailable`: report limitation and stop
+- `unavailable`: report the limitation and stop
 - non-zero / unexpected failure: stop and report error
 
 Do not treat an attempted request as equivalent to a confirmed request.
@@ -210,7 +210,7 @@ When unresolved feedback exists, use a narrow follow-up loop:
     - if the round cap is reached before the PR is thread-clean or before CI is green/credibly green, reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note, then stop and report that the Copilot round limit was reached
     - **Signal-gated re-request suppression:** the `detect-copilot-loop-state.mjs` state machine classifies review-thread comments by signal level (High/Mid/Low). High-signal (bugs, security, contract violations) always re-requests; Low-signal (cosmetic nits) never re-requests. When low-signal detection is enabled and thresholds are met, the machine returns a low-signal-converged terminal state routing to `pre_approval_gate` without further re-requests. See [Copilot Loop Operations](../docs/copilot-loop-operations.md) for full signal-level semantics.
     - if that local validation is still known red, continue remediation instead of re-requesting Copilot
-    - after a fix push advances the PR head SHA, re-run `detect-copilot-loop-state.mjs` for the new head and apply the [Copilot CI Status Contract](../docs/copilot-ci-status-contract.md). Previous-head CI is stale; only current-head results unblock CI-dependent steps. If GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot. Re-request Copilot only once green/credibly green. Always use `request-copilot-review.mjs` — never `gh api POST repos/.../requested_reviewers` directly.
+    - after a fix push advances the PR head SHA, re-run `detect-copilot-loop-state.mjs` for the new head and apply the [Copilot CI Status Contract](../docs/copilot-ci-status-contract.md). Previous-head CI is stale; only current-head results unblock CI-dependent steps. if GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot. only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head. Always use `request-copilot-review.mjs` — never `gh api POST repos/.../requested_reviewers` directly.
     - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
     - for `requested` / `already-requested`, immediately re-baseline with `detect-copilot-loop-state.mjs`; if the returned state is `waiting_for_copilot_review`, use `dev-loops loop watch-cycle` or stop/resume later, and if the returned state is `waiting_for_ci`, use `gh run watch` for a known run id or stop/resume later after that single detector refresh
     - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
