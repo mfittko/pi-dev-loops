@@ -23,13 +23,16 @@ const parseError = buildParseError(USAGE);
 
 /**
  * Parse pre-push hook input lines.
- * Each line: <local ref> <local sha> <remote ref> <remote sha>
  *
- * Git hook protocol is whitespace-delimited (spaces or tabs).
- * Malformed non-empty lines that do not have at least three
- * whitespace-delimited fields are treated as parse failures
- * and passed through — the guard prefers to fail-open on
- * unparseable input rather than silently blocking unknown refs.
+ * Git pre-push hook protocol: each line is four whitespace-delimited fields:
+ *   <local ref> <local sha> <remote ref> <remote sha>
+ * The fourth field (remote sha) is all-zeros for new branches.
+ *
+ * This parser accepts lines with at least three fields (treating the
+ * optional fourth field as null when absent). Malformed non-empty
+ * lines with fewer than three fields are ignored silently — the guard
+ * prefers to fail-open on unparseable input rather than silently
+ * blocking unknown refs.
  */
 async function readPushRefs(input) {
   const refs = [];
