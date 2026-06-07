@@ -400,7 +400,7 @@ test("manage-sub-issues add resolves child id and posts to sub_issues endpoint",
           "-F",
           "sub_issue_id=5001",
         ],
-        stdout: `${JSON.stringify({ id: 5001, number: 10 })}\n`,
+        stdout: "",
       },
     ]);
 
@@ -445,7 +445,7 @@ test("manage-sub-issues reorder sets execution order via sequential PATCH calls"
           "-F",
           "after_id=0",
         ],
-        stdout: `${JSON.stringify({})}\n`,
+        stdout: "",
       },
       {
         assertArgs: [
@@ -458,7 +458,7 @@ test("manage-sub-issues reorder sets execution order via sequential PATCH calls"
           "-F",
           "after_id=1002",
         ],
-        stdout: `${JSON.stringify({})}\n`,
+        stdout: "",
       },
       {
         assertArgs: [
@@ -471,7 +471,7 @@ test("manage-sub-issues reorder sets execution order via sequential PATCH calls"
           "-F",
           "after_id=1003",
         ],
-        stdout: `${JSON.stringify({})}\n`,
+        stdout: "",
       },
     ]);
 
