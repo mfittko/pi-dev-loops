@@ -1510,6 +1510,12 @@ export function isPrHealthy(prReport) {
     && HEALTHY_CI_STATUSES.has(prReport.snapshot.ciStatus);
 }
 
+const FIX_FEEDBACK_RESUME_ACTIONS = new Set([
+  RESUME_ACTION.NEEDS_FEEDBACK_FIX,
+  RESUME_ACTION.NEEDS_REPLY_RESOLVE,
+  RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH,
+]);
+
 export function buildResumePlan({ prReport, candidate, childCounts }) {
   const { run, parsedArtifact } = candidate;
   const resumeAction = parsedArtifact.resumeBucket;
@@ -1532,11 +1538,6 @@ export function buildResumePlan({ prReport, candidate, childCounts }) {
       }),
     };
   }
-  const FIX_FEEDBACK_RESUME_ACTIONS = new Set([
-    RESUME_ACTION.NEEDS_FEEDBACK_FIX,
-    RESUME_ACTION.NEEDS_REPLY_RESOLVE,
-    RESUME_ACTION.NEEDS_REREQUEST_OR_WATCH,
-  ]);
   if (FIX_FEEDBACK_RESUME_ACTIONS.has(resumeAction) && isPrHealthy(prReport)) {
     return { kind: "suppressed_healthy" };
   }
