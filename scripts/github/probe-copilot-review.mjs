@@ -7,6 +7,10 @@ import {
   DEFAULT_POLL_INTERVAL_MS,
   COPILOT_REVIEW_WAIT_TIMEOUT_MS,
 } from "@pi-dev-loops/core/loop/policy-constants";
+
+/** Maximum interval between heartbeat outputs during watch delays.
+ *  Must be shorter than pi-subagents default needsAttentionAfterMs (60s). */
+const WATCH_HEARTBEAT_MS = 45_000; // 45 seconds
 const REMOVED_FLAGS = new Set([
   "--poll-interval-ms",
   "--timeout-ms",
@@ -23,7 +27,9 @@ Activity statuses:
   changed    Fresh Copilot review activity found (check newComments/newReviews/newIssueComments)
   timeout    Watch period elapsed with no fresh Copilot activity
   idle       Zero-timeout single check found no change
-Error output (stderr, JSON):
+Diagnostic output (stderr):
+  Progress/heartbeat (during watch):
+    { "ok": true, "type": "watch_heartbeat", "elapsedMs": N, "totalBudgetMs": N, "poll": N, "maxPolls": N }
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
   gh/runtime failures:
@@ -240,7 +246,25 @@ export async function watchCopilotReview(
         attempt,
       );
       if (pollDelayMs > 0) {
-        await delay(pollDelayMs);
+        let remainingMs = pollDelayMs;
+        while (remainingMs > 0) {
+          const chunkMs = Math.min(WATCH_HEARTBEAT_MS, remainingMs);
+          await delay(chunkMs);
+          remainingMs -= chunkMs;
+          if (remainingMs > 0) {
+            const nowMs = Date.now();
+            process.stderr.write(
+              JSON.stringify({
+                ok: true,
+                type: "watch_heartbeat",
+                elapsedMs: nowMs - watchStartedAtMs,
+                totalBudgetMs: options.timeoutMs,
+                poll: attempt,
+                maxPolls: attemptBudget,
+              }) + "\n",
+            );
+          }
+        }
       }
     }
     const current = parseCopilotActivity(await fetchGithubCopilotActivityPayload(
