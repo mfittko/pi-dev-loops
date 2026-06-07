@@ -273,7 +273,7 @@ When unresolved feedback exists, use a narrow follow-up loop:
       - **High** — blocking bugs, security issues, contract violations, crashes, data loss, regressions → always re-request
       - **Mid** — meaningful improvements, design questions, refactoring suggestions → fix once; suppress re-request when round threshold met
       - **Low** — cosmetic nits, phrasing preferences, trivial cleanup → fix once; do NOT re-request
-    - when low-signal detection is enabled and more review rounds than the low-signal threshold have passed and actionable review threads are at or below the low-signal max, and the last Copilot round's maximum signal level is `mid` or `low` (not `high`), the state machine returns a low-signal-converged terminal state instead of a ready-to-rerequest state, routing to `pre_approval_gate` without further re-requests
+    - when low-signal detection is enabled and more review rounds than the low-signal threshold have passed and unresolved review threads are at or below the low-signal max, and the last Copilot round's maximum signal level is `mid` or `low` (not `high`), the state machine returns a low-signal-converged terminal state instead of a ready-to-rerequest state, routing to `pre_approval_gate` without further re-requests
     - when signal classification data is unavailable (null), the heuristic falls back to checking whether unresolved threads are at or below the low-signal max
     - the low-signal heuristic is applied by `detect-copilot-loop-state.mjs` through the shared `interpretLoopState` / `summarizeLoopInterpretation` contract
     - if yes and the round cap has not been reached, run the smallest honest local validation for the accepted fix scope
