@@ -278,6 +278,39 @@ export function extractPrNumberFromGhPrReady(command: string): number | null {
   return null;
 }
 
+export function extractRepoFlagFromGhPrReady(command: string): string | null {
+  const normalized = command.trim();
+  const segments = normalized.split(/\s*(?:&&|\|\||;|\|)\s*/);
+  for (const segment of segments) {
+    if (!/^gh\s+pr\s+ready(?:\s|$)/i.test(segment)) {
+      continue;
+    }
+    const remainder = segment.replace(/^gh\s+pr\s+ready(?:\s|$)/i, '').trim();
+    if (!remainder) {
+      return null;
+    }
+    const tokens = remainder.split(/\s+/);
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      const lower = token.toLowerCase();
+      if (lower === '-r' || lower === '--repo') {
+        // Next token is the repo slug value
+        if (i + 1 < tokens.length && !tokens[i + 1].startsWith('-')) {
+          return tokens[i + 1];
+        }
+      }
+      // Handle --repo=value or -R=value (though -R= is unusual)
+      const repoEqMatch = token.match(/^--repo=(.+)$/i);
+      if (repoEqMatch) {
+        return repoEqMatch[1];
+      }
+
+    }
+    return null;
+  }
+  return null;
+}
+
 export function createPostMergeUpdateHook(
   piOrOptions: ExtensionAPI | CreatePostMergeUpdateHookOptions,
   maybeOptions: CreatePostMergeUpdateHookOptions = {},
@@ -327,6 +360,13 @@ export function createPostMergeUpdateHook(
     async onUserBash(event: Pick<UserBashEvent, 'command' | 'cwd'>, _ctx?: ExtensionContext): Promise<UserBashEventResult | undefined> {
       // Intercept gh pr ready before any other checks
       if (isGhPrReadyCommand(event.command)) {
+        // Check if the command explicitly targets a different repo via -R/--repo
+        const explicitRepo = extractRepoFlagFromGhPrReady(event.command);
+        if (explicitRepo && explicitRepo !== TARGET_REPO_SLUG) {
+          // Explicitly targeting a different repo — pass through
+          return undefined;
+        }
+
         const repoContext = await resolveRepoContextSafe(resolveRepoContext, event.cwd);
         if (!repoContext?.repoRoot || repoContext.repoSlug !== TARGET_REPO_SLUG) {
           // Not our target repo — pass through to default handling
