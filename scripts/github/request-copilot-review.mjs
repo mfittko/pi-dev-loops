@@ -15,6 +15,7 @@ import { loadDevLoopConfig, resolveRefinementConfig } from "@pi-dev-loops/core/c
 const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
 const ROUND_CAP_REACHED_STATUS = "round_cap_reached";
+const SUPPRESSED_DRAFT_STATUS = "suppressed_draft";
 const REMOVED_FLAGS = new Set([
   "--force-rerequest-review",
 ]);
@@ -27,7 +28,7 @@ Debug:
   PI_DEV_LOOPS_DEBUG=1      Emit stderr traces when best-effort same-head clean
                             convergence detection falls back to unsuppressed behavior
 Output (stdout, JSON):
-  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached",
+  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached"|"suppressed_draft",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
     "sameHeadCleanConverged"?: true, "violationCommentIds"?: [N], "completedRounds"?: N, "maxRounds"?: N }
 Request statuses:
@@ -37,6 +38,7 @@ Request statuses:
   suppressed_same_head_clean  Current head is already clean-converged; no new request is made
   blocked_by_copilot_comment  A non-Copilot PR comment contains @copilot or /copilot; delete the comment(s) first
   round_cap_reached    Maximum Copilot review rounds reached; no further re-requests will be made
+  suppressed_draft     PR is in draft state; review requests are blocked until the PR is marked ready for review
 Error output (stderr, JSON):
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
@@ -278,6 +280,17 @@ export async function checkForCopilotComments({ repo, pr }, { env = process.env,
   };
 }
 export async function performCopilotReviewRequest(options, { env = process.env, ghCommand = "gh" } = {}) {
+  const before = await fetchCopilotReviewState(options, { env, ghCommand });
+  if (before.prData?.isDraft) {
+    return {
+      ok: true,
+      status: SUPPRESSED_DRAFT_STATUS,
+      repo: options.repo,
+      pr: options.pr,
+      reviewer: "Copilot",
+      detail: "PR is in draft state; review requests are blocked until the PR is marked ready for review.",
+    };
+  }
   if (!env.GH_SEQUENCE_PATH) {
     const copilotCommentCheck = await checkForCopilotComments(options, { env, ghCommand });
     if (copilotCommentCheck.blocked) {
@@ -292,7 +305,6 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       };
     }
   }
-  const before = await fetchCopilotReviewState(options, { env, ghCommand });
   let maxRounds = 5; // Built-in default; overridden by config when loadable
   try {
     const { config, errors } = await loadDevLoopConfig();

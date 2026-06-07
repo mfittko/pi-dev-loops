@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-import { parsePrNumber, requireOptionValue } from "../_cli-primitives.mjs";
+import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, normalizeTimestamp } from "../_core-helpers.mjs";
+import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import path from "node:path";
 import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
@@ -8,6 +8,8 @@ import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
 import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
 import { ensureAsyncRunnerOwnership } from "./_pr-runner-coordination.mjs";
+
+
 import {
   EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
   enforceExternalHealthyWaitTimeout,
@@ -165,6 +167,94 @@ export function parseHandoffCliArgs(argv) {
   }
   return options;
 }
+/**
+ * Detect recent human (non-bot) comments on a PR since the last subagent action.
+ * Determines "last subagent action" by finding the most recent bot/Copilot comment
+ * on the PR issue comments. If a human comment exists after that timestamp, the
+ * loop should pause for operator review.
+ * Returns { paused: true, humanComments: [...] } when human comments need attention.
+ */
+export async function detectRecentHumanComments({ repo, pr, claimedAtMs }, { env = process.env, ghCommand = "gh" } = {}) {
+  try {
+    const result = await runChild(
+      ghCommand,
+      ["api", `repos/${repo}/issues/${pr}/comments`, "--paginate", "--jq", ".[]"],
+      env,
+    );
+    if (result.code !== 0) {
+      return { paused: false, error: "comment_fetch_failed", detail: "Failed to fetch PR comments; human comment detection unavailable." };
+    }
+    const lines = result.stdout.trim().split("\n").filter(Boolean);
+    if (lines.length === 0) {
+      return { paused: false };
+    }
+    let comments;
+    try {
+      comments = lines.map((line) => JSON.parse(line));
+    } catch {
+      return { paused: false, error: "comment_parse_failed", detail: "Failed to parse PR comments JSON; human comment detection unavailable." };
+    }
+    if (!Array.isArray(comments)) {
+      return { paused: false };
+    }
+
+    // Find the most recent bot/Copilot comment timestamp (last subagent action)
+    let lastBotActionMs = null;
+    for (const comment of comments) {
+      const authorLogin = comment?.user?.login ?? "";
+      if (!isCopilotLogin(authorLogin)) {
+        continue;
+      }
+      const createdAt = normalizeTimestamp(comment?.created_at);
+      if (createdAt !== null && (lastBotActionMs === null || createdAt > lastBotActionMs)) {
+        lastBotActionMs = createdAt;
+      }
+    }
+
+    // If no Copilot comments found, use the run's claim time as baseline when available
+    if (lastBotActionMs === null) {
+      if (typeof claimedAtMs === "number" && claimedAtMs > 0) {
+        lastBotActionMs = claimedAtMs;
+      } else {
+        return { paused: false };
+      }
+    }
+
+    // Find human comments after the last bot action
+    const humanComments = [];
+    for (const comment of comments) {
+      const authorLogin = comment?.user?.login ?? "";
+      const authorType = comment?.user?.type ?? "";
+      // Skip bot authors (GitHub type "Bot") and Copilot
+      if (authorType === "Bot" || isCopilotLogin(authorLogin)) {
+        continue;
+      }
+      // Skip if comment body is a gate verdict comment (system action, not operator input)
+      const body = typeof comment?.body === "string" ? comment.body : "";
+      if (body.includes("Gate review:") || body.includes("**draft_gate**") || body.includes("**pre_approval_gate**")) {
+        continue;
+      }
+      const createdAt = normalizeTimestamp(comment?.created_at);
+      if (createdAt !== null && createdAt > lastBotActionMs) {
+        humanComments.push({
+          id: comment.id,
+          author: authorLogin,
+          createdAt: comment.created_at,
+          bodyPreview: body.slice(0, 200),
+        });
+      }
+    }
+
+    return {
+      paused: humanComments.length > 0,
+      humanComments: humanComments.length > 0 ? humanComments : undefined,
+      lastBotCommentAt: lastBotActionMs !== null ? new Date(lastBotActionMs).toISOString() : undefined,
+    };
+  } catch {
+    return { paused: false, error: "unexpected_error", detail: "Unexpected error during human comment detection." };
+  }
+}
+
 export async function runHandoff(options, { env = process.env, ghCommand = "gh" } = {}) {
   const runnerOwnership = await ensureAsyncRunnerOwnership({
     repo: options.repo,
@@ -210,6 +300,54 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     ? resolveRefinement({ version: 1 })
     : resolveRefinement(config.config);
   let interpretation = interpretLoopState(snapshot, refinementConfig);
+
+  // Check for human comments since last subagent action
+  // Only active in async subagent context (PI_SUBAGENT_RUN_ID set)
+  let humanCommentCheck = { paused: false };
+  if (env.PI_SUBAGENT_RUN_ID) {
+    humanCommentCheck = await detectRecentHumanComments(
+      { repo: options.repo, pr: options.pr, claimedAtMs: runnerOwnership?.activeRun?.claimedAt ? new Date(runnerOwnership.activeRun.claimedAt).getTime() : undefined },
+      { env, ghCommand },
+    );
+  }
+  const TERMINAL_STATES = new Set([STATE.NO_PR, STATE.DONE, STATE.BLOCKED_NEEDS_USER_DECISION]);
+  const humanCommentUnavailable = humanCommentCheck.error && !humanCommentCheck.paused;
+  if ((humanCommentCheck.paused || humanCommentUnavailable) && !TERMINAL_STATES.has(interpretation.state)) {
+    return {
+      ok: true,
+      action: "stop",
+      state: STATE.BLOCKED_NEEDS_USER_DECISION,
+      allowedTransitions: [],
+      nextAction: humanCommentCheck.paused
+        ? "Human comment detected on PR since last subagent action; review the comment(s) before continuing the automated loop."
+        : `Human comment detection unavailable (${humanCommentCheck.error}); review PR comments manually before continuing.`,
+      autoRerequestEligible: false,
+      sameHeadCleanConverged: false,
+      roundCapCleanEligible: false,
+      loopDisposition: "blocked",
+      terminal: true,
+      snapshot,
+      runnerOwnership,
+      humanCommentPause: {
+        reason: humanCommentCheck.paused ? "human_comment_detected" : "human_comment_check_unavailable",
+        error: humanCommentCheck.error || undefined,
+        humanComments: humanCommentCheck.humanComments,
+        lastBotCommentAt: humanCommentCheck.lastBotCommentAt,
+      },
+      requestWatchContract: {
+        action: "stop",
+        nextAction: humanCommentCheck.paused
+        ? "Human comment detected on PR since last subagent action; review the comment(s) before continuing the automated loop."
+        : `Human comment detection unavailable (${humanCommentCheck.error}); review PR comments manually before continuing.`,
+        requestStatus: "none",
+        routingState: "non_ready_state",
+        watchEntryConfirmed: false,
+        watchArgs: null,
+        stopState: "blocked",
+      },
+    };
+  }
+
   let reviewRequestStatus;
   const shouldRequestReview = options.watchStatus === undefined
     && (interpretation.state === STATE.PR_READY_NO_FEEDBACK
