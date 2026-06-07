@@ -107,7 +107,7 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 - Intercom coordination for cross-run state updates
 - Parent session retains loop ownership; subagents handle bounded slices only
 
-**Round-cap budget check (#524, enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check that completed Copilot review rounds have not exceeded the maximum (default: 5). The detector (`interpretLoopState` in `packages/core/src/loop/copilot-loop-state.mjs`) only emits a round-limit state when ALL of these are true:
+**Round-cap budget check (#524, enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check whether completed Copilot review rounds have reached the maximum (default: 5). The detector (`interpretLoopState` in `packages/core/src/loop/copilot-loop-state.mjs`) only emits a round-limit state when ALL of these are true:
 - completed review rounds have reached the maximum
 - no Copilot review request is in flight
 - the detector has not already selected a higher-priority terminal/draft state (`no_pr`, `done`, `pr_draft`, `review_request_unavailable`, `blocked_needs_user_decision`) — those take precedence and round-limit routing is skipped in those cases

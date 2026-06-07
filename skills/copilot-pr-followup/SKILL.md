@@ -255,13 +255,13 @@ When actionable review feedback exists, use a narrow follow-up loop:
 9. before resolving an addressed review thread, run a post-fix verification checkpoint
    - confirm the GitHub reply actually exists on the intended thread/comment, not only in local notes or helper stdout
    - confirm the pushed current-head diff genuinely addresses the reviewer concern on the flagged lines or pattern; if the concern is only partially addressed, leave the thread open and explain what remains
-   - refresh the API-backed thread snapshot via `dev-loops review capture-threads` and use that refreshed data — including `unresolvedThreadCount` — for follow-up decisions rather than prose assumptions
+   - refresh the API-backed thread snapshot via `dev-loops review capture-threads` and use that refreshed data — including the unresolved thread count — for follow-up decisions rather than prose assumptions
    - if any verification check fails, do **not** resolve the thread; leave it open, add a short explanation when needed, and re-enter the fix/reply loop
 10. resolve the addressed review thread only after the reply is attached successfully, the verification checkpoint passes, and the concern is genuinely addressed
     - do not stop at a local fix if GitHub-side reply/resolve is authorized
-11. after completing reply/resolve for a pass, verify `unresolvedThreadCount === 0` via `dev-loops review capture-threads` before proceeding
-    - if the refreshed snapshot reports a non-zero unresolved thread count, re-enter the reply/resolve loop for the missed threads
-12. only after GitHub-side reply/resolve work is done for the addressed threads and the refreshed thread snapshot proves `unresolvedThreadCount === 0`, decide whether another Copilot pass is desired
+11. after completing reply/resolve for a pass, verify zero unresolved threads remain via `dev-loops review capture-threads` before proceeding
+    - if the refreshed snapshot reports unresolved threads, re-enter the reply/resolve loop for the missed threads
+12. only after GitHub-side reply/resolve work is done for the addressed threads and the refreshed thread snapshot proves zero unresolved threads remain, decide whether another Copilot pass is desired
     - resolve the review-round cap from config via `resolveRefinementConfig(config, "maxCopilotRounds")` from `@pi-dev-loops/core/config`; default config ships `maxCopilotRounds: 5`
     - use the completed Copilot review-round count from `detect-copilot-loop-state.mjs` / `copilot-pr-handoff.mjs` as the current PR's review-round count
     - if completed review rounds have reached the maximum (default: 5), do **not** re-request Copilot review
@@ -274,7 +274,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
       - **Mid** — meaningful improvements, design questions, refactoring suggestions → fix once; suppress re-request when round threshold met
       - **Low** — cosmetic nits, phrasing preferences, trivial cleanup → fix once; do NOT re-request
     - when low-signal detection is enabled and more review rounds than the low-signal threshold have passed and actionable review threads are at or below the low-signal max, and the last Copilot round's maximum signal level is `mid` or `low` (not `high`), the state machine returns a low-signal-converged terminal state instead of a ready-to-rerequest state, routing to `pre_approval_gate` without further re-requests
-    - when signal classification data is unavailable (null), the heuristic falls back to the `actionableThreadCount <= lowSignalMaxComments` check
+    - when signal classification data is unavailable (null), the heuristic falls back to checking whether actionable threads are at or below the low-signal max
     - the low-signal heuristic is applied by `detect-copilot-loop-state.mjs` through the shared `interpretLoopState` / `summarizeLoopInterpretation` contract
     - if yes and the round cap has not been reached, run the smallest honest local validation for the accepted fix scope
     - if that local validation is still known red, continue remediation instead of re-requesting Copilot
@@ -372,11 +372,11 @@ Before any merge-ready or final-approval claim, run `detect-pr-gate-coordination
 8. wait for current-head CI again before retrying merge evaluation
 9. if the chosen reconciliation rewrote branch history (for example rebase), ask for explicit authorization before `git push --force-with-lease`, then continue the loop on the updated head
 
-`mergeStateStatus: CLEAN` alone is not enough to resume approval or merge claims. The existing merge-ready preconditions still apply: `unresolvedThreadCount === 0`, a clean current-head `pre_approval_gate`, and green current-head CI.
+`mergeStateStatus: CLEAN` alone is not enough to resume approval or merge claims. The existing merge-ready preconditions still apply: zero unresolved review threads, a clean current-head `pre_approval_gate`, and green current-head CI.
 
 ### Merge-ready preconditions
 
-See [Merge Preconditions](../docs/merge-preconditions.md). Verify: `unresolvedThreadCount === 0` (via `dev-loops review capture-threads`), visible clean `draft_gate` + current-head `pre_approval_gate`, green CI. Fresh-context review follows [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md).
+See [Merge Preconditions](../docs/merge-preconditions.md). Verify: zero unresolved threads (via `dev-loops review capture-threads`), visible clean `draft_gate` + current-head `pre_approval_gate`, green CI. Fresh-context review follows [Gate Review Sub-Loop Contract](../../docs/gate-review-sub-loop-contract.md).
 
 ### Human approval checkpoint
 
