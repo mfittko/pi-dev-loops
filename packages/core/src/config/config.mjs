@@ -118,6 +118,7 @@ export const DevLoopConfigSchema = z.strictObject({
   autonomy: AutonomyConfig.optional(),
   workflow: WorkflowConfig.optional(),
   localImplementation: LocalImplementationConfig.optional(),
+  queue: QueueConfig.optional(),
   personas: PersonasConfig.optional(),
 });
 
