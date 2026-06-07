@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
-import { parsePrNumber, requireOptionValue } from "../_cli-primitives.mjs";
+import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, normalizeTimestamp } from "../_core-helpers.mjs";
+import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import path from "node:path";
 import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
@@ -8,8 +8,8 @@ import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
 import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
 import { ensureAsyncRunnerOwnership } from "./_pr-runner-coordination.mjs";
-import { runChild } from "../_cli-primitives.mjs";
-import { isCopilotLogin, normalizeTimestamp } from "../_core-helpers.mjs";
+
+
 import {
   EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY,
   enforceExternalHealthyWaitTimeout,
@@ -186,7 +186,7 @@ export async function detectRecentHumanComments({ repo, pr }, { env = process.en
     }
     const lines = result.stdout.trim().split("\n").filter(Boolean);
     if (lines.length === 0) {
-      return { paused: false, error: "no_comments_fetched", detail: "No comments returned from PR; human comment detection unavailable." };
+      return { paused: false };
     }
     let comments;
     try {
@@ -195,7 +195,7 @@ export async function detectRecentHumanComments({ repo, pr }, { env = process.en
       return { paused: false, error: "comment_parse_failed", detail: "Failed to parse PR comments JSON; human comment detection unavailable." };
     }
     if (!Array.isArray(comments)) {
-      return { paused: false, error: "unexpected_comment_format", detail: "Unexpected PR comments response format; human comment detection unavailable." };
+      return { paused: false };
     }
 
     // Find the most recent bot/Copilot comment timestamp (last subagent action)
@@ -225,9 +225,9 @@ export async function detectRecentHumanComments({ repo, pr }, { env = process.en
       if (authorType === "Bot" || isCopilotLogin(authorLogin)) {
         continue;
       }
-      // Skip if comment body suggests a system action (gate post, reply-resolve)
+      // Skip if comment body is a gate verdict comment (system action, not operator input)
       const body = typeof comment?.body === "string" ? comment.body : "";
-      if (body.includes("**draft_gate**") || body.includes("**pre_approval_gate**")) {
+      if (body.includes("Gate review:") || body.includes("**draft_gate**") || body.includes("**pre_approval_gate**")) {
         continue;
       }
       const createdAt = normalizeTimestamp(comment?.created_at);
@@ -307,13 +307,16 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     );
   }
   const TERMINAL_STATES = new Set([STATE.NO_PR, STATE.DONE, STATE.BLOCKED_NEEDS_USER_DECISION]);
-  if (humanCommentCheck.paused && !TERMINAL_STATES.has(interpretation.state)) {
+  const humanCommentUnavailable = humanCommentCheck.error && !humanCommentCheck.paused;
+  if ((humanCommentCheck.paused || humanCommentUnavailable) && !TERMINAL_STATES.has(interpretation.state)) {
     return {
       ok: true,
       action: "stop",
       state: STATE.BLOCKED_NEEDS_USER_DECISION,
       allowedTransitions: [],
-      nextAction: "Human comment detected on PR since last subagent action; review the comment(s) before continuing the automated loop.",
+      nextAction: humanCommentCheck.paused
+        ? "Human comment detected on PR since last subagent action; review the comment(s) before continuing the automated loop."
+        : "Human comment detection unavailable (${humanCommentCheck.error}); review PR comments manually before continuing.",
       autoRerequestEligible: false,
       sameHeadCleanConverged: false,
       roundCapCleanEligible: false,
@@ -322,13 +325,16 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       snapshot,
       runnerOwnership,
       humanCommentPause: {
-        reason: "human_comment_detected",
+        reason: humanCommentCheck.paused ? "human_comment_detected" : "human_comment_check_unavailable",
+        error: humanCommentCheck.error || undefined,
         humanComments: humanCommentCheck.humanComments,
         lastBotCommentAt: humanCommentCheck.lastBotCommentAt,
       },
       requestWatchContract: {
         action: "stop",
-        nextAction: "Human comment detected on PR since last subagent action; review the comment(s) before continuing the automated loop.",
+        nextAction: humanCommentCheck.paused
+        ? "Human comment detected on PR since last subagent action; review the comment(s) before continuing the automated loop."
+        : "Human comment detection unavailable (${humanCommentCheck.error}); review PR comments manually before continuing.",
         requestStatus: "none",
         routingState: "non_ready_state",
         watchEntryConfirmed: false,

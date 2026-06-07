@@ -744,6 +744,11 @@ if (args[0] === "pr" && args[1] === "edit" && args.includes("--add-reviewer") &&
   process.exit(0);
 }
 
+if (args[0] === "api" && args[1] && args[1].includes("issues/") && args[1].includes("/comments")) {
+  // No comments — human comment check returns no pause
+  process.exit(0);
+}
+
 process.stderr.write("unexpected gh args: " + args.join(" ") + "\\n");
 process.exit(97);
 `,
@@ -1034,6 +1039,11 @@ if (args[0] === "pr" && args[1] === "view" && args.includes("--json") && args.in
 if (args[0] === "pr" && args[1] === "edit" && args.includes("--add-reviewer") && args.includes("@copilot")) {
   writeFileSync(requestedStatePath, "requested\\n");
   write("https://github.com/owner/repo/pull/17\\n");
+  process.exit(0);
+}
+
+if (args[0] === "api" && args[1] && args[1].includes("issues/") && args[1].includes("/comments")) {
+  // No comments — human comment check returns no pause
   process.exit(0);
 }
 
@@ -1595,6 +1605,43 @@ test("detectRecentHumanComments skips gate-pattern human comments", async () => 
     const { env } = await writeGhStubHelper(tempDir, [
       {
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
+        stdout: BOT_COMMENT + "\n" + HUMAN_GATE + "\n",
+      },
+    ]);
+
+    const result = await detectRecentHumanComments(
+      { repo: "owner/repo", pr: 17 },
+      { env },
+    );
+
+    assert.equal(result.paused, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detectRecentHumanComments skips Gate review: format gate comments", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-human-gate-format-"));
+
+  try {
+    const { detectRecentHumanComments } = await import("../../scripts/loop/copilot-pr-handoff.mjs");
+
+    const BOT_COMMENT = JSON.stringify({
+      id: 100,
+      body: "Gate review: draft_gate\n\nReviewed head SHA: abc1234\nVerdict: clean",
+      user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" },
+      created_at: "2026-06-07T09:00:00Z",
+    });
+    const HUMAN_GATE = JSON.stringify({
+      id: 101,
+      body: "Gate review: pre_approval_gate\n\nReviewed head SHA: abc1234\nVerdict: clean",
+      user: { login: "human-dev", type: "User" },
+      created_at: "2026-06-07T10:00:00Z",
+    });
+
+    const { env } = await writeGhStubHelper(tempDir, [
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", "."],
         stdout: BOT_COMMENT + "\n" + HUMAN_GATE + "\n",
       },
     ]);
