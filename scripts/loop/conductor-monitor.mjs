@@ -1503,8 +1503,9 @@ function hasMaterialConflict(resumeAction, prReport, parsedArtifact) {
   }
   return false;
 }
+const HEALTHY_CI_STATUSES = new Set(["success", "crediblyGreen"]);
+
 export function isPrHealthy(prReport) {
-  const HEALTHY_CI_STATUSES = new Set(["success", "crediblyGreen"]);
   return prReport.snapshot.unresolvedThreadCount === 0
     && HEALTHY_CI_STATUSES.has(prReport.snapshot.ciStatus);
 }
