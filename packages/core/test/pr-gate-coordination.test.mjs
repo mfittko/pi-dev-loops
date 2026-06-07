@@ -858,6 +858,64 @@ test("converged non-draft PR without clean draft_gate evidence is blocked from f
   assert.match(result.reason, /no gate exemptions, #579/i);
 });
 
+// #587: round-cap clean fallback auto-satisfies draft gate requirement
+// When roundCapReached + sameHeadCleanConverged + preApprovalGate clean,
+// missing draft_gate evidence should not block final approval.
+test("round-cap clean fallback allows final approval without draft_gate evidence (#587)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: DISPOSITION.CLEAN_CONVERGED,
+    sameHeadCleanConverged: true,
+    ciStatus: "success",
+    copilotReviewRoundCount: 5,
+    maxCopilotRounds: 5,
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+    preApprovalGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+  });
+
+  // Round-cap clean fallback = draft gate equivalent → final approval
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.FINAL_APPROVAL_READY);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL);
+  assert.equal(result.draftGate.cleanEvidenceExists, false);
+  // draftGateAlreadySatisfied must be true when roundCapReached bypasses draft gate
+  assert.equal(result.draftGateAlreadySatisfied, true);
+  assert.match(result.reason, /round-cap clean fallback/i);
+  assert.match(result.reason, /draft gate equivalent/i);
+  assert.match(result.reason, /5\/5 rounds/i);
+  assert.ok(result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL));
+  assert.ok(!result.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE));
+});
+
+// Backward compat: non-round-cap path still requires draft_gate evidence
+test("non-round-cap PR without draft_gate evidence is still blocked from final approval (#587 backward compat)", () => {
+  const result = evaluatePrGateCoordination({
+    pr: 266,
+    currentHeadSha: "abc123456789",
+    prDraft: false,
+    lifecycleState: STATE.READY_TO_REREQUEST_REVIEW,
+    loopDisposition: DISPOSITION.CLEAN_CONVERGED,
+    sameHeadCleanConverged: true,
+    ciStatus: "success",
+    copilotReviewRoundCount: 3,
+    maxCopilotRounds: 5,
+    draftGate: gate({ visible: false }),
+    draftGateMarker: gate({ visible: false }),
+    preApprovalGate: gate({ visible: true, headSha: "abc1234", verdict: "clean" }),
+    preApprovalGateMarker: gate({ visible: true, headSha: "abc1234", verdict: "clean", contractComplete: true }),
+  });
+
+  // Not at round cap → still blocked on draft_gate
+  assert.equal(result.gateBoundary, PR_CHECKPOINT.DRAFT_GATE_NEEDED);
+  assert.equal(result.nextAction, PR_CHECKPOINT_ACTION.RECONCILE_DRAFT_GATE);
+  assert.equal(result.draftGate.cleanEvidenceExists, false);
+  assert.match(result.reason, /no gate exemptions, #579/i);
+});
+
 
 // ── LOW_SIGNAL_CONVERGED gate routing tests ─────────────────────────────
 
