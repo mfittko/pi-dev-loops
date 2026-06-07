@@ -205,7 +205,6 @@ queue:
 | `packages/core/src/loop/queue-driver.mjs` | Sequential queue driver |
 | `packages/core/src/loop/queue-parallel.mjs` | Parallel execution + overlap detection |
 | `scripts/loop/run-queue.mjs` | Thin CLI wrapper for queue driver |
-| `scripts/github/detect-file-overlap.mjs` | File-overlap detection helper |
 | `.pi/dev-loop-queue.json` | Durable queue state (created at runtime) |
 | `packages/core/test/queue-state.test.mjs` | Queue state tests |
 | `packages/core/test/queue-driver.test.mjs` | Queue driver tests |
