@@ -424,6 +424,7 @@ function buildResult({
  *
  * @param {object} params
  * @param {string} params.copilotReviewRequestStatus - "none"|"requested"|"already-requested"|"unavailable"|"failed"
+ * @param {boolean} [params.copilotReviewEverFormallyRequested=false] - whether Copilot was ever formally requested via GitHub review_requested mechanism
  * @param {number} params.copilotReviewRoundCount
  * @param {number|null} params.maxCopilotRounds
  * @param {boolean} params.sameHeadCleanConverged
@@ -433,6 +434,7 @@ function buildResult({
 export function shouldGuardCopilotReviewRequest({
   copilotReviewRequestStatus,
   copilotReviewRoundCount = 0,
+  copilotReviewEverFormallyRequested = false,
   maxCopilotRounds = null,
   sameHeadCleanConverged = false,
   gateBoundary,
@@ -446,6 +448,12 @@ export function shouldGuardCopilotReviewRequest({
     return false;
   }
   if (copilotReviewRequestStatus !== "none") {
+    return false;
+  }
+  // Durable signal: if Copilot was ever formally requested as a reviewer,
+  // the current "none" status is from a fulfilled request (normal cycle),
+  // not from a missing request. Do not guard the happy path (#613, round 2).
+  if (copilotReviewEverFormallyRequested) {
     return false;
   }
   // Round-cap clean fallback: exhausted rounds + clean converged

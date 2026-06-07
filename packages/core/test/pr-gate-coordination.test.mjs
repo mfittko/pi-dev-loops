@@ -1366,6 +1366,38 @@ test("guard returns true when maxCopilotRounds is null (no round cap configured)
   }), true);
 });
 
+
+test("guard returns false when Copilot was ever formally requested (durable signal)", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "none",
+    copilotReviewRoundCount: 1,
+    copilotReviewEverFormallyRequested: true,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: false,
+    gateBoundary: PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+  }), false);
+});
+
+test("guard returns true when Copilot was never formally requested and status is none", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "none",
+    copilotReviewRoundCount: 1,
+    copilotReviewEverFormallyRequested: false,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: false,
+    gateBoundary: PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+  }), true);
+});
+
+test("guard uses default false for copilotReviewEverFormallyRequested (backward compat)", () => {
+  assert.equal(shouldGuardCopilotReviewRequest({
+    copilotReviewRequestStatus: "none",
+    copilotReviewRoundCount: 1,
+    maxCopilotRounds: 5,
+    sameHeadCleanConverged: false,
+    gateBoundary: PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+  }), true);
+});
 test("guard returns false when review request status is unavailable", () => {
   assert.equal(shouldGuardCopilotReviewRequest({
     copilotReviewRequestStatus: "unavailable",

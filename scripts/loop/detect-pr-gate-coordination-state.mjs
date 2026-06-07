@@ -348,6 +348,22 @@ export async function loadPrGateCoordinationContext(options, runtime = {}) {
     refinementArtifact,
   };
 }
+
+async function fetchCopilotEverFormallyRequested({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
+  const result = await runChild(
+    ghCommand,
+    ["api", `repos/${repo}/issues/${pr}/timeline`, "--paginate", "--jq",
+      '.[] | select(.event == "review_requested") | select(.requested_reviewer.login != null) | .requested_reviewer.login'],
+    env,
+  );
+  if (result.code !== 0) return false;
+  for (const line of result.stdout.trim().split("\n")) {
+    const login = line.trim();
+    if (login && isCopilotLogin(login)) return true;
+  }
+  return false;
+}
+
 export async function detectPrGateCoordinationState(options, runtime = {}) {
   const context = await loadPrGateCoordinationContext(options, runtime);
   const repoRoot = runtime.repoRoot ?? process.cwd();
@@ -384,9 +400,14 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   });
   // Copilot review request guard (#613): When Copilot has reviewed the PR
   // but no formal review request was made, block pre-approval gate entry.
+  const copilotReviewEverFormallyRequested = await fetchCopilotEverFormallyRequested(
+    { repo: context.repo, pr: context.pr },
+    runtime,
+  );
   if (shouldGuardCopilotReviewRequest({
     copilotReviewRequestStatus: context.snapshot?.copilotReviewRequestStatus ?? "none",
     copilotReviewRoundCount: context.snapshot?.copilotReviewRoundCount ?? 0,
+    copilotReviewEverFormallyRequested,
     maxCopilotRounds,
     sameHeadCleanConverged: context.interpretation?.sameHeadCleanConverged ?? false,
     gateBoundary: result.gateBoundary,
