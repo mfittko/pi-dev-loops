@@ -42,8 +42,7 @@ export function computeOverlapGroups(entryFiles) {
     return x;
   }
   function union(a, b) {
-    const ra = find(a);
-    const rb = find(b);
+    const ra = find(a), rb = find(b);
     if (ra !== rb) parent[rb] = ra;
   }
 
@@ -115,12 +114,25 @@ export function computeParallelSchedule(entries, maxParallel = 3) {
     entries.find((e) => e.target === o.target)
   ).filter(Boolean);
 
-  // For dependency chains, ensure they're in same group
-  const depChains = new Map();
-  for (const entry of orderedEntries) {
-    for (const dep of entry.dependsOn || []) {
-      depChains.set(entry.target, dep);
+  // Build depChains: for each entry, collect ALL transitive ancestors
+  const allAncestors = new Map();
+  function getAncestors(target, visited = new Set()) {
+    if (allAncestors.has(target)) return allAncestors.get(target);
+    if (visited.has(target)) return new Set();
+    visited.add(target);
+    const entry = orderedEntries.find((e) => e.target === target);
+    const ancestors = new Set();
+    for (const dep of entry?.dependsOn || []) {
+      ancestors.add(dep);
+      for (const ancestor of getAncestors(dep, new Set(visited))) {
+        ancestors.add(ancestor);
+      }
     }
+    allAncestors.set(target, ancestors);
+    return ancestors;
+  }
+  for (const entry of orderedEntries) {
+    getAncestors(entry.target);
   }
 
   // Compute file overlap groups
@@ -130,23 +142,51 @@ export function computeParallelSchedule(entries, maxParallel = 3) {
     dependsOn: e.dependsOn || [],
   }));
 
-  // Merge dependency chains into overlap groups
   const groups = computeOverlapGroups(entryFiles);
 
-  // Expand groups to include dependency chains
+  // Merge dependency chains into overlap groups: for each group, add all
+  // ancestors of every member so dependency chains always serialize together
   const expandedGroups = groups.map((group) => {
     const expanded = new Set(group);
     for (const target of group) {
-      let chainTarget = depChains.get(target);
-      while (chainTarget != null) {
-        expanded.add(chainTarget);
-        chainTarget = depChains.get(chainTarget);
+      const ancestors = allAncestors.get(target);
+      if (ancestors) {
+        for (const ancestor of ancestors) {
+          expanded.add(ancestor);
+        }
       }
     }
     return [...expanded];
   });
 
-  const waves = scheduleParallelWaves(expandedGroups, maxParallel);
+  // Deduplicate: if a target appears in multiple groups, merge those groups
+  const merged = [];
+  const seen = new Set();
+  for (const group of expandedGroups) {
+    const mergedGroup = new Set(group);
+    // Check if any member is already in a previously emitted group
+    let mergedWith = -1;
+    for (let i = 0; i < merged.length; i++) {
+      for (const target of group) {
+        if (merged[i].has(target)) {
+          mergedWith = i;
+          break;
+        }
+      }
+      if (mergedWith >= 0) break;
+    }
+    if (mergedWith >= 0) {
+      for (const target of group) {
+        merged[mergedWith].add(target);
+      }
+    } else {
+      merged.push(new Set(group));
+    }
+  }
 
-  return { waves, groups: expandedGroups };
+  const dedupedGroups = merged.map((s) => [...s]);
+
+  const waves = scheduleParallelWaves(dedupedGroups, maxParallel);
+
+  return { waves, groups: dedupedGroups };
 }

@@ -170,6 +170,7 @@ test("runQueue pauses on blocked entry, continues others", async () => {
     await writeQueue(dir, queue);
 
     const result = await runQueue(dir, "test/repo", {
+      mergeAuthorized: true,
       runEntry: async (entry) => {
         if (entry.target === 1) throw new Error("blocked by human comment — needs decision");
         return { ok: true, pr: 20 };
@@ -198,7 +199,8 @@ test("runQueue retries recoverable failures", async () => {
 
     let calls = 0;
     const result = await runQueue(dir, "test/repo", {
-      maxRetries: 3,
+      reDispatchMaxRetries: 3,
+      mergeAuthorized: true,
       runEntry: async (entry) => {
         calls++;
         if (calls === 1) throw new Error("timeout waiting for review");
@@ -225,7 +227,7 @@ test("runQueue blocks after max retries exceeded", async () => {
     await writeQueue(dir, queue);
 
     const result = await runQueue(dir, "test/repo", {
-      maxRetries: 0,
+      reDispatchMaxRetries: 0,
       runEntry: async () => {
         throw new Error("timeout");
       },
@@ -239,7 +241,7 @@ test("runQueue blocks after max retries exceeded", async () => {
   }
 });
 
-test("runQueue stops at gates_passing when merge not authorized", async () => {
+test("runQueue leaves entry at gates_passing when merge not authorized", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "queue-driver-"));
   try {
     const queue = {
@@ -255,9 +257,11 @@ test("runQueue stops at gates_passing when merge not authorized", async () => {
       onTransition: (state, entry) => transitions.push(state),
     });
 
-    // Should NOT include "merging"
+    // Should NOT include "merging" or "done"
     assert.equal(transitions.includes("merging"), false);
-    assert.equal(transitions.includes("done"), true);
+    assert.equal(transitions.includes("done"), false);
+    // Entry stays at gates_passing so a future run can merge
+    assert.equal(result.queue.entries[0].status, "gates_passing");
     assert.equal(result.queue.entries[0].retrospectiveWritten, false);
   } finally {
     await rm(dir, { recursive: true, force: true });

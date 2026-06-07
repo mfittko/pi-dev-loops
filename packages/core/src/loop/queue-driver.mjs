@@ -15,12 +15,12 @@
 import {
   readQueue,
   writeQueue,
-  findEntry,
   transitionEntry,
   entryDependenciesSatisfied,
   nextReadyEntry,
   allDone,
   RECOVERABLE_FAILURES,
+  appendBugIssue,
 } from "./queue-state.mjs";
 
 /**
@@ -28,15 +28,16 @@ import {
  * @property {string} repoRoot - Path to repo root
  * @property {string} repo - owner/name slug
  * @property {boolean} [mergeAuthorized=false] - Whether merge is pre-authorized
- * @property {number} [maxRetries=1] - Max re-dispatches for recoverable failures
- * @property {number} [maxAutoFiledIssues=10] - Cap on bug-injected issues
+ * @property {number} [reDispatchMaxRetries=1] - Max re-dispatches for recoverable failures
+ * @property {number} [maxAutoFiledIssues=10] - Cap on bug-injected issues per queue run
  * @property {Function} [onTransition] - Callback(state, entry, queue) on each transition
  * @property {Function} [runEntry] - Callback to execute a single entry (for testing)
  */
 
+/** @type {QueueDriverOptions} */
 export const DEFAULT_QUEUE_DRIVER_OPTIONS = {
   mergeAuthorized: false,
-  maxRetries: 1,
+  reDispatchMaxRetries: 1,
   maxAutoFiledIssues: 10,
 };
 
@@ -87,18 +88,25 @@ async function doTransition(entry, to, queue, repoRoot, opts, metadata) {
 export async function runQueue(repoRoot, repo, options = {}) {
   const opts = { ...DEFAULT_QUEUE_DRIVER_OPTIONS, ...options };
   const queue = await readQueue(repoRoot);
+  let autoFiledCount = 0;
 
   const results = [];
 
   while (!allDone(queue)) {
-    const entry = nextReadyEntry(queue, opts.maxRetries);
+    const entry = nextReadyEntry(queue, opts.reDispatchMaxRetries);
 
     if (!entry) {
+      // Check if there are entries that are neither done nor blocked — if so,
+      // they're blocked by unmet dependencies. Report as incomplete.
       const remaining = queue.entries.filter(
-        (e) => e.status !== "done" && e.status !== "failed"
+        (e) => e.status !== "done" && e.status !== "blocked" && e.status !== "failed"
       );
-      if (remaining.length === 0 || remaining.every((e) => e.status === "blocked")) {
-        break;
+      if (remaining.length > 0) {
+        results.push({
+          ok: false,
+          error: `Queue incomplete: ${remaining.length} entries blocked by unmet dependencies`,
+          pendingTargets: remaining.map((e) => e.target),
+        });
       }
       break;
     }
@@ -126,8 +134,10 @@ export async function runQueue(repoRoot, repo, options = {}) {
             await doTransition(entry, "merging", queue, repoRoot, opts);
             await doTransition(entry, "done", queue, repoRoot, opts, { retrospectiveWritten: true });
           } else {
-            // Stop at gates_passing → done without merge
-            await doTransition(entry, "done", queue, repoRoot, opts);
+            // When merge is not authorized, leave at gates_passing so a
+            // future run can pick up and finish the merge step.
+            // The entry stays in gates_passing; caller must re-run with
+            // mergeAuthorized to complete.
           }
         } else {
           await doTransition(entry, "done", queue, repoRoot, opts);
@@ -141,7 +151,7 @@ export async function runQueue(repoRoot, repo, options = {}) {
       const failureKind = classifyFailure(err);
       const recoverable = isRecoverable(failureKind);
 
-      if (recoverable && (entry.retryCount ?? 0) < opts.maxRetries) {
+      if (recoverable && (entry.retryCount ?? 0) < opts.reDispatchMaxRetries) {
         await doTransition(entry, "failed", queue, repoRoot, opts, {
           failureReason: err.message,
           failureKind,
@@ -158,6 +168,17 @@ export async function runQueue(repoRoot, repo, options = {}) {
           failureReason: err.message,
           failureKind,
         });
+
+        // Bug detection: if we discover a workflow issue, auto-file an issue
+        // and append to queue end (capped by maxAutoFiledIssues)
+        if (autoFiledCount < opts.maxAutoFiledIssues &&
+            failureKind !== "blocked_needs_user_decision") {
+          // Note: actual auto-filing requires gh CLI; here we just track
+          // the intent. A full gh issue create + queue append would be
+          // done by the script layer.
+          autoFiledCount++;
+        }
+
         results.push({
           target: entry.target,
           ok: false,

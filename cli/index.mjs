@@ -47,7 +47,7 @@ const SUBCOMMAND_ROUTES = {
     "reconcile-draft":  "scripts/github/reconcile-draft-gate.mjs",
   },
   queue: {
-    parse:          "scripts/loop/run-queue.mjs",
+    
     run:            "scripts/loop/run-queue.mjs",
   },
   inspect: {
