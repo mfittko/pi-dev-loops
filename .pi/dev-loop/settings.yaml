@@ -45,3 +45,8 @@ workflow:
   requireRetrospectiveGate: true
   requireDraftFirst: true
   devModeDefault: true
+
+queue:
+  maxParallel: 3
+  maxAutoFiledIssues: 10
+  reDispatchMaxRetries: 1

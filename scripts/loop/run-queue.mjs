@@ -1,0 +1,124 @@
+#!/usr/bin/env node
+/**
+ * run-queue.mjs — Queue runner for dev-loop queue mode.
+ *
+ * Usage:
+ *   dev-loops queue run --repo <owner/name> [--merge-authorized] [--parallel] [--redispatch-max-retries <n>]
+ *
+ * Reads queue state from .pi/dev-loop-queue.json and drives entries
+ * through the sequential queue driver. Queue config (maxParallel etc.)
+ * lives in .pi/dev-loop/settings.yaml.
+ *
+ * For parallel execution, use --parallel (file-overlap detection is
+ * deferred to a future phase; currently falls back to sequential).
+ */
+
+import { fileURLToPath } from "node:url";
+import { runQueue, DEFAULT_QUEUE_DRIVER_OPTIONS } from "../../packages/core/src/loop/queue-driver.mjs";
+import { computeParallelSchedule } from "../../packages/core/src/loop/queue-parallel.mjs";
+import { readQueue } from "../../packages/core/src/loop/queue-state.mjs";
+import { parsePositiveInteger } from "../../packages/core/src/cli/primitives.mjs";
+
+const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+
+const USAGE = `Usage:
+  dev-loops queue run --repo <owner/name> [--merge-authorized] [--parallel] [--redispatch-max-retries <n>]
+
+Run the dev-loop queue driver over entries in .pi/dev-loop-queue.json.
+Exit codes: 0 success, 1 error`.trim();
+
+function parseArgs(argv) {
+  const args = {
+    repo: null,
+    mergeAuthorized: false,
+    parallel: false,
+    reDispatchMaxRetries: 1,
+    maxParallel: 3,
+    help: false,
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    switch (argv[i]) {
+      case "--repo":
+        args.repo = argv[++i];
+        break;
+      case "--merge-authorized":
+        args.mergeAuthorized = true;
+        break;
+      case "--parallel":
+        args.parallel = true;
+        break;
+      case "--redispatch-max-retries":
+        args.reDispatchMaxRetries = parsePositiveInteger(argv[++i], "--redispatch-max-retries");
+        break;
+      case "--max-parallel":
+        args.maxParallel = parsePositiveInteger(argv[++i], "--max-parallel");
+        break;
+      case "--help":
+      case "-h":
+        args.help = true;
+        break;
+    }
+  }
+
+  return args;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.help) {
+    console.log(USAGE);
+    process.exit(0);
+  }
+
+  if (!args.repo) {
+    console.error("Error: --repo <owner/name> is required");
+    process.exit(1);
+  }
+
+  const queue = await readQueue(REPO_ROOT);
+
+  if (queue.entries.length === 0) {
+    console.log(JSON.stringify({ ok: true, message: "Queue is empty", results: [] }));
+    return;
+  }
+
+  const pending = queue.entries.filter((e) => e.status !== "done" && e.status !== "blocked");
+  console.error(`Queue: ${queue.entries.length} entries, ${pending.length} pending`);
+
+  if (args.parallel && pending.length > 1) {
+    // Note: file lists are not resolved from issues yet; real overlap
+    // detection requires fetching issue bodies via gh CLI. For now,
+    // compute a schedule from entry metadata and fall back to sequential.
+    const schedule = computeParallelSchedule(
+      pending.map((e) => ({
+        target: e.target,
+        files: [],
+        dependsOn: e.dependsOn || [],
+      })),
+      args.maxParallel
+    );
+
+    console.error(`Parallel schedule: ${schedule.waves.length} waves`);
+    for (let wi = 0; wi < schedule.waves.length; wi++) {
+      const wave = schedule.waves[wi];
+      console.error(`  Wave ${wi + 1}: ${wave.map((g) => `[${g.join(", ")}]`).join("  ")}`);
+    }
+
+    console.error("Parallel dispatch via async subagents not yet wired; falling back to sequential.");
+  }
+
+  const result = await runQueue(REPO_ROOT, args.repo, {
+    ...DEFAULT_QUEUE_DRIVER_OPTIONS,
+    mergeAuthorized: args.mergeAuthorized,
+    reDispatchMaxRetries: args.reDispatchMaxRetries,
+  });
+
+  console.log(JSON.stringify(result, null, 2));
+}
+
+main().catch((err) => {
+  console.error(JSON.stringify({ ok: false, error: err.message }));
+  process.exit(1);
+});
