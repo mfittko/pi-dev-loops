@@ -157,8 +157,8 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   );
   assert.match(
     step7,
-    /including `unresolvedThreadCount`/i,
-    "verification checkpoint should require refreshed API-backed unresolvedThreadCount data",
+    /including the unresolved thread count/i,
+    "verification checkpoint should require refreshed API-backed unresolved thread count data",
   );
   assert.match(
     step7,
@@ -170,12 +170,12 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   assert.ok(verificationIndex >= 0 && resolveIndex > verificationIndex, "verification checkpoint must appear before the resolve step");
   assert.match(
     step7,
-    /verify `unresolvedThreadCount === 0` via `dev-loops review capture-threads` before proceeding/i,
+    /verify zero unresolved threads remain via `dev-loops review capture-threads` before proceeding/i,
     "Step 7 should require deterministic unresolved-thread verification before advancing",
   );
   assert.match(
     step7,
-    /if the refreshed snapshot reports a non-zero unresolved thread count, re-enter the reply\/resolve loop for the missed threads/i,
+    /if the refreshed snapshot reports unresolved threads, re-enter the reply\/resolve loop for the missed threads/i,
     "Step 7 should require re-entering the reply-resolve loop when unresolved threads remain",
   );
   assert.match(
@@ -195,7 +195,7 @@ test("copilot-pr-followup skill hardens reply-resolve, gate sequencing, and merg
   );
   assert.match(
     step7,
-    /unresolvedThreadCount === 0.*dev-loops review capture-threads/i,
+    /zero unresolved threads.*dev-loops review capture-threads/i,
     "merge-ready preconditions should require deterministic thread-state verification",
   );
   assert.match(
@@ -308,8 +308,8 @@ test("copilot-pr-followup skill caps Copilot re-review rounds via config and sna
 
   assert.match(step7, /resolveRefinementConfig\(config, "maxCopilotRounds"\)/i);
   assert.match(step7, /default config ships `maxCopilotRounds: 5`/i);
-  assert.match(step7, /snapshot\.copilotReviewRoundCount/i);
-  assert.match(step7, /if `snapshot\.copilotReviewRoundCount >= maxCopilotRounds`, do \*\*not\*\* re-request Copilot review/i);
+  assert.match(step7, /completed Copilot review-round count/i);
+  assert.match(step7, /if completed review rounds have reached the maximum/i);
   assert.match(step7, /`deferred to follow-up` note/i);
   assert.match(step7, /stop and report that the Copilot round limit was reached/i);
 });
