@@ -341,7 +341,7 @@ test("skill docs enforce self-assignment and draft-first rules for create comman
     readRepo("skills/local-implementation/SKILL.md"),
     readRepo("skills/final-approval/SKILL.md"),
     readRepo("AGENTS.md"),
-    readRepo("skills/docs/workflow-handoff-template.md"),
+    readRepo("skills/docs/workflow-handoff-contract.md"),
     readRepo("docs/tracker-story-pr-contract.md"),
   ]);
 

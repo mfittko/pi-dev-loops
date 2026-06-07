@@ -1,8 +1,7 @@
-# Handoff Envelope — Derivation Contract
+# Workflow Handoff — Derivation Contract
 
-> **Status:** This document now defines the **contract** for the
+> **Status:** This document defines the **contract** for the
 > `buildDevLoopHandoffEnvelope()` function in `@pi-dev-loops/core`.
-> It is no longer a prose template consumed by agents at dispatch time.
 > Agents should read the envelope as their first artifact and then load
 > only the listed `requiredReads` before executing `nextAction`.
 
