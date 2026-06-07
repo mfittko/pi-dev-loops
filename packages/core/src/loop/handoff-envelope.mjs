@@ -495,7 +495,7 @@ const VALID_ASYNC_START_MODES = Object.freeze(["required", "allowed"]);
  *     requiredReads, acceptance, stopRules)
  *   - Missing required sub-fields (target.kind, target.repo, acceptance.criteria)
  *   - Malformed acceptance criteria entries
- *   - Wrong handoffVersion (unknown version)
+ *   - Wrong handoffVersion (negative/non-integer; version mismatch produces a warning)
  *   - Type errors in requiredReads, stopRules, etc.
  *
  * Does not throw — always returns a structured result.
@@ -544,7 +544,12 @@ export function validateHandoffEnvelope(envelope) {
         got: envelope.target.repo,
       });
     } else {
-      const normalized = normalizeRepoSlug(envelope.target.repo);
+      let normalized;
+      try {
+        normalized = normalizeRepoSlug(envelope.target.repo);
+      } catch (_e) {
+        normalized = null;
+      }
       if (!normalized || normalized !== envelope.target.repo) {
         errors.push({
           field: "target.repo",

@@ -1195,6 +1195,13 @@ test("validate: target.repo with invalid slug returns error", () => {
   assert.ok(result.errors.some(e => e.field === "target.repo"));
 });
 
+test("validate: target.repo with extra segments returns error (no throw)", () => {
+  const env = { ...validEnvelope(), target: { kind: "issue", issue: 1, repo: "a/b/c" } };
+  const result = validateHandoffEnvelope(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "target.repo"));
+});
+
 test("validate: target.issue with zero value returns error", () => {
   const env = { ...validEnvelope(), target: { kind: "issue", issue: 0, repo: "a/b" } };
   const result = validateHandoffEnvelope(env);
