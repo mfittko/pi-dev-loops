@@ -338,7 +338,7 @@ Follow [Stop Conditions](../docs/stop-conditions.md). Genuine stops: `blocked` s
 ## Anti-patterns
 
 See [Anti-patterns](../docs/anti-patterns.md). Key repo-specific additions:
-- Use `reply-resolve-review-thread.mjs` / `reply-resolve-review-threads.mjs` helpers instead of ad hoc `gh api`/`gh api graphql` thread-mutation commands. Use `upsert-checkpoint-verdict.mjs` for gate comments, not `gh pr comment`/`gh pr review`.
+- Use `reply-resolve-review-thread.mjs` / `reply-resolve-review-threads.mjs` helpers instead of ad hoc `gh api`/`gh api graphql` thread-mutation commands. Do NOT use `gh pr comment`, `gh api`, or `gh pr review` for gate comments (use `upsert-checkpoint-verdict.mjs`).
 - Do not declare merge-ready without visible `pre_approval_gate` comment on current head SHA. Do not declare merge-ready based solely on `mergeable_state: clean` + CI green without gate evidence. CI green + resolved threads alone is insufficient.
 - Do not blind-run `gh pr merge`/`gh pr update-branch`/unapproved rebase when conflicted. Do not dispatch async dev-loop tasks that omit the pre-approval gate requirement.
 - Do not assume generated wiki is authoritative over code or CI.
