@@ -224,16 +224,6 @@ async function requestCopilotReview({ repo, pr }, { env = process.env, ghCommand
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     const classified = classifyRequestFailure(detail);
     if (classified === "unavailable") {
-      const existing = await fetchCopilotReviewIds({ repo, pr }, { env, ghCommand });
-      if (existing.hasCopilotPendingReviewOnCurrentHead || existing.hasCopilotSubmittedReviewOnCurrentHead) {
-        return {
-          ok: true,
-          status: "already-requested",
-          repo,
-          pr,
-          reviewer: "Copilot",
-        };
-      }
       return {
         ok: true,
         status: "unavailable",
@@ -366,7 +356,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
   const requestResult = await requestCopilotReview(options, { env, ghCommand });
   if (requestResult.status === "unavailable") {
     const after = await fetchCopilotReviewState(options, { env, ghCommand });
-    if (after.requested || after.hasPendingReviewOnCurrentHead || after.hasSubmittedReviewOnCurrentHead) {
+    if (after.requested || after.hasPendingReviewOnCurrentHead) {
       return {
         ok: true,
         status: "already-requested",
@@ -378,9 +368,6 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     return {
       ...requestResult,
     };
-  }
-  if (requestResult.status === "already-requested") {
-    return requestResult;
   }
   const after = await fetchCopilotReviewState(options, { env, ghCommand });
   const reviewCountIncreased = after.copilotReviewIds.length > before.copilotReviewIds.length;

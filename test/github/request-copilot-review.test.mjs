@@ -291,11 +291,6 @@ test("request-copilot-review normalizes known unrequestable/unavailable failures
         stderr: "gh: Reviews may only be requested from collaborators.\n",
         exitCode: 1,
       },
-      // post-422: check if Copilot already has a review on current head
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
-        stdout: '{"reviews":[]}\n',
-      },
       // post-failure verification: Copilot is still not in requested_reviewers
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -345,11 +340,6 @@ test("request-copilot-review returns already-requested when 422 but Copilot is i
         stderr: "gh: Reviews may only be requested from collaborators.\n",
         exitCode: 1,
       },
-      // post-422: check if Copilot already has a review on current head
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
-        stdout: '{"reviews":[]}\n',
-      },
       // post-failure verification: Copilot now appears in requested_reviewers
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
@@ -397,7 +387,11 @@ test("request-copilot-review returns already-requested when 422 but Copilot has 
         stderr: "gh: Reviews may only be requested from collaborators.\n",
         exitCode: 1,
       },
-      // post-422: check if Copilot already has a review on current head — finds pending review
+      // post-failure verification: Copilot not in requested_reviewers, but has a PENDING review
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"headRefOid":"abc123","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}}]}\n',
@@ -480,11 +474,6 @@ test("request-copilot-review ignores a stale pending Copilot review after 422 an
         assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
         stderr: "gh: Reviews may only be requested from collaborators.\n",
         exitCode: 1,
-      },
-      // post-422: check if Copilot already has a review on current head — stale review on old head, no match
-      {
-        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
-        stdout: '{"headRefOid":"newsha","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"oldsha"}}]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],

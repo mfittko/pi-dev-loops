@@ -285,7 +285,6 @@ When unresolved feedback exists, use a narrow follow-up loop:
     - if the current-head detector output still says `state=waiting_for_ci` with `snapshot.ciStatus` in `{ "pending", "none" }`, wait only via `gh run watch <run-id> --repo <owner/name>` for a known run id or else stop/resume later after the single detector refresh
     - if GitHub CI/checks for the updated head are known red for a fixable issue, continue remediation instead of re-requesting Copilot
     - only once the updated head is green or credibly green, explicitly re-request Copilot review for the new head rather than assuming it remains requested
-    - **Do NOT use `gh api POST repos/.../requested_reviewers` directly. Always use `request-copilot-review.mjs`.**
     - only enter a wait/watch loop if the request result is confirmed as `requested` or `already-requested`
     - for `requested` / `already-requested`, immediately re-baseline with `detect-copilot-loop-state.mjs`; if the returned state is `waiting_for_copilot_review`, use `dev-loops loop watch-cycle` or stop/resume later, and if the returned state is `waiting_for_ci`, use `gh run watch` for a known run id or stop/resume later after that single detector refresh
     - if the request result is `unavailable`, report that limitation and stop unless the user explicitly wants passive waiting anyway
