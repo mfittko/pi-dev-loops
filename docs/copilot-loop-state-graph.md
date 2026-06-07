@@ -137,8 +137,8 @@ The interpreter applies rules in priority order. The first matching rule wins.
 
 When rule 11 yields `ready_to_rerequest_review`, the interpreter also emits two machine-readable flags:
 
-- `autoRerequestEligible` — `true` only when a meaningful remediation event has occurred since the last Copilot review basis (deterministically: there is no submitted Copilot review on the current head).
-- `sameHeadCleanConverged` — `true` when the current head already has a clean submitted Copilot review and no unresolved/actionable threads remain, so automatic same-head re-request must be suppressed.
+- Automatic re-request eligibility — available only when a meaningful remediation event has occurred since the last Copilot review basis (deterministically: there is no submitted Copilot review on the current head).
+- Clean convergence on current head — when the current head already has a clean submitted Copilot review and no unresolved/actionable threads remain, automatic same-head re-request is suppressed.
 
 ## Key Behavioral Guarantees
 
@@ -152,7 +152,7 @@ Rule 8 routes to `waiting_for_copilot_review` whenever the effective request sta
 
 ### Automatic same-head re-request suppression after clean convergence
 
-When the current head already has a submitted Copilot review, unresolved/actionable thread counts are 0, and CI is not in a blocked wait/failure state, automatic follow-up re-request is suppressed for that head (`sameHeadCleanConverged: true`, `autoRerequestEligible: false`). Automatic re-request becomes eligible again only after a meaningful remediation event changes the review basis (for this loop: a newer head without a submitted Copilot review on that head). Explicit operator/manual re-request remains allowed, but the direct request helper now suppresses same-head clean re-requests by default unless `--force-rerequest-review` is provided.
+When the current head already has a submitted Copilot review, unresolved/actionable thread counts are 0, and CI is not in a blocked wait/failure state, automatic follow-up re-request is suppressed for that head (clean convergence on current head, automatic re-request suppressed). Automatic re-request becomes eligible again only after a meaningful remediation event changes the review basis (for this loop: a newer head without a submitted Copilot review on that head). Explicit operator/manual re-request remains allowed, but the direct request helper now suppresses same-head clean re-requests by default unless `--force-rerequest-review` is provided.
 
 ### `unavailable` stops the loop only when no in-progress evidence exists
 

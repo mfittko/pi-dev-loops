@@ -263,9 +263,9 @@ When actionable review feedback exists, use a narrow follow-up loop:
     - if the refreshed snapshot reports a non-zero unresolved thread count, re-enter the reply/resolve loop for the missed threads
 12. only after GitHub-side reply/resolve work is done for the addressed threads and the refreshed thread snapshot proves `unresolvedThreadCount === 0`, decide whether another Copilot pass is desired
     - resolve the review-round cap from config via `resolveRefinementConfig(config, "maxCopilotRounds")` from `@pi-dev-loops/core/config`; default config ships `maxCopilotRounds: 5`
-    - use `snapshot.copilotReviewRoundCount` from `detect-copilot-loop-state.mjs` / `copilot-pr-handoff.mjs` as the completed Copilot review-round count for the current PR
-    - if `snapshot.copilotReviewRoundCount >= maxCopilotRounds`, do **not** re-request Copilot review
-    - when the round cap is reached **and** the refreshed thread snapshot proves `unresolvedThreadCount === 0` **and** current-head CI is `success` or `crediblyGreen`, treat that clean state as eligible for `pre_approval_gate` fallback instead of deadlocking on another Copilot rerequest
+    - use the completed Copilot review-round count from `detect-copilot-loop-state.mjs` / `copilot-pr-handoff.mjs` as the current PR's review-round count
+    - if completed review rounds have reached the maximum (default: 5), do **not** re-request Copilot review
+    - when the round limit is reached **and** the refreshed thread snapshot proves zero unresolved threads **and** current-head CI is green or credibly green, treat that clean state as eligible for `pre_approval_gate` fallback instead of deadlocking on another Copilot rerequest
     - when using that fallback, add a short round-exhaustion note to the visible `pre_approval_gate` gate evidence so the PR records why no further Copilot rerequest occurred
     - if the round cap is reached before the PR is thread-clean or before CI is green/credibly green, reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note, then stop and report that the Copilot round limit was reached
     - **Signal-gated re-request suppression (diminishing-returns policy):** resolve low-signal config from `resolveRefinementConfig(config, "stopOnLowSignal")` / `resolveRefinementConfig(config, "lowSignalRoundThreshold")` / `resolveRefinementConfig(config, "lowSignalMaxComments")` from `@pi-dev-loops/core/config`; defaults: `stopOnLowSignal: true`, `lowSignalRoundThreshold: 3`, `lowSignalMaxComments: 2`
@@ -273,7 +273,7 @@ When actionable review feedback exists, use a narrow follow-up loop:
       - **High** — blocking bugs, security issues, contract violations, crashes, data loss, regressions → always re-request
       - **Mid** — meaningful improvements, design questions, refactoring suggestions → fix once; suppress re-request when round threshold met
       - **Low** — cosmetic nits, phrasing preferences, trivial cleanup → fix once; do NOT re-request
-    - when `stopOnLowSignal` is enabled and `copilotReviewRoundCount > lowSignalRoundThreshold` and `actionableThreadCount <= lowSignalMaxComments` and the last Copilot round's maximum signal level is `mid` or `low` (not `high`), the state machine returns `LOW_SIGNAL_CONVERGED` (terminal) instead of `READY_TO_REREQUEST_REVIEW`, routing to `pre_approval_gate` without further re-requests
+    - when low-signal detection is enabled and more review rounds than the low-signal threshold have passed and actionable review threads are at or below the low-signal max, and the last Copilot round's maximum signal level is `mid` or `low` (not `high`), the state machine returns a low-signal-converged terminal state instead of a ready-to-rerequest state, routing to `pre_approval_gate` without further re-requests
     - when signal classification data is unavailable (null), the heuristic falls back to the `actionableThreadCount <= lowSignalMaxComments` check
     - the low-signal heuristic is applied by `detect-copilot-loop-state.mjs` through the shared `interpretLoopState` / `summarizeLoopInterpretation` contract
     - if yes and the round cap has not been reached, run the smallest honest local validation for the accepted fix scope

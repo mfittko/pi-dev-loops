@@ -108,7 +108,7 @@ Contract:
 Success output shape:
 - `{ "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
 - `unavailable` also includes a `detail` string with the normalized GitHub/CLI limitation
-- `suppressed_same_head_clean` includes `sameHeadCleanConverged: true` and an override hint
+- `suppressed_same_head_clean` indicates clean convergence on the current head and includes an override hint
 - forced bypass results include `bypassedSameHeadCleanSuppression: true`
 
 Failure behavior:
@@ -590,7 +590,7 @@ Success output shape:
 - `allowedTransitions` is the list of states reachable from `state`
 - `nextAction` is a human-readable recommended next step
 - `autoRerequestEligible` is `true` only when a meaningful remediation event has made automatic re-request valid again
-- `sameHeadCleanConverged` is `true` when the current head already has a clean submitted Copilot review and automatic same-head re-request must be suppressed
+- `sameHeadCleanConverged` is `true` when the current head has clean convergence (a submitted Copilot review with no unresolved threads), suppressing automatic same-head re-request
 - `loopDisposition` is the high-level refreshed classification: `pending`, `unresolved_feedback`, `clean_converged`, `blocked`, `action_required`, or `done`
 - `terminal` is `true` only for clean-converged, blocked, or done states; watcher timeout/idle must be treated as non-terminal until a refreshed detector output proves `terminal=true`
 
@@ -601,7 +601,7 @@ Key behavioral guarantees:
 - When `unresolvedThreadCount > 0`, the state is always in the fix/reply-resolve family — never `waiting_for_copilot_review` or any wait state
 - When `copilotReviewRequestStatus` is `unavailable` or `failed`, the state is a terminal stop/report state with no allowed transitions
 - When `agentFixStatus` is `"applied"` and unresolved threads exist, the state is `already_fixed_needs_reply_resolve`, and `allowedTransitions` includes only `ready_to_rerequest_review`
-- When the current head already has a clean submitted Copilot review, `sameHeadCleanConverged=true` and automatic same-head re-request is suppressed until a meaningful remediation event occurs
+- When the current head has clean convergence (a submitted Copilot review with no unresolved threads), automatic same-head re-request is suppressed until a meaningful remediation event occurs
 - If review-thread state cannot be determined during auto-detect, the script fails closed instead of assuming zero unresolved threads
 - When `--steering-state-file` is provided, steering is surfaced as a read-only overlay;
   queued steering promotion/persistence is owned explicitly by `steer-loop.mjs promote`
