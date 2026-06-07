@@ -1,6 +1,6 @@
 # Entrypoint strategies
 
-This document replaces the seven individual `entrypoint-briefing-*.md` files with a single per-strategy-section reference. Each section preserves the state vocabulary, next-action sentence, helpers to run first, and required reading for that strategy.
+This document replaces the seven individual `entrypoint-briefing-*.md` files with a single per-strategy-section reference. Each section preserves the state vocabulary and key operational content for that strategy.
 
 ## Copilot PR follow-up
 
