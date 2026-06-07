@@ -10,6 +10,8 @@ import {
   TARGET_REPO_SLUG,
   createPostMergeUpdateHook,
   isMergeCapableCommand,
+  isGhPrReadyCommand,
+  extractPrNumberFromGhPrReady,
   normalizeGitHubRepoSlug,
 } from "../extension/post-merge-update.ts";
 
@@ -290,4 +292,173 @@ test("session_start resets post-merge hook state and extension registers lifecyc
       process.env.HOME = previousHome;
     }
   }
+});
+
+// --- gh pr ready gate guard tests ---
+
+test("isGhPrReadyCommand matches gh pr ready variants", () => {
+  assert.equal(isGhPrReadyCommand("gh pr ready"), true);
+  assert.equal(isGhPrReadyCommand("gh pr ready 42"), true);
+  assert.equal(isGhPrReadyCommand("gh pr ready 42 --repo mfittko/pi-dev-loops"), true);
+  assert.equal(isGhPrReadyCommand("gh pr ready --help"), false);
+  assert.equal(isGhPrReadyCommand("gh pr ready -h"), false);
+  assert.equal(isGhPrReadyCommand("gh pr merge 42"), false);
+  assert.equal(isGhPrReadyCommand("git merge origin/main"), false);
+  assert.equal(isGhPrReadyCommand("echo gh pr ready"), false);
+});
+
+test("extractPrNumberFromGhPrReady extracts the PR number", () => {
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready 42"), 42);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready 123"), 123);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready 42 --repo mfittko/pi-dev-loops"), 42);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready --repo mfittko/pi-dev-loops 42"), 42);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready"), null);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr ready --help"), null);
+  assert.equal(extractPrNumberFromGhPrReady("gh pr merge 42"), null);
+});
+
+test("gh pr ready blocks when draft-gate script fails", async () => {
+  const calls = [];
+  const hook = createPostMergeUpdateHook({
+    resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
+    runCommand: async ({ command, cwd }) => {
+      calls.push({ command, cwd });
+      if (command.startsWith("node scripts/loop/pre-pr-ready-gate.mjs")) {
+        return { code: 1, stdout: "", stderr: JSON.stringify({ ok: false, error: "No visible clean draft_gate checkpoint verdict comment found on PR #42 for head abc1234." }), killed: false };
+      }
+      return { code: 0, stdout: "ok", stderr: "", killed: false };
+    },
+  });
+  const { ctx } = createUiCalls();
+
+  const result = await hook.onUserBash({ command: "gh pr ready 42", cwd: "/repo" }, ctx);
+  assert.deepEqual(result, {
+    result: {
+      output: "gh pr ready blocked: No visible clean draft_gate checkpoint verdict comment found on PR #42 for head abc1234.",
+      exitCode: 1,
+      cancelled: false,
+      truncated: false,
+    },
+  });
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].command.startsWith("node scripts/loop/pre-pr-ready-gate.mjs"));
+});
+
+test("gh pr ready allows when draft-gate script passes", async () => {
+  const calls = [];
+  const hook = createPostMergeUpdateHook({
+    resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
+    runCommand: async ({ command, cwd }) => {
+      calls.push({ command, cwd });
+      if (command.startsWith("node scripts/loop/pre-pr-ready-gate.mjs")) {
+        return { code: 0, stdout: JSON.stringify({ ok: true, draftGateSatisfied: true }), stderr: "", killed: false };
+      }
+      if (command === "gh pr ready 42") {
+        return { code: 0, stdout: "✓ Pull request #42 is now ready for review", stderr: "", killed: false };
+      }
+      return { code: 0, stdout: "ok", stderr: "", killed: false };
+    },
+  });
+  const { ctx } = createUiCalls();
+
+  const result = await hook.onUserBash({ command: "gh pr ready 42", cwd: "/repo" }, ctx);
+  assert.deepEqual(result, {
+    result: {
+      output: "✓ Pull request #42 is now ready for review",
+      exitCode: 0,
+      cancelled: false,
+      truncated: false,
+    },
+  });
+  assert.equal(calls.length, 2);
+  assert.ok(calls[0].command.startsWith("node scripts/loop/pre-pr-ready-gate.mjs"));
+  assert.equal(calls[1].command, "gh pr ready 42");
+});
+
+test("gh pr ready without PR number blocks immediately", async () => {
+  const calls = [];
+  const hook = createPostMergeUpdateHook({
+    resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
+    runCommand: async ({ command, cwd }) => {
+      calls.push({ command, cwd });
+      return { code: 0, stdout: "ok", stderr: "", killed: false };
+    },
+  });
+  const { ctx } = createUiCalls();
+
+  const result = await hook.onUserBash({ command: "gh pr ready", cwd: "/repo" }, ctx);
+  assert.deepEqual(result, {
+    result: {
+      output: "gh pr ready blocked: could not determine PR number from command. Include the PR number explicitly.",
+      exitCode: 1,
+      cancelled: false,
+      truncated: false,
+    },
+  });
+  assert.equal(calls.length, 0);
+});
+
+test("gh pr ready in non-target repo passes through", async () => {
+  const calls = [];
+  const hook = createPostMergeUpdateHook({
+    resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: "other/repo" }),
+    runCommand: async ({ command, cwd }) => {
+      calls.push({ command, cwd });
+      return { code: 0, stdout: "ok", stderr: "", killed: false };
+    },
+  });
+  const { ctx } = createUiCalls();
+
+  const result = await hook.onUserBash({ command: "gh pr ready 42", cwd: "/repo" }, ctx);
+  assert.equal(result, undefined);
+  assert.equal(calls.length, 0);
+});
+
+test("gh pr ready guard failures from script errors surface gracefully", async () => {
+  const calls = [];
+  const hook = createPostMergeUpdateHook({
+    resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
+    runCommand: async ({ command, cwd }) => {
+      calls.push({ command, cwd });
+      throw new Error("script not found");
+    },
+  });
+  const { ctx } = createUiCalls();
+
+  const result = await hook.onUserBash({ command: "gh pr ready 42", cwd: "/repo" }, ctx);
+  assert.deepEqual(result, {
+    result: {
+      output: "gh pr ready blocked: draft-gate evidence check failed (could not run guard script).",
+      exitCode: 1,
+      cancelled: false,
+      truncated: false,
+    },
+  });
+});
+
+test("gh pr ready intercept does not affect gh pr merge or other commands", async () => {
+  const calls = [];
+  const hook = createPostMergeUpdateHook({
+    resolveRepoContext: async (cwd) => ({ repoRoot: cwd, repoSlug: TARGET_REPO_SLUG }),
+    runCommand: async ({ command, cwd }) => {
+      calls.push({ command, cwd });
+      if (command === "gh pr merge 373 --squash --delete-branch") {
+        return { code: 0, stdout: "Merged", stderr: "", killed: false };
+      }
+      return { code: 0, stdout: "ok", stderr: "", killed: false };
+    },
+  });
+  const { ctx } = createUiCalls();
+
+  const result = await hook.onUserBash({ command: "gh pr merge 373 --squash --delete-branch", cwd: "/repo" }, ctx);
+  assert.deepEqual(result, {
+    result: {
+      output: "Merged",
+      exitCode: 0,
+      cancelled: false,
+      truncated: false,
+    },
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, "gh pr merge 373 --squash --delete-branch");
 });
