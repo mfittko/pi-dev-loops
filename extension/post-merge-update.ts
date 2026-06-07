@@ -10,10 +10,15 @@ import type {
 
 export const TARGET_REPO_SLUG = 'mfittko/pi-dev-loops';
 export const POST_MERGE_UPDATE_COMMAND = 'pi update git:github.com/mfittko/pi-dev-loops';
+export const PRE_PR_READY_GATE_SCRIPT = 'node scripts/loop/pre-pr-ready-gate.mjs';
 
 const MERGE_COMMAND_TIMEOUT_MS = 15 * 60 * 1000;
 const POST_MERGE_UPDATE_TIMEOUT_MS = 10 * 60 * 1000;
 const REPO_RESOLUTION_TIMEOUT_MS = 5_000;
+const PR_READY_GATE_TIMEOUT_MS = 30_000;
+
+// Flags known to take a value argument for gh pr ready (not boolean flags)
+const FLAGS_THAT_TAKE_VALUE = new Set(["-r", "--repo"]);
 
 type RepoContext = {
   repoRoot: string | null;
@@ -217,6 +222,87 @@ export function isMergeCapableCommand(command: string): boolean {
     .some((segment) => isGhPrMergeCommand(segment) || isGitMergeCompletionCommand(segment));
 }
 
+function firstShellSegment(command: string): string {
+  return command.trim().split(/\s*(?:&&|\|\||;|\|)\s*/)[0]?.trim() ?? '';
+}
+
+export function isGhPrReadyCommand(command: string): boolean {
+  const segment = firstShellSegment(command);
+  if (!segment || !/^gh\s+pr\s+ready(?:\s|$)/i.test(segment)) {
+    return false;
+  }
+
+  const remainder = segment.replace(/^gh\s+pr\s+ready(?:\s|$)/i, '').trim();
+  if (!remainder) {
+    return true;
+  }
+  // Block interception if --help or -h appears anywhere in the arguments
+  const args = remainder.split(/\s+/).map(a => a.toLowerCase());
+  return !args.includes('--help') && !args.includes('-h');
+}
+
+export function extractPrNumberFromGhPrReady(command: string): number | null {
+  const segment = firstShellSegment(command);
+  if (!/^gh\s+pr\s+ready(?:\s|$)/i.test(segment)) {
+    return null;
+  }
+  const remainder = segment.replace(/^gh\s+pr\s+ready(?:\s|$)/i, '').trim();
+  if (!remainder) {
+    return null;
+  }
+  // Skip flags (--flag or --flag=value)
+  const tokens = remainder.split(/\s+/);
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.startsWith('-')) {
+      // Only skip the next token for flags known to take a value argument
+      const flagName = token.replace(/=.*$/, '').toLowerCase();
+      if (!token.includes('=') && FLAGS_THAT_TAKE_VALUE.has(flagName)) {
+        i++; // skip next token (the flag value)
+      }
+      continue;
+    }
+    if (/^\d+$/.test(token)) {
+      const num = Number(token);
+      if (num > 0) {
+        return num;
+      }
+    }
+    // Non-numeric non-flag token — not a PR number
+    return null;
+  }
+  return null;
+}
+
+export function extractRepoFlagFromGhPrReady(command: string): string | null {
+  const segment = firstShellSegment(command);
+  if (!/^gh\s+pr\s+ready(?:\s|$)/i.test(segment)) {
+    return null;
+  }
+  const remainder = segment.replace(/^gh\s+pr\s+ready(?:\s|$)/i, '').trim();
+  if (!remainder) {
+    return null;
+  }
+  const tokens = remainder.split(/\s+/);
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const lower = token.toLowerCase();
+    if (lower === '-r' || lower === '--repo') {
+      // Next token is the repo slug value
+      if (i + 1 < tokens.length && !tokens[i + 1].startsWith('-')) {
+        return tokens[i + 1];
+      }
+    }
+    // Handle --repo=value and -R=value
+    const repoEqMatch = token.match(/^(?:--repo|-R)=(.+)$/i);
+    if (repoEqMatch) {
+      return repoEqMatch[1];
+    }
+
+  }
+  return null;
+}
+
 export function createPostMergeUpdateHook(
   piOrOptions: ExtensionAPI | CreatePostMergeUpdateHookOptions,
   maybeOptions: CreatePostMergeUpdateHookOptions = {},
@@ -264,6 +350,92 @@ export function createPostMergeUpdateHook(
     },
 
     async onUserBash(event: Pick<UserBashEvent, 'command' | 'cwd'>, _ctx?: ExtensionContext): Promise<UserBashEventResult | undefined> {
+      // Intercept gh pr ready before any other checks
+      if (isGhPrReadyCommand(event.command)) {
+        // Check if the command explicitly targets a different repo via -R/--repo
+        const explicitRepo = extractRepoFlagFromGhPrReady(event.command);
+        if (explicitRepo && explicitRepo.toLowerCase() !== TARGET_REPO_SLUG.toLowerCase()) {
+          // Explicitly targeting a different repo — pass through
+          return undefined;
+        }
+
+        const repoContext = await resolveRepoContextSafe(resolveRepoContext, event.cwd);
+        if (!repoContext?.repoRoot || repoContext.repoSlug !== TARGET_REPO_SLUG) {
+          // Not our target repo — pass through to default handling
+          return undefined;
+        }
+
+        const prNumber = extractPrNumberFromGhPrReady(event.command);
+        if (prNumber === null) {
+          return {
+            result: {
+              output: 'gh pr ready blocked: could not determine PR number from command. Include the PR number explicitly.',
+              exitCode: 1,
+              cancelled: false,
+              truncated: false,
+            },
+          };
+        }
+
+        // Run draft-gate evidence check
+        const gateCommand = `${PRE_PR_READY_GATE_SCRIPT} --repo ${repoContext.repoSlug} --pr ${prNumber}`;
+        try {
+          const gateResult = await runCommand({
+            command: gateCommand,
+            cwd: repoContext.repoRoot,
+            timeout: PR_READY_GATE_TIMEOUT_MS,
+          });
+
+          if (gateResult.code !== 0) {
+            const stderr = `${gateResult.stderr ?? ''}`.trim();
+            let message = `gh pr ready blocked: no visible clean draft_gate checkpoint verdict comment found for PR #${prNumber}.`;
+            try {
+              const parsed = JSON.parse(stderr);
+              if (parsed.error) {
+                message = `gh pr ready blocked: ${parsed.error}`;
+              }
+            } catch {
+              if (stderr) {
+                message = `gh pr ready blocked:\n${stderr}`;
+              }
+            }
+            return {
+              result: {
+                output: message,
+                exitCode: 1,
+                cancelled: false,
+                truncated: false,
+              },
+            };
+          }
+
+          // Gate passed — run the actual gh pr ready command
+          const readyResult = await runCommand({
+            command: event.command,
+            cwd: event.cwd,
+            timeout: MERGE_COMMAND_TIMEOUT_MS,
+          });
+
+          return {
+            result: {
+              output: buildShellOutput(readyResult),
+              exitCode: readyResult.killed ? undefined : readyResult.code,
+              cancelled: Boolean(readyResult.killed),
+              truncated: false,
+            },
+          };
+        } catch {
+          return {
+            result: {
+              output: 'gh pr ready blocked: draft-gate evidence check failed (could not run guard script).',
+              exitCode: 1,
+              cancelled: false,
+              truncated: false,
+            },
+          };
+        }
+      }
+
       if (!isMergeCapableCommand(event.command)) {
         return undefined;
       }
