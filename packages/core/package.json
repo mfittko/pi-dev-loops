@@ -34,7 +34,8 @@
     "./analysis": "./src/analysis/index.mjs",
     "./cli/primitives": "./src/cli/primitives.mjs",
     "./cli/helpers": "./src/cli/helpers.mjs",
-    "./cli/subcommand-runner": "./src/cli/subcommand-runner.mjs"
+    "./cli/subcommand-runner": "./src/cli/subcommand-runner.mjs",
+    "./cli/retry-wrapper": "./src/cli/retry-wrapper.mjs"
   },
   "bin": {
     "pi-dev-loops-log-bash-exit-1": "./bin/log-bash-exit-1.mjs",

@@ -12,6 +12,7 @@ import {
   summarizeChecks,
   DEV_LOOP_CHECK_IDS,
 } from "../lib/dev-loops-core.mjs";
+import { isUsageError, buildCorrectedArgs } from "../packages/core/src/cli/retry-wrapper.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
@@ -319,6 +320,18 @@ export async function runCli({
       const result = spawnSync("node", [fromTop.scriptPath, ...scriptArgs], {
         cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
       });
+      // Retry on usage/flag errors: parse usage for valid flags, retry once (#483)
+      if (result.status !== 0 && isUsageError(result.stderr)) {
+        const correctedArgs = buildCorrectedArgs(scriptArgs, result.stderr);
+        if (correctedArgs && correctedArgs.length > 0) {
+          const retryResult = spawnSync("node", [fromTop.scriptPath, ...correctedArgs], {
+            cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+          });
+          if (retryResult.stdout) stdout.write(retryResult.stdout);
+          if (retryResult.stderr) stderr.write(retryResult.stderr);
+          return retryResult.status ?? (retryResult.signal ? 1 : retryResult.error ? 1 : 0);
+        }
+      }
       if (result.stdout) stdout.write(result.stdout);
       if (result.stderr) stderr.write(result.stderr);
       return result.status ?? (result.signal ? 1 : result.error ? 1 : 0);
