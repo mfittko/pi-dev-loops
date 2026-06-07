@@ -396,6 +396,8 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
     result.reason = "No formal Copilot review request found — run request-copilot-review.mjs first.";
     result.allowedNextActions = [PR_CHECKPOINT_ACTION.REQUEST_COPILOT_REVIEW];
     result.forbiddenActions = [
+      PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE,
+      PR_CHECKPOINT_ACTION.MARK_READY_FOR_REVIEW,
       PR_CHECKPOINT_ACTION.RUN_PRE_APPROVAL_GATE,
       PR_CHECKPOINT_ACTION.AWAIT_FINAL_HUMAN_APPROVAL,
       PR_CHECKPOINT_ACTION.DECLARE_MERGE_READY,

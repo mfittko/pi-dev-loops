@@ -1356,7 +1356,7 @@ test("guard returns true for exhausted rounds without clean converged (round cap
   }), true);
 });
 
-test("guard returns false when maxCopilotRounds is null (no round cap configured)", () => {
+test("guard returns true when maxCopilotRounds is null (no round cap configured)", () => {
   assert.equal(shouldGuardCopilotReviewRequest({
     copilotReviewRequestStatus: "none",
     copilotReviewRoundCount: 100,
