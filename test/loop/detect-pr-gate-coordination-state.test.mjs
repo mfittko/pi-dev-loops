@@ -134,7 +134,7 @@ test("detect-pr-gate-coordination-state allows post-draft flow for non-draft PRs
         ]]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -235,7 +235,7 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed for non-draft PR
         stdout: jsonLine([[]]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -306,7 +306,7 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed for converged no
         ]]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -403,7 +403,7 @@ test("detect-pr-gate-coordination-state flags draft_gate_needed when Copilot rou
         ]]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -507,7 +507,7 @@ test("detect-pr-gate-coordination-state auto-detects local-fix-without-reply (#4
         ]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -558,7 +558,7 @@ test("detectPrGateCoordinationState tolerates missing local git binary and falls
         stdout: jsonLine([[]]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -623,7 +623,7 @@ test("detect-pr-gate-coordination-state preserves non-conflict mergeStateStatus 
         ]]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -770,7 +770,7 @@ test.skip("detect-pr-gate-coordination-state with --review-mode internal_only sk
         ]]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -846,7 +846,7 @@ test("pre-approval-gate-detector overrides to pre_approval_gate_needed when neve
         ]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -941,7 +941,7 @@ test("detect-pr-gate-coordination-state blocks merge readiness when retrospectiv
         ]]),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -993,7 +993,7 @@ test("detect-pr-gate-coordination-state fails closed when the PR head changes mi
         stdout: "[]\n",
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -1043,7 +1043,7 @@ test("detect-pr-gate-coordination-state surfaces linked-issue + refinement via g
         }) + "\n",
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -1094,7 +1094,7 @@ test("detect-pr-gate-coordination-state leaves refinement=present when linked is
         }) + "\n",
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -1152,7 +1152,7 @@ test("detect-pr-gate-coordination-state resets Copilot round count when draft_ga
         stdout: jsonLine({ body: "## Acceptance criteria\n\n- [ ] Round count resets on new head\n- [ ] No reset on same head\n" }),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);
@@ -1213,7 +1213,7 @@ test("detect-pr-gate-coordination-state does NOT reset round count when draft_ga
         stdout: jsonLine({ body: "## Acceptance criteria\n\n- [ ] Round count resets on new head\n- [ ] No reset on same head\n" }),
       },
       {
-        assertArgs: ["api", "--paginate", "--jq", "event == \"review_requested\""],
+        assertArgContains: ["api", "--paginate", "--jq", 'event == "review_requested"'],
         stdout: "\n",
       },
     ]);

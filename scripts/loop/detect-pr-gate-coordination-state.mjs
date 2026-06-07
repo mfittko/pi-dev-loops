@@ -401,10 +401,15 @@ export async function detectPrGateCoordinationState(options, runtime = {}) {
   // Copilot review request guard (#613): When Copilot has reviewed the PR
   // but no formal review request was made, block pre-approval gate entry.
   // Only query timeline when cheap preconditions pass — avoids unnecessary
-  // API call when guard cannot possibly trigger (e.g. gate boundary not in
-  // pre-approval territory or request status is not "none").
+  // API call when guard cannot possibly trigger.
   const copilotReviewRequestStatus = context.snapshot?.copilotReviewRequestStatus ?? "none";
+  const guardBoundaries = new Set([
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_NEEDED,
+    PR_CHECKPOINT.PRE_APPROVAL_GATE_WINDOW,
+    PR_CHECKPOINT.FINAL_APPROVAL_READY,
+  ]);
   const copilotReviewEverFormallyRequested = copilotReviewRequestStatus === "none"
+    && guardBoundaries.has(result.gateBoundary)
     ? await fetchCopilotEverFormallyRequested(
         { repo: context.repo, pr: context.pr },
         runtime,
