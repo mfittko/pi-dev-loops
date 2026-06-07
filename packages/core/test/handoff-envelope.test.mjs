@@ -952,6 +952,12 @@ test("validate: undefined envelope returns error", () => {
   assert.equal(result.ok, false);
 });
 
+test("validate: array envelope at root returns error", () => {
+  const result = validateHandoffEnvelope(["not", "an", "object"]);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.field === "_root"));
+});
+
 test("validate: non-object envelope returns error", () => {
   const result = validateHandoffEnvelope("not-an-object");
   assert.equal(result.ok, false);

@@ -505,10 +505,10 @@ export function validateHandoffEnvelope(envelope) {
   const warnings = [];
 
   // ----- structural check -----
-  if (!envelope || typeof envelope !== "object") {
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) {
     return {
       ok: false,
-      errors: [{ field: "_root", reason: "envelope must be a non-null object", got: String(envelope) }],
+      errors: [{ field: "_root", reason: "envelope must be a non-null, non-array object", got: envelope }],
     };
   }
 
@@ -527,8 +527,8 @@ export function validateHandoffEnvelope(envelope) {
   }
 
   // ----- target -----
-  if (!envelope.target || typeof envelope.target !== "object") {
-    errors.push({ field: "target", reason: "must be an object with kind and repo", got: String(envelope.target) });
+  if (!envelope.target || typeof envelope.target !== "object" || Array.isArray(envelope.target)) {
+    errors.push({ field: "target", reason: "must be a non-array object with kind and repo", got: envelope.target });
   } else {
     if (!envelope.target.kind || !VALID_TARGET_KINDS.includes(envelope.target.kind)) {
       errors.push({
@@ -613,8 +613,8 @@ export function validateHandoffEnvelope(envelope) {
   }
 
   // ----- acceptance -----
-  if (!envelope.acceptance || typeof envelope.acceptance !== "object") {
-    errors.push({ field: "acceptance", reason: "must be an object with criteria array", got: String(envelope.acceptance) });
+  if (!envelope.acceptance || typeof envelope.acceptance !== "object" || Array.isArray(envelope.acceptance)) {
+    errors.push({ field: "acceptance", reason: "must be a non-array object with criteria array", got: envelope.acceptance });
   } else {
     if (!Array.isArray(envelope.acceptance.criteria)) {
       errors.push({ field: "acceptance.criteria", reason: "must be an array", got: envelope.acceptance.criteria });
