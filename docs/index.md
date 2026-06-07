@@ -44,8 +44,8 @@ Start here for repository documentation.
 
 - [Library vs Packages Core Boundary](./lib-vs-packages-core-boundary.md) — ownership boundary between `lib/`, `packages/core/`, and `scripts/_core-helpers.mjs`
 - [Outer Loop State Graph](./outer-loop-state-graph.md) → [Conductor Routing Contract](conductor-routing-contract.md) (symlink)
-- [Tracker-First MVP State Graph](./tracker-story-pr-contract.md) → [Tracker Story PR Contract](tracker-story-pr-contract.md) (symlink)
-- [Copilot CI Status Contract](../skills/docs/copilot-ci-status-contract.md) → [Copilot CI Status Contract](../skills/docs/copilot-ci-status-contract.md) (symlink)
+- [Tracker-First Story-to-PR Contract](./tracker-story-pr-contract.md) → [Tracker Story PR Contract](tracker-story-pr-contract.md) (pointer)
+- [Copilot CI Status Contract](../skills/docs/copilot-ci-status-contract.md) → [Copilot CI Status Contract](../skills/docs/copilot-ci-status-contract.md) (canonical)
 
 ## See also
 

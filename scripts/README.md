@@ -945,7 +945,7 @@ Local manual verification path:
 
 Local WebKit/Playwright smoke path:
 1. Install the Safari/WebKit browser runtime once:
-   - `npm run playwright:install:safari`
+   - `npx playwright install webkit`
 2. Run the viewer smoke suite:
    - `npm run test:playwright:viewer`
 3. Review screenshots/traces under `test-results/` and the HTML report under `playwright-report/ui-smoke/inspect-run-viewer/`
