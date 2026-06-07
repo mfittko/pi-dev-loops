@@ -252,7 +252,7 @@ export async function watchCopilotReview(
           if (remainingMs > 0) {
             const elapsedSec = Math.floor((Date.now() - watchStartedAtMs) / 1000);
             const totalBudgetSec = Math.floor(options.timeoutMs / 1000);
-            process.stdout.write(
+            process.stderr.write(
               `Still watching for Copilot review activity... ${elapsedSec}s elapsed of ${totalBudgetSec}s budget (poll ${attempt}/${attemptBudget})\n`,
             );
           }
