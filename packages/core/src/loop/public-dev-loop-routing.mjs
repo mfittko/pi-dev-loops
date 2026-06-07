@@ -945,9 +945,43 @@ function validateIssueLinkageResolution(canonicalState, issueLinkageResolution) 
   return issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR;
 }
 
+function synthesizeCanonicalStateFromShorthand(input, intent) {
+  if (intent === null) return null;
+  const explicitIssue = Number.isInteger(input.issue) && input.issue > 0 ? input.issue : null;
+  if (explicitIssue === null) return null;
+  const ISSUE_LOCAL_INTENTS = new Set([
+    DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY,
+    DEV_LOOP_PUBLIC_INTENT.START_ISSUE_LOCALLY_THEN_CONTINUE,
+  ]);
+  if (ISSUE_LOCAL_INTENTS.has(intent)) {
+    const phase = `issue-${explicitIssue}`;
+    return {
+      target: { kind: DEV_LOOP_TARGET_KIND.LOCAL_PHASE, issue: explicitIssue, pr: null, linkedPr: null, branch: null, phase },
+      ownership: DEV_LOOP_ACTOR.LOCAL,
+      nextActor: DEV_LOOP_ACTOR.LOCAL,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    };
+  }
+  if (intent === DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE) {
+    return {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: explicitIssue, pr: null, linkedPr: null, branch: null, phase: null },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.USER,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.NEEDS_CONFIRMATION,
+    };
+  }
+  return null;
+}
+
+
 export function resolveAuthoritativeStartupResumeBundle(input = {}) {
-  const canonicalState = normalizeState(input.currentState);
+  let canonicalState = normalizeState(input.currentState);
   const intent = normalizeIntent(input.intent);
+  if (!canonicalState) {
+    canonicalState = synthesizeCanonicalStateFromShorthand(input, intent);
+  }
   const variationMode = input.mode !== undefined ? normalizeVariationMode(input.mode) : null;
   const requestedExecutionMode =
     variationMode
