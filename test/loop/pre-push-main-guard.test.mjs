@@ -92,3 +92,27 @@ test("runCli blocks push when multiple refs include main", async () => {
   assert.equal(result.ok, false);
   assert.equal(result.error, "direct_push_to_main_blocked");
 });
+
+test("runCli handles tab-separated pre-push input", async () => {
+  const stdin = new PassThrough();
+  // Git hook protocol is whitespace-delimited; tabs are valid separators.
+  stdin.end("refs/heads/main\tabc123\trefs/heads/main\tdef456\n");
+  const stdout = { write: () => {} };
+  const stderr = { write: () => {} };
+  let stderrOutput = "";
+  const fakeStderr = { write: (s) => { stderrOutput += s; } };
+  const result = await runCli([], { stdout, stderr: fakeStderr, stdin });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "direct_push_to_main_blocked");
+  assert.equal(result.blockedRef, "refs/heads/main");
+});
+
+test("runCli handles multiple-space-separated pre-push input", async () => {
+  const stdin = new PassThrough();
+  stdin.end("refs/heads/main   abc123   refs/heads/main   def456\n");
+  const stdout = { write: () => {} };
+  const stderr = { write: () => {} };
+  const result = await runCli([], { stdout, stderr, stdin });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "direct_push_to_main_blocked");
+});

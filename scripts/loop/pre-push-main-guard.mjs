@@ -24,6 +24,12 @@ const parseError = buildParseError(USAGE);
 /**
  * Parse pre-push hook input lines.
  * Each line: <local ref> <local sha> <remote ref> <remote sha>
+ *
+ * Git hook protocol is whitespace-delimited (spaces or tabs).
+ * Malformed non-empty lines that do not have at least three
+ * whitespace-delimited fields are treated as parse failures
+ * and passed through — the guard prefers to fail-open on
+ * unparseable input rather than silently blocking unknown refs.
  */
 async function readPushRefs(input) {
   const refs = [];
@@ -31,7 +37,7 @@ async function readPushRefs(input) {
   for await (const line of rl) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    const parts = trimmed.split(" ");
+    const parts = trimmed.split(/\s+/);
     if (parts.length >= 3) {
       refs.push({ localRef: parts[0], localSha: parts[1], remoteRef: parts[2], remoteSha: parts[3] || null });
     }

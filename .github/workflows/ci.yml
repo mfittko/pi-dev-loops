@@ -18,7 +18,8 @@ jobs:
           echo "EOF" >> "$GITHUB_ENV"
       - name: Verify main push is from PR merge
         run: |
-          if echo "$HEAD_COMMIT_MSG" | grep -qE '^Merge pull request #[0-9]+'; then
+          # Match regular merge ("Merge pull request #N ...") or squash merge ("...(#N)")
+          if echo "$HEAD_COMMIT_MSG" | grep -qE '(^Merge pull request #[0-9]+|\(#[0-9]+\)$)'; then
             echo "PR merge detected — allowed."
           else
             echo "ERROR: Direct push to main detected."
