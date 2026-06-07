@@ -252,10 +252,15 @@ function parseTopLevelCommand(argv) {
     if (args.slice(1).some((a) => a === "--help" || a === "-h")) {
       const scriptPath = reviewRoutes[sub];
       if (!scriptPath) return { kind: "review_deprecation_help" };
-      return { kind: "review_deprecation_subcommand_help", scriptPath: path.resolve(REPO_ROOT, scriptPath) };
+      return { kind: "review_deprecation_subcommand_help", subcommand: sub, scriptPath: path.resolve(REPO_ROOT, scriptPath) };
     }
     const route = resolveSubcommandRoute(["review", ...args.slice(1)]);
-    if (route) return { kind: "review_deprecation_subcommand", ...route };
+    if (route) {
+      if (route.error) {
+        return { kind: "review_deprecation_subcommand_error", error: route.error };
+      }
+      return { kind: "review_deprecation_subcommand", subcommand: sub, ...route };
+    }
     return { kind: "review_deprecation_help" };
   }
 
@@ -342,7 +347,7 @@ export async function runCli({
       return 0;
     }
     case "review_deprecation_subcommand_help": {
-      writeLines(stderr, ["Note: `dev-loops review` is deprecated. Use `dev-loops gate` instead."]);
+      writeLines(stderr, [`Note: \`dev-loops review\` is deprecated. Use \`dev-loops gate ${fromTop.subcommand}\` instead.`]);
       const result = spawnSync("node", [fromTop.scriptPath, "--help"], {
         cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
       });
@@ -350,9 +355,15 @@ export async function runCli({
       if (result.stderr) stderr.write(result.stderr);
       return result.status ?? (result.signal ? 1 : result.error ? 1 : 0);
     }
+    case "review_deprecation_subcommand_error": {
+      writeLines(stderr, [
+        `Note: \`dev-loops review\` is deprecated. Use \`dev-loops gate\` instead.`,
+        fromTop.error,
+      ]);
+      return 1;
+    }
     case "review_deprecation_subcommand": {
-      writeLines(stderr, ["Note: `dev-loops review` is deprecated. Use `dev-loops gate ${fromTop.forwardedArgs?.[0] ?? '<sub>'}` instead."]);
-      if (fromTop.error) { writeLines(stderr, [fromTop.error]); return 1; }
+      writeLines(stderr, [`Note: \`dev-loops review\` is deprecated. Use \`dev-loops gate ${fromTop.subcommand}\` instead.`]);
       const scriptArgs = fromTop.forwardedArgs || [];
       const result = spawnSync("node", [fromTop.scriptPath, ...scriptArgs], {
         cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
