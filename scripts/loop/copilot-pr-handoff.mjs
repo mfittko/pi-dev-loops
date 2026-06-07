@@ -174,7 +174,7 @@ export function parseHandoffCliArgs(argv) {
  * loop should pause for operator review.
  * Returns { paused: true, humanComments: [...] } when human comments need attention.
  */
-export async function detectRecentHumanComments({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
+export async function detectRecentHumanComments({ repo, pr, claimedAtMs }, { env = process.env, ghCommand = "gh" } = {}) {
   try {
     const result = await runChild(
       ghCommand,
@@ -211,9 +211,13 @@ export async function detectRecentHumanComments({ repo, pr }, { env = process.en
       }
     }
 
-    // If no bot comments found, we can't determine the last action — don't pause
+    // If no Copilot comments found, use the run's claim time as baseline when available
     if (lastBotActionMs === null) {
-      return { paused: false };
+      if (typeof claimedAtMs === "number" && claimedAtMs > 0) {
+        lastBotActionMs = claimedAtMs;
+      } else {
+        return { paused: false };
+      }
     }
 
     // Find human comments after the last bot action
@@ -302,7 +306,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
   let humanCommentCheck = { paused: false };
   if (env.PI_SUBAGENT_RUN_ID) {
     humanCommentCheck = await detectRecentHumanComments(
-      { repo: options.repo, pr: options.pr },
+      { repo: options.repo, pr: options.pr, claimedAtMs: runnerOwnership?.activeRun?.claimedAt ? new Date(runnerOwnership.activeRun.claimedAt).getTime() : undefined },
       { env, ghCommand },
     );
   }
@@ -316,7 +320,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
       allowedTransitions: [],
       nextAction: humanCommentCheck.paused
         ? "Human comment detected on PR since last subagent action; review the comment(s) before continuing the automated loop."
-        : "Human comment detection unavailable (${humanCommentCheck.error}); review PR comments manually before continuing.",
+        : `Human comment detection unavailable (${humanCommentCheck.error}); review PR comments manually before continuing.`,
       autoRerequestEligible: false,
       sameHeadCleanConverged: false,
       roundCapCleanEligible: false,
@@ -334,7 +338,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
         action: "stop",
         nextAction: humanCommentCheck.paused
         ? "Human comment detected on PR since last subagent action; review the comment(s) before continuing the automated loop."
-        : "Human comment detection unavailable (${humanCommentCheck.error}); review PR comments manually before continuing.",
+        : `Human comment detection unavailable (${humanCommentCheck.error}); review PR comments manually before continuing.`,
         requestStatus: "none",
         routingState: "non_ready_state",
         watchEntryConfirmed: false,

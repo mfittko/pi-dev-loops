@@ -1641,7 +1641,7 @@ test("detectRecentHumanComments skips Gate review: format gate comments", async 
 
     const { env } = await writeGhStubHelper(tempDir, [
       {
-        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", "."],
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments", "--paginate", "--jq", ".[]"],
         stdout: BOT_COMMENT + "\n" + HUMAN_GATE + "\n",
       },
     ]);
