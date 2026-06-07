@@ -7,6 +7,26 @@ on:
   pull_request:
 
 jobs:
+  main-branch-guard:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check that push to main is a PR merge
+        run: |
+          echo "HEAD_COMMIT_MSG<<EOF" >> "$GITHUB_ENV"
+          echo "${{ github.event.head_commit.message }}" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+      - name: Verify main push is from PR merge
+        run: |
+          if echo "$HEAD_COMMIT_MSG" | grep -qE '^Merge pull request #[0-9]+'; then
+            echo "PR merge detected — allowed."
+          else
+            echo "ERROR: Direct push to main detected."
+            echo "Head commit message: $HEAD_COMMIT_MSG"
+            echo "Push a feature branch and open a pull request instead."
+            exit 1
+          fi
+
   changes:
     runs-on: ubuntu-latest
     outputs:
