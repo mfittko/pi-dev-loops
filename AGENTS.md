@@ -6,6 +6,7 @@
 - Canonical workflow docs live under `skills/docs/`.
 
 ## Working rules
+- Main agent: read-only for all repo files. All mutations flow through `dev-loop` async subagent. Load `skills/docs/main-agent-contract.md`.
 - No direct commits to `main`; use feature branches, worktrees, and PRs.
 - Use `tmp/worktrees/<issue-or-branch-slug>/` for mutating local work; keep the main checkout for inspection.
 - Always run `git fetch origin` before creating or reusing a worktree — never create from a stale `origin/main`.

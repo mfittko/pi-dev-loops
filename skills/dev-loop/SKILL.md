@@ -140,6 +140,7 @@ PR #578 (docs-only, 2 files) was merged without gate checks and serves as the br
 ## Authority boundary and stop rules
 
 - Source code, tests, config, CI, and shared contract docs are authoritative.
+- Main-agent delegation contract: [Main Agent Contract](../docs/main-agent-contract.md) — absolute read-only boundary; all mutations flow through `dev-loop` async subagent.
 - This dispatcher summarizes the public routing contract; it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands.
 - Keep specialized Copilot behavior internal behind `dev-loop`; do not expose internal route packs as peer public workflow entrypoints.
 - Before any state-changing action, get explicit confirmation unless the latest user message already clearly authorizes that exact action.
