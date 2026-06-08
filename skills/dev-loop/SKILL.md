@@ -74,7 +74,7 @@ The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` fro
 
 Prose task composition is a fallback only when the envelope cannot be built (missing `@pi-dev-loops/core` package).
 
-**Retrospective checkpoint gate (#462):** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
+**Retrospective checkpoint gate:** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
 
 ## Route table
 
@@ -96,42 +96,42 @@ Do not preload local implementation, issue intake, PR follow-up, or final approv
 
 After the resolver selects a strategy and the route pack is loaded, the routed strategy's procedure is the execution plan — not reference material. Follow it.
 
-**Async dispatch rule (#465, enforced):** the resolver enforces fail-closed for GitHub-first strategies. Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected. Dispatch via the [Startup procedure](#startup-procedure) steps 3-4 — the main agent owns async dispatch; the dispatched subagent owns parallel review fan-out, fixer passes, gate comments, state transitions, and sub-delegation internally. Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline.
+**Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies. Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected. Dispatch via the [Startup procedure](#startup-procedure) steps 3-4 — the main agent owns async dispatch; the dispatched subagent owns parallel review fan-out, fixer passes, gate comments, state transitions, and sub-delegation internally. Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline.
 
-## Async delegation guard rules (#524)
+## Async delegation guard rules
 
-**Pre-delegation gate (#524, mandatory):** Before delegating async subagent work that targets an existing PR, run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"`. The handoff tool is the authority, not the parent session's judgment. When `action: "stop"` and `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task. When `terminal: false`, resolve the blocking condition first.
+**Pre-delegation gate (mandatory):** Before delegating async subagent work that targets an existing PR, run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"`. The handoff tool is the authority, not the parent session's judgment. When `action: "stop"` and `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task. When `terminal: false`, resolve the blocking condition first.
 
 > **Main agent:** see [Startup procedure](#startup-procedure) step 3a for the checklist version. This section is the detailed subagent reference.
 
 > **Path resolution:** In the source repo, `<resolved-skill-scripts>` = `scripts/` (repo-root-relative) or equivalently `../../scripts/` (relative to this skill file). In installed skills, resolve from the skill's installation layout per the [skill asset path resolution rule in copilot-pr-followup/SKILL.md](../copilot-pr-followup/SKILL.md#skill-asset-path-resolution).
 
-**Worktree cwd rule (#524, mandatory):** Always set `cwd` to the worktree when delegating dev-loop work to subagents. Never delegate with the parent's `main` branch checkout as the working directory. The worktree path is authoritative for all git operations, file reads/writes, and validation commands in delegated runs.
+**Worktree cwd rule (mandatory):** Always set `cwd` to the worktree when delegating dev-loop work to subagents. Never delegate with the parent's `main` branch checkout as the working directory. The worktree path is authoritative for all git operations, file reads/writes, and validation commands in delegated runs.
 
-**Worktree fetch rule (#567, mandatory):** Always run `git fetch origin` before creating or reusing any worktree. Never create a worktree from a stale local `origin/main` reference.
+**Worktree fetch rule (mandatory):** Always run `git fetch origin` before creating or reusing any worktree. Never create a worktree from a stale local `origin/main` reference.
 
-**Handoff envelope precedence (#536):** The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action (see the agent definition mandate). The envelope is the primary handoff artifact — read it first, then load only the listed `requiredReads` before executing `nextAction`. See [Startup procedure → Dev-loop subagent](#startup-procedure) for the operational summary. Prose task composition is a fallback only when the envelope cannot be built (missing `@pi-dev-loops/core` package). The derivation contract is documented in [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
+**Handoff envelope precedence:** The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action (see the agent definition mandate). The envelope is the primary handoff artifact — read it first, then load only the listed `requiredReads` before executing `nextAction`. See [Startup procedure → Dev-loop subagent](#startup-procedure) for the operational summary. Prose task composition is a fallback only when the envelope cannot be built (missing `@pi-dev-loops/core` package). The derivation contract is documented in [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
 
-**Handoff contract rule (#524):** All subagent delegation must use the `workflow-handoff-contract.md` contract (resolved path: `../docs/workflow-handoff-contract.md` relative to the skill directory) when no envelope is present. Never delegate with abbreviated task summaries. The handoff contract must include:
+**Handoff contract rule:** All subagent delegation must use the `workflow-handoff-contract.md` contract (resolved path: `../docs/workflow-handoff-contract.md` relative to the skill directory) when no envelope is present. Never delegate with abbreviated task summaries. The handoff contract must include:
 - Deterministic routing inputs (current state, gate boundary, next action)
 - Explicit `cwd` path to the worktree
 - Clear bounded task scope (single responsibility per delegation)
 - Exit conditions and where to write output artifacts
 - Intercom coordination instructions if cross-run signaling is needed
 
-**Inline-first rule for single-PR workflows (#524):** When the dev-loop agent is managing a single PR through its lifecycle, prefer inline commands over nested async subagent delegation. This does not override the enforced `requiresAsyncDispatch` routing rule — the outer dev-loop session still dispatches asynchronously when the resolver requires it. Use nested subagent delegation only when:
+**Inline-first rule for single-PR workflows:** When the dev-loop agent is managing a single PR through its lifecycle, prefer inline commands over nested async subagent delegation. This does not override the enforced `requiresAsyncDispatch` routing rule — the outer dev-loop session still dispatches asynchronously when the resolver requires it. Use nested subagent delegation only when:
 - Parallel fan-out review is explicitly needed
 - The task is bounded with clear inputs/outputs and a deterministic exit condition
 - The parent session needs to continue other work while waiting
 
-**Bounded async task contract (#524):** When async delegation is needed, break work into discrete tasks with:
+**Bounded async task contract:** When async delegation is needed, break work into discrete tasks with:
 - Clear input artifacts (file paths, PR numbers, state snapshots)
 - Explicit output expectations (file paths, JSON payloads, exit codes)
 - No shell polling loops — use `run-watch-cycle.mjs` or `gh run watch` for waiting
 - Intercom coordination for cross-run state updates
 - Parent session retains loop ownership; subagents handle bounded slices only
 
-**Round-cap budget check (#524, enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check whether completed Copilot review rounds have reached the maximum (default: 5). The detector (`interpretLoopState` in `packages/core/src/loop/copilot-loop-state.mjs`) only emits a round-limit state when ALL of these are true:
+**Round-cap budget check (enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check whether completed Copilot review rounds have reached the maximum (default: 5). The detector (`interpretLoopState` in `packages/core/src/loop/copilot-loop-state.mjs`) only emits a round-limit state when ALL of these are true:
 - completed review rounds have reached the maximum
 - no Copilot review request is in flight
 - the detector has not already selected a higher-priority terminal/draft state (`no_pr`, `done`, `pr_draft`, `review_request_unavailable`, `blocked_needs_user_decision`) — those take precedence and round-limit routing is skipped in those cases
@@ -147,7 +147,7 @@ After the resolver selects a strategy and the route pack is loaded, the routed s
 - stop at the human approval checkpoint by default unless merge was explicitly authorized
 
 
-## No gate exemptions (#579)
+## No gate exemptions
 
 All pull requests must pass the full gate pipeline before merge, regardless of scope or change category. No PR type is exempt:
 
