@@ -26,7 +26,7 @@ Required installed runtime contract docs are shared bundled copies under `../doc
 
 The main agent must **always** dispatch the `dev-loop` async subagent for any dev-loop work.
 Do not run `dev-loops loop startup` or any startup resolver in the main agent.
-The resolver requires `PI_SUBAGENT_RUN_ID` for async-required routes and only runs inside the async subagent context.
+The resolver requires `PI_SUBAGENT_RUN_ID` for async-required routes (the default `required` mode); the startup resolver can also run without it for non-async routes. Regardless, only the `dev-loop` async subagent runs it — never the main agent.
 
 ### Dev-loop subagent (post-dispatch)
 
