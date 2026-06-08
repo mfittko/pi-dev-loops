@@ -94,7 +94,7 @@ test("README stays a landing page and lets docs/index own deeper doc navigation"
   assert.match(readme, /docs\/index\.md/i, "README should point readers to the docs index");
   assert.doesNotMatch(readme, /docs\/IMPLEMENTATION_STATE\.md/i, "README should not duplicate docs/index deep links for the implementation snapshot");
   assert.doesNotMatch(readme, /docs\/IMPLEMENTATION_WORKFLOW\.md/i, "README should not duplicate docs/index deep links for workflow docs");
-  assert.match(readme, /private, source-loaded workspace/i, "README should keep the repo posture concise without a separate status section");
+  assert.match(readme, /shared Pi workflow infrastructure/i, "README should describe the repo as shared Pi workflow infrastructure");
 });
 
 test("repo docs define dev-loop as the public façade and keep internal routed logic behind it", async () => {
