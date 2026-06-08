@@ -83,7 +83,7 @@ describe("remediationToIssuePayload", () => {
 });
 
 describe("createRemediationIssue URL parsing", () => {
-  test("parses standard GitHub issue URL", () => {
+  test("returns error when gh is not available (network or PATH)", () => {
     const result = createRemediationIssue(buildValidItem(), { owner: "test", name: "test" });
     // In test environment, gh is not available, so result should be error
     assert.equal(result.ok, false);

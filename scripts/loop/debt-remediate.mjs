@@ -94,7 +94,7 @@ function detectRepo() {
     // parseRepoSlug expects owner/name; extract from common remote URL formats
     const match = remote.match(/(?:github\.com[:/])([^/]+\/[^/]+?)(?:\.git)?$/);
     if (match) {
-      return parseRepoSlug(match[2]);
+      return parseRepoSlug(match[1]);
     }
     return null;
   } catch {
