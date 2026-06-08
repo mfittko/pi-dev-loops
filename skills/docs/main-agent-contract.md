@@ -1,6 +1,6 @@
 # Main-agent delegation contract
 
-> **Absolute read-only boundary.** The main agent must never mutate repo files.
+> **Absolute read-only boundary.** The main agent must never mutate files tracked by the repository.
 > All mutations flow through the `dev-loop` async subagent.
 
 ## Contract
@@ -28,7 +28,7 @@ because "the user said yes," not because it is running from a worktree.
 
 - `write`, `edit`, or delete any file tracked by the repo
 - `git commit`, `git push`, create branches, create worktrees
-- Run dev-loop subcommands (`gate`, `loop`, `pr` commands — those belong inside `dev-loop`)
+- Run state-changing dev-loop subcommands (`gate`, `loop outer`, `pr` commands — those belong inside `dev-loop`). Read-only `loop startup` resolver runs are allowed.
 - Delegate implementation to any agent other than `dev-loop`
 
 ## Dev-loop agent (async) owns
@@ -47,7 +47,7 @@ because "the user said yes," not because it is running from a worktree.
 | Write to `packages/core/src/foo.mjs` | **BREACH** — must delegate to `dev-loop` |
 | `git status` | Allowed — read-only |
 | `git commit -m "..."` | **BREACH** — must delegate to `dev-loop` |
-| `subagent dev-loop --task "implement issue 42"` | Allowed — correct delegation |
+| `subagent dev-loop` | Allowed — correct delegation |
 | `subagent fixer --task "fix the bug"` | Allowed only when called from within `dev-loop` |
 
 ## Enforcement posture
