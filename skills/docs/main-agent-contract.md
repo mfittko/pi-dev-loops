@@ -28,7 +28,7 @@ because "the user said yes," not because it is running from a worktree.
 
 - `write`, `edit`, or delete any file tracked by the repo
 - `git commit`, `git push`, create branches, create worktrees
-- Run state-changing dev-loop subcommands (`gate`, `loop outer`, `pr` commands — those belong inside `dev-loop`). Read-only `loop startup` resolver runs are allowed.
+- Run state-changing dev-loops CLI subcommands (`gate`, `loop outer`, `pr` commands — those belong inside `dev-loop`). Read-only `loop startup` resolver runs are allowed.
 - Delegate implementation to any agent other than `dev-loop`
 
 ## Dev-loop agent (async) owns
