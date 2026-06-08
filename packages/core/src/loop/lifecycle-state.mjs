@@ -127,7 +127,7 @@ export const LIFECYCLE_NEXT_ACTIONS = Object.freeze({
   [LIFECYCLE_STATE.IMPLEMENTATION]:
     "Implement the accepted scope on a feature branch or via Copilot handoff.",
   [LIFECYCLE_STATE.DRAFT_GATE]:
-    "Run draft gate review before marking the PR ready for review.",
+    "Run draft gate review at the draft→ready boundary; associated with pr_ready_no_feedback inner state.",
   [LIFECYCLE_STATE.FEEDBACK_RESOLUTION]:
     "Address review feedback: fix, reply to, and resolve threads on GitHub.",
   [LIFECYCLE_STATE.PRE_APPROVAL_GATE]:
@@ -235,7 +235,7 @@ export function resolveLifecycleState(input = {}) {
     return buildResult(LIFECYCLE_STATE.IMPLEMENTATION);
   }
 
-  // 8. No linked PR → issue intake
+  // 7. No linked PR → issue intake
   return buildResult(LIFECYCLE_STATE.ISSUE_INTAKE);
 }
 
