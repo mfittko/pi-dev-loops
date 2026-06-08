@@ -33,22 +33,46 @@ Operational summary:
 - when authoritative linkage resolves an open linked PR, treat it as the single canonical artifact for the issue and reuse it instead of opening another PR
 - when authoritative identity remains unresolved, fail closed to reconcile/unknown
 
-## Resolver-first startup
+## Startup procedure
 
-Run the deterministic startup resolver first and only load the files it names for the selected route.
+### Main agent (read-only)
 
-Source-repo CLI:
-```sh
-dev-loops loop startup --input <path-to-authoritative-state.json>
-```
+The main agent must resolve canonical state before loading any route pack or skill docs.
 
-The resolver wraps `resolveAuthoritativeStartupResumeBundle` and returns:
-- `selectedStrategy`
-- `requiredReads[]`
-- `nextAction`
-- `canonicalStateSummary`
+1. **Run the startup resolver with auto-resolve** — do not construct ad hoc JSON files:
+   ```sh
+   dev-loops loop startup --issue <number>
+   # or
+   dev-loops loop startup --pr <number>
+   ```
+   The resolver auto-detects linked PRs, issue readiness, assignment state, and the retrospective checkpoint in a single call. **Trust its output.** Do not replicate its work with manual `gh pr list`, `detect-linked-issue-pr.mjs`, or source-code reading of the routing internals.
 
-If the resolver reports `selectedStrategy: none` / reconcile, stop and reconcile the authoritative startup state before loading any route pack.
+2. **Branch on `selectedStrategy`:**
+   - `"none"` / `needs_reconcile`:
+     - If `issueLinkageResolution` is `"resolved_linked_pr"`, re-run with the linked PR number:
+       ```sh
+       dev-loops loop startup --pr <linked-pr-number>
+       ```
+     - Otherwise → stop and report the reconcile reason. Do not proceed.
+   - Any routed strategy → check `requiresAsyncDispatch`.
+
+3. **If `requiresAsyncDispatch: true`** (GitHub-first strategies):
+   a. Run the pre-delegation handoff gate:
+      ```sh
+      node scripts/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
+      ```
+      If `action: "stop"` with `terminal: true`, the phase is complete — proceed inline.
+      If `action: "stop"` with `terminal: false`, resolve the blocking condition first.
+   b. Run `git fetch origin`, then ensure a worktree exists under `tmp/worktrees/<slug>/`.
+   c. Dispatch the `dev-loop` async subagent with `cwd` set to the worktree.
+
+4. **If `requiresAsyncDispatch: false`** (`local_implementation`, `final_approval`, `none`), proceed inline.
+
+### Dev-loop subagent (post-dispatch)
+
+The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action. See [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) for the derivation contract. The envelope determines `requiredReads`, `nextAction`, `stopRules`, and `acceptance` — load only those files, execute only that bounded task.
+
+Prose task composition is a fallback only when the envelope cannot be built (missing `@pi-dev-loops/core` package).
 
 **Retrospective checkpoint gate (#462):** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
 

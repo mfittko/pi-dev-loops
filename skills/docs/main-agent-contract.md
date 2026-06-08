@@ -50,6 +50,34 @@ because "the user said yes," not because it is running from a worktree.
 | `subagent dev-loop` | Allowed — correct delegation |
 | `subagent fixer` | Allowed only when called from within `dev-loop`; describe the task as part of the message |
 
+## Dev-loop startup procedure
+
+When a user triggers the dev loop (e.g., "run dev loop on issue 664"), follow this
+procedure before reading any skill or route-pack docs:
+
+1. **Resolve authoritative state with auto-resolve:**
+   ```sh
+   dev-loops loop startup --issue <number>
+   ```
+   The resolver auto-detects linked PRs, issue readiness, assignment state, and the
+   retrospective checkpoint in a single call. **Trust its output.** Do not replicate
+   its work with manual `gh pr list`, `detect-linked-issue-pr.mjs`, or
+   source-code reading of the routing internals.
+
+2. **Branch on the result:**
+   - `selectedStrategy: "none"` →
+     - If `issueLinkageResolution` is `"resolved_linked_pr"`, re-run with the linked PR:
+       `dev-loops loop startup --pr <linked-pr-number>`
+     - Otherwise, stop and report the reconcile reason.
+   - `requiresAsyncDispatch: true` → run the pre-delegation handoff gate,
+     fetch origin, ensure a worktree exists, dispatch `dev-loop` async subagent.
+   - `requiresAsyncDispatch: false` → proceed inline (local implementation or
+     final approval).
+
+3. **Do not pre-load route packs.** The resolver's `requiredReads` tells you
+   exactly which docs to load. Loading skill files before the resolver confirms
+   the route is wasted work — the route determines what you need.
+
 ## Enforcement posture
 
 - This contract is enforced by convention and review, not by tool-level guards.

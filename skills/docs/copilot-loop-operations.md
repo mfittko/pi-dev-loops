@@ -81,6 +81,10 @@ deterministically.
 
 ## Pre-follow-up working rules
 
+> **Phase boundary:** Steps 1-4 apply when no PR exists yet (issue intake).
+> If a PR already exists, skip to [Deterministic orchestration authority](#deterministic-orchestration-authority) —
+> the state machine owns all post-PR routing.
+
 ### Step 1: Choose the work item
 
 Prefer a GitHub issue over an ad hoc local TODO.
