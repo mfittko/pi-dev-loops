@@ -207,7 +207,7 @@ const GET_PROJECT_FIELDS = [
 ].join("\n");
 
 const GET_PROJECT_ITEMS_BY_CONTENT = [
-  "query($projectId:ID!, $owner:String!, $repo:String!, $number:Int!, $after:String) {",
+  "query($projectId:ID!, $after:String) {",
   "  node(id:$projectId) {",
   "    ... on ProjectV2 {",
   "      items(first:10, after:$after, orderBy:{field:POSITION, direction:ASC}) {",
@@ -258,8 +258,8 @@ const GET_PROJECT_ITEM = [
 ].join("\n");
 
 const UPDATE_ITEM_FIELD = [
-  "mutation($input:UpdateProjectV2ItemFieldValueInput!) {",
-  "  updateProjectV2ItemFieldValue(input:$input) {",
+  "mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optionId:String!) {",
+  "  updateProjectV2ItemFieldValue(input:{projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{singleSelectOptionId:$optionId}}) {",
   "    projectV2Item {",
   "      id",
   "    }",
@@ -435,9 +435,6 @@ async function main(args, { env = process.env, runChild } = {}) {
     // Look up by issue/PR number in the project
     const itemsPayload = await ghGraphql(GET_PROJECT_ITEMS_BY_CONTENT, {
       projectId: project.id,
-      owner,
-      repo: repoName,
-      number: itemRef.value,
     }, env, child);
     const items = itemsPayload?.data?.node?.items?.nodes ?? [];
 
@@ -490,12 +487,10 @@ async function main(args, { env = process.env, runChild } = {}) {
 
   // 6. Update Status via mutation
   const updatePayload = await ghGraphql(UPDATE_ITEM_FIELD, {
-    input: JSON.stringify({
-      projectId: project.id,
-      itemId,
-      fieldId: statusField.id,
-      value: { singleSelectOptionId: targetOption.id },
-    }),
+    projectId: project.id,
+    itemId,
+    fieldId: statusField.id,
+    optionId: targetOption.id,
   }, env, child);
 
   const updated = updatePayload?.data?.updateProjectV2ItemFieldValue?.projectV2Item;

@@ -244,8 +244,8 @@ const GET_PROJECT_ITEM = [
 ].join("\n");
 
 const UPDATE_ITEM_POSITION = [
-  "mutation($input:UpdateProjectV2ItemPositionInput!) {",
-  "  updateProjectV2ItemPosition(input:$input) {",
+  "mutation($projectId:ID!, $itemId:ID!, $afterId:ID) {",
+  "  updateProjectV2ItemPosition(input:{projectId:$projectId, itemId:$itemId, afterId:$afterId}) {",
   "    clientMutationId",
   "  }",
   "}"
@@ -451,17 +451,13 @@ async function main(args, { env = process.env, runChild } = {}) {
   }
 
   // 5. Execute reorder mutation
-  const mutationInput = {
+  const mutationVars = {
     projectId: project.id,
     itemId: item.itemId,
+    afterId: afterItem ? afterItem.itemId : null,
   };
-  if (afterItem) {
-    mutationInput.afterId = afterItem.itemId;
-  }
 
-  const mutationPayload = await ghGraphql(UPDATE_ITEM_POSITION, {
-    input: JSON.stringify(mutationInput),
-  }, env, child);
+  const mutationPayload = await ghGraphql(UPDATE_ITEM_POSITION, mutationVars, env, child);
 
   if (!mutationPayload?.data?.updateProjectV2ItemPosition) {
     throw Object.assign(new Error("Failed to reorder item"), { code: "MUTATION_FAILED" });

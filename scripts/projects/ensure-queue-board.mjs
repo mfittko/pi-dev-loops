@@ -191,8 +191,8 @@ const LIST_ORG_PROJECTS = [
 ].join("\n");
 
 const CREATE_PROJECT = [
-  "mutation($input:CreateProjectV2Input!) {",
-  "  createProjectV2(input:$input) {",
+  "mutation($ownerId:ID!, $title:String!) {",
+  "  createProjectV2(input:{ownerId:$ownerId, title:$title}) {",
   "    projectV2 {",
   "      id",
   "      number",
@@ -229,8 +229,13 @@ const GET_PROJECT_FIELDS = [
 ].join("\n");
 
 const CREATE_SINGLE_SELECT_FIELD = [
-  "mutation($input:CreateProjectV2FieldInput!) {",
-  "  createProjectV2Field(input:$input) {",
+  "mutation($projectId:ID!) {",
+  "  createProjectV2Field(input:{projectId:$projectId, dataType:SINGLE_SELECT, name:\"Status\", singleSelectOptions:[",
+  "    {name:\"Backlog\",color:GRAY,description:\"\"},",
+  "    {name:\"Next Up\",color:BLUE,description:\"\"},",
+  "    {name:\"In Progress\",color:YELLOW,description:\"\"},",
+  "    {name:\"Done\",color:GREEN,description:\"\"}",
+  "  ]}) {",
   "    projectV2Field {",
   "      ... on ProjectV2SingleSelectField {",
   "        id",
@@ -372,17 +377,7 @@ async function main(args, { env = process.env, runChild } = {}) {
 
     // No Status field — create it
     const createFieldPayload = await ghGraphql(CREATE_SINGLE_SELECT_FIELD, {
-      input: JSON.stringify({
-        projectId: project.id,
-        dataType: "SINGLE_SELECT",
-        name: "Status",
-        singleSelectOptions: [
-          { name: "Backlog", color: "GRAY" },
-          { name: "Next Up", color: "BLUE" },
-          { name: "In Progress", color: "YELLOW" },
-          { name: "Done", color: "GREEN" },
-        ],
-      }),
+      projectId: project.id,
     }, env, child);
     const newField = createFieldPayload?.data?.createProjectV2Field?.projectV2Field;
     if (!newField) {
@@ -402,7 +397,8 @@ async function main(args, { env = process.env, runChild } = {}) {
 
   // 3. Create project
   const createPayload = await ghGraphql(CREATE_PROJECT, {
-    input: JSON.stringify({ ownerId, title }),
+    ownerId,
+    title,
   }, env, child);
   project = createPayload?.data?.createProjectV2?.projectV2;
   if (!project) {
@@ -411,17 +407,7 @@ async function main(args, { env = process.env, runChild } = {}) {
 
   // 4. Create Status field on new project
   const createFieldPayload = await ghGraphql(CREATE_SINGLE_SELECT_FIELD, {
-    input: JSON.stringify({
-      projectId: project.id,
-      dataType: "SINGLE_SELECT",
-      name: "Status",
-      singleSelectOptions: [
-        { name: "Backlog", color: "GRAY" },
-        { name: "Next Up", color: "BLUE" },
-        { name: "In Progress", color: "YELLOW" },
-        { name: "Done", color: "GREEN" },
-      ],
-    }),
+    projectId: project.id,
   }, env, child);
   const newField = createFieldPayload?.data?.createProjectV2Field?.projectV2Field;
   if (!newField) {

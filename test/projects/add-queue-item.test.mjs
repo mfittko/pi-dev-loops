@@ -78,14 +78,10 @@ function resolveIssueResponse(issueId) {
   return {
     data: {
       repository: {
-        issue: {
+        issueOrPullRequest: {
           id: issueId,
-          number: 10,
-          title: "Test Issue",
-          url: "https://github.com/mfittko/pi-dev-loops/issues/10",
           __typename: "Issue",
         },
-        pr: null,
       },
     },
   };
@@ -95,12 +91,8 @@ function resolvePrResponse(prId) {
   return {
     data: {
       repository: {
-        issue: null,
-        pr: {
+        issueOrPullRequest: {
           id: prId,
-          number: 20,
-          title: "Test PR",
-          url: "https://github.com/mfittko/pi-dev-loops/pull/20",
           __typename: "PullRequest",
         },
       },
@@ -112,19 +104,9 @@ function resolveBothResponse() {
   return {
     data: {
       repository: {
-        issue: {
+        issueOrPullRequest: {
           id: "I_kwDO_10",
-          number: 10,
-          title: "Test Issue",
-          url: "https://github.com/mfittko/pi-dev-loops/issues/10",
           __typename: "Issue",
-        },
-        pr: {
-          id: "PR_kwDO_10",
-          number: 10,
-          title: "Test PR",
-          url: "https://github.com/mfittko/pi-dev-loops/pull/10",
-          __typename: "PullRequest",
         },
       },
     },
