@@ -6,7 +6,7 @@ description: >-
   appropriate, wait deterministically for new review activity, run narrow Pi
   fix/reply/resolve passes, verify gate evidence, and stop for explicit human
   approval before merge.
-compatibility: Pi skill for git+GitHub repositories. Requires gh auth; async follow-up works best in Pi/TelePi sessions.
+compatibility: Internal routed strategy for Copilot PR follow-up. Needs gh auth for PR-followup automation.
 allowed-tools: read bash edit write subagent review_loop
 user-invocable: false
 ---
