@@ -33,24 +33,28 @@ Operational summary:
 - when authoritative linkage resolves an open linked PR, treat it as the single canonical artifact for the issue and reuse it instead of opening another PR
 - when authoritative identity remains unresolved, fail closed to reconcile/unknown
 
-## Resolver-first startup
+## Envelope-first startup
 
-Run the deterministic startup resolver first and only load the files it names for the selected route.
+Construct the handoff envelope first via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core`. The envelope is the primary handoff artifact — read it before loading any route pack.
 
-Source-repo CLI:
-```sh
-dev-loops loop startup --input <path-to-authoritative-state.json>
-```
+Construction sequence:
+1. Run the deterministic startup resolver (`dev-loops loop startup --input <path-to-authoritative-state.json>`) to produce the authoritative state bundle.
+2. Pass the resolver output, resolved settings (merged from `.pi/dev-loop/settings.yaml` and `.pi/dev-loop/defaults.yaml`), and current gate state to `buildDevLoopHandoffEnvelope()`.
+3. Validate the envelope with `validateHandoffEnvelope()` before consuming any field. If validation returns `ok: false`, reject the handoff with the structured error — do not load requiredReads, do not execute nextAction, do not delegate.
 
-The resolver wraps `resolveAuthoritativeStartupResumeBundle` and returns:
-- `selectedStrategy`
-- `requiredReads[]`
-- `nextAction`
-- `canonicalStateSummary`
+The envelope determines:
+- `requiredReads[]` — the canonical ordered list of files to load
+- `nextAction` — the bounded task to execute
+- `stopRules` — stop boundaries that must not be crossed without authorization
+- `acceptance` — self-validation criteria for declaring completion
 
-If the resolver reports `selectedStrategy: none` / reconcile, stop and reconcile the authoritative startup state before loading any route pack.
+Read the envelope as the first artifact, then load only the listed `requiredReads` before executing `nextAction`. Prose task composition is a fallback only when the envelope cannot be built (missing `@pi-dev-loops/core` package). The derivation contract is documented in [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
+
+If the resolver reports `selectedStrategy: none` / reconcile, stop and reconcile the authoritative startup state before building the envelope.
 
 **Retrospective checkpoint gate (#462):** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
+
+
 
 ## Route table
 
