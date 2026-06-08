@@ -86,3 +86,70 @@ test('validateUiDesignerReviewInput accepts the artifact bundle from the reusabl
     missing: [],
   });
 });
+
+test('validateUiDesignerReviewInput routes opted-in UI slices to vision review', () => {
+  const result = validateUiDesignerReviewInput({
+    workType: 'ui',
+    uiReviewRequested: true,
+    uiReviewMode: 'vision',
+    acceptanceCriteria: ['named dashboard state renders'],
+    reviewBrief: 'Check layout and visual hierarchy.',
+    artifactBundle: {
+      sliceId: 'inspect-run-viewer',
+      reportPath: 'playwright-report/ui-smoke/inspect-run-viewer/index.html',
+      namedStates: [
+        {
+          stateName: 'Current PR dashboard',
+          screenshotPath: 'test-results/ui-smoke/inspect-run-viewer/named-states/current-pr-dashboard/screenshot.png',
+          statePath: 'test-results/ui-smoke/inspect-run-viewer/named-states/current-pr-dashboard/state.json',
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    status: 'ready_for_vision_review',
+    reason: 'artifact_bundle_complete',
+    missing: [],
+  });
+});
+
+test('validateUiDesignerReviewInput fails closed when vision review lacks screenshot.png artifacts', () => {
+  const result = validateUiDesignerReviewInput({
+    workType: 'ui',
+    uiReviewRequested: true,
+    uiReviewMode: 'vision',
+    acceptanceCriteria: ['named dashboard state renders'],
+    reviewBrief: 'Check layout and visual hierarchy.',
+    artifactBundle: {
+      sliceId: 'inspect-run-viewer',
+      namedStates: [
+        {
+          stateName: 'Current PR dashboard',
+          screenshotPath: 'test-results/ui-smoke/inspect-run-viewer/named-states/current-pr-dashboard/preview.jpg',
+          statePath: 'test-results/ui-smoke/inspect-run-viewer/named-states/current-pr-dashboard/state.json',
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 'blocked_incomplete_artifact_bundle');
+  assert.deepEqual(result.missing, ['artifactBundle.namedStates[0].screenshotPath']);
+});
+
+test('validateUiDesignerReviewInput fails closed for unsupported review modes', () => {
+  const result = validateUiDesignerReviewInput({
+    workType: 'ui',
+    uiReviewRequested: true,
+    uiReviewMode: 'manual',
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    status: 'blocked_unsupported_review_mode',
+    reason: 'unsupported_review_mode',
+    missing: ['uiReviewMode'],
+  });
+});

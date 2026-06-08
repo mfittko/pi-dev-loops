@@ -18,7 +18,7 @@ This skill is the canonical internal `local_implementation` route behind the pub
 Use it only after the public dispatcher has already resolved `selectedStrategy: local_implementation`. This skill owns the local phase procedure and artifact discipline for that route; it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands.
 
 Read the authoritative public routing contract at [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) and keep any repository-specific decisions grounded in [Project Plan](../../PLAN.md), durable phase docs, source, tests, config, and actual validation commands.
-For UI validation under `dev-loop`, see [UI Validation Contract](../../docs/ui-validation-contract.md), [UI Smoke Harness](../../docs/ui-smoke-harness.md), [UI Artifact Contract](../../docs/ui-artifact-contract.md), and [UI Designer Review Loop](../../docs/ui-designer-review-loop.md) (these are repo-level docs present in the source checkout; they are not part of the bundled `../docs/` runtime contract surface for installed skill copies).
+For UI validation under `dev-loop`, see [UI Validation Contract](../../docs/ui-validation-contract.md), [UI Smoke Harness](../../docs/ui-smoke-harness.md), [UI Artifact Contract](../../docs/ui-artifact-contract.md), and [UI Designer Review Loop](../../docs/ui-designer-review-loop.md) (designer + `uiReviewMode: vision`) (these are repo-level docs present in the source checkout; they are not part of the bundled `../docs/` runtime contract surface for installed skill copies).
 
 ## Minimal required project inputs
 

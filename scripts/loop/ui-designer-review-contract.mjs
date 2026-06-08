@@ -7,6 +7,16 @@ export function validateUiDesignerReviewInput(input = {}) {
       missing: [],
     };
   }
+  const uiReviewMode = typeof input.uiReviewMode === 'string' ? input.uiReviewMode.trim() : '';
+  const reviewMode = uiReviewMode.length === 0 ? 'designer' : uiReviewMode;
+  if (reviewMode !== 'designer' && reviewMode !== 'vision') {
+    return {
+      ok: false,
+      status: 'blocked_unsupported_review_mode',
+      reason: 'unsupported_review_mode',
+      missing: ['uiReviewMode'],
+    };
+  }
   const missing = [];
   const acceptanceCriteria = Array.isArray(input.acceptanceCriteria) ? input.acceptanceCriteria.filter((entry) => typeof entry === 'string' && entry.trim().length > 0) : [];
   if (acceptanceCriteria.length === 0) {
@@ -42,6 +52,9 @@ export function validateUiDesignerReviewInput(input = {}) {
     if (typeof state.statePath !== 'string' || state.statePath.trim().length === 0) {
       incompleteArtifacts.push(`artifactBundle.namedStates[${index}].statePath`);
     }
+    if (reviewMode === 'vision' && (typeof state.screenshotPath !== 'string' || !state.screenshotPath.trim().endsWith('screenshot.png'))) {
+      incompleteArtifacts.push(`artifactBundle.namedStates[${index}].screenshotPath`);
+    }
   });
   if (incompleteArtifacts.length > 0) {
     return {
@@ -53,7 +66,7 @@ export function validateUiDesignerReviewInput(input = {}) {
   }
   return {
     ok: true,
-    status: 'ready_for_designer_review',
+    status: reviewMode === 'vision' ? 'ready_for_vision_review' : 'ready_for_designer_review',
     reason: 'artifact_bundle_complete',
     missing: [],
   };
