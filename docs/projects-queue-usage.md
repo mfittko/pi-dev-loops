@@ -7,37 +7,32 @@ scheduling view for `dev-loop` queue work. For the formal board contract, see
 
 ## Why board state is OK for outer queue ordering
 
-The dev-loop uses GitHub Projects V2 board **position** as a human-readable scheduling hint —
-not as a database or transactional state store.
+The dev-loop can use GitHub Projects V2 board **position** as a human-readable scheduling
+hint — not as a database or transactional state store.
 
 - **Board state is durable** — survives CI restarts, local machine wipes, and session boundaries
 - **Board state is visible** — operators inspect and reorder the queue from the GitHub UI
-- **Board state is optional** — queue helpers treat it as an optional scheduling input, not mandatory authority. Without the board, `dev-loop queue` falls back to positional argument ordering.
+- **Board state is optional** — queue helpers treat it as an optional scheduling input, not mandatory authority
 - **No local queue file duplication** — the board complements `.pi/dev-loop-queue.json` for entry lifecycle tracking; it does not replace it and does not introduce a second local file
 
 This means board position is a **good-enough** signal for ordering the outer queue. The board
 does not need to be transactionally consistent with local state for the queue to work correctly:
-if the board is absent, the queue falls back; if a board operation fails, the queue continues
-with the next item.
+if a board operation fails, the queue continues; if the board is absent, the queue falls back
+to its default entry order.
 
 ## How to opt in
 
-Set `queue.boardTitle` in `.pi/dev-loop/settings.yaml`:
+The queue board is discovered at runtime by project number or node ID via `--project`.
+No configuration file entry is required — helpers use explicit CLI arguments.
 
-```yaml
-queue:
-  # Opt into Projects-based queue ordering
-  boardTitle: "Dev Loop Queue"
-```
-
-Without this key, the Projects path is inactive and the queue uses positional argument
-ordering.
-
-Then bootstrap the board (one-time):
+First, bootstrap the board (one-time):
 
 ```sh
 node scripts/projects/ensure-queue-board.mjs --repo <owner/name>
 ```
+
+The wrapper emits the project number and URL. Use the project number in subsequent
+helper invocations.
 
 ## How to use the helpers
 
@@ -93,7 +88,7 @@ node scripts/projects/reorder-queue-item.mjs --repo mfittko/pi-dev-loops --proje
 ### Typical workflow
 
 1. Bootstrap the board once: `node scripts/projects/ensure-queue-board.mjs --repo <owner/name>`
-2. Add items as they are queued: `node scripts/projects/add-queue-item.mjs --repo ... --project 1 --item <n>`
+2. Add items as they are queued: `node scripts/projects/add-queue-item.mjs --repo ... --project <n> --item <issue>`
 3. Reorder by priority: drag in the GitHub UI, or use `reorder-queue-item.mjs`
 4. When a worker picks up an item: `node scripts/projects/move-queue-item.mjs ... --to-column "In Progress"`
 5. When done: `node scripts/projects/move-queue-item.mjs ... --to-column "Done"`
@@ -106,12 +101,11 @@ the board is in a correct state.
 
 | Situation | Behavior |
 |---|---|
-| No board configured (`boardTitle` not set) | Fall back to positional ordering; no board mutations attempted |
-| Board not found by title | Operation fails; no fallback to creation |
-| Board exists but Status field missing | Operation fails; manual reconciliation needed |
-| Board exists but expected Status column missing | Operation fails; manual reconciliation needed |
-| GitHub API returns an error | Operation fails; structured stderr JSON with error details |
-| Item not found on board (move/reorder) | Operation fails; no silent creation |
+| Project not found by number or ID | Operation fails; exit code 3 |
+| Board exists but Status field missing | Operation fails; exit code 3 |
+| Board exists but expected Status column missing | Operation fails; exit code 3 |
+| GitHub API returns an error | Operation fails; exit code 2 |
+| Item not found on board (move/reorder) | Operation fails; exit code 3 |
 | Self-referential reorder (`--after` same as `--item`) | Operation fails with clear error message |
 
 ### Error format
@@ -136,19 +130,18 @@ create or modify project/field structure.
 
 ## How dev-loop should treat board state
 
-Dev-loop queue drivers treat board state as **optional scheduling input**, not as
+Dev-loop queue drivers should treat board state as **optional scheduling input**, not as
 mandatory authority:
 
-- When the board is configured and reachable: queue ordering is read from board position,
-  with the configured `--limit` cap
-- When the board is configured but unreachable (API error): the queue continues with the
-  next item; no board mutations are attempted
-- When the board is not configured: the queue falls back to positional argument ordering
-- Board state is read at dispatch time; the queue does not continuously sync local state
-  to board state
+- When the board is configured and reachable: queue ordering may be read from board position
+- When the board is configured but unreachable (API error): the queue continues with its
+  default entry ordering; no board mutations are attempted
+- When the board is not configured: the queue falls back to its default entry order
+  (e.g., `.pi/dev-loop-queue.json` entry order)
 
 This posture keeps the queue resilient: a transient GitHub API outage or misconfigured
-board does not block the entire queue run.
+board does not block the entire queue run. Board state is read at dispatch time; the queue
+does not continuously sync local state to board state.
 
 ## See also
 
