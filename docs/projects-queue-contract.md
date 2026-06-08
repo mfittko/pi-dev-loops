@@ -191,10 +191,10 @@ When tooling fails closed, it emits a structured JSON error on stderr:
 }
 ```
 
-The example hints at a remediation command. The stderr payload follows the
-repo's standard CLI error format (`formatCliError`): the payload carries `{ ok: false, error }`
-and may include an optional `usage` field when available. The `code` and `remediation`
-keys shown in the example are illustrative documentation, not part of the structured stderr output.
+The stderr payload follows the repo's standard CLI error format (`formatCliError`):
+`{ ok: false, error }` with an optional `usage` field when available. Remediation hints
+such as `code` keys or suggested commands live in documentation, not in the structured
+stderr output.
 
 ## Configuration shape
 
