@@ -15,7 +15,7 @@ Options:
   --help, -h                  Show this help.
 
 Output (stdout):
-  JSON: { ok: true, item: { itemId, issueNumber, prNumber, position }, after: { itemId, issueNumber, prNumber } | null }
+  JSON: { ok: true, item: { itemId, issueNumber, prNumber, status, position }, after: { itemId, issueNumber, prNumber } | null }
 
 Exit codes:
   0 — success
@@ -333,24 +333,38 @@ async function resolveProjectItem(projectId, itemRef, owner, repoName, repo, env
       }
     }
   } else {
-    // Look up by issue/PR number in the project
-    const itemsPayload = await ghGraphql(GET_PROJECT_ITEMS_BY_CONTENT, {
-      projectId,
-      owner,
-      repo: repoName,
-      number: itemRef.value,
-    }, env, runChild);
-    const items = itemsPayload?.data?.node?.items?.nodes ?? [];
+    // Look up by issue/PR number in the project (paginated)
+    const targetNumber = itemRef.value;
+    let allItems = [];
+    let after = null;
+    while (true) {
+      const vars = { projectId, owner, repo: repoName, number: targetNumber };
+      if (after) vars.after = after;
+      const itemsPayload = await ghGraphql(GET_PROJECT_ITEMS_BY_CONTENT, vars, env, runChild);
+      const connection = itemsPayload?.data?.node?.items;
+      const nodes = connection?.nodes ?? [];
+      allItems.push(...nodes);
+      const pageInfo = connection?.pageInfo ?? {};
+      if (!pageInfo.hasNextPage) break;
+      if (!pageInfo.endCursor) {
+        throw Object.assign(
+          new Error("Invalid items payload: hasNextPage is true but endCursor is missing"),
+          { code: "GH_API_ERROR" },
+        );
+      }
+      after = pageInfo.endCursor;
+    }
 
-    // Filter by matching repo exactly
-    const matchingItems = items.filter((it) => {
+    // Filter by matching repo AND number exactly
+    const matchingItems = allItems.filter((it) => {
       if (!it.content) return false;
-      return it.content.repository?.nameWithOwner === repo;
+      if (it.content.repository?.nameWithOwner !== repo) return false;
+      return it.content.number === targetNumber;
     });
 
     if (matchingItems.length === 0) {
       throw Object.assign(
-        new Error(`Item #${itemRef.value} not found in project for repo "${repo}"`),
+        new Error(`Item #${targetNumber} not found in project for repo "${repo}"`),
         { code: "ITEM_NOT_FOUND" },
       );
     }
