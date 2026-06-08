@@ -37,6 +37,7 @@ const SUBCOMMAND_ROUTES = {
     "gate-coordination":    "scripts/loop/detect-pr-gate-coordination-state.mjs",
     "linked-issue-pr":      "scripts/github/detect-linked-issue-pr.mjs",
     "issue-refinement":     "scripts/loop/detect-issue-refinement-artifact.mjs",
+    "debt-remediate":       "scripts/loop/debt-remediate.mjs",
   },
   pr: {
     "create-draft":     "scripts/github/create-draft-pr.mjs",
