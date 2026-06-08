@@ -1,15 +1,20 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { parse as parseYaml } from "yaml";
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
-const USAGE = `Usage: detect-internal-only-pr.mjs --repo <owner/name> --pr <number>
+const USAGE = `Usage: detect-internal-only-pr.mjs --repo <owner/name> --pr <number> [--config <path>]
 Detect whether a PR only touches internal tooling files (scripts, docs, tests, config)
 and should suppress external Copilot review.
+
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
 Optional:
+  --config <path>       Path to .pi/dev-loop/settings.yaml (default: auto-detect)
   --label-check         Also check for explicit "internal_only" label on the PR
 Output (stdout, JSON):
   { "ok": true, "internalOnly": true|false, "files": ["path1", "path2", ...],
@@ -20,29 +25,82 @@ Exit codes:
 
 const parseError = buildParseError(USAGE);
 
-// Paths that are considered internal tooling (not consumer-facing).
-// If ALL changed files match one of these patterns, the PR is internal-only.
-const INTERNAL_PATH_PATTERNS = [
-  /^scripts\//,
-  /^docs\//,
-  /^skills\/docs\//,
-  /^\.pi\//,
-  /^\.github\//,
-  /^test\//,
+// Shipped default patterns used as fallback when no config is found.
+const SHIPPED_DEFAULT_PATTERNS = [
+  "^scripts/",
+  "^docs/",
+  "^skills/docs/",
+  "^\\.pi/",
+  "^\\.github/",
+  "^test/",
 ];
 
-// Paths that are always consumer-facing (override internal patterns).
-// If ANY changed file matches one of these, the PR is NOT internal-only.
-const CONSUMER_PATH_PATTERNS = [
-  /^packages\//,
-  /^skills\/[^d]/,  // skills/* except skills/docs/
-  /^skills\/dev-loop\//,
-  /^skills\/copilot-pr-followup\//,
-  /^cli\//,
-  /^package\.json$/,
-  /^README\.md$/,
-  /^AGENTS\.md$/,
-];
+function findRepoRoot(cwd = process.cwd()) {
+  let dir = cwd;
+  while (true) {
+    const candidate = path.join(dir, ".git");
+    try {
+      readFileSync(candidate);
+      return dir;
+    } catch {
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+function loadInternalPathPatterns(configPath) {
+  // --config flag takes priority
+  if (configPath) {
+    try {
+      const raw = readFileSync(configPath, "utf8");
+      const parsed = configPath.endsWith(".yaml") || configPath.endsWith(".yml")
+        ? parseYaml(raw)
+        : JSON.parse(raw);
+      if (parsed?.internalPathPatterns?.patterns && Array.isArray(parsed.internalPathPatterns.patterns)) {
+        return parsed.internalPathPatterns.patterns.filter(p => typeof p === "string" && p.trim());
+      }
+    } catch {
+      // Fall through to defaults
+    }
+    return [...SHIPPED_DEFAULT_PATTERNS];
+  }
+
+  // Auto-detect from repo root
+  const repoRoot = findRepoRoot();
+  if (repoRoot) {
+    const candidates = [
+      path.join(repoRoot, ".pi", "dev-loop", "settings.yaml"),
+      path.join(repoRoot, ".pi", "dev-loop", "settings.yml"),
+      path.join(repoRoot, ".pi", "dev-loop", "settings.json"),
+    ];
+    for (const candidate of candidates) {
+      try {
+        const raw = readFileSync(candidate, "utf8");
+        const parsed = candidate.endsWith(".json") ? JSON.parse(raw) : parseYaml(raw);
+        if (parsed?.internalPathPatterns?.patterns && Array.isArray(parsed.internalPathPatterns.patterns)) {
+          return parsed.internalPathPatterns.patterns.filter(p => typeof p === "string" && p.trim());
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  // Fall back to shipped defaults
+  return [...SHIPPED_DEFAULT_PATTERNS];
+}
+
+function buildPatternMatchers(patterns) {
+  return patterns.map(p => {
+    try {
+      return new RegExp(p);
+    } catch {
+      return null;
+    }
+  }).filter(r => r !== null);
+}
 
 export function parseCliArgs(argv) {
   const args = [...argv];
@@ -50,6 +108,7 @@ export function parseCliArgs(argv) {
     help: false,
     repo: undefined,
     pr: undefined,
+    config: undefined,
     labelCheck: false,
   };
   while (args.length > 0) {
@@ -64,6 +123,10 @@ export function parseCliArgs(argv) {
     }
     if (token === "--pr") {
       options.pr = parsePrNumber(requireOptionValue(args, "--pr", parseError), parseError);
+      continue;
+    }
+    if (token === "--config") {
+      options.config = requireOptionValue(args, "--config", parseError).trim();
       continue;
     }
     if (token === "--label-check") {
@@ -81,20 +144,6 @@ export function parseCliArgs(argv) {
     throw parseError(error instanceof Error ? error.message : String(error));
   }
   return options;
-}
-
-function isInternalPath(filePath) {
-  for (const pattern of INTERNAL_PATH_PATTERNS) {
-    if (pattern.test(filePath)) return true;
-  }
-  return false;
-}
-
-function isConsumerPath(filePath) {
-  for (const pattern of CONSUMER_PATH_PATTERNS) {
-    if (pattern.test(filePath)) return true;
-  }
-  return false;
 }
 
 async function fetchPrFiles({ repo, pr }, { env = process.env, ghCommand = "gh" } = {}) {
@@ -124,7 +173,17 @@ async function fetchPrLabels({ repo, pr }, { env = process.env, ghCommand = "gh"
   return labels;
 }
 
+/**
+ * Detect whether a PR is internal-only using a configurable whitelist.
+ *
+ * Single-whitelist logic:
+ * - If ALL changed files match at least one internal pattern → internalOnly=true
+ * - If ANY changed file doesn't match any pattern → internalOnly=false
+ * - No blacklist needed — a non-matching file is consumer-facing by definition.
+ */
 export async function detectInternalOnly(options, { env = process.env, ghCommand = "gh" } = {}) {
+  const patterns = loadInternalPathPatterns(options.config);
+  const matchers = buildPatternMatchers(patterns);
   const files = await fetchPrFiles(options, { env, ghCommand });
 
   if (files.length === 0) {
@@ -138,37 +197,24 @@ export async function detectInternalOnly(options, { env = process.env, ghCommand
     };
   }
 
-  // Check if any consumer-facing file is touched
-  const consumerFiles = files.filter(isConsumerPath);
-  if (consumerFiles.length > 0) {
+  // Single whitelist: any non-matching file → NOT internal-only
+  const nonMatching = files.filter(f => !matchers.some(r => r.test(f)));
+  if (nonMatching.length > 0) {
     return {
       ok: true,
       internalOnly: false,
       files,
-      reason: `Consumer-facing file(s) changed: ${consumerFiles.join(", ")}`,
+      reason: `Consumer-facing file(s) changed: ${nonMatching.join(", ")}`,
       repo: options.repo,
       pr: options.pr,
     };
   }
 
-  // Check if ALL files are internal-only
-  const nonInternalFiles = files.filter((f) => !isInternalPath(f));
-  if (nonInternalFiles.length > 0) {
-    return {
-      ok: true,
-      internalOnly: false,
-      files,
-      reason: `Non-internal file(s) changed outside recognized patterns: ${nonInternalFiles.join(", ")}`,
-      repo: options.repo,
-      pr: options.pr,
-    };
-  }
-
-  // Check for explicit internal_only label if requested
+  // Check for explicit internal_only label if requested (confirmation only)
   if (options.labelCheck) {
     const labels = await fetchPrLabels(options, { env, ghCommand });
     if (labels.includes("internal_only")) {
-      // Label confirms internal-only — but our path check already passed, so this is just additional evidence
+      // Label confirms — path check already passed
     }
   }
 
@@ -206,4 +252,4 @@ if (isDirectCliRun(import.meta.url)) {
   });
 }
 
-export { isInternalPath, isConsumerPath, INTERNAL_PATH_PATTERNS, CONSUMER_PATH_PATTERNS };
+export { loadInternalPathPatterns, buildPatternMatchers, SHIPPED_DEFAULT_PATTERNS };

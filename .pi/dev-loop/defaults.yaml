@@ -411,3 +411,16 @@ personas:
       - Flag patterns where a tool is called in a loop but only the last
         iteration's result is used (or none at all).
     defaultModel: null
+
+# Internal path patterns for internal-only PR detection.
+# If ALL changed files in a PR match one of these patterns, the PR is
+# classified as internal-only and Copilot review is suppressed.
+# Consumer repos can override these in .pi/dev-loop/settings.yaml.
+internalPathPatterns:
+  patterns:
+    - "^scripts/"
+    - "^docs/"
+    - "^skills/docs/"
+    - "^\\.pi/"
+    - "^\\.github/"
+    - "^test/"
