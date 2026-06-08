@@ -351,6 +351,13 @@ export function buildInspectionMermaidGraph(snapshot) {
     }
   }
 
+  const orderedLaneLines = [
+    '  subgraph lane_stack[" "]',
+    '    direction TB',
+    ...lanes.flatMap((lane) => lane.lines.map((line) => `    ${line.trimStart()}`)),
+    '  end',
+  ];
+
   const lines = [
     "flowchart TB",
     "  classDef cue fill:#f5f7f9,stroke:#78909c,stroke-width:1.5px,color:#355061,font-weight:bold;",
@@ -362,10 +369,13 @@ export function buildInspectionMermaidGraph(snapshot) {
     "  classDef inactive fill:#ffffff,stroke:#b0bec5,stroke-width:1.5px,color:#607d8b;",
     "  classDef unavailable fill:#f8fafc,stroke:#90a4ae,stroke-width:2px,color:#546e7a,stroke-dasharray: 6 4;",
     "  classDef note fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#7f4b00;",
-    ...lanes.flatMap((lane) => lane.lines),
+    ...orderedLaneLines,
+    '  outer_loop_family_start ~~~ copilot_layer_start',
+    '  copilot_layer_start ~~~ reviewer_layer_start',
+    '  reviewer_layer_start ~~~ lifecycle_layer_start',
     `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[1].currentId}`,
-    `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
-    `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[3].currentId}`,
+    `  ${lanes[1].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
+    `  ${lanes[2].currentId} -. "layer view" .-> ${lanes[3].currentId}`,
   ];
 
   for (const [className, ids] of Object.entries(classIds)) {
