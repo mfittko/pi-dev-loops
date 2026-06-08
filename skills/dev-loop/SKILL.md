@@ -22,34 +22,9 @@ Required installed runtime contract docs are shared bundled copies under `../doc
 
 ### Main agent (read-only)
 
-1. **Run the startup resolver with auto-resolve** — do not construct ad hoc JSON files:
-   ```sh
-   dev-loops loop startup --issue <number>
-   # or
-   dev-loops loop startup --pr <number>
-   ```
-   The resolver auto-detects linked PRs, issue readiness, assignment state, and the retrospective checkpoint. **Trust its output.** Do not replicate its work with manual `gh pr list`, `detect-linked-issue-pr.mjs`, or source-code reading.
-
-2. **Branch on `selectedStrategy`:**
-   - `"none"` / `needs_reconcile`:
-     - If `issueLinkageResolution` is `"resolved_linked_pr"`, re-run with the linked PR:
-       ```sh
-       dev-loops loop startup --pr <linked-pr-number>
-       ```
-     - Otherwise → stop and report the reconcile reason.
-   - Any routed strategy → check `requiresAsyncDispatch`.
-
-3. **If `requiresAsyncDispatch: true`** (GitHub-first strategies):
-   a. Run the pre-delegation handoff gate:
-      ```sh
-      node scripts/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>
-      ```
-      If `action: "stop"` with `terminal: true`, the phase is complete — proceed inline.
-      If `action: "stop"` with `terminal: false`, resolve the blocking condition first.
-   b. Run `git fetch origin`, then ensure a worktree exists under `tmp/worktrees/<slug>/`.
-   c. Dispatch the `dev-loop` async subagent with `cwd` set to the worktree.
-
-4. **If `requiresAsyncDispatch: false`** (`local_implementation`, `final_approval`, `none`), proceed inline.
+The main agent must **always** dispatch the `dev-loop` async subagent for any dev-loop work.
+Do not run `dev-loops loop startup` or any startup resolver in the main agent.
+The resolver requires `PI_SUBAGENT_RUN_ID` and only runs inside the async subagent context.
 
 ### Dev-loop subagent (post-dispatch)
 
@@ -77,7 +52,7 @@ Do not preload route packs before the resolver selects the strategy.
 
 ## Guard rules (subagent reference)
 
-**Pre-delegation gate (mandatory):** Before delegating async work targeting an existing PR, run `copilot-pr-handoff.mjs` and abort if `action: "stop"`. When `terminal: true`, proceed inline. When `terminal: false`, resolve the blocking condition first. Main agent: see [Startup procedure](#startup-procedure) step 3a.
+**Pre-delegation gate (mandatory):** Before delegating async work targeting an existing PR, run `node scripts/loop/copilot-pr-handoff.mjs` and abort if `action: "stop"`. When `terminal: true`, proceed inline. When `terminal: false`, resolve the blocking condition first. Main agent: see [Startup procedure](#startup-procedure) step 3a.
 
 **Worktree cwd (mandatory):** Always set `cwd` to the worktree when delegating to subagents — never use the `main` checkout.
 
