@@ -11,8 +11,8 @@ expected board shape so tooling can rely on deterministic field/column names and
 when the board is absent or misconfigured.
 
 **Board state is an optional scheduling input; it does not replace GitHub issue/PR state as
-the source of truth.** No local queue file is introduced — the board is the sole Projects-based
-ordering surface.
+the source of truth.** This contract introduces no local queue file — the board is the
+Projects-based ordering surface described here.
 
 ## Opt-in posture
 
@@ -191,9 +191,10 @@ When tooling fails closed, it emits a structured JSON error on stderr:
 }
 ```
 
-The example hints at a remediation command, but the stderr payload follows the
-repo's standard CLI error format (`formatCliError`): only `{ ok: false, error }` is emitted.
-Remediation hints live in documentation, not in the structured error payload.
+The example hints at a remediation command. The stderr payload follows the
+repo's standard CLI error format (`formatCliError`): the payload carries `{ ok: false, error }`
+and may include an optional `usage` field when available. The `code` and `remediation`
+keys shown in the example are illustrative documentation, not part of the structured stderr output.
 
 ## Configuration shape
 
@@ -258,12 +259,21 @@ This contract explicitly does **not** define:
 
 - **Full Kanban automation** — GitHub has built-in workflows for Status transitions. The
   queue helpers only read ordering and set Status; they do not react to Status changes.
-- **Local persistence replacement** — Board state is an optional scheduling input. No
-  local queue file is introduced; the board is the sole Projects-based ordering surface.
+- **Local persistence replacement** — Board state is an optional scheduling input. This
+  contract introduces no new local queue file; it complements existing queue mode persistence.
 - **Bi-directional sync** — Tooling reads board ordering at dispatch time and writes Status
   on transitions. It does not continuously sync local state to board state or vice versa.
 - **Framework/library abstraction** — All helpers are thin wrappers around `gh api graphql`.
   No additional GraphQL client or abstraction layer is introduced.
+
+## Relationship to queue mode
+
+The [Queue Mode SPEC](./specs/queue-mode/SPEC.md) and [Queue Board Setup](./queue-board-setup.md)
+describe a queue-mode implementation that uses `.pi/dev-loop-queue.json` for durable entry
+lifecycle tracking. This contract adds an **optional** Projects-board scheduling input on top
+of that existing queue infrastructure — it does not replace local queue persistence and does
+not introduce a second local queue file. When the board is not configured, queue ordering falls
+back to positional arguments as described in the queue mode specification.
 
 ## See also
 
