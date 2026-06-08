@@ -81,6 +81,10 @@ deterministically.
 
 ## Pre-follow-up working rules
 
+> **Phase boundary:** Steps 1-4 apply when no PR exists yet (issue intake).
+> If a PR already exists, skip to [Deterministic orchestration authority](#deterministic-orchestration-authority) —
+> the state machine owns all post-PR routing.
+
 ### Step 1: Choose the work item
 
 Prefer a GitHub issue over an ad hoc local TODO.
@@ -98,7 +102,7 @@ Useful checks:
 
 If the user asks for status/progress/readiness/merge-state/next-step (including “what is next”):
 - resolve authoritative active artifact identity first (issue/PR, plus branch/head SHA when useful)
-- for issue targets, do not assert "no open PR" until authoritative issue↔PR linkage is resolved (for example via `detect-linked-issue-pr.mjs` timeline-linkage checks)
+- for issue targets, do not assert "no open PR" until authoritative issue↔PR linkage is resolved via the startup resolver (`dev-loops loop startup --issue <number>`, run inside the `dev-loop` async subagent) — do not run `detect-linked-issue-pr.mjs` manually
 - resolve artifact state (`open`/`closed`/`merged`/`not_applicable`)
 - resolve current loop state and next action from deterministic helper/state output
 - include explicit resolved artifact identity in the answer

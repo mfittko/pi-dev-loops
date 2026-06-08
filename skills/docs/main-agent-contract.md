@@ -28,7 +28,7 @@ because "the user said yes," not because it is running from a worktree.
 
 - `write`, `edit`, or delete any file tracked by the repo
 - `git commit`, `git push`, create branches, create worktrees
-- Run state-changing dev-loops CLI subcommands (`gate`, any state-changing `loop` subcommand, `pr` commands — those belong inside `dev-loop`). Read-only `loop startup` resolver runs are allowed.
+- Run state-changing dev-loops CLI subcommands (`gate`, any state-changing `loop` subcommand, `pr` commands — those belong inside `dev-loop`).
 - Delegate implementation to any agent other than `dev-loop`
 
 ## Dev-loop agent (async) owns
@@ -49,6 +49,13 @@ because "the user said yes," not because it is running from a worktree.
 | `git commit -m "..."` | **BREACH** — must delegate to `dev-loop` |
 | `subagent dev-loop` | Allowed — correct delegation |
 | `subagent fixer` | Allowed only when called from within `dev-loop`; describe the task as part of the message |
+
+## Dev-loop startup
+
+When a user triggers the dev loop, the main agent must immediately dispatch the
+`dev-loop` async subagent. The subagent owns the startup resolver, route selection,
+and all subsequent implementation steps. The main agent never runs `dev-loops loop startup`
+directly.
 
 ## Enforcement posture
 
