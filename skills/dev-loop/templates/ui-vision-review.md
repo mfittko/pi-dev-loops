@@ -23,15 +23,21 @@ You are a vision-capable UI reviewer (model: `gpt-5.4`) reviewing deterministic 
 
 ## Required output format
 
-Return strict JSON with this shape:
+Allowed enum values:
+- `outcome`: `"continue_ui_fix_loop"` | `"ui_review_satisfied"` | `"blocked_needs_human_decision"`
+- `severity`: `"high"` | `"medium"` | `"low"`
+
+`blockedReason` is required only when `outcome` is `"blocked_needs_human_decision"`.
+
+Return strict JSON with this shape (example uses concrete values):
 
 ```json
 {
-  "outcome": "continue_ui_fix_loop | ui_review_satisfied | blocked_needs_human_decision",
+  "outcome": "ui_review_satisfied",
   "summary": "short overall verdict",
   "findings": [
     {
-      "severity": "high | medium | low",
+      "severity": "medium",
       "stateName": "named state label",
       "evidence": {
         "screenshotPath": "test-results/ui-smoke/<sliceId>/named-states/<state-slug>/screenshot.png",
@@ -44,6 +50,6 @@ Return strict JSON with this shape:
   "nextIterationFocus": [
     "small, actionable UI fix target"
   ],
-  "blockedReason": "required only when outcome is blocked_needs_human_decision"
+  "blockedReason": null
 }
 ```

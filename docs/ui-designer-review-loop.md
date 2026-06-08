@@ -105,6 +105,8 @@ The loop fails closed when:
 - a named state lacks `screenshotPath` or `statePath`
 - vision mode is requested but a named state screenshot path is not a `screenshot.png` artifact
 - the work is not actually a UI slice and the loop was requested anyway
+- an unsupported `uiReviewMode` value (anything other than `designer` or `vision`) fails closed with `blocked_unsupported_review_mode`
+
 
 When the work is non-UI, the loop does not trigger for non-UI work; it returns a skip outcome instead of pretending to review unrelated artifacts.
 

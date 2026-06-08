@@ -52,7 +52,7 @@ export function validateUiDesignerReviewInput(input = {}) {
     if (typeof state.statePath !== 'string' || state.statePath.trim().length === 0) {
       incompleteArtifacts.push(`artifactBundle.namedStates[${index}].statePath`);
     }
-    if (reviewMode === 'vision' && (typeof state.screenshotPath !== 'string' || !state.screenshotPath.trim().endsWith('screenshot.png'))) {
+    if (reviewMode === 'vision' && typeof state.screenshotPath === 'string' && state.screenshotPath.trim().length > 0 && !state.screenshotPath.trim().endsWith('screenshot.png')) {
       incompleteArtifacts.push(`artifactBundle.namedStates[${index}].screenshotPath`);
     }
   });
