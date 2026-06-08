@@ -18,6 +18,7 @@ gates:
       - config-drift
       - gate-evidence
       - pr-description
+      - pr-comments
     requireCi: true
     blockCleanOnFindingSeverities:
       - must-fix
