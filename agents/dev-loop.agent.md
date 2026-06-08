@@ -70,8 +70,9 @@ The pi-subagents skill is parent-only, so delegated subagents do not receive orc
 
 **Supervisor communication (known pi runtime bug #671):** The pi runtime `contact_supervisor` tool has a broken response path — supervisor responses do not flow back to resolve the pending subagent tool call. Subagents calling `contact_supervisor` become blocked until the idle timeout fires (~60s), then pause without the decision.
 
-- **Prefer `intercom`** for supervisor communication. Use `intercom({ action: "ask", ... })` to reach the supervisor session instead of `contact_supervisor`. The `intercom` tool uses message-based delivery and does not create a blocking tool-call state. See the `pi-intercom` skill for the full ask shape and reply conventions.
-- **When `contact_supervisor` is unavoidable:** expect a ~60s idle timeout followed by a pause. On resume, inject the decision via `intercom({ action: "reply", ... })` — see the `pi-intercom` skill for reply patterns.
+- **Prefer `intercom` when available.** If the `pi-intercom` extension is active, use `intercom({ action: "ask", ... })` instead of `contact_supervisor`. The `intercom` tool uses message-based delivery and does not create a blocking tool-call state. See the `pi-intercom` skill for the full ask shape and reply conventions.
+- **When `intercom` is unavailable,** the supervisor must resume the subagent with the decision in the resume message (the standard `contact_supervisor` resume path). This avoids the broken response path entirely — the subagent never calls `contact_supervisor`, and the supervisor injects the decision on re-dispatch.
+- **When `contact_supervisor` is unavoidable** (e.g. `pi-intercom` is absent and the supervisor cannot unilaterally resume): expect a ~60s idle timeout followed by a pause. On resume, inject the decision via `intercom({ action: "reply", ... })` — see the `pi-intercom` skill for reply patterns.
 - **Timeout detection:** if a `contact_supervisor` call has been pending for >30s without a response, treat it as a probable timeout and prepare to fall back to `intercom` on resume.
 
 ## Output
