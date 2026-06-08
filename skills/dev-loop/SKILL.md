@@ -29,7 +29,7 @@ This skill is the public `dev-loop` façade for this repository. It should resol
 Operational summary:
 - route from authoritative current state instead of guessing from chat context
 - for status/progress/readiness/merge-state/next-step questions, resolve authoritative artifact identity + artifact state + loop state first
-- for issue targets, authoritative identity resolution must include explicit issue↔PR linkage resolution (for example via `detect-linked-issue-pr.mjs`) before saying there is no open linked PR
+- for issue targets, authoritative identity resolution is handled by the startup resolver (`dev-loops loop startup --issue <number>`); see Startup procedure below
 - when authoritative linkage resolves an open linked PR, treat it as the single canonical artifact for the issue and reuse it instead of opening another PR
 - when authoritative identity remains unresolved, fail closed to reconcile/unknown
 
@@ -96,13 +96,13 @@ Do not preload local implementation, issue intake, PR follow-up, or final approv
 
 After the resolver selects a strategy and the route pack is loaded, the routed strategy's procedure is the execution plan — not reference material. Follow it.
 
-**Async dispatch rule (#465, enforced):** the resolver enforces this fail-closed for GitHub-first strategies (`issue_intake`, `copilot_pr_followup`, `external_pr_followup`, `reviewer_fixer`, `wait_watch`). Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected with exit code 1 (stderr JSON: `{"ok":false,"error":"...","asyncStartContract":"rejected"}`) unless maintainer-controlled repository policy explicitly relaxes startup. Default posture remains `required`. For any routed strategy where the resolver's `canonicalStateSummary.requiresAsyncDispatch` is `true`, dispatch the strategy as a single async dev-loop subagent (the `dev-loop` agent) rather than executing steps inline in the parent session. The dispatched agent owns parallel review fan-out, fixer passes, gate comments, state transitions, and sub-delegation internally.
-
-Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline — local phases are often interactive, and final approval requires explicit human confirmation before GitHub mutations.
+**Async dispatch rule (#465, enforced):** the resolver enforces fail-closed for GitHub-first strategies. Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected. Dispatch via the [Startup procedure](#startup-procedure) steps 3-4 — the main agent owns async dispatch; the dispatched subagent owns parallel review fan-out, fixer passes, gate comments, state transitions, and sub-delegation internally. Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline.
 
 ## Async delegation guard rules (#524)
 
-**Pre-delegation gate (#524, mandatory):** Before delegating async subagent work that targets an existing PR (watch/follow-up strategies), run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"`. This prevents delegating work that has no automatic next step — the handoff tool is the authority, not the parent session's judgment. When `action: "stop"` and `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task.
+**Pre-delegation gate (#524, mandatory):** Before delegating async subagent work that targets an existing PR, run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"`. The handoff tool is the authority, not the parent session's judgment. When `action: "stop"` and `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task. When `terminal: false`, resolve the blocking condition first.
+
+> **Main agent:** see [Startup procedure](#startup-procedure) step 3a for the checklist version. This section is the detailed subagent reference.
 
 > **Path resolution:** In the source repo, `<resolved-skill-scripts>` = `scripts/` (repo-root-relative) or equivalently `../../scripts/` (relative to this skill file). In installed skills, resolve from the skill's installation layout per the [skill asset path resolution rule in copilot-pr-followup/SKILL.md](../copilot-pr-followup/SKILL.md#skill-asset-path-resolution).
 
@@ -110,7 +110,7 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 
 **Worktree fetch rule (#567, mandatory):** Always run `git fetch origin` before creating or reusing any worktree. Never create a worktree from a stale local `origin/main` reference.
 
-**Handoff envelope precedence (#536):** The agent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action (see the agent definition mandate). The envelope is the primary handoff artifact — read it first, then load only the listed `requiredReads` before executing `nextAction`. Prose task composition is a fallback only when the envelope cannot be built (missing `@pi-dev-loops/core` package). The derivation contract is documented in [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
+**Handoff envelope precedence (#536):** The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action (see the agent definition mandate). The envelope is the primary handoff artifact — read it first, then load only the listed `requiredReads` before executing `nextAction`. See [Startup procedure → Dev-loop subagent](#startup-procedure) for the operational summary. Prose task composition is a fallback only when the envelope cannot be built (missing `@pi-dev-loops/core` package). The derivation contract is documented in [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
 
 **Handoff contract rule (#524):** All subagent delegation must use the `workflow-handoff-contract.md` contract (resolved path: `../docs/workflow-handoff-contract.md` relative to the skill directory) when no envelope is present. Never delegate with abbreviated task summaries. The handoff contract must include:
 - Deterministic routing inputs (current state, gate boundary, next action)
@@ -139,9 +139,6 @@ Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `fi
 - **Clean fallback** — when there are zero unresolved review threads AND CI is green (or credibly green). Treat this as the `pre_approval_gate` entry signal (do not re-request Copilot review).
 - **Round limit reached** — when unresolved threads remain OR CI is not green. Reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note and stop; do **not** re-request Copilot review.
 - The round-cap check is a per-iteration gate, not an end-of-loop assertion
-
-
-**Deterministic routing step (#524):** The pre-delegation gate above determines whether delegation is appropriate. When it returns `action: "stop"` with `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task.
 
 ## Shorthand issue-based auto trigger contract
 
