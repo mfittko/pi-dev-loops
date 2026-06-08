@@ -438,10 +438,14 @@ async function main(args, { env = process.env, runChild } = {}) {
     }, env, child);
     const items = itemsPayload?.data?.node?.items?.nodes ?? [];
 
-    // Filter by matching repo exactly
+    // Filter by matching repo exactly and item number (when known)
     const matchingItems = items.filter((it) => {
       if (!it.content) return false;
-      return it.content.repository?.nameWithOwner === repo;
+      const repoMatch = it.content.repository?.nameWithOwner === repo;
+      if (itemRef.kind === "number") {
+        return repoMatch && it.content.number === itemRef.value;
+      }
+      return repoMatch;
     });
 
     if (matchingItems.length === 0) {
