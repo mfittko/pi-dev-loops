@@ -182,8 +182,9 @@ function normalizeLifecycleState(value) {
  * 3. Merge authorized + pre-approval passed + linked PR → merge
  * 4. Pre-approval passed + PR exists → pre_approval_gate
  * 5. Unresolved threads + PR exists → feedback_resolution
- * 6. Draft PR or ready PR → implementation
- * 7. No linked PR → issue_intake
+ * 6. Draft PR → implementation
+ * 7. Ready PR (not draft) → implementation
+ * 8. No linked PR → issue_intake
  */
 export function resolveLifecycleState(input = {}) {
   const {
