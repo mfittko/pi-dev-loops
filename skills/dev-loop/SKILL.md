@@ -26,7 +26,7 @@ Required installed runtime contract docs are shared bundled copies under `../doc
 
 The main agent must **always** dispatch the `dev-loop` async subagent for any dev-loop work.
 Do not run `dev-loops loop startup` or any startup resolver in the main agent.
-The resolver requires `PI_SUBAGENT_RUN_ID` and only runs inside the async subagent context.
+The resolver requires `PI_SUBAGENT_RUN_ID` for async-required routes and only runs inside the async subagent context.
 
 ### Dev-loop subagent (post-dispatch)
 
@@ -34,7 +34,7 @@ The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` fro
 
 **Retrospective checkpoint gate:** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
 
-**Pre-delegation gate (mandatory — subagent only):** Before delegating async work targeting an existing PR, the dev-loop subagent must run `node scripts/loop/copilot-pr-handoff.mjs` and abort if `action: "stop"`. When `terminal: true`, proceed inline. When `terminal: false`, resolve the blocking condition first.
+**Pre-delegation gate (mandatory — subagent only):** Before delegating async work targeting an existing PR, the dev-loop subagent must run `node scripts/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"`. When `terminal: true`, proceed inline. When `terminal: false`, resolve the blocking condition first.
 
 **Worktree cwd (mandatory — subagent only):** Always use a worktree checkout for git operations, file reads/writes, and validation commands — never use the `main` checkout.
 
@@ -58,7 +58,7 @@ Do not preload route packs before the resolver selects the strategy.
 
 ## Async dispatch
 
-**Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies. Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected. See [Startup procedure](#startup-procedure) steps 3-4.
+**Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies. Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected. See [Startup procedure](#startup-procedure).
 
 ## Guard rules (subagent reference)
 

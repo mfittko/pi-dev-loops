@@ -25,7 +25,7 @@ The envelope is the primary handoff artifact — it is derived from resolver out
 - `acceptance` — self-validation criteria for declaring completion
 
 **Construction sequence:**
-1. Run the deterministic startup resolver (`npx dev-loops loop startup --input <path-to-authoritative-state.json>`) to produce the authoritative state bundle.
+1. Run the deterministic startup resolver (`npx dev-loops loop startup --issue <n> / --pr <n> (auto-resolve from issue/PR)`) to produce the authoritative state bundle.
 2. Pass the resolver output, resolved settings (merged from `.pi/dev-loop/settings.yaml` and `.pi/dev-loop/defaults.yaml`), and current gate state to `buildDevLoopHandoffEnvelope()`.
 3. **Validate the envelope** with `validateHandoffEnvelope()` before consuming any field. If validation returns `ok: false`, reject the handoff with the structured error — do not load requiredReads, do not execute nextAction, do not delegate.
 4. Read the envelope as the first artifact.
