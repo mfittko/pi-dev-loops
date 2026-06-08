@@ -10,7 +10,7 @@ allowed-tools: read bash edit write subagent review_loop
 
 **No-implicit-start rule:** Never start implementation without explicit instruction.
 
-**Work-origin rule:** All work must originate from a tracked artifact: a GitHub issue or a persisted markdown plan file.
+**Work-origin rule:** All work must originate from a tracked artifact: a GitHub issue (or an open PR linked to one) or a persisted markdown plan file.
 
 # Unified Dev Loop
 
@@ -30,7 +30,7 @@ The resolver requires `PI_SUBAGENT_RUN_ID` for async-required routes (the defaul
 
 ### Dev-loop subagent (post-dispatch)
 
-The subagent resolves authoritative state via the startup resolver, then immediately builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core`. The envelope determines `requiredReads`, `nextAction`, `stopRules`, and `acceptance` — load only those files, execute only that bounded task. It is the first handoff artifact consumed before loading any route pack. See [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) for the derivation contract.
+The subagent resolves authoritative state via the startup resolver (`npx dev-loops loop startup --issue <n>` for issues, `npx dev-loops loop startup --pr <n>` for PRs), then immediately builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core`. The envelope determines `requiredReads`, `nextAction`, `stopRules`, and `acceptance` — load only those files, execute only that bounded task. It is the first handoff artifact consumed before loading any route pack. See [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) for the derivation contract.
 
 **Retrospective checkpoint gate:** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
 

@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { realpathSync, constants as fsConstants } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import {
   describeReadiness,
