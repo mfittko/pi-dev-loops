@@ -21,7 +21,7 @@ fall back to positional argument ordering when no board is configured. Setting u
 a one-time operator action, not a startup requirement.
 
 Tooling never mutates project/field structure without explicit operator invocation of the
-bootstrap wrapper (`ensure-queue-board.mjs`). Runtime queue operations only read/write item
+bootstrap wrapper (`node scripts/projects/ensure-queue-board.mjs`). Runtime queue operations only read/write item
 position and Status field values.
 
 ## Board identification
@@ -175,7 +175,7 @@ board validates preconditions first:
 
 ### Idempotent bootstrap exception
 
-The `ensure-queue-board.mjs` bootstrap wrapper has relaxed fail-closed behavior: it
+The `node scripts/projects/ensure-queue-board.mjs` bootstrap wrapper has relaxed fail-closed behavior: it
 **creates** a missing project and/or Status field with conventional columns. This is the only
 tool allowed to mutate project structure. Runtime queue helpers (list, move, add, reorder)
 never create or modify project/field structure.
@@ -212,7 +212,8 @@ queue:
   # Maximum retry attempts per entry for recoverable failures.
   reDispatchMaxRetries: 1
 
-  # Board title for Projects V2 lookup. Defaults to "Dev Loop Queue".
+  # Board title for Projects V2 lookup.
+  # Recommended default title (set explicitly to opt in): "Dev Loop Queue".
   # Omit or leave unset to not use Projects-based queue ordering.
   boardTitle: "Dev Loop Queue"
 ```
@@ -224,7 +225,7 @@ The `queue.boardTitle` key is the sole opt-in signal for Projects-based queue or
 | Value | Meaning |
 |---|---|
 | Not set (key missing) | Projects path not active; use positional ordering |
-| `"Dev Loop Queue"` (default) | Look up project by this title under the repo owner |
+| `"Dev Loop Queue"` (recommended title) | Look up project by this title under the repo owner |
 | Any other string | Look up project by that exact title |
 
 If `boardTitle` is set but the project does not exist, queue operations that depend on board
