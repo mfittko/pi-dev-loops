@@ -292,7 +292,7 @@ export function isKnownLifecycleState(value) {
  *
  * The inner machine is the authority for Copilot review/fix loop states;
  * this mapping is advisory for routing and status reporting. Phases
- * issue_intake and refinement are outer-only; merge maps to the terminal
+ * issue_intake and refinement are outer-only (no inner-machine states);
  * inner state "done" (PR merged/closed).
  */
 export const COPILOT_INNER_STATE_MAP = Object.freeze({
