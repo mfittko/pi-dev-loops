@@ -68,6 +68,12 @@ The pi-subagents skill is parent-only, so delegated subagents do not receive orc
 - No child subagent spawning beyond assigned fanout work.
 - Bounded tasks with concrete scope, exit conditions, and validation expectations.
 
+**Supervisor communication (known pi runtime bug #671):** The pi runtime `contact_supervisor` tool has a broken response path — supervisor responses do not flow back to resolve the pending subagent tool call. Subagents calling `contact_supervisor` become blocked indefinitely until the idle timeout fires (~60s), then pause without the decision.
+
+- **Prefer `intercom`** for supervisor communication. Use `intercom({ action: "ask", to: "<supervisor-session>", message: "..." })` instead of `contact_supervisor`. The `intercom` tool uses message-based delivery and does not create a blocking tool-call state.
+- **When `contact_supervisor` is unavoidable:** expect a ~60s idle timeout followed by a pause. The run will need manual resume with the decision injected via `intercom` or session resume.
+- **Timeout detection:** if a `contact_supervisor` call has been pending for >30s without a response, treat it as a probable timeout and prepare to fall back to `intercom` on resume.
+
 ## Output
 
 Use the concise status format defined by the skill.

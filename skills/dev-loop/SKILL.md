@@ -89,3 +89,24 @@ All PRs must pass the full gate pipeline before merge. No scope is exempt: docs-
 - Before any state-changing action, get explicit confirmation unless already authorized.
 - A question requires an answer, not an action.
 - Stop and ask rather than guessing when facts don't agree.
+
+## Known issues
+
+### `contact_supervisor` response path (pi runtime bug)
+
+The pi runtime `contact_supervisor` tool has a known broken response path (#671): when a subagent
+calls `contact_supervisor` with `reason='need_decision'`, the supervisor response does not flow
+back to resolve the pending tool call. The subagent remains blocked indefinitely until the idle
+timeout fires (currently 60s), then pauses without the decision.
+
+**Root cause (upstream pi):** The tool execution response channel from supervisor back to the
+pending subagent tool call is not implemented. This is tracked as an upstream pi runtime dependency
+and is not fixable from dev-loops code.
+
+**Workaround:** Subagents should use the `intercom` tool for supervisor communication instead of
+`contact_supervisor`. The `intercom` tool uses message-based delivery and does not create a
+blocking tool-call state.
+
+**Acceptance criteria status:**
+- [x] AC #3: Idle timeout falls back to visible error (pi runtime fires `needs_attention` after 60s, run pauses)
+- [ ] AC #1-2: Tracked as upstream pi runtime dependency — response path and resume-with-decision require pi fix
