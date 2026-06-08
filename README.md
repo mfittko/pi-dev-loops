@@ -1,6 +1,6 @@
 # pi-dev-loops
 
-Turn GitHub issues into merged PRs with zero manual steps between issue and approval — shared Pi workflow infrastructure built on generic role agents plus thin workflow entrypoint agents where needed. Thin workflow entrypoint agents are allowed when they only load a skill and defer policy to it.
+Turn GitHub issues into merged PRs with zero manual steps between issue and approval.
 
 ## What is a dev loop?
 
@@ -25,10 +25,14 @@ Each phase is consultable from the deterministic state model in `packages/core/s
 Use **`dev-loop`** as the single public workflow entrypoint:
 
 ```
-dev-loop on issue 112        — start work on an issue
-auto dev loop on issue 112   — autonomous execution until human approval
-dev-loop on PR 88            — continue follow-up on an open PR
+dev-loop on issue 112
+auto dev loop on issue 112
+dev-loop on PR 88
 ```
+
+- `dev-loop on issue 112` — start work on an issue
+- `auto dev loop on issue 112` — autonomous execution until human approval
+- `dev-loop on PR 88` — continue follow-up on an open PR
 
 The `dev-loop` entrypoint resolves authoritative state, picks the correct internal strategy, and routes work deterministically. Users never need to choose internal strategy names. See the canonical shorthand example mapping in the [Public Dev Loop Contract](./skills/docs/public-dev-loop-contract.md).
 
@@ -39,7 +43,7 @@ The `dev-loop` entrypoint resolves authoritative state, picks the correct intern
 - Use local implementation only when explicitly requested
 - Internal routed logic stays behind the public façade
 
-## Current phase
+This repo is shared Pi workflow infrastructure built on generic role agents plus thin workflow entrypoint agents where needed. Thin workflow entrypoint agents are allowed when they only load a skill and defer policy to it.
 
 Phase 8 is the active durable phase; Phase 7 second-repo pilot is deferred. See [Docs Index](./docs/index.md) for the full execution snapshot.
 
