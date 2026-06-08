@@ -52,3 +52,8 @@ Start here for repository documentation.
 - [Extension README](../extension/README.md) — command surface, package install, and configuration
 - [Dev Loop Contract](../skills/docs/public-dev-loop-contract.md) — canonical routing contract
 - [AGENTS.md](../AGENTS.md) — repo working agreement
+
+## Queue mode
+
+- [Queue Board Setup](./queue-board-setup.md) — one-time GitHub Projects V2 board setup for dev-loop queue
+- [Queue Mode SPEC](./specs/queue-mode/SPEC.md) — queue mode specification
