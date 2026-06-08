@@ -13,11 +13,11 @@
  * - LIFECYCLE_NEXT_ACTIONS: recommended next action for each phase
  * - resolveLifecycleState: resolver that maps inputs to one lifecycle phase
  * - getAllowedTransitions: helper to list allowed next phases
- * - COPLOT_INNER_STATE_MAP: maps lifecycle phases to copilot-loop-state.mjs inner states
+ * - COPILOT_INNER_STATE_MAP: maps lifecycle phases to copilot-loop-state.mjs inner states
  *
  * Contract guarantees:
  * - One deterministic lifecycle phase per normalized input set
- * - Ambiguous or incomplete inputs return terminal reconcile
+ * - Ambiguous or incomplete inputs fall back to issue_intake
  * - Transition graph enforces legal phase progression
  * - Purely functional; no I/O or side effects
  *
@@ -177,17 +177,13 @@ function normalizeLifecycleState(value) {
  * ```
  *
  * Resolution order (first-match):
- * 1. Explicit phase → return canonical if recognized
+ * 1. Explicit phase → return canonical if recognized, fall through if not
  * 2. Merged → merge (terminal)
  * 3. Merge authorized + pre-approval passed → merge
- * 4. Pre-approval passed → pre_approval_gate (or merge if authorized)
+ * 4. Pre-approval passed + PR exists → pre_approval_gate
  * 5. Unresolved threads + PR exists → feedback_resolution
- * 6. Draft PR → draft_gate
- * 7. Implementation in progress (PR exists, ready) → implementation
- * 8. Linked PR exists + ready → implementation
- * 9. Refined issue (has linked PR, draft) → refinement
- * 10. Issue exists, no linked PR → issue_intake
- * 11. Fallback → issue_intake
+ * 6. Draft PR or ready PR → implementation
+ * 7. No linked PR → issue_intake
  */
 export function resolveLifecycleState(input = {}) {
   const {
@@ -229,12 +225,12 @@ export function resolveLifecycleState(input = {}) {
     return buildResult(LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
   }
 
-  // 6. Draft PR → draft gate
+  // 6. Draft PR → implementation
   if (prIsDraft && hasLinkedPr) {
-    return buildResult(LIFECYCLE_STATE.DRAFT_GATE);
+    return buildResult(LIFECYCLE_STATE.IMPLEMENTATION);
   }
 
-  // 7. PR exists (ready for review) → implementation
+  // 7. PR exists (not draft) → implementation
   if (hasLinkedPr && !prIsDraft) {
     return buildResult(LIFECYCLE_STATE.IMPLEMENTATION);
   }

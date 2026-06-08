@@ -261,12 +261,12 @@ test("resolveLifecycleState: no PR → issue_intake", () => {
   assert.ok(result.allowedTransitions.length > 0);
 });
 
-test("resolveLifecycleState: draft PR → draft_gate", () => {
+test("resolveLifecycleState: draft PR → implementation", () => {
   const result = resolveLifecycleState({
     hasLinkedPr: true,
     prIsDraft: true,
   });
-  assert.equal(result.state, LIFECYCLE_STATE.DRAFT_GATE);
+  assert.equal(result.state, LIFECYCLE_STATE.IMPLEMENTATION);
   assert.equal(result.isTerminal, false);
 });
 
