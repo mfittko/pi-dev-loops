@@ -10,6 +10,11 @@ ordering from a project board and write status transitions back. This contract d
 expected board shape so tooling can rely on deterministic field/column names and fail safely
 when the board is absent or misconfigured.
 
+**The queue board MUST be linked to the target repository** via `linkProjectV2ToRepository`.
+Repo-linked boards travel with the repository, are visible to all collaborators, and appear
+in the repository's Projects tab. User-level (unlinked) projects are not supported for queue
+ordering and must be migrated.
+
 **Board state is an optional scheduling input; it does not replace GitHub issue/PR state as
 the source of truth.** This contract introduces no new local queue file; it complements the
 existing queue mode infrastructure (see Relationship to queue mode below).
@@ -196,6 +201,21 @@ The stderr payload follows the repo's standard CLI error format (`formatCliError
 such as `code` keys or suggested commands live in documentation, not in the structured
 stderr output.
 
+## Column auto-repair
+
+The bootstrap wrapper (`node scripts/projects/ensure-queue-board.mjs`) performs automatic column repair
+when the Status field exists but has non-standard columns. Instead of throwing, it calls
+`updateProjectV2Field` to add missing standard columns (`Backlog`, `Next Up`, `In Progress`,
+`Done`). Non-standard columns are left in place — only missing columns are added.
+
+Auto-repair covers:
+- Status field with a subset of standard columns (e.g. only `Backlog` and `Done`)
+- Status field with entirely non-standard columns (e.g. `Todo`/`Doing`/`Done`)
+- Status field with a mix of standard and non-standard columns
+
+Auto-repair does NOT remove or rename existing columns. Column removal/reordering remains
+a manual operation via the GitHub Projects UI.
+
 ## Configuration shape
 
 Queue board configuration lives under `.pi/dev-loop/settings.yaml`. All keys are optional;
@@ -205,6 +225,12 @@ the queue path works without a board.
 queue:
   # Maximum parallel entries the queue may process concurrently.
   maxParallel: 3
+
+  # GitHub Projects V2 project number for direct lookup (overrides title-based discovery).
+  projectNumber: 1
+
+  # Board title for Projects V2 lookup (used when projectNumber is not set).
+  boardTitle: "Dev Loop Queue"
 
   # Maximum bug issues the queue driver may auto-file in one run.
   maxAutoFiledIssues: 10
@@ -231,6 +257,11 @@ The `queue.boardTitle` key is the sole opt-in signal for Projects-based queue or
 If `boardTitle` is set but the project does not exist, queue operations that depend on board
 ordering fail closed — they do not treat the missing board as equivalent to "not opted in."
 
+### Project number key
+
+The `queue.projectNumber` key provides direct project lookup by number, bypassing title-based
+discovery. When both `projectNumber` and `boardTitle` are set, `projectNumber` takes precedence.
+
 ### Settings precedence
 
 1. `.pi/dev-loop/defaults.yaml` — shipped defaults (does not set `boardTitle`)
@@ -248,6 +279,8 @@ Helpers consume these minimal GraphQL operations:
 | `projectsV2` query (user/org) | List projects by owner, find by title | bootstrap, list, move, add, reorder |
 | `createProjectV2` mutation | Create project board | bootstrap only |
 | `createProjectV2Field` mutation | Create Status field with columns | bootstrap only |
+| `linkProjectV2ToRepository` mutation | Link a project board to a repository | bootstrap only |
+| `updateProjectV2Field` mutation | Add columns to an existing Status field | bootstrap auto-repair only |
 | `fields` query (with `ProjectV2SingleSelectField`) | Read Status field + options | bootstrap, list, move, add |
 | `items` query (with `orderBy` + `filterBy`) | List items in a column by POSITION | list, reorder |
 | `updateProjectV2ItemFieldValue` mutation | Set Status on an item (move between columns) | move |

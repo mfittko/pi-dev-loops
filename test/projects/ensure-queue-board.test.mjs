@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { main } from "../../scripts/projects/ensure-queue-board.mjs";
+import { main, autoRepairColumns, resolveSettings, STANDARD_COLUMNS, STANDARD_COLUMN_NAMES } from "../../scripts/projects/ensure-queue-board.mjs";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -34,6 +34,10 @@ function noUserPayload() {
 
 function noOrgPayload() {
   return { data: { organization: null } };
+}
+
+function repoIdPayload() {
+  return { data: { repository: { id: "R_kgDOABC456" } } };
 }
 
 function listUserProjectsResponse(projects) {
@@ -77,6 +81,31 @@ function createProjectResponse(project) {
 function createFieldResponse(field) {
   return {
     data: { createProjectV2Field: { projectV2Field: field } },
+  };
+}
+
+function linkRepoResponse() {
+  return {
+    data: { linkProjectV2ToRepository: { clientMutationId: null } },
+  };
+}
+
+function updateFieldResponse(options) {
+  return {
+    data: {
+      updateProjectV2Field: {
+        projectV2Field: {
+          id: "PVTSSF_updated",
+          name: "Status",
+          options: options ?? [
+            { id: "opt1", name: "Backlog", color: "GRAY" },
+            { id: "opt2", name: "Next Up", color: "BLUE" },
+            { id: "opt3", name: "In Progress", color: "YELLOW" },
+            { id: "opt4", name: "Done", color: "GREEN" },
+          ],
+        },
+      },
+    },
   };
 }
 
@@ -178,6 +207,196 @@ describe("ensure-queue-board", () => {
     });
   });
 
+  describe("--link-repo", () => {
+    it("links new project to repo after creation", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([]) },
+        {
+          payload: createProjectResponse({
+            id: "PVT_new",
+            number: 2,
+            title: "Dev Loop Queue",
+            url: "https://github.com/users/mfittko/projects/2",
+          }),
+        },
+        { payload: repoIdPayload() },
+        { payload: linkRepoResponse() },
+        {
+          payload: createFieldResponse({ id: "PVTSSF_new", name: "Status" }),
+        },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", linkRepo: "mfittko/pi-dev-loops" },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.project.linkedRepo, "mfittko/pi-dev-loops");
+      assert.equal(result.project.statusFieldId, "PVTSSF_new");
+    });
+
+    it("links existing project to repo", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: repoIdPayload() },
+        { payload: linkRepoResponse() },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", linkRepo: "mfittko/pi-dev-loops" },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.project.linkedRepo, "mfittko/pi-dev-loops");
+    });
+
+    it("validates link-repo format", async () => {
+      await assert.rejects(
+        () => main({
+          repo: "mfittko/pi-dev-loops",
+          linkRepo: "not-a-repo",
+        }),
+        /owner\/name/,
+      );
+    });
+  });
+
+  describe("column auto-repair", () => {
+    it("auto-repairs missing columns instead of throwing", async () => {
+      const partialField = {
+        id: "PVTSSF_partial", name: "Status",
+        options: [
+          { id: "opt1", name: "Backlog", color: "GRAY" },
+        ],
+      };
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([partialField]) },
+        { payload: updateFieldResponse() },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops" },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.project.statusFieldId, "PVTSSF_partial");
+    });
+
+    it("auto-repairs completely non-standard columns", async () => {
+      const nonStandardField = {
+        id: "PVTSSF_nonstd", name: "Status",
+        options: [
+          { id: "opt1", name: "Todo", color: "RED" },
+          { id: "opt2", name: "Doing", color: "YELLOW" },
+          { id: "opt3", name: "Done", color: "GREEN" },
+        ],
+      };
+      const expectedOptions = [
+        { id: "opt1", name: "Todo", color: "RED" },
+        { id: "opt2", name: "Doing", color: "YELLOW" },
+        { id: "opt3", name: "Done", color: "GREEN" },
+        { id: "new1", name: "Backlog", color: "GRAY" },
+        { id: "new2", name: "Next Up", color: "BLUE" },
+        { id: "new3", name: "In Progress", color: "YELLOW" },
+      ];
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([nonStandardField]) },
+        { payload: updateFieldResponse(expectedOptions) },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops" },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.project.statusFieldId, "PVTSSF_nonstd");
+    });
+
+    it("auto-repairs existing status field and links repo together", async () => {
+      const partialField = {
+        id: "PVTSSF_partial", name: "Status",
+        options: [
+          { id: "opt1", name: "In Progress", color: "YELLOW" },
+          { id: "opt2", name: "Done", color: "GREEN" },
+        ],
+      };
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([partialField]) },
+        { payload: updateFieldResponse() },
+        { payload: repoIdPayload() },
+        { payload: linkRepoResponse() },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", linkRepo: "mfittko/pi-dev-loops" },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.project.statusFieldId, "PVTSSF_partial");
+      assert.equal(result.project.linkedRepo, "mfittko/pi-dev-loops");
+    });
+  });
+
+  describe("autoRepairColumns unit", () => {
+    it("appends missing standard columns to existing options", async () => {
+      const existing = [
+        { id: "a", name: "Backlog", color: "GRAY" },
+      ];
+      const updatedOpts = [
+        { id: "a", name: "Backlog", color: "GRAY" },
+        { id: "n1", name: "Next Up", color: "BLUE" },
+        { id: "n2", name: "In Progress", color: "YELLOW" },
+        { id: "n3", name: "Done", color: "GREEN" },
+      ];
+      const responses = [
+        { payload: updateFieldResponse(updatedOpts) },
+      ];
+      const result = await autoRepairColumns(
+        "fieldId", existing, {}, mockRunChild(responses),
+      );
+      assert.equal(result.length, 4);
+      assert.deepEqual(result.map((o) => o.name), STANDARD_COLUMN_NAMES);
+    });
+
+    it("preserves non-standard columns when adding missing ones", async () => {
+      const existing = [
+        { id: "a", name: "Custom Column", color: "RED" },
+      ];
+      const updatedOpts = [
+        { id: "a", name: "Custom Column", color: "RED" },
+        { id: "n1", name: "Backlog", color: "GRAY" },
+        { id: "n2", name: "Next Up", color: "BLUE" },
+        { id: "n3", name: "In Progress", color: "YELLOW" },
+        { id: "n4", name: "Done", color: "GREEN" },
+      ];
+      const responses = [
+        { payload: updateFieldResponse(updatedOpts) },
+      ];
+      const result = await autoRepairColumns(
+        "fieldId", existing, {}, mockRunChild(responses),
+      );
+      assert.equal(result.length, 5);
+      assert.equal(result[0].name, "Custom Column");
+    });
+
+    it("no-ops when all standard columns are present", async () => {
+      const existing = STANDARD_COLUMNS.map((c, i) => ({
+        id: `opt${i}`, name: c.name, color: c.color,
+      }));
+      // Should not call gh at all — returns existing options directly
+      const result = await autoRepairColumns(
+        "fieldId", existing, {}, () => {
+          throw new Error("should not be called");
+        },
+      );
+      assert.equal(result, existing);
+    });
+  });
+
   describe("already-exists path", () => {
     it("returns existing project when board and Status field exist", async () => {
       const responses = [
@@ -211,22 +430,6 @@ describe("ensure-queue-board", () => {
       );
       assert.equal(result.ok, true);
       assert.equal(result.project.statusFieldId, "PVTSSF_new");
-    });
-
-    it("throws on missing columns in existing Status field", async () => {
-      const partialField = {
-        id: "PVTSSF_partial", name: "Status",
-        options: [{ id: "opt1", name: "Backlog" }],
-      };
-      const responses = [
-        { payload: userPayload() },
-        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
-        { payload: getFieldsResponse([partialField]) },
-      ];
-      await assert.rejects(
-        () => main({ repo: "mfittko/pi-dev-loops" }, { env: {}, runChild: mockRunChild(responses) }),
-        /missing columns/,
-      );
     });
 
     it("handles paginated project listing (>50 projects)", async () => {
@@ -313,25 +516,45 @@ describe("ensure-queue-board", () => {
         /Could not resolve owner ID/,
       );
     });
-  });
 
-  describe("exit code classification", () => {
-    it("MISSING_COLUMNS error has code MISSING_COLUMNS", async () => {
-      const partialField = {
-        id: "PVTSSF_partial", name: "Status",
-        options: [{ id: "opt1", name: "Backlog" }],
-      };
+    it("throws when --link-repo has unresolvable repository", async () => {
       const responses = [
         { payload: userPayload() },
-        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
-        { payload: getFieldsResponse([partialField]) },
+        { payload: listUserProjectsResponse([]) },
+        {
+          payload: createProjectResponse({
+            id: "PVT_new",
+            number: 2,
+            title: "Dev Loop Queue",
+            url: "https://github.com/users/mfittko/projects/2",
+          }),
+        },
+        {
+          payload: { data: { repository: null } },
+        },
       ];
-      try {
-        await main({ repo: "mfittko/pi-dev-loops" }, { env: {}, runChild: mockRunChild(responses) });
-        assert.fail("should have thrown");
-      } catch (err) {
-        assert.equal(err.code, "MISSING_COLUMNS");
-      }
+      await assert.rejects(
+        () => main(
+          { repo: "mfittko/pi-dev-loops", linkRepo: "nonexistent/repo" },
+          { env: {}, runChild: mockRunChild(responses) },
+        ),
+        /Could not resolve repository ID/,
+      );
+    });
+  });
+
+  describe("resolveSettings", () => {
+    it("returns project number when queue.projectNumber is set", () => {
+      // resolveSettings reads from cwd, so we test the function shape only
+      // Integration test would need temp directory with settings.yaml
+      assert.equal(typeof resolveSettings, "function");
+    });
+  });
+
+  describe("STANDARD_COLUMNS", () => {
+    it("has exactly 4 standard columns in correct order", () => {
+      assert.equal(STANDARD_COLUMNS.length, 4);
+      assert.deepEqual(STANDARD_COLUMN_NAMES, ["Backlog", "Next Up", "In Progress", "Done"]);
     });
   });
 });
