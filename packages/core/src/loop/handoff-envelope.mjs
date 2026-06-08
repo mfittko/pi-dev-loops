@@ -473,6 +473,13 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
     envelope.overrides = overrides;
   }
 
+  // Optional refinement contract (AC/DoD matrix) from the refiner.
+  // Set via options.refinementContract or resolverOutput.refinementContract.
+  const refinementContract = options.refinementContract ?? resolverOutput.refinementContract ?? null;
+  if (refinementContract) {
+    envelope.refinementContract = refinementContract;
+  }
+
   return deepFreeze(envelope);
 }
 
@@ -690,7 +697,47 @@ export function validateHandoffEnvelope(envelope) {
     });
   }
 
-  // ----- derivedAt (informational, warn on missing) -----
+  // ----- refinementContract (optional) -----
+  if (envelope.refinementContract !== undefined && envelope.refinementContract !== null) {
+    if (typeof envelope.refinementContract !== 'object' || Array.isArray(envelope.refinementContract)) {
+      errors.push({
+        field: "refinementContract",
+        reason: "if present, must be a non-array object with schema, items, generatedAt, and isComplete",
+        got: envelope.refinementContract,
+      });
+    } else {
+      if (envelope.refinementContract.schema !== 'ac-dod-matrix/v1') {
+        warnings.push({
+          field: "refinementContract.schema",
+          reason: "expected 'ac-dod-matrix/v1'",
+          got: envelope.refinementContract.schema,
+        });
+      }
+      if (!Array.isArray(envelope.refinementContract.items) || envelope.refinementContract.items.length === 0) {
+        errors.push({
+          field: "refinementContract.items",
+          reason: "must be a non-empty array of AC/DoD matrix items",
+          got: envelope.refinementContract.items,
+        });
+      }
+      if (typeof envelope.refinementContract.generatedAt !== 'string' || !envelope.refinementContract.generatedAt.trim()) {
+        warnings.push({
+          field: "refinementContract.generatedAt",
+          reason: "should be an ISO 8601 timestamp",
+          got: envelope.refinementContract.generatedAt,
+        });
+      }
+      if (typeof envelope.refinementContract.isComplete !== 'boolean') {
+        warnings.push({
+          field: "refinementContract.isComplete",
+          reason: "should be a boolean",
+          got: envelope.refinementContract.isComplete,
+        });
+      }
+    }
+  }
+
+    // ----- derivedAt (informational, warn on missing) -----
   if (typeof envelope.derivedAt !== "string" || !envelope.derivedAt.trim()) {
     warnings.push({ field: "derivedAt", reason: "should be an ISO 8601 timestamp" });
   }
