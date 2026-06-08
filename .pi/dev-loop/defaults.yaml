@@ -373,8 +373,6 @@ personas:
         implementation bugs, logic errors, contract violations, or security
         issues
       - Unresolved review threads that raise implementation concerns
-      - Comments that were posted after the last force-push or head change
-        and remain unaddressed
       Flag any unresolved comment that identifies a concrete implementation
       problem as a blocking finding (severity: must-fix or worth-fixing-now).
       Do not flag:
