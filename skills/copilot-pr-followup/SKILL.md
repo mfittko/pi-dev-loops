@@ -126,6 +126,32 @@ Branch on the `request-copilot-review.mjs` machine-readable result:
 
 Do not treat an attempted request as equivalent to a confirmed request.
 
+### Re-attachment guard (check for existing loop state first)
+
+Before entering issue-intake normalization or asking "what should we do" for a PR that
+already has an outer-loop checkpoint, check whether the checkpoint implies an auto-resume:
+
+1. Read the existing outer-loop checkpoint from
+   `tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json`.
+   Do **not** run `outer-loop.mjs` for this guard — it always rewrites the checkpoint
+   (including `timestamp` and potentially incrementing `waitCycles`).
+   Read the on-disk artifact without mutating it.
+2. If `outerAction` is `continue_wait`:
+   - The loop was waiting. The subagent exits; the main session re-dispatches a fresh
+     `dev-loop` async subagent that resumes from the checkpoint.
+3. If `outerAction` is `reenter_copilot_loop`:
+   - The copilot inner loop needs action. Run `copilot-pr-handoff.mjs` to determine the
+     exact next step and proceed.
+4. If `outerAction` is `reenter_reviewer_loop`:
+   - The reviewer inner loop needs action. Enter the reviewer-loop path.
+5. If `outerAction` is `stop`:
+   - Report the `reason` field and ask for direction.
+6. If no checkpoint exists or `outerAction` is `done`:
+   - Continue with normal step sequencing.
+
+Do not skip this guard when transitioning between async subagent runs on the same PR.
+The outer-loop checkpoint is the canonical re-attachment artifact for the subagent.
+
 ## Step 6: Async watch behavior
 
 Start every wait seam with a detector refresh: `detect-copilot-loop-state.mjs --repo <owner/name> --pr <number>`.

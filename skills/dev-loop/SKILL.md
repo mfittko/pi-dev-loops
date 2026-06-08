@@ -40,6 +40,34 @@ The subagent resolves authoritative state via the startup resolver (`npx dev-loo
 
 **Worktree fetch (mandatory — subagent only):** Always run `git fetch origin` before creating or reusing any worktree.
 
+### Resume from existing loop state
+
+When the startup resolver returns a fresh-start routing but an existing outer-loop checkpoint
+(`tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json`) is present on disk, the
+subagent must check the checkpoint before treating the start as a fresh intake or follow-up:
+
+1. Read the outer-loop checkpoint (authored by `outer-loop.mjs`).
+2. If `outerAction` is `continue_wait`, `reenter_copilot_loop`, or `reenter_reviewer_loop`:
+   - Skip issue-intake normalization or fresh-intake routing.
+   - Route directly to the existing PR's follow-up path (the PR number is in the
+     checkpoint's `pr` field). For `reenter_copilot_loop`, enter the copilot-pr-followup
+     path. For `reenter_reviewer_loop`, enter the reviewer-loop path.
+   - Use the checkpoint's `copilotState` and `reviewerState` as last-known context for
+     re-attachment, then re-baseline with fresh detectors (`copilot-pr-handoff.mjs`
+     or `detect-copilot-loop-state.mjs`) before acting on the state.
+3. If `outerAction` is `stop`:
+   - Report the `reason` field and the authoritative state from the checkpoint.
+   - `stop` means the loop is blocked or needs a human decision; ask for direction
+     rather than guessing or starting fresh.
+4. If no checkpoint exists, or `outerAction` is `done`:
+   - Treat as normal fresh startup (the existing startup resolver path).
+
+This eliminates the manual "report-and-resume" or "exit and resume later" pattern when the
+deterministic state already knows the next action.
+
+The outer-loop checkpoint is the canonical re-attachment artifact. Do not rely on chat
+context, local notes, or prose recollection of "where we left off."
+
 ## Route table
 
 Load only the route-specific internal skill required by `selectedStrategy`:
