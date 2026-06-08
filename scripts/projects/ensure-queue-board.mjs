@@ -24,7 +24,9 @@ const VALID_ARGS = new Set(["--repo", "--title", "--help", "-h"]);
 
 function parseArgs(argv) {
   const args = { title: "Dev Loop Queue" };
+  const consumed = new Set();
   for (let i = 0; i < argv.length; i++) {
+    if (consumed.has(i)) continue;
     const arg = argv[i];
     if (!VALID_ARGS.has(arg) && arg.startsWith("-")) {
       throw Object.assign(
@@ -40,6 +42,7 @@ function parseArgs(argv) {
         );
       }
       args.repo = argv[++i];
+      consumed.add(i);
     } else if (arg === "--title") {
       if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
         throw Object.assign(
@@ -48,8 +51,14 @@ function parseArgs(argv) {
         );
       }
       args.title = argv[++i];
+      consumed.add(i);
     } else if (arg === "--help" || arg === "-h") {
       args.help = true;
+    } else {
+      throw Object.assign(
+        new Error(`Unexpected argument: ${arg}`),
+        { code: "INVALID_REPO", usage: USAGE },
+      );
     }
   }
   return args;
@@ -57,7 +66,9 @@ function parseArgs(argv) {
 
 // ── Validation ───────────────────────────────────────────────────────────
 
-// GitHub slug rules: 1-39 alnum/dash chars, no leading/trailing dash, no consecutive dashes.
+// GitHub slug rules: owner 1-39 chars (alnum/dash, no leading/trailing dash,
+// no consecutive dashes); repo name similar but also allows dots/underscores.
+// no leading/trailing dash, no consecutive dashes.
 // Single-char owner/repo names are valid (e.g. a/b).
 const OWNER_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
 const REPO_NAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])?$/;
