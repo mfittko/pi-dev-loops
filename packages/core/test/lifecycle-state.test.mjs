@@ -418,10 +418,13 @@ test("copilot inner state map covers all lifecycle phases", () => {
   }
 });
 
-test("issue_intake and refinement and merge map to empty inner states (outer-only)", () => {
+test("issue_intake and refinement map to empty inner states (outer-only)", () => {
   assert.deepEqual(COPILOT_INNER_STATE_MAP[LIFECYCLE_STATE.ISSUE_INTAKE], []);
   assert.deepEqual(COPILOT_INNER_STATE_MAP[LIFECYCLE_STATE.REFINEMENT], []);
-  assert.deepEqual(COPILOT_INNER_STATE_MAP[LIFECYCLE_STATE.MERGE], []);
+});
+
+test("merge maps to done inner state", () => {
+  assert.deepEqual(COPILOT_INNER_STATE_MAP[LIFECYCLE_STATE.MERGE], ["done"]);
 });
 
 test("implementation maps to no_pr and pr_draft inner states", () => {
@@ -433,23 +436,26 @@ test("draft_gate maps to pr_ready_no_feedback", () => {
   assert.deepEqual(COPILOT_INNER_STATE_MAP[LIFECYCLE_STATE.DRAFT_GATE], ["pr_ready_no_feedback"]);
 });
 
-test("feedback_resolution maps to review/fix inner states", () => {
+test("feedback_resolution maps to all review/fix/blocked inner states", () => {
   const inner = COPILOT_INNER_STATE_MAP[LIFECYCLE_STATE.FEEDBACK_RESOLUTION];
   assert.deepEqual([...inner].sort(), [
     "waiting_for_copilot_review",
     "unresolved_feedback_present",
     "already_fixed_needs_reply_resolve",
     "ready_to_rerequest_review",
+    "waiting_for_ci",
+    "review_request_unavailable",
+    "blocked_needs_user_decision",
+    "round_cap_reached",
   ].sort());
 });
 
-test("pre_approval_gate maps to convergence/terminal inner states", () => {
+test("pre_approval_gate maps to convergence inner states (no done)", () => {
   const inner = COPILOT_INNER_STATE_MAP[LIFECYCLE_STATE.PRE_APPROVAL_GATE];
   assert.deepEqual([...inner].sort(), [
     "low_signal_converged",
     "round_cap_clean_fallback",
     "internal_tooling_direct_gate",
-    "done",
   ].sort());
 });
 
@@ -479,19 +485,21 @@ test("lifecyclePhaseForCopilotState returns correct phase for known inner states
   assert.equal(lifecyclePhaseForCopilotState("unresolved_feedback_present"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
   assert.equal(lifecyclePhaseForCopilotState("already_fixed_needs_reply_resolve"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
   assert.equal(lifecyclePhaseForCopilotState("ready_to_rerequest_review"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
-  assert.equal(lifecyclePhaseForCopilotState("done"), LIFECYCLE_STATE.PRE_APPROVAL_GATE);
+  assert.equal(lifecyclePhaseForCopilotState("waiting_for_ci"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
+  assert.equal(lifecyclePhaseForCopilotState("review_request_unavailable"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
+  assert.equal(lifecyclePhaseForCopilotState("blocked_needs_user_decision"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
+  assert.equal(lifecyclePhaseForCopilotState("round_cap_reached"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
+  assert.equal(lifecyclePhaseForCopilotState("done"), LIFECYCLE_STATE.MERGE);
   assert.equal(lifecyclePhaseForCopilotState("low_signal_converged"), LIFECYCLE_STATE.PRE_APPROVAL_GATE);
   assert.equal(lifecyclePhaseForCopilotState("round_cap_clean_fallback"), LIFECYCLE_STATE.PRE_APPROVAL_GATE);
   assert.equal(lifecyclePhaseForCopilotState("internal_tooling_direct_gate"), LIFECYCLE_STATE.PRE_APPROVAL_GATE);
 });
 
-test("lifecyclePhaseForCopilotState returns null for unknown inner states", () => {
-  assert.equal(lifecyclePhaseForCopilotState("blocked_needs_user_decision"), null);
-  assert.equal(lifecyclePhaseForCopilotState("review_request_unavailable"), null);
-  assert.equal(lifecyclePhaseForCopilotState("round_cap_reached"), null);
+test("lifecyclePhaseForCopilotState returns null for truly unknown inner states", () => {
   assert.equal(lifecyclePhaseForCopilotState("unknown_state"), null);
   assert.equal(lifecyclePhaseForCopilotState(""), null);
   assert.equal(lifecyclePhaseForCopilotState(null), null);
+  assert.equal(lifecyclePhaseForCopilotState(undefined), null);
 });
 
 // ---------------------------------------------------------------------------

@@ -291,7 +291,9 @@ export function isKnownLifecycleState(value) {
  * inner-machine state (issue_intake, refinement, merge are outer-only).
  *
  * The inner machine is the authority for Copilot review/fix loop states;
- * this mapping is advisory for routing and status reporting.
+ * this mapping is advisory for routing and status reporting. Phases
+ * issue_intake and refinement are outer-only; merge maps to the terminal
+ * inner state "done" (PR merged/closed).
  */
 export const COPILOT_INNER_STATE_MAP = Object.freeze({
   [LIFECYCLE_STATE.ISSUE_INTAKE]: Object.freeze([]),
@@ -308,14 +310,19 @@ export const COPILOT_INNER_STATE_MAP = Object.freeze({
     "unresolved_feedback_present",
     "already_fixed_needs_reply_resolve",
     "ready_to_rerequest_review",
+    "waiting_for_ci",
+    "review_request_unavailable",
+    "blocked_needs_user_decision",
+    "round_cap_reached",
   ]),
   [LIFECYCLE_STATE.PRE_APPROVAL_GATE]: Object.freeze([
     "low_signal_converged",
     "round_cap_clean_fallback",
     "internal_tooling_direct_gate",
+  ]),
+  [LIFECYCLE_STATE.MERGE]: Object.freeze([
     "done",
   ]),
-  [LIFECYCLE_STATE.MERGE]: Object.freeze([]),
 });
 
 /**
