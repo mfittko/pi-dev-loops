@@ -19,13 +19,21 @@ function mockRunChild(responses) {
 }
 
 function extractGraphqlInput(args) {
-  // gh sends: ["api", "graphql", "--field", "query=...", "--field", "input=..."]
+  // gh sends: ["api", "graphql", "--raw-field", "query=...", "--raw-field", "projectId=...", ...]
+  const vars = {};
   for (const arg of args) {
-    if (typeof arg === "string" && arg.startsWith("input=")) {
-      return JSON.parse(arg.slice("input=".length));
+    if (typeof arg === "string") {
+      const eq = arg.indexOf("=");
+      if (eq > 0 && !arg.startsWith("query=")) {
+        const key = arg.slice(0, eq);
+        const value = arg.slice(eq + 1);
+        if (value !== "null" && value !== "undefined") {
+          vars[key] = value;
+        }
+      }
     }
   }
-  return null;
+  return Object.keys(vars).length > 0 ? vars : null;
 }
 
 // ── Fixtures ────────────────────────────────────────────────────────────

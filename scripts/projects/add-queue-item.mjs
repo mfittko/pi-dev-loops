@@ -129,7 +129,7 @@ function parseProjectRef(raw) {
 
 // ── API helpers ──────────────────────────────────────────────────────────
 
-async function ghGraphql(query, vars, env, runChild = _runChild) {
+async function ghGraphql(query, vars, env, runChild = _runChild, { allowErrors = false } = {}) {
   const fieldArgs = [];
   for (const [key, value] of Object.entries(vars)) {
     fieldArgs.push("--field", `${key}=${value}`);
@@ -144,7 +144,7 @@ async function ghGraphql(query, vars, env, runChild = _runChild) {
     throw Object.assign(new Error(`gh api graphql failed: ${detail}`), { code: "GH_API_ERROR" });
   }
   const payload = parseJsonText(result.stdout);
-  if (payload.errors && payload.errors.length > 0) {
+  if (!allowErrors && payload.errors && payload.errors.length > 0) {
     throw Object.assign(
       new Error(`GraphQL errors: ${payload.errors.map((e) => e.message).join("; ")}`),
       { code: "GRAPHQL_ERROR" },
@@ -208,30 +208,20 @@ const GET_PROJECT_FIELDS = [
 ].join("\n");
 
 // Resolve an issue or PR's GraphQL node ID by number
-const RESOLVE_ISSUE_NODE_ID = [
+const RESOLVE_CONTENT_NODE_ID = [
   "query($owner:String!, $repo:String!, $number:Int!) {",
   "  repository(owner:$owner, name:$repo) {",
-  "    issue: issue(number:$number) {",
-  "      id",
-  "      number",
-  "      title",
-  "      url",
-  "      __typename",
-  "    }",
-  "    pr: pullRequest(number:$number) {",
-  "      id",
-  "      number",
-  "      title",
-  "      url",
-  "      __typename",
+  "    issueOrPullRequest(number:$number) {",
+  "      ... on Issue { id __typename }",
+  "      ... on PullRequest { id __typename }",
   "    }",
   "  }",
   "}"
 ].join("\n");
 
 const ADD_PROJECT_ITEM = [
-  "mutation($input:AddProjectV2ItemByIdInput!) {",
-  "  addProjectV2ItemById(input:$input) {",
+  "mutation($projectId:ID!, $contentId:ID!) {",
+  "  addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}) {",
   "    item {",
   "      id",
   "    }",
@@ -240,8 +230,8 @@ const ADD_PROJECT_ITEM = [
 ].join("\n");
 
 const UPDATE_ITEM_FIELD = [
-  "mutation($input:UpdateProjectV2ItemFieldValueInput!) {",
-  "  updateProjectV2ItemFieldValue(input:$input) {",
+  "mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optionId:String!) {",
+  "  updateProjectV2ItemFieldValue(input:{projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{singleSelectOptionId:$optionId}}) {",
   "    projectV2Item {",
   "      id",
   "    }",
@@ -251,7 +241,7 @@ const UPDATE_ITEM_FIELD = [
 
 // Check if an item already exists in the project by content ID
 const GET_PROJECT_ITEMS_BY_CONTENT = [
-  "query($projectId:ID!, $owner:String!, $repo:String!, $number:Int!, $after:String) {",
+  "query($projectId:ID!, $after:String) {",
   "  node(id:$projectId) {",
   "    ... on ProjectV2 {",
   "      items(first:10, after:$after, orderBy:{field:POSITION, direction:ASC}) {",
@@ -413,9 +403,6 @@ async function main(args, { env = process.env, runChild } = {}) {
   // 4. Check if item already exists in the project
   const existingItemsPayload = await ghGraphql(GET_PROJECT_ITEMS_BY_CONTENT, {
     projectId: project.id,
-    owner,
-    repo: repoName,
-    number: itemNumber,
   }, env, child);
   const existingItems = existingItemsPayload?.data?.node?.items?.nodes ?? [];
 
@@ -453,44 +440,28 @@ async function main(args, { env = process.env, runChild } = {}) {
   }
 
   // 5. Resolve content node ID (issue or PR)
-  const contentPayload = await ghGraphql(RESOLVE_ISSUE_NODE_ID, {
+  const contentPayload = await ghGraphql(RESOLVE_CONTENT_NODE_ID, {
     owner,
     repo: repoName,
     number: itemNumber,
-  }, env, child);
+  }, env, child, { allowErrors: true });
   const repoData = contentPayload?.data?.repository;
-  if (!repoData) {
+  const fullResult = repoData?.issueOrPullRequest;
+  if (!fullResult) {
     throw Object.assign(
-      new Error(`Repository "${repo}" not found`),
+      new Error(`Issue or PR #${itemNumber} not found in "${repo}"`),
       { code: "CONTENT_NOT_FOUND" },
     );
   }
 
-  const issue = repoData.issue;
-  const pr = repoData.pr;
-  let contentId;
-  let issueNumber = null;
-  let prNumber = null;
-
-  if (issue) {
-    contentId = issue.id;
-    issueNumber = issue.number;
-  } else if (pr) {
-    contentId = pr.id;
-    prNumber = pr.number;
-  } else {
-    throw Object.assign(
-      new Error(`Issue or PR #${itemNumber} not found in repository "${repo}"`),
-      { code: "CONTENT_NOT_FOUND" },
-    );
-  }
+  let contentId = fullResult.id;
+  let issueNumber = fullResult.__typename === "Issue" ? itemNumber : null;
+  let prNumber = fullResult.__typename === "PullRequest" ? itemNumber : null;
 
   // 6. Add item to project
   const addPayload = await ghGraphql(ADD_PROJECT_ITEM, {
-    input: JSON.stringify({
-      projectId: project.id,
-      contentId,
-    }),
+    projectId: project.id,
+    contentId,
   }, env, child);
 
   const newItem = addPayload?.data?.addProjectV2ItemById?.item;
@@ -500,12 +471,10 @@ async function main(args, { env = process.env, runChild } = {}) {
 
   // 7. Set initial Status
   const updatePayload = await ghGraphql(UPDATE_ITEM_FIELD, {
-    input: JSON.stringify({
-      projectId: project.id,
-      itemId: newItem.id,
-      fieldId: statusField.id,
-      value: { singleSelectOptionId: targetOption.id },
-    }),
+    projectId: project.id,
+    itemId: newItem.id,
+    fieldId: statusField.id,
+    optionId: targetOption.id,
   }, env, child);
 
   const updated = updatePayload?.data?.updateProjectV2ItemFieldValue?.projectV2Item;
