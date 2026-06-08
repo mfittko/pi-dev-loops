@@ -2,13 +2,13 @@
 // ============================================================================
 // Debt remediation loop command
 //
-// Single CLI entrypoint: --input → capture → cluster → score → shape → issue → report
+// Single CLI entrypoint: --input → cluster → score → shape → issue → report
 //
 // Usage:
 //   debt-remediate.mjs --input <path> [--repo <owner/name>] [--dry-run]
 //
-// Takes a JSON array of debt_signal objects, runs the full pipeline, and
-// creates GitHub issues for each remediation_item outcome.
+// Takes a JSON array of debt_signal objects, runs the full remediation pipeline,
+// and creates GitHub issues for each remediation_item outcome.
 // ============================================================================
 
 import { readFile } from "node:fs/promises";
@@ -20,6 +20,9 @@ import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helper
 import { requireOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { DebtSignalSchema } from "@pi-dev-loops/core/debt/signal";
+import { clusterSignalsEnriched } from "@pi-dev-loops/core/debt/cluster";
+import { shapeFindings } from "@pi-dev-loops/core/debt/shape";
+import { createRemediationIssue } from "@pi-dev-loops/core/debt/remediation-to-issue";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -28,7 +31,7 @@ const USAGE = `Usage:
   debt-remediate.mjs --input <path> --repo <owner/name>
   debt-remediate.mjs --input <path> --dry-run
 
-Run the debt pipeline: capture signals → cluster → score → shape → create
+Run the debt pipeline: cluster signals → score → shape → create
 GitHub issues for remediation_items.
 
 Required:
@@ -42,7 +45,7 @@ Output (stdout, JSON):
   { "ok": true, "signals": N, "findings": N, "remediationItems": N, "issues": [...], "summary": "..." }
 
 Exit codes:
-  0  Success
+  0  Success (all remediation issue creations succeeded)
   1  Argument error, input validation failure, or issue creation failure`.trim();
 
 const parseError = buildParseError(USAGE);
@@ -221,21 +224,20 @@ async function main(argv) {
     process.exit(1);
   }
 
-  // Load pipeline modules dynamically (relative to this script to avoid export map gaps)
-  const clusterMod = await import("../../packages/core/src/debt/cluster.mjs");
-  const shapeMod = await import("../../packages/core/src/debt/shape.mjs");
-  const remediationMod = await import("../../packages/core/src/debt/remediation-to-issue.mjs");
-
-  // Run pipeline: capture → cluster → score → shape
-  const findings = clusterMod.clusterSignalsEnriched(signals);
-  const shaped = shapeMod.shapeFindings(findings);
+  // Run pipeline: cluster → score → shape
+  const findings = clusterSignalsEnriched(signals);
+  const shaped = shapeFindings(findings);
 
   // Create issues for remediation_items (skip in dry-run mode)
   const results = [];
+  let anyIssueFailed = false;
   for (const { outcome, artifact, findingId } of shaped) {
     if (outcome === "remediation_item" && artifact && !options.dryRun) {
       try {
-        const issueResult = remediationMod.createRemediationIssue(artifact, repo);
+        const issueResult = createRemediationIssue(artifact, repo);
+        if (!issueResult.ok) {
+          anyIssueFailed = true;
+        }
         results.push({
           outcome,
           findingId,
@@ -246,6 +248,7 @@ async function main(argv) {
           issueError: issueResult.ok ? null : issueResult.error,
         });
       } catch (err) {
+        anyIssueFailed = true;
         results.push({
           outcome,
           findingId,
@@ -274,12 +277,12 @@ async function main(argv) {
 
   // Build report
   const report = buildReport(signals.length, findings.length, results);
-  report.ok = true;
+  report.ok = !anyIssueFailed;
   report.dryRun = options.dryRun;
   report.repo = `${repo.owner}/${repo.name}`;
 
   process.stdout.write(JSON.stringify(report) + "\n");
-  process.exit(0);
+  process.exit(anyIssueFailed ? 1 : 0);
 }
 
 // Run if called directly

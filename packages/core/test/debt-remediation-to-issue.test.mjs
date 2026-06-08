@@ -73,17 +73,23 @@ describe("remediationToIssuePayload", () => {
       remediationToIssuePayload({ kind: "wrong", findingId: "bad" });
     });
   });
+
+  test("payload shape matches contract for --assignee @me flag", () => {
+    // Contract: remediationToIssuePayload always encodes the labels that
+    // createRemediationIssue passes to --assignee @me.
+    const item = buildValidItem();
+    const payload = remediationToIssuePayload(item);
+    assert.ok(payload.title);
+    assert.ok(payload.body.includes("## Remediation Item"));
+    assert.deepEqual(payload.labels, ["workflow"]);
+  });
 });
 
 describe("createRemediationIssue", () => {
   test("returns error when gh not available (no network call)", () => {
-    // This test verifies the function shape — actual gh calls only in integration.
-    // The function will fail because gh may not be available in all test environments,
-    // but we validate the return shape contract.
     const item = buildValidItem();
     const result = createRemediationIssue(item, { owner: "test", name: "test" });
 
-    // Either ok:true (gh available) or ok:false (gh not available)
     assert.equal(typeof result.ok, "boolean");
     if (result.ok) {
       assert.ok(typeof result.issueNumber === "number");
@@ -91,16 +97,5 @@ describe("createRemediationIssue", () => {
     } else {
       assert.ok(typeof result.error === "string");
     }
-  });
-
-  test("passes --assignee @me flag (contract verification)", () => {
-    // Contract: createRemediationIssue must always pass --assignee @me.
-    // The function always includes this flag; we verify the payload shape
-    // to confirm the contract is encoded.
-    const item = buildValidItem();
-    const payload = remediationToIssuePayload(item);
-    assert.ok(payload.title);
-    assert.ok(payload.body.includes("## Remediation Item"));
-    assert.deepEqual(payload.labels, ["workflow"]);
   });
 });

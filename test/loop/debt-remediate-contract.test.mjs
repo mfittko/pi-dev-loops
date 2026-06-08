@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -165,6 +165,58 @@ test("debt-remediate high-scoring same-file signals produce remediation_item", a
 
     const report = JSON.parse(result.stdout);
     assert.ok(report.remediationItems >= 1, `Expected at least 1 remediation item, got ${report.remediationItems}`);
+  });
+});
+
+test("debt-remediate multiple distinct findings produce multiple issues in report", async () => {
+  const signals = [
+    buildSignal({ id: uuid(1), location: { filePath: "src/auth/login.mjs" }, severityHint: "critical" }),
+    buildSignal({ id: uuid(2), location: { filePath: "src/auth/login.mjs" }, severityHint: "critical" }),
+    buildSignal({ id: uuid(3), location: { filePath: "src/db/query.mjs" }, severityHint: "critical" }),
+    buildSignal({ id: uuid(4), location: { filePath: "src/db/query.mjs" }, severityHint: "critical" }),
+    buildSignal({ id: uuid(5), location: { filePath: "src/api/routes.mjs" }, severityHint: "critical" }),
+    buildSignal({ id: uuid(6), location: { filePath: "src/api/routes.mjs" }, severityHint: "critical" }),
+  ];
+
+  await withInputFile(signals, async (inputPath) => {
+    const result = runCli(["--input", inputPath, "--dry-run", "--repo", "test/test"]);
+    assert.equal(result.status, 0);
+
+    const report = JSON.parse(result.stdout);
+    assert.ok(report.remediationItems >= 1, `Expected at least 1 remediation item, got ${report.remediationItems}`);
+    assert.ok(Array.isArray(report.issues));
+    // Issues array entries only exist for remediation_item outcomes
+    assert.equal(report.issues.length, report.remediationItems);
+    // Verify each issue entry has the contract shape
+    for (const issue of report.issues) {
+      assert.ok(typeof issue.findingId === "string");
+      assert.ok(typeof issue.created === "boolean");
+      if (report.dryRun) {
+        assert.equal(issue.created, false);
+      }
+    }
+  });
+});
+
+test("debt-remediate non-actionable outcomes produce zero issue entries", async () => {
+  // Low-severity signals with info severityHint → score should stay below ITEM_THRESHOLD
+  const signals = [
+    buildSignal({ id: uuid(1), location: { filePath: "src/misc/notes.txt" }, severityHint: "info" }),
+    buildSignal({ id: uuid(2), location: { filePath: "src/misc/notes.txt" }, severityHint: "info" }),
+  ];
+
+  await withInputFile(signals, async (inputPath) => {
+    const result = runCli(["--input", inputPath, "--dry-run", "--repo", "test/test"]);
+    assert.equal(result.status, 0);
+
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.ok, true);
+    // With low-severity info signals on a non-source file, expect 0 remediation items
+    assert.equal(report.remediationItems, 0, `Expected 0 remediation items, got ${report.remediationItems}`);
+    assert.equal(report.issues.length, 0);
+    // Non-actionable outcomes should appear in their respective buckets
+    const totalNonActionable = report.deferred + report.watching + report.dismissed + report.debtEpics;
+    assert.ok(totalNonActionable >= 1, `Expected some non-actionable outcome, got none`);
   });
 });
 
