@@ -193,7 +193,7 @@ const LIST_ORG_PROJECTS = [
 ].join("\n");
 
 const GET_PROJECT_ITEMS_BY_CONTENT = [
-  "query($projectId:ID!, $owner:String!, $repo:String!, $number:Int!, $after:String) {",
+  "query($projectId:ID!, $after:String) {",
   "  node(id:$projectId) {",
   "    ... on ProjectV2 {",
   "      items(first:10, after:$after, orderBy:{field:POSITION, direction:ASC}) {",
@@ -209,8 +209,8 @@ const GET_PROJECT_ITEMS_BY_CONTENT = [
   "            }",
   "          }",
   "          content {",
-  "            ... on Issue { number repository { nameWithOwner } }",
-  "            ... on PullRequest { number repository { nameWithOwner } }",
+  "            ... on Issue { __typename number repository { nameWithOwner } }",
+  "            ... on PullRequest { __typename number repository { nameWithOwner } }",
   "          }",
   "        }",
   "      }",
@@ -234,8 +234,8 @@ const GET_PROJECT_ITEM = [
   "          }",
   "        }",
   "        content {",
-  "          ... on Issue { number title url }",
-  "          ... on PullRequest { number title url }",
+  "          ... on Issue { __typename number title url }",
+  "          ... on PullRequest { __typename number title url }",
   "        }",
   "      }",
   "    }",
@@ -338,7 +338,7 @@ async function resolveProjectItem(projectId, itemRef, owner, repoName, repo, env
     let allItems = [];
     let after = null;
     while (true) {
-      const vars = { projectId, owner, repo: repoName, number: targetNumber };
+      const vars = { projectId };
       if (after) vars.after = after;
       const itemsPayload = await ghGraphql(GET_PROJECT_ITEMS_BY_CONTENT, vars, env, runChild);
       const connection = itemsPayload?.data?.node?.items;
