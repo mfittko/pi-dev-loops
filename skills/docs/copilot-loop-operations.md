@@ -206,7 +206,7 @@ is the canonical re-attachment artifact for async subagent runs. It is written b
 | `reason` | Stop reason (`null` when `outerAction` is not `stop`) |
 | `timestamp` | ISO 8601 timestamp of checkpoint write |
 | `waitCycles` | Number of wait cycles accumulated |
-| `headSha` | PR head SHA at checkpoint time |
+| `headSha` | PR head SHA at checkpoint time (`null` when unavailable) |
 
 ### Re-attachment contract
 
