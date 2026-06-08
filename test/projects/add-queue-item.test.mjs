@@ -1,0 +1,532 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { main } from "../../scripts/projects/add-queue-item.mjs";
+
+// ── Helpers ─────────────────────────────────────────────────────────────
+
+function mockRunChild(responses) {
+  let callIndex = 0;
+  return async (_cmd, args, _env) => {
+    if (callIndex >= responses.length) {
+      throw new Error(`Unexpected gh call #${callIndex + 1} (only ${responses.length} mocked)`);
+    }
+    const resp = responses[callIndex++];
+    if (resp.error) {
+      return { code: 1, stdout: "", stderr: resp.error };
+    }
+    return { code: 0, stdout: JSON.stringify(resp.payload), stderr: "" };
+  };
+}
+
+// ── Fixtures ────────────────────────────────────────────────────────────
+
+function userPayload() {
+  return { data: { user: { id: "U_kgDOABC123" } } };
+}
+
+function noUserPayload() {
+  return { data: { user: null } };
+}
+
+function orgPayload() {
+  return { data: { organization: { id: "O_kgDOXYZ789" } } };
+}
+
+function listUserProjectsResponse(projects) {
+  return {
+    data: {
+      user: {
+        projectsV2: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: projects },
+      },
+    },
+  };
+}
+
+function getFieldsResponse(fields) {
+  return { data: { node: { fields: { nodes: fields, pageInfo: { hasNextPage: false } } } } };
+}
+
+const STATUS_FIELD = {
+  id: "PVTSSF_status",
+  name: "Status",
+  options: [
+    { id: "opt1", name: "Backlog" },
+    { id: "opt2", name: "Next Up" },
+    { id: "opt3", name: "In Progress" },
+    { id: "opt4", name: "Done" },
+  ],
+};
+
+const EXISTING_PROJECT = {
+  id: "PVT_proj1",
+  number: 1,
+  title: "Dev Loop Queue",
+  url: "https://github.com/users/mfittko/projects/1",
+};
+
+function getItemsByContentResponse(items) {
+  return {
+    data: { node: { items: { nodes: items, pageInfo: { hasNextPage: false, endCursor: null } } } },
+  };
+}
+
+function emptyItemsResponse() {
+  return getItemsByContentResponse([]);
+}
+
+function resolveIssueResponse(issueId) {
+  return {
+    data: {
+      repository: {
+        issue: {
+          id: issueId,
+          number: 10,
+          title: "Test Issue",
+          url: "https://github.com/mfittko/pi-dev-loops/issues/10",
+          __typename: "Issue",
+        },
+        pr: null,
+      },
+    },
+  };
+}
+
+function resolvePrResponse(prId) {
+  return {
+    data: {
+      repository: {
+        issue: null,
+        pr: {
+          id: prId,
+          number: 20,
+          title: "Test PR",
+          url: "https://github.com/mfittko/pi-dev-loops/pull/20",
+          __typename: "PullRequest",
+        },
+      },
+    },
+  };
+}
+
+function resolveBothResponse() {
+  return {
+    data: {
+      repository: {
+        issue: {
+          id: "I_kwDO_10",
+          number: 10,
+          title: "Test Issue",
+          url: "https://github.com/mfittko/pi-dev-loops/issues/10",
+          __typename: "Issue",
+        },
+        pr: {
+          id: "PR_kwDO_10",
+          number: 10,
+          title: "Test PR",
+          url: "https://github.com/mfittko/pi-dev-loops/pull/10",
+          __typename: "PullRequest",
+        },
+      },
+    },
+  };
+}
+
+function addItemResponse(itemId) {
+  return {
+    data: {
+      addProjectV2ItemById: { item: { id: itemId } },
+    },
+  };
+}
+
+function updateFieldResponse() {
+  return {
+    data: {
+      updateProjectV2ItemFieldValue: { projectV2Item: { id: "PVTI_new" } },
+    },
+  };
+}
+
+function makeItemNode(itemId, content, status) {
+  const fieldValues = status != null
+    ? { nodes: [{ field: { id: "PVTSSF_status", name: "Status" }, name: status }] }
+    : { nodes: [] };
+  return { id: itemId, fieldValues, content };
+}
+
+function makeContent(type, number) {
+  const __typename = type === "PR" ? "PullRequest" : "Issue";
+  return { __typename, number, repository: { nameWithOwner: "mfittko/pi-dev-loops" } };
+}
+
+// ── Tests ───────────────────────────────────────────────────────────────
+
+describe("add-queue-item", () => {
+  describe("argument parsing", () => {
+    it("requires --repo", async () => {
+      await assert.rejects(
+        () => main({ project: "1", item: 10 }),
+        /--repo is required/,
+      );
+    });
+
+    it("requires --project", async () => {
+      await assert.rejects(
+        () => main({ repo: "mfittko/pi-dev-loops", item: 10 }),
+        /--project is required/,
+      );
+    });
+
+    it("requires --item", async () => {
+      await assert.rejects(
+        () => main({ repo: "mfittko/pi-dev-loops", project: "1" }),
+        /--item is required/,
+      );
+    });
+
+    it("rejects non-integer item", async () => {
+      await assert.rejects(
+        () => main({ repo: "mfittko/pi-dev-loops", project: "1", item: "not-a-number" }),
+        /--item is required/,
+      );
+    });
+
+    it("rejects invalid project format", async () => {
+      await assert.rejects(
+        () => main({ repo: "mfittko/pi-dev-loops", project: "not-a-number", item: 10 }),
+        /--project must be a positive integer or a node ID/,
+      );
+    });
+
+    it("accepts project node ID", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: emptyItemsResponse() },
+        { payload: resolveIssueResponse("I_kwDO_10") },
+        { payload: addItemResponse("PVTI_new") },
+        { payload: updateFieldResponse() },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", project: "PVT_proj1", item: 10 },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+    });
+  });
+
+  describe("success path — add new item", () => {
+    it("adds an issue with default Backlog status", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: emptyItemsResponse() },
+        { payload: resolveIssueResponse("I_kwDO_10") },
+        { payload: addItemResponse("PVTI_new") },
+        { payload: updateFieldResponse() },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", project: "1", item: 10 },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.item.itemId, "PVTI_new");
+      assert.equal(result.item.issueNumber, 10);
+      assert.equal(result.item.prNumber, null);
+      assert.equal(result.item.status, "Backlog");
+      assert.equal(result.item.alreadyPresent, false);
+    });
+
+    it("adds a PR to project", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: emptyItemsResponse() },
+        { payload: resolvePrResponse("PR_kwDO_20") },
+        { payload: addItemResponse("PVTI_pr") },
+        { payload: updateFieldResponse() },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", project: "1", item: 20 },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.item.prNumber, 20);
+      assert.equal(result.item.issueNumber, null);
+      assert.equal(result.item.status, "Backlog");
+      assert.equal(result.item.alreadyPresent, false);
+    });
+
+    it("adds with custom --status", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: emptyItemsResponse() },
+        { payload: resolveIssueResponse("I_kwDO_10") },
+        { payload: addItemResponse("PVTI_new") },
+        { payload: updateFieldResponse() },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", project: "1", item: 10, status: "In Progress" },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.item.status, "In Progress");
+      assert.equal(result.item.alreadyPresent, false);
+    });
+
+    it("prefers issue over PR when both exist for same number", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: emptyItemsResponse() },
+        { payload: resolveBothResponse() },
+        { payload: addItemResponse("PVTI_both") },
+        { payload: updateFieldResponse() },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", project: "1", item: 10 },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.item.issueNumber, 10);
+      assert.equal(result.item.prNumber, null);
+    });
+  });
+
+  describe("no-op when already present", () => {
+    it("returns alreadyPresent:true when item already in project", async () => {
+      const existingItem = makeItemNode("PVTI_existing", makeContent("Issue", 10), "Next Up");
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: getItemsByContentResponse([existingItem]) },
+        // No resolve, add, or update calls expected
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", project: "1", item: 10 },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.item.itemId, "PVTI_existing");
+      assert.equal(result.item.issueNumber, 10);
+      assert.equal(result.item.status, "Next Up");
+      assert.equal(result.item.alreadyPresent, true);
+    });
+
+    it("returns alreadyPresent:true for PR already in project", async () => {
+      const existingItem = makeItemNode("PVTI_existing_pr", makeContent("PR", 20), "Done");
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: getItemsByContentResponse([existingItem]) },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", project: "1", item: 20 },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.item.prNumber, 20);
+      assert.equal(result.item.alreadyPresent, true);
+    });
+
+    it("filters already-present check by repo", async () => {
+      // Item from different repo should not match
+      const otherRepoContent = { __typename: "Issue", number: 10, repository: { nameWithOwner: "other/repo" } };
+      const otherItem = makeItemNode("PVTI_other", otherRepoContent, "Backlog");
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: getItemsByContentResponse([otherItem]) },
+        { payload: resolveIssueResponse("I_kwDO_10") },
+        { payload: addItemResponse("PVTI_new") },
+        { payload: updateFieldResponse() },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", project: "1", item: 10 },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.item.alreadyPresent, false);
+    });
+  });
+
+  describe("error paths — not found", () => {
+    it("throws PROJECT_NOT_FOUND for missing project", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([]) },
+      ];
+      try {
+        await main(
+          { repo: "mfittko/pi-dev-loops", project: "999", item: 10 },
+          { env: {}, runChild: mockRunChild(responses) },
+        );
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "PROJECT_NOT_FOUND");
+      }
+    });
+
+    it("throws FIELD_NOT_FOUND when Status field missing", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([]) },
+      ];
+      try {
+        await main(
+          { repo: "mfittko/pi-dev-loops", project: "1", item: 10 },
+          { env: {}, runChild: mockRunChild(responses) },
+        );
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "FIELD_NOT_FOUND");
+      }
+    });
+
+    it("throws COLUMN_NOT_FOUND for unknown status", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+      ];
+      try {
+        await main(
+          { repo: "mfittko/pi-dev-loops", project: "1", item: 10, status: "Icebox" },
+          { env: {}, runChild: mockRunChild(responses) },
+        );
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "COLUMN_NOT_FOUND");
+      }
+    });
+
+    it("throws CONTENT_NOT_FOUND when issue/PR doesn't exist", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: emptyItemsResponse() },
+        {
+          payload: { data: { repository: { issue: null, pr: null } } },
+        },
+      ];
+      try {
+        await main(
+          { repo: "mfittko/pi-dev-loops", project: "1", item: 999 },
+          { env: {}, runChild: mockRunChild(responses) },
+        );
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "CONTENT_NOT_FOUND");
+        assert.match(err.message, /not found/);
+      }
+    });
+
+    it("throws CONTENT_NOT_FOUND when repo doesn't exist", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: emptyItemsResponse() },
+        {
+          payload: { data: { repository: null } },
+        },
+      ];
+      try {
+        await main(
+          { repo: "mfittko/pi-dev-loops", project: "1", item: 10 },
+          { env: {}, runChild: mockRunChild(responses) },
+        );
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "CONTENT_NOT_FOUND");
+      }
+    });
+  });
+
+  describe("error paths — API errors", () => {
+    it("throws on gh CLI failure", async () => {
+      const responses = [{ error: "gh: authentication required" }];
+      try {
+        await main(
+          { repo: "mfittko/pi-dev-loops", project: "1", item: 10 },
+          { env: {}, runChild: mockRunChild(responses) },
+        );
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "GH_API_ERROR");
+      }
+    });
+
+    it("throws on GraphQL errors", async () => {
+      const responses = [{ payload: { errors: [{ message: "Could not resolve" }] } }];
+      try {
+        await main(
+          { repo: "mfittko/pi-dev-loops", project: "1", item: 10 },
+          { env: {}, runChild: mockRunChild(responses) },
+        );
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "GRAPHQL_ERROR");
+      }
+    });
+  });
+
+  describe("owner resolution", () => {
+    it("resolves org owner", async () => {
+      const orgProject = { id: "PVT_org", number: 1, title: "Org Queue", url: "https://github.com/orgs/myorg/projects/1" };
+      const responses = [
+        { payload: noUserPayload() },
+        { payload: orgPayload() },
+        {
+          payload: {
+            data: { organization: { projectsV2: { pageInfo: { hasNextPage: false }, nodes: [orgProject] } } },
+          },
+        },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+        { payload: emptyItemsResponse() },
+        { payload: resolveIssueResponse("I_org_10") },
+        { payload: addItemResponse("PVTI_org_new") },
+        { payload: updateFieldResponse() },
+      ];
+      const result = await main(
+        { repo: "myorg/repo", project: "1", item: 10 },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+    });
+  });
+
+  describe("structured error output", () => {
+    it("produces JSON error shape for CLI consumers", async () => {
+      try {
+        await main(
+          { repo: "mfittko/pi-dev-loops", project: "1", item: 999 },
+          { env: {}, runChild: mockRunChild([
+            { payload: userPayload() },
+            { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+            { payload: getFieldsResponse([STATUS_FIELD]) },
+            { payload: emptyItemsResponse() },
+            { payload: { data: { repository: { issue: null, pr: null } } } },
+          ]) },
+        );
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "CONTENT_NOT_FOUND");
+        const json = { ok: false, error: err.message, code: err.code };
+        assert.equal(json.ok, false);
+        assert.equal(json.code, "CONTENT_NOT_FOUND");
+      }
+    });
+  });
+});

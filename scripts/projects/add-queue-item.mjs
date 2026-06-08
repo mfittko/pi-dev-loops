@@ -1,0 +1,559 @@
+#!/usr/bin/env node
+import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { runChild as _runChild } from "../_cli-primitives.mjs";
+
+const USAGE = `Usage: node scripts/projects/add-queue-item.mjs --repo <owner/name> --project <number|id> --item <number>
+
+Add an existing issue or PR to a GitHub Projects V2 board.
+
+Options:
+  --repo <owner/name>         Required. Repository containing the issue/PR.
+  --project <number|id>       Required. Project number (integer) or node ID.
+  --item <number>             Required. Issue or PR number to add.
+  --status <name>             Initial Status column (default: "Backlog").
+  --help, -h                  Show this help.
+
+Output (stdout):
+  JSON: { ok: true, item: { itemId, issueNumber, prNumber, status, alreadyPresent } }
+
+Exit codes:
+  0 — success (or no-op when already present)
+  1 — usage or argument error
+  2 — GitHub API error
+  3 — project, field, column, or issue/PR not found
+`.trim();
+
+const VALID_ARGS = new Set(["--repo", "--project", "--item", "--status", "--help", "-h"]);
+
+function parseArgs(argv) {
+  const args = {};
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!VALID_ARGS.has(arg) && arg.startsWith("-")) {
+      throw Object.assign(
+        new Error(`Unknown flag: ${arg}`),
+        { code: "INVALID_ARGS", usage: USAGE },
+      );
+    }
+    if (arg === "--repo") {
+      if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+        throw Object.assign(new Error("--repo requires a value (owner/name)"), { code: "INVALID_REPO" });
+      }
+      args.repo = argv[++i];
+    } else if (arg === "--project") {
+      if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+        throw Object.assign(new Error("--project requires a value (number or node ID)"), { code: "INVALID_PROJECT" });
+      }
+      args.project = argv[++i];
+    } else if (arg === "--item") {
+      if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+        throw Object.assign(new Error("--item requires a value (number)"), { code: "INVALID_ITEM" });
+      }
+      const val = Number(argv[++i]);
+      if (!Number.isInteger(val) || val < 1) {
+        throw Object.assign(
+          new Error(`--item must be a positive integer, got "${argv[i]}"`),
+          { code: "INVALID_ITEM" },
+        );
+      }
+      args.item = val;
+    } else if (arg === "--status") {
+      if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+        throw Object.assign(new Error("--status requires a value"), { code: "INVALID_STATUS" });
+      }
+      args.status = argv[++i];
+    } else if (arg === "--help" || arg === "-h") {
+      args.help = true;
+    } else {
+      throw Object.assign(
+        new Error(`Unexpected argument: ${arg}`),
+        { code: "INVALID_ARGS", usage: USAGE },
+      );
+    }
+  }
+  return args;
+}
+
+// ── Validation ───────────────────────────────────────────────────────────
+
+const OWNER_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
+const REPO_NAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9_.-]*[a-zA-Z0-9])?$/;
+const GLOBAL_NODE_ID_RE = /^[A-Za-z0-9_]+$/;
+
+function validateRepo(repo) {
+  if (!repo || typeof repo !== "string") {
+    throw Object.assign(new Error("--repo is required"), { code: "INVALID_REPO" });
+  }
+  const trimmed = repo.trim();
+  if (trimmed !== repo) {
+    throw Object.assign(
+      new Error(`--repo must not have leading/trailing whitespace, got "${repo}"`),
+      { code: "INVALID_REPO" },
+    );
+  }
+  const slashIdx = repo.indexOf("/");
+  if (slashIdx === -1) {
+    throw Object.assign(new Error(`--repo must be exactly owner/name, got "${repo}"`), { code: "INVALID_REPO" });
+  }
+  const owner = repo.slice(0, slashIdx);
+  const name = repo.slice(slashIdx + 1);
+  if (!owner || !name || !OWNER_RE.test(owner) || !REPO_NAME_RE.test(name)) {
+    throw Object.assign(new Error(`--repo must be exactly owner/name, got "${repo}"`), { code: "INVALID_REPO" });
+  }
+  return repo;
+}
+
+function parseProjectRef(raw) {
+  if (!raw || typeof raw !== "string" || raw.trim().length === 0) {
+    throw Object.assign(new Error("--project is required"), { code: "INVALID_PROJECT" });
+  }
+  const trimmed = raw.trim();
+  const asNum = Number(trimmed);
+  if (Number.isInteger(asNum) && asNum > 0 && String(asNum) === trimmed) {
+    return { kind: "number", value: asNum };
+  }
+  if (trimmed === "0") {
+    throw Object.assign(
+      new Error(`--project must be a positive integer or a node ID, got "${raw}"`),
+      { code: "INVALID_PROJECT" },
+    );
+  }
+  if (GLOBAL_NODE_ID_RE.test(trimmed)) {
+    return { kind: "id", value: trimmed };
+  }
+  throw Object.assign(
+    new Error(`--project must be a positive integer or a node ID, got "${raw}"`),
+    { code: "INVALID_PROJECT" },
+  );
+}
+
+// ── API helpers ──────────────────────────────────────────────────────────
+
+async function ghGraphql(query, vars, env, runChild = _runChild) {
+  const fieldArgs = [];
+  for (const [key, value] of Object.entries(vars)) {
+    fieldArgs.push("--field", `${key}=${value}`);
+  }
+  const result = await runChild(
+    "gh",
+    ["api", "graphql", "--field", `query=${query}`, ...fieldArgs],
+    env,
+  );
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw Object.assign(new Error(`gh api graphql failed: ${detail}`), { code: "GH_API_ERROR" });
+  }
+  const payload = parseJsonText(result.stdout);
+  if (payload.errors && payload.errors.length > 0) {
+    throw Object.assign(
+      new Error(`GraphQL errors: ${payload.errors.map((e) => e.message).join("; ")}`),
+      { code: "GRAPHQL_ERROR" },
+    );
+  }
+  return payload;
+}
+
+// ── GraphQL fragments ────────────────────────────────────────────────────
+
+const GET_USER_ID = [
+  "query($login:String!) {",
+  "  user(login:$login) { id }",
+  "}"
+].join("\n");
+
+const GET_ORG_ID = [
+  "query($login:String!) {",
+  "  organization(login:$login) { id }",
+  "}"
+].join("\n");
+
+const LIST_USER_PROJECTS = [
+  "query($login:String!, $after:String) {",
+  "  user(login:$login) {",
+  "    projectsV2(first:50, after:$after) {",
+  "      pageInfo { hasNextPage endCursor }",
+  "      nodes { id number title url }",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+const LIST_ORG_PROJECTS = [
+  "query($login:String!, $after:String) {",
+  "  organization(login:$login) {",
+  "    projectsV2(first:50, after:$after) {",
+  "      pageInfo { hasNextPage endCursor }",
+  "      nodes { id number title url }",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+const GET_PROJECT_FIELDS = [
+  "query($projectId:ID!, $after:String) {",
+  "  node(id:$projectId) {",
+  "    ... on ProjectV2 {",
+  "      fields(first:50, after:$after) {",
+  "        pageInfo { hasNextPage endCursor }",
+  "        nodes {",
+  "          ... on ProjectV2SingleSelectField {",
+  "            id name",
+  "            options { id name }",
+  "          }",
+  "        }",
+  "      }",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+// Resolve an issue or PR's GraphQL node ID by number
+const RESOLVE_ISSUE_NODE_ID = [
+  "query($owner:String!, $repo:String!, $number:Int!) {",
+  "  repository(owner:$owner, name:$repo) {",
+  "    issue: issue(number:$number) {",
+  "      id",
+  "      number",
+  "      title",
+  "      url",
+  "      __typename",
+  "    }",
+  "    pr: pullRequest(number:$number) {",
+  "      id",
+  "      number",
+  "      title",
+  "      url",
+  "      __typename",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+const ADD_PROJECT_ITEM = [
+  "mutation($input:AddProjectV2ItemByIdInput!) {",
+  "  addProjectV2ItemById(input:$input) {",
+  "    item {",
+  "      id",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+const UPDATE_ITEM_FIELD = [
+  "mutation($input:UpdateProjectV2ItemFieldValueInput!) {",
+  "  updateProjectV2ItemFieldValue(input:$input) {",
+  "    projectV2Item {",
+  "      id",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+// Check if an item already exists in the project by content ID
+const GET_PROJECT_ITEMS_BY_CONTENT = [
+  "query($projectId:ID!, $owner:String!, $repo:String!, $number:Int!, $after:String) {",
+  "  node(id:$projectId) {",
+  "    ... on ProjectV2 {",
+  "      items(first:10, after:$after, orderBy:{field:POSITION, direction:ASC}) {",
+  "        pageInfo { hasNextPage endCursor }",
+  "        nodes {",
+  "          id",
+  "          fieldValues(first:20) {",
+  "            nodes {",
+  "              ... on ProjectV2ItemFieldSingleSelectValue {",
+  "                field { ... on ProjectV2SingleSelectField { id name } }",
+  "                name",
+  "              }",
+  "            }",
+  "          }",
+  "          content {",
+  "            ... on Issue { number repository { nameWithOwner } }",
+  "            ... on PullRequest { number repository { nameWithOwner } }",
+  "          }",
+  "        }",
+  "      }",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+// ── Owner resolution ────────────────────────────────────────────────────
+
+async function resolveOwner(login, env, runChild) {
+  const userPayload = await ghGraphql(GET_USER_ID, { login }, env, runChild);
+  if (userPayload?.data?.user?.id) {
+    return { id: userPayload.data.user.id, kind: "user" };
+  }
+  const orgPayload = await ghGraphql(GET_ORG_ID, { login }, env, runChild);
+  if (orgPayload?.data?.organization?.id) {
+    return { id: orgPayload.data.organization.id, kind: "org" };
+  }
+  throw Object.assign(
+    new Error(`Could not resolve owner ID for "${login}"`),
+    { code: "NO_USER_ID" },
+  );
+}
+
+// ── Paginated project listing ────────────────────────────────────────────
+
+async function listAllProjects(login, kind, env, runChild) {
+  const query = kind === "org" ? LIST_ORG_PROJECTS : LIST_USER_PROJECTS;
+  const projects = [];
+  let after = null;
+  while (true) {
+    const vars = { login };
+    if (after) vars.after = after;
+    const payload = await ghGraphql(query, vars, env, runChild);
+    const connection = kind === "org"
+      ? payload?.data?.organization?.projectsV2
+      : payload?.data?.user?.projectsV2;
+    const nodes = connection?.nodes ?? [];
+    projects.push(...nodes);
+    const pageInfo = connection?.pageInfo ?? {};
+    if (!pageInfo.hasNextPage) break;
+    if (!pageInfo.endCursor) {
+      throw Object.assign(
+        new Error("Invalid projects list payload: hasNextPage is true but endCursor is missing"),
+        { code: "GH_API_ERROR" },
+      );
+    }
+    after = pageInfo.endCursor;
+  }
+  return projects;
+}
+
+// ── Paginated field listing ──────────────────────────────────────────────
+
+async function listAllFields(projectId, env, runChild) {
+  const fields = [];
+  let after = null;
+  while (true) {
+    const vars = { projectId };
+    if (after) vars.after = after;
+    const payload = await ghGraphql(GET_PROJECT_FIELDS, vars, env, runChild);
+    const connection = payload?.data?.node?.fields;
+    const nodes = connection?.nodes ?? [];
+    fields.push(...nodes);
+    const pageInfo = connection?.pageInfo ?? {};
+    if (!pageInfo.hasNextPage) break;
+    if (!pageInfo.endCursor) {
+      throw Object.assign(
+        new Error("Invalid fields payload: hasNextPage is true but endCursor is missing"),
+        { code: "GH_API_ERROR" },
+      );
+    }
+    after = pageInfo.endCursor;
+  }
+  return fields;
+}
+
+// ── Exit code classification ────────────────────────────────────────────
+
+function classifyExitCode(err) {
+  if (err.code === "INVALID_REPO" || err.code === "INVALID_PROJECT" || err.code === "INVALID_ITEM" ||
+      err.code === "INVALID_STATUS" || err.code === "INVALID_ARGS") return 1;
+  if (err.code === "PROJECT_NOT_FOUND" || err.code === "FIELD_NOT_FOUND" || err.code === "COLUMN_NOT_FOUND" ||
+      err.code === "ITEM_NOT_FOUND" || err.code === "CONTENT_NOT_FOUND") return 3;
+  return 2;
+}
+
+// ── Main logic ──────────────────────────────────────────────────────────
+
+async function main(args, { env = process.env, runChild } = {}) {
+  const child = runChild ?? _runChild;
+  const repo = validateRepo(args.repo);
+  const [owner, repoName] = repo.split("/");
+  const projectRef = parseProjectRef(args.project);
+  const itemNumber = args.item;
+  if (!Number.isInteger(itemNumber) || itemNumber < 1) {
+    throw Object.assign(new Error("--item is required and must be a positive integer"), { code: "INVALID_ITEM" });
+  }
+  const targetStatus = (args.status ?? "Backlog").trim();
+  if (!targetStatus) {
+    throw Object.assign(new Error("--status must not be empty"), { code: "INVALID_STATUS" });
+  }
+
+  // 1. Resolve owner
+  const { id: ownerId, kind: ownerKind } = await resolveOwner(owner, env, child);
+
+  // 2. Resolve project
+  const projects = await listAllProjects(owner, ownerKind, env, child);
+  let project;
+  if (projectRef.kind === "id") {
+    project = projects.find((p) => p.id === projectRef.value);
+  } else {
+    project = projects.find((p) => p.number === projectRef.value);
+  }
+  if (!project) {
+    throw Object.assign(
+      new Error(`Project ${projectRef.kind === "id" ? `"${projectRef.value}"` : `number ${projectRef.value}`} not found under owner "${owner}"`),
+      { code: "PROJECT_NOT_FOUND" },
+    );
+  }
+
+  // 3. Resolve Status field and target column
+  const fieldNodes = await listAllFields(project.id, env, child);
+  const statusField = fieldNodes.find((f) => f.name === "Status" && f.options);
+  if (!statusField) {
+    throw Object.assign(
+      new Error(`Status field not found in project "${project.title}" (number ${project.number})`),
+      { code: "FIELD_NOT_FOUND" },
+    );
+  }
+
+  const targetOption = statusField.options.find((o) => o.name === targetStatus);
+  if (!targetOption) {
+    const available = statusField.options.map((o) => o.name).join(", ");
+    throw Object.assign(
+      new Error(`Column "${targetStatus}" not found in Status field. Available: ${available}`),
+      { code: "COLUMN_NOT_FOUND" },
+    );
+  }
+
+  // 4. Check if item already exists in the project
+  const existingItemsPayload = await ghGraphql(GET_PROJECT_ITEMS_BY_CONTENT, {
+    projectId: project.id,
+    owner,
+    repo: repoName,
+    number: itemNumber,
+  }, env, child);
+  const existingItems = existingItemsPayload?.data?.node?.items?.nodes ?? [];
+
+  const alreadyPresent = existingItems.filter((it) => {
+    if (!it.content) return false;
+    return it.content.repository?.nameWithOwner === repo;
+  });
+
+  if (alreadyPresent.length > 0) {
+    const existing = alreadyPresent[0];
+    let existingStatus = null;
+    const fvs = existing.fieldValues?.nodes ?? [];
+    for (const fv of fvs) {
+      if (fv && fv.field && fv.field.name === "Status") {
+        existingStatus = fv.name;
+        break;
+      }
+    }
+    let issueNumber = null;
+    let prNumber = null;
+    if (existing.content) {
+      if (existing.content.__typename === "Issue") issueNumber = existing.content.number;
+      else prNumber = existing.content.number;
+    }
+    return {
+      ok: true,
+      item: {
+        itemId: existing.id,
+        issueNumber,
+        prNumber,
+        status: existingStatus,
+        alreadyPresent: true,
+      },
+    };
+  }
+
+  // 5. Resolve content node ID (issue or PR)
+  const contentPayload = await ghGraphql(RESOLVE_ISSUE_NODE_ID, {
+    owner,
+    repo: repoName,
+    number: itemNumber,
+  }, env, child);
+  const repoData = contentPayload?.data?.repository;
+  if (!repoData) {
+    throw Object.assign(
+      new Error(`Repository "${repo}" not found`),
+      { code: "CONTENT_NOT_FOUND" },
+    );
+  }
+
+  const issue = repoData.issue;
+  const pr = repoData.pr;
+  let contentId;
+  let issueNumber = null;
+  let prNumber = null;
+
+  if (issue) {
+    contentId = issue.id;
+    issueNumber = issue.number;
+  } else if (pr) {
+    contentId = pr.id;
+    prNumber = pr.number;
+  } else {
+    throw Object.assign(
+      new Error(`Issue or PR #${itemNumber} not found in repository "${repo}"`),
+      { code: "CONTENT_NOT_FOUND" },
+    );
+  }
+
+  // 6. Add item to project
+  const addPayload = await ghGraphql(ADD_PROJECT_ITEM, {
+    input: JSON.stringify({
+      projectId: project.id,
+      contentId,
+    }),
+  }, env, child);
+
+  const newItem = addPayload?.data?.addProjectV2ItemById?.item;
+  if (!newItem) {
+    throw Object.assign(new Error("Failed to add item to project"), { code: "MUTATION_FAILED" });
+  }
+
+  // 7. Set initial Status
+  const updatePayload = await ghGraphql(UPDATE_ITEM_FIELD, {
+    input: JSON.stringify({
+      projectId: project.id,
+      itemId: newItem.id,
+      fieldId: statusField.id,
+      value: { singleSelectOptionId: targetOption.id },
+    }),
+  }, env, child);
+
+  const updated = updatePayload?.data?.updateProjectV2ItemFieldValue?.projectV2Item;
+  if (!updated) {
+    throw Object.assign(new Error("Failed to set initial Status on new item"), { code: "MUTATION_FAILED" });
+  }
+
+  return {
+    ok: true,
+    item: {
+      itemId: newItem.id,
+      issueNumber,
+      prNumber,
+      status: targetStatus,
+      alreadyPresent: false,
+    },
+  };
+}
+
+// ── CLI entrypoint ──────────────────────────────────────────────────────
+
+async function runCli(argv, { stdout = process.stdout, stderr = process.stderr, env = process.env } = {}) {
+  let args;
+  try {
+    args = parseArgs(argv);
+  } catch (err) {
+    stderr.write(`${formatCliError(err)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (args.help) {
+    stdout.write(USAGE);
+    return;
+  }
+  try {
+    const result = await main(args, { env });
+    stdout.write(JSON.stringify(result) + "\n");
+  } catch (err) {
+    stderr.write(JSON.stringify({ ok: false, error: err.message, code: err.code ?? "UNKNOWN" }) + "\n");
+    process.exitCode = classifyExitCode(err);
+  }
+}
+
+if (isDirectCliRun(import.meta.url)) {
+  runCli(process.argv.slice(2)).catch((error) => {
+    process.stderr.write(JSON.stringify({ ok: false, error: error.message, code: error.code ?? "UNKNOWN" }) + "\n");
+    process.exitCode = 2;
+  });
+}
+
+export { main };
