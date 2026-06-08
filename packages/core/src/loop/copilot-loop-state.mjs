@@ -59,6 +59,8 @@ export const STATE = Object.freeze({
   ROUND_CAP_REACHED: "round_cap_reached",
   /** Round cap reached with clean threads and green CI; eligible for pre_approval_gate fallback. */
   ROUND_CAP_CLEAN_FALLBACK: "round_cap_clean_fallback",
+  /** Internal tooling only PR; Copilot external review skipped, proceed directly to pre_approval_gate. */
+  INTERNAL_TOOLING_DIRECT_GATE: "internal_tooling_direct_gate",
 });
 
 /** Stable high-level loop dispositions for completion vs follow-up decisions. */
@@ -69,6 +71,8 @@ export const DISPOSITION = Object.freeze({
   BLOCKED: "blocked",
   ACTION_REQUIRED: "action_required",
   DONE: "done",
+  /** Internal tooling only: Copilot skipped, ready for pre_approval_gate. */
+  DIRECT_GATE: "direct_gate",
 });
 
 /**
@@ -108,10 +112,11 @@ export const TRANSITIONS = Object.freeze({
   [STATE.LOW_SIGNAL_CONVERGED]: [],
   [STATE.ROUND_CAP_REACHED]: [],
   [STATE.ROUND_CAP_CLEAN_FALLBACK]: [],
+  [STATE.INTERNAL_TOOLING_DIRECT_GATE]: [STATE.DONE],
 });
 
 /** Recommended next action for each state. */
-const NEXT_ACTIONS = Object.freeze({
+export const NEXT_ACTIONS = Object.freeze({
   [STATE.NO_PR]: "Create a PR or hand work to Copilot",
   [STATE.PR_DRAFT]: "Move the PR from draft to ready-for-review",
   [STATE.PR_READY_NO_FEEDBACK]: "Request Copilot review via scripts/github/request-copilot-review.mjs",
@@ -125,6 +130,7 @@ const NEXT_ACTIONS = Object.freeze({
   [STATE.LOW_SIGNAL_CONVERGED]: "Low-signal heuristic stopped re-request loop: round count exceeded threshold with only minimal actionable feedback; treat as converged",
   [STATE.ROUND_CAP_REACHED]: "Stop: Copilot review round limit reached with unresolved threads or failing CI; do not re-request review",
   [STATE.ROUND_CAP_CLEAN_FALLBACK]: "Round cap reached with clean PR; continue to pre_approval_gate instead of re-requesting Copilot review",
+  [STATE.INTERNAL_TOOLING_DIRECT_GATE]: "Internal tooling PR — Copilot external review suppressed; run pre_approval_gate directly",
   [STATE.DONE]: "Loop is complete; confirm merge-readiness or close",
 });
 
@@ -453,6 +459,9 @@ export function summarizeLoopInterpretation(snapshotOrInterpretation, refinement
     case STATE.BLOCKED_NEEDS_USER_DECISION:
     case STATE.ROUND_CAP_REACHED:
       loopDisposition = DISPOSITION.BLOCKED;
+      break;
+    case STATE.INTERNAL_TOOLING_DIRECT_GATE:
+      loopDisposition = DISPOSITION.DIRECT_GATE;
       break;
     case STATE.LOW_SIGNAL_CONVERGED:
     case STATE.ROUND_CAP_CLEAN_FALLBACK:
