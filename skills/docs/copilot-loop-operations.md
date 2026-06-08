@@ -196,12 +196,17 @@ is the canonical re-attachment artifact for async subagent runs. It is written b
 
 | Field | Meaning |
 |---|---|
+| `pr` | PR number |
+| `repo` | Repository slug (`owner/name`) |
 | `outerAction` | Next action: `continue_wait`, `reenter_copilot_loop`, `reenter_reviewer_loop`, `stop`, `done` |
 | `copilotState` | Current copilot inner-loop state |
 | `reviewerState` | Current reviewer inner-loop state |
+| `reviewerScope` | Reviewer scope mode (when a reviewer pass is active) |
+| `reviewerLogin` | Reviewer GitHub login (when a reviewer pass is active) |
+| `reason` | Stop reason (when outerAction is `stop`) |
+| `timestamp` | ISO 8601 timestamp of checkpoint write |
 | `waitCycles` | Number of wait cycles accumulated |
 | `headSha` | PR head SHA at checkpoint time |
-| `reason` | Stop reason (when outerAction is `stop`) |
 
 ### Re-attachment contract
 
