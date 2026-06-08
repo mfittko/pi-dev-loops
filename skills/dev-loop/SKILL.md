@@ -4,6 +4,8 @@ description: >-
   Single public dev-loop entrypoint. Resolve canonical current state first,
   then load only route-specific internal skills.
 user-invocable: true
+compatibility: Pi skill for git+GitHub repositories. Requires gh auth; async follow-up works best in Pi/TelePi sessions.
+allowed-tools: read bash edit write subagent review_loop
 ---
 
 **No-implicit-start rule:** Never start implementation without explicit instruction.
@@ -30,6 +32,12 @@ The resolver requires `PI_SUBAGENT_RUN_ID` and only runs inside the async subage
 
 The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action. The envelope determines `requiredReads`, `nextAction`, `stopRules`, and `acceptance` — load only those files, execute only that bounded task. See [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) for the derivation contract.
 
+**Pre-delegation gate (mandatory — subagent only):** Before delegating async work targeting an existing PR, the dev-loop subagent must run `node scripts/loop/copilot-pr-handoff.mjs` and abort if `action: "stop"`. When `terminal: true`, proceed inline. When `terminal: false`, resolve the blocking condition first.
+
+**Worktree cwd (mandatory — subagent only):** Always use a worktree checkout for git operations, file reads/writes, and validation commands — never use the `main` checkout.
+
+**Worktree fetch (mandatory — subagent only):** Always run `git fetch origin` before creating or reusing any worktree.
+
 ## Route table
 
 Load only the route-specific internal skill required by `selectedStrategy`:
@@ -51,12 +59,6 @@ Do not preload route packs before the resolver selects the strategy.
 **Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies. Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected. See [Startup procedure](#startup-procedure) steps 3-4.
 
 ## Guard rules (subagent reference)
-
-**Pre-delegation gate (mandatory):** Before delegating async work targeting an existing PR, run `node scripts/loop/copilot-pr-handoff.mjs` and abort if `action: "stop"`. When `terminal: true`, proceed inline. When `terminal: false`, resolve the blocking condition first. Main agent: see [Startup procedure](#startup-procedure) step 3a.
-
-**Worktree cwd (mandatory):** Always set `cwd` to the worktree when delegating to subagents — never use the `main` checkout.
-
-**Worktree fetch (mandatory):** Always run `git fetch origin` before creating or reusing any worktree.
 
 **Handoff envelope precedence:** The subagent builds the envelope as its first action. Read it first, load only `requiredReads`, execute `nextAction`. See [Dev-loop subagent](#dev-loop-subagent-post-dispatch). Derivation contract: [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
 
