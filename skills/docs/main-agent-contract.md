@@ -28,7 +28,7 @@ because "the user said yes," not because it is running from a worktree.
 
 - `write`, `edit`, or delete any file tracked by the repo
 - `git commit`, `git push`, create branches, create worktrees
-- Run state-changing dev-loops CLI subcommands (`gate`, `loop outer`, `pr` commands — those belong inside `dev-loop`). Read-only `loop startup` resolver runs are allowed.
+- Run state-changing dev-loops CLI subcommands (`gate`, any state-changing `loop` subcommand, `pr` commands — those belong inside `dev-loop`). Read-only `loop startup` resolver runs are allowed.
 - Delegate implementation to any agent other than `dev-loop`
 
 ## Dev-loop agent (async) owns
@@ -42,7 +42,7 @@ because "the user said yes," not because it is running from a worktree.
 
 | Operation | Verdict |
 |---|---|
-| `gh issue create --title "..." --body "..."` | Allowed — mutates GitHub, not repo files |
+| `gh issue create --title "..." --body "..."` | Allowed — mutates GitHub, not files tracked by the repository |
 | Write to `/tmp/issue-body.md` | Allowed — outside the repo |
 | Write to `packages/core/src/foo.mjs` | **BREACH** — must delegate to `dev-loop` |
 | `git status` | Allowed — read-only |
