@@ -510,3 +510,12 @@ test("resolveLifecycleState result is valid for all transition inputs", () => {
     assert.equal(typeof result.nextAction, "string");
   }
 });
+
+test("resolveLifecycleState: merge authorized without linked PR → earlier phase", () => {
+  const result = resolveLifecycleState({
+    hasLinkedPr: false,
+    preApprovalGatePassed: true,
+    mergeAuthorized: true,
+  });
+  assert.equal(result.state, LIFECYCLE_STATE.ISSUE_INTAKE);
+});

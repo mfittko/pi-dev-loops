@@ -210,8 +210,8 @@ export function resolveLifecycleState(input = {}) {
     return buildResult(LIFECYCLE_STATE.MERGE);
   }
 
-  // 3. Merge authorized with pre-approval → merge
-  if (mergeAuthorized && preApprovalGatePassed) {
+  // 3. Merge authorized with pre-approval + PR exists → merge
+  if (mergeAuthorized && preApprovalGatePassed && hasLinkedPr) {
     return buildResult(LIFECYCLE_STATE.MERGE);
   }
 
@@ -225,12 +225,12 @@ export function resolveLifecycleState(input = {}) {
     return buildResult(LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
   }
 
-  // 6. Draft PR → implementation
+  // 6. Draft PR or ready PR → implementation
   if (prIsDraft && hasLinkedPr) {
     return buildResult(LIFECYCLE_STATE.IMPLEMENTATION);
   }
 
-  // 7. PR exists (not draft) → implementation
+  // 6b. PR exists (not draft) → implementation
   if (hasLinkedPr && !prIsDraft) {
     return buildResult(LIFECYCLE_STATE.IMPLEMENTATION);
   }
