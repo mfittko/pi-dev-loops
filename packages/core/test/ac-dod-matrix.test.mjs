@@ -311,7 +311,7 @@ test("handoff envelope without refinementContract is still valid", async () => {
   assert.equal(envelope.refinementContract, undefined);
 });
 
-test("handoff envelope warns on malformed refinementContract", async () => {
+test("handoff envelope fails on malformed refinementContract", async () => {
   const { buildDevLoopHandoffEnvelope, validateHandoffEnvelope } = await import("../src/loop/handoff-envelope.mjs");
 
   const resolverOutput = {

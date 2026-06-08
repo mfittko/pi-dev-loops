@@ -742,7 +742,7 @@ export function validateHandoffEnvelope(envelope) {
           });
         }
       }
-      if (typeof envelope.refinementContract.generatedAt !== "string" || !envelope.refinementContract.generatedAt.trim()) {
+      if (typeof envelope.refinementContract.generatedAt !== "string" || isNaN(Date.parse(envelope.refinementContract.generatedAt))) {
         errors.push({
           field: "refinementContract.generatedAt",
           reason: "must be a valid ISO 8601 timestamp",
@@ -755,6 +755,17 @@ export function validateHandoffEnvelope(envelope) {
           reason: "must be a boolean",
           got: envelope.refinementContract.isComplete,
         });
+      } else if (envelope.refinementContract.items && Array.isArray(envelope.refinementContract.items)) {
+        const allMet = envelope.refinementContract.items.every(
+          (item) => item && typeof item === "object" && item.status === "Met"
+        );
+        if (envelope.refinementContract.isComplete !== allMet) {
+          errors.push({
+            field: "refinementContract.isComplete",
+            reason: "must match items status (true iff every item has status 'Met')",
+            got: { isComplete: envelope.refinementContract.isComplete, allItemsMet: allMet },
+          });
+        }
       }
     }
   }
