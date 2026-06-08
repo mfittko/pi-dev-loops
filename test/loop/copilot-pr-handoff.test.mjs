@@ -8,6 +8,7 @@ import test from "node:test";
 import { runNode as runNodeHelper, writeGhStub as writeGhStubHelper, writeJson as writeJsonHelper } from "../_helpers.mjs";
 
 import { parseHandoffCliArgs } from "../../scripts/loop/copilot-pr-handoff.mjs";
+import { STATE } from "../../packages/core/src/loop/copilot-loop-state.mjs";
 import { claimRunnerOwnership } from "../../scripts/loop/_pr-runner-coordination.mjs";
 import { EXTERNAL_HEALTHY_WAIT_TIMEOUT_POLICY } from "../../packages/core/src/loop/timeout-policy.mjs";
 
@@ -160,6 +161,7 @@ test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_
         stdout: '{"reviews":[]}\n',
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -214,6 +216,7 @@ test("copilot-pr-handoff emits watch action when Copilot is already requested", 
         stdout: EMPTY_THREADS + "\n",
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -295,6 +298,7 @@ test("copilot-pr-handoff does not request review when checks have not materializ
         stdout: EMPTY_THREADS + "\n",
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -336,6 +340,7 @@ test("copilot-pr-handoff does not request review when statusCheckRollup is missi
         stdout: EMPTY_THREADS + "\n",
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -375,6 +380,7 @@ test("copilot-pr-handoff reports draft reset as ready-state reentry requirement"
         stdout: EMPTY_THREADS + "\n",
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -448,6 +454,7 @@ test("copilot-pr-handoff emits stop action when Copilot review is unavailable", 
         stdout: '{"reviews":[]}\n',
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -521,6 +528,7 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot is in requested
         stdout: '{"reviews":[]}\n',
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -592,6 +600,7 @@ test("copilot-pr-handoff emits watch action when 422 but Copilot has a pending r
         stdout: '{"headRefOid":"abc123","reviews":[{"id":"r-1","state":"PENDING","author":{"login":"copilot-pull-request-reviewer[bot]"},"commit":{"oid":"abc123"}}]}\n',
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -651,6 +660,7 @@ test("copilot-pr-handoff treats stale pending Copilot review on an older commit 
         stdout: `${EMPTY_THREADS}\n`,
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -833,6 +843,7 @@ test("copilot-pr-handoff treats stale requested_reviewers as clean convergence a
         stdout: EMPTY_THREADS + "\n",
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -958,6 +969,7 @@ test("copilot-pr-handoff preserves copilotReviewPresent=false for an initial req
         stdout: '{"headRefOid":"newsha","reviews":[]}\n',
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -1136,6 +1148,7 @@ test("copilot-pr-handoff does not re-request review when checks have not materia
         stdout: EMPTY_THREADS + "\n",
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -1186,6 +1199,7 @@ test("copilot-pr-handoff keeps same-head suppression (no force flag)", async () 
         stdout: EMPTY_THREADS + "\n",
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -1262,6 +1276,7 @@ test("copilot-pr-handoff emits fix action when unresolved threads exist", async 
         stdout: unresolvedThreads + "\n",
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -1377,6 +1392,7 @@ test("copilot-pr-handoff emits stop action when no PR exists", async () => {
         exitCode: 1,
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -1413,6 +1429,7 @@ test("copilot-pr-handoff emits stop action for merged PR", async () => {
         }) + "\n",
       },
     ]);
+    env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
 
@@ -2019,6 +2036,109 @@ test("copilot-pr-handoff stops when human comment check fails with invalid JSON"
     assert.ok(output.humanCommentPause, "expected humanCommentPause field");
     assert.equal(output.humanCommentPause.reason, "human_comment_check_unavailable");
     assert.equal(output.humanCommentPause.error, "comment_parse_failed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+// ---------------------------------------------------------------------------
+// Internal tooling skip Copilot
+// ---------------------------------------------------------------------------
+
+test("copilot-pr-handoff skips Copilot request for internal-only PR and emits fix action for pre-approval gate", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-internal-"));
+  try {
+    // Use claims mode so the internal detection call can interleave with normal flow
+    const { env: rawEnv } = await writeGhStubHelper(tempDir, [
+      // detect: pr view (autoDetectSnapshot first call)
+      { assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json"], stdout: JSON.stringify({isDraft:false,state:"OPEN",number:17,headRefOid:"abc123",reviews:[],statusCheckRollup:[{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }]}) + "\n" },
+      // detect: requested_reviewers
+      { assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"], stdout: '{"users":[],"teams":[]}\n' },
+      // detect: graphql threads
+      { assertArgs: ["api", "graphql"], stdout: EMPTY_THREADS + "\n" },
+      // detect-internal-only-pr: gh pr view --json files --jq .files[].path
+      { assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files", "--jq", ".files[].path"], stdout: "scripts/foo.mjs\ntest/foo.test.mjs\n" },
+    ], { matchMode: "claims" });
+    const env = { ...rawEnv, PI_SUBAGENT_RUN_ID: "" };
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "fix");
+    assert.equal(output.state, STATE.INTERNAL_TOOLING_DIRECT_GATE);
+    assert.equal(output.internalOnlySkipCopilot, true);
+    assert.equal(output.reviewRequestStatus, undefined, "should not have requested review");
+    assert.equal(output.requestWatchContract.routingState, "internal_tooling_skip_copilot");
+    assert.equal(output.requestWatchContract.watchEntryConfirmed, false);
+    assert.equal(output.loopDisposition, "direct_gate");
+    assert.equal(output.terminal, false, "not terminal — pre_approval_gate still required");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("copilot-pr-handoff does not skip Copilot for consumer-facing PR", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-not-internal-"));
+  try {
+    let env = await writeGhStub(tempDir, [
+      // detect: pr view (autoDetectSnapshot first call)
+      { assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json"], stdout: JSON.stringify({isDraft:false,state:"OPEN",number:17,headRefOid:"abc123",reviews:[],statusCheckRollup:[{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }]}) + "\n" },
+      // detect: requested_reviewers
+      { assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"], stdout: '{"users":[],"teams":[]}\n' },
+      // detect: graphql threads
+      { assertArgs: ["api", "graphql"], stdout: EMPTY_THREADS + "\n" },
+      // request: check requested_reviewers
+      { assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"], stdout: '{"users":[],"teams":[]}\n' },
+      // request: check reviews
+      { assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"], stdout: '{"reviews":[]}\n' },
+      // request: add reviewer
+      { assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"], stdout: "https://github.com/owner/repo/pull/17\n" },
+      // request: verify after
+      { assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"], stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n' },
+      { assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"], stdout: '{"reviews":[]}\n' },
+    ]);
+    env.PI_SUBAGENT_RUN_ID = "";
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "watch");
+    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.internalOnlySkipCopilot, undefined, "should not set internal skip for consumer-facing PR");
+    assert.equal(output.reviewRequestStatus, "requested");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("copilot-pr-handoff skips internal detection when GH_SEQUENCE_PATH is set (stub mode)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-stubmode-"));
+  try {
+    let env = await writeGhStub(tempDir, [
+      // detect: pr view (autoDetectSnapshot first call)
+      { assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json"], stdout: JSON.stringify({isDraft:false,state:"OPEN",number:17,headRefOid:"abc123",reviews:[],statusCheckRollup:[{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }]}) + "\n" },
+      // detect: requested_reviewers
+      { assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"], stdout: '{"users":[],"teams":[]}\n' },
+      // detect: graphql threads
+      { assertArgs: ["api", "graphql"], stdout: EMPTY_THREADS + "\n" },
+      // request: normal flow continues because GH_SEQUENCE_PATH guard skips detection
+      { assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"], stdout: '{"users":[],"teams":[]}\n' },
+      { assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"], stdout: '{"reviews":[]}\n' },
+      { assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"], stdout: "https://github.com/owner/repo/pull/17\n" },
+      { assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"], stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n' },
+      { assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"], stdout: '{"reviews":[]}\n' },
+    ]);
+    env.PI_SUBAGENT_RUN_ID = "";
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    // In stub mode, internal detection is skipped → normal Copilot request flow
+    assert.equal(output.action, "watch");
+    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.internalOnlySkipCopilot, undefined);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

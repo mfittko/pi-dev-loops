@@ -6,7 +6,8 @@ import path from "node:path";
 import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
 import { performCopilotReviewRequest } from "../github/request-copilot-review.mjs";
-import { applyConfirmedReviewRequest, interpretLoopState, STATE, summarizeLoopInterpretation } from "@pi-dev-loops/core/loop/copilot-loop-state";
+import { detectInternalOnly as detectPrInternalOnly } from "./detect-internal-only-pr.mjs";
+import { applyConfirmedReviewRequest, interpretLoopState, NEXT_ACTIONS, STATE, summarizeLoopInterpretation, TRANSITIONS } from "@pi-dev-loops/core/loop/copilot-loop-state";
 import { ensureAsyncRunnerOwnership } from "./_pr-runner-coordination.mjs";
 
 
@@ -75,6 +76,7 @@ const WATCH_STATES = new Set([
 const FIX_STATES = new Set([
   STATE.UNRESOLVED_FEEDBACK_PRESENT,
   STATE.ALREADY_FIXED_NEEDS_REPLY_RESOLVE,
+  STATE.INTERNAL_TOOLING_DIRECT_GATE,
 ]);
 function summarizeRequestWatchContract({
   interpretation,
@@ -93,6 +95,8 @@ function summarizeRequestWatchContract({
     && interpretation.sameHeadCleanConverged !== true
   ) {
     routingState = "ready_state_needs_copilot_request";
+  } else if (interpretation.state === STATE.INTERNAL_TOOLING_DIRECT_GATE) {
+    routingState = "internal_tooling_skip_copilot";
   }
   let stopState;
   if (action === "stop") {
@@ -348,8 +352,35 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     };
   }
 
+
+  // Detect internal tooling PRs — suppress Copilot review request step entirely.
+  // Internal-only PRs (scripts/docs/tests/config) skip the request, not just the wait.
+  let internalOnlySkipCopilot = false;
+  // Skip internal detection in sequential stub/test mode to avoid consuming stub entries.
+  // Claims-mode stubs handle interleaved calls; detection runs normally.
+  if (!env.GH_SEQUENCE_PATH || env.GH_STUB_MODE === "claims") {
+  if (options.watchStatus === undefined &&
+      (interpretation.state === STATE.PR_READY_NO_FEEDBACK ||
+       interpretation.state === STATE.READY_TO_REREQUEST_REVIEW)) {
+    try {
+      const internalCheck = await detectPrInternalOnly(options, { env, ghCommand });
+      if (internalCheck.ok && internalCheck.internalOnly) {
+        internalOnlySkipCopilot = true;
+        interpretation = {
+          ...interpretation,
+          state: STATE.INTERNAL_TOOLING_DIRECT_GATE,
+          nextAction: NEXT_ACTIONS[STATE.INTERNAL_TOOLING_DIRECT_GATE],
+          allowedTransitions: TRANSITIONS[STATE.INTERNAL_TOOLING_DIRECT_GATE] || [STATE.DONE],
+        };
+      }
+    } catch {
+      // Best-effort: if detection fails, fall through to normal request behavior
+    }
+  }
+  }
+
   let reviewRequestStatus;
-  const shouldRequestReview = options.watchStatus === undefined
+  const shouldRequestReview = !internalOnlySkipCopilot && options.watchStatus === undefined
     && (interpretation.state === STATE.PR_READY_NO_FEEDBACK
     || interpretation.state === STATE.READY_TO_REREQUEST_REVIEW
     && interpretation.autoRerequestEligible);
@@ -393,6 +424,7 @@ export async function runHandoff(options, { env = process.env, ghCommand = "gh" 
     loopDisposition: interpretationSummary.loopDisposition,
     terminal: interpretationSummary.terminal,
     snapshot,
+    internalOnlySkipCopilot: internalOnlySkipCopilot || undefined,
   };
   if (runnerOwnership.status !== "skipped_no_async_run_id") {
     result.runnerOwnership = runnerOwnership;
