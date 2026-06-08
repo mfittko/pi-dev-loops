@@ -201,8 +201,8 @@ is the canonical re-attachment artifact for async subagent runs. It is written b
 | `outerAction` | Next action: `continue_wait`, `reenter_copilot_loop`, `reenter_reviewer_loop`, `stop`, `done` |
 | `copilotState` | Current copilot inner-loop state |
 | `reviewerState` | Current reviewer inner-loop state |
-| `reviewerScope` | Reviewer scope mode (when a reviewer pass is active) |
-| `reviewerLogin` | Reviewer GitHub login (when a reviewer pass is active) |
+| `reviewerScope` | Reviewer scope mode (always present; e.g. `all_reviewers` or `single_reviewer`) |
+| `reviewerLogin` | Reviewer GitHub login (always present; `null` unless single-reviewer scope) |
 | `reason` | Stop reason (when outerAction is `stop`) |
 | `timestamp` | ISO 8601 timestamp of checkpoint write |
 | `waitCycles` | Number of wait cycles accumulated |
@@ -216,8 +216,8 @@ checkpoint, it must read the checkpoint before entering any intake or follow-up 
 1. If `outerAction` is `continue_wait` or `reenter_copilot_loop`: auto-resume the loop
    rather than treating the start as fresh intake.
 2. If `outerAction` is `reenter_reviewer_loop`: enter the reviewer-loop path.
-3. If `outerAction` is `stop` with a non-terminal reason: report and ask for direction.
-4. If no checkpoint or `outerAction` is `done` / terminal stop: normal fresh startup.
+3. If `outerAction` is `stop`: the loop is blocked or needs a human decision; report the `reason` and ask for direction.
+4. If no checkpoint or `outerAction` is `done`: `done` means the PR is merged/closed; normal fresh startup.
 
 The checkpoint is the only source of truth for re-attachment. Do not rely on chat context
 or local notes to determine "where we left off."

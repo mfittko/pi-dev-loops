@@ -51,12 +51,14 @@ subagent must check the checkpoint before treating the start as a fresh intake o
    - Skip issue-intake normalization or fresh-intake routing.
    - Route directly to the existing PR's copilot-pr-followup path (the PR number is in the
      checkpoint's `pr` field).
-   - Load the checkpoint's `copilotState` and `reviewerState` as the known previous state
-     rather than re-detecting from scratch.
-3. If `outerAction` is `stop` with a non-terminal `reason`:
-   - Report the stop reason and the authoritative state from the checkpoint.
-   - Ask for direction rather than guessing or starting fresh.
-4. If no checkpoint exists, or `outerAction` is `done` / `stop` with a terminal reason:
+   - Use the checkpoint's `copilotState` and `reviewerState` as last-known context for
+     re-attachment, then re-baseline with fresh detectors (`copilot-pr-handoff.mjs`
+     or `detect-copilot-loop-state.mjs`) before acting on the state.
+3. If `outerAction` is `stop`:
+   - Report the `reason` field and the authoritative state from the checkpoint.
+   - `stop` means the loop is blocked or needs a human decision; ask for direction
+     rather than guessing or starting fresh.
+4. If no checkpoint exists, or `outerAction` is `done`:
    - Treat as normal fresh startup (the existing startup resolver path).
 
 This eliminates the manual "report-and-resume" or "exit and resume later" pattern when the
