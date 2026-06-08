@@ -127,7 +127,7 @@ export const LIFECYCLE_NEXT_ACTIONS = Object.freeze({
   [LIFECYCLE_STATE.IMPLEMENTATION]:
     "Implement the accepted scope on a feature branch or via Copilot handoff.",
   [LIFECYCLE_STATE.DRAFT_GATE]:
-    "Run draft gate review at the draft→ready boundary; associated with pr_ready_no_feedback inner state.",
+    "Run draft gate review before marking the PR ready for review.",
   [LIFECYCLE_STATE.FEEDBACK_RESOLUTION]:
     "Address review feedback: fix, reply to, and resolve threads on GitHub.",
   [LIFECYCLE_STATE.PRE_APPROVAL_GATE]:
@@ -179,11 +179,12 @@ function normalizeLifecycleState(value) {
  * Resolution order (first-match):
  * 1. Explicit phase → return canonical if recognized, fall through if not
  * 2. Merged → merge (terminal)
- * 3. Merge authorized + pre-approval passed → merge
+ * 3. Merge authorized + pre-approval passed + linked PR → merge
  * 4. Pre-approval passed + PR exists → pre_approval_gate
  * 5. Unresolved threads + PR exists → feedback_resolution
- * 6. Draft PR or ready PR → implementation
- * 7. No linked PR → issue_intake
+ * 6. Draft PR → implementation
+ * 7. Ready PR (not draft) → implementation
+ * 8. No linked PR → issue_intake
  */
 export function resolveLifecycleState(input = {}) {
   const {
@@ -210,7 +211,7 @@ export function resolveLifecycleState(input = {}) {
     return buildResult(LIFECYCLE_STATE.MERGE);
   }
 
-  // 3. Merge authorized with pre-approval + PR exists → merge
+  // 3. Merge authorized with pre-approval + linked PR → merge
   if (mergeAuthorized && preApprovalGatePassed && hasLinkedPr) {
     return buildResult(LIFECYCLE_STATE.MERGE);
   }
@@ -225,17 +226,17 @@ export function resolveLifecycleState(input = {}) {
     return buildResult(LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
   }
 
-  // 6. Draft PR or ready PR → implementation
+  // 6. Draft PR → implementation
   if (prIsDraft && hasLinkedPr) {
     return buildResult(LIFECYCLE_STATE.IMPLEMENTATION);
   }
 
-  // 6b. PR exists (not draft) → implementation
+  // 7. PR exists (not draft) → implementation
   if (hasLinkedPr && !prIsDraft) {
     return buildResult(LIFECYCLE_STATE.IMPLEMENTATION);
   }
 
-  // 7. No linked PR → issue intake
+  // 8. No linked PR → issue intake
   return buildResult(LIFECYCLE_STATE.ISSUE_INTAKE);
 }
 
@@ -288,12 +289,10 @@ export function isKnownLifecycleState(value) {
  *
  * Skills use this mapping to determine which inner-machine states are active
  * during a given lifecycle phase. Not all lifecycle phases have a corresponding
- * inner-machine state (issue_intake, refinement, merge are outer-only).
+ * inner-machine state (issue_intake and refinement are outer-only).
  *
  * The inner machine is the authority for Copilot review/fix loop states;
- * this mapping is advisory for routing and status reporting. Phases
- * issue_intake and refinement are outer-only (no inner-machine states);
- * inner state "done" (PR merged/closed).
+ * this mapping is advisory for routing and status reporting.
  */
 export const COPILOT_INNER_STATE_MAP = Object.freeze({
   [LIFECYCLE_STATE.ISSUE_INTAKE]: Object.freeze([]),

@@ -137,6 +137,32 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(graph).toContainText(/review_requested/);
     await expect(page.getByText(/outer-loop family:\s*current\s*continue_current_wait; continue_current_wait; full authoritative state machine shown; continue_current_wait, handoff_to_copilot_loop, handoff_to_reviewer_loop, stay_with_current_live_owner, stop_needs_human, done_terminal, needs_reconcile/i)).toBeVisible();
     await expect(page.getByText(/copilot layer:\s*current\s*waiting_for_copilot_review; waiting_for_copilot_review; full authoritative state machine shown; unresolved_feedback_present, ready_to_rerequest_review, waiting_for_ci/i)).toBeVisible();
+    const lifecycleLaneRender = await graph.evaluate((node) => {
+      const svg = node.querySelector('svg');
+      const laneTitles = [...svg.querySelectorAll('g.cluster text')]
+        .map((entry) => ({ text: entry.textContent?.trim() ?? '', y: entry.getBoundingClientRect().y }))
+        .filter((entry) => entry.text.length > 0)
+        .sort((a, b) => a.y - b.y)
+        .map((entry) => entry.text);
+      const currentLifecycle = svg.querySelector('g.node.current[id*="flowchart-lifecycle_layer_implementation"]');
+      const nextLifecycleNodes = [...svg.querySelectorAll('g.node.next[id*="flowchart-lifecycle_layer_"]')]
+        .map((entry) => entry.textContent?.replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .sort();
+      return {
+        laneTitles,
+        currentLifecycleClass: currentLifecycle?.getAttribute('class') ?? null,
+        nextLifecycleNodes,
+      };
+    });
+    expect(lifecycleLaneRender.laneTitles).toEqual([
+      'outer-loop family',
+      'copilot layer',
+      'reviewer layer',
+      'lifecycle',
+    ]);
+    expect(lifecycleLaneRender.currentLifecycleClass).toContain('current');
+    expect(lifecycleLaneRender.nextLifecycleNodes).toEqual(['draft gate', 'feedback resolution']);
 
     await graphBox.getByRole("button", { name: "Zoom in" }).click();
     await graphBox.getByRole("button", { name: "Zoom in" }).click();

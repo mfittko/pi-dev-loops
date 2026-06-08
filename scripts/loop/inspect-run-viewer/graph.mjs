@@ -19,6 +19,12 @@ import {
   REVIEWER_TRANSITIONS,
 } from "@pi-dev-loops/core/loop/reviewer-loop-state";
 import {
+  LIFECYCLE_GRAPH,
+  LIFECYCLE_STATE,
+  LIFECYCLE_TERMINAL_STATES,
+  LIFECYCLE_TRANSITIONS,
+} from "@pi-dev-loops/core/loop/lifecycle-state";
+import {
   escapeHtml,
   formatStateToken,
   renderSnapshotStateLabel,
@@ -62,6 +68,8 @@ const REVIEWER_TERMINAL_STATES = new Set(
     .filter(([, nextStates]) => Array.isArray(nextStates) && nextStates.length === 0)
     .map(([state]) => state),
 );
+
+const LIFECYCLE_TERMINAL_STATE_SET = new Set(LIFECYCLE_TERMINAL_STATES);
 
 function normalizeCurrentStateInfo(currentState, { knownStates = null, terminalStates = null } = {}) {
   if (typeof currentState === "string" && currentState.length > 0) {
@@ -310,6 +318,19 @@ export function buildInspectionMermaidGraph(snapshot) {
       startStates: [REVIEWER_STATE.WAITING_FOR_REVIEW_REQUEST],
       terminalStates: REVIEWER_TERMINAL_STATES,
     }),
+    buildFullStateMachineLane({
+      laneKey: "lifecycle_layer",
+      title: "lifecycle",
+      states: Object.values(LIFECYCLE_STATE),
+      transitionTable: LIFECYCLE_TRANSITIONS,
+      currentState: snapshot.lifecyclePhase,
+      transitions: snapshot.lifecycleAllowedTransitions,
+      startStates: LIFECYCLE_GRAPH.entryStates,
+      startLabel: LIFECYCLE_GRAPH.start.label,
+      endLabel: LIFECYCLE_GRAPH.end.label,
+      terminalStates: LIFECYCLE_TERMINAL_STATE_SET,
+      displayLabelForState: humanizeGraphStateLabel,
+    }),
   ];
 
   const classIds = {
@@ -330,6 +351,13 @@ export function buildInspectionMermaidGraph(snapshot) {
     }
   }
 
+  const orderedLaneLines = [
+    '  subgraph lane_stack[" "]',
+    '    direction TB',
+    ...lanes.flatMap((lane) => lane.lines.map((line) => `    ${line.trimStart()}`)),
+    '  end',
+  ];
+
   const lines = [
     "flowchart TB",
     "  classDef cue fill:#f5f7f9,stroke:#78909c,stroke-width:1.5px,color:#355061,font-weight:bold;",
@@ -341,9 +369,14 @@ export function buildInspectionMermaidGraph(snapshot) {
     "  classDef inactive fill:#ffffff,stroke:#b0bec5,stroke-width:1.5px,color:#607d8b;",
     "  classDef unavailable fill:#f8fafc,stroke:#90a4ae,stroke-width:2px,color:#546e7a,stroke-dasharray: 6 4;",
     "  classDef note fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#7f4b00;",
-    ...lanes.flatMap((lane) => lane.lines),
+    ...orderedLaneLines,
+    '  outer_loop_family_start ~~~ copilot_layer_start',
+    '  copilot_layer_start ~~~ reviewer_layer_start',
+    '  reviewer_layer_start ~~~ lifecycle_layer_start',
+    '  outer_loop_family_start ~~~ lifecycle_layer_start',
     `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[1].currentId}`,
-    `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
+    `  ${lanes[1].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
+    `  ${lanes[2].currentId} -. "layer view" .-> ${lanes[3].currentId}`,
   ];
 
   for (const [className, ids] of Object.entries(classIds)) {
@@ -355,7 +388,12 @@ export function buildInspectionMermaidGraph(snapshot) {
   const outerState = formatStateToken(snapshot.outerState, "unknown");
   const outerAction = formatStateToken(snapshot.outerAction, "unknown");
   let focusIds = lanes.map((lane) => lane.currentId);
-  if (outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP || outerAction === "reenter_copilot_loop") {
+  const lifecycleAvailable = snapshot.lifecyclePhase != null
+    && snapshot.lifecyclePhase !== "unknown"
+    && !String(snapshot.lifecyclePhase).toLowerCase().includes("unavailable");
+  if (lifecycleAvailable) {
+    focusIds = [lanes[3].currentId];
+  } else if (outerState === OUTER_STATE.HANDOFF_TO_COPILOT_LOOP || outerAction === "reenter_copilot_loop") {
     focusIds = [lanes[1].currentId];
   } else if (outerState === OUTER_STATE.HANDOFF_TO_REVIEWER_LOOP || outerAction === "reenter_reviewer_loop") {
     focusIds = [lanes[2].currentId];
@@ -393,6 +431,7 @@ function renderStateGraphHelp() {
     <li><strong>Next:</strong> purple nodes mark immediate allowed next states from the snapshot. Dimmed nodes are still part of the authoritative state machine; they are simply inactive right now.</li>
     <li><strong>Start / End:</strong> Mermaid entry and exit nodes make lane boundaries easier to scan for the full authoritative graph.</li>
     <li><strong>Orchestrator:</strong> the outer lane comes from the shared authoritative outer-loop graph contract; outerAction remains visible only as a compatibility projection.</li>
+    <li><strong>Lifecycle:</strong> the lifecycle lane shows the sequential dev-loop phases from issue intake to merge; current phase is highlighted from the inspection snapshot.</li>
     <li><strong>🔁 Loop cue:</strong> this viewer is revisited by manual reload, so the same current state can recur across inspections until evidence changes.</li>
   </ul>`;
 }
