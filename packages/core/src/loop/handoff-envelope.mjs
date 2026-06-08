@@ -475,7 +475,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
 
   // Optional refinement contract (AC/DoD matrix) from the refiner.
   // Set via options.refinementContract or resolverOutput.refinementContract.
-  const refinementContract = options.refinementContract ?? resolverOutput.refinementContract ?? null;
+  const refinementContract = options.refinementContract ?? bundle.refinementContract ?? resolverOutput.refinementContract ?? null;
   if (refinementContract != null) {
     envelope.refinementContract = refinementContract;
   }
@@ -699,14 +699,14 @@ export function validateHandoffEnvelope(envelope) {
 
   // ----- refinementContract (optional) -----
   if (envelope.refinementContract !== undefined && envelope.refinementContract !== null) {
-    if (typeof envelope.refinementContract !== 'object' || Array.isArray(envelope.refinementContract)) {
+    if (typeof envelope.refinementContract !== "object" || Array.isArray(envelope.refinementContract)) {
       errors.push({
         field: "refinementContract",
         reason: "if present, must be a non-array object with schema, items, generatedAt, and isComplete",
         got: envelope.refinementContract,
       });
     } else {
-      if (envelope.refinementContract.schema !== 'ac-dod-matrix/v1') {
+      if (envelope.refinementContract.schema !== "ac-dod-matrix/v1") {
         warnings.push({
           field: "refinementContract.schema",
           reason: "expected 'ac-dod-matrix/v1'",
@@ -724,32 +724,32 @@ export function validateHandoffEnvelope(envelope) {
         for (let i = 0; i < envelope.refinementContract.items.length; i++) {
           const item = envelope.refinementContract.items[i];
           if (
-            !item || typeof item !== 'object' ||
-            typeof item.item !== 'string' || !item.item.trim() ||
-            !['AC', 'DoD', 'Non-goal'].includes(item.type) ||
-            !['Met', 'Partial', 'Unmet', 'Unverified'].includes(item.status) ||
-            typeof item.evidence !== 'string' ||
-            typeof item.notes !== 'string'
+            !item || typeof item !== "object" ||
+            typeof item.item !== "string" || !item.item.trim() ||
+            !["AC", "DoD", "Non-goal"].includes(item.type) ||
+            !["Met", "Partial", "Unmet", "Unverified"].includes(item.status) ||
+            typeof item.evidence !== "string" ||
+            typeof item.notes !== "string"
           ) {
             bad.push(i);
           }
         }
         if (bad.length > 0) {
           errors.push({
-            field: 'refinementContract.items',
+            field: "refinementContract.items",
             reason: `entries at indices [${bad.join(',')}] must have valid item, type, status, evidence, and notes fields`,
             got: envelope.refinementContract.items,
           });
         }
       }
-      if (typeof envelope.refinementContract.generatedAt !== 'string' || !envelope.refinementContract.generatedAt.trim()) {
+      if (typeof envelope.refinementContract.generatedAt !== "string" || !envelope.refinementContract.generatedAt.trim()) {
         warnings.push({
           field: "refinementContract.generatedAt",
           reason: "should be an ISO 8601 timestamp",
           got: envelope.refinementContract.generatedAt,
         });
       }
-      if (typeof envelope.refinementContract.isComplete !== 'boolean') {
+      if (typeof envelope.refinementContract.isComplete !== "boolean") {
         warnings.push({
           field: "refinementContract.isComplete",
           reason: "should be a boolean",
