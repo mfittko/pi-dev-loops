@@ -210,7 +210,7 @@ export function resolveLifecycleState(input = {}) {
     return buildResult(LIFECYCLE_STATE.MERGE);
   }
 
-  // 3. Merge authorized with pre-approval → merge
+  // 3. Merge authorized with pre-approval + linked PR → merge
   if (mergeAuthorized && preApprovalGatePassed && hasLinkedPr) {
     return buildResult(LIFECYCLE_STATE.MERGE);
   }

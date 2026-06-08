@@ -563,7 +563,7 @@ export function composeRunInspectionSnapshot({
     const prIsDraft = copilotState === "pr_draft";
 
     const resolved = resolveLifecycleState({
-      hasLinkedPr: true,
+      hasLinkedPr: !explicitTargetMissing,
       prIsDraft,
       hasUnresolvedThreads,
     });

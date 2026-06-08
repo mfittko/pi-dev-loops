@@ -372,7 +372,7 @@ export function buildInspectionMermaidGraph(snapshot) {
     ...orderedLaneLines,
     '  outer_loop_family_start ~~~ copilot_layer_start',
     '  copilot_layer_start ~~~ reviewer_layer_start',
-    '  reviewer_layer_start ~~~ lifecycle_layer_start',
+    '  outer_loop_family_start ~~~ lifecycle_layer_start',
     `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[1].currentId}`,
     `  ${lanes[1].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
     `  ${lanes[2].currentId} -. "layer view" .-> ${lanes[3].currentId}`,
@@ -388,6 +388,7 @@ export function buildInspectionMermaidGraph(snapshot) {
   const outerAction = formatStateToken(snapshot.outerAction, "unknown");
   let focusIds = lanes.map((lane) => lane.currentId);
   const lifecycleAvailable = snapshot.lifecyclePhase != null
+    && snapshot.lifecyclePhase !== "unknown"
     && !String(snapshot.lifecyclePhase).toLowerCase().includes("unavailable");
   if (lifecycleAvailable) {
     focusIds = [lanes[3].currentId];

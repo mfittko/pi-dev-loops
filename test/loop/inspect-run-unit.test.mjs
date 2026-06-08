@@ -105,6 +105,10 @@ test("composeRunInspectionSnapshot: complete live evidence returns all required 
   assert.equal(snapshot.layers.reviewer.approvedOnCurrentHead, false);
   assert.equal(snapshot.layers.steering.status, "unavailable");
   assert.equal(snapshot.layers.steering.reason, "no_steering_locator");
+
+  // Lifecycle fields
+  assert.equal(snapshot.lifecyclePhase, "feedback_resolution");
+  assert.deepEqual(snapshot.lifecycleAllowedTransitions, ["implementation", "pre_approval_gate"]);
 });
 
 test("composeRunInspectionSnapshot: live evidence + done → statusClass done, needsAttention false", () => {
@@ -131,6 +135,47 @@ test("composeRunInspectionSnapshot: live evidence + done → statusClass done, n
   assert.equal(snapshot.needsAttention, false);
   assert.equal(snapshot.sourceMode, SOURCE_MODE.LIVE_DETECTOR_BACKED);
   assert.equal(snapshot.trust, TRUST.AUTHORITATIVE);
+});
+
+test("composeRunInspectionSnapshot: explicitTargetMissing uses hasLinkedPr false in lifecycle fallback", () => {
+  // Use a copilot state not in any COPILOT_INNER_STATE_MAP entry to force fallback
+  const copilotEvidence = makeCopilotEvidence("some_unknown_state");
+  const reviewerEvidence = makeReviewerEvidence("waiting_for_author_followup");
+
+  // Without explicitTargetMissing: fallback hasLinkedPr true → implementation
+  const snapOk = composeRunInspectionSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "continue_current_wait",
+    outerAction: "continue_wait",
+    explicitTargetMissing: false,
+    copilotEvidence,
+    reviewerEvidence,
+    existingCheckpoint: null,
+    liveAvailability: { copilot: "ok", reviewer: "ok" },
+    steeringLocatorPath: null,
+    steeringEvidence: null,
+    steeringLoadFailed: false,
+  });
+  assert.equal(snapOk.lifecyclePhase, "implementation");
+
+  // With explicitTargetMissing: fallback hasLinkedPr false → issue_intake
+  const snapMissing = composeRunInspectionSnapshot({
+    target: { repo: "owner/repo", pr: 55 },
+    inspectedAt: "2026-05-18T12:00:00Z",
+    outerState: "continue_current_wait",
+    outerAction: "continue_wait",
+    explicitTargetMissing: true,
+    copilotEvidence,
+    reviewerEvidence,
+    existingCheckpoint: null,
+    liveAvailability: { copilot: "ok", reviewer: "ok" },
+    steeringLocatorPath: null,
+    steeringEvidence: null,
+    steeringLoadFailed: false,
+  });
+  assert.equal(snapMissing.lifecyclePhase, "issue_intake");
+  assert.deepEqual(snapMissing.lifecycleAllowedTransitions, ["refinement", "implementation"]);
 });
 
 test("composeRunInspectionSnapshot: clean-converged Copilot state carries same-head convergence flags", () => {
