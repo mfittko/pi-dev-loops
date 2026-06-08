@@ -372,6 +372,7 @@ export function buildInspectionMermaidGraph(snapshot) {
     ...orderedLaneLines,
     '  outer_loop_family_start ~~~ copilot_layer_start',
     '  copilot_layer_start ~~~ reviewer_layer_start',
+    '  reviewer_layer_start ~~~ lifecycle_layer_start',
     '  outer_loop_family_start ~~~ lifecycle_layer_start',
     `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[1].currentId}`,
     `  ${lanes[1].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
