@@ -31,7 +31,7 @@ Exit codes:
 const VALID_ARGS = new Set(["--repo", "--project", "--title", "--link-repo", "--help", "-h"]);
 
 function parseArgs(argv) {
-  const args = { title: "Dev Loop Queue" };
+  const args = {}; // title default applied in runCli after settings fallback
   const consumed = new Set();
   for (let i = 0; i < argv.length; i++) {
     if (consumed.has(i)) continue;
@@ -55,14 +55,14 @@ function parseArgs(argv) {
       if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
         throw Object.assign(
           new Error("--project requires a numeric value"),
-          { code: "INVALID_REPO", usage: USAGE },
+          { code: "INVALID_PROJECT", usage: USAGE },
         );
       }
       const num = Number(argv[++i]);
       if (!Number.isInteger(num) || num <= 0) {
         throw Object.assign(
           new Error(`--project must be a positive integer, got "${argv[i]}"`),
-          { code: "INVALID_REPO", usage: USAGE },
+          { code: "INVALID_PROJECT", usage: USAGE },
         );
       }
       args.project = num;
@@ -477,8 +477,7 @@ async function autoRepairColumns(
 // ── Exit code classification ────────────────────────────────────────────
 
 function classifyExitCode(err) {
-  if (err.code === "INVALID_REPO") return 1;
-  if (err.code === "MISSING_COLUMNS") return 3;
+  if (err.code === "INVALID_REPO" || err.code === "INVALID_PROJECT") return 1;
   return 2;
 }
 
@@ -488,16 +487,27 @@ async function main(args, { env = process.env, runChild } = {}) {
   const child = runChild ?? _runChild;
   const repo = validateRepo(args.repo);
   const [owner] = repo.split("/");
-  const title = args.title || "Dev Loop Queue";
+  const title = args.title || "Dev Loop Queue"; // explicit default after settings fallback in runCli
   const linkRepo = args.linkRepo || null;
   if (linkRepo) validateRepo(linkRepo); // validate format early
 
   // 1. Resolve owner (user or org)
   const { id: ownerId, kind: ownerKind } = await resolveOwner(owner, env, child);
 
-  // 2. Look for existing project by title (paginated)
+  // 2. Look for existing project
   const projects = await listAllProjects(owner, ownerKind, env, child);
-  let project = projects.find((p) => p.title === title);
+  let project;
+  if (args.project) {
+    project = projects.find((p) => p.number === args.project);
+    if (!project) {
+      throw Object.assign(
+        new Error(`Project #${args.project} not found under "${owner}". Use --title to create a new board.`),
+        { code: "PROJECT_NOT_FOUND" },
+      );
+    }
+  } else {
+    project = projects.find((p) => p.title === title);
+  }
 
   if (project) {
     // Project exists — verify Status field (paginated)
@@ -649,14 +659,13 @@ async function runCli(argv, { stdout = process.stdout, stderr = process.stderr, 
     return;
   }
 
-  // Settings-based fallback for --project
-  if (args.project === undefined) {
-    const settings = resolveSettings(cwd);
-    if (settings?.project) {
-      args.project = settings.project;
-    } else if (settings?.title) {
-      args.title = args.title || settings.title;
-    }
+  // Settings-based fallback for --project and --title
+  const settings = resolveSettings(cwd);
+  if (args.project === undefined && settings?.project) {
+    args.project = settings.project;
+  }
+  if (args.title === undefined && settings?.title) {
+    args.title = settings.title;
   }
 
   try {

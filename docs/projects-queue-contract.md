@@ -238,15 +238,11 @@ queue:
   # Maximum retry attempts per entry for recoverable failures.
   reDispatchMaxRetries: 1
 
-  # Board title for Projects V2 lookup.
-  # Recommended default title (set explicitly to opt in): "Dev Loop Queue".
-  # Omit or leave unset to not use Projects-based queue ordering.
-  boardTitle: "Dev Loop Queue"
 ```
 
 ### Board title key
 
-The `queue.boardTitle` key is the sole opt-in signal for Projects-based queue ordering:
+The `queue.boardTitle` key is the primary opt-in signal for Projects-based queue ordering (`projectNumber` is also available — see Project number key below):
 
 | Value | Meaning |
 |---|---|

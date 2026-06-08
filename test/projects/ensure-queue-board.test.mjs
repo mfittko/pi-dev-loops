@@ -1,5 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import path from "node:path";
 import { main, autoRepairColumns, resolveSettings, STANDARD_COLUMNS, STANDARD_COLUMN_NAMES } from "../../scripts/projects/ensure-queue-board.mjs";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -204,6 +206,39 @@ describe("ensure-queue-board", () => {
       );
       assert.equal(result.ok, true);
       assert.equal(result.project.title, "My Queue");
+    });
+  });
+
+
+  describe("--project lookup", () => {
+    it("finds project by number when --project is provided", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+        { payload: getFieldsResponse([STATUS_FIELD]) },
+      ];
+      const result = await main(
+        { repo: "mfittko/pi-dev-loops", project: 1 },
+        { env: {}, runChild: mockRunChild(responses) },
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.project.number, 1);
+    });
+
+    it("throws PROJECT_NOT_FOUND when --project number does not match any project", async () => {
+      const responses = [
+        { payload: userPayload() },
+        { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+      ];
+      try {
+        await main(
+          { repo: "mfittko/pi-dev-loops", project: 999 },
+          { env: {}, runChild: mockRunChild(responses) },
+        );
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.equal(err.code, "PROJECT_NOT_FOUND");
+      }
     });
   });
 
@@ -543,13 +578,46 @@ describe("ensure-queue-board", () => {
     });
   });
 
-  describe("resolveSettings", () => {
-    it("returns project number when queue.projectNumber is set", () => {
-      // resolveSettings reads from cwd, so we test the function shape only
-      // Integration test would need temp directory with settings.yaml
-      assert.equal(typeof resolveSettings, "function");
+
+  describe("resolveSettings integration", () => {
+    it("returns project number from settings.yaml", () => {
+      const tmp = mkdtempSync(path.join(import.meta.dirname || "/tmp", "settings-test-"));
+      try {
+        mkdirSync(path.join(tmp, ".pi", "dev-loop"), { recursive: true });
+        writeFileSync(path.join(tmp, ".pi", "dev-loop", "settings.yaml"), [
+          "version: 1",
+          "queue:",
+          "  projectNumber: 42",
+        ].join("\n"));
+        const result = resolveSettings(tmp);
+        assert.deepEqual(result, { project: 42 });
+      } finally {
+        rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it("returns title from settings when projectNumber is absent", () => {
+      const tmp = mkdtempSync(path.join(import.meta.dirname || "/tmp", "settings-test-"));
+      try {
+        mkdirSync(path.join(tmp, ".pi", "dev-loop"), { recursive: true });
+        writeFileSync(path.join(tmp, ".pi", "dev-loop", "settings.yaml"), [
+          "version: 1",
+          "queue:",
+          "  boardTitle: My Board",
+        ].join("\n"));
+        const result = resolveSettings(tmp);
+        assert.deepEqual(result, { title: "My Board" });
+      } finally {
+        rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it("returns null when settings file is missing", () => {
+      const result = resolveSettings("/nonexistent/path/xyz");
+      assert.equal(result, null);
     });
   });
+
 
   describe("STANDARD_COLUMNS", () => {
     it("has exactly 4 standard columns in correct order", () => {
