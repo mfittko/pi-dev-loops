@@ -70,8 +70,8 @@ function parseArgs(argv) {
 // no consecutive dashes); repo name similar but also allows dots/underscores.
 // no leading/trailing dash, no consecutive dashes.
 // Single-char owner/repo names are valid (e.g. a/b).
-const OWNER_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
-const REPO_NAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])?$/;
+const OWNER_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
+const REPO_NAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9_.-]*[a-zA-Z0-9])?$/;
 
 function validateRepo(repo) {
   if (!repo || typeof repo !== "string") {
