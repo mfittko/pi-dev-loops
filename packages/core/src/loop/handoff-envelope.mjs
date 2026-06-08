@@ -474,7 +474,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
   }
 
   // Optional refinement contract (AC/DoD matrix) from the refiner.
-  // Set via options.refinementContract or resolverOutput.refinementContract.
+  // Set via options.refinementContract, bundle.refinementContract, or resolverOutput.refinementContract.
   const refinementContract = options.refinementContract ?? bundle.refinementContract ?? resolverOutput.refinementContract ?? null;
   if (refinementContract != null) {
     envelope.refinementContract = refinementContract;
@@ -737,22 +737,22 @@ export function validateHandoffEnvelope(envelope) {
         if (bad.length > 0) {
           errors.push({
             field: "refinementContract.items",
-            reason: `entries at indices [${bad.join(',')}] must have valid item, type, status, evidence, and notes fields`,
+            reason: `entries at indices [${bad.join(",")}] must have valid item, type, status, evidence, and notes fields`,
             got: envelope.refinementContract.items,
           });
         }
       }
       if (typeof envelope.refinementContract.generatedAt !== "string" || !envelope.refinementContract.generatedAt.trim()) {
-        warnings.push({
+        errors.push({
           field: "refinementContract.generatedAt",
-          reason: "should be an ISO 8601 timestamp",
+          reason: "must be a valid ISO 8601 timestamp",
           got: envelope.refinementContract.generatedAt,
         });
       }
       if (typeof envelope.refinementContract.isComplete !== "boolean") {
-        warnings.push({
+        errors.push({
           field: "refinementContract.isComplete",
-          reason: "should be a boolean",
+          reason: "must be a boolean",
           got: envelope.refinementContract.isComplete,
         });
       }

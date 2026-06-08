@@ -332,7 +332,7 @@ test("handoff envelope warns on malformed refinementContract", async () => {
   const envelope = buildDevLoopHandoffEnvelope(resolverOutput, {}, {}, options);
   const validation = validateHandoffEnvelope(envelope);
 
-  // Should still be ok (warnings, not errors) for the refinement contract shape
+  // Should fail (errors, not warnings) for the refinement contract shape
   // but items being empty IS an error
   assert.equal(validation.ok, false);
 });

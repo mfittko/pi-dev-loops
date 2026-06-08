@@ -23,7 +23,7 @@ export const AC_DOD_ITEM_STATUS = Object.freeze({
  */
 export const AcDodMatrixItemSchema = z.strictObject({
   /** Exact item text from the source issue/plan/spec */
-  item: z.string().min(1),
+  item: z.string().trim().min(1),
   /** Type classification */
   type: z.enum(["AC", "DoD", "Non-goal"]),
   /** Verification status */
