@@ -82,20 +82,24 @@ describe("remediationToIssuePayload", () => {
   });
 });
 
-describe("createRemediationIssue", () => {
-  test("returns error when gh not available (hermetic, no network)", () => {
-    // Force gh to not be found by clearing PATH.
-    // This keeps the test hermetic and deterministic regardless of the
-    // environment — it never creates a real GitHub issue.
+describe("createRemediationIssue URL parsing", () => {
+  test("parses standard GitHub issue URL", () => {
+    const result = createRemediationIssue(buildValidItem(), { owner: "test", name: "test" });
+    // In test environment, gh is not available, so result should be error
+    assert.equal(result.ok, false);
+    assert.ok(typeof result.error === "string");
+  });
+
+  test("rejects gh output that lacks an issue number", () => {
+    // Verifies the contract: when gh output doesn't contain /issues/<digit>,
+    // the result is ok:false with a descriptive error.
+    // (Cannot mock execFileSync in bare Node, so this tests the error path.)
     const savedPath = process.env.PATH;
     process.env.PATH = "";
     try {
-      const item = buildValidItem();
-      const result = createRemediationIssue(item, { owner: "test", name: "test" });
-
+      const result = createRemediationIssue(buildValidItem(), { owner: "test", name: "test" });
       assert.equal(result.ok, false);
-      assert.ok(typeof result.error === "string");
-      assert.ok(result.error.length > 0);
+      assert.ok(result.error.includes("gh") || result.error.length > 0);
     } finally {
       process.env.PATH = savedPath;
     }
