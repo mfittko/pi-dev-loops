@@ -55,5 +55,6 @@ Start here for repository documentation.
 
 ## Queue mode
 
+- [Projects Queue Contract](./projects-queue-contract.md) — minimal board contract for GitHub Projects V2 queue tooling
 - [Queue Board Setup](./queue-board-setup.md) — one-time GitHub Projects V2 board setup for dev-loop queue
 - [Queue Mode SPEC](./specs/queue-mode/SPEC.md) — queue mode specification
