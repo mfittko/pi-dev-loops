@@ -10,7 +10,7 @@ allowed-tools: read bash edit write subagent review_loop
 
 **No-implicit-start rule:** Never start implementation without explicit instruction.
 
-**Work-origin rule:** All work must originate from a tracked artifact: a GitHub issue (or an open PR linked to one) or a persisted markdown plan file.
+**Work-origin rule:** All work must originate from a tracked artifact: a GitHub issue (tracker-first) or a persisted markdown plan file (local-planning). See [Artifact Authority Contract](../docs/artifact-authority-contract.md) for canonical mode definitions and settings. No work may originate from a PR or direct local change unless explicitly requested.
 
 # Unified Dev Loop
 
