@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 import { writeGhStub as writeGhStubHelper } from "../_helpers.mjs";
-import { parseCliArgs, isInternalPath, isConsumerPath } from "../../scripts/loop/detect-internal-only-pr.mjs";
+import { parseCliArgs, findRepoRoot, loadInternalPathPatterns, buildPatternMatchers, tryLoadFromFile, SHIPPED_DEFAULT_PATTERNS } from "../../scripts/loop/detect-internal-only-pr.mjs";
 
 const scriptPath = path.resolve("scripts/loop/detect-internal-only-pr.mjs");
 
@@ -40,6 +40,7 @@ test("detect-internal-only-pr --help prints usage", async () => {
   assert(result.stdout.includes("detect-internal-only-pr.mjs"));
   assert(result.stdout.includes("--repo"));
   assert(result.stdout.includes("--pr"));
+  assert(result.stdout.includes("--config"));
 });
 
 test("detect-internal-only-pr rejects missing arguments", async () => {
@@ -59,45 +60,6 @@ test("detect-internal-only-pr rejects unknown flags", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Path classification
-// ---------------------------------------------------------------------------
-
-test("isInternalPath matches internal patterns", () => {
-  assert.equal(isInternalPath("scripts/foo.mjs"), true);
-  assert.equal(isInternalPath("test/foo.test.mjs"), true);
-  assert.equal(isInternalPath("docs/readme.md"), true);
-  assert.equal(isInternalPath("skills/docs/contract.md"), true);
-  assert.equal(isInternalPath(".pi/dev-loop/settings.yaml"), true);
-  assert.equal(isInternalPath(".github/workflows/ci.yml"), true);
-});
-
-test("isInternalPath rejects non-internal paths", () => {
-  assert.equal(isInternalPath("packages/core/src/index.mjs"), false);
-  assert.equal(isInternalPath("cli/index.mjs"), false);
-  assert.equal(isInternalPath("skills/copilot-pr-followup/SKILL.md"), false);
-  assert.equal(isInternalPath("package.json"), false);
-  assert.equal(isInternalPath("README.md"), false);
-});
-
-test("isConsumerPath matches consumer-facing paths", () => {
-  assert.equal(isConsumerPath("packages/core/src/index.mjs"), true);
-  assert.equal(isConsumerPath("cli/index.mjs"), true);
-  assert.equal(isConsumerPath("skills/copilot-pr-followup/SKILL.md"), true);
-  assert.equal(isConsumerPath("skills/dev-loop/SKILL.md"), true);
-  assert.equal(isConsumerPath("package.json"), true);
-  assert.equal(isConsumerPath("README.md"), true);
-});
-
-test("isConsumerPath does not match internal paths", () => {
-  assert.equal(isConsumerPath("scripts/foo.mjs"), false);
-  assert.equal(isConsumerPath("docs/readme.md"), false);
-  assert.equal(isConsumerPath("skills/docs/contract.md"), false);
-  assert.equal(isConsumerPath(".pi/settings.yaml"), false);
-  assert.equal(isConsumerPath("test/foo.test.mjs"), false);
-  assert.equal(isConsumerPath(".github/workflows/ci.yml"), false);
-});
-
-// ---------------------------------------------------------------------------
 // CLI argument parsing
 // ---------------------------------------------------------------------------
 
@@ -106,11 +68,212 @@ test("parseCliArgs parses valid arguments", () => {
   assert.equal(parsed.repo, "owner/repo");
   assert.equal(parsed.pr, 17);
   assert.equal(parsed.labelCheck, false);
+  assert.equal(parsed.config, undefined);
 });
 
 test("parseCliArgs parses --label-check", () => {
   const parsed = parseCliArgs(["--repo", "owner/repo", "--pr", "17", "--label-check"]);
   assert.equal(parsed.labelCheck, true);
+});
+
+test("parseCliArgs parses --config", () => {
+  const parsed = parseCliArgs(["--repo", "owner/repo", "--pr", "17", "--config", "/path/to/settings.yaml"]);
+  assert.equal(parsed.config, "/path/to/settings.yaml");
+});
+
+// ---------------------------------------------------------------------------
+// findRepoRoot
+// ---------------------------------------------------------------------------
+
+test("findRepoRoot returns null when no .git found", () => {
+  assert.equal(findRepoRoot("/tmp/nonexistent-repo-xyz"), null);
+});
+
+// ---------------------------------------------------------------------------
+// Pattern loading
+// ---------------------------------------------------------------------------
+
+test("loadInternalPathPatterns returns shipped defaults when no config found", () => {
+  const patterns = loadInternalPathPatterns(undefined);
+  assert.deepEqual(patterns, SHIPPED_DEFAULT_PATTERNS);
+});
+
+test("loadInternalPathPatterns loads flat array from --config path (settings.yaml)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "internalPathPatterns:\n  - \"^src/\"\n  - \"^lib/\"\n");
+    const patterns = loadInternalPathPatterns(configPath);
+    assert.deepEqual(patterns, ["^src/", "^lib/"]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("loadInternalPathPatterns falls back to defaults on invalid config", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "garbage: [[[");
+    const patterns = loadInternalPathPatterns(configPath);
+    assert.deepEqual(patterns, SHIPPED_DEFAULT_PATTERNS);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("loadInternalPathPatterns falls back to defaults on empty patterns array", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "internalPathPatterns: []\n");
+    const patterns = loadInternalPathPatterns(configPath);
+    assert.deepEqual(patterns, SHIPPED_DEFAULT_PATTERNS);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("loadInternalPathPatterns falls back to defaults on whitespace-only patterns", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "internalPathPatterns:\n  - \"   \"\n  - \"\"\n");
+    const patterns = loadInternalPathPatterns(configPath);
+    assert.deepEqual(patterns, SHIPPED_DEFAULT_PATTERNS);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("loadInternalPathPatterns skips missing internalPathPatterns key", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "gates:\n  draft:\n    requireCi: false\n");
+    const patterns = loadInternalPathPatterns(configPath);
+    assert.deepEqual(patterns, SHIPPED_DEFAULT_PATTERNS);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Auto-detect via spawned process (cwd = temp repo)
+// ---------------------------------------------------------------------------
+
+test("loadInternalPathPatterns auto-detects overrides.yaml via spawned process", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    await mkdir(path.join(tempDir, ".git"));
+    const piDir = path.join(tempDir, ".pi", "dev-loop");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(path.join(piDir, "overrides.yaml"), "internalPathPatterns:\n  - \"^custom/\"\n  - \"^internal/\"\n");
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files", "--jq", ".files[].path"],
+        stdout: "custom/foo.mjs\ninternal/bar.sh\n",
+      },
+    ]);
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env, cwd: tempDir });
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.internalOnly, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("loadInternalPathPatterns prefers settings.yaml over overrides.yaml via spawned process", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    await mkdir(path.join(tempDir, ".git"));
+    const piDir = path.join(tempDir, ".pi", "dev-loop");
+    await mkdir(piDir, { recursive: true });
+    await writeFile(path.join(piDir, "overrides.yaml"), "internalPathPatterns:\n  - \"^bad/\"\n");
+    await writeFile(path.join(piDir, "settings.yaml"), "internalPathPatterns:\n  - \"^good/\"\n");
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files", "--jq", ".files[].path"],
+        stdout: "good/foo.mjs\n",
+      },
+    ]);
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env, cwd: tempDir });
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.internalOnly, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// tryLoadFromFile unit
+// ---------------------------------------------------------------------------
+
+test("tryLoadFromFile returns patterns from valid config", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "internalPathPatterns:\n  - \"^a/\"\n  - \"^b/\"\n");
+    const patterns = tryLoadFromFile(configPath);
+    assert.deepEqual(patterns, ["^a/", "^b/"]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("tryLoadFromFile returns null for invalid YAML", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "invalid.yaml");
+    await writeFile(configPath, "::: bad yaml");
+    assert.equal(tryLoadFromFile(configPath), null);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("tryLoadFromFile returns null for empty patterns array", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "internalPathPatterns: []\n");
+    assert.equal(tryLoadFromFile(configPath), null);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("tryLoadFromFile trims whitespace from patterns", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "internalPathPatterns:\n  - \"  ^src/  \"\n  - \"^lib/\"\n");
+    const patterns = tryLoadFromFile(configPath);
+    assert.deepEqual(patterns, ["^src/", "^lib/"]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Pattern matchers
+// ---------------------------------------------------------------------------
+
+test("buildPatternMatchers converts strings to RegExp", () => {
+  const matchers = buildPatternMatchers(["^scripts/", "^test/"]);
+  assert.equal(matchers.length, 2);
+  assert(matchers[0].test("scripts/foo.mjs"));
+  assert(matchers[1].test("test/bar.test.mjs"));
+  assert(!matchers[0].test("packages/foo.mjs"));
+});
+
+test("buildPatternMatchers skips invalid regex", () => {
+  const matchers = buildPatternMatchers(["^valid/", "[invalid"]);
+  assert.equal(matchers.length, 1);
 });
 
 // ---------------------------------------------------------------------------
@@ -249,7 +412,50 @@ test("detect-internal-only-pr detects non-matching unknown paths as consumer-fac
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, true);
     assert.equal(output.internalOnly, false);
-    assert(output.reason.includes("outside recognized patterns"));
+    assert(output.reason.includes("Consumer-facing"));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-internal-only-pr respects --config with custom patterns (flat array)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "internalPathPatterns:\n  - \"^custom/\"\n  - \"^tools/\"\n");
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files", "--jq", ".files[].path"],
+        stdout: "custom/foo.mjs\ntools/bar.sh\n",
+      },
+    ]);
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--config", configPath], { env });
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.internalOnly, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-internal-only-pr with --config detects non-matching file as consumer-facing", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-internal-"));
+  try {
+    const configPath = path.join(tempDir, "settings.yaml");
+    await writeFile(configPath, "internalPathPatterns:\n  - \"^custom/\"\n");
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files", "--jq", ".files[].path"],
+        stdout: "custom/foo.mjs\npackages/core/src/bar.mjs\n",
+      },
+    ]);
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17", "--config", configPath], { env });
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.internalOnly, false);
+    assert(output.reason.includes("Consumer-facing"));
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

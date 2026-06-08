@@ -80,6 +80,9 @@ const QueueConfig = z.strictObject({
   reDispatchMaxRetries: z.number().int().min(0).max(10).default(1),
 });
 
+/** Internal path whitelist for internal-only PR detection — flat array of regex strings */
+const InternalPatternsConfig = z.array(z.string().trim().min(1)).min(1);
+
 const PersonaEntry = z.strictObject({
   persona: z.string().min(1),
   // Optional in the merged/full schema so consumer overrides can replace
@@ -120,6 +123,7 @@ export const DevLoopConfigSchema = z.strictObject({
   localImplementation: LocalImplementationConfig.optional(),
   queue: QueueConfig.optional(),
   personas: PersonasConfig.optional(),
+  internalPathPatterns: InternalPatternsConfig.optional(),
 });
 
 // ============================================================================
@@ -149,6 +153,14 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
     reDispatchMaxRetries: 1,
   }),
   personas: Object.freeze({}),
+  internalPathPatterns: Object.freeze([
+    "^scripts/",
+    "^docs/",
+    "^skills/docs/",
+    "^\\.pi/",
+    "^\\.github/",
+    "^test/",
+  ]),
 });
 
 // ============================================================================
@@ -166,6 +178,7 @@ export const FileConfigSchema = z.strictObject({
   localImplementation: LocalImplementationConfig.partial().optional(),
   queue: QueueConfig.partial().optional(),
   personas: FilePersonasConfig.optional(),
+  internalPathPatterns: InternalPatternsConfig.optional(),
 });
 
 // ============================================================================
@@ -797,4 +810,29 @@ export function resolveWorkflowConfig(config, key) {
   }
 
   throw new Error(`Unknown workflow config key: ${key}`);
+}
+
+const DEFAULT_INTERNAL_PATH_PATTERNS = BUILT_IN_DEFAULTS.internalPathPatterns;
+
+/**
+ * Resolve the internal path patterns from the merged dev-loop config.
+ *
+ * Returns an array of regex pattern strings used by detect-internal-only-pr.mjs
+ * to classify files as internal tooling (vs consumer-facing). When the config
+ * omits this section, returns the built-in shipped defaults.
+ *
+ * Consumers can override these in .pi/dev-loop/settings.yaml.
+ *
+ * @param {DevLoopConfig} config
+ * @returns {string[]}
+ */
+export function resolveInternalPathPatterns(config) {
+  if (
+    config?.internalPathPatterns &&
+    Array.isArray(config.internalPathPatterns) &&
+    config.internalPathPatterns.length > 0
+  ) {
+    return [...config.internalPathPatterns];
+  }
+  return [...DEFAULT_INTERNAL_PATH_PATTERNS];
 }
