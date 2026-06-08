@@ -503,7 +503,7 @@ test("lifecyclePhaseForCopilotState returns correct phase for known inner states
   assert.equal(lifecyclePhaseForCopilotState("internal_tooling_direct_gate"), LIFECYCLE_STATE.PRE_APPROVAL_GATE);
 });
 
-test("lifecyclePhaseForCopilotState returns null for unknown inner states", () => {
+test("lifecyclePhaseForCopilotState handles known fallback and unknown inner states", () => {
   assert.equal(lifecyclePhaseForCopilotState("blocked_needs_user_decision"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
   assert.equal(lifecyclePhaseForCopilotState("review_request_unavailable"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);
   assert.equal(lifecyclePhaseForCopilotState("round_cap_reached"), LIFECYCLE_STATE.FEEDBACK_RESOLUTION);

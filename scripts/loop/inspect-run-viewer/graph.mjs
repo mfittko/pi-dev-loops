@@ -375,8 +375,8 @@ export function buildInspectionMermaidGraph(snapshot) {
     '  reviewer_layer_start ~~~ lifecycle_layer_start',
     '  outer_loop_family_start ~~~ lifecycle_layer_start',
     `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[1].currentId}`,
-    `  ${lanes[1].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
-    `  ${lanes[2].currentId} -. "layer view" .-> ${lanes[3].currentId}`,
+    `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[2].currentId}`,
+    `  ${lanes[0].currentId} -. "layer view" .-> ${lanes[3].currentId}`,
   ];
 
   for (const [className, ids] of Object.entries(classIds)) {
