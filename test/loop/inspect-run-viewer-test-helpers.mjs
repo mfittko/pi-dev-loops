@@ -49,6 +49,8 @@ export function makeSnapshot(overrides = {}) {
       },
       steering: { status: "unavailable", reason: "no_steering_locator" },
     },
+    lifecyclePhase: "implementation",
+    lifecycleAllowedTransitions: ["draft_gate", "feedback_resolution"],
     ...overrides,
   };
 }

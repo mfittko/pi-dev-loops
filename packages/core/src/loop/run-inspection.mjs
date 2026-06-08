@@ -25,6 +25,7 @@
 
 import { summarizeLoopInterpretation } from "./copilot-loop-state.mjs";
 import { isKnownOuterState } from "./conductor-routing.mjs";
+import { getAllowedTransitions, lifecyclePhaseForCopilotState, resolveLifecycleState } from "./lifecycle-state.mjs";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -536,6 +537,41 @@ export function composeRunInspectionSnapshot({
   }
 
   // -------------------------------------------------------------------------
+  // Lifecycle phase resolution (best-effort from available PR facts)
+  // -------------------------------------------------------------------------
+
+  let lifecyclePhase = null;
+  let lifecycleAllowedTransitions = null;
+
+  if (copilotLiveOk && copilotEvidence !== null) {
+    const copilotState = copilotEvidence.interpretation.state;
+    const mappedPhase = lifecyclePhaseForCopilotState(copilotState);
+    if (mappedPhase) {
+      lifecyclePhase = mappedPhase;
+      lifecycleAllowedTransitions = getAllowedTransitions(mappedPhase);
+    }
+  }
+
+  if (lifecyclePhase === null) {
+    // Fallback: derive from available PR facts
+    const loopIter = loopIterations ?? {};
+    const hasUnresolvedThreads = typeof loopIter.unresolvedReviewThreads === "number"
+      && loopIter.unresolvedReviewThreads > 0;
+    const copilotState = copilotLiveOk && copilotEvidence !== null
+      ? copilotEvidence.interpretation.state
+      : null;
+    const prIsDraft = copilotState === "pr_draft";
+
+    const resolved = resolveLifecycleState({
+      hasLinkedPr: true,
+      prIsDraft,
+      hasUnresolvedThreads,
+    });
+    lifecyclePhase = resolved.state;
+    lifecycleAllowedTransitions = resolved.allowedTransitions;
+  }
+
+  // -------------------------------------------------------------------------
   // Assemble final snapshot
   // -------------------------------------------------------------------------
 
@@ -562,5 +598,7 @@ export function composeRunInspectionSnapshot({
     markers,
     loopIterations,
     layers,
+    lifecyclePhase,
+    lifecycleAllowedTransitions,
   };
 }
