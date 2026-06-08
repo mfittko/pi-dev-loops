@@ -280,7 +280,8 @@ export async function runCli(argv) {
   report.dryRun = options.dryRun;
   report.repo = `${repo.owner}/${repo.name}`;
 
-  process.stdout.write(JSON.stringify(report) + "\n");
+  const outputTarget = report.ok ? process.stdout : process.stderr;
+  outputTarget.write(JSON.stringify(report) + "\n");
   return { exitCode: anyIssueFailed ? 1 : 0 };
 }
 
