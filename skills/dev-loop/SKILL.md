@@ -32,6 +32,8 @@ The resolver requires `PI_SUBAGENT_RUN_ID` and only runs inside the async subage
 
 The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action. The envelope determines `requiredReads`, `nextAction`, `stopRules`, and `acceptance` — load only those files, execute only that bounded task. See [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) for the derivation contract.
 
+**Retrospective checkpoint gate:** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
+
 **Pre-delegation gate (mandatory — subagent only):** Before delegating async work targeting an existing PR, the dev-loop subagent must run `node scripts/loop/copilot-pr-handoff.mjs` and abort if `action: "stop"`. When `terminal: true`, proceed inline. When `terminal: false`, resolve the blocking condition first.
 
 **Worktree cwd (mandatory — subagent only):** Always use a worktree checkout for git operations, file reads/writes, and validation commands — never use the `main` checkout.
