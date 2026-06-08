@@ -43,10 +43,10 @@ Phase 8 is the active durable phase; Phase 7 second-repo pilot is deferred. See 
 
 ## Configuration
 
-Gate review angles, refinement settings, persona mappings, and workflow defaults are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos override values in `.pi/dev-loop/settings.yaml` (also supports `.yml` and `.json`; legacy `overrides.*` still load as fallback).
+Gate review angles, refinement settings, persona mappings, and workflow defaults are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos override values in `.pi/dev-loop/settings.yaml`. The loader also accepts `.yml` and `.json` extensions and legacy `overrides.*` files as fallback formats. See [Extension Documentation](./extension/README.md) for details.
 
 ```bash
-dev-loops gates   # see what reviewers will check
+npx dev-loops gates   # see what reviewers will check
 ```
 
 Key surfaces:
@@ -66,6 +66,8 @@ Install with:
 pi install git:github.com/mfittko/pi-dev-loops          # global
 pi install -l git:github.com/mfittko/pi-dev-loops       # project-local
 ```
+
+Use `npx dev-loops` to run the CLI without installing. After a global `pi install`, the `dev-loops` command is available directly in your shell.
 
 The package exposes the `/dev-loops` extension command surface, the `dev-loops` shell CLI, and packaged skills from `package.json` `pi.skills`.
 
