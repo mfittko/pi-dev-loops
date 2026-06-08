@@ -30,7 +30,7 @@ The resolver requires `PI_SUBAGENT_RUN_ID` for async-required routes (the defaul
 
 ### Dev-loop subagent (post-dispatch)
 
-The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action. The envelope determines `requiredReads`, `nextAction`, `stopRules`, and `acceptance` — load only those files, execute only that bounded task. See [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) for the derivation contract.
+The subagent resolves authoritative state via the startup resolver, then immediately builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core`. The envelope determines `requiredReads`, `nextAction`, `stopRules`, and `acceptance` — load only those files, execute only that bounded task. It is the first handoff artifact consumed before loading any route pack. See [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) for the derivation contract.
 
 **Retrospective checkpoint gate:** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
 
@@ -58,11 +58,11 @@ Do not preload route packs before the resolver selects the strategy.
 
 ## Async dispatch
 
-**Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies. Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected. See [Startup procedure](#startup-procedure).
+**Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies when `canonicalStateSummary.requiresAsyncDispatch` is `true` (default `required` mode). Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected only for those routes. See [Startup procedure](#startup-procedure).
 
 ## Guard rules (subagent reference)
 
-**Handoff envelope precedence:** The subagent builds the envelope as its first action. Read it first, load only `requiredReads`, execute `nextAction`. See [Dev-loop subagent](#dev-loop-subagent-post-dispatch). Derivation contract: [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
+**Handoff envelope precedence:** The subagent builds the envelope immediately after authoritative-state resolution and treats it as the first handoff artifact. Read it first, load only `requiredReads`, execute `nextAction`. See [Dev-loop subagent](#dev-loop-subagent-post-dispatch). Derivation contract: [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
 
 **Handoff contract rule:** When no envelope is present, use the `workflow-handoff-contract.md` contract. Never delegate with abbreviated task summaries. Include deterministic routing inputs, explicit `cwd`, bounded task scope, exit conditions.
 
