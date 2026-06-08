@@ -78,6 +78,8 @@ const QueueConfig = z.strictObject({
   maxParallel: z.number().int().min(1).max(10).default(3),
   maxAutoFiledIssues: z.number().int().min(0).max(100).default(10),
   reDispatchMaxRetries: z.number().int().min(0).max(10).default(1),
+  projectNumber: z.number().int().positive().optional(),
+  boardTitle: z.string().trim().min(1).optional(),
 });
 
 /** Internal path whitelist for internal-only PR detection — flat array of regex strings */
@@ -151,6 +153,9 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
     maxParallel: 3,
     maxAutoFiledIssues: 10,
     reDispatchMaxRetries: 1,
+    // projectNumber and boardTitle are intentionally absent from defaults
+    // — setting either is an explicit operator opt-in for Projects-based
+    // queue ordering.
   }),
   personas: Object.freeze({}),
   internalPathPatterns: Object.freeze([

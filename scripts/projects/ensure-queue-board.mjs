@@ -1,8 +1,11 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { parse as parseYaml } from "yaml";
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { runChild as _runChild } from "../_cli-primitives.mjs";
 
-const USAGE = `Usage: node scripts/projects/ensure-queue-board.mjs --repo <owner/name> [--title <title>]
+const USAGE = `Usage: node scripts/projects/ensure-queue-board.mjs --repo <owner/name> [--project <number>] [--title <title>] [--link-repo <owner/name>]
 
 Idempotent bootstrap for a GitHub Projects V2 board used as the dev-loop queue.
 
@@ -10,8 +13,13 @@ Creates the project board if it doesn't exist, ensures a Status field with
 standard columns (Backlog, Next Up, In Progress, Done). Exits clean if the
 board and Status field already exist.
 
+When --link-repo is provided, links the project to the given repository after creation.
+
+When --project is not provided, resolves from .pi/dev-loop/settings.yaml
+queue.projectNumber or queue.boardTitle.
+
 Output (stdout):
-  JSON: { ok: true, project: { id, number, title, url, statusFieldId } }
+  JSON: { ok: true, project: { id, number, title, url, statusFieldId, linkedRepo } }
 
 Exit codes:
   0 — board exists or was created successfully (idempotent)
@@ -20,10 +28,10 @@ Exit codes:
   3 — board schema/config mismatch (manual reconciliation needed)
 `;
 
-const VALID_ARGS = new Set(["--repo", "--title", "--help", "-h"]);
+const VALID_ARGS = new Set(["--repo", "--project", "--title", "--link-repo", "--help", "-h"]);
 
 function parseArgs(argv) {
-  const args = { title: "Dev Loop Queue" };
+  const args = {}; // title default applied in runCli after settings fallback
   const consumed = new Set();
   for (let i = 0; i < argv.length; i++) {
     if (consumed.has(i)) continue;
@@ -43,6 +51,21 @@ function parseArgs(argv) {
       }
       args.repo = argv[++i];
       consumed.add(i);
+    } else if (arg === "--project") {
+      if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+        throw Object.assign(
+          new Error("--project requires a numeric value"),
+          { code: "INVALID_PROJECT", usage: USAGE },
+        );
+      }
+      const num = Number(argv[++i]);
+      if (!Number.isInteger(num) || num <= 0) {
+        throw Object.assign(
+          new Error(`--project must be a positive integer, got "${argv[i]}"`),
+          { code: "INVALID_PROJECT", usage: USAGE },
+        );
+      }
+      args.project = num;
     } else if (arg === "--title") {
       if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
         throw Object.assign(
@@ -51,6 +74,15 @@ function parseArgs(argv) {
         );
       }
       args.title = argv[++i];
+      consumed.add(i);
+    } else if (arg === "--link-repo") {
+      if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+        throw Object.assign(
+          new Error("--link-repo requires a value (owner/name)"),
+          { code: "INVALID_REPO", usage: USAGE },
+        );
+      }
+      args.linkRepo = argv[++i];
       consumed.add(i);
     } else if (arg === "--help" || arg === "-h") {
       args.help = true;
@@ -68,8 +100,6 @@ function parseArgs(argv) {
 
 // GitHub slug rules: owner 1-39 chars (alnum/dash, no leading/trailing dash,
 // no consecutive dashes); repo name similar but also allows dots/underscores.
-// no leading/trailing dash, no consecutive dashes.
-// Single-char owner/repo names are valid (e.g. a/b).
 const OWNER_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
 const REPO_NAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9_.-]*[a-zA-Z0-9])?$/;
 
@@ -106,6 +136,28 @@ function validateRepo(repo) {
     );
   }
   return repo;
+}
+
+// ── Settings fallback ────────────────────────────────────────────────────
+
+function resolveSettings(cwd) {
+  try {
+    const settingsPath = path.join(cwd, ".pi", "dev-loop", "settings.yaml");
+    const raw = readFileSync(settingsPath, "utf-8");
+    const settings = parseYaml(raw);
+    const queue = settings?.queue;
+    if (queue) {
+      if (typeof queue.projectNumber === "number" && Number.isInteger(queue.projectNumber) && queue.projectNumber > 0) {
+        return { project: queue.projectNumber };
+      }
+      if (typeof queue.boardTitle === "string" && queue.boardTitle.trim().length > 0) {
+        return { title: queue.boardTitle.trim() };
+      }
+    }
+  } catch {
+    // settings file missing or unparseable — no fallback
+  }
+  return null;
 }
 
 // ── API helpers ──────────────────────────────────────────────────────────
@@ -246,6 +298,39 @@ const CREATE_SINGLE_SELECT_FIELD = [
   "}"
 ].join("\n");
 
+const LINK_PROJECT_TO_REPO = [
+  "mutation($projectId:ID!, $repositoryId:ID!) {",
+  "  linkProjectV2ToRepository(input:{projectId:$projectId, repositoryId:$repositoryId}) {",
+  "    clientMutationId",
+  "  }",
+  "}"
+].join("\n");
+
+const UPDATE_PROJECT_FIELD = [
+  "mutation($fieldId:ID!, $options: [ProjectV2SingleSelectFieldOptionInput!]!) {",
+  "  updateProjectV2Field(input:{fieldId:$fieldId, singleSelectOptions:$options}) {",
+  "    projectV2Field {",
+  "      ... on ProjectV2SingleSelectField {",
+  "        id",
+  "        name",
+  "        options {",
+  "          id",
+  "          name",
+  "        }",
+  "      }",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+const GET_REPO_ID = [
+  "query($owner:String!, $name:String!) {",
+  "  repository(owner:$owner, name:$name) {",
+  "    id",
+  "  }",
+  "}"
+].join("\n");
+
 // ── Owner resolution ────────────────────────────────────────────────────
 
 async function resolveOwner(login, env, runChild) {
@@ -263,6 +348,20 @@ async function resolveOwner(login, env, runChild) {
     new Error(`Could not resolve owner ID for "${login}" (not a user or organization)`),
     { code: "NO_USER_ID" },
   );
+}
+
+// ── Repository ID resolution ─────────────────────────────────────────────
+
+async function resolveRepoId(slug, env, runChild) {
+  const [owner, name] = slug.split("/");
+  const payload = await ghGraphql(GET_REPO_ID, { owner, name }, env, runChild);
+  if (!payload?.data?.repository?.id) {
+    throw Object.assign(
+      new Error(`Could not resolve repository ID for "${slug}"`),
+      { code: "NO_REPO_ID" },
+    );
+  }
+  return payload.data.repository.id;
 }
 
 // ── Paginated project listing ────────────────────────────────────────────
@@ -318,11 +417,67 @@ async function listAllFields(projectId, env, runChild) {
   return fields;
 }
 
+// ── Column auto-repair ───────────────────────────────────────────────────
+
+const STANDARD_COLUMNS = [
+  { name: "Backlog", color: "GRAY", description: "" },
+  { name: "Next Up", color: "BLUE", description: "" },
+  { name: "In Progress", color: "YELLOW", description: "" },
+  { name: "Done", color: "GREEN", description: "" },
+];
+
+const STANDARD_COLUMN_NAMES = STANDARD_COLUMNS.map((c) => c.name);
+
+/**
+ * Auto-repair a Status field that is missing standard columns.
+ *
+ * Calls updateProjectV2Field to add missing columns while preserving
+ * any existing (non-standard) columns in their current order.
+ *
+ * Returns the updated field options (with IDs from the mutation response).
+ */
+async function autoRepairColumns(
+  fieldId,
+  existingOptions,
+  env,
+  runChild,
+) {
+  const existingNames = new Set(existingOptions.map((o) => o.name));
+  const missingColumns = STANDARD_COLUMNS.filter(
+    (c) => !existingNames.has(c.name),
+  );
+
+  if (missingColumns.length === 0) {
+    // Nothing to repair — should not be called in this case
+    return existingOptions;
+  }
+
+  // Build full option list: existing options + missing standard columns appended
+  const fullOptions = [
+    ...existingOptions.map((o) => ({ name: o.name, color: o.color ?? "GRAY", description: o.description ?? "" })),
+    ...missingColumns,
+  ];
+
+  const payload = await ghGraphql(UPDATE_PROJECT_FIELD, {
+    fieldId,
+    options: JSON.stringify(fullOptions),
+  }, env, runChild);
+
+  const updatedField = payload?.data?.updateProjectV2Field?.projectV2Field;
+  if (!updatedField) {
+    throw Object.assign(
+      new Error("Failed to update Status field with missing columns"),
+      { code: "UPDATE_FIELD_FAILED" },
+    );
+  }
+
+  return updatedField.options ?? fullOptions;
+}
+
 // ── Exit code classification ────────────────────────────────────────────
 
 function classifyExitCode(err) {
-  if (err.code === "INVALID_REPO") return 1;
-  if (err.code === "MISSING_COLUMNS") return 3;
+  if (err.code === "INVALID_REPO" || err.code === "INVALID_PROJECT") return 1;
   return 2;
 }
 
@@ -332,14 +487,27 @@ async function main(args, { env = process.env, runChild } = {}) {
   const child = runChild ?? _runChild;
   const repo = validateRepo(args.repo);
   const [owner] = repo.split("/");
-  const title = args.title || "Dev Loop Queue";
+  const title = args.title || "Dev Loop Queue"; // explicit default after settings fallback in runCli
+  const linkRepo = args.linkRepo || null;
+  if (linkRepo) validateRepo(linkRepo); // validate format early
 
   // 1. Resolve owner (user or org)
   const { id: ownerId, kind: ownerKind } = await resolveOwner(owner, env, child);
 
-  // 2. Look for existing project by title (paginated)
+  // 2. Look for existing project
   const projects = await listAllProjects(owner, ownerKind, env, child);
-  let project = projects.find((p) => p.title === title);
+  let project;
+  if (args.project) {
+    project = projects.find((p) => p.number === args.project);
+    if (!project) {
+      throw Object.assign(
+        new Error(`Project #${args.project} not found under "${owner}". Use --title to create a new board.`),
+        { code: "PROJECT_NOT_FOUND" },
+      );
+    }
+  } else {
+    project = projects.find((p) => p.title === title);
+  }
 
   if (project) {
     // Project exists — verify Status field (paginated)
@@ -348,11 +516,20 @@ async function main(args, { env = process.env, runChild } = {}) {
       (f) => f.name === "Status" && f.options,
     );
 
-    const expectedColumns = ["Backlog", "Next Up", "In Progress", "Done"];
     const existingColumns = statusField?.options?.map((o) => o.name) ?? [];
-    const missingColumns = expectedColumns.filter((c) => !existingColumns.includes(c));
+    const missingColumns = STANDARD_COLUMN_NAMES.filter((c) => !existingColumns.includes(c));
 
     if (statusField && missingColumns.length === 0) {
+      // All columns present — check repo link if requested
+      let linkedRepo = null;
+      if (linkRepo) {
+        const repoId = await resolveRepoId(linkRepo, env, child);
+        await ghGraphql(LINK_PROJECT_TO_REPO, {
+          projectId: project.id,
+          repositoryId: repoId,
+        }, env, child);
+        linkedRepo = linkRepo;
+      }
       return {
         ok: true,
         project: {
@@ -361,18 +538,35 @@ async function main(args, { env = process.env, runChild } = {}) {
           title: project.title,
           url: project.url,
           statusFieldId: statusField.id,
+          ...(linkedRepo ? { linkedRepo } : {}),
         },
       };
     }
 
     if (statusField) {
-      throw Object.assign(
-        new Error(
-          `Project "${title}" (number ${project.number}) exists but Status field missing columns: ${missingColumns.join(", ")}. ` +
-          "Add missing columns via GitHub UI or reconcile manually.",
-        ),
-        { code: "MISSING_COLUMNS" },
-      );
+      // Auto-repair: add missing columns instead of throwing
+      await autoRepairColumns(statusField.id, statusField.options, env, child);
+
+      let linkedRepo = null;
+      if (linkRepo) {
+        const repoId = await resolveRepoId(linkRepo, env, child);
+        await ghGraphql(LINK_PROJECT_TO_REPO, {
+          projectId: project.id,
+          repositoryId: repoId,
+        }, env, child);
+        linkedRepo = linkRepo;
+      }
+      return {
+        ok: true,
+        project: {
+          id: project.id,
+          number: project.number,
+          title: project.title,
+          url: project.url,
+          statusFieldId: statusField.id,
+          ...(linkedRepo ? { linkedRepo } : {}),
+        },
+      };
     }
 
     // No Status field — create it
@@ -383,6 +577,16 @@ async function main(args, { env = process.env, runChild } = {}) {
     if (!newField) {
       throw Object.assign(new Error("Failed to create Status field"), { code: "CREATE_FIELD_FAILED" });
     }
+
+    let linkedRepo = null;
+    if (linkRepo) {
+      const repoId = await resolveRepoId(linkRepo, env, child);
+      await ghGraphql(LINK_PROJECT_TO_REPO, {
+        projectId: project.id,
+        repositoryId: repoId,
+      }, env, child);
+      linkedRepo = linkRepo;
+    }
     return {
       ok: true,
       project: {
@@ -391,6 +595,7 @@ async function main(args, { env = process.env, runChild } = {}) {
         title: project.title,
         url: project.url,
         statusFieldId: newField.id,
+        ...(linkedRepo ? { linkedRepo } : {}),
       },
     };
   }
@@ -405,7 +610,18 @@ async function main(args, { env = process.env, runChild } = {}) {
     throw Object.assign(new Error("Failed to create project board"), { code: "CREATE_PROJECT_FAILED" });
   }
 
-  // 4. Create Status field on new project
+  // 4. Link to repo if --link-repo provided
+  let linkedRepo = null;
+  if (linkRepo) {
+    const repoId = await resolveRepoId(linkRepo, env, child);
+    await ghGraphql(LINK_PROJECT_TO_REPO, {
+      projectId: project.id,
+      repositoryId: repoId,
+    }, env, child);
+    linkedRepo = linkRepo;
+  }
+
+  // 5. Create Status field on new project
   const createFieldPayload = await ghGraphql(CREATE_SINGLE_SELECT_FIELD, {
     projectId: project.id,
   }, env, child);
@@ -422,13 +638,14 @@ async function main(args, { env = process.env, runChild } = {}) {
       title: project.title,
       url: project.url,
       statusFieldId: newField.id,
+      ...(linkedRepo ? { linkedRepo } : {}),
     },
   };
 }
 
 // ── CLI entrypoint ──────────────────────────────────────────────────────
 
-async function runCli(argv, { stdout = process.stdout, stderr = process.stderr, env = process.env } = {}) {
+async function runCli(argv, { stdout = process.stdout, stderr = process.stderr, env = process.env, cwd = process.cwd() } = {}) {
   let args;
   try {
     args = parseArgs(argv);
@@ -441,6 +658,16 @@ async function runCli(argv, { stdout = process.stdout, stderr = process.stderr, 
     stdout.write(USAGE);
     return;
   }
+
+  // Settings-based fallback for --project and --title
+  const settings = resolveSettings(cwd);
+  if (args.project === undefined && settings?.project) {
+    args.project = settings.project;
+  }
+  if (args.title === undefined && settings?.title) {
+    args.title = settings.title;
+  }
+
   try {
     const result = await main(args, { env });
     stdout.write(JSON.stringify(result) + "\n");
@@ -457,4 +684,4 @@ if (isDirectCliRun(import.meta.url)) {
   });
 }
 
-export { main };
+export { main, autoRepairColumns, resolveSettings, STANDARD_COLUMNS, STANDARD_COLUMN_NAMES };
