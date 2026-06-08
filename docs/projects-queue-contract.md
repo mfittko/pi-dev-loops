@@ -11,8 +11,8 @@ expected board shape so tooling can rely on deterministic field/column names and
 when the board is absent or misconfigured.
 
 **Board state is an optional scheduling input; it does not replace GitHub issue/PR state as
-the source of truth.** This contract introduces no local queue file — the board is the
-Projects-based ordering surface described here.
+the source of truth.** This contract introduces no new local queue file; it complements the
+existing queue mode infrastructure (see Relationship to queue mode below).
 
 ## Opt-in posture
 
@@ -36,7 +36,7 @@ project by title among that owner's Projects V2 instances.
 | Field | Source | Example |
 |---|---|---|
 | Owner | First component of repo slug | `mfittko` |
-| Project title | Configurable, defaults to `"Dev Loop Queue"` | `"Dev Loop Queue"` |
+| Project title | Configurable; recommended title `"Dev Loop Queue"` | `"Dev Loop Queue"` |
 | Project number | Assigned by GitHub on creation | `1` |
 
 The owner can be a user or an organization. Tooling resolves both via the GraphQL API.
