@@ -113,7 +113,7 @@ the board is in a correct state.
 On failure, helpers emit structured JSON on stderr:
 
 ```json
-{"ok": false, "error": "Item #999 not found in project for repo \"owner/name\""}
+{"ok": false, "error": "Item #999 not found in project for repo \"owner/name\"", "code": "ITEM_NOT_FOUND"}
 ```
 
 Exit codes:
