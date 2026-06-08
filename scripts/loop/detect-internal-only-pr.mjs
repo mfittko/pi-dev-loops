@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { statSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
@@ -38,10 +38,9 @@ const SHIPPED_DEFAULT_PATTERNS = [
 function findRepoRoot(cwd = process.cwd()) {
   let dir = cwd;
   while (true) {
-    const candidate = path.join(dir, ".git");
     try {
-      readFileSync(candidate);
-      return dir;
+      const s = statSync(path.join(dir, ".git"));
+      if (s.isDirectory() || s.isFile()) return dir;
     } catch {
     }
     const parent = path.dirname(dir);
@@ -50,20 +49,20 @@ function findRepoRoot(cwd = process.cwd()) {
   }
 }
 
+/**
+ * Load internal path patterns from config, with precedence:
+ *   1. --config flag (explicit path)
+ *   2. Auto-detect from repo root (.pi/dev-loop/settings.* or overrides.*)
+ *   3. Shipped defaults
+ *
+ * Returns a flat array of regex pattern strings.
+ * Falls back to shipped defaults when parsed patterns are empty or invalid.
+ */
 function loadInternalPathPatterns(configPath) {
   // --config flag takes priority
   if (configPath) {
-    try {
-      const raw = readFileSync(configPath, "utf8");
-      const parsed = configPath.endsWith(".yaml") || configPath.endsWith(".yml")
-        ? parseYaml(raw)
-        : JSON.parse(raw);
-      if (parsed?.internalPathPatterns?.patterns && Array.isArray(parsed.internalPathPatterns.patterns)) {
-        return parsed.internalPathPatterns.patterns.filter(p => typeof p === "string" && p.trim());
-      }
-    } catch {
-      // Fall through to defaults
-    }
+    const patterns = tryLoadFromFile(configPath);
+    if (patterns && patterns.length > 0) return patterns;
     return [...SHIPPED_DEFAULT_PATTERNS];
   }
 
@@ -74,22 +73,32 @@ function loadInternalPathPatterns(configPath) {
       path.join(repoRoot, ".pi", "dev-loop", "settings.yaml"),
       path.join(repoRoot, ".pi", "dev-loop", "settings.yml"),
       path.join(repoRoot, ".pi", "dev-loop", "settings.json"),
+      path.join(repoRoot, ".pi", "dev-loop", "overrides.yaml"),
+      path.join(repoRoot, ".pi", "dev-loop", "overrides.yml"),
+      path.join(repoRoot, ".pi", "dev-loop", "overrides.json"),
     ];
     for (const candidate of candidates) {
-      try {
-        const raw = readFileSync(candidate, "utf8");
-        const parsed = candidate.endsWith(".json") ? JSON.parse(raw) : parseYaml(raw);
-        if (parsed?.internalPathPatterns?.patterns && Array.isArray(parsed.internalPathPatterns.patterns)) {
-          return parsed.internalPathPatterns.patterns.filter(p => typeof p === "string" && p.trim());
-        }
-      } catch {
-        continue;
-      }
+      const patterns = tryLoadFromFile(candidate);
+      if (patterns && patterns.length > 0) return patterns;
     }
   }
 
   // Fall back to shipped defaults
   return [...SHIPPED_DEFAULT_PATTERNS];
+}
+
+function tryLoadFromFile(filePath) {
+  try {
+    const raw = readFileSync(filePath, "utf8");
+    const parsed = filePath.endsWith(".json") ? JSON.parse(raw) : parseYaml(raw);
+    const patterns = parsed?.internalPathPatterns;
+    if (Array.isArray(patterns)) {
+      const trimmed = patterns.filter(p => typeof p === "string" && p.trim()).map(p => p.trim());
+      return trimmed.length > 0 ? trimmed : null;
+    }
+  } catch {
+  }
+  return null;
 }
 
 function buildPatternMatchers(patterns) {
@@ -252,4 +261,4 @@ if (isDirectCliRun(import.meta.url)) {
   });
 }
 
-export { loadInternalPathPatterns, buildPatternMatchers, SHIPPED_DEFAULT_PATTERNS };
+export { findRepoRoot, loadInternalPathPatterns, buildPatternMatchers, tryLoadFromFile, SHIPPED_DEFAULT_PATTERNS };

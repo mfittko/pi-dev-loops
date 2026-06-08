@@ -80,10 +80,8 @@ const QueueConfig = z.strictObject({
   reDispatchMaxRetries: z.number().int().min(0).max(10).default(1),
 });
 
-/** Internal path whitelist for internal-only PR detection */
-const InternalPatternsConfig = z.strictObject({
-  patterns: z.array(z.string().min(1)).min(1),
-});
+/** Internal path whitelist for internal-only PR detection — flat array of regex strings */
+const InternalPatternsConfig = z.array(z.string().trim().min(1)).min(1);
 
 const PersonaEntry = z.strictObject({
   persona: z.string().min(1),
@@ -155,16 +153,14 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
     reDispatchMaxRetries: 1,
   }),
   personas: Object.freeze({}),
-  internalPathPatterns: Object.freeze({
-    patterns: Object.freeze([
-      "^scripts/",
-      "^docs/",
-      "^skills/docs/",
-      "^\\.pi/",
-      "^\\.github/",
-      "^test/",
-    ]),
-  }),
+  internalPathPatterns: Object.freeze([
+    "^scripts/",
+    "^docs/",
+    "^skills/docs/",
+    "^\\.pi/",
+    "^\\.github/",
+    "^test/",
+  ]),
 });
 
 // ============================================================================
@@ -182,7 +178,7 @@ export const FileConfigSchema = z.strictObject({
   localImplementation: LocalImplementationConfig.partial().optional(),
   queue: QueueConfig.partial().optional(),
   personas: FilePersonasConfig.optional(),
-  internalPathPatterns: InternalPatternsConfig.partial().optional(),
+  internalPathPatterns: InternalPatternsConfig.optional(),
 });
 
 // ============================================================================
@@ -832,11 +828,11 @@ const DEFAULT_INTERNAL_PATH_PATTERNS = BUILT_IN_DEFAULTS.internalPathPatterns;
  */
 export function resolveInternalPathPatterns(config) {
   if (
-    config?.internalPathPatterns?.patterns &&
-    Array.isArray(config.internalPathPatterns.patterns) &&
-    config.internalPathPatterns.patterns.length > 0
+    config?.internalPathPatterns &&
+    Array.isArray(config.internalPathPatterns) &&
+    config.internalPathPatterns.length > 0
   ) {
-    return [...config.internalPathPatterns.patterns];
+    return [...config.internalPathPatterns];
   }
-  return [...DEFAULT_INTERNAL_PATH_PATTERNS.patterns];
+  return [...DEFAULT_INTERNAL_PATH_PATTERNS];
 }

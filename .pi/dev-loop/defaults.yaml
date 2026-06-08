@@ -416,11 +416,18 @@ personas:
 # If ALL changed files in a PR match one of these patterns, the PR is
 # classified as internal-only and Copilot review is suppressed.
 # Consumer repos can override these in .pi/dev-loop/settings.yaml.
+# Internal path patterns for internal-only PR detection.
+# Flat array of regex strings. If ALL changed files in a PR match at least
+# one pattern, the PR is classified as internal-only and Copilot review is
+# suppressed. Consumer repos override with their own list.
+# Example consumer override:
+#   internalPathPatterns:
+#     - "^tools/"
+#     - "^internal/"
 internalPathPatterns:
-  patterns:
-    - "^scripts/"
-    - "^docs/"
-    - "^skills/docs/"
-    - "^\\.pi/"
-    - "^\\.github/"
-    - "^test/"
+  - "^scripts/"
+  - "^docs/"
+  - "^skills/docs/"
+  - "^\\.pi/"
+  - "^\\.github/"
+  - "^test/"
