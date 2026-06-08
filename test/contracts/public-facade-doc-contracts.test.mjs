@@ -233,7 +233,7 @@ test("status reporting contract requires authoritative state-first resolution an
 
   assert.match(devLoopSkill, /status\/progress\/readiness\/merge-state\/next-step/i);
   assert.match(devLoopSkill, /fail closed to reconcile\/unknown/i);
-  assert.match(devLoopSkill, /issue↔PR linkage resolution/i);
+  assert.match(devLoopSkill, /identity resolution is handled by the startup resolver/i);
   assert.match(devLoopSkill, /detect-linked-issue-pr\.mjs/i);
 
   assert.match(copilotFollowupSkill, /status\/progress\/readiness\/merge-state\/next-step/i);

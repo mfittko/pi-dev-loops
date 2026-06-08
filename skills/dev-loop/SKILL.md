@@ -1,43 +1,26 @@
 ---
 name: dev-loop
 description: >-
-  Use as the single public dev-loop entrypoint. Resolve the authoritative
-  current state first, then load only the route-specific internal skill needed
-  for the selected strategy: local implementation, issue intake, PR follow-up,
-  wait/watch, reviewer/fixer work, or final approval.
-compatibility: Pi skill for git-based repositories with Node.js/npm and optional subagent support.
-allowed-tools: read bash edit write subagent review_loop
+  Single public dev-loop entrypoint. Resolve canonical current state first,
+  then load only route-specific internal skills.
 user-invocable: true
 ---
 
-**No-implicit-start rule:** Never start implementation (file mutation, branch creation, PR creation) without explicit instruction. "Queue," "add to list," "track," "note" are NOT implementation triggers. Only proceed with "start," "go," "implement," "do it," "work on," or equivalent imperative. Confirm if unsure.
+**No-implicit-start rule:** Never start implementation without explicit instruction.
 
-**Work-origin rule:** All work must originate from a tracked artifact: a GitHub issue (tracker-first) or a persisted markdown plan file. No work may originate from a PR or direct local change unless explicitly requested by the user. Every change must have a document trail.
+**Work-origin rule:** All work must originate from a tracked artifact: a GitHub issue or a persisted markdown plan file.
 
 # Unified Dev Loop
 
-This skill is the public `dev-loop` façade for this repository. It should resolve the canonical current state first and route user intent without making the user choose internal strategy names up front.
+This is the public `dev-loop` façade — a summary of the authoritative routing contract. The authoritative contract is [Public Dev Loop Contract](../docs/public-dev-loop-contract.md). Runtime evaluator: `@pi-dev-loops/core/loop/public-dev-loop-routing`. For status/progress/readiness/merge-state/next-step queries, resolve authoritative artifact identity first; for issue targets, identity resolution is handled by the startup resolver. Fail closed to reconcile/unknown when unresolved. When an open linked PR exists, treat it as the single canonical artifact for the issue and reuse it instead of opening another PR.
 
-## Authoritative routing contract
+## Installed skill layout
 
-- The authoritative contract is [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) in the source repository.
-- The executable evaluator is exported as `@pi-dev-loops/core/loop/public-dev-loop-routing`.
-- Required installed runtime contract docs for this skill are the shared bundled copies under `../docs/` from this skill directory (that is, [Public Dev Loop Contract](../docs/public-dev-loop-contract.md) and [Retrospective Checkpoint Contract](../docs/retrospective-checkpoint-contract.md)).
-  - In the source repository these live under `skills/docs/`; in installed skill copies they live next to the installed skill directories under `../docs/`.
-- For installed packaged copies of this skill, read those bundled `../docs/` files from the installed skill layout instead of assuming a source checkout is present. If any required bundled contract doc is missing from the installed skill layout, treat that as a packaging/installer bug.
-
-Operational summary:
-- route from authoritative current state instead of guessing from chat context
-- for status/progress/readiness/merge-state/next-step questions, resolve authoritative artifact identity + artifact state + loop state first
-- for issue targets, authoritative identity resolution is handled by the startup resolver (`dev-loops loop startup --issue <number>`); see Startup procedure below
-- when authoritative linkage resolves an open linked PR, treat it as the single canonical artifact for the issue and reuse it instead of opening another PR
-- when authoritative identity remains unresolved, fail closed to reconcile/unknown
+Required installed runtime contract docs are shared bundled copies under `../docs/` from this skill directory. Read those bundled `../docs/` files from the installed skill layout — do not assume a source checkout. If a required bundled contract doc is missing, treat it as a packaging/installer bug.
 
 ## Startup procedure
 
 ### Main agent (read-only)
-
-The main agent must resolve canonical state before loading any route pack or skill docs.
 
 1. **Run the startup resolver with auto-resolve** — do not construct ad hoc JSON files:
    ```sh
@@ -45,15 +28,15 @@ The main agent must resolve canonical state before loading any route pack or ski
    # or
    dev-loops loop startup --pr <number>
    ```
-   The resolver auto-detects linked PRs, issue readiness, assignment state, and the retrospective checkpoint in a single call. **Trust its output.** Do not replicate its work with manual `gh pr list`, `detect-linked-issue-pr.mjs`, or source-code reading of the routing internals.
+   The resolver auto-detects linked PRs, issue readiness, assignment state, and the retrospective checkpoint. **Trust its output.** Do not replicate its work with manual `gh pr list`, `detect-linked-issue-pr.mjs`, or source-code reading.
 
 2. **Branch on `selectedStrategy`:**
    - `"none"` / `needs_reconcile`:
-     - If `issueLinkageResolution` is `"resolved_linked_pr"`, re-run with the linked PR number:
+     - If `issueLinkageResolution` is `"resolved_linked_pr"`, re-run with the linked PR:
        ```sh
        dev-loops loop startup --pr <linked-pr-number>
        ```
-     - Otherwise → stop and report the reconcile reason. Do not proceed.
+     - Otherwise → stop and report the reconcile reason.
    - Any routed strategy → check `requiresAsyncDispatch`.
 
 3. **If `requiresAsyncDispatch: true`** (GitHub-first strategies):
@@ -70,11 +53,7 @@ The main agent must resolve canonical state before loading any route pack or ski
 
 ### Dev-loop subagent (post-dispatch)
 
-The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action. See [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) for the derivation contract. The envelope determines `requiredReads`, `nextAction`, `stopRules`, and `acceptance` — load only those files, execute only that bounded task.
-
-Prose task composition is a fallback only when the envelope cannot be built (missing `@pi-dev-loops/core` package).
-
-**Retrospective checkpoint gate:** the resolver reads `.pi/dev-loop-retrospective-checkpoint.json` and injects the state. When the checkpoint is `missing` and the repo setting `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective` is `true`, the resolver returns `needs_reconcile`. Complete or explicitly skip the retrospective before starting.
+The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action. The envelope determines `requiredReads`, `nextAction`, `stopRules`, and `acceptance` — load only those files, execute only that bounded task. See [Workflow Handoff Contract](../docs/workflow-handoff-contract.md) for the derivation contract.
 
 ## Route table
 
@@ -85,87 +64,49 @@ Load only the route-specific internal skill required by `selectedStrategy`:
 | `local_implementation` | [Local Implementation Skill](../local-implementation/SKILL.md) |
 | `issue_intake` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) + [Issue Intake Procedure](../docs/issue-intake-procedure.md) |
 | `copilot_pr_followup` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) |
-| `external_pr_followup` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) |
-| `reviewer_fixer` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) |
-| `wait_watch` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) |
-| `final_approval` | [Copilot PR Follow-up Skill](../copilot-pr-followup/SKILL.md) + [Copilot Loop Operations](../docs/copilot-loop-operations.md) + [Final Approval Skill](../final-approval/SKILL.md) |
+| `external_pr_followup` | same as `copilot_pr_followup` |
+| `reviewer_fixer` | same as `copilot_pr_followup` |
+| `wait_watch` | same as `copilot_pr_followup` |
+| `final_approval` | same as `copilot_pr_followup` + [Final Approval Skill](../final-approval/SKILL.md) |
 
-Do not preload local implementation, issue intake, PR follow-up, or final approval procedure before the resolver selects that route.
+Do not preload route packs before the resolver selects the strategy.
 
-## After routing: execution directive
+## Async dispatch
 
-After the resolver selects a strategy and the route pack is loaded, the routed strategy's procedure is the execution plan — not reference material. Follow it.
+**Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies. Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected. See [Startup procedure](#startup-procedure) steps 3-4.
 
-**Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies. Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected. Dispatch via the [Startup procedure](#startup-procedure) steps 3-4 — the main agent owns async dispatch; the dispatched subagent owns parallel review fan-out, fixer passes, gate comments, state transitions, and sub-delegation internally. Strategies where `requiresAsyncDispatch` is `false` (`local_implementation`, `final_approval`, `none`) may run inline.
+## Guard rules (subagent reference)
 
-## Async delegation guard rules
+**Pre-delegation gate (mandatory):** Before delegating async work targeting an existing PR, run `copilot-pr-handoff.mjs` and abort if `action: "stop"`. When `terminal: true`, proceed inline. When `terminal: false`, resolve the blocking condition first. Main agent: see [Startup procedure](#startup-procedure) step 3a.
 
-**Pre-delegation gate (mandatory):** Before delegating async subagent work that targets an existing PR, run `node <resolved-skill-scripts>/loop/copilot-pr-handoff.mjs --repo <owner/name> --pr <number>` and abort if `action: "stop"`. The handoff tool is the authority, not the parent session's judgment. When `action: "stop"` and `terminal: true`, the loop phase is complete — proceed inline to the next gate rather than delegating a polling task. When `terminal: false`, resolve the blocking condition first.
+**Worktree cwd (mandatory):** Always set `cwd` to the worktree when delegating to subagents — never use the `main` checkout.
 
-> **Main agent:** see [Startup procedure](#startup-procedure) step 3a for the checklist version. This section is the detailed subagent reference.
+**Worktree fetch (mandatory):** Always run `git fetch origin` before creating or reusing any worktree.
 
-> **Path resolution:** In the source repo, `<resolved-skill-scripts>` = `scripts/` (repo-root-relative) or equivalently `../../scripts/` (relative to this skill file). In installed skills, resolve from the skill's installation layout per the [skill asset path resolution rule in copilot-pr-followup/SKILL.md](../copilot-pr-followup/SKILL.md#skill-asset-path-resolution).
+**Handoff envelope precedence:** The subagent builds the envelope as its first action. Read it first, load only `requiredReads`, execute `nextAction`. See [Dev-loop subagent](#dev-loop-subagent-post-dispatch). Derivation contract: [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
 
-**Worktree cwd rule (mandatory):** Always set `cwd` to the worktree when delegating dev-loop work to subagents. Never delegate with the parent's `main` branch checkout as the working directory. The worktree path is authoritative for all git operations, file reads/writes, and validation commands in delegated runs.
+**Handoff contract rule:** When no envelope is present, use the `workflow-handoff-contract.md` contract. Never delegate with abbreviated task summaries. Include deterministic routing inputs, explicit `cwd`, bounded task scope, exit conditions.
 
-**Worktree fetch rule (mandatory):** Always run `git fetch origin` before creating or reusing any worktree. Never create a worktree from a stale local `origin/main` reference.
+**Inline-first rule:** Prefer inline commands over nested async delegation when managing a single PR. Use nested delegation only for parallel fan-out or when the parent needs to continue other work.
 
-**Handoff envelope precedence:** The subagent builds the handoff envelope via `buildDevLoopHandoffEnvelope()` from `@pi-dev-loops/core` as its first action (see the agent definition mandate). The envelope is the primary handoff artifact — read it first, then load only the listed `requiredReads` before executing `nextAction`. See [Startup procedure → Dev-loop subagent](#startup-procedure) for the operational summary. Prose task composition is a fallback only when the envelope cannot be built (missing `@pi-dev-loops/core` package). The derivation contract is documented in [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
+**Bounded async task contract:** Break work into discrete tasks with clear inputs, explicit outputs, bounded scope. No shell polling — use `run-watch-cycle.mjs` or `gh run watch`.
 
-**Handoff contract rule:** All subagent delegation must use the `workflow-handoff-contract.md` contract (resolved path: `../docs/workflow-handoff-contract.md` relative to the skill directory) when no envelope is present. Never delegate with abbreviated task summaries. The handoff contract must include:
-- Deterministic routing inputs (current state, gate boundary, next action)
-- Explicit `cwd` path to the worktree
-- Clear bounded task scope (single responsibility per delegation)
-- Exit conditions and where to write output artifacts
-- Intercom coordination instructions if cross-run signaling is needed
-
-**Inline-first rule for single-PR workflows:** When the dev-loop agent is managing a single PR through its lifecycle, prefer inline commands over nested async subagent delegation. This does not override the enforced `requiresAsyncDispatch` routing rule — the outer dev-loop session still dispatches asynchronously when the resolver requires it. Use nested subagent delegation only when:
-- Parallel fan-out review is explicitly needed
-- The task is bounded with clear inputs/outputs and a deterministic exit condition
-- The parent session needs to continue other work while waiting
-
-**Bounded async task contract:** When async delegation is needed, break work into discrete tasks with:
-- Clear input artifacts (file paths, PR numbers, state snapshots)
-- Explicit output expectations (file paths, JSON payloads, exit codes)
-- No shell polling loops — use `run-watch-cycle.mjs` or `gh run watch` for waiting
-- Intercom coordination for cross-run state updates
-- Parent session retains loop ownership; subagents handle bounded slices only
-
-**Round-cap budget check (enforced):** After every watch cycle, fix pass, or reply-resolve — and **before** any `request-copilot-review.mjs` re-request — check whether completed Copilot review rounds have reached the maximum (default: 5). The detector (`interpretLoopState` in `packages/core/src/loop/copilot-loop-state.mjs`) only emits a round-limit state when ALL of these are true:
-- completed review rounds have reached the maximum
-- no Copilot review request is in flight
-- the detector has not already selected a higher-priority terminal/draft state (`no_pr`, `done`, `pr_draft`, `review_request_unavailable`, `blocked_needs_user_decision`) — those take precedence and round-limit routing is skipped in those cases
-- Given all that, the detector selects one of two paths:
-- **Clean fallback** — when there are zero unresolved review threads AND CI is green (or credibly green). Treat this as the `pre_approval_gate` entry signal (do not re-request Copilot review).
-- **Round limit reached** — when unresolved threads remain OR CI is not green. Reply-resolve any remaining intentionally deferred threads with a short `deferred to follow-up` note and stop; do **not** re-request Copilot review.
-- The round-cap check is a per-iteration gate, not an end-of-loop assertion
+**Round-cap budget check (enforced):** After every watch cycle, fix pass, or reply-resolve, check whether completed Copilot review rounds have reached the maximum (default: 5). Stop re-requesting Copilot review when the limit is reached — never re-request after the cap.
 
 ## Shorthand issue-based auto trigger contract
 
-- treat `auto dev loop on issue 112` as the public `dev-loop` intent `auto_continue_current` after authoritative current-state resolution
-- continue through the normal GitHub/Copilot loop until the next genuine stop condition or the human approval checkpoint
-- stop at the human approval checkpoint by default unless merge was explicitly authorized
-
+- `auto dev loop on issue <n>` → public `dev-loop` intent `auto_continue_current` after authoritative current-state resolution
+- Continue through GitHub/Copilot loop until stop condition or human approval checkpoint
+- Stop at the human approval checkpoint by default unless merge explicitly authorized
 
 ## No gate exemptions
 
-All pull requests must pass the full gate pipeline before merge, regardless of scope or change category. No PR type is exempt:
+All PRs must pass the full gate pipeline before merge. No scope is exempt: docs-only, tooling, meta, configuration, internal-process — all require `draft_gate`, Copilot review, and current-head `pre_approval_gate` evidence.
 
-- **Docs-only PRs** must still pass `draft_gate`, Copilot review, and `pre_approval_gate`.
-- **Tooling-only, meta, configuration, internal-process, or any other narrow-scope PRs** must pass the full gate pipeline.
-- **Internal-only PRs** skip external Copilot review by design but must still have clean `draft_gate` and `pre_approval_gate` evidence.
-- **Every merge** requires visible clean `draft_gate` evidence and current-head clean `pre_approval_gate` evidence.
-
-PR #578 (docs-only, 2 files) was merged without gate checks and serves as the breach precedent. This contract exists to prevent recurrence: no PR scope has gate exemptions.
-
-## Authority boundary and stop rules
+## Authority boundary
 
 - Source code, tests, config, CI, and shared contract docs are authoritative.
 - Main-agent delegation contract: [Main Agent Contract](../docs/main-agent-contract.md) — absolute read-only boundary; all mutations flow through `dev-loop` async subagent.
-- This dispatcher summarizes the public routing contract; it does not redefine the shipped runtime semantics of helper CLIs, shared loop logic, or extension commands.
-- Keep specialized Copilot behavior internal behind `dev-loop`; do not expose internal route packs as peer public workflow entrypoints.
-- Before any state-changing action, get explicit confirmation unless the latest user message already clearly authorizes that exact action.
-- Questions, preferences, future-tense statements, and implied approval are not confirmation.
-- The bare response `ok` is not confirmation.
-- Stop and ask for human direction rather than guessing when local facts, GitHub facts, and helper/state-machine output do not agree.
-- A question requires an answer, not an action. When the user asks a question — even one implying criticism or correction — answer first before taking any action. Do not treat a question as implicit authorization to act.
+- Before any state-changing action, get explicit confirmation unless already authorized.
+- A question requires an answer, not an action.
+- Stop and ask rather than guessing when facts don't agree.
