@@ -408,7 +408,7 @@ async function main(args, { env = process.env, runChild } = {}) {
 
   const alreadyPresent = existingItems.filter((it) => {
     if (!it.content) return false;
-    return it.content.repository?.nameWithOwner === repo;
+    return it.content.repository?.nameWithOwner === repo && it.content.number === itemNumber;
   });
 
   if (alreadyPresent.length > 0) {
