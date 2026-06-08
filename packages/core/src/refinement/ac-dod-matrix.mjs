@@ -25,9 +25,9 @@ export const AcDodMatrixItemSchema = z.strictObject({
   /** Exact item text from the source issue/plan/spec */
   item: z.string().trim().min(1),
   /** Type classification */
-  type: z.enum(["AC", "DoD", "Non-goal"]),
+  type: z.enum(Object.values(AC_DOD_ITEM_TYPE)),
   /** Verification status */
-  status: z.enum(["Met", "Partial", "Unmet", "Unverified"]),
+  status: z.enum(Object.values(AC_DOD_ITEM_STATUS)),
   /** Reference to supporting evidence (file, test, doc path, or URL) */
   evidence: z.string(),
   /** Additional context or caveats */
@@ -45,7 +45,7 @@ export const AcDodMatrixSchema = z.strictObject({
   /** Ordered list of matrix items */
   items: z.array(AcDodMatrixItemSchema).min(1),
   /** Source reference (issue URL, plan-doc path, etc.) */
-  source: z.string().min(1).optional(),
+  source: z.string().trim().min(1).optional(),
   /** ISO 8601 timestamp of matrix generation */
   generatedAt: z.string().datetime(),
   /**
