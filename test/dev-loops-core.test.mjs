@@ -259,3 +259,27 @@ test('executor preserves repoRoot when the inspect-run lifecycle action throws a
     warning: null,
   });
 });
+
+test("gates action receives stdout and prints without ReferenceError", async () => {
+  const { Writable } = await import("node:stream");
+
+  const chunks = [];
+  const stdout = new Writable({
+    write(chunk, _encoding, callback) {
+      chunks.push(chunk);
+      callback();
+    },
+  });
+
+  const result = await executeDevLoopsCommand({
+    input: ["gates"],
+    surface: "cli",
+    runtime: createRuntime(),
+    stdout,
+  });
+
+  assert.equal(result.kind, "gates");
+  const output = Buffer.concat(chunks).toString("utf8");
+  assert.ok(output.includes("draft gate"), "should print draft gate section");
+  assert.ok(output.includes("pre-approval gate"), "should print pre-approval gate section");
+});
