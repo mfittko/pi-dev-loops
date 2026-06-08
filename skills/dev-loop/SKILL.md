@@ -47,10 +47,11 @@ When the startup resolver returns a fresh-start routing but an existing outer-lo
 subagent must check the checkpoint before treating the start as a fresh intake or follow-up:
 
 1. Read the outer-loop checkpoint (authored by `outer-loop.mjs`).
-2. If `outerAction` is `continue_wait` or `reenter_copilot_loop`:
+2. If `outerAction` is `continue_wait`, `reenter_copilot_loop`, or `reenter_reviewer_loop`:
    - Skip issue-intake normalization or fresh-intake routing.
-   - Route directly to the existing PR's copilot-pr-followup path (the PR number is in the
-     checkpoint's `pr` field).
+   - Route directly to the existing PR's follow-up path (the PR number is in the
+     checkpoint's `pr` field). For `reenter_copilot_loop`, enter the copilot-pr-followup
+     path. For `reenter_reviewer_loop`, enter the reviewer-loop path.
    - Use the checkpoint's `copilotState` and `reviewerState` as last-known context for
      re-attachment, then re-baseline with fresh detectors (`copilot-pr-handoff.mjs`
      or `detect-copilot-loop-state.mjs`) before acting on the state.
