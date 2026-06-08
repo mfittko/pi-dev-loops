@@ -476,7 +476,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
   // Optional refinement contract (AC/DoD matrix) from the refiner.
   // Set via options.refinementContract or resolverOutput.refinementContract.
   const refinementContract = options.refinementContract ?? resolverOutput.refinementContract ?? null;
-  if (refinementContract) {
+  if (refinementContract != null) {
     envelope.refinementContract = refinementContract;
   }
 
@@ -719,6 +719,28 @@ export function validateHandoffEnvelope(envelope) {
           reason: "must be a non-empty array of AC/DoD matrix items",
           got: envelope.refinementContract.items,
         });
+      } else {
+        const bad = [];
+        for (let i = 0; i < envelope.refinementContract.items.length; i++) {
+          const item = envelope.refinementContract.items[i];
+          if (
+            !item || typeof item !== 'object' ||
+            typeof item.item !== 'string' || !item.item.trim() ||
+            !['AC', 'DoD', 'Non-goal'].includes(item.type) ||
+            !['Met', 'Partial', 'Unmet', 'Unverified'].includes(item.status) ||
+            typeof item.evidence !== 'string' ||
+            typeof item.notes !== 'string'
+          ) {
+            bad.push(i);
+          }
+        }
+        if (bad.length > 0) {
+          errors.push({
+            field: 'refinementContract.items',
+            reason: `entries at indices [${bad.join(',')}] must have valid item, type, status, evidence, and notes fields`,
+            got: envelope.refinementContract.items,
+          });
+        }
       }
       if (typeof envelope.refinementContract.generatedAt !== 'string' || !envelope.refinementContract.generatedAt.trim()) {
         warnings.push({
@@ -737,7 +759,7 @@ export function validateHandoffEnvelope(envelope) {
     }
   }
 
-    // ----- derivedAt (informational, warn on missing) -----
+  // ----- derivedAt (informational, warn on missing) -----
   if (typeof envelope.derivedAt !== "string" || !envelope.derivedAt.trim()) {
     warnings.push({ field: "derivedAt", reason: "should be an ISO 8601 timestamp" });
   }

@@ -53,7 +53,13 @@ export const AcDodMatrixSchema = z.strictObject({
    * Implementation agents use this to gate merge-readiness.
    */
   isComplete: z.boolean(),
-});
+}).refine(
+  (data) => isMatrixComplete(data) === data.isComplete,
+  {
+    message: "isComplete must be true when (and only when) every item has status 'Met'",
+    path: ["isComplete"],
+  }
+);
 
 // ---------------------------------------------------------------------------
 // Convenience helpers

@@ -336,3 +336,67 @@ test("handoff envelope warns on malformed refinementContract", async () => {
   // but items being empty IS an error
   assert.equal(validation.ok, false);
 });
+
+test("AcDodMatrixSchema rejects isComplete mismatch (true with non-Met items)", () => {
+  const mismatch = {
+    schema: "ac-dod-matrix/v1",
+    items: [
+      { ...validItem, status: AC_DOD_ITEM_STATUS.UNVERIFIED },
+    ],
+    generatedAt: "2026-06-08T12:00:00.000Z",
+    isComplete: true,
+  };
+  const result = validateAcDodMatrix(mismatch);
+  assert.equal(result.success, false);
+  const isCompleteIssue = result.error?.issues?.find((i) => i.path?.includes?.("isComplete"));
+  assert.ok(isCompleteIssue, "should have an issue on isComplete");
+});
+
+test("AcDodMatrixSchema rejects isComplete mismatch (false with all Met items)", () => {
+  const mismatch = {
+    schema: "ac-dod-matrix/v1",
+    items: [
+      { ...validItem, status: AC_DOD_ITEM_STATUS.MET },
+    ],
+    generatedAt: "2026-06-08T12:00:00.000Z",
+    isComplete: false,
+  };
+  const result = validateAcDodMatrix(mismatch);
+  assert.equal(result.success, false);
+  const isCompleteIssue = result.error?.issues?.find((i) => i.path?.includes?.("isComplete"));
+  assert.ok(isCompleteIssue, "should have an issue on isComplete");
+});
+
+test("handoff envelope refinementContract validation rejects per-item shape errors", async () => {
+  const { buildDevLoopHandoffEnvelope, validateHandoffEnvelope } = await import("../src/loop/handoff-envelope.mjs");
+
+  const resolverOutput = {
+    bundle: {
+      selectedStrategy: "copilot_pr_followup",
+      executionMode: "bounded_handoff",
+      nextAction: "Follow up on PR.",
+      requiredReads: ["skills/copilot-pr-followup/SKILL.md"],
+      activeArtifact: { kind: "issue", issue: 675, pr: 676, branch: null, phase: null },
+    },
+  };
+
+  const options = {
+    repoSlug: "mdfittko/pi-dev-loops",
+    refinementContract: {
+      schema: "ac-dod-matrix/v1",
+      items: [
+        { item: "ok", type: "AC", status: "Met", evidence: "x", notes: "" },
+        { item: "", type: "AC", status: "Met", evidence: "x", notes: "" }, // bad: empty item
+      ],
+      generatedAt: "2026-06-08T12:00:00.000Z",
+      isComplete: false,
+    },
+  };
+
+  const envelope = buildDevLoopHandoffEnvelope(resolverOutput, {}, {}, options);
+  const validation = validateHandoffEnvelope(envelope);
+
+  assert.equal(validation.ok, false);
+  const itemError = validation.errors.find((e) => e.field === "refinementContract.items" && e.reason.includes("entries at indices"));
+  assert.ok(itemError, "should have per-item validation error for bad item shape");
+});
