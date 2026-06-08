@@ -2,7 +2,6 @@ version: 1
 
 gates:
   draft:
-    dynamicAngles: true
     angles:
       - scope
       - coverage

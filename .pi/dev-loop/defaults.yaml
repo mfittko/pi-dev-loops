@@ -369,9 +369,9 @@ personas:
     prompt: >-
       Scan PR comments for unresolved issues before declaring the gate clean.
       Check all PR comments and review threads for:
-      - Comments from the PR author, repository owner, or collaborators that
-        point out implementation bugs, logic errors, contract violations, or
-        security issues
+      - Comments from the repository owner or collaborators that point out
+        implementation bugs, logic errors, contract violations, or security
+        issues
       - Unresolved review threads that raise implementation concerns
       - Comments that were posted after the last force-push or head change
         and remain unaddressed
@@ -382,7 +382,6 @@ personas:
       - Style nits, formatting suggestions, or cosmetic feedback
       - Comments from non-collaborators or bots
       - Outdated comments that were already addressed in a later commit
-      - Comments on lines or files not touched by this PR
       If no unresolved implementation concerns exist, return clean.
   config-drift:
     persona: review
