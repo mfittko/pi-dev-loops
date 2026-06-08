@@ -1,122 +1,98 @@
 # pi-dev-loops
 
-`pi-dev-loops` is shared Pi workflow infrastructure for reusable local and remote development loops.
+Turn GitHub issues into merged PRs with zero manual steps between issue and approval — shared Pi workflow infrastructure built on generic role agents plus thin workflow entrypoint agents where needed. Thin workflow entrypoint agents are allowed when they only load a skill and defer policy to it.
+
+## What is a dev loop?
+
+A dev loop is an AI-driven development cycle. It takes a GitHub issue through seven lifecycle phases — from intake to merge — with deterministic routing, self-correcting review gates, and autonomous execution until the human approval checkpoint.
+
+**Lifecycle phases:**
+
+| Phase | What happens |
+|---|---|
+| `issue_intake` | Normalize the issue, confirm scope, detect linked PRs |
+| `refinement` | Elaborate spec, run bounded audit, harden acceptance criteria |
+| `implementation` | Build the accepted scope on a feature branch or via Copilot |
+| `draft_gate` | Gate review at the draft→ready boundary before marking PR ready |
+| `feedback_resolution` | Fix, reply to, and resolve review threads on GitHub |
+| `pre_approval_gate` | Final gate review: verify evidence, CI, and unresolved threads |
+| `merge` | Merge the PR and write the retrospective checkpoint |
+
+Each phase is consultable from the deterministic state model in `packages/core/src/loop/lifecycle-state.mjs`. The public routing contract is [Public Dev Loop Contract](./skills/docs/public-dev-loop-contract.md).
+
+## Quick start
+
+Use **`dev-loop`** as the single public workflow entrypoint:
+
+```
+dev-loop on issue 112        — start work on an issue
+auto dev loop on issue 112   — autonomous execution until human approval
+dev-loop on PR 88            — continue follow-up on an open PR
+```
+
+The `dev-loop` entrypoint resolves authoritative state, picks the correct internal strategy, and routes work deterministically. Users never need to choose internal strategy names. See the canonical shorthand example mapping in the [Public Dev Loop Contract](./skills/docs/public-dev-loop-contract.md).
 
 ## Workflow posture
 
-This repo supports both local and GitHub-first work, but the public workflow surface is intentionally narrow:
-- use **`dev-loop`** as the single public façade and workflow entrypoint
-- prefer the GitHub-first routed path for active implementation and release work when practical
-- use the local implementation strategy only when the user explicitly wants phase-bounded local planning/implementation
-- keep internal routed workflow logic behind that public façade rather than presenting it as peer workflow choices
+- Use **`dev-loop`** as the single public façade for all routed work
+- Prefer the GitHub-first path for active implementation and release work
+- Use local implementation only when explicitly requested
+- Internal routed logic stays behind the public façade
 
-A canonical shorthand example still maps to the same public `dev-loop` intent:
-- `auto dev loop on issue 112`
+## Current phase
 
-The canonical public routing and shorthand contract lives in [Public Dev Loop Contract](./skills/docs/public-dev-loop-contract.md).
-
-## What this repository provides
-
-This repo is built around generic role agents plus thin workflow entrypoint agents where needed.
-
-Its main surfaces are:
-1. **Role agents** in `agents/`
-   - reusable prompts such as developer, docs, quality, review, fixer, and refiner
-2. **Workflow skills** in `skills/`
-   - `dev-loop` is the public façade; internal routed logic stays internal
-3. **Extension and CLI UX** in `extension/` and `cli/`
-   - `/dev-loops` readiness checks plus the `dev-loops` shell command
-4. **Deterministic support code** in `packages/core/`, `scripts/`, and `lib/`
-   - shared helpers, loop-state detectors, and GitHub/Copilot support code
-
-Thin workflow entrypoint agents are allowed when they only load a skill and defer policy to it.
-
-## Package surface
-
-Installing the package with `pi install git:github.com/mfittko/pi-dev-loops` exposes:
-- the `/dev-loops` extension command surface
-- the `dev-loops` shell CLI
-- the packaged skills from `package.json` `pi.skills`
-
-For project-local installs, use `pi install -l git:github.com/mfittko/pi-dev-loops`.
-
-Legacy `/dev-loops install` and `/dev-loops update` commands are removed; use `pi install` / `pi update` directly instead.
-
-See [Extension Documentation](./extension/README.md) for the full command and package-install contract.
+Phase 8 is the active durable phase; Phase 7 second-repo pilot is deferred. See [Docs Index](./docs/index.md) for the full execution snapshot.
 
 ## Configuration
 
-Gate review angles, refinement settings, persona mappings, workflow defaults, and review prompts are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos can override any value through `.pi/dev-loop/settings.yaml` (the loader also accepts `.pi/dev-loop/settings.yml` and `.pi/dev-loop/settings.json`; legacy `overrides.*` still load as fallbacks).
+Gate review angles, refinement settings, persona mappings, and workflow defaults are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos override values in `.pi/dev-loop/settings.yaml`.
 
 ```bash
-# See what reviewers will check before handing off code
-dev-loops gates
+dev-loops gates   # see what reviewers will check
 ```
 
-Key configurable surfaces:
+Key surfaces:
 - **Gate angles** — which review lenses run at draft and pre-approval gates
-- **Persona prompts** — focused instructions per angle (e.g. DRY, KISS, YAGNI, SRP, SoC)
+- **Persona prompts** — focused instructions per angle (DRY, KISS, YAGNI, SRP, SoC, and more)
 - **Refinement** — fan-out count and mode for parallel review variants
 - **Autonomy** — which gates require operator confirmation
-- **Workflow defaults** — retrospective enforcement, draft-first posture, and formal dev-mode default policy
+- **Workflow defaults** — retrospective enforcement, draft-first posture, dev-mode policy
 
-Full details: [Extension Documentation](extension/README.md) and `.pi/dev-loop/defaults.yaml`.
+Full details: [Extension Documentation](./extension/README.md) and `.pi/dev-loop/defaults.yaml`.
 
-## Current phase status
+## Package surface
 
-Phase 8 is the active durable phase. It owns the workflow-configuration contract and its first shipped wiring slices, and `main` already includes a slice-1-implemented Phase 8 surface.
+Install with:
 
-Phase 7 second-repo pilot is deferred, not completed. Its bounded pilot plan remains in [Phase 7 Plan](./docs/phases/phase-7.md), but Phase 8 was pulled forward ahead of it as an explicit exception to the repo's normal one-phase-at-a-time posture.
+```bash
+pi install git:github.com/mfittko/pi-dev-loops          # global
+pi install -l git:github.com/mfittko/pi-dev-loops       # project-local
+```
 
-See [Docs Index](./docs/index.md) for the current execution snapshot and [Phase 8 Plan](./docs/phases/phase-8.md) for the active durable phase plan.
+The package exposes the `/dev-loops` extension command surface, the `dev-loops` shell CLI, and packaged skills from `package.json` `pi.skills`.
 
-## Requirements and assumptions
+See [Extension Documentation](./extension/README.md) for the full command and package-install contract.
 
-Current code and docs assume:
+## Requirements
+
 - Node `>=20`
-- a Pi host that satisfies peer dependencies on `@mariozechner/pi-coding-agent` and `@mariozechner/pi-tui`
-- `pi-subagents` for current workflow assumptions
-- `pi-intercom` if you want live mid-run async child steering / follow-up via `subagent({ action: "resume", ... })`
 - `gh` installed and authenticated for GitHub/Copilot workflows
-- a git repository checkout for the normal local and remote loop paths
+- `pi-subagents` for async workflow assumptions
+- A Pi host that satisfies peer dependencies on `@mariozechner/pi-coding-agent` and `@mariozechner/pi-tui`
 
-Notes:
-- without `pi-intercom`, async subagent workflows still support start, status inspection, interrupt, and post-completion resume/revive from saved child sessions
-- live follow-up to a still-running async child depends on the `pi-subagents` intercom bridge, which requires `pi-intercom`
-- install it with `pi install npm:pi-intercom`
+## Development
 
-## Repository layout
+```bash
+npm run verify   # canonical root verification (tests + dev-loop tests)
+```
 
-- `agents/` — reusable role-agent definitions
-- `docs/` — durable workflow contracts, implementation status, and phase docs
-- `cli/` — shell-facing `dev-loops` entrypoint
-- `extension/` — `/dev-loops` extension implementation and docs
-- `lib/` — shared command helpers used by the extension and shell CLI
-- `packages/core/` — deterministic support package
-- `scripts/` — deterministic CLI helpers for GitHub/review/loop mechanics
-- `skills/` — packaged workflow skills
-- `test/` — root contract and regression tests
-- `tmp/` — gitignored local execution artifacts and resumable temporary state
+CI splits into a small changed-files gate plus parallel `verify` and conditional `viewer-smoke` jobs. `npm ci` + `npm run verify` run on every change, while the workspace-local Playwright WebKit cache and viewer smoke run only when files in the bounded inspect-run viewer surface or its smoke-path dependencies change.
 
-## Development and validation
+## Further reading
 
-Root verification and test commands from `package.json`:
-- `npm run verify` — canonical root verification path (`npm test` + `npm run test:dev-loop`)
-- `npm test`
-- `npm run test:assets`
-- `npm run test:extension`
-- `npm run test:scripts`
-- `npm run test:core`
-- `npm run test:dev-loop`
-- `npm run test:playwright:viewer` — explicit viewer/browser smoke, not part of the default root verify path
-
-CI currently splits into a small changed-files gate plus parallel `verify` and conditional `viewer-smoke` jobs: `npm ci` + `npm run verify` still run on every change, while the workspace-local Playwright WebKit cache restore/install and explicit viewer smoke run only when files in the bounded inspect-run viewer surface or its smoke-path dependencies change.
-
-## Where to read next
-
-- [Docs Index](./docs/index.md) — start here for active docs and canonical-owner pointers
-- [Extension Documentation](extension/README.md) — `/dev-loops` command and package-install contract
+- [Docs Index](./docs/index.md) — active docs, canonical-owner pointers, and current phase status
+- [Extension Documentation](./extension/README.md) — `/dev-loops` command and package-install contract
 - [Scripts Documentation](./scripts/README.md) — deterministic script contracts
-- [UI Smoke Harness](./docs/ui-smoke-harness.md) — reusable local Playwright/WebKit smoke baseline for opted-in UI slices
-- [UI Artifact Contract](./docs/ui-artifact-contract.md) — screenshot/state artifact contract and bounded CI-promotion rules for UI slices
-- [UI Designer Review Loop](./docs/ui-designer-review-loop.md) — designer-persona review loop contract for UI slices
+- [UI Smoke Harness](./docs/ui-smoke-harness.md) — reusable local Playwright/WebKit smoke baseline
+- [UI Artifact Contract](./docs/ui-artifact-contract.md) — screenshot/state artifact contract and CI-promotion rules
+- [UI Designer Review Loop](./docs/ui-designer-review-loop.md) — designer-persona review loop contract
