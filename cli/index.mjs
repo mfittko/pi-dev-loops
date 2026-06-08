@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { constants as fsConstants } from "node:fs";
+import { realpathSync, constants as fsConstants } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -345,7 +345,7 @@ export async function runCli({
 const invokedAsScript = (() => {
   if (!process.argv[1]) return false;
   try {
-    return fileURLToPath(import.meta.url) === fileURLToPath(pathToFileURL(path.resolve(process.argv[1])));
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(path.resolve(process.argv[1]));
   } catch { return false; }
 })();
 
