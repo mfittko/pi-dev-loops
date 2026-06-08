@@ -16,7 +16,7 @@ because "the user said yes," not because it is running from a worktree.
 ## Main agent owns (allowed)
 
 - Read, inspect, search any repo file
-- `git fetch`, `git worktree list`, `git status`, `git log` (read-only git)
+- `git worktree list`, `git status`, `git log` (read-only git). `git fetch` is also allowed (updates local refs but does not touch tracked working-tree files).
 - `gh issue view / create / edit / comment / close` (GitHub API, not file mutations)
 - `gh pr view / list` (read-only GitHub API)
 - Write to `/tmp` or other non-repo paths (e.g., issue body drafts)
@@ -48,7 +48,7 @@ because "the user said yes," not because it is running from a worktree.
 | `git status` | Allowed — read-only |
 | `git commit -m "..."` | **BREACH** — must delegate to `dev-loop` |
 | `subagent dev-loop` | Allowed — correct delegation |
-| `subagent fixer --task "fix the bug"` | Allowed only when called from within `dev-loop` |
+| `subagent fixer` | Allowed only when called from within `dev-loop`; describe the task as part of the message |
 
 ## Enforcement posture
 
