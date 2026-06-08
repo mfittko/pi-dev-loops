@@ -24,15 +24,9 @@ Each phase is consultable from the deterministic state model in `packages/core/s
 
 Use **`dev-loop`** as the single public workflow entrypoint:
 
-```
-dev-loop on issue 112
-auto dev loop on issue 112
-dev-loop on PR 88
-```
-
-- `dev-loop on issue 112` — start work on an issue
+- `start dev loop on issue 112` — start work on an issue
 - `auto dev loop on issue 112` — autonomous execution until human approval
-- `dev-loop on PR 88` — continue follow-up on an open PR
+- `continue dev loop on PR 88` — continue follow-up on an open PR
 
 The `dev-loop` entrypoint resolves authoritative state, picks the correct internal strategy, and routes work deterministically. Users never need to choose internal strategy names. See the canonical shorthand example mapping in the [Public Dev Loop Contract](./skills/docs/public-dev-loop-contract.md).
 
@@ -49,7 +43,7 @@ Phase 8 is the active durable phase; Phase 7 second-repo pilot is deferred. See 
 
 ## Configuration
 
-Gate review angles, refinement settings, persona mappings, and workflow defaults are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos override values in `.pi/dev-loop/settings.yaml`.
+Gate review angles, refinement settings, persona mappings, and workflow defaults are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos override values in `.pi/dev-loop/settings.yaml` (also supports `.yml` and `.json`; legacy `overrides.*` still load as fallback).
 
 ```bash
 dev-loops gates   # see what reviewers will check
