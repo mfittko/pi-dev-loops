@@ -91,7 +91,12 @@ function detectRepo() {
       cwd: REPO_ROOT,
       encoding: "utf-8",
     }).trim();
-    return parseRepoSlug(remote);
+    // parseRepoSlug expects owner/name; extract from common remote URL formats
+    const match = remote.match(/(?:github\.com[:/])([^/]+\/[^/]+?)(?:\.git)?$/);
+    if (match) {
+      return parseRepoSlug(match[1]);
+    }
+    return null;
   } catch {
     return null;
   }
@@ -141,11 +146,10 @@ function buildReport(signalsCount, findingsCount, results) {
 }
 
 // ============================================================================
-// Main
+// Run CLI (test-compatible: returns exitCode without calling process.exit)
 // ============================================================================
 
-async function main(argv) {
-  // Parse CLI args
+export async function runCli(argv) {
   const args = [...argv];
   const options = { input: undefined, repo: undefined, dryRun: false, help: false };
 
@@ -172,7 +176,7 @@ async function main(argv) {
 
   if (options.help) {
     process.stdout.write(USAGE + "\n");
-    process.exit(0);
+    return { exitCode: 0 };
   }
 
   if (!options.input) {
@@ -187,23 +191,20 @@ async function main(argv) {
   try {
     rawInput = await readFile(inputPath, "utf-8");
   } catch (err) {
-    process.stderr.write(JSON.stringify({ ok: false, error: `Cannot read input file: ${inputPath}`, detail: err.message }) + "\n");
-    process.exit(1);
+    return { exitCode: 1, output: { ok: false, error: `Cannot read input file: ${inputPath}`, detail: err.message } };
   }
 
   let signals;
   try {
     signals = JSON.parse(rawInput);
   } catch (err) {
-    process.stderr.write(JSON.stringify({ ok: false, error: "Input file is not valid JSON", detail: err.message }) + "\n");
-    process.exit(1);
+    return { exitCode: 1, output: { ok: false, error: "Input file is not valid JSON", detail: err.message } };
   }
 
   // Validate signals
   const validation = validateSignals(signals);
   if (!validation.ok) {
-    process.stderr.write(JSON.stringify(validation) + "\n");
-    process.exit(1);
+    return { exitCode: 1, output: validation };
   }
 
   // Resolve repo
@@ -212,16 +213,14 @@ async function main(argv) {
     try {
       repo = parseRepoSlug(options.repo);
     } catch {
-      process.stderr.write(JSON.stringify({ ok: false, error: `Invalid repo slug: ${options.repo}` }) + "\n");
-      process.exit(1);
+      return { exitCode: 1, output: { ok: false, error: `Invalid repo slug: ${options.repo}` } };
     }
   } else {
     repo = detectRepo();
   }
 
   if (!repo) {
-    process.stderr.write(JSON.stringify({ ok: false, error: "Cannot detect repository. Pass --repo <owner/name>." }) + "\n");
-    process.exit(1);
+    return { exitCode: 1, output: { ok: false, error: "Cannot detect repository. Pass --repo <owner/name>." } };
   }
 
   // Run pipeline: cluster → score → shape
@@ -282,14 +281,22 @@ async function main(argv) {
   report.repo = `${repo.owner}/${repo.name}`;
 
   process.stdout.write(JSON.stringify(report) + "\n");
-  process.exit(anyIssueFailed ? 1 : 0);
+  return { exitCode: anyIssueFailed ? 1 : 0 };
 }
 
-// Run if called directly
+// ============================================================================
+// Direct CLI entrypoint
+// ============================================================================
+
 if (isDirectCliRun(import.meta.url)) {
-  main(process.argv.slice(2)).catch((err) => {
+  runCli(process.argv.slice(2)).then(({ exitCode, output }) => {
+    if (output) {
+      process.stderr.write(JSON.stringify(output) + "\n");
+    }
+    process.exitCode = exitCode;
+  }).catch((err) => {
     process.stderr.write(`${formatCliError(err)}\n`);
-    process.exit(1);
+    process.exitCode = 1;
   });
 }
 

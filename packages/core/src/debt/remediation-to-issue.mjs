@@ -3,8 +3,6 @@
 //
 // Converts a shaped remediation_item into a GitHub issue via `gh issue create`
 // so the debt pipeline can feed into the existing dev-loop execution path.
-//
-// Reuses the payload format proven in the integration seam test.
 // ============================================================================
 
 import { execFileSync } from "node:child_process";
@@ -52,6 +50,26 @@ export function remediationToIssuePayload(remediationItem) {
 }
 
 // ============================================================================
+// Error message extraction
+// ============================================================================
+
+/**
+ * Coerce an error's stderr into a string.
+ * gh may write a Buffer or Uint8Array when execFileSync throws.
+ */
+function errorMessage(err) {
+  if (typeof err.stderr === "string" && err.stderr.length > 0) {
+    return err.stderr.trim();
+  }
+  if (err.stderr && typeof err.stderr.toString === "function") {
+    const s = err.stderr.toString("utf-8").trim();
+    if (s.length > 0) return s;
+  }
+  if (err.message) return err.message;
+  return "gh issue create failed";
+}
+
+// ============================================================================
 // GitHub issue creation
 // ============================================================================
 
@@ -86,9 +104,10 @@ export function createRemediationIssue(remediationItem, repo) {
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
 
-    // gh issue create output is the issue URL
+    // gh issue create output is typically the issue URL, e.g.
+    // https://github.com/owner/name/issues/123
     const url = result;
-    const match = url.match(/\/issues\/(\d+)$/);
+    const match = url.match(/\/issues\/(\d+)/);
     const issueNumber = match ? parseInt(match[1], 10) : null;
 
     if (!issueNumber) {
@@ -97,6 +116,6 @@ export function createRemediationIssue(remediationItem, repo) {
 
     return { ok: true, issueNumber, issueUrl: url };
   } catch (err) {
-    return { ok: false, error: err.stderr || err.message || "gh issue create failed" };
+    return { ok: false, error: errorMessage(err) };
   }
 }

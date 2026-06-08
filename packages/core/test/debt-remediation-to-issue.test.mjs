@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { RemediationItemSchema } from "../src/debt/debt-finding.mjs";
 import {
   remediationToIssuePayload,
   createRemediationIssue,
@@ -75,8 +74,6 @@ describe("remediationToIssuePayload", () => {
   });
 
   test("payload shape matches contract for --assignee @me flag", () => {
-    // Contract: remediationToIssuePayload always encodes the labels that
-    // createRemediationIssue passes to --assignee @me.
     const item = buildValidItem();
     const payload = remediationToIssuePayload(item);
     assert.ok(payload.title);
@@ -86,16 +83,21 @@ describe("remediationToIssuePayload", () => {
 });
 
 describe("createRemediationIssue", () => {
-  test("returns error when gh not available (no network call)", () => {
-    const item = buildValidItem();
-    const result = createRemediationIssue(item, { owner: "test", name: "test" });
+  test("returns error when gh not available (hermetic, no network)", () => {
+    // Force gh to not be found by clearing PATH.
+    // This keeps the test hermetic and deterministic regardless of the
+    // environment — it never creates a real GitHub issue.
+    const savedPath = process.env.PATH;
+    process.env.PATH = "";
+    try {
+      const item = buildValidItem();
+      const result = createRemediationIssue(item, { owner: "test", name: "test" });
 
-    assert.equal(typeof result.ok, "boolean");
-    if (result.ok) {
-      assert.ok(typeof result.issueNumber === "number");
-      assert.ok(typeof result.issueUrl === "string");
-    } else {
+      assert.equal(result.ok, false);
       assert.ok(typeof result.error === "string");
+      assert.ok(result.error.length > 0);
+    } finally {
+      process.env.PATH = savedPath;
     }
   });
 });
