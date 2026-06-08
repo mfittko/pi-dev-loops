@@ -2,7 +2,6 @@ version: 1
 
 gates:
   draft:
-    dynamicAngles: true
     angles:
       - scope
       - coverage
@@ -18,6 +17,7 @@ gates:
       - config-drift
       - gate-evidence
       - pr-description
+      - pr-comments
     requireCi: true
     blockCleanOnFindingSeverities:
       - must-fix

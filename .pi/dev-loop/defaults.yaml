@@ -40,6 +40,7 @@ gates:
       - state-concurrency
       - renderer-security
       - determinism
+      - pr-comments
     excludeAngles: []
     required: true
     # When true, draft gate waits for green CI before the gate may run.
@@ -363,6 +364,23 @@ personas:
       Do not block on formatting preferences — only on missing structure.
     defaultModel: null
 
+  pr-comments:
+    persona: review
+    prompt: >-
+      Scan PR comments for unresolved issues before declaring the gate clean.
+      Check all PR comments and review threads for:
+      - Comments from the repository owner or collaborators that point out
+        implementation bugs, logic errors, contract violations, or security
+        issues
+      - Unresolved review threads that raise implementation concerns
+      Flag any unresolved comment that identifies a concrete implementation
+      problem as a blocking finding (severity: must-fix or worth-fixing-now).
+      Do not flag:
+      - Resolved threads
+      - Style nits, formatting suggestions, or cosmetic feedback
+      - Comments from non-collaborators or bots
+      - Outdated comments that were already addressed in a later commit
+      If no unresolved implementation concerns exist, return clean.
   config-drift:
     persona: review
     prompt: >-
