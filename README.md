@@ -1,6 +1,6 @@
 # pi-dev-loops
 
-`pi-dev-loops` is a private, source-loaded workspace for reusable Pi development loops.
+`pi-dev-loops` is shared Pi workflow infrastructure for reusable local and remote development loops.
 
 ## Workflow posture
 
@@ -92,7 +92,7 @@ Notes:
 - `cli/` — shell-facing `dev-loops` entrypoint
 - `extension/` — `/dev-loops` extension implementation and docs
 - `lib/` — shared command helpers used by the extension and shell CLI
-- `packages/core/` — private deterministic support package
+- `packages/core/` — deterministic support package
 - `scripts/` — deterministic CLI helpers for GitHub/review/loop mechanics
 - `skills/` — packaged workflow skills
 - `test/` — root contract and regression tests
