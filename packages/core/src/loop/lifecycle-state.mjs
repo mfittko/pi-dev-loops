@@ -179,7 +179,7 @@ function normalizeLifecycleState(value) {
  * Resolution order (first-match):
  * 1. Explicit phase → return canonical if recognized, fall through if not
  * 2. Merged → merge (terminal)
- * 3. Merge authorized + pre-approval passed → merge
+ * 3. Merge authorized + pre-approval passed + linked PR → merge
  * 4. Pre-approval passed + PR exists → pre_approval_gate
  * 5. Unresolved threads + PR exists → feedback_resolution
  * 6. Draft PR or ready PR → implementation
@@ -211,7 +211,7 @@ export function resolveLifecycleState(input = {}) {
   }
 
   // 3. Merge authorized with pre-approval → merge
-  if (mergeAuthorized && preApprovalGatePassed) {
+  if (mergeAuthorized && preApprovalGatePassed && hasLinkedPr) {
     return buildResult(LIFECYCLE_STATE.MERGE);
   }
 
@@ -288,7 +288,7 @@ export function isKnownLifecycleState(value) {
  *
  * Skills use this mapping to determine which inner-machine states are active
  * during a given lifecycle phase. Not all lifecycle phases have a corresponding
- * inner-machine state (issue_intake, refinement, merge are outer-only).
+ * inner-machine state (issue_intake and refinement are outer-only).
  *
  * The inner machine is the authority for Copilot review/fix loop states;
  * this mapping is advisory for routing and status reporting.
@@ -308,14 +308,19 @@ export const COPILOT_INNER_STATE_MAP = Object.freeze({
     "unresolved_feedback_present",
     "already_fixed_needs_reply_resolve",
     "ready_to_rerequest_review",
+    "waiting_for_ci",
+    "review_request_unavailable",
+    "blocked_needs_user_decision",
+    "round_cap_reached",
   ]),
   [LIFECYCLE_STATE.PRE_APPROVAL_GATE]: Object.freeze([
     "low_signal_converged",
     "round_cap_clean_fallback",
     "internal_tooling_direct_gate",
+  ]),
+  [LIFECYCLE_STATE.MERGE]: Object.freeze([
     "done",
   ]),
-  [LIFECYCLE_STATE.MERGE]: Object.freeze([]),
 });
 
 /**
