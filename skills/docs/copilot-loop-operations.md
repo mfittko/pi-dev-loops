@@ -188,7 +188,36 @@ Preferred defaults for this repo:
 
 These are the defaults built into `probe-copilot-review.mjs`, `run-watch-cycle.mjs`, and the `watchArgs` emitted by `copilot-pr-handoff.mjs`. Do not pass removed CLI policy flags (`--poll-interval-ms`, `--timeout-ms`, `--probe-only`) — helpers hard-error when they are provided. Timeouts and intervals are derived from `packages/core/src/loop/policy-constants.mjs`.
 
-### Hard rule: no agent-authored shell polling
+### Outer-loop checkpoint: canonical re-attachment artifact
+
+The outer-loop checkpoint (`tmp/copilot-loop/<owner>/<repo>/pr-<n>/outer-loop-state.json`)
+is the canonical re-attachment artifact for async subagent runs. It is written by
+`outer-loop.mjs` at every conductor cycle and records:
+
+| Field | Meaning |
+|---|---|
+| `outerAction` | Next action: `continue_wait`, `reenter_copilot_loop`, `reenter_reviewer_loop`, `stop`, `done` |
+| `copilotState` | Current copilot inner-loop state |
+| `reviewerState` | Current reviewer inner-loop state |
+| `waitCycles` | Number of wait cycles accumulated |
+| `headSha` | PR head SHA at checkpoint time |
+| `reason` | Stop reason (when outerAction is `stop`) |
+
+### Re-attachment contract
+
+When a fresh `dev-loop` async subagent starts on a PR that already has an outer-loop
+checkpoint, it must read the checkpoint before entering any intake or follow-up procedure:
+
+1. If `outerAction` is `continue_wait` or `reenter_copilot_loop`: auto-resume the loop
+   rather than treating the start as fresh intake.
+2. If `outerAction` is `reenter_reviewer_loop`: enter the reviewer-loop path.
+3. If `outerAction` is `stop` with a non-terminal reason: report and ask for direction.
+4. If no checkpoint or `outerAction` is `done` / terminal stop: normal fresh startup.
+
+The checkpoint is the only source of truth for re-attachment. Do not rely on chat context
+or local notes to determine "where we left off."
+
+## Hard rule: no agent-authored shell polling
 
 Helper-owned sleep inside `run-watch-cycle.mjs`, `probe-copilot-review.mjs`, or `watch-initial-copilot-pr.mjs` is allowed. Agent-authored shell polling (`sleep`, `for`, `while`, `timeout` wrappers around tool invocations) is a contract breach. This rule applies to ALL repos using the dev-loop workflow, not just the source repo.
 
