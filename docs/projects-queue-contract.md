@@ -10,9 +10,9 @@ ordering from a project board and write status transitions back. This contract d
 expected board shape so tooling can rely on deterministic field/column names and fail safely
 when the board is absent or misconfigured.
 
-**Board state complements local queue persistence (`.pi/dev-loop-queue.json`), it does not
-replace it.** GitHub remains the source of truth for issue/PR state; the board is an optional
-scheduling input.
+**Board state is an optional scheduling input; it does not replace GitHub issue/PR state as
+the source of truth.** No local queue file is introduced — the board is the sole Projects-based
+ordering surface.
 
 ## Opt-in posture
 
@@ -187,14 +187,13 @@ When tooling fails closed, it emits a structured JSON error on stderr:
 ```json
 {
   "ok": false,
-  "error": "Project 'Dev Loop Queue' not found for owner 'mfittko'",
-  "code": "PROJECT_NOT_FOUND",
-  "remediation": "Run: node scripts/projects/ensure-queue-board.mjs --repo mfittko/pi-dev-loops"
+  "error": "Project 'Dev Loop Queue' not found for owner 'mfittko'."
 }
 ```
 
-The `remediation` field is a convenience hint — tooling does not execute remediation
-automatically.
+The example hints at a remediation command, but the stderr payload follows the
+repo's standard CLI error format (`formatCliError`): only `{ ok: false, error }` is emitted.
+Remediation hints live in documentation, not in the structured error payload.
 
 ## Configuration shape
 
@@ -259,8 +258,8 @@ This contract explicitly does **not** define:
 
 - **Full Kanban automation** — GitHub has built-in workflows for Status transitions. The
   queue helpers only read ordering and set Status; they do not react to Status changes.
-- **Local persistence replacement** — Board state is an optional scheduling input. Local
-  queue state (`.pi/dev-loop-queue.json`) remains the durable entry lifecycle tracker.
+- **Local persistence replacement** — Board state is an optional scheduling input. No
+  local queue file is introduced; the board is the sole Projects-based ordering surface.
 - **Bi-directional sync** — Tooling reads board ordering at dispatch time and writes Status
   on transitions. It does not continuously sync local state to board state or vice versa.
 - **Framework/library abstraction** — All helpers are thin wrappers around `gh api graphql`.
