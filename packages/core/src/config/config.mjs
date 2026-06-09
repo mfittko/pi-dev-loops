@@ -589,7 +589,8 @@ export async function loadDevLoopConfig(options = {}) {
         } catch (err) {
           if (err?.code !== "ENOENT") {
             // File exists but is unreadable — treat as "found" so the
-            // deprecation warning fires and applyLayer can surface the error.
+            // deprecation warning fires (applyLayer is not called for legacy
+            // paths when .devloops is present, so the flag only controls the warning).
             legacyAlongside = true;
             break;
           }
@@ -616,7 +617,8 @@ export async function loadDevLoopConfig(options = {}) {
         } catch (err) {
           if (err?.code !== "ENOENT") {
             // File exists but is unreadable — treat as "found" so the
-            // deprecation warning fires and applyLayer can surface the error.
+            // deprecation warning fires and applyLayer can surface the error
+            // (legacy applyLayer runs in this branch).
             legacyFound = true;
             break;
           }
