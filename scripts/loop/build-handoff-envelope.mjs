@@ -1,0 +1,200 @@
+#!/usr/bin/env node
+/**
+ * CLI wrapper for buildDevLoopHandoffEnvelope().
+ *
+ * Subagents and shell scripts should call this instead of writing ad-hoc
+ * inline Node.js to import from the @pi-dev-loops/core subpath. Using the
+ * bare `@pi-dev-loops/core` specifier fails because the package has no
+ * default export — only named subpath exports.
+ *
+ * Typical usage (pipeline):
+ *   dev-loops loop startup --issue 42 > resolver-output.json
+ *   dev-loops loop build-envelope --input resolver-output.json
+ *
+ * Or via npx:
+ *   npx dev-loops loop build-envelope --input resolver-output.json
+ */
+import { readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
+import { requireOptionValue } from "../_cli-primitives.mjs";
+import { buildDevLoopHandoffEnvelope } from "@pi-dev-loops/core/loop/handoff-envelope";
+import { loadDevLoopConfig } from "@pi-dev-loops/core/config";
+
+const USAGE = `Usage: build-handoff-envelope.mjs --input <path>
+Build a deterministic handoff envelope from startup resolver output and settings.
+Required:
+  --input <path>         Path to resolver output JSON (from resolve-dev-loop-startup.mjs)
+Optional:
+  --gate-state <json>    Gate state JSON string
+                           { currentHeadSha?, ciStatus?, unresolvedThreadCount?, copilotRoundCount? }
+  --overrides <json>     Overrides JSON string
+                           { mergeAuthorized?, preferLocal?, scopeConstraint?, customStopAt? }
+  --repo <owner/name>    Repository slug override (falls back to bundle.repoSlug or bundle.repo)
+Output (stdout, JSON):
+  Handoff envelope object — see workflow-handoff-contract.md for schema.
+Error output (stderr, JSON):
+  Argument/usage errors:
+    { "ok": false, "error": "...", "usage": "..." }
+  Runtime failures:
+    { "ok": false, "error": "..." }
+Exit codes:
+  0  Success
+  1  Argument error or runtime failure`.trim();
+
+const parseError = buildParseError(USAGE);
+
+function parseFlagJson(raw, flagName, parseErrorFn) {
+  try {
+    return parseJsonText(raw);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw parseErrorFn(`Invalid JSON for ${flagName}: ${message}`);
+  }
+}
+
+export function parseBuildHandoffEnvelopeCliArgs(argv) {
+  const args = [...argv];
+  const options = {
+    help: false,
+    inputPath: undefined,
+    gateState: undefined,
+    overrides: undefined,
+    repo: undefined,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      return options;
+    }
+    if (token === "--input") {
+      options.inputPath = requireOptionValue(args, "--input", parseError);
+      continue;
+    }
+    if (token === "--gate-state") {
+      options.gateState = requireOptionValue(args, "--gate-state", parseError);
+      continue;
+    }
+    if (token === "--overrides") {
+      options.overrides = requireOptionValue(args, "--overrides", parseError);
+      continue;
+    }
+    if (token === "--repo") {
+      options.repo = requireOptionValue(args, "--repo", parseError);
+      continue;
+    }
+    throw parseError(`Unknown argument: ${token}`);
+  }
+
+  if (!options.inputPath) {
+    throw parseError("--input <path> is required");
+  }
+
+  return options;
+}
+
+function detectRepoSlug(cwd) {
+  try {
+    const url = execFileSync("git", ["remote", "get-url", "origin"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
+    if (!match) return null;
+    return `${match[1]}/${match[2]}`;
+  } catch {
+    return null;
+  }
+}
+
+export async function buildHandoffEnvelopeCli(
+  options,
+  { cwd = process.cwd() } = {},
+) {
+  // Resolve repo root for config loading (same approach as resolve-dev-loop-startup.mjs)
+  let repoRoot = cwd;
+  try {
+    repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch { /* keep cwd */ }
+
+  // Load resolver output from file
+  const inputPath = path.resolve(cwd, options.inputPath);
+  const inputText = await readFile(inputPath, "utf8");
+  const resolverOutput = parseJsonText(inputText);
+
+  // Load dev-loop settings from repo config
+  const configLoadResult = await loadDevLoopConfig({ repoRoot });
+  const hasConfigErrors = Array.isArray(configLoadResult.errors) && configLoadResult.errors.length > 0;
+  const settings = hasConfigErrors ? {} : (configLoadResult.config ?? {});
+
+  // Parse optional gate state
+  let gateState = {};
+  if (options.gateState) {
+    gateState = parseFlagJson(options.gateState, "--gate-state", parseError);
+  }
+
+  // Build options for envelope builder
+  const envelopeOptions = {};
+
+  // Repo slug: explicit --repo, then resolver output bundle, then git remote
+  const bundleSlug = resolverOutput?.bundle?.repoSlug ?? resolverOutput?.bundle?.repo ?? null;
+  const repoSlug = options.repo ?? bundleSlug ?? detectRepoSlug(repoRoot);
+  if (repoSlug) {
+    envelopeOptions.repoSlug = repoSlug;
+  } else {
+    throw parseError(
+      "Repository slug could not be resolved. " +
+      "Pass --repo <owner/name>, ensure the resolver output includes a repo slug, " +
+      "or configure a git remote 'origin'.",
+    );
+  }
+  envelopeOptions.repoRoot = repoRoot;
+
+  // Parse optional overrides
+  if (options.overrides) {
+    envelopeOptions.overrides = parseFlagJson(options.overrides, "--overrides", parseError);
+  }
+
+  const envelope = buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState, envelopeOptions);
+  return envelope;
+}
+
+export async function runCli(
+  argv = process.argv.slice(2),
+  { stdout = process.stdout, stderr = process.stderr, cwd = process.cwd() } = {},
+) {
+  let options;
+  try {
+    options = parseBuildHandoffEnvelopeCliArgs(argv);
+  } catch (err) {
+    stderr.write(`${formatCliError(err)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (options.help) {
+    stdout.write(`${USAGE}\n`);
+    return;
+  }
+
+  try {
+    const envelope = await buildHandoffEnvelopeCli(options, { cwd });
+    stdout.write(`${JSON.stringify(envelope)}\n`);
+  } catch (err) {
+    const msg = formatCliError(err);
+    stderr.write(`${msg}\n`);
+    process.exitCode = 1;
+  }
+}
+
+if (isDirectCliRun(import.meta.url)) {
+  await runCli();
+}
