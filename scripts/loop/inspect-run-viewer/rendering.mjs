@@ -340,10 +340,10 @@ export function renderInspectRunViewerHtml({
           : `${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
             <div class="viewer-tab-shell" role="tablist" aria-label="Inspect run viewer tabs">
               <div class="viewer-tabs">
-                <button id="tab-btn-graph" class="viewer-tab active" role="tab" aria-selected="true" aria-controls="tab-graph" tabindex="0" data-tab="graph" onclick="switchTab('graph')">Graph</button>
-                <button id="tab-btn-overview" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-overview" tabindex="-1" data-tab="overview" onclick="switchTab('overview')">Overview</button>
-                <button id="tab-btn-layers" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-layers" tabindex="-1" data-tab="layers" onclick="switchTab('layers')">Layers</button>
-                <button id="tab-btn-handoff" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-handoff" tabindex="-1" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
+                <button id="tab-btn-graph" class="viewer-tab active" role="tab" aria-selected="true" aria-controls="tab-graph" data-tab="graph" onclick="switchTab('graph')">Graph</button>
+                <button id="tab-btn-overview" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-overview" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+                <button id="tab-btn-layers" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-layers" data-tab="layers" onclick="switchTab('layers')">Layers</button>
+                <button id="tab-btn-handoff" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-handoff" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
               </div>
             </div>
             <div class="tab-content active" id="tab-graph" role="tabpanel" aria-labelledby="tab-btn-graph">
@@ -384,14 +384,12 @@ export function renderInspectRunViewerHtml({
         document.querySelectorAll('.viewer-tab').forEach(t => {
           t.classList.remove('active');
           t.setAttribute('aria-selected', 'false');
-          t.setAttribute('tabindex', '-1');
         });
         
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         const activeTab = document.querySelector('.viewer-tab[data-tab="' + tabName + '"]');
         activeTab.classList.add('active');
         activeTab.setAttribute('aria-selected', 'true');
-        activeTab.setAttribute('tabindex', '0');
         document.getElementById('tab-' + tabName).classList.add('active');
       }
     </script>
