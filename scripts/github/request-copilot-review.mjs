@@ -211,8 +211,10 @@ function getLastCopilotReviewHeadSha(prData) {
   // (later index = more recent).
   const indexed = copilotReviews.map((r, i) => ({ review: r, index: i }));
   indexed.sort((a, b) => {
-    const aTs = typeof a.review?.submittedAt === "string" ? Date.parse(a.review.submittedAt) : NaN;
-    const bTs = typeof b.review?.submittedAt === "string" ? Date.parse(b.review.submittedAt) : NaN;
+    const aTs = (typeof a.review?.submittedAt === "string" ? Date.parse(a.review.submittedAt) : NaN)
+      || (typeof a.review?.submitted_at === "string" ? Date.parse(a.review.submitted_at) : NaN);
+    const bTs = (typeof b.review?.submittedAt === "string" ? Date.parse(b.review.submittedAt) : NaN)
+      || (typeof b.review?.submitted_at === "string" ? Date.parse(b.review.submitted_at) : NaN);
     if (!Number.isNaN(aTs) && !Number.isNaN(bTs)) return bTs - aTs;
     if (Number.isNaN(aTs) && Number.isNaN(bTs)) return b.index - a.index;
     return Number.isNaN(aTs) ? 1 : -1;
@@ -380,9 +382,20 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       ? before.prData.headRefOid.trim()
       : null;
     const lastReviewSha = getLastCopilotReviewHeadSha(before.prData);
-    const hasNewCommits = currentHeadSha !== null && lastReviewSha !== null
-      ? currentHeadSha !== lastReviewSha
-      : true; // Can't determine — allow the bypass
+    const canCompare = currentHeadSha !== null && lastReviewSha !== null;
+    const hasNewCommits = canCompare && currentHeadSha !== lastReviewSha;
+    if (!canCompare) {
+      return {
+        ok: true,
+        status: NO_CHANGES_SINCE_LAST_REVIEW_STATUS,
+        repo: options.repo,
+        pr: options.pr,
+        reviewer: "Copilot",
+        detail: "Cannot determine whether new commits exist since the last Copilot review because commit SHA data is unavailable. --force-rerequest-review requires determinable change evidence.",
+        completedRounds: before.completedCopilotReviewRounds,
+        maxRounds,
+      };
+    }
     if (!hasNewCommits) {
       return {
         ok: true,
