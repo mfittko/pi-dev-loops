@@ -108,7 +108,7 @@ pi-dev-loops is **tracker-first (opted in, GitHub backend).**
 
 ## Operator bypass (per-invocation override)
 
-The artifact authority contract can be bypassed for a single invocation when the operator passes `skipIssueOrigin: true` in the subagent dispatch `acceptance.overrides` payload. This is intended exclusively for trivial changes where creating a GitHub issue would be disproportionate overhead.
+The artifact authority contract can be bypassed for a single invocation when the operator passes `skipIssueOrigin: true` in the subagent dispatch `acceptance.overrides` payload. This bypasses issue↔PR linkage, readiness, and assignment preconditions for issue-target invocations. It is intended exclusively for trivial changes where creating a GitHub issue would be disproportionate overhead.
 
 ### Dispatch payload
 
@@ -126,7 +126,7 @@ The artifact authority contract can be bypassed for a single invocation when the
 
 ### What it bypasses
 
-- Issue-origin requirement — no GitHub issue needed for this invocation
+- Issue-origin requirement — no new GitHub issue needed (preconditions for the current issue target are bypassed)
 - Refinement gate — skipped (no issue to refine AC/DoD from)
 
 ### What it does NOT bypass
@@ -149,7 +149,7 @@ The artifact authority contract can be bypassed for a single invocation when the
 ### Enforcement
 
 - **Only settable** in `acceptance.overrides` of the subagent dispatch — no CLI flag, no tool parameter, no subagent self-service
-- **Startup resolver** routes to PR-origin path with `issueLinkageResolution: operator_bypass`
+- **Startup resolver** skips issue↔PR linkage/readiness/assignment preconditions and emits `issueLinkageResolution: operator_bypass` when the effective canonical target remains an ISSUE; PR targets use `not_applicable`
 - **Audit trail** recorded in `contractTrace.decision.operatorBypass: true`
 - **Not** a settings.yaml key — invocation-scoped, not repo-scoped
 

@@ -1060,7 +1060,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const issueAssignmentStateProvided = input.issueAssignmentState !== undefined && input.issueAssignmentState !== null;
   const loopState = normalizeOptionalLoopState(input.loopState);
 
-  // Operator bypass: skipIssueOrigin bypasses the issue-origin requirement for this invocation.
+  // Operator bypass: skipIssueOrigin bypasses issue↔PR linkage/readiness/assignment preconditions for issue targets.
   // Only settable via acceptance.overrides in the subagent dispatch — not a CLI flag or repo setting.
   const skipIssueOriginRaw = input.acceptance?.overrides?.skipIssueOrigin;
   const skipIssueOriginProvided = skipIssueOriginRaw !== undefined && skipIssueOriginRaw !== null;
@@ -1074,7 +1074,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       executionMode: effectiveMode,
     });
   }
-  // When bypass is active, report operator_bypass as the issueLinkageResolution in the output bundle.
+  // When bypass is active and the effective canonical target remains an ISSUE, report operator_bypass as the issueLinkageResolution.
   const effectiveBundleIssueLinkageResolution = skipIssueOriginActive
     ? DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS
     : normalizedIssueLinkageResolution;
