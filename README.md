@@ -30,6 +30,86 @@ Use **`dev-loop`** as the single public workflow entrypoint:
 
 The `dev-loop` entrypoint resolves authoritative state, picks the correct internal strategy, and routes work deterministically. Users never need to choose internal strategy names. See the canonical shorthand example mapping in the [Public Dev Loop Contract](./skills/docs/public-dev-loop-contract.md).
 
+## Docker
+
+A deterministic container image with all required tooling for dev-loop operation.
+
+### Build
+
+```bash
+docker build -t pi-dev-loops .
+```
+
+### Environment variables
+
+| Variable | Purpose | Required for smoke test |
+|---|---|---|
+| `GH_TOKEN` | GitHub personal access token for `gh` CLI and API calls | Yes |
+| `OPENAI_API_KEY` | LLM provider key (needed only when running `pi` / LLM-backed dev-loop operations) | No |
+
+### Smoke test
+
+Verify the image works with a minimal dev-loop info call:
+
+```bash
+docker run --rm -e GH_TOKEN="$GH_TOKEN" pi-dev-loops dev-loops loop info --repo mfittko/pi-dev-loops --issue 1
+```
+
+### Toolchain verification
+
+Check that all required tools are reachable:
+
+```bash
+docker run --rm pi-dev-loops node --version
+docker run --rm pi-dev-loops pi --version
+docker run --rm pi-dev-loops dev-loops --version
+docker run --rm pi-dev-loops gh --version
+docker run --rm pi-dev-loops git --version
+```
+
+### Repeatable builds
+
+The Dockerfile pins exact versions for Node.js (via base image), pi CLI, pi extensions, and gh CLI. Paired with the committed `package-lock.json`, repeat builds produce functionally identical toolchain versions.
+
+### Runtime patterns
+
+**Interactive Pi with host config (writable):**
+
+```bash
+docker run -it --rm \
+  -e GH_TOKEN="$GH_TOKEN" \
+  -v "$HOME/.pi:/home/node/.pi" \
+  pi-dev-loops pi
+```
+
+Shares sessions, models, settings. Container writes session logs to host `~/.pi`.
+
+**Interactive Pi clean (no config sharing):**
+
+```bash
+docker run -it --rm \
+  -e GH_TOKEN="$GH_TOKEN" \
+  -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+  pi-dev-loops pi
+```
+
+Ephemeral `~/.pi` inside container. Provider auth via env vars.
+
+**Full dev-loop with live repo worktree:**
+
+```bash
+git clone --mirror git@github.com:owner/repo.git /tmp/mirror
+git --git-dir=/tmp/mirror worktree add /tmp/run /tmp/mirror/main
+
+docker run -it --rm \
+  -e GH_TOKEN="$GH_TOKEN" \
+  -v "$HOME/.pi:/home/node/.pi" \
+  -v /tmp/run:/workspace \
+  pi-dev-loops pi
+```
+
+Mounts live repo worktree over baked-in `/workspace`. One isolated Pi session per container.
+
 ## Workflow posture
 
 - Use **`dev-loop`** as the single public façade for all routed work
@@ -91,7 +171,7 @@ CI splits into a small changed-files gate plus parallel `verify` and conditional
 ## Further reading
 
 - [Docs Index](./docs/index.md) — active docs, canonical-owner pointers, and current phase status
-- [Extension Documentation](./extension/README.md) — `/dev-loops` command and package-install contract
+- [Extension Documentation](./extension/README.md) — README-driven extension spec
 - [Scripts Documentation](./scripts/README.md) — deterministic script contracts
 - [UI Smoke Harness](./docs/ui-smoke-harness.md) — reusable local Playwright/WebKit smoke baseline
 - [UI Artifact Contract](./docs/ui-artifact-contract.md) — screenshot/state artifact contract and CI-promotion rules
