@@ -539,14 +539,22 @@ export async function loadDevLoopConfig(options = {}) {
   });
 
   // Check if .devloops exists (primary consumer override)
+  // Only ENOENT means the file is genuinely absent; any other error
+  // (EACCES, EISDIR, etc.) means the file exists but is unreadable,
+  // so we must select the .devloops path so applyLayer can record the
+  // structured error.
   let primaryExists = false;
   for (const ext of ["", ".yaml", ".yml", ".json"]) {
     try {
       await readFile(devloopsPath + ext, "utf8");
       primaryExists = true;
       break;
-    } catch {
-      // file doesn't exist
+    } catch (err) {
+      if (err?.code !== "ENOENT") {
+        primaryExists = true;
+        break;
+      }
+      // ENOENT — genuinely absent, try next extension
     }
   }
 
@@ -563,7 +571,14 @@ export async function loadDevLoopConfig(options = {}) {
           await readFile(legacyPath + ext, "utf8");
           legacyAlongside = true;
           break;
-        } catch {}
+        } catch (err) {
+          if (err?.code !== "ENOENT") {
+            // File exists but is unreadable — treat as "found" so the
+            // deprecation warning fires and applyLayer can surface the error.
+            legacyAlongside = true;
+            break;
+          }
+        }
       }
       if (legacyAlongside) break;
     }
@@ -583,7 +598,14 @@ export async function loadDevLoopConfig(options = {}) {
           await readFile(legacyPath + ext, "utf8");
           legacyFound = true;
           break;
-        } catch {}
+        } catch (err) {
+          if (err?.code !== "ENOENT") {
+            // File exists but is unreadable — treat as "found" so the
+            // deprecation warning fires and applyLayer can surface the error.
+            legacyFound = true;
+            break;
+          }
+        }
       }
       if (legacyFound) break;
     }
