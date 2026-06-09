@@ -45,19 +45,23 @@ function parseCliArgs(argv) {
 
 function validateRepo(repo) {
   if (!repo) {
-    throw new Error("Repo auto-detection failed. Set origin remote or use --repo.");
+    throw parseError("Repo auto-detection failed. Set origin remote or use --repo.");
   }
   try {
     parseRepoSlug(repo);
-  } catch (err) {
-    throw new Error(`Invalid repo slug "${repo}": ${err instanceof Error ? err.message : String(err)}`);
+  } catch {
+    throw parseError(`Invalid repo slug "${repo}". Must match <owner/name>.`);
   }
   return repo;
 }
 
 function ghJson(args, cwd) {
-  const stdout = execFileSync("gh", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  return JSON.parse(stdout);
+  try {
+    const stdout = execFileSync("gh", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    return JSON.parse(stdout);
+  } catch (err) {
+    throw new Error(`gh command failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 function runNode(scriptPath, args, cwd) {
@@ -178,8 +182,7 @@ function buildPrInfo(prNumber, repo, cwd) {
 function buildIssueInfo(issueNumber, repo, cwd) {
   const issueData = ghJson(["issue", "view", String(issueNumber), "--repo", repo, "--json", "number,title,body,state,labels,assignees,milestone,url"], cwd);
   
-  // Run startup resolver with synthetic PI_SUBAGENT_RUN_ID to avoid
-  // async-start contract rejection for GitHub-first issue routes.
+  // Run startup resolver with synthetic PI_SUBAGENT_RUN_ID and explicit --repo
   let startupBundle = null;
   try {
     const startupScript = path.join(REPO_ROOT, "scripts/loop/resolve-dev-loop-startup.mjs");
@@ -227,12 +230,7 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
   
   const cwd = process.cwd();
   const rawRepo = opts.repo || detectRepoSlug(cwd);
-  let repo;
-  try {
-    repo = validateRepo(rawRepo);
-  } catch (err) {
-    throw new Error(err instanceof Error ? err.message : String(err));
-  }
+  const repo = validateRepo(rawRepo);
   
   if (opts.issue !== undefined) {
     const { issueData, startupBundle, linkedPrInfo } = buildIssueInfo(opts.issue, repo, cwd);

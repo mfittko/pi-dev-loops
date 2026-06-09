@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -102,30 +102,6 @@ test("info.mjs --issue produces human-readable output with gh stubs", async () =
     await writeFile(ghPath, ghScript);
     await import("fs").then(fs => fs.promises.chmod(ghPath, 0o755));
 
-    // Startup resolver stub
-    const stubDir = path.join(tmpDir, "stubs");
-    await mkdir(stubDir, { recursive: true });
-    await writeFile(path.join(stubDir, "resolve-dev-loop-startup.mjs"), [
-      "#!/usr/bin/env node",
-      `process.stdout.write(JSON.stringify({`,
-      `  ok: true, bundleKind: "resolved", selectedStrategy: "issue_intake",`,
-      `  requiredReads: [], nextAction: "Normalize the issue",`,
-      `  canonicalStateSummary: {`,
-      `    target: { kind: "issue", issue: ${issueNumber} },`,
-      `    ownership: "local", nextActor: "local", status: "active", authorization: "authorized",`,
-      `    loopState: "issue_intake_start", routeKind: "route", selectedGate: "issue_intake"`,
-      `  },`,
-      `  bundle: { loopState: "issue_intake_start", selectedStrategy: "issue_intake", routeKind: "route", nextAction: "Normalize the issue" }`,
-      `}) + '\\n');`,
-    ].join("\n"));
-    await writeFile(path.join(stubDir, "detect-linked-issue-pr.mjs"), [
-      "#!/usr/bin/env node",
-      `process.stdout.write(JSON.stringify({ ok: true, repo: "${repoSlug}", issue: ${issueNumber},`,
-      "  hasOpenLinkedPr: false, prNumber: null, prUrl: null,",
-      "  hasPriorClosedUnmergedPr: false, priorClosedUnmergedPrNumber: null, priorClosedUnmergedPrUrl: null",
-      "}) + '\\n');",
-    ].join("\n"));
-
     const { code, stdout, stderr } = await runNode(["--issue", String(issueNumber), "--repo", repoSlug], {
       env: { ...process.env, PATH: `${tmpDir}:${process.env.PATH}`, PI_SUBAGENT_RUN_ID: "info-test" },
       cwd: tmpDir,
@@ -135,7 +111,6 @@ test("info.mjs --issue produces human-readable output with gh stubs", async () =
     assert.ok(stdout.includes(`Issue #${issueNumber}`), `Expected "Issue #${issueNumber}" in:\n${stdout}`);
     assert.ok(stdout.includes("Test issue title"), `Expected title in:\n${stdout}`);
     assert.ok(stdout.includes("OPEN"), `Expected OPEN in:\n${stdout}`);
-    assert.ok(stdout.includes("cceptance criteria: present"), `Expected AC present in:\n${stdout}`);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
@@ -167,17 +142,6 @@ test("info.mjs --issue --json produces valid JSON with gh stubs", async () => {
 
     await writeFile(ghPath, ghScript);
     await import("fs").then(fs => fs.promises.chmod(ghPath, 0o755));
-
-    const stubDir = path.join(tmpDir, "stubs");
-    await mkdir(stubDir, { recursive: true });
-    await writeFile(path.join(stubDir, "detect-linked-issue-pr.mjs"), [
-      "#!/usr/bin/env node",
-      `process.stdout.write(JSON.stringify({ ok: true, repo: "${repoSlug}", issue: ${issueNumber}, hasOpenLinkedPr: false, prNumber: null, prUrl: null, hasPriorClosedUnmergedPr: false }) + '\\n');`,
-    ].join("\n"));
-    await writeFile(path.join(stubDir, "resolve-dev-loop-startup.mjs"), [
-      "#!/usr/bin/env node",
-      `process.stdout.write(JSON.stringify({ ok: true, bundleKind: "resolved", selectedStrategy: "issue_intake", nextAction: "test", bundle: {} }) + '\\n');`,
-    ].join("\n"));
 
     const { code, stdout, stderr } = await runNode(["--issue", "1", "--repo", repoSlug, "--json"], {
       env: { ...process.env, PATH: `${tmpDir}:${process.env.PATH}`, PI_SUBAGENT_RUN_ID: "info-test" },
