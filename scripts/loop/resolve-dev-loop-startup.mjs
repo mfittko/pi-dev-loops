@@ -18,6 +18,7 @@ import {
   buildAsyncStartRejection,
   ASYNC_START_STATUS,
 } from "../../packages/core/src/loop/async-start-contract.mjs";
+import { detectRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { loadDevLoopConfig, resolveWorkflowConfig } from "../../packages/core/src/config/config.mjs";
 const USAGE = `Usage:
   resolve-dev-loop-startup.mjs --issue <number>
@@ -128,21 +129,6 @@ export function parseResolveDevLoopStartupCliArgs(argv) {
   }
   return options;
 }
-function detectRepoSlug(cwd) {
-  try {
-    const url = execFileSync("git", ["remote", "get-url", "origin"], {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-    const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
-    if (!match) throw new Error(`Could not parse owner/name from git remote: ${url}`);
-    return `${match[1]}/${match[2]}`;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Repo auto-detection failed: ${msg}. Set origin remote or use --input.`);
-  }
-}
 function ghJson(args, cwd) {
   try {
     const stdout = execFileSync("gh", args, {
@@ -208,6 +194,9 @@ export function buildAutoResolvedInput({ issue, pr, cwd, targetPreference, input
   } catch {
   }
   const repo = detectRepoSlug(repoRoot);
+  if (!repo) {
+    throw new Error("Repo auto-detection failed. Set origin remote or use --input.");
+  }
   if (issue !== undefined) {
     const resolvedTargetPreference = targetPreference ?? resolveTargetPreference(repoRoot);
     const resolvedInputSource = normalizeConfigInputSource(inputSource);

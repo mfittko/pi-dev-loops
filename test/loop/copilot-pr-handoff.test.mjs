@@ -63,6 +63,22 @@ test("copilot-pr-handoff --help prints usage and exits 0", async () => {
   assert.equal(helpShort.stdout, helpLong.stdout);
 });
 
+test("copilot-pr-handoff --repo omitted outside git repo emits clear error", async () => {
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "handoff-test-"));
+  try {
+    // Non-git directory: detectRepoSlug returns null, error should be clear
+    assert.throws(
+      () => parseHandoffCliArgs(["--pr", "17"], { cwd: tmpDir }),
+      /Repo auto-detection failed/,
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test("copilot-pr-handoff normalizes watch-status input", async () => {
   const parsed = parseHandoffCliArgs(["--repo", "owner/repo", "--pr", "17", "--watch-status", " Timeout "]);
   assert.equal(parsed.watchStatus, "timeout");
@@ -74,7 +90,7 @@ test("copilot-pr-handoff rejects malformed arguments with usage guidance", async
   assert.equal(missingPr.stdout, "");
   const missingPrErr = JSON.parse(missingPr.stderr);
   assert.equal(missingPrErr.ok, false);
-  assert.equal(missingPrErr.error, "copilot-pr-handoff requires both --repo <owner/name> and --pr <number>");
+  assert.equal(missingPrErr.error, "copilot-pr-handoff requires --pr <number>");
   assert.equal(typeof missingPrErr.usage, "string");
   assert(missingPrErr.usage.length > 0);
 
@@ -114,6 +130,23 @@ test("copilot-pr-handoff rejects malformed arguments with usage guidance", async
 // ---------------------------------------------------------------------------
 // Handoff: pr_ready_no_feedback → request → watch
 // ---------------------------------------------------------------------------
+
+test("copilot-pr-handoff --repo auto-detected from git remote when omitted", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "handoff-test-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["-C", tmpDir, "remote", "add", "origin", "https://github.com/test-owner/test-repo.git"]);
+    const parsed = parseHandoffCliArgs(["--pr", "17"], { cwd: tmpDir });
+    assert.equal(parsed.pr, 17);
+    assert.equal(parsed.repo, "test-owner/test-repo");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
 
 test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_feedback", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-watch-"));

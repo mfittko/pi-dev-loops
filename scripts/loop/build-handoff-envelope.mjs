@@ -16,6 +16,7 @@
  */
 import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import { detectRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import path from "node:path";
 import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { requireOptionValue } from "../_cli-primitives.mjs";
@@ -96,20 +97,6 @@ export function parseBuildHandoffEnvelopeCliArgs(argv) {
   return options;
 }
 
-function detectRepoSlug(cwd) {
-  try {
-    const url = execFileSync("git", ["remote", "get-url", "origin"], {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-    const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
-    if (!match) return null;
-    return `${match[1]}/${match[2]}`;
-  } catch {
-    return null;
-  }
-}
 
 export async function buildHandoffEnvelopeCli(
   options,

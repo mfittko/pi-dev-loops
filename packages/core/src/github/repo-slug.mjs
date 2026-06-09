@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 export function isSafeRepoSegment(segment) {
   return typeof segment === "string"
     && segment.length > 0
@@ -80,4 +82,24 @@ export function dedupeRepoSlugOptions(options) {
     uniqueOptions.push(trimmed);
   }
   return uniqueOptions;
+}
+/**
+ * Auto-detect <owner/name> from `git remote get-url origin`.
+ * Returns the slug string on success, or null when detection fails
+ * (no origin remote, not a git repo, or unparseable URL).
+ * Does NOT throw — callers should add their own context-specific error messages.
+ */
+export function detectRepoSlug(cwd) {
+  try {
+    const url = execFileSync("git", ["remote", "get-url", "origin"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
+    if (!match) return null;
+    return `${match[1]}/${match[2]}`;
+  } catch {
+    return null;
+  }
 }
