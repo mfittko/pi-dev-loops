@@ -51,7 +51,7 @@ Both modes must return the same structured outcome set and follow the same fail-
 
 ## Required output bundle
 
-Every designer-persona pass must produce a bounded structured result with:
+Every review pass (designer or vision) must produce a bounded structured result with:
 - **Findings**
   - what is visually or interaction-wise wrong or unclear
   - which named state it affects

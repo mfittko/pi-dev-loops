@@ -27,7 +27,7 @@ Allowed enum values:
 - `outcome`: `"continue_ui_fix_loop"` | `"ui_review_satisfied"` | `"blocked_needs_human_decision"`
 - `severity`: `"high"` | `"medium"` | `"low"`
 
-`blockedReason` is required only when `outcome` is `"blocked_needs_human_decision"`.
+`blockedReason` must always be present in the output. Set it to `null` unless `outcome` is `"blocked_needs_human_decision"`, in which case provide a non-empty string explaining the block reason.
 
 Return strict JSON with this shape (example uses concrete values):
 
