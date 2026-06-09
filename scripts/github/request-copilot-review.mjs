@@ -211,10 +211,19 @@ function getLastCopilotReviewHeadSha(prData) {
   // (later index = more recent).
   const indexed = copilotReviews.map((r, i) => ({ review: r, index: i }));
   indexed.sort((a, b) => {
-    const aTs = (typeof a.review?.submittedAt === "string" ? Date.parse(a.review.submittedAt) : NaN)
-      || (typeof a.review?.submitted_at === "string" ? Date.parse(a.review.submitted_at) : NaN);
-    const bTs = (typeof b.review?.submittedAt === "string" ? Date.parse(b.review.submittedAt) : NaN)
-      || (typeof b.review?.submitted_at === "string" ? Date.parse(b.review.submitted_at) : NaN);
+    const parseTs = (r) => {
+      if (typeof r?.submittedAt === "string") {
+        const v = Date.parse(r.submittedAt);
+        if (!Number.isNaN(v)) return v;
+      }
+      if (typeof r?.submitted_at === "string") {
+        const v = Date.parse(r.submitted_at);
+        if (!Number.isNaN(v)) return v;
+      }
+      return NaN;
+    };
+    const aTs = parseTs(a.review);
+    const bTs = parseTs(b.review);
     if (!Number.isNaN(aTs) && !Number.isNaN(bTs)) return bTs - aTs;
     if (Number.isNaN(aTs) && Number.isNaN(bTs)) return b.index - a.index;
     return Number.isNaN(aTs) ? 1 : -1;
@@ -387,11 +396,11 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     if (!canCompare) {
       return {
         ok: true,
-        status: NO_CHANGES_SINCE_LAST_REVIEW_STATUS,
+        status: ROUND_CAP_REACHED_STATUS,
         repo: options.repo,
         pr: options.pr,
         reviewer: "Copilot",
-        detail: "Cannot determine whether new commits exist since the last Copilot review because commit SHA data is unavailable. --force-rerequest-review requires determinable change evidence.",
+        detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. --force-rerequest-review was supplied but commit SHA data is unavailable, so change-since-last-review could not be evaluated.`,
         completedRounds: before.completedCopilotReviewRounds,
         maxRounds,
       };
