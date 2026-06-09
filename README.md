@@ -123,7 +123,7 @@ Phase 8 is the active durable phase; Phase 7 second-repo pilot is deferred. See 
 
 ## Configuration
 
-Gate review angles, refinement settings, persona mappings, and workflow defaults are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos override values in `.pi/dev-loop/settings.yaml`. The loader also accepts `.yml` and `.json` extensions and legacy `overrides.*` files as fallback formats. See [Extension Documentation](./extension/README.md) for details.
+Gate review angles, refinement settings, persona mappings, and workflow defaults are config-driven via `.pi/dev-loop/defaults.yaml`. Consumer repos override values in `.devloops` at repo root (legacy `.pi/dev-loop/settings.yaml` still loads with a deprecation warning). The loader also accepts `.yml` and `.json` extensions and legacy `overrides.*` files as fallback formats. See [Extension Documentation](./extension/README.md) for details.
 
 ```bash
 npx dev-loops gates   # see what reviewers will check

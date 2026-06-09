@@ -154,12 +154,49 @@ function hasAcSection(body) {
   return /##\s*Acceptance Criteria|##\s*AC\b|###\s*Acceptance Criteria|###\s*AC\b/i.test(body);
 }
 function resolveTargetPreference(cwd) {
-  const candidates = [
+  const devloopsCandidates = [
+    path.join(cwd, ".devloops"),
+    path.join(cwd, ".devloops.yaml"),
+    path.join(cwd, ".devloops.yml"),
+    path.join(cwd, ".devloops.json"),
+  ];
+  // Check .devloops first (bare or with extension).
+  // Bare files try YAML first, then JSON fallback (consistent with
+  // config.mjs readConfigFile behavior).
+  for (const devloopsPath of devloopsCandidates) {
+    try {
+      const raw = readFileSync(devloopsPath, "utf8");
+      let val;
+      if (devloopsPath.endsWith(".json")) {
+        val = JSON.parse(raw)?.strategy?.default;
+      } else if (devloopsPath.endsWith(".yaml") || devloopsPath.endsWith(".yml")) {
+        const m = raw.match(/strategy:\s*\n\s*default:\s*["']?([^"'\s]+)["']?/);
+        val = m ? m[1] : undefined;
+      } else {
+        // Bare file (no recognized extension) — YAML first, JSON fallback
+        const m = raw.match(/strategy:\s*\n\s*default:\s*["']?([^"'\s]+)["']?/);
+        if (m) {
+          val = m[1];
+        } else {
+          try {
+            val = JSON.parse(raw)?.strategy?.default;
+          } catch {
+            // Not valid JSON either — fall through
+          }
+        }
+      }
+      if (val === "local-first") return "prefer_local";
+      if (val === "github-first") return "prefer_github_first";
+    } catch {
+    }
+  }
+  // Legacy .pi/dev-loop/settings.* (deprecated)
+  const legacyCandidates = [
     path.join(cwd, ".pi", "dev-loop", "settings.yaml"),
     path.join(cwd, ".pi", "dev-loop", "settings.yml"),
     path.join(cwd, ".pi", "dev-loop", "settings.json"),
   ];
-  for (const settingsPath of candidates) {
+  for (const settingsPath of legacyCandidates) {
     try {
       const raw = readFileSync(settingsPath, "utf8");
       if (settingsPath.endsWith(".json")) {

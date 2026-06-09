@@ -59,7 +59,7 @@ When the local spec already lives in a tracker issue:
 - sync durable scope / acceptance / status changes back to the tracker issue rather than maintaining a duplicate local phase doc
 - keep `tmp/` as temporary local execution state only; it does not become a second durable spec surface
 - for tracker-backed sessions, the handoff path is always: push the working branch → open a PR → merge via GitHub
-- for tracker-backed sessions, PR creation must always include `--assignee @me` so the new PR is self-assigned, and the PR body must contain `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge. When `.pi/dev-loop/settings.yaml` `workflow.requireDraftFirst` opts in, use `dev-loops pr create-draft --assignee @me ...`. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate inspection is a real workflow boundary.
+- for tracker-backed sessions, PR creation must always include `--assignee @me` so the new PR is self-assigned, and the PR body must contain `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge. When `.devloops` sets `workflow.requireDraftFirst` to true, use `dev-loops pr create-draft --assignee @me ...`. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate inspection is a real workflow boundary.
 - do not suggest a direct local-main merge for tracker-backed sessions; do not merge the working branch into local `main` at phase completion
 
 ## Primary execution rules
@@ -114,7 +114,7 @@ Apply [Structural Quality](../docs/structural-quality.md) from the `deep` review
 
 Light mode is currently **config-only**: the schema, resolver, and scope detector are implemented, but no functional wiring exists yet in the local-implementation flow. When scope is small enough, the intent is to skip fan-out/fan-in and use a single review pass instead. Light mode will still require validation and pre-approval gate once wired.
 
-**Eligibility:** ≤3 files AND ≤200 lines changed (configurable via `.pi/dev-loop/settings.yaml` `localImplementation.lightMode`).
+**Eligibility:** ≤3 files AND ≤200 lines changed (configurable via `.devloops` field `localImplementation.lightMode`).
 
 Use `scripts/loop/detect-change-scope.mjs` to determine eligibility:
 ```sh
@@ -532,7 +532,7 @@ This is the infrastructure for self-improvement. Do not skip it.
 
 Dev mode is for improving the local implementation loop itself while using it.
 
-A repository may also declare a formal-dev-mode default through `.pi/dev-loop/settings.yaml` `workflow.devModeDefault`. Treat that config as the policy source of truth when present, but explicit user opt-in or opt-out for the current run still wins. Runtime consumption of that config may be staged separately from this documentation update.
+A repository may also declare a formal-dev-mode default through `.devloops` field `workflow.devModeDefault`. Treat that config as the policy source of truth when present, but explicit user opt-in or opt-out for the current run still wins. Runtime consumption of that config may be staged separately from this documentation update.
 
 Trigger it when the user explicitly asks for dev mode, self-improvement mode, or says they want the skill to refine itself as it goes.
 
@@ -620,7 +620,7 @@ See [Stop Conditions](../docs/stop-conditions.md). Local-specific stops: phase c
 - Rerun validation after review-driven fixes.
 - A phase is not operationally closed until its branch state is captured in commit history and the reviewed branch has been finalized according to session type (merged into local `main` for phase-doc-backed sessions; merged via GitHub PR for tracker-backed sessions), unless authorization for that finalization is still pending.
 - For tracker-backed sessions, the handoff path is always: push the working branch → open a PR → merge via GitHub; never merge the working branch into local `main`.
-- PR creation must always include `--assignee @me` so the new PR is self-assigned, and the PR body must contain `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge. When `.pi/dev-loop/settings.yaml` `workflow.requireDraftFirst` opts in, use `dev-loops pr create-draft --assignee @me ...`. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate inspection is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is eligible.
+- PR creation must always include `--assignee @me` so the new PR is self-assigned, and the PR body must contain `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge. When `.devloops` sets `workflow.requireDraftFirst` to true, use `dev-loops pr create-draft --assignee @me ...`. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate inspection is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is eligible.
 - When authorization is pending, record the phase as `awaiting-finalization` and describe the exact missing step.
 - For phase-doc-backed sessions, merge the fully reviewed, locally validated branch back into local `main` when authorized.
 

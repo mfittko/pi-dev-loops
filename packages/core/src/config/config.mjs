@@ -382,13 +382,27 @@ async function readConfigFile(filePath) {
     throw configError("Config file is empty", "EMPTY_FILE", filePath);
   }
 
+  const hasExt = filePath.endsWith(".yaml") || filePath.endsWith(".yml") || filePath.endsWith(".json");
   const isYaml = filePath.endsWith(".yaml") || filePath.endsWith(".yml");
   let parsed;
-  try {
-    parsed = isYaml ? parseYaml(raw) : JSON.parse(raw);
-  } catch (err) {
-    const format = isYaml ? "YAML" : "JSON";
-    throw configError(`Invalid ${format} in config file: ${err.message}`, `INVALID_${format.toUpperCase()}`, filePath);
+  if (hasExt) {
+    try {
+      parsed = isYaml ? parseYaml(raw) : JSON.parse(raw);
+    } catch (err) {
+      const format = isYaml ? "YAML" : "JSON";
+      throw configError(`Invalid ${format} in config file: ${err.message}`, `INVALID_${format.toUpperCase()}`, filePath);
+    }
+  } else {
+    // Bare file (no recognized extension) — try YAML first, fallback JSON
+    try {
+      parsed = parseYaml(raw);
+    } catch {
+      try {
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        throw configError(`Invalid config file (tried YAML and JSON): ${err.message}`, "INVALID_BARE_FILE", filePath);
+      }
+    }
   }
 
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -408,11 +422,30 @@ async function findConfigFile(basePaths) {
   const candidates = Array.isArray(basePaths) ? basePaths : [basePaths];
 
   for (const basePath of candidates) {
+    // Try bare path first (e.g., .devloops without extension).
+    // Success returns immediately.
+    // ENOENT: file genuinely absent — try extension variants.
+    // Other errors (EISDIR, EACCES): file exists but is unreadable —
+    // try extension variants as fallback, but surface the original
+    // error if no extension variant exists.
+    let bareData = null;
+    let bareError = null;
+    try {
+      bareData = await readConfigFile(basePath);
+    } catch (err) {
+      bareError = err;
+    }
+    if (bareData !== null) return { path: basePath, data: bareData };
+
     for (const ext of [".yaml", ".yml", ".json"]) {
       const filePath = basePath + ext;
       const data = await readConfigFile(filePath);
       if (data !== null) return { path: filePath, data };
     }
+
+    // No extension variant found either — if the bare path exists but is
+    // unreadable, surface that error rather than silently falling back.
+    if (bareError) throw bareError;
   }
 
   return { path: candidates[0] + ".yaml", data: null };
@@ -506,6 +539,7 @@ export async function loadDevLoopConfig(options = {}) {
   const repoRoot = options.repoRoot ?? process.cwd();
   const configDir = path.join(repoRoot, ".pi", "dev-loop");
   const defaultsPath = path.join(configDir, "defaults");
+  const devloopsPath = path.join(repoRoot, ".devloops");
   const settingsPaths = [path.join(configDir, "settings"), path.join(configDir, "overrides")];
 
   /** @type {string[]} */
@@ -519,7 +553,88 @@ export async function loadDevLoopConfig(options = {}) {
     warnOnMissing: true,
   });
 
-  merged = await applyLayer(merged, settingsPaths, "settings", warnings, errors);
+  // Check if .devloops exists (primary consumer override)
+  // Only ENOENT means the file is genuinely absent; any other error
+  // (EACCES, EISDIR, etc.) means the file exists but is unreadable,
+  // so we must select the .devloops path so applyLayer can record the
+  // structured error.
+  let primaryExists = false;
+  for (const ext of ["", ".yaml", ".yml", ".json"]) {
+    try {
+      await readFile(devloopsPath + ext, "utf8");
+      primaryExists = true;
+      break;
+    } catch (err) {
+      if (err?.code !== "ENOENT") {
+        primaryExists = true;
+        break;
+      }
+      // ENOENT — genuinely absent, try next extension
+    }
+  }
+
+  if (primaryExists) {
+    // .devloops is the primary override — apply it
+    merged = await applyLayer(merged, devloopsPath, "settings", warnings, errors);
+
+    // Warn if legacy files still exist alongside .devloops (but don't load them —
+    // .devloops is authoritative; legacy must not override it)
+    let legacyAlongside = false;
+    for (const legacyPath of settingsPaths) {
+      for (const ext of [".yaml", ".yml", ".json"]) {
+        try {
+          await readFile(legacyPath + ext, "utf8");
+          legacyAlongside = true;
+          break;
+        } catch (err) {
+          if (err?.code !== "ENOENT") {
+            // File exists but is unreadable — treat as "found" so the
+            // deprecation warning fires (applyLayer is not called for legacy
+            // paths when .devloops is present, so the flag only controls the warning).
+            legacyAlongside = true;
+            break;
+          }
+        }
+      }
+      if (legacyAlongside) break;
+    }
+    if (legacyAlongside) {
+      warnings.push(
+        `Deprecated config path(s) found under .pi/dev-loop/settings.* or .pi/dev-loop/overrides.*. ` +
+        `Migrate to .devloops (or .devloops.yaml/.devloops.yml/.devloops.json) at repo root. ` +
+        `Legacy paths will be removed in a future version.`
+      );
+    }
+  } else {
+    // No .devloops — fall back to legacy .pi/dev-loop/settings.* or overrides.* (deprecated)
+    let legacyFound = false;
+    for (const legacyPath of settingsPaths) {
+      for (const ext of [".yaml", ".yml", ".json"]) {
+        try {
+          await readFile(legacyPath + ext, "utf8");
+          legacyFound = true;
+          break;
+        } catch (err) {
+          if (err?.code !== "ENOENT") {
+            // File exists but is unreadable — treat as "found" so the
+            // deprecation warning fires and applyLayer can surface the error
+            // (legacy applyLayer runs in this branch).
+            legacyFound = true;
+            break;
+          }
+        }
+      }
+      if (legacyFound) break;
+    }
+    if (legacyFound) {
+      warnings.push(
+        `Deprecated config path(s) found under .pi/dev-loop/settings.* or .pi/dev-loop/overrides.*. ` +
+        `Migrate to .devloops (or .devloops.yaml/.devloops.yml/.devloops.json) at repo root. ` +
+        `Legacy paths will be removed in a future version.`
+      );
+      merged = await applyLayer(merged, settingsPaths, "settings", warnings, errors);
+    }
+  }
 
   // Validate final merged config
   const result = DevLoopConfigSchema.safeParse(merged);
@@ -833,7 +948,7 @@ const DEFAULT_INTERNAL_PATH_PATTERNS = BUILT_IN_DEFAULTS.internalPathPatterns;
  * to classify files as internal tooling (vs consumer-facing). When the config
  * omits this section, returns the built-in shipped defaults.
  *
- * Consumers can override these in .pi/dev-loop/settings.yaml.
+ * Consumers can override these in .devloops at repo root.
  *
  * @param {DevLoopConfig} config
  * @returns {string[]}

@@ -189,7 +189,7 @@ During any gate review (draft_gate, pre_approval_gate):
 ## 8. Config
 
 ```yaml
-# .pi/dev-loop/settings.yaml additions
+# .devloops additions
 queue:
   maxParallel: 3           # concurrency cap for --parallel
   maxAutoFiledIssues: 10   # cap on bug-injected issues per queue run

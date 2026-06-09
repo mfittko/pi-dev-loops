@@ -1972,11 +1972,11 @@ describe("shipped defaults docs and deep angle wiring", () => {
     try {
       const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
       const sourceDefaults = await readFile(path.join(repoRoot, ".pi", "dev-loop", "defaults.yaml"), "utf8");
-      const sourceSettings = await readFile(path.join(repoRoot, ".pi", "dev-loop", "settings.yaml"), "utf8");
+      const sourceSettings = await readFile(path.join(repoRoot, ".devloops"), "utf8");
       const piDir = path.join(tmpDir, ".pi", "dev-loop");
       await mkdir(piDir, { recursive: true });
       await writeFile(path.join(piDir, "defaults.yaml"), sourceDefaults);
-      await writeFile(path.join(piDir, "settings.yaml"), sourceSettings);
+      await writeFile(path.join(tmpDir, ".devloops"), sourceSettings);
 
       const { loadDevLoopConfig, resolveReviewerRole, resolveGateAngles } = await import("../src/config/config.mjs");
       const result = await loadDevLoopConfig({ repoRoot: tmpDir });
