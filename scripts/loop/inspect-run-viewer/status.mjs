@@ -93,12 +93,12 @@ function renderInboxSignalBadge(snapshot) {
   return renderBadge(signal.replaceAll("_", " "), INBOX_SIGNAL_BADGE_VARIANTS[signal] ?? "muted");
 }
 
-function renderBooleanBadge(value) {
+function renderBooleanBadge(value, { positive = false } = {}) {
   if (value === true) {
-    return renderBadge("true", "danger");
+    return renderBadge("true", positive ? "success" : "danger");
   }
   if (value === false) {
-    return renderBadge("false", "success");
+    return renderBadge("false", positive ? "muted" : "success");
   }
   return renderBadge("not present", "muted");
 }
@@ -234,8 +234,8 @@ export function renderCopilotLayerSection(layer, snapshot = null) {
     body: `${renderStatGrid([
       { label: "currentState", value: renderCodeValue(layer.currentState) },
       { label: "loopDisposition", value: renderCodeValue(layer.loopDisposition) },
-      { label: "sameHeadCleanConverged", value: renderBooleanBadge(layer.sameHeadCleanConverged) },
-      { label: "terminal", value: renderBooleanBadge(layer.terminal) },
+      { label: "sameHeadCleanConverged", value: renderBooleanBadge(layer.sameHeadCleanConverged, { positive: true }) },
+      { label: "terminal", value: renderBooleanBadge(layer.terminal, { positive: true }) },
     ], { columns: "viewer-stat-grid-2" })}
     ${renderCardListBlock("allowedTransitions", layer.allowedTransitions)}
     <div class="viewer-card-subsection">
@@ -245,16 +245,6 @@ export function renderCopilotLayerSection(layer, snapshot = null) {
   });
 }
 
-export function renderCopilotLoopIterationsSection(snapshot) {
-  const entries = buildCopilotLoopIterationEntries(snapshot);
-  return renderCard({
-    kicker: "Layers",
-    title: "Copilot loop iterations",
-    className: "handoff-card-tight",
-    dataField: "copilot-loop-iterations",
-    body: entries ? renderKeyValueRows(entries, { compact: true }) : renderCardEmptyState(),
-  });
-}
 
 export function renderReviewerLayerSection(layer) {
   if (layer === null || layer === undefined) {
@@ -271,7 +261,7 @@ export function renderReviewerLayerSection(layer) {
       { label: "scope.mode", value: escapeHtml(layer.scope?.mode ?? "not present") },
       { label: "scope.reviewerLogin", value: escapeHtml(layer.scope?.reviewerLogin ?? "not present") },
       { label: "submittedReviewState", value: renderCodeValue(layer.submittedReviewState) },
-      { label: "approvedOnCurrentHead", value: renderBooleanBadge(layer.approvedOnCurrentHead) },
+      { label: "approvedOnCurrentHead", value: renderBooleanBadge(layer.approvedOnCurrentHead, { positive: true }) },
     ], { columns: "viewer-stat-grid-2" })}
     ${renderCardListBlock("allowedTransitions", layer.allowedTransitions)}`,
   });
