@@ -144,14 +144,16 @@ export async function buildHandoffEnvelopeCli(
   // Build options for envelope builder
   const envelopeOptions = {};
 
-  // Repo slug: use explicit --repo, then auto-detect from git remote
-  const repoSlug = options.repo ?? detectRepoSlug(repoRoot);
+  // Repo slug: explicit --repo, then resolver output bundle, then git remote
+  const bundleSlug = resolverOutput?.bundle?.repoSlug ?? resolverOutput?.bundle?.repo ?? null;
+  const repoSlug = options.repo ?? bundleSlug ?? detectRepoSlug(repoRoot);
   if (repoSlug) {
     envelopeOptions.repoSlug = repoSlug;
   } else {
     throw parseError(
-      "Repository slug could not be auto-detected from git remote origin. " +
-      "Pass --repo <owner/name> or ensure a git remote 'origin' is configured.",
+      "Repository slug could not be resolved. " +
+      "Pass --repo <owner/name>, ensure the resolver output includes a repo slug, " +
+      "or configure a git remote 'origin'.",
     );
   }
   envelopeOptions.repoRoot = repoRoot;

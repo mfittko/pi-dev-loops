@@ -309,7 +309,7 @@ test("build-handoff-envelope emits actionable error when auto-detected repo slug
     assert.equal(result.code, 1, `expected exit 1, got ${result.code} stdout:${result.stdout} stderr:${result.stderr}`);
     const parsed = JSON.parse(result.stderr.trim());
     assert.equal(parsed.ok, false);
-    assert.match(parsed.error, /--repo|origin|slug/i,
+    assert.match(parsed.error, /--repo|origin|slug|resolver/i,
       `error should mention --repo or origin, got: ${parsed.error}`);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
