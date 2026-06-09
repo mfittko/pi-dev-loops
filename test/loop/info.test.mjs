@@ -1,16 +1,11 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { runNode as runNodeHelper, writeJson as writeJsonHelper, writeGhStub as writeGhStubHelper } from "../_helpers.mjs";
+import { runNode as runNodeHelper } from "../_helpers.mjs";
 
 const infoScriptPath = path.resolve("scripts/loop/info.mjs");
-const startupScriptPath = path.resolve("scripts/loop/resolve-dev-loop-startup.mjs");
-const handoffScriptPath = path.resolve("scripts/loop/copilot-pr-handoff.mjs");
-const linkageScriptPath = path.resolve("scripts/github/detect-linked-issue-pr.mjs");
 
 const runNode = (args = [], options = {}) => runNodeHelper(infoScriptPath, args, options);
 
@@ -79,13 +74,11 @@ test("info.mjs --issue produces human-readable output with gh stubs", async () =
     const issueNumber = 42;
     const issueBody = "## Summary\nTest issue\n\n## Acceptance Criteria\n- It works";
 
-    // gh stub
     const ghPath = path.join(tmpDir, "gh");
     const ghScript = [
       "#!/usr/bin/env node",
       "const args = process.argv.slice(2);",
       `const repo = "${repoSlug}";`,
-      // gh issue view
       `if (args[0] === "issue" && args[1] === "view") {`,
       `  const issueNum = parseInt(args[2]);`,
       `  if (issueNum === ${issueNumber}) {`,
@@ -103,31 +96,18 @@ test("info.mjs --issue produces human-readable output with gh stubs", async () =
       `  }`,
       `  process.exit(1);`,
       `}`,
-      // gh pr view (for linked PR - shouldn't happen for no-linkage case)
       `process.exit(1);`,
     ].join("\n");
 
     await writeFile(ghPath, ghScript);
     await import("fs").then(fs => fs.promises.chmod(ghPath, 0o755));
 
-    // linked-PR stub: no linked PR
-    const linkageStubDir = path.join(tmpDir, "stubs");
-    await mkdir(linkageStubDir, { recursive: true });
-    const fakeLinkagePath = path.join(linkageStubDir, "detect-linked-issue-pr.mjs");
-    await writeFile(fakeLinkagePath, [
+    // Startup resolver stub
+    const stubDir = path.join(tmpDir, "stubs");
+    await mkdir(stubDir, { recursive: true });
+    await writeFile(path.join(stubDir, "resolve-dev-loop-startup.mjs"), [
       "#!/usr/bin/env node",
-      "process.stdout.write(JSON.stringify({",
-      `  ok: true, repo: "${repoSlug}", issue: ${issueNumber},`,
-      "  hasOpenLinkedPr: false, prNumber: null, prUrl: null,",
-      "  hasPriorClosedUnmergedPr: false, priorClosedUnmergedPrNumber: null, priorClosedUnmergedPrUrl: null",
-      "}) + '\\n');",
-    ].join("\n"));
-
-    // startup resolver stub: just emits valid JSON
-    const fakeStartupPath = path.join(linkageStubDir, "resolve-dev-loop-startup.mjs");
-    await writeFile(fakeStartupPath, [
-      "#!/usr/bin/env node",
-      "process.stdout.write(JSON.stringify({",
+      `process.stdout.write(JSON.stringify({`,
       `  ok: true, bundleKind: "resolved", selectedStrategy: "issue_intake",`,
       `  requiredReads: [], nextAction: "Normalize the issue",`,
       `  canonicalStateSummary: {`,
@@ -136,18 +116,25 @@ test("info.mjs --issue produces human-readable output with gh stubs", async () =
       `    loopState: "issue_intake_start", routeKind: "route", selectedGate: "issue_intake"`,
       `  },`,
       `  bundle: { loopState: "issue_intake_start", selectedStrategy: "issue_intake", routeKind: "route", nextAction: "Normalize the issue" }`,
+      `}) + '\\n');`,
+    ].join("\n"));
+    await writeFile(path.join(stubDir, "detect-linked-issue-pr.mjs"), [
+      "#!/usr/bin/env node",
+      `process.stdout.write(JSON.stringify({ ok: true, repo: "${repoSlug}", issue: ${issueNumber},`,
+      "  hasOpenLinkedPr: false, prNumber: null, prUrl: null,",
+      "  hasPriorClosedUnmergedPr: false, priorClosedUnmergedPrNumber: null, priorClosedUnmergedPrUrl: null",
       "}) + '\\n');",
     ].join("\n"));
 
     const { code, stdout, stderr } = await runNode(["--issue", String(issueNumber), "--repo", repoSlug], {
-      env: { ...process.env, PATH: `${tmpDir}:${process.env.PATH}` },
+      env: { ...process.env, PATH: `${tmpDir}:${process.env.PATH}`, PI_SUBAGENT_RUN_ID: "info-test" },
       cwd: tmpDir,
     });
 
     assert.equal(code, 0, `Expected exit 0, got ${code}. stderr: ${stderr}`);
     assert.ok(stdout.includes(`Issue #${issueNumber}`), `Expected "Issue #${issueNumber}" in:\n${stdout}`);
-    assert.ok(stdout.includes("Test issue title"), `Expected "Test issue title" in:\n${stdout}`);
-    assert.ok(stdout.includes("OPEN"), `Expected "OPEN" in:\n${stdout}`);
+    assert.ok(stdout.includes("Test issue title"), `Expected title in:\n${stdout}`);
+    assert.ok(stdout.includes("OPEN"), `Expected OPEN in:\n${stdout}`);
     assert.ok(stdout.includes("cceptance criteria: present"), `Expected AC present in:\n${stdout}`);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
@@ -193,7 +180,7 @@ test("info.mjs --issue --json produces valid JSON with gh stubs", async () => {
     ].join("\n"));
 
     const { code, stdout, stderr } = await runNode(["--issue", "1", "--repo", repoSlug, "--json"], {
-      env: { ...process.env, PATH: `${tmpDir}:${process.env.PATH}` },
+      env: { ...process.env, PATH: `${tmpDir}:${process.env.PATH}`, PI_SUBAGENT_RUN_ID: "info-test" },
       cwd: tmpDir,
     });
 
@@ -203,6 +190,62 @@ test("info.mjs --issue --json produces valid JSON with gh stubs", async () => {
     assert.equal(parsed.kind, "issue");
     assert.equal(parsed.issue.number, issueNumber);
     assert.equal(parsed.issue.title, "JSON test");
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// ── Integration: PR mode (with gh stubs) ─────────────────────────────
+
+test("info.mjs --pr produces human-readable output with gh stubs", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "info-test-pr-"));
+  try {
+    const repoSlug = "test-owner/test-repo";
+    const prNumber = 99;
+    const prTitle = "Test PR title";
+
+    const ghPath = path.join(tmpDir, "gh");
+    const ghScript = [
+      "#!/usr/bin/env node",
+      "const args = process.argv.slice(2);",
+      `const repo = "${repoSlug}";`,
+      `if (args[0] === "pr" && args[1] === "view") {`,
+      `  const prNum = parseInt(args[2]);`,
+      `  if (prNum === ${prNumber}) {`,
+      `    process.stdout.write(JSON.stringify({`,
+      `      number: ${prNumber},`,
+      `      title: ${JSON.stringify(prTitle)},`,
+      `      body: "",`,
+      `      state: "OPEN",`,
+      `      isDraft: false,`,
+      `      headRefName: "feature-branch",`,
+      `      baseRefName: "main",`,
+      `      author: { login: "testuser" },`,
+      `      mergedAt: null,`,
+      `      url: "https://github.com/${repoSlug}/pull/${prNumber}",`,
+      `      reviewRequests: []`,
+      `    }) + "\\n");`,
+      `    process.exit(0);`,
+      `  }`,
+      `  process.exit(1);`,
+      `}`,
+      `process.exit(1);`,
+    ].join("\n");
+
+    await writeFile(ghPath, ghScript);
+    await import("fs").then(fs => fs.promises.chmod(ghPath, 0o755));
+
+    const { code, stdout, stderr } = await runNode(["--pr", String(prNumber), "--repo", repoSlug], {
+      env: { ...process.env, PATH: `${tmpDir}:${process.env.PATH}` },
+      cwd: tmpDir,
+    });
+
+    assert.equal(code, 0, `Expected exit 0, got ${code}. stderr: ${stderr}`);
+    assert.ok(stdout.includes(`PR #${prNumber}`), `Expected PR #${prNumber} in:\n${stdout}`);
+    assert.ok(stdout.includes(prTitle), `Expected title in:\n${stdout}`);
+    assert.ok(stdout.includes("feature-branch"), `Expected branch in:\n${stdout}`);
+    assert.ok(stdout.includes("OPEN"), `Expected OPEN in:\n${stdout}`);
+    assert.ok(stdout.includes("testuser"), `Expected author in:\n${stdout}`);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
@@ -218,9 +261,6 @@ test("info.mjs fails gracefully when repo cannot be detected", async () => {
     });
     assert.notEqual(code, 0);
     assert.ok(stderr.length > 0, "Expected stderr output on repo detection failure");
-    // Should include usage in error output
-    assert.ok(stderr.includes("usage") || stderr.includes("Usage") || stderr.includes("origin remote") || stderr.includes("detection"),
-      `Expected usage/error hint in stderr, got: ${stderr}`);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }

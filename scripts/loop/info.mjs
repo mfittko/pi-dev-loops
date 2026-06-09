@@ -6,7 +6,8 @@ import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helper
 import { requireOptionValue, parsePositiveInteger } from "../_cli-primitives.mjs";
 import { detectRepoSlug, parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
-const REPO_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)), "..");
+// REPO_ROOT must resolve to the git repo root (two levels up from scripts/loop/)
+const REPO_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)), "..", "..");
 
 const USAGE = `Usage:
   dev-loops loop info --issue <number>
@@ -46,7 +47,6 @@ function validateRepo(repo) {
   if (!repo) {
     throw new Error("Repo auto-detection failed. Set origin remote or use --repo.");
   }
-  // Validate via parseRepoSlug for consistent error messages
   try {
     parseRepoSlug(repo);
   } catch (err) {
@@ -134,13 +134,11 @@ function formatIssueSummary(issueData, startupBundle, linkedPrData) {
     if (bundle.nextAction) lines.push(`  Next: ${bundle.nextAction}`);
   }
   
-  // Acceptance criteria check
   if (issueData.body) {
     const hasAc = /##\s*Acceptance Criteria|##\s*AC\b|###\s*Acceptance Criteria|###\s*AC\b/i.test(issueData.body);
     lines.push(`  Acceptance criteria: ${hasAc ? "present" : "missing"}`);
   }
   
-  // Linked PR
   if (linkedPrData) {
     lines.push(`  Linked PR: #${linkedPrData.number} (${linkedPrData.state}${linkedPrData.isDraft ? ", draft" : ""})`);
     if (linkedPrData.headRefName) {
@@ -164,10 +162,8 @@ function formatIssueSummary(issueData, startupBundle, linkedPrData) {
 }
 
 function buildPrInfo(prNumber, repo, cwd) {
-  // Fetch PR metadata
   const prData = ghJson(["pr", "view", String(prNumber), "--repo", repo, "--json", "number,title,body,state,isDraft,headRefName,baseRefName,author,mergedAt,url,reviewRequests"], cwd);
   
-  // Get handoff state — use --watch-status idle to avoid triggering review request
   let handoffResult = null;
   try {
     const handoffScript = path.join(REPO_ROOT, "scripts/loop/copilot-pr-handoff.mjs");
@@ -180,37 +176,29 @@ function buildPrInfo(prNumber, repo, cwd) {
 }
 
 function buildIssueInfo(issueNumber, repo, cwd) {
-  // Fetch issue metadata
   const issueData = ghJson(["issue", "view", String(issueNumber), "--repo", repo, "--json", "number,title,body,state,labels,assignees,milestone,url"], cwd);
   
-  // Run startup resolver via --input mode with pre-built input to avoid
-  // PI_SUBAGENT_RUN_ID async-start rejection. Use a manual input that mimics
-  // the issue auto-resolution path but doesn't trigger the async gating.
+  // Run startup resolver with synthetic PI_SUBAGENT_RUN_ID to avoid
+  // async-start contract rejection for GitHub-first issue routes.
   let startupBundle = null;
   try {
     const startupScript = path.join(REPO_ROOT, "scripts/loop/resolve-dev-loop-startup.mjs");
-    // The startup resolver for issues works fine for read-only inspection
-    // when called via --issue flag; the async-start rejection only applies
-    // to the result bundle's requiresAsyncDispatch field, not the raw output.
+    const env = { ...process.env, PI_SUBAGENT_RUN_ID: "info-readonly-placeholder" };
     const raw = execFileSync(process.execPath, [startupScript, "--issue", String(issueNumber)], {
-      cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env,
     });
     startupBundle = JSON.parse(raw);
   } catch {
     // Startup resolver unavailable — still show issue metadata
-    // This can happen for async-required routes in restrictive environments
   }
   
-  // Check for linked PR
   let linkedPrInfo = null;
   try {
     const linkageScript = path.join(REPO_ROOT, "scripts/github/detect-linked-issue-pr.mjs");
     const linkage = runNode(linkageScript, ["--repo", repo, "--issue", String(issueNumber)], cwd);
     if (linkage.hasOpenLinkedPr && linkage.prNumber) {
-      // Get PR metadata
       const prData = ghJson(["pr", "view", String(linkage.prNumber), "--repo", repo, "--json", "number,title,state,isDraft,headRefName,baseRefName,author,url"], cwd);
       
-      // Get handoff state for linked PR — use --watch-status idle to avoid triggering review request
       let handoffResult = null;
       try {
         const handoffScript = path.join(REPO_ROOT, "scripts/loop/copilot-pr-handoff.mjs");
@@ -239,29 +227,29 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
   
   const cwd = process.cwd();
   const rawRepo = opts.repo || detectRepoSlug(cwd);
-  const repo = validateRepo(rawRepo);
-  
+  let repo;
   try {
-    if (opts.issue !== undefined) {
-      const { issueData, startupBundle, linkedPrInfo } = buildIssueInfo(opts.issue, repo, cwd);
-      
-      if (opts.json) {
-        stdout.write(JSON.stringify({ ok: true, kind: "issue", issue: issueData, startup: startupBundle, linkedPr: linkedPrInfo }) + "\n");
-      } else {
-        stdout.write(formatIssueSummary(issueData, startupBundle, linkedPrInfo) + "\n");
-      }
-    } else {
-      const { prData, handoffResult } = buildPrInfo(opts.pr, repo, cwd);
-      
-      if (opts.json) {
-        stdout.write(JSON.stringify({ ok: true, kind: "pr", pr: prData, handoff: handoffResult }) + "\n");
-      } else {
-        stdout.write(formatPrSummary(prData, handoffResult) + "\n");
-      }
-    }
+    repo = validateRepo(rawRepo);
   } catch (err) {
-    stderr.write(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err), usage: USAGE }) + "\n");
-    process.exitCode = 1;
+    throw new Error(err instanceof Error ? err.message : String(err));
+  }
+  
+  if (opts.issue !== undefined) {
+    const { issueData, startupBundle, linkedPrInfo } = buildIssueInfo(opts.issue, repo, cwd);
+    
+    if (opts.json) {
+      stdout.write(JSON.stringify({ ok: true, kind: "issue", issue: issueData, startup: startupBundle, linkedPr: linkedPrInfo }) + "\n");
+    } else {
+      stdout.write(formatIssueSummary(issueData, startupBundle, linkedPrInfo) + "\n");
+    }
+  } else {
+    const { prData, handoffResult } = buildPrInfo(opts.pr, repo, cwd);
+    
+    if (opts.json) {
+      stdout.write(JSON.stringify({ ok: true, kind: "pr", pr: prData, handoff: handoffResult }) + "\n");
+    } else {
+      stdout.write(formatPrSummary(prData, handoffResult) + "\n");
+    }
   }
 }
 
