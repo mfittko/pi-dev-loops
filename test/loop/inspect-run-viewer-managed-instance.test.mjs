@@ -358,9 +358,14 @@ test('stop fails closed with explicit guidance when --repo does not match the ma
 test('open does not attempt to auto-open a browser when an unmanaged listener ignores SIGTERM', async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-open-conflict-'));
   let stopCalls = 0;
+  let nowMs = 1;
   const { manager, listenersByPort, processes, browserOpens } = createManager({
     async stopManagedProcessImpl() {
       stopCalls += 1;
+    },
+    nowMsImpl: () => nowMs,
+    async waitImpl(ms = 0) {
+      nowMs += Math.max(ms, 0);
     },
   });
   listenersByPort.set(4311, [9555]);

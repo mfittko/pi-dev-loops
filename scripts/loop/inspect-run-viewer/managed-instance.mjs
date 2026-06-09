@@ -392,7 +392,7 @@ export function createInspectRunViewerLifecycleManager({
       return {
         state: 'conflict_unmanaged_listener',
         url: baseUrl,
-        detail: `Port ${DEFAULT_PORT} is occupied by an unmanaged listener that did not stop after SIGTERM.`,
+        detail: `Port ${launchArgs.port} is occupied by an unmanaged listener that did not stop after SIGTERM.`,
         warning: null,
         recordPath,
       };
