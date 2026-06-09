@@ -15,7 +15,7 @@ board and Status field already exist.
 
 When --link-repo is provided, links the project to the given repository after creation.
 
-When --project is not provided, resolves from .pi/dev-loop/settings.yaml
+When --project is not provided, resolves from .devloops at repo root
 queue.projectNumber or queue.boardTitle.
 
 Output (stdout):

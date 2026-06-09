@@ -95,7 +95,7 @@ Queue helpers never silently assume board state is correct:
 
 ## Configuration
 
-Queue mode configuration lives under `.pi/dev-loop/settings.yaml`:
+Queue mode configuration lives under `.devloops` at repo root:
 
 ```yaml
 queue:

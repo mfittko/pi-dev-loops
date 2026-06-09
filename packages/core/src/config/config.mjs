@@ -382,13 +382,27 @@ async function readConfigFile(filePath) {
     throw configError("Config file is empty", "EMPTY_FILE", filePath);
   }
 
+  const hasExt = filePath.endsWith(".yaml") || filePath.endsWith(".yml") || filePath.endsWith(".json");
   const isYaml = filePath.endsWith(".yaml") || filePath.endsWith(".yml");
   let parsed;
-  try {
-    parsed = isYaml ? parseYaml(raw) : JSON.parse(raw);
-  } catch (err) {
-    const format = isYaml ? "YAML" : "JSON";
-    throw configError(`Invalid ${format} in config file: ${err.message}`, `INVALID_${format.toUpperCase()}`, filePath);
+  if (hasExt) {
+    try {
+      parsed = isYaml ? parseYaml(raw) : JSON.parse(raw);
+    } catch (err) {
+      const format = isYaml ? "YAML" : "JSON";
+      throw configError(`Invalid ${format} in config file: ${err.message}`, `INVALID_${format.toUpperCase()}`, filePath);
+    }
+  } else {
+    // Bare file (no recognized extension) — try YAML first, fallback JSON
+    try {
+      parsed = parseYaml(raw);
+    } catch {
+      try {
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        throw configError(`Invalid config file (tried YAML and JSON): ${err.message}`, "INVALID_BARE_FILE", filePath);
+      }
+    }
   }
 
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -408,6 +422,10 @@ async function findConfigFile(basePaths) {
   const candidates = Array.isArray(basePaths) ? basePaths : [basePaths];
 
   for (const basePath of candidates) {
+    // Try bare path first (e.g., .devloops without extension)
+    const bareData = await readConfigFile(basePath);
+    if (bareData !== null) return { path: basePath, data: bareData };
+
     for (const ext of [".yaml", ".yml", ".json"]) {
       const filePath = basePath + ext;
       const data = await readConfigFile(filePath);
@@ -506,6 +524,7 @@ export async function loadDevLoopConfig(options = {}) {
   const repoRoot = options.repoRoot ?? process.cwd();
   const configDir = path.join(repoRoot, ".pi", "dev-loop");
   const defaultsPath = path.join(configDir, "defaults");
+  const devloopsPath = path.join(repoRoot, ".devloops");
   const settingsPaths = [path.join(configDir, "settings"), path.join(configDir, "overrides")];
 
   /** @type {string[]} */
@@ -519,7 +538,32 @@ export async function loadDevLoopConfig(options = {}) {
     warnOnMissing: true,
   });
 
-  merged = await applyLayer(merged, settingsPaths, "settings", warnings, errors);
+  // .devloops at repo root is the primary consumer override
+  merged = await applyLayer(merged, devloopsPath, "settings", warnings, errors);
+
+  // Legacy .pi/dev-loop/settings.* or overrides.* (deprecated — warn and still load)
+  let legacyFound = false;
+  for (const legacyPath of settingsPaths) {
+    for (const ext of [".yaml", ".yml", ".json"]) {
+      const fp = legacyPath + ext;
+      try {
+        await readFile(fp, "utf8");
+        legacyFound = true;
+        break;
+      } catch {
+        // file doesn't exist
+      }
+    }
+    if (legacyFound) break;
+  }
+  if (legacyFound) {
+    warnings.push(
+      `Deprecated config path(s) found under .pi/dev-loop/settings.* or .pi/dev-loop/overrides.*. ` +
+      `Migrate to .devloops (or .devloops.yaml/.devloops.yml/.devloops.json) at repo root. ` +
+      `Legacy paths will be removed in a future version.`
+    );
+    merged = await applyLayer(merged, settingsPaths, "settings", warnings, errors);
+  }
 
   // Validate final merged config
   const result = DevLoopConfigSchema.safeParse(merged);
@@ -833,7 +877,7 @@ const DEFAULT_INTERNAL_PATH_PATTERNS = BUILT_IN_DEFAULTS.internalPathPatterns;
  * to classify files as internal tooling (vs consumer-facing). When the config
  * omits this section, returns the built-in shipped defaults.
  *
- * Consumers can override these in .pi/dev-loop/settings.yaml.
+ * Consumers can override these in .devloops at repo root.
  *
  * @param {DevLoopConfig} config
  * @returns {string[]}

@@ -7,7 +7,7 @@
  *
  * Reads queue state from .pi/dev-loop-queue.json and drives entries
  * through the sequential queue driver. Queue config (maxParallel etc.)
- * lives in .pi/dev-loop/settings.yaml.
+ * lives in .devloops at repo root.
  *
  * For parallel execution, use --parallel (file-overlap detection is
  * deferred to a future phase; currently falls back to sequential).

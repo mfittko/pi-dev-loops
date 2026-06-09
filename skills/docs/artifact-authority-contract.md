@@ -54,10 +54,10 @@ Key contract:
 
 ## Settings mechanism
 
-Artifact authority mode is controlled by `.pi/dev-loop/settings.yaml`:
+Artifact authority mode is controlled by `.devloops` at repo root:
 
 ```yaml
-# .pi/dev-loop/settings.yaml
+# .devloops
 strategy:
   default: github-first   # tracker-first (GitHub issue required)
   # default: local-first  # local-planning (markdown plan file)
@@ -73,12 +73,12 @@ The `inputSource.default` key disambiguates local-first startup:
 - `tracker` (default): local agent implements from the GitHub issue body; the issue is canonical spec
 - `phase-docs`: local agent implements from persisted phase docs; no tracker issue required
 
-These keys are already defined in `.pi/dev-loop/defaults.yaml` (shipped with pi-dev-loops) and may be overridden in `.pi/dev-loop/settings.yaml` (per-repo).
+These keys are already defined in `.pi/dev-loop/defaults.yaml` (shipped with pi-dev-loops) and may be overridden in `.devloops` (per-repo).
 
 ### Defaults resolution
 
 1. `.pi/dev-loop/defaults.yaml` — shipped default (`github-first`)
-2. `.pi/dev-loop/settings.yaml` — per-repo override (takes precedence)
+2. `.devloops` — per-repo override (takes precedence)
 
 ### Explicit non-knobs
 
