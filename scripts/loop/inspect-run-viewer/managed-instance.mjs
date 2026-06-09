@@ -245,6 +245,37 @@ async function waitForManagedExit(record, { isProcessAliveImpl, listListeningPid
   return !alive && !listeners.includes(record.pid);
 }
 
+async function reclaimPortListeners({
+  port,
+  listListeningPidsImpl: listListeningPids,
+  stopManagedProcessImpl,
+  waitImpl,
+  nowMsImpl,
+  timeoutMs = 1500,
+  pollIntervalMs = 50,
+}) {
+  const listeners = (await listListeningPids(port)).filter((pid) => pid !== process.pid);
+  if (listeners.length === 0) {
+    return { cleared: true, remainingListeners: [] };
+  }
+
+  for (const pid of listeners) {
+    await stopManagedProcessSafely(pid, { stopManagedProcessImpl });
+  }
+
+  const deadline = nowMsImpl() + timeoutMs;
+  while (nowMsImpl() < deadline) {
+    const remainingListeners = (await listListeningPids(port)).filter((pid) => pid !== process.pid);
+    if (remainingListeners.length === 0) {
+      return { cleared: true, remainingListeners: [] };
+    }
+    await waitImpl(pollIntervalMs);
+  }
+
+  const remainingListeners = (await listListeningPids(port)).filter((pid) => pid !== process.pid);
+  return { cleared: remainingListeners.length === 0, remainingListeners };
+}
+
 function buildFailedStopResult({ record, recordPath, detail }) {
   return {
     state: 'stale_record',
@@ -350,12 +381,18 @@ export function createInspectRunViewerLifecycleManager({
     const launchArgs = buildLaunchArgs(requestedRepo);
     const recordPath = path.join(repoRoot, INSPECT_RUN_VIEWER_MANAGED_RECORD_PATH);
     const baseUrl = formatInspectRunViewerUrl(launchArgs.host, launchArgs.port);
-    const listeners = await listListeningPids(launchArgs.port);
-    if (listeners.length > 0) {
+    const reclaimed = await reclaimPortListeners({
+      port: launchArgs.port,
+      listListeningPidsImpl: listListeningPids,
+      stopManagedProcessImpl,
+      waitImpl,
+      nowMsImpl,
+    });
+    if (!reclaimed.cleared) {
       return {
         state: 'conflict_unmanaged_listener',
         url: baseUrl,
-        detail: `Port ${DEFAULT_PORT} is occupied by an unmanaged listener.`,
+        detail: `Port ${launchArgs.port} is occupied by an unmanaged listener that did not stop after SIGTERM.`,
         warning: null,
         recordPath,
       };
@@ -699,15 +736,6 @@ export function createInspectRunViewerLifecycleManager({
           }
         }
         await removeManagedRecord(snapshot.recordPath);
-      } else if (snapshot.state === 'conflict_unmanaged_listener') {
-        return {
-          state: 'conflict_unmanaged_listener',
-          url: snapshot.url,
-          detail: 'Restart refused to stop an unmanaged listener on the inspect-run viewer port.',
-          warning: null,
-          recordPath: snapshot.recordPath,
-          record: snapshot.record,
-        };
       }
 
       const restarted = await startFresh({ repoRoot, requestedRepo: restartRepo });
