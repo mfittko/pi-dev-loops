@@ -35,6 +35,15 @@ Before starting, verify:
 2. The sub-issue tree is attached (run `node <resolved-skill-scripts>/github/manage-sub-issues.mjs list --repo <repo> --issue <root>` to inspect it).
 3. You have the resolved repo slug (`owner/name`).
 
+Optional but recommended before and after edits:
+
+```sh
+dev-loops refine verify --issue <root> --repo <repo>
+```
+
+This verification command checks linkage policy, sibling scope boundaries, refinement completeness,
+and tree integrity in one deterministic pass.
+
 If the sub-issue tree does not yet exist, use [Issue Intake Procedure](./issue-intake-procedure.md) Phase 3b to decompose and attach it first.
 
 ---

@@ -54,6 +54,9 @@ const SUBCOMMAND_ROUTES = {
     run:    "scripts/loop/inspect-run.mjs",
     viewer: "scripts/loop/inspect-run-viewer.mjs",
   },
+  refine: {
+    verify: "scripts/refine/verify.mjs",
+  },
 };
 
 const TOP_LEVEL_COMMANDS = new Set(["help", "status", "doctor", "gates", "hide"]);
@@ -144,6 +147,8 @@ function buildCliHelpLines() {
     "- dev-loops inspect <sub> [...]    Inspection (Pi extension only)",
     "    run               Inspect run state",
     "    viewer            Start inspection viewer",
+    "- dev-loops refine <sub> [...]     Epic tree refinement verification",
+    "    verify            Verify tree linkage, scope boundaries, completeness, and integrity",
     "",
     "Use `dev-loops <category> <subcommand> --help` for per-subcommand usage.",
     "",
