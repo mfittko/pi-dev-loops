@@ -429,7 +429,7 @@ function renderStateGraphHelp() {
   return `<ul class="state-graph-help">
     <li><strong>Current:</strong> emphasized nodes show the snapshot-derived current state for each lane when that state is actually known.</li>
     <li><strong>Next:</strong> purple nodes mark immediate allowed next states from the snapshot. Dimmed nodes are still part of the authoritative state machine; they are simply inactive right now.</li>
-    <li><strong>Start / End:</strong> Mermaid entry and exit nodes make lane boundaries easier to scan for the full authoritative graph.</li>
+    <li><strong>Start / End:</strong> entry and exit nodes make lane boundaries easier to scan for the full authoritative graph.</li>
     <li><strong>Orchestrator:</strong> the outer lane comes from the shared authoritative outer-loop graph contract; outerAction remains visible only as a compatibility projection.</li>
     <li><strong>Lifecycle:</strong> the lifecycle lane shows the sequential dev-loop phases from issue intake to merge; current phase is highlighted from the inspection snapshot.</li>
     <li><strong>🔁 Loop cue:</strong> this viewer is revisited by manual reload, so the same current state can recur across inspections until evidence changes.</li>
@@ -690,7 +690,7 @@ export function renderMermaidBootScript() {
           return;
         }
         if (typeof window.mermaid === "undefined") {
-          renderFallback("Mermaid browser asset unavailable. Use the details below or open /snapshot.json.");
+          renderFallback("Graph renderer unavailable. Use the details below or open /snapshot.json.");
           return;
         }
 
@@ -715,7 +715,7 @@ export function renderMermaidBootScript() {
             await window.mermaid.run({ nodes: visibleGraphs });
             await Promise.all(visibleGraphs.map((graph) => finalizeRenderedGraph(graph)));
           }).catch(() => {
-            renderFallback("Mermaid could not render this snapshot safely. Use the details below or open /snapshot.json.");
+            renderFallback("Could not render graph for this snapshot. Use the details below or open /snapshot.json.");
           });
           return pendingRender;
         };

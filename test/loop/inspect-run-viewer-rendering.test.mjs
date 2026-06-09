@@ -880,7 +880,7 @@ test("renderInspectRunViewerHtml includes deterministic Mermaid asset fallback m
     snapshot: makeSnapshot(),
   });
 
-  assert.match(html, /Mermaid browser asset unavailable\. Use the details below or open \/snapshot\.json\./);
+  assert.match(html, /Graph renderer unavailable\. Use the details below or open \/snapshot\.json\./);
 });
 test("renderInspectRunViewerHtml fail-closes the graph for unavailable snapshots", () => {
   const html = renderInspectRunViewerHtml({

@@ -183,7 +183,7 @@ export function renderInspectRunViewerHtml({
       .viewer-stat-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .viewer-next-action { margin-bottom: 0; }
       .viewer-graph-header { margin-bottom: 0; }
-      .viewer-graph-header p { margin: 0; color: #486174; line-height: 1.6; max-width: 72ch; }
+      .viewer-graph-description { margin: 0.7rem 0 0 0; color: #6b8296; font-size: 0.82rem; line-height: 1.5; }
       .state-graph-block { margin-top: 0.25rem; }
       .state-graph-frame { margin-top: 0.75rem; min-width: 0; border: 1px solid #d7e3f4; border-radius: 0.85rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); overflow: hidden; }
       .state-graph-toolbar { display: flex; align-items: center; gap: 0.55rem; padding: 0.75rem 0.85rem; border-bottom: 1px solid #d7e3f4; background: rgba(255,255,255,0.85); }
@@ -361,12 +361,12 @@ export function renderInspectRunViewerHtml({
                 <article class="handoff-card handoff-card-emphasis viewer-card">
                   <p class="handoff-card-kicker">Graph</p>
                   <div class="viewer-graph-header">
-                    <h3>Full state machine</h3>
-                    <p>Authoritative Mermaid lane graph. Use zoom controls, drag, and graph guide to inspect current and next-state cues.</p>
+                    <h3>Full state machine graph</h3>
                   </div>
                   ${graph === null
                     ? `<p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p><p>Snapshot unavailable, so no state graph can be rendered yet. Use the Reload snapshot control to refresh.</p>`
                     : `<div class="viewer-graph-body">${renderStateVisualizationSection(normalizedSnapshot, graph)}</div>`}
+                  <p class="viewer-graph-description">Use zoom controls, drag, and the graph guide below to inspect current and next-state cues.</p>
                 </article>
               </section>
             </div>
