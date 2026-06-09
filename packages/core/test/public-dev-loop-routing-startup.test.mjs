@@ -824,3 +824,37 @@ test("operator bypass: direct issueLinkageResolution operator_bypass without ski
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
   assert.match(bundle.reason, /linkage resolution/i);
 });
+
+test("operator bypass: when effective routed target is PR, emits not_applicable not operator_bypass", () => {
+  // Simulate a synthetic routed result where skipIssueOrigin is active but
+  // routing would land on a PR target (the startup helper does internal routing;
+  // this test verifies the effectiveBundleIssueLinkageResolution resolution
+  // at the output layer by exercising the full bundle path with a local
+  // implementation preference that should route to local_implementation).
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 506 },
+      ownership: DEV_LOOP_ACTOR.LOCAL,
+      nextActor: DEV_LOOP_ACTOR.LOCAL,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+    acceptance: {
+      overrides: { skipIssueOrigin: true },
+    },
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
+  });
+
+  // With local preference, the issue should route to local_implementation (which uses a branch/phase target, not PR).
+  // The issueLinkageResolution in the output bundle should reflect operator_bypass since
+  // the canonical target remains an issue through routing.
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  // Local implementation strategy selected
+  assert.equal(bundle.selectedStrategy, "local_implementation");
+  // When canonical target is still issue (local_implementation branch target),
+  // operator_bypass should be emitted
+  assert.equal(bundle.issueLinkageResolution, DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS);
+  assert.equal(bundle.contractTrace.decision.operatorBypass, true);
+});

@@ -1235,6 +1235,16 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     retrospectiveCheckpointStateProvided,
   );
 
+  // When the bypass is active but the effective routed canonical target is PR (not issue),
+  // emit not_applicable for issueLinkageResolution and do not set the operatorBypass flag.
+  // This preserves the invariant that PR targets use not_applicable.
+  let finalIssueLinkageResolution = effectiveBundleIssueLinkageResolution;
+  let finalOperatorBypass = skipIssueOriginActive;
+  if (skipIssueOriginActive && effectiveRouted.canonicalState?.target?.kind === DEV_LOOP_TARGET_KIND.PR) {
+    finalIssueLinkageResolution = normalizedIssueLinkageResolution ?? DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE;
+    finalOperatorBypass = false;
+  }
+
   if (effectiveRouted.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) {
     return buildStartupResumeBundleReconcile({
       reason: effectiveRouted.reason,
@@ -1286,7 +1296,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED,
     activeArtifact: buildStatusArtifactIdentity(effectiveRouted.canonicalState),
     artifactState,
-    issueLinkageResolution: effectiveBundleIssueLinkageResolution,
+    issueLinkageResolution: finalIssueLinkageResolution,
     canonicalState: effectiveRouted.canonicalState,
     loopState,
     routeKind: effectiveRouted.routeKind,
@@ -1308,14 +1318,14 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
       canonicalState: effectiveRouted.canonicalState,
       reason: effectiveRouted.reason,
-      operatorBypass: skipIssueOriginActive,
+      operatorBypass: finalOperatorBypass,
       boundary: {
         boundaryKind: "startup_resume_refresh",
         refreshRequired: true,
         refreshReason: "Startup/resume answers record the authoritative refreshed loop state that justified the routed path.",
         loopState,
         artifactState,
-        issueLinkageResolution: effectiveBundleIssueLinkageResolution,
+        issueLinkageResolution: finalIssueLinkageResolution,
       },
     }),
   };

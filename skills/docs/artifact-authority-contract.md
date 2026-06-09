@@ -103,7 +103,7 @@ pi-dev-loops is **tracker-first (opted in, GitHub backend).**
 
 - Defining tracker adapters or multi-tracker support
 - Specifying how PRs map to issues in detail (that is the [Public Dev Loop Contract](public-dev-loop-contract.md))
-- Changing the dev-loop startup resolver behavior
+- Changing the dev-loop startup resolver behavior beyond the documented operator bypass path
 - Adding new settings keys beyond the existing `strategy.default`
 
 ## Operator bypass (per-invocation override)
