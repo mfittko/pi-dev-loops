@@ -28,10 +28,10 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
     assert.equal(response.headers["cache-control"], "no-store");
-    assert.match(response.body, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
+    assert.match(response.body, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">owner\/repo#55<\/a>/);
     assert.match(response.body, /owner\/repo/);
     assert.match(response.body, /degraded/);
-    assert.match(response.body, /manual reload only/i);
+    assert.doesNotMatch(response.body, /manual reload only/i);
     assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
     assert.doesNotMatch(response.body, /"schemaVersion": 1/);
     assert.equal(loadCount, 1);
