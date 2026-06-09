@@ -353,8 +353,8 @@ export function summarizeCurrentPrStatus(snapshot) {
   if (copilotState === "round_cap_reached") {
     return {
       headline: "Round cap reached",
-      detail: "Copilot review rounds are exhausted for this PR head, so no further Copilot re-requests are possible.",
-      nextAction: "Move forward with terminal follow-up for this run instead of requesting another Copilot review.",
+      detail: "Copilot review rounds are exhausted for this PR head while unresolved feedback or CI problems still block convergence, so no further Copilot re-requests are possible.",
+      nextAction: "Resolve the remaining feedback or CI blockers without requesting another Copilot review.",
     };
   }
 

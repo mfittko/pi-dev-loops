@@ -786,6 +786,7 @@ test("renderInspectRunViewerHtml shows round-cap messaging for round_cap_reached
   });
 
   assert.match(html, /Round cap reached/);
+  assert.match(html, /unresolved feedback or CI problems still block convergence/i);
   assert.match(html, /no further Copilot re-requests are possible/i);
   assert.doesNotMatch(html, /Ready to re-request Copilot review/);
 });
