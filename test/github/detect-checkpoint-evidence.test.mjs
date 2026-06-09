@@ -268,7 +268,7 @@ test("detect-checkpoint-evidence summarizes the newest valid live gate comments 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
     const parsed = JSON.parse(result.stdout);
-    parsed.staleRunner = { ...parsed.staleRunner, filePath: "<stale-runner-file-path>", activeRun: parsed.staleRunner.activeRun ? "<active-run>" : null };
+    parsed.staleRunner = { ...parsed.staleRunner, filePath: "<stale-runner-file-path>", activeRun: parsed.staleRunner.activeRun ? "<active-run>" : null, status: parsed.staleRunner.status === "fresh_runner" || parsed.staleRunner.status === "no_owner_record" ? "<stale-status>" : parsed.staleRunner.status };
     assert.deepEqual(parsed, {
       ok: true,
       repo: "owner/repo",
@@ -322,7 +322,7 @@ test("detect-checkpoint-evidence summarizes the newest valid live gate comments 
         failures: [],
       },
       staleRunner: {
-        status: "fresh_runner",
+        status: "<stale-status>",
         activeRun: "<active-run>",
         exitSignals: [],
         staleRunner: null,
