@@ -215,7 +215,7 @@ test("verify script online mode fetches tree via GitHub API", async () => {
   }
 });
 
-test("all refine scripts are executable", async () => {
+test("all refine scripts have shebangs", async () => {
   const scripts = [
     "scripts/refine/prose-linkage-detector.mjs",
     "scripts/refine/scope-boundary-cross-checker.mjs",

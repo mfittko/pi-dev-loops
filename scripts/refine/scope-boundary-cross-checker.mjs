@@ -7,6 +7,7 @@ import {
   normalizeScopeToken,
   parseCheckerCliArgs,
   writeCheckerOutput,
+  isDirectCliRun,
 } from "./_refine-helpers.mjs";
 
 const USAGE = `Usage:
@@ -153,7 +154,7 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
   return result;
 }
 
-if (import.meta.url === new URL(process.argv[1], "file:").href) {
+if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);
     process.exitCode = 1;

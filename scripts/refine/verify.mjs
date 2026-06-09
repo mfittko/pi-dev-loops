@@ -3,7 +3,7 @@ import { buildParseError, formatCliError } from "../_core-helpers.mjs";
 import { parsePositiveInteger, requireOptionValue } from "../_cli-primitives.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
-import { loadTreeFromInput, loadTreeOnline } from "./_refine-helpers.mjs";
+import { isDirectCliRun, loadTreeFromInput, loadTreeOnline } from "./_refine-helpers.mjs";
 import { runProseLinkageDetector } from "./prose-linkage-detector.mjs";
 import { runScopeBoundaryCrossChecker } from "./scope-boundary-cross-checker.mjs";
 import { runRefinementCompletenessChecker } from "./refinement-completeness-checker.mjs";
@@ -157,7 +157,7 @@ export async function runCli(
   return payload;
 }
 
-if (import.meta.url === new URL(process.argv[1], "file:").href) {
+if (isDirectCliRun(import.meta.url)) {
   runCli().catch((error) => {
     process.stderr.write(`${formatCliError(error)}\n`);
     process.exitCode = 1;

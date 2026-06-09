@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 
-import { buildParseError, formatCliError, parseJsonText } from "../_core-helpers.mjs";
+import { buildParseError, formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { parsePositiveInteger, requireOptionValue, runChild } from "../_cli-primitives.mjs";
 import { detectRepoSlug, parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
@@ -247,13 +247,10 @@ export function writeCheckerOutput(result, { stdout = process.stdout, json = fal
   stdout.write(`${lines.join("\n")}\n`);
 }
 
-export function isDirectRun(importMetaUrl) {
-  return process.argv[1]
-    ? importMetaUrl === new URL(process.argv[1], "file:").href
-    : false;
-}
 
 export function handleCliError(error) {
   process.stderr.write(`${formatCliError(error)}\n`);
   process.exitCode = 1;
 }
+// Re-exported for checker scripts
+export { isDirectCliRun };

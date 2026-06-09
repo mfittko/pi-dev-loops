@@ -81,7 +81,7 @@ Contract:
 - stays intentionally narrow: this is the prevention layer for draft-first creation, while `scripts/github/reconcile-draft-gate.mjs` remains the separate recovery path for already-open non-draft PRs
 
 Failure behavior:
-- wrapper-owned validation failures emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- wrapper-owned validation failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - when `gh pr create` itself exits non-zero, this wrapper preserves the original stdout/stderr and propagates the same exit code
 
 ### `scripts/github/request-copilot-review.mjs`
@@ -161,7 +161,7 @@ Success output shape:
 - `{ "ok": true, "repo": "owner/name", "issue": 85, "issueUrl": "...", "state": "OPEN"|"CLOSED", "title": "...", "body": "...", "canonicalSpecSource": "tracker_issue", "localImplementationMode": "tracker_backed", "localPhaseDocAllowed": false, "stateSync": "tracker_issue_is_canonical" }`
 
 Failure behavior:
-- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- malformed arguments emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - unexpected `gh` failures and malformed `gh` JSON emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/github/manage-sub-issues.mjs`
@@ -219,7 +219,7 @@ Contract:
 
 Failure behavior:
 - checker findings are process-failing (`exit 1`) because verification did not pass
-- malformed arguments and runtime/API errors emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- malformed arguments and runtime errors emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/github/stage-reviewer-draft.mjs`
 
@@ -652,7 +652,7 @@ Success output shape:
 - forced CI-override path: the same shape plus `{ "forced": true, "forceReason": "CI failed due to transient infrastructure", "forceBypass": "ci_blocked_needs_user_decision" }`
 
 Failure behavior:
-- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- malformed arguments emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - contradictory head-SHA requests or unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - gate upserts still fail closed when `detect-pr-gate-coordination-state.mjs` reports that the requested gate action is illegal for the current head
 - when that refusal is specifically `lifecycleState=blocked_needs_user_decision` plus current-head `ciStatus="failure"`, the unforced error now points operators to `--force --force-reason` as the explicit CI-only escape hatch
@@ -709,7 +709,7 @@ Success output shape:
 - if the PR head changes while gate/conflict facts are loading, the helper still fails closed rather than evaluating mixed-head evidence
 
 Failure behavior:
-- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- malformed arguments emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - `gh` failures and malformed `gh` JSON emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/github/detect-checkpoint-evidence.mjs`
@@ -732,7 +732,7 @@ Success output shape:
 - marker summaries track the newest visible marker for the current head (`gate + currentHeadSha`) even if contract fields are partial, enabling same-head rerun idempotency without posting duplicate visible markers
 
 Failure behavior:
-- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- malformed arguments emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - `gh` failures and malformed `gh` JSON emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/loop/detect-tracker-pr-state.mjs`
@@ -853,7 +853,7 @@ Success output shape:
 - `{ "ok": true, "outerAction": "...", "copilotState": "...", "reviewerState": "...", "reviewerScope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, "reason"?: "...", "branchIdentity"?: { ... }, "conductorRouting": { "routingOutcome": "...", "outerAction": "...", "stopReason": null|"...", "handoffEnvelope": { ... } }, "checkpoint": { ... } }`
 
 Failure behavior:
-- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- malformed arguments emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - unexpected `gh` or `git` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/loop/inspect-run.mjs`
@@ -896,7 +896,7 @@ Success output shape:
 - `{ "ok": true, "schemaVersion": 1, "target": { "repo": "...", "pr": 17 }, "runId": "pr-17", "inspectedAt": "...", "activeStateFamily": "copilot-pr-outer-loop", "outerState": "...", "allowedTransitions"?: [...], "outerAction": "...", "activeFamilyState": "...", "statusClass": "...", "needsAttention": false, "sourceMode": "...", "trust": "...", "evidence": { ... }, "markers": { ... }, "loopIterations": { "available": true|false, ... }, "layers": { "reviewer": { "currentState": "...", "scope": { "mode": "all_reviewers"|"single_reviewer", "reviewerLogin": "..."|null }, ... }, ... } }`
 
 Failure behavior:
-- malformed arguments emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- malformed arguments emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - unexpected runtime failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 
 ### `scripts/loop/inspect-run-viewer.mjs`
@@ -1003,5 +1003,5 @@ Success output shape:
 - `status`: `{ "ok": true, "status": { ... } }`
 
 Failure behavior:
-- argument/usage errors emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+- argument/usage errors emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - runtime failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
