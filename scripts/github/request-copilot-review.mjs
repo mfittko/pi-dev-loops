@@ -360,7 +360,9 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     }
   } catch {
   }
-  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds) {
+  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds
+      && !before.requested
+      && !before.hasPendingReviewOnCurrentHead) {
     if (!options.forceRerequestReview) {
       return {
         ok: true,
