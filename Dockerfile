@@ -11,6 +11,10 @@ ARG PI_INTERCOM_VERSION=0.6.0
 ARG GH_CLI_VERSION=2.63.2
 ARG GIT_VERSION=1:2.39.5-0+deb12u2
 
+# Pinned gh CLI SHA256 checksums (verified at install time)
+ARG GH_CLI_CHECKSUM_AMD64=94970e886e6fd1c2f8b1e31326fdc58ff5a434318de78d2b9b1c88dd1c6418db
+ARG GH_CLI_CHECKSUM_ARM64=7f0db36da8c209befe550ab8005306bb08a3c7ecbb9a497201d008b5603bf710
+
 # System dependencies: git (dev-loop worktree ops), curl + ca-certificates (gh CLI install)
 # git version pinned via apt version constraint for deterministic rebuilds.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -26,17 +30,19 @@ RUN npm install -g --ignore-scripts \
     "pi-telegram@${PI_TELEGRAM_VERSION}" \
     "pi-intercom@${PI_INTERCOM_VERSION}"
 
-# Install GitHub CLI (pinned version, architecture-aware)
+# Install GitHub CLI (pinned version, architecture-aware, checksum-verified)
 # Only x86_64/amd64 and aarch64/arm64 are supported.
 RUN ARCH=$(uname -m) \
     && case "${ARCH}" in \
-         x86_64)  ARCH=amd64 ;; \
-         aarch64) ARCH=arm64 ;; \
+         x86_64)  ARCH=amd64; EXPECTED_CHECKSUM=${GH_CLI_CHECKSUM_AMD64} ;; \
+         aarch64) ARCH=arm64; EXPECTED_CHECKSUM=${GH_CLI_CHECKSUM_ARM64} ;; \
          *)       echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
        esac \
-    && curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_${ARCH}.deb" -o /tmp/gh.deb \
-    && dpkg -i /tmp/gh.deb \
-    && rm /tmp/gh.deb
+    && DEB="gh_${GH_CLI_VERSION}_linux_${ARCH}.deb" \
+    && curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/${DEB}" -o "/tmp/${DEB}" \
+    && echo "${EXPECTED_CHECKSUM}  /tmp/${DEB}" | sha256sum -c - \
+    && dpkg -i "/tmp/${DEB}" \
+    && rm "/tmp/${DEB}"
 
 # Set workspace directory
 WORKDIR /workspace

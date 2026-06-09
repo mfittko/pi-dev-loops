@@ -40,12 +40,12 @@ A deterministic container image with all required tooling for dev-loop operation
 docker build -t pi-dev-loops .
 ```
 
-### Required environment variables
+### Environment variables
 
-| Variable | Purpose |
-|---|---|
-| `GH_TOKEN` | GitHub personal access token for `gh` CLI and API calls |
-| `OPENAI_API_KEY` | OpenAI API key (or equivalent for your configured provider) |
+| Variable | Purpose | Required for smoke test |
+|---|---|---|
+| `GH_TOKEN` | GitHub personal access token for `gh` CLI and API calls | Yes |
+| `OPENAI_API_KEY` | LLM provider key (needed only when running `pi` / LLM-backed dev-loop operations) | No |
 
 ### Smoke test
 
