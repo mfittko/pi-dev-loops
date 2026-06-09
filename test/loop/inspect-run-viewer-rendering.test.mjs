@@ -168,6 +168,8 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">owner\/repo#55<\/a>/);
   assert.match(html, /<h1>Selected PR<\/h1>/);
   assert.match(html, /aria-label="PR #55"/);
+  assert.match(html, /<div class="current-pr-state-copy-flow">/);
+  assert.match(html, /class="viewer-card-body"/);
   assert.match(html, /title="Waiting state"/);
   assert.match(html, /⏳/);
   assert.match(html, /Waiting for Copilot review/);
@@ -211,6 +213,9 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /const \[firstRect, \.\.\.remainingRects\] = targetRects;/);
   assert.match(html, /cursor: grab/);
   assert.match(html, /data-dragging="true"/);
+  assert.match(html, /\.viewer-card-body,/);
+  assert.match(html, /\.current-pr-state-copy-flow \{ display: grid; gap: 0\.7rem; min-width: 0; \}/);
+  assert.match(html, /pre \{ margin: 0; padding: 0\.95rem 1rem;/);
   assert.match(html, /assets\/mermaid\.min\.js/);
   assert.match(html, /Start/);
   assert.match(html, /End/);

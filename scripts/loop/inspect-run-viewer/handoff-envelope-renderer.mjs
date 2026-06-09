@@ -204,7 +204,7 @@ function renderCard({ title, kicker = null, content, className = "" }) {
   return `<article class="handoff-card${className ? ` ${escapeHtml(className)}` : ""}">
     ${kicker ? `<p class="handoff-card-kicker">${escapeHtml(kicker)}</p>` : ""}
     <h3>${escapeHtml(title)}</h3>
-    ${content}
+    <div class="handoff-card-body">${content}</div>
   </article>`;
 }
 

@@ -24,6 +24,7 @@ describe("renderHandoffEnvelopeSection", () => {
     const html = renderHandoffEnvelopeSection(envelope);
     assert.ok(html.includes("owner/name#42"), "should show repo#pr identity");
     assert.ok(html.includes("Agent handoff"), "should include section heading");
+    assert.ok(html.includes("handoff-card-body"), "should wrap card content for spacing control");
     assert.ok(!html.includes("Envelope unavailable"), "should not show unavailable");
   });
 

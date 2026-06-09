@@ -37,7 +37,7 @@ function renderCard({ kicker, title, body, className = "", dataField = null }) {
   return `<article class="handoff-card viewer-card${className ? ` ${escapeHtml(className)}` : ""}"${dataField ? ` data-field="${escapeHtml(dataField)}"` : ""}>
     ${kicker ? `<p class="handoff-card-kicker">${escapeHtml(kicker)}</p>` : ""}
     ${title ? `<h3>${escapeHtml(title)}</h3>` : ""}
-    ${body}
+    <div class="viewer-card-body">${body}</div>
   </article>`;
 }
 
@@ -552,14 +552,16 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, _graph, s
       ${mode ? `<span class="current-pr-state-mode-indicator" title="${escapeHtml(mode.label)}" aria-label="${escapeHtml(mode.label)}">${escapeHtml(mode.emoji)}</span>` : ""}
       <button type="button" class="viewer-action-button current-pr-state-reload" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button>
     </div>
-    ${metaLine ? `<p class="current-pr-state-meta">${metaLine}</p>` : ""}
-    <div class="viewer-badge-row current-pr-state-badge-row">
-      ${renderCurrentStateBadge(stateLabel)}
-      ${renderInboxSignalBadge(snapshot)}
-      ${mode ? renderBadge(mode.label, "info") : ""}
+    <div class="current-pr-state-copy-flow">
+      ${metaLine ? `<p class="current-pr-state-meta">${metaLine}</p>` : ""}
+      <div class="viewer-badge-row current-pr-state-badge-row">
+        ${renderCurrentStateBadge(stateLabel)}
+        ${renderInboxSignalBadge(snapshot)}
+        ${mode ? renderBadge(mode.label, "info") : ""}
+      </div>
+      <p class="current-pr-state-summary-headline"><strong>${escapeHtml(summary.headline)}</strong></p>
+      <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
     </div>
-    <p class="current-pr-state-summary-headline"><strong>${escapeHtml(summary.headline)}</strong></p>
-    <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
   </section>`;
 }
 
