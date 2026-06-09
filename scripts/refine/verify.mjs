@@ -134,6 +134,9 @@ export async function runCli(
   if (options.issue !== undefined && typeof resolvedRepo !== "string") {
     try {
       resolvedRepo = detectRepoSlug(cwd);
+    if (!resolvedRepo) {
+      throw parseError("Unable to detect repository slug. Pass --repo <owner/name>.");
+    }
     } catch (err) {
       throw parseError(err.message);
     }

@@ -131,6 +131,7 @@ export async function loadTreeOnline({ issue, repo, cwd = process.cwd(), ghComma
 
   const byNumber = new Map();
   const edges = [];
+  const queuedNumbers = new Set([issue]);
   const queue = [{ number: issue, parentNumber: null }];
 
   while (queue.length > 0) {
@@ -179,7 +180,8 @@ export async function loadTreeOnline({ issue, repo, cwd = process.cwd(), ghComma
         }
         children.push(childNumber);
         edges.push({ parent: number, child: childNumber });
-        if (!byNumber.has(childNumber)) {
+        if (!byNumber.has(childNumber) && !queuedNumbers.has(childNumber)) {
+          queuedNumbers.add(childNumber);
           queue.push({ number: childNumber, parentNumber: number });
         }
       }
