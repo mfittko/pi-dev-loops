@@ -115,10 +115,7 @@ test("copilot-pr-handoff rejects malformed arguments with usage guidance", async
 // Handoff: pr_ready_no_feedback → request → watch
 // ---------------------------------------------------------------------------
 
-test("copilot-pr-handoff --repo auto-detected from git remote when omitted", async () => {
-  // Run from the repo root so detectRepoSlug picks up origin
-  const { execFileSync } = await import("node:child_process");
-  const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+test("copilot-pr-handoff --repo auto-detected from git remote when omitted", () => {
   const parsed = parseHandoffCliArgs(["--pr", "17"]);
   assert.equal(parsed.pr, 17);
   assert.ok(typeof parsed.repo === "string" && parsed.repo.length > 0, "repo should be auto-detected");

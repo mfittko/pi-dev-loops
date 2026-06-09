@@ -83,6 +83,12 @@ export function dedupeRepoSlugOptions(options) {
   }
   return uniqueOptions;
 }
+/**
+ * Auto-detect <owner/name> from `git remote get-url origin`.
+ * Returns the slug string on success, or null when detection fails
+ * (no origin remote, not a git repo, or unparseable URL).
+ * Does NOT throw — callers should add their own context-specific error messages.
+ */
 export function detectRepoSlug(cwd) {
   try {
     const url = execFileSync("git", ["remote", "get-url", "origin"], {
@@ -91,10 +97,9 @@ export function detectRepoSlug(cwd) {
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
     const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
-    if (!match) throw new Error(`Could not parse owner/name from git remote: ${url}`);
+    if (!match) return null;
     return `${match[1]}/${match[2]}`;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Repo auto-detection failed: ${msg}. Set origin remote or use --input.`);
+  } catch {
+    return null;
   }
 }

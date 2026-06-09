@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -179,17 +183,42 @@ test("dedupeRepoSlugOptions returns empty array for empty input", () => {
 // detectRepoSlug
 // ---------------------------------------------------------------------------
 
-test("detectRepoSlug returns owner/repo from git remote get-url origin", () => {
-  // Run from repo root to get real git remote
-  const slug = detectRepoSlug(process.cwd());
-  assert.ok(typeof slug === "string");
-  assert.match(slug, /^[^/]+\/[^/]+$/);
-  assert.equal(slug, slug.trim());
+test("detectRepoSlug returns owner/repo from git remote", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repo-slug-test-"));
+  try {
+    execFileSync("git", ["init", "-b", "main"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["-C", tmpDir, "remote", "add", "origin", "https://github.com/owner/repo.git"]);
+    const slug = detectRepoSlug(tmpDir);
+    assert.equal(slug, "owner/repo");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
-test("detectRepoSlug throws for non-git directory", () => {
-  assert.throws(
-    () => detectRepoSlug("/tmp"),
-    /Repo auto-detection failed/,
-  );
+test("detectRepoSlug returns null for non-git directory", () => {
+  assert.equal(detectRepoSlug("/tmp"), null);
+});
+
+test("detectRepoSlug returns null when no origin remote", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repo-slug-test-"));
+  try {
+    execFileSync("git", ["init", "-b", "main"], { cwd: tmpDir, stdio: "ignore" });
+    const slug = detectRepoSlug(tmpDir);
+    assert.equal(slug, null);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("detectRepoSlug returns null for unparseable remote URL", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repo-slug-test-"));
+  try {
+    execFileSync("git", ["init", "-b", "main"], { cwd: tmpDir, stdio: "ignore" });
+    // URL with no recognizable owner/name pair after the final : or /
+    execFileSync("git", ["-C", tmpDir, "remote", "add", "origin", "https://example.com"]);
+    const slug = detectRepoSlug(tmpDir);
+    assert.equal(slug, null);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

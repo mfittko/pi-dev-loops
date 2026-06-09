@@ -18,7 +18,7 @@ import {
   buildAsyncStartRejection,
   ASYNC_START_STATUS,
 } from "../../packages/core/src/loop/async-start-contract.mjs";
-import { detectRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
+import { detectRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { loadDevLoopConfig, resolveWorkflowConfig } from "../../packages/core/src/config/config.mjs";
 const USAGE = `Usage:
   resolve-dev-loop-startup.mjs --issue <number>
@@ -194,6 +194,9 @@ export function buildAutoResolvedInput({ issue, pr, cwd, targetPreference, input
   } catch {
   }
   const repo = detectRepoSlug(repoRoot);
+  if (!repo) {
+    throw new Error("Repo auto-detection failed. Set origin remote or use --input.");
+  }
   if (issue !== undefined) {
     const resolvedTargetPreference = targetPreference ?? resolveTargetPreference(repoRoot);
     const resolvedInputSource = normalizeConfigInputSource(inputSource);

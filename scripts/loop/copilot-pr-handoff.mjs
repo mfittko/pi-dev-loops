@@ -23,7 +23,7 @@ const VALID_WATCH_STATUSES = new Set(["changed", "timeout", "idle"]);
 const REMOVED_FLAGS = new Set([
   "--force-rerequest-review",
 ]);
-const USAGE = `Usage: copilot-pr-handoff.mjs --repo <owner/name> --pr <number> [--watch-status <changed|timeout|idle>]
+const USAGE = `Usage: copilot-pr-handoff.mjs --pr <number> [--repo <owner/name>] [--watch-status <changed|timeout|idle>]
 Detect the Copilot-loop state for a PR, request Copilot review only when
 a new request is still needed, and emit the recommended next action with
 exact parameters.
@@ -166,11 +166,10 @@ export function parseHandoffCliArgs(argv) {
     throw parseError("copilot-pr-handoff requires --pr <number>");
   }
   if (options.repo === undefined) {
-    try {
-      options.repo = detectRepoSlug(process.cwd());
-    } catch (err) {
+    options.repo = detectRepoSlug(process.cwd());
+    if (!options.repo) {
       throw parseError(
-        `--repo not provided and repo auto-detection failed: ${err instanceof Error ? err.message : String(err)}. ` +
+        "Repo auto-detection failed. " +
         "Run from a git repo checkout or provide --repo <owner/name>."
       );
     }
