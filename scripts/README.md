@@ -465,7 +465,6 @@ Required:
 - `--pr <number>`
 
 Optional:
-- `--force-rerequest-review` — explicit operator/manual override that forces another Copilot request even when automatic same-head suppression is active
 - `--watch-status <changed|timeout|idle>` — refresh deterministic state after a prior watcher observation; this readback mode never requests review again
 
 Contract:
@@ -510,7 +509,6 @@ Required:
 - `--pr <number>`
 
 Optional:
-- `--force-rerequest-review` — explicit operator/manual override that forces another Copilot request even when automatic same-head suppression is active
 - `--probe-only` — use a single immediate recheck (`timeoutMs: 0`) for explicit status probes only
 
 Contract:
