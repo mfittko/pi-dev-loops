@@ -760,6 +760,36 @@ test("renderInspectRunViewerHtml blocks approval-oriented language for same-head
   assert.doesNotMatch(html, /Ready to re-request Copilot review/);
 });
 
+test("renderInspectRunViewerHtml shows round-cap messaging for round_cap_reached state", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      outerState: "stop_needs_human",
+      outerAction: "stop",
+      statusClass: "blocked",
+      layers: {
+        copilot: {
+          currentState: "round_cap_reached",
+          allowedTransitions: [],
+          loopDisposition: "blocked",
+          terminal: true,
+        },
+        reviewer: {
+          currentState: "waiting_for_review_request",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["review_requested"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /Round cap reached/);
+  assert.match(html, /no further Copilot re-requests are possible/i);
+  assert.doesNotMatch(html, /Ready to re-request Copilot review/);
+});
+
 test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and needs_reconcile in the banner", () => {
   const liveOwnerHtml = renderInspectRunViewerHtml({
     repo: "owner/repo",

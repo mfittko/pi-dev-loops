@@ -318,6 +318,14 @@ export function summarizeCurrentPrStatus(snapshot) {
     };
   }
 
+  if (copilotState === "round_cap_reached") {
+    return {
+      headline: "Round cap reached",
+      detail: "Copilot review rounds are exhausted for this PR head, so no further Copilot re-requests are possible.",
+      nextAction: "Move forward with terminal follow-up for this run instead of requesting another Copilot review.",
+    };
+  }
+
   if (outerState === OUTER_STATE.NEEDS_RECONCILE) {
     return {
       headline: "Needs reconcile",

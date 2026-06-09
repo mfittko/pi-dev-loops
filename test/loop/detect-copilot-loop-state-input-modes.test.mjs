@@ -118,6 +118,34 @@ test("detect-copilot-loop-state --input routes already-fixed threads to already_
   }
 });
 
+test("detect-copilot-loop-state --input does not return ready_to_rerequest_review when round cap is exhausted", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-round-cap-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewRequestStatus: "none",
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      copilotReviewRoundCount: 5,
+      ciStatus: "success",
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.notEqual(output.state, "ready_to_rerequest_review");
+    assert.ok(output.state === "round_cap_reached" || output.state === "round_cap_clean_fallback");
+    assert.equal(output.terminal, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-loop-state --input routes failed review request to blocked_needs_user_decision", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-failed-"));
 
