@@ -31,7 +31,8 @@ function extractOwnershipClaims(issue) {
   for (const line of scopeSection.split(/\r?\n/gu)) {
     const bullet = /^\s*[-*]\s+(.+)$/u.exec(line);
     if (!bullet) continue;
-    const token = normalizeScopeToken(bullet[1]);
+    const rawToken = bullet[1].replace(/^\s*owns?\s+/iu, '');
+    const token = normalizeScopeToken(rawToken);
     if (token.length > 0) {
       tokens.add(token);
     }
