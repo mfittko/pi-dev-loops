@@ -75,7 +75,7 @@ export function parseRefineVerifyCliArgs(argv) {
   }
 
   if (typeof options.repo === "string") {
-    parseRepoSlug(options.repo, { errorMessage: "--repo must match <owner/name>" });
+    try { parseRepoSlug(options.repo, { errorMessage: "--repo must match <owner/name>" }); } catch (err) { throw parseError(err.message); }
   }
 
   return options;

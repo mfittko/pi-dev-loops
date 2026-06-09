@@ -97,6 +97,7 @@ test("runScopeBoundaryCrossChecker detects scope gaps and duplicate ownership", 
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((entry) => entry.code === "mutual_exclusion_gap"));
   assert.ok(result.errors.some((entry) => entry.code === "duplicate_ownership"));
+  assert.ok(result.errors.some((entry) => entry.code === "unowned_scope_gap"));
 });
 
 test("runRefinementCompletenessChecker flags missing sections", () => {
@@ -113,6 +114,38 @@ test("runRefinementCompletenessChecker flags missing sections", () => {
   assert.ok(result.errors.some((entry) => entry.code === "missing_definition_of_done"));
   assert.ok(result.errors.some((entry) => entry.code === "missing_non_goals"));
   assert.ok(result.errors.some((entry) => entry.code === "missing_ac_dod_matrix"));
+});
+
+
+test("runRefinementCompletenessChecker flags missing checkbox and invalid matrix", () => {
+  const body = [
+    "## Scope",
+    "- owns root",
+    "",
+    "## Acceptance criteria",
+    "no checkbox here",
+    "",
+    "## Definition of done",
+    "- [ ] has done checklist",
+    "",
+    "## Non-goals",
+    "- not needed",
+    "",
+    "## AC / DoD matrix",
+    "no table here",
+  ].join("\n");
+
+  const tree = normalizeTreePayload({
+    root: 1,
+    issues: [
+      { number: 1, children: [], body },
+    ],
+  });
+
+  const result = runRefinementCompletenessChecker(tree);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((entry) => entry.code === "missing_acceptance_checkbox"));
+  assert.ok(result.errors.some((entry) => entry.code === "invalid_ac_dod_matrix"));
 });
 
 test("runTreeIntegrityValidator detects orphans, cycles, and depth violations", () => {
