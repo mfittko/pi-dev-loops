@@ -1,7 +1,7 @@
 # pi-dev-loops containerized dev-loop runtime
 # Single-stage deterministic build for local and CI use.
 
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 
 # Pinned tool versions (bump together when updating)
 ARG PI_VERSION=0.79.0
