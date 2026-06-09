@@ -192,7 +192,12 @@ function resolveTargetPreference(cwd) {
   }
   return "prefer_github_first";
 }
-export function buildAutoResolvedInput({ issue, pr, cwd }) {
+function normalizeConfigInputSource(value) {
+  if (value === "phase-docs") return "phase-docs";
+  if (value === "tracker") return "tracker";
+  return "tracker";
+}
+export function buildAutoResolvedInput({ issue, pr, cwd, targetPreference, inputSource }) {
   let repoRoot = cwd;
   try {
     repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
@@ -204,6 +209,27 @@ export function buildAutoResolvedInput({ issue, pr, cwd }) {
   }
   const repo = detectRepoSlug(repoRoot);
   if (issue !== undefined) {
+    const resolvedTargetPreference = targetPreference ?? resolveTargetPreference(repoRoot);
+    const resolvedInputSource = normalizeConfigInputSource(inputSource);
+    if (resolvedTargetPreference === "prefer_local" && resolvedInputSource === "phase-docs") {
+      return {
+        intent: "start_issue_locally",
+        mode: "bounded_handoff",
+        targetPreference: resolvedTargetPreference,
+        artifactState: "not_applicable",
+        issueLinkageResolution: "not_applicable",
+        issueReadiness: "not_applicable",
+        issueAssignmentState: "not_applicable",
+        loopState: "implementation_pending",
+        currentState: {
+          target: { kind: "local_phase", issue, pr: null, linkedPr: null, branch: null, phase: `issue-${issue}` },
+          ownership: "local",
+          nextActor: "local",
+          status: "active",
+          authorization: "authorized",
+        },
+      };
+    }
     const artifactState = "not_applicable";
     const warnings = [];
     let issueLinkageResolution = "resolved_no_open_pr";
@@ -239,12 +265,11 @@ export function buildAutoResolvedInput({ issue, pr, cwd }) {
       issueAssignmentState = "unassigned";
       warnings.push(`issueAssignmentState: using default "${issueAssignmentState}" — gh issue view failed`);
     }
-    const targetPreference = resolveTargetPreference(repoRoot);
     const loopState = "issue_intake_start";
     return {
       intent: "start_issue_locally",
       mode: "bounded_handoff",
-      targetPreference,
+      targetPreference: resolvedTargetPreference,
       artifactState,
       issueLinkageResolution,
       issueReadiness,
@@ -267,11 +292,11 @@ export function buildAutoResolvedInput({ issue, pr, cwd }) {
   } catch {
     artifactState = "open";
   }
-  const targetPreference = resolveTargetPreference(repoRoot);
+  const resolvedTargetPreference = targetPreference ?? resolveTargetPreference(repoRoot);
   return {
     intent: "continue_on_pr",
     mode: "bounded_handoff",
-    targetPreference,
+    targetPreference: resolvedTargetPreference,
     artifactState,
     issueLinkageResolution: "not_applicable",
     loopState: "pr_followup_start",
@@ -416,19 +441,36 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
     stdout.write(`${USAGE}\n`);
     return;
   }
+  const { config: devLoopConfig, errors: configErrors = [] } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+  const asyncStartMode = configErrors.length === 0
+    ? resolveWorkflowConfig(devLoopConfig, "asyncStartMode")
+    : "required";
+  const targetPreference = configErrors.length === 0
+    ? devLoopConfig?.strategy?.default === "local-first"
+      ? "prefer_local"
+      : "prefer_github_first"
+    : "prefer_github_first";
+  const inputSource = configErrors.length === 0
+    ? normalizeConfigInputSource(devLoopConfig?.inputSource?.default)
+    : "tracker";
   let input;
   if (options.inputPath !== undefined) {
     const text = await readFile(path.resolve(options.inputPath), "utf8");
     input = parseJsonText(text);
   } else if (options.issue !== undefined) {
-    input = buildAutoResolvedInput({ issue: options.issue, cwd: process.cwd() });
+    input = buildAutoResolvedInput({
+      issue: options.issue,
+      cwd: process.cwd(),
+      targetPreference,
+      inputSource,
+    });
   } else {
-    input = buildAutoResolvedInput({ pr: options.pr, cwd: process.cwd() });
+    input = buildAutoResolvedInput({
+      pr: options.pr,
+      cwd: process.cwd(),
+      targetPreference,
+    });
   }
-  const { config: devLoopConfig, errors: configErrors = [] } = await loadDevLoopConfig({ repoRoot: process.cwd() });
-  const asyncStartMode = configErrors.length === 0
-    ? resolveWorkflowConfig(devLoopConfig, "asyncStartMode")
-    : "required";
   const result = buildResolveDevLoopStartupResult(input, { asyncStartMode });
   if (result.ok === false) {
     stderr.write(`${JSON.stringify(result)}\n`);

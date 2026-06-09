@@ -774,3 +774,73 @@ test("buildAutoResolvedInput returns valid targetPreference", () => {
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test("buildAutoResolvedInput with local-first tracker source keeps issue-backed startup state", () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    const result = buildAutoResolvedInput({
+      issue: 999999,
+      cwd: tmp,
+      targetPreference: "prefer_local",
+      inputSource: "tracker",
+    });
+    assert.equal(result.currentState.target.kind, "issue");
+    assert.equal(result.loopState, "issue_intake_start");
+    assert.equal(result.issueLinkageResolution, "resolved_no_open_pr");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("buildAutoResolvedInput with local-first phase-doc source uses local_phase startup state", () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "dev-loop-511-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tmp, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tmp, stdio: "ignore" });
+    const result = buildAutoResolvedInput({
+      issue: 999999,
+      cwd: tmp,
+      targetPreference: "prefer_local",
+      inputSource: "phase-docs",
+    });
+    assert.equal(result.currentState.target.kind, "local_phase");
+    assert.equal(result.currentState.target.phase, "issue-999999");
+    assert.equal(result.loopState, "implementation_pending");
+    assert.equal(result.issueLinkageResolution, "not_applicable");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("runCli --issue uses config inputSource=phase-docs to choose phase-doc local startup path", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-phase-doc-input-source-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tempDir, stdio: "ignore" });
+    await mkdir(path.join(tempDir, ".pi", "dev-loop"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, ".pi", "dev-loop", "settings.yaml"),
+      "version: 1\nstrategy:\n  default: local-first\ninputSource:\n  default: phase-docs\n",
+      "utf8",
+    );
+
+    const ghStub = await writeGhStubHelper(tempDir, []);
+    const result = await runNode(["--issue", "511"], {
+      cwd: tempDir,
+      env: {
+        ...ghStub.env,
+        PI_WORKTREE_BYPASS: "1",
+      },
+    });
+
+    assert.equal(result.code, 0, result.stderr);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.selectedStrategy, "local_implementation");
+    assert.equal(parsed.bundle.issueLinkageResolution, "not_applicable");
+    assert.match(parsed.bundle.nextAction, /current branch or phase slice/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

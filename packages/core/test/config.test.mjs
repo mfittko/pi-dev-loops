@@ -156,6 +156,14 @@ describe("schema validation", () => {
     assert.ok(!result.success);
   });
 
+  test("S11b: inputSource.default bad enum", () => {
+    const result = DevLoopConfigSchema.safeParse({
+      version: 1,
+      inputSource: { default: "local-docs" },
+    });
+    assert.ok(!result.success);
+  });
+
   test("S12: refinement.mode bad enum", () => {
     const result = DevLoopConfigSchema.safeParse({
       version: 1,
@@ -306,6 +314,10 @@ describe("BUILT_IN_DEFAULTS", () => {
 
   test("strategy.default is github-first", () => {
     assert.equal(BUILT_IN_DEFAULTS.strategy.default, "github-first");
+  });
+
+  test("inputSource.default is tracker", () => {
+    assert.equal(BUILT_IN_DEFAULTS.inputSource.default, "tracker");
   });
 
   test("refinement defaults include fanOut 3, mode parallel, maxCopilotRounds 5, and low-signal defaults", () => {
