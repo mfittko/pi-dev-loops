@@ -206,8 +206,20 @@ function getLastCopilotReviewHeadSha(prData) {
   const reviews = Array.isArray(prData?.reviews) ? prData.reviews : [];
   const copilotReviews = reviews.filter((r) => isCopilotLogin(r?.author?.login));
   if (copilotReviews.length === 0) return null;
-  const lastReview = copilotReviews[copilotReviews.length - 1];
-  const sha = lastReview?.commit?.oid;
+  // Select the most recent Copilot review: sort by submittedAt descending,
+  // falling back to original array position when timestamps are missing
+  // (later index = more recent).
+  const indexed = copilotReviews.map((r, i) => ({ review: r, index: i }));
+  indexed.sort((a, b) => {
+    const aTs = typeof a.review?.submittedAt === "string" ? Date.parse(a.review.submittedAt) : NaN;
+    const bTs = typeof b.review?.submittedAt === "string" ? Date.parse(b.review.submittedAt) : NaN;
+    if (!Number.isNaN(aTs) && !Number.isNaN(bTs)) return bTs - aTs;
+    if (Number.isNaN(aTs) && Number.isNaN(bTs)) return b.index - a.index;
+    return Number.isNaN(aTs) ? 1 : -1;
+  });
+  const lastReview = indexed[0].review;
+  // Tolerate both GraphQL commit.oid and REST commit_id shapes
+  const sha = lastReview?.commit?.oid ?? lastReview?.commit_id;
   return typeof sha === "string" && sha.trim().length > 0 ? sha.trim() : null;
 }
 function classifyRequestFailure(detail) {
