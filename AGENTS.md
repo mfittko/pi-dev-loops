@@ -22,3 +22,4 @@
 - A question requires an answer, not an action. When the user asks a question — even one implying criticism or correction — answer first before taking any action. Do not treat a question as implicit authorization to act.
 - Keep workflow procedure out of AGENTS; put shared contracts under `skills/docs/`.
 - No PR scope has gate exemptions (#579): see skills/dev-loop/SKILL.md "No gate exemptions" section.
+- **Sequential dispatch contract (#693):** When the user says "sequential", "one at a time", "serially", or "in order" with multiple `dev-loop` targets, the main agent must dispatch `dev-loop` async subagents one at a time — each blocking on prior completion before the next starts. This is deterministic: the keyword must always produce serial execution, never concurrent. The main agent is the sequencer; do not dispatch all targets at once.
