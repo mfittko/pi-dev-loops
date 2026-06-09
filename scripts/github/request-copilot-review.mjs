@@ -204,7 +204,12 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
 }
 function getLastCopilotReviewHeadSha(prData) {
   const reviews = Array.isArray(prData?.reviews) ? prData.reviews : [];
-  const copilotReviews = reviews.filter((r) => isCopilotLogin(r?.author?.login));
+  // Only consider submitted (non-PENDING) Copilot reviews.
+  // A PENDING review on a stale head could be selected as "most recent"
+  // and cause incorrect round-cap bypass decisions.
+  const copilotReviews = reviews.filter(
+    (r) => r?.state !== "PENDING" && isCopilotLogin(r?.author?.login),
+  );
   if (copilotReviews.length === 0) return null;
   // Select the most recent Copilot review: sort by submittedAt descending,
   // falling back to original array position when timestamps are missing
