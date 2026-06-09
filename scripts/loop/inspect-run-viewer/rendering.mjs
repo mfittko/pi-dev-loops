@@ -130,7 +130,7 @@ export function renderInspectRunViewerHtml({
       .assigned-pr-page-link.is-disabled { color: #9aa9b8; pointer-events: none; }
       .assigned-pr-page-status { font-weight: 700; color: #253b53; }
       .inspection-main { min-width: 0; }
-      .current-pr-state-banner { border: 1px solid #d7e3f4; border-radius: 1rem; background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%); box-shadow: 0 1px 2px rgba(35, 69, 102, 0.06); padding: 1.2rem 1.3rem; margin-top: 0; display: grid; gap: 0.9rem; }
+      .current-pr-state-banner { position: relative; border: 1px solid #d7e3f4; border-radius: 1rem; background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%); box-shadow: 0 1px 2px rgba(35, 69, 102, 0.06); padding: 1.2rem 1.3rem 4.65rem; margin-top: 0; display: grid; gap: 0.9rem; }
       .current-pr-state-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.9rem; }
       .current-pr-state-heading-copy { min-width: 0; display: grid; gap: 0.35rem; }
       .current-pr-state-kicker { margin: 0; font-size: 0.82rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #486174; }
@@ -144,7 +144,11 @@ export function renderInspectRunViewerHtml({
       .current-pr-state-meta { margin: 0; color: #5a758b; font-size: 0.84rem; line-height: 1.5; }
       .current-pr-state-note { margin: 0; color: #5a758b; font-size: 0.92rem; line-height: 1.55; max-width: 78ch; }
       .current-pr-state-badge-row { margin-top: 0; }
+      .current-pr-state-controls { position: absolute; right: 1.3rem; bottom: 1.2rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem 0.6rem; max-width: calc(100% - 2.6rem); }
+      .current-pr-state-auto-reload-label { display: inline-flex; align-items: center; gap: 0.32rem; margin: 0; font-size: 0.78rem; font-weight: 700; color: #486174; }
+      .current-pr-state-auto-reload-select { min-width: 7.4rem; border: 1px solid #bfd0e2; border-radius: 0.5rem; padding: 0.4rem 0.55rem; font: inherit; font-size: 0.83rem; line-height: 1.35; color: #355061; background: #fff; }
       .current-pr-state-reload { flex: 0 0 auto; }
+      .current-pr-state-reload[hidden] { display: none; }
       .viewer-badge-row { display: flex; flex-wrap: wrap; gap: 0.5rem 0.6rem; align-items: flex-start; }
       .viewer-card-grid { display: grid; gap: 1.15rem; align-items: start; }
       .viewer-card-grid-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -305,6 +309,9 @@ export function renderInspectRunViewerHtml({
         .assigned-pr-select-mid,
         .assigned-pr-select-sm,
         .assigned-pr-select-updated { width: 100%; max-width: none; margin-left: 0; flex: 1 1 6rem; }
+        .current-pr-state-banner { padding-bottom: 0.9rem; }
+        .current-pr-state-controls { position: static; justify-content: flex-start; max-width: none; }
+        .current-pr-state-auto-reload-select { min-width: 0; flex: 1 1 8rem; }
         .handoff-kv,
         .handoff-kv-compact,
         .handoff-stat-grid,

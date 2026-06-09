@@ -62,8 +62,8 @@ function describeInboxSignal(signal) {
 
 function summarizeInboxRow(snapshot, fallbackSignal = "unknown") {
   const normalizedFallbackSignal = normalizeInboxSignal(fallbackSignal);
-  const signal = normalizedFallbackSignal === "closed"
-    ? "closed"
+  const signal = normalizedFallbackSignal !== "unknown"
+    ? normalizedFallbackSignal
     : snapshot
       ? deriveInboxSignalFromSnapshot(snapshot)
       : normalizedFallbackSignal;

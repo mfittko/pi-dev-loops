@@ -534,6 +534,12 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, _graph, s
   const targetLabel = target?.repo && target?.pr !== null && target?.pr !== undefined
     ? `${target.repo}#${target.pr}`
     : `PR #${target?.pr ?? "unknown"}`;
+  const autoReloadOptions = [
+    { value: "off", label: "Off" },
+    { value: "60000", label: "1 minute" },
+    { value: "300000", label: "5 minutes" },
+    { value: "900000", label: "15 minutes" },
+  ];
 
   const metaLine = [
     snapshot?.runId ? `run ${escapeHtml(snapshot.runId)}` : null,
@@ -550,7 +556,6 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, _graph, s
         <h1>${escapeHtml(heading)}</h1>
       </div>
       ${mode ? `<span class="current-pr-state-mode-indicator" title="${escapeHtml(mode.label)}" aria-label="${escapeHtml(mode.label)}">${escapeHtml(mode.emoji)}</span>` : ""}
-      <button type="button" class="viewer-action-button current-pr-state-reload" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button>
     </div>
     <div class="current-pr-state-copy-flow">
       ${metaLine ? `<p class="current-pr-state-meta">${metaLine}</p>` : ""}
@@ -562,7 +567,77 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, _graph, s
       <p class="current-pr-state-summary-headline"><strong>${escapeHtml(summary.headline)}</strong></p>
       <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
     </div>
-  </section>`;
+    <div class="current-pr-state-controls" data-auto-reload-controls>
+      <label class="current-pr-state-auto-reload-label" for="current-pr-state-auto-reload">
+        <span aria-hidden="true">⏱</span>
+        <span>Auto-reload:</span>
+      </label>
+      <select id="current-pr-state-auto-reload" class="current-pr-state-auto-reload-select" data-auto-reload-select aria-label="Auto-reload period">
+        ${autoReloadOptions.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
+      </select>
+      <button type="button" class="viewer-action-button current-pr-state-reload" data-auto-reload-manual onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄 Reload</button>
+    </div>
+  </section>
+  <script>
+    (() => {
+      const AUTO_RELOAD_STORAGE_KEY = "inspect-run-viewer:auto-reload-ms";
+      const select = document.querySelector("[data-auto-reload-select]");
+      const manualButton = document.querySelector("[data-auto-reload-manual]");
+      if (!select || !manualButton) {
+        return;
+      }
+
+      let autoReloadTimer = null;
+      const clearAutoReloadTimer = () => {
+        if (autoReloadTimer !== null) {
+          window.clearInterval(autoReloadTimer);
+          autoReloadTimer = null;
+        }
+      };
+      const applyAutoReloadValue = (rawValue) => {
+        const nextValue = Array.from(select.options).some((option) => option.value === rawValue)
+          ? rawValue
+          : "off";
+        select.value = nextValue;
+        const autoReloadEnabled = nextValue !== "off";
+        manualButton.hidden = autoReloadEnabled;
+        clearAutoReloadTimer();
+        if (!autoReloadEnabled) {
+          return;
+        }
+        const intervalMs = Number.parseInt(nextValue, 10);
+        if (Number.isFinite(intervalMs) && intervalMs > 0) {
+          autoReloadTimer = window.setInterval(() => {
+            window.location.reload();
+          }, intervalMs);
+        }
+      };
+
+      let storedValue = "off";
+      try {
+        storedValue = window.localStorage.getItem(AUTO_RELOAD_STORAGE_KEY) ?? "off";
+      } catch {
+        storedValue = "off";
+      }
+      applyAutoReloadValue(storedValue);
+
+      select.addEventListener("change", () => {
+        const nextValue = select.value;
+        try {
+          if (nextValue === "off") {
+            window.localStorage.removeItem(AUTO_RELOAD_STORAGE_KEY);
+          } else {
+            window.localStorage.setItem(AUTO_RELOAD_STORAGE_KEY, nextValue);
+          }
+        } catch {
+          // Ignore localStorage write failures.
+        }
+        applyAutoReloadValue(nextValue);
+      });
+
+      window.addEventListener("beforeunload", clearAutoReloadTimer);
+    })();
+  </script>`;
 }
 
 export function deriveInboxSignalFromSnapshot(snapshot) {
