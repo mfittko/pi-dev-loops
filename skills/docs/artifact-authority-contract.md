@@ -41,10 +41,16 @@ Key contract:
 
 ### Mode selection table
 
-| Mode | Canonical artifact | GitHub issue required | Settings value |
+| Mode | Canonical artifact | GitHub issue required | Settings values |
 |---|---|---|---|
 | Tracker-first (default) | GitHub issue | Yes | `strategy.default: github-first` |
 | Local-planning (opt-out) | Markdown plan file | No | `strategy.default: local-first` |
+
+`inputSource.default` further disambiguates local-first startup:
+| inputSource | Meaning |
+|---|---|
+| `tracker` (default) | Local agent implements from the GitHub issue body; no phase doc created |
+| `phase-docs` | Local agent implements from persisted phase docs (e.g., `docs/phases/phase-<n>.md`) |
 
 ## Settings mechanism
 
@@ -55,13 +61,19 @@ Artifact authority mode is controlled by `.pi/dev-loop/settings.yaml`:
 strategy:
   default: github-first   # tracker-first (GitHub issue required)
   # default: local-first  # local-planning (markdown plan file)
+inputSource:
+  default: tracker        # spec source for local-first: tracker (issue body) or phase-docs
 ```
 
 The `strategy.default` key serves dual purpose:
 1. It selects the artifact authority mode (tracker-first vs local-planning)
 2. It sets the default routing preference for `targetPreference` in dev-loop startup
 
-This key is already defined in `.pi/dev-loop/defaults.yaml` (shipped with pi-dev-loops) and may be overridden in `.pi/dev-loop/settings.yaml` (per-repo).
+The `inputSource.default` key disambiguates local-first startup:
+- `tracker` (default): local agent implements from the GitHub issue body; the issue is canonical spec
+- `phase-docs`: local agent implements from persisted phase docs; no tracker issue required
+
+These keys are already defined in `.pi/dev-loop/defaults.yaml` (shipped with pi-dev-loops) and may be overridden in `.pi/dev-loop/settings.yaml` (per-repo).
 
 ### Defaults resolution
 
@@ -104,4 +116,4 @@ pi-dev-loops is **tracker-first (opted in, GitHub backend).**
 - Defining tracker adapters or multi-tracker support
 - Specifying how PRs map to issues in detail (that is the [Public Dev Loop Contract](public-dev-loop-contract.md))
 - Changing the dev-loop startup resolver behavior
-- Adding new settings keys beyond the existing `strategy.default`
+- Adding tracker-specific settings beyond `inputSource` — further tracker adapters or multi-tracker support remain out of scope

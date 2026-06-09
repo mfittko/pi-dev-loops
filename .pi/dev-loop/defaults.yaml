@@ -4,6 +4,10 @@ version: 1
 strategy:
   default: github-first
 
+# Local-first input source: "tracker" (GitHub issue body) or "phase-docs" (docs/phases/*)
+inputSource:
+  default: tracker
+
 # Refinement fan-out: how many parallel review variants to generate
 refinement:
   fanOut: 3

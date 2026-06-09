@@ -15,6 +15,10 @@ const StrategyConfig = z.strictObject({
   default: z.enum(["local-first", "github-first"]),
 });
 
+const InputSourceConfig = z.strictObject({
+  default: z.enum(["tracker", "phase-docs"]),
+});
+
 const ModelsConfig = z.strictObject({
   conductor: z.string().trim().min(1).optional(),
   roles: z.record(z.string(), z.string().trim().min(1)).optional(),
@@ -117,6 +121,7 @@ const FilePersonasConfig = z.record(z.string().min(1), PersonaEntry.partial());
 export const DevLoopConfigSchema = z.strictObject({
   version: z.literal(1),
   strategy: StrategyConfig.optional(),
+  inputSource: InputSourceConfig.optional(),
   models: ModelsConfig.optional(),
   refinement: RefinementConfig.optional(),
   gates: GatesConfig.optional(),
@@ -135,6 +140,7 @@ export const DevLoopConfigSchema = z.strictObject({
 export const BUILT_IN_DEFAULTS = Object.freeze({
   version: 1,
   strategy: Object.freeze({ default: "github-first" }),
+  inputSource: Object.freeze({ default: "tracker" }),
   models: Object.freeze({}),
   refinement: Object.freeze({ fanOut: 3, mode: "parallel", maxCopilotRounds: 5, stopOnLowSignal: false, lowSignalRoundThreshold: 3, lowSignalMaxComments: 2 }),
   gates: Object.freeze({}),
@@ -175,6 +181,7 @@ export const BUILT_IN_DEFAULTS = Object.freeze({
 export const FileConfigSchema = z.strictObject({
   version: z.literal(1),
   strategy: StrategyConfig.partial().optional(),
+  inputSource: InputSourceConfig.partial().optional(),
   models: ModelsConfig.partial().optional(),
   refinement: RefinementConfig.partial().optional(),
   gates: FileGatesConfig.optional(),
