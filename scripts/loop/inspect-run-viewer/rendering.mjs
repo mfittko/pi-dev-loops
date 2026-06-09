@@ -137,11 +137,11 @@ export function renderInspectRunViewerHtml({
       .current-pr-state-banner h1 { margin: 0; font-size: 2rem; line-height: 1.15; color: #18324a; }
       .current-pr-state-summary-headline { margin: 0.75rem 0 0.3rem 0; color: #1565c0; font-size: 1.06rem; }
       .current-pr-state-detail { margin: 0; color: #274766; font-size: 0.98rem; }
-      .current-pr-state-note { margin: 0.55rem 0 0 0; color: #4b6579; font-size: 0.92rem; }
+      .current-pr-state-meta { margin: 0.55rem 0 0 0; color: #5a758b; font-size: 0.82rem; }
       .current-pr-state-badge-row { margin-top: 0.75rem; }
       .viewer-badge-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
       .viewer-card-grid { display: grid; gap: 1rem; align-items: start; }
-      .viewer-card-grid-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .viewer-card-grid-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .viewer-card-grid-layers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .viewer-tab-section { border: none; background: none; padding: 0; margin-top: 1rem; }
       .viewer-tab-shell { position: sticky; top: 0.65rem; z-index: 4; border: 1px solid #d7e3f4; border-radius: 0.85rem; background: rgba(251, 253, 255, 0.96); backdrop-filter: blur(6px); padding: 0.3rem; margin-top: 0.85rem; }
@@ -332,7 +332,7 @@ export function renderInspectRunViewerHtml({
               </section>
             </div>
             <div class="tab-content" id="tab-overview">
-              ${renderOverviewSection(normalizedSnapshot, target, stateLabel, rawSnapshotHref)}
+              ${renderOverviewSection(normalizedSnapshot, target, stateLabel)}
             </div>
             <div class="tab-content" id="tab-layers">
               <section class="viewer-tab-section" aria-label="Layers">

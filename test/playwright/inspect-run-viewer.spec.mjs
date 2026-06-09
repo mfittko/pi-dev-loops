@@ -74,7 +74,6 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(currentStateBanner).toBeVisible();
     await expect(currentStateBanner.getByTitle("Waiting state")).toBeVisible();
     await expect(currentStateBanner.getByText("Waiting for Copilot review")).toBeVisible();
-    await expect(page.locator("body")).toContainText(/These fields are shown directly from the loaded inspection snapshot/i);
     await expect(page.locator(".state-graph-intro")).toHaveCount(0);
     await expect(page.locator(".state-graph-cues")).toContainText(/Start/);
     await expect(page.locator(".state-graph-cues")).toContainText(/Current/);
@@ -212,7 +211,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     await expect(graphBox.locator("[data-graph-zoom-value]")).toHaveText("125%");
 
     await page.locator('.viewer-tab[data-tab="overview"]').click();
-    await expect(page.getByRole("link", { name: /Open raw snapshot JSON/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Reload snapshot/ })).toBeVisible();
 
     await captureNamedUiState({
       page,
@@ -249,7 +248,6 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
 
     await expect(page.getByRole("heading", { name: "Current PR" })).toBeVisible();
     await expect(page.locator(".current-pr-state-summary-headline")).toContainText(/Needs attention/);
-    await expect(page.locator(".current-pr-state-note")).toContainText(/checkpoint-only snapshot/i);
     await expect(page.locator(".state-graph-intro")).toHaveCount(0);
     await page.getByText(/Graph guide and lane details/).click();
     const graph = await waitForMermaidGraph(page);

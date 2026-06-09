@@ -172,12 +172,11 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /⏳/);
   assert.match(html, /Waiting for Copilot review/);
   assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
-  assert.match(html, /These fields are shown directly from the loaded inspection snapshot/i);
   assert.match(html, /status class/);
   assert.match(html, /outer state/);
-  assert.match(html, /outerAction \(compatibility\)/);
-  assert.match(html, /current Copilot state/);
-  assert.match(html, /current reviewer state/);
+  assert.match(html, /outerAction/);
+  assert.match(html, /Copilot state/);
+  assert.match(html, /reviewer state/);
   assert.match(html, /reviewer verdict/);
   assert.match(html, /Next action and key metrics/);
   assert.match(html, /Graph guide and lane details/);
@@ -189,21 +188,14 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /Overview<\/button>/);
   assert.match(html, /Layers<\/button>/);
   assert.doesNotMatch(html, /Live view/);
-  assert.match(html, /target\.repo/);
-  assert.match(html, /owner\/repo/);
-  assert.match(html, /target\.pr/);
-  assert.match(html, /55/);
-  assert.match(html, /runId/);
+  assert.match(html, /owner\/repo#55/);
   assert.match(html, /pr-55/);
-  assert.match(html, /inspectedAt/);
   assert.match(html, /activeStateFamily/);
   assert.match(html, /outerAction/);
   assert.match(html, /activeFamilyState/);
   assert.match(html, /statusClass/);
   assert.match(html, /needsAttention/);
   assert.match(html, /sourceMode/);
-  assert.match(html, /trust/);
-  assert.match(html, /evidence\.summary/);
   assert.match(html, /markers\.missing/);
   assert.match(html, /markers\.stale/);
   assert.match(html, /markers\.conflicts/);
@@ -237,8 +229,6 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /Copilot/);
   assert.match(html, /Reviewer/);
   assert.match(html, /Steering/);
-  assert.match(html, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
-  assert.match(html, /Reload snapshot/);
   assert.doesNotMatch(html, /Connected state map/);
   assert.doesNotMatch(html, /"schemaVersion": 1/);
   assert.doesNotMatch(html, /"ok": true/);
@@ -507,7 +497,6 @@ test("renderInspectRunViewerHtml renders checkpoint-only \/ degraded cues and ab
   assert.doesNotMatch(html, /checkpoint-only graph view[\s\S]*current and next highlights are advisory until live inspection is available\./i);
   assert.match(html, /Needs attention/);
   assert.match(html, /The current snapshot is not authoritative enough to collapse to one trusted outer state/);
-  assert.match(html, /This is a checkpoint-only snapshot\. The current-state fields below are advisory, not live-confirmed\./i);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
@@ -815,7 +804,6 @@ test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
 
   assert.match(html, /handoff-badge-danger">conflicting<\/span>/);
   assert.doesNotMatch(html, /Conflicting graph view[\s\S]*resolve the evidence conflict before trusting the highlights\./i);
-  assert.match(html, /Conflicting evidence is present\. Treat the current-state fields below as advisory until the snapshot is reconciled\./i);
   assert.match(html, /checkpoint outerAction/);
 });
 
@@ -831,7 +819,6 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
   assert.match(html, /target\.pr must be a positive integer/);
   assert.match(html, /no state graph can be rendered yet/i);
   assert.match(html, /manual reload only/i);
-  assert.match(html, /href="\/snapshot\.json\?repo=bad(?:\+|%20)target&amp;pr=x"/);
 });
 
 

@@ -133,18 +133,9 @@ function buildCopilotLoopIterationEntries(snapshot) {
   ];
 }
 
-export function renderOverviewSection(snapshot, target, stateLabel, rawSnapshotHref = null) {
+export function renderOverviewSection(snapshot, target, stateLabel) {
   const summary = summarizeCurrentPrStatus(snapshot);
   const loopIterations = snapshot?.loopIterations;
-  const metadataBody = renderKeyValueRows([
-    ["target.repo", `<code>${escapeHtml(target?.repo ?? "not present")}</code>`],
-    ["target.pr", `<code>${escapeHtml(String(target?.pr ?? "not present"))}</code>`],
-    ["runId", `<code>${escapeHtml(snapshot?.runId ?? "not present")}</code>`],
-    ["inspectedAt", escapeHtml(snapshot?.inspectedAt ?? "not present")],
-  ]) + `<div class="viewer-card-actions">
-    <button type="button" class="viewer-action-button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄 Reload snapshot</button>
-    ${rawSnapshotHref ? `<a class="viewer-inline-link" href="${escapeHtml(rawSnapshotHref)}">Open raw snapshot JSON</a>` : ""}
-  </div>`;
 
   const stateBody = `<div class="viewer-badge-row">
     ${renderCurrentStateBadge(stateLabel)}
@@ -154,15 +145,13 @@ export function renderOverviewSection(snapshot, target, stateLabel, rawSnapshotH
   ${renderStatGrid([
     { label: "status class", value: renderCodeValue(snapshot?.statusClass) },
     { label: "outer state", value: renderCodeValue(snapshot?.outerState) },
-    { label: "outerAction (compatibility)", value: renderCodeValue(snapshot?.outerAction) },
-    { label: "current Copilot state", value: renderCodeValue(snapshot?.layers?.copilot?.currentState) },
-    { label: "current reviewer state", value: renderCodeValue(snapshot?.layers?.reviewer?.currentState) },
+    { label: "outerAction", value: renderCodeValue(snapshot?.outerAction) },
+    { label: "Copilot state", value: renderCodeValue(snapshot?.layers?.copilot?.currentState) },
+    { label: "reviewer state", value: renderCodeValue(snapshot?.layers?.reviewer?.currentState) },
     { label: "reviewer verdict", value: escapeHtml(renderReviewerVerdict(snapshot)) },
     { label: "needs attention", value: renderBooleanBadge(snapshot?.needsAttention) },
     { label: "sourceMode", value: escapeHtml(formatStateToken(snapshot?.sourceMode)) },
-    { label: "trust", value: escapeHtml(snapshot?.trust ?? "not present") },
-    { label: "evidence.summary", value: escapeHtml(snapshot?.evidence?.summary ?? "not present") },
-  ], { columns: "viewer-stat-grid-3" })}`;
+  ], { columns: "viewer-stat-grid-2" })}`;
 
   const metricsBody = `<div class="handoff-next-action viewer-next-action">
     <p><strong>${escapeHtml(summary.headline)}.</strong> ${escapeHtml(summary.nextAction)}</p>
@@ -185,7 +174,6 @@ export function renderOverviewSection(snapshot, target, stateLabel, rawSnapshotH
 
   return `<section class="viewer-tab-section" aria-label="Overview">
     <div class="viewer-card-grid viewer-card-grid-overview">
-      ${renderCard({ kicker: "Overview", title: "Target metadata", body: metadataBody, className: "handoff-card-tight", dataField: "overview-metadata" })}
       ${renderCard({ kicker: "Overview", title: "Current state", body: stateBody, className: "handoff-card-tight handoff-card-emphasis", dataField: "overview-state" })}
       ${renderCard({ kicker: "Overview", title: "Next action and key metrics", body: metricsBody, className: "handoff-card-tight", dataField: "overview-metrics" })}
     </div>
@@ -496,30 +484,6 @@ export function summarizeCurrentPrStatus(snapshot) {
   };
 }
 
-function renderCurrentStateNote(snapshot) {
-  if (!snapshot) {
-    return "Unable to determine the current PR state yet.";
-  }
-
-  if (snapshot.sourceMode === "unavailable") {
-    return "Snapshot unavailable. Open /snapshot.json or reload once the inspection surface is available again.";
-  }
-
-  if ((snapshot.markers?.conflicts?.length ?? 0) > 0) {
-    return "Conflicting evidence is present. Treat the current-state fields below as advisory until the snapshot is reconciled.";
-  }
-
-  if (snapshot.sourceMode === "checkpoint-only") {
-    return "This is a checkpoint-only snapshot. The current-state fields below are advisory, not live-confirmed.";
-  }
-
-  if (snapshot.sourceMode === "partial" || snapshot.trust === "degraded") {
-    return "This snapshot is degraded. The current-state fields below may be incomplete and should be cross-checked against the graph and raw snapshot.";
-  }
-
-  return "These fields are shown directly from the loaded inspection snapshot so the current state stays visible without inventing a second viewer-only status model.";
-}
-
 function buildPullRequestHref(target) {
   if (!target?.repo || target?.pr === null || target?.pr === undefined) {
     return null;
@@ -582,6 +546,12 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, graph, se
     : `PR #${target?.pr ?? "unknown"}`;
   void graph;
 
+  const metaLine = [
+    snapshot?.runId ? `run ${escapeHtml(snapshot.runId)}` : null,
+    snapshot?.inspectedAt ? escapeHtml(snapshot.inspectedAt) : null,
+    snapshot?.sourceMode ? escapeHtml(`source: ${snapshot.sourceMode}`) : null,
+  ].filter(Boolean).join(" · ");
+
   return `<section class="current-pr-state-banner" aria-label="PR #${escapeHtml(target.pr)}">
     <div class="current-pr-state-heading-row">
       <div class="current-pr-state-heading-copy">
@@ -591,7 +561,9 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, graph, se
         <h1>${escapeHtml(heading)}</h1>
       </div>
       ${mode ? `<span class="current-pr-state-mode-indicator" title="${escapeHtml(mode.label)}" aria-label="${escapeHtml(mode.label)}">${escapeHtml(mode.emoji)}</span>` : ""}
+      <button type="button" class="viewer-action-button current-pr-state-reload" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button>
     </div>
+    ${metaLine ? `<p class="current-pr-state-meta">${metaLine}</p>` : ""}
     <div class="viewer-badge-row current-pr-state-badge-row">
       ${renderCurrentStateBadge(stateLabel)}
       ${renderInboxSignalBadge(snapshot)}
@@ -599,7 +571,6 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, graph, se
     </div>
     <p class="current-pr-state-summary-headline"><strong>${escapeHtml(summary.headline)}</strong></p>
     <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
-    <p class="current-pr-state-note">${escapeHtml(renderCurrentStateNote(snapshot))}</p>
   </section>`;
 }
 
