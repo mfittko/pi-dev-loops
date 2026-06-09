@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { buildParseError, formatCliError } from "../_core-helpers.mjs";
 import { parsePositiveInteger, requireOptionValue } from "../_cli-primitives.mjs";
-import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { detectRepoSlug, parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 import { isDirectCliRun, loadTreeFromInput, loadTreeOnline } from "./_refine-helpers.mjs";
 import { runProseLinkageDetector } from "./prose-linkage-detector.mjs";
@@ -130,9 +130,19 @@ export async function runCli(
     return { ok: true, help: true };
   }
 
+  let resolvedRepo = options.repo;
+  if (options.issue !== undefined && typeof resolvedRepo !== "string") {
+    try {
+      resolvedRepo = detectRepoSlug(cwd);
+    } catch (err) {
+      throw parseError(err.message);
+    }
+  }
+
   const tree = options.input
     ? await loadTreeFromInput(options.input)
-    : await loadTreeOnline({ issue: options.issue, repo: options.repo, cwd, ghCommand, env });
+    : await loadTreeOnline({ issue: options.issue, repo: resolvedRepo, cwd, ghCommand, env });
+
 
   const result = runAllCheckers(tree);
 

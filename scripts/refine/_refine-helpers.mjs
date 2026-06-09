@@ -126,8 +126,8 @@ export async function loadTreeOnline({ issue, repo, cwd = process.cwd(), ghComma
   if (!resolvedRepo) {
     throw new Error("Unable to detect repository slug. Pass --repo <owner/name>.");
   }
-  parseRepoSlug(resolvedRepo, { errorMessage: "--repo must match <owner/name>" });
-  const { owner, name } = parseRepoSlug(resolvedRepo, { errorMessage: "--repo must match <owner/name>" });
+  const parsed = parseRepoSlug(resolvedRepo, { errorMessage: "--repo must match <owner/name>" });
+  const { owner, name } = parsed;
 
   const byNumber = new Map();
   const edges = [];
