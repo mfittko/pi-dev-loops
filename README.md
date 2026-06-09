@@ -30,6 +30,47 @@ Use **`dev-loop`** as the single public workflow entrypoint:
 
 The `dev-loop` entrypoint resolves authoritative state, picks the correct internal strategy, and routes work deterministically. Users never need to choose internal strategy names. See the canonical shorthand example mapping in the [Public Dev Loop Contract](./skills/docs/public-dev-loop-contract.md).
 
+## Docker
+
+A deterministic container image with all required tooling for dev-loop operation.
+
+### Build
+
+```bash
+docker build -t pi-dev-loops .
+```
+
+### Required environment variables
+
+| Variable | Purpose |
+|---|---|
+| `GH_TOKEN` | GitHub personal access token for `gh` CLI and API calls |
+| `OPENAI_API_KEY` | OpenAI API key (or equivalent for your configured provider) |
+
+### Smoke test
+
+Verify the image works with a minimal dev-loop info call:
+
+```bash
+docker run --rm -e GH_TOKEN="$GH_TOKEN" pi-dev-loops dev-loops loop info --issue 1
+```
+
+### Toolchain verification
+
+Check that all required tools are reachable:
+
+```bash
+docker run --rm pi-dev-loops node --version
+docker run --rm pi-dev-loops pi --version
+docker run --rm pi-dev-loops dev-loops --version
+docker run --rm pi-dev-loops gh --version
+docker run --rm pi-dev-loops git --version
+```
+
+### Repeatable builds
+
+The Dockerfile pins exact versions for Node.js (via base image), pi CLI, pi extensions, and gh CLI. Paired with the committed `package-lock.json`, repeat builds produce functionally identical toolchain versions.
+
 ## Workflow posture
 
 - Use **`dev-loop`** as the single public façade for all routed work
@@ -91,7 +132,7 @@ CI splits into a small changed-files gate plus parallel `verify` and conditional
 ## Further reading
 
 - [Docs Index](./docs/index.md) — active docs, canonical-owner pointers, and current phase status
-- [Extension Documentation](./extension/README.md) — `/dev-loops` command and package-install contract
+- [Extension Documentation](./extension/README.md) — README-driven extension spec
 - [Scripts Documentation](./scripts/README.md) — deterministic script contracts
 - [UI Smoke Harness](./docs/ui-smoke-harness.md) — reusable local Playwright/WebKit smoke baseline
 - [UI Artifact Contract](./docs/ui-artifact-contract.md) — screenshot/state artifact contract and CI-promotion rules
