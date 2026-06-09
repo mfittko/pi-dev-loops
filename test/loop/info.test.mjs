@@ -58,6 +58,12 @@ test("info.mjs rejects unknown args", async () => {
   assert.ok(stderr.includes("Unknown argument"));
 });
 
+test("info.mjs preserves --repo validation wording", async () => {
+  const { code, stderr } = await runNode(["--issue", "1", "--repo", "not-a-slug"]);
+  assert.notEqual(code, 0);
+  assert.ok(stderr.includes("Invalid repo slug: --repo must match <owner/name>"));
+});
+
 // ── --json flag ──────────────────────────────────────────────────────
 
 test("info.mjs --json with --help still shows usage text", async () => {

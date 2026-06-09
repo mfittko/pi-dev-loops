@@ -49,7 +49,7 @@ function validateRepo(repo) {
   }
   try {
     // Normalize (trim) the slug and validate structure
-    return normalizeRepoSlug(repo);
+    return normalizeRepoSlug(repo, { errorMessage: "--repo must match <owner/name>" });
   } catch (err) {
     throw parseError(`Invalid repo slug: ${err instanceof Error ? err.message : String(err)}`);
   }
