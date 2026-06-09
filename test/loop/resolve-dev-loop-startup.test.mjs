@@ -844,3 +844,73 @@ test("runCli --issue uses config inputSource=phase-docs to choose phase-doc loca
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("buildAutoResolvedInput detects Copilot authorship from linked PR author", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-copilot-author-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tempDir, stdio: "ignore" });
+    // Create the detect-linked-issue-pr script path so the subprocess can resolve
+    await mkdir(path.join(tempDir, "scripts", "github"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, "scripts/github/detect-linked-issue-pr.mjs"),
+      'process.stdout.write(JSON.stringify({ ok: true, repo: "mfittko/pi-dev-loops", issue: 735, hasOpenLinkedPr: true, prNumber: 740 }));',
+      "utf8",
+    );
+    // Stub gh pr view to return Copilot author
+    const ghStub = await writeGhStubHelper(tempDir, [
+      { assertArgs: ["pr", "view", "740"], stdout: JSON.stringify({ author: { login: "copilot-swe-agent" }, state: "OPEN" }) },
+    ]);
+    const result = await runNode(["--issue", "735"], {
+      cwd: tempDir,
+      env: {
+        ...ghStub.env,
+        PI_WORKTREE_BYPASS: "1",
+      },
+    });
+    assert.equal(result.code, 0, result.stderr);
+    const parsed = JSON.parse(result.stdout);
+    // Ownership should be copilot since the PR author is copilot-swe-agent
+    assert.equal(parsed.bundleKind, "resolved");
+    assert.equal(parsed.selectedStrategy, "copilot_pr_followup");
+    assert.equal(parsed.canonicalStateSummary.ownership, "copilot");
+    assert.equal(parsed.canonicalStateSummary.nextActor, "copilot");
+    // PR target should be the linked PR number (transformed from issue+linkedPr)
+    assert.equal(parsed.canonicalStateSummary.target.pr, 740);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("buildAutoResolvedInput detects external_human authorship from linked PR author", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "resolve-dev-loop-external-author-"));
+  try {
+    execFileSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:mfittko/pi-dev-loops.git"], { cwd: tempDir, stdio: "ignore" });
+    await mkdir(path.join(tempDir, "scripts", "github"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, "scripts/github/detect-linked-issue-pr.mjs"),
+      'process.stdout.write(JSON.stringify({ ok: true, repo: "mfittko/pi-dev-loops", issue: 735, hasOpenLinkedPr: true, prNumber: 740 }));',
+      "utf8",
+    );
+    const ghStub = await writeGhStubHelper(tempDir, [
+      { assertArgs: ["pr", "view", "740"], stdout: JSON.stringify({ author: { login: "some-human-dev" }, state: "OPEN" }) },
+    ]);
+    const result = await runNode(["--issue", "735"], {
+      cwd: tempDir,
+      env: {
+        ...ghStub.env,
+        PI_WORKTREE_BYPASS: "1",
+      },
+    });
+    assert.equal(result.code, 0, result.stderr);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.bundleKind, "resolved");
+    assert.equal(parsed.selectedStrategy, "external_pr_followup");
+    assert.equal(parsed.canonicalStateSummary.ownership, "external_human");
+    assert.equal(parsed.canonicalStateSummary.nextActor, "external_human");
+    assert.equal(parsed.canonicalStateSummary.target.pr, 740);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

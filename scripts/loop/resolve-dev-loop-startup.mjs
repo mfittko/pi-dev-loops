@@ -19,6 +19,7 @@ import {
   ASYNC_START_STATUS,
 } from "../../packages/core/src/loop/async-start-contract.mjs";
 import { detectRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { isCopilotLogin } from "@pi-dev-loops/core/github/copilot-helpers";
 import { loadDevLoopConfig, resolveWorkflowConfig } from "../../packages/core/src/config/config.mjs";
 const USAGE = `Usage:
   resolve-dev-loop-startup.mjs --issue <number>
@@ -219,10 +220,11 @@ export function buildAutoResolvedInput({ issue, pr, cwd, targetPreference, input
         },
       };
     }
-    const artifactState = "not_applicable";
+    let artifactState = "not_applicable";
     const warnings = [];
     let issueLinkageResolution = "resolved_no_open_pr";
     let linkedPr = null;
+    let ownership = "local";
     try {
       const linkageJson = execFileSync(process.execPath, [
         path.join(repoRoot, "scripts/github/detect-linked-issue-pr.mjs"),
@@ -232,6 +234,15 @@ export function buildAutoResolvedInput({ issue, pr, cwd, targetPreference, input
       if (linkage.hasOpenLinkedPr) {
         issueLinkageResolution = "resolved_linked_pr";
         linkedPr = linkage.prNumber;
+        try {
+          const prJson = ghJson(["pr", "view", String(linkedPr), "--repo", repo, "--json", "author,state"], repoRoot);
+          ownership = isCopilotLogin(prJson?.author?.login) ? "copilot" : "external_human";
+          artifactState = mapGhState(prJson?.state ?? "OPEN");
+        } catch {
+          warnings.push(
+            `linkedPr authorship: using default ownership "${ownership}" for PR #${linkedPr} — gh pr view failed`,
+          );
+        }
       }
     } catch {
       warnings.push(`issueLinkageResolution: using default "${issueLinkageResolution}" — linked-PR detection unavailable`);
@@ -267,8 +278,11 @@ export function buildAutoResolvedInput({ issue, pr, cwd, targetPreference, input
       warnings: warnings.length > 0 ? warnings : undefined,
       currentState: {
         target: { kind: "issue", issue, pr: null, linkedPr, branch: null, phase: null },
-        ownership: "local",
-        nextActor: "local",
+        ownership: ownership,
+        nextActor: ownership === "copilot"
+          ? "copilot"
+          : ownership === "external_human"
+            ? "external_human" : "local",
         status: "active",
         authorization: "authorized",
       },
