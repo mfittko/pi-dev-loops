@@ -28,6 +28,7 @@ const SUBCOMMAND_ROUTES = {
   },
   loop: {
     startup:        "scripts/loop/resolve-dev-loop-startup.mjs",
+    "build-envelope": "scripts/loop/build-handoff-envelope.mjs",
     outer:          "scripts/loop/outer-loop.mjs",
     "watch-cycle":  "scripts/loop/run-watch-cycle.mjs",
     handoff:        "scripts/loop/copilot-pr-handoff.mjs",
@@ -124,6 +125,7 @@ function buildCliHelpLines() {
     "    reply-resolve     Reply and resolve review threads",
     "- dev-loops loop <sub> [...]       Loop lifecycle",
     "    startup           Resolve dev-loop startup bundle",
+    "    build-envelope    Build handoff envelope from startup output",
     "    outer             Run outer-loop detection",
     "    watch-cycle       Run Copilot wait cycle",
     "    handoff           Copilot PR handoff",
