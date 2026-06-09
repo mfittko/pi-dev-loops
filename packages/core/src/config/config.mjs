@@ -538,31 +538,63 @@ export async function loadDevLoopConfig(options = {}) {
     warnOnMissing: true,
   });
 
-  // .devloops at repo root is the primary consumer override
-  merged = await applyLayer(merged, devloopsPath, "settings", warnings, errors);
-
-  // Legacy .pi/dev-loop/settings.* or overrides.* (deprecated — warn and still load)
-  let legacyFound = false;
-  for (const legacyPath of settingsPaths) {
-    for (const ext of [".yaml", ".yml", ".json"]) {
-      const fp = legacyPath + ext;
-      try {
-        await readFile(fp, "utf8");
-        legacyFound = true;
-        break;
-      } catch {
-        // file doesn't exist
-      }
+  // Check if .devloops exists (primary consumer override)
+  let primaryExists = false;
+  for (const ext of ["", ".yaml", ".yml", ".json"]) {
+    try {
+      await readFile(devloopsPath + ext, "utf8");
+      primaryExists = true;
+      break;
+    } catch {
+      // file doesn't exist
     }
-    if (legacyFound) break;
   }
-  if (legacyFound) {
-    warnings.push(
-      `Deprecated config path(s) found under .pi/dev-loop/settings.* or .pi/dev-loop/overrides.*. ` +
-      `Migrate to .devloops (or .devloops.yaml/.devloops.yml/.devloops.json) at repo root. ` +
-      `Legacy paths will be removed in a future version.`
-    );
-    merged = await applyLayer(merged, settingsPaths, "settings", warnings, errors);
+
+  if (primaryExists) {
+    // .devloops is the primary override — apply it
+    merged = await applyLayer(merged, devloopsPath, "settings", warnings, errors);
+
+    // Warn if legacy files still exist alongside .devloops (but don't load them —
+    // .devloops is authoritative; legacy must not override it)
+    let legacyAlongside = false;
+    for (const legacyPath of settingsPaths) {
+      for (const ext of [".yaml", ".yml", ".json"]) {
+        try {
+          await readFile(legacyPath + ext, "utf8");
+          legacyAlongside = true;
+          break;
+        } catch {}
+      }
+      if (legacyAlongside) break;
+    }
+    if (legacyAlongside) {
+      warnings.push(
+        `Deprecated config path(s) found under .pi/dev-loop/settings.* or .pi/dev-loop/overrides.*. ` +
+        `Migrate to .devloops (or .devloops.yaml/.devloops.yml/.devloops.json) at repo root. ` +
+        `Legacy paths will be removed in a future version.`
+      );
+    }
+  } else {
+    // No .devloops — fall back to legacy .pi/dev-loop/settings.* or overrides.* (deprecated)
+    let legacyFound = false;
+    for (const legacyPath of settingsPaths) {
+      for (const ext of [".yaml", ".yml", ".json"]) {
+        try {
+          await readFile(legacyPath + ext, "utf8");
+          legacyFound = true;
+          break;
+        } catch {}
+      }
+      if (legacyFound) break;
+    }
+    if (legacyFound) {
+      warnings.push(
+        `Deprecated config path(s) found under .pi/dev-loop/settings.* or .pi/dev-loop/overrides.*. ` +
+        `Migrate to .devloops (or .devloops.yaml/.devloops.yml/.devloops.json) at repo root. ` +
+        `Legacy paths will be removed in a future version.`
+      );
+      merged = await applyLayer(merged, settingsPaths, "settings", warnings, errors);
+    }
   }
 
   // Validate final merged config
