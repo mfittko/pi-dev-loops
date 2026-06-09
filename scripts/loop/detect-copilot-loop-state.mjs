@@ -17,7 +17,6 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
 import {
   buildSnapshotFromPrFacts,
-  STATE,
   interpretLoopState,
   normalizeSnapshot,
   summarizeLoopInterpretation,
@@ -273,32 +272,6 @@ function hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, currentHeadSha) 
   return false;
 }
 
-function enforceRoundCapBeforeRerequest(snapshot, interpretation, refinementConfig) {
-  if (interpretation?.state !== STATE.READY_TO_REREQUEST_REVIEW) {
-    return interpretation;
-  }
-
-  const maxRounds = refinementConfig?.maxCopilotRounds;
-  if (typeof maxRounds !== "number" || maxRounds <= 0) {
-    return interpretation;
-  }
-
-  const completedRounds = typeof snapshot?.copilotReviewRoundCount === "number"
-    ? snapshot.copilotReviewRoundCount
-    : 0;
-  if (completedRounds < maxRounds) {
-    return interpretation;
-  }
-
-  return {
-    ...interpretation,
-    state: STATE.ROUND_CAP_REACHED,
-    allowedTransitions: [],
-    nextAction: "Stop: Copilot review round limit reached; do not re-request review",
-    autoRerequestEligible: false,
-    sameHeadCleanConverged: false,
-  };
-}
 
 export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride, localValidationHeadSha, draftGateResetAtMs }, { env = process.env, ghCommand = "gh" } = {}) {
   const prData = await fetchPrView({ repo, pr }, { env, ghCommand });
@@ -428,7 +401,6 @@ export async function runCli(
     ? resolveRefinement({ version: 1 })
     : resolveRefinement(config.config);
   interpretation = interpretLoopState(snapshot, refinementConfig);
-  interpretation = enforceRoundCapBeforeRerequest(snapshot, interpretation, refinementConfig);
   const interpretationSummary = summarizeLoopInterpretation(interpretation);
   stdout.write(`${JSON.stringify({
     ok: true,

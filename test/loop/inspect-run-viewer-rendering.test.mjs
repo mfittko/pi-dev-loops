@@ -765,8 +765,8 @@ test("renderInspectRunViewerHtml shows round-cap messaging for round_cap_reached
     repo: "owner/repo",
     target: { repo: "owner/repo", pr: 55 },
     snapshot: makeSnapshot({
-      outerState: "stop_needs_human",
-      outerAction: "stop",
+      outerState: "continue_current_wait",
+      outerAction: "reenter_copilot_loop",
       statusClass: "blocked",
       layers: {
         copilot: {
@@ -787,6 +787,36 @@ test("renderInspectRunViewerHtml shows round-cap messaging for round_cap_reached
 
   assert.match(html, /Round cap reached/);
   assert.match(html, /no further Copilot re-requests are possible/i);
+  assert.doesNotMatch(html, /Ready to re-request Copilot review/);
+});
+
+test("renderInspectRunViewerHtml shows round-cap fallback messaging for round_cap_clean_fallback", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      outerState: "continue_current_wait",
+      outerAction: "reenter_copilot_loop",
+      statusClass: "done",
+      layers: {
+        copilot: {
+          currentState: "round_cap_clean_fallback",
+          allowedTransitions: [],
+          loopDisposition: "done",
+          terminal: true,
+        },
+        reviewer: {
+          currentState: "waiting_for_review_request",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["review_requested"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /Round cap reached/);
+  assert.match(html, /move to pre_approval_gate instead of requesting another Copilot review/i);
   assert.doesNotMatch(html, /Ready to re-request Copilot review/);
 });
 
@@ -826,8 +856,10 @@ test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and need
       needsAttention: true,
       layers: {
         copilot: {
-          currentState: "waiting_for_copilot_review",
-          allowedTransitions: ["unresolved_feedback_present", "ready_to_rerequest_review", "waiting_for_ci"],
+          currentState: "round_cap_clean_fallback",
+          allowedTransitions: [],
+          loopDisposition: "done",
+          terminal: true,
         },
         reviewer: {
           currentState: "waiting_for_review_request",
