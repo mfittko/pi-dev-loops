@@ -126,6 +126,59 @@ test("info.mjs --issue produces human-readable output with gh stubs", async () =
   }
 });
 
+test("info.mjs --issue auto-detects repo slug and passes owner/repo to gh", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "info-test-issue-autorepo-"));
+  try {
+    const repoSlug = "test-owner/test-repo";
+    const issueNumber = 42;
+
+    execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", `https://github.com/${repoSlug}.git`], { cwd: tmpDir, stdio: "ignore" });
+
+    const ghPath = path.join(tmpDir, "gh");
+    const ghScript = [
+      "#!/usr/bin/env node",
+      "const args = process.argv.slice(2);",
+      `const expectedRepo = "${repoSlug}";`,
+      "const repoIndex = args.indexOf('--repo');",
+      "const repoValue = repoIndex >= 0 ? args[repoIndex + 1] : undefined;",
+      "if (repoValue !== expectedRepo) {",
+      "  process.stderr.write(`unexpected --repo: ${String(repoValue)}\\n`);",
+      "  process.exit(2);",
+      "}",
+      "if (args[0] === 'issue' && args[1] === 'view') {",
+      `  if (parseInt(args[2], 10) === ${issueNumber}) {`,
+      "    process.stdout.write(JSON.stringify({",
+      `      number: ${issueNumber},`,
+      "      title: 'Auto repo issue',",
+      "      body: '',",
+      "      state: 'OPEN',",
+      "      labels: [],",
+      "      assignees: [],",
+      "      milestone: null,",
+      `      url: "https://github.com/${repoSlug}/issues/${issueNumber}"`,
+      "    }) + '\\n');",
+      "    process.exit(0);",
+      "  }",
+      "}",
+      "process.exit(1);",
+    ].join("\n");
+
+    await writeFile(ghPath, ghScript);
+    await import("fs").then(fs => fs.promises.chmod(ghPath, 0o755));
+
+    const { code, stdout, stderr } = await runNode(["--issue", String(issueNumber)], {
+      env: { ...process.env, PATH: `${tmpDir}:${process.env.PATH}` },
+      cwd: tmpDir,
+    });
+
+    assert.equal(code, 0, `Expected exit 0, got ${code}. stderr: ${stderr}`);
+    assert.ok(stdout.includes(`Issue #${issueNumber}`), `Expected Issue #${issueNumber} in:\n${stdout}`);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
 // ── Integration: --json output ───────────────────────────────────────
 
 test("info.mjs --issue --json produces valid JSON with gh stubs", async () => {
@@ -223,6 +276,62 @@ test("info.mjs --pr produces human-readable output with gh stubs", async () => {
     assert.ok(stdout.includes("feature-branch"), `Expected branch in:\n${stdout}`);
     assert.ok(stdout.includes("OPEN"), `Expected OPEN in:\n${stdout}`);
     assert.ok(stdout.includes("testuser"), `Expected author in:\n${stdout}`);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("info.mjs --pr auto-detects repo slug and passes owner/repo to gh", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "info-test-pr-autorepo-"));
+  try {
+    const repoSlug = "test-owner/test-repo";
+    const prNumber = 99;
+
+    execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", `https://github.com/${repoSlug}.git`], { cwd: tmpDir, stdio: "ignore" });
+
+    const ghPath = path.join(tmpDir, "gh");
+    const ghScript = [
+      "#!/usr/bin/env node",
+      "const args = process.argv.slice(2);",
+      `const expectedRepo = "${repoSlug}";`,
+      "const repoIndex = args.indexOf('--repo');",
+      "const repoValue = repoIndex >= 0 ? args[repoIndex + 1] : undefined;",
+      "if (repoValue !== expectedRepo) {",
+      "  process.stderr.write(`unexpected --repo: ${String(repoValue)}\\n`);",
+      "  process.exit(2);",
+      "}",
+      "if (args[0] === 'pr' && args[1] === 'view') {",
+      `  if (parseInt(args[2], 10) === ${prNumber}) {`,
+      "    process.stdout.write(JSON.stringify({",
+      `      number: ${prNumber},`,
+      "      title: 'Auto repo PR',",
+      "      body: '',",
+      "      state: 'OPEN',",
+      "      isDraft: false,",
+      "      headRefName: 'feature-branch',",
+      "      baseRefName: 'main',",
+      "      author: { login: 'testuser' },",
+      "      mergedAt: null,",
+      `      url: "https://github.com/${repoSlug}/pull/${prNumber}",`,
+      "      reviewRequests: []",
+      "    }) + '\\n');",
+      "    process.exit(0);",
+      "  }",
+      "}",
+      "process.exit(1);",
+    ].join("\n");
+
+    await writeFile(ghPath, ghScript);
+    await import("fs").then(fs => fs.promises.chmod(ghPath, 0o755));
+
+    const { code, stdout, stderr } = await runNode(["--pr", String(prNumber)], {
+      env: { ...process.env, PATH: `${tmpDir}:${process.env.PATH}` },
+      cwd: tmpDir,
+    });
+
+    assert.equal(code, 0, `Expected exit 0, got ${code}. stderr: ${stderr}`);
+    assert.ok(stdout.includes(`PR #${prNumber}`), `Expected PR #${prNumber} in:\n${stdout}`);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helpers.mjs";
 import { requireOptionValue, parsePositiveInteger } from "../_cli-primitives.mjs";
-import { detectRepoSlug, parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { detectRepoSlug, normalizeRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 // REPO_ROOT resolves to the git repo root (scripts/loop/info.mjs → scripts/ → repo/)
 const REPO_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)), "..");
@@ -49,7 +49,7 @@ function validateRepo(repo) {
   }
   try {
     // Normalize (trim) the slug and validate structure
-    return parseRepoSlug(repo, { lowercase: true });
+    return normalizeRepoSlug(repo);
   } catch (err) {
     throw parseError(`Invalid repo slug: ${err instanceof Error ? err.message : String(err)}`);
   }
