@@ -321,3 +321,27 @@ test("build-handoff-envelope emits actionable error when auto-detected repo slug
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("build-handoff-envelope auto-detects repo slug from git remote origin", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "build-handoff-envelope-"));
+  const repoDir = path.join(tempDir, "repo");
+  try {
+    await writeFile(path.join(tempDir, "resolver.json"), `${JSON.stringify(makeResolverOutput())}\n`, "utf8");
+
+    // Create a temp git repo with a remote origin
+    const { execFileSync } = await import("node:child_process");
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(repoDir, { recursive: true });
+    execFileSync("git", ["init"], { cwd: repoDir, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/owner/test-repo.git"], { cwd: repoDir, stdio: "ignore" });
+
+    const result = await runNode(["--input", path.join(tempDir, "resolver.json")], { cwd: repoDir });
+    assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
+
+    const envelope = JSON.parse(result.stdout.trim());
+    assert.equal(envelope.target.repo, "owner/test-repo",
+      `expected owner/test-repo, got ${envelope.target.repo}`);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
