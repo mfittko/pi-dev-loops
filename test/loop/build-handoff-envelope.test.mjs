@@ -230,3 +230,88 @@ test("build-handoff-envelope emits error JSON for malformed JSON input", async (
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("build-handoff-envelope passes --overrides into the envelope", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "build-handoff-envelope-"));
+  try {
+    const inputPath = await writeTempJson(tempDir, "resolver.json", makeResolverOutput());
+    const overrides = JSON.stringify({ mergeAuthorized: true });
+
+    const result = await runNode([
+      "--input", inputPath,
+      "--repo", "owner/test-repo",
+      "--overrides", overrides,
+    ]);
+    assert.equal(result.code, 0, `expected exit 0, got stderr: ${result.stderr}`);
+
+    const envelope = JSON.parse(result.stdout.trim());
+    // mergeAuthorized=true in overrides should flip stopRules to include merge as authorized
+    assert.equal(envelope.stopRules.includes("merge"), true,
+      "merge should be in stopRules when mergeAuthorized override is set");
+    assert.equal(envelope.target.repo, "owner/test-repo");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("build-handoff-envelope emits flag-specific error for malformed --gate-state JSON", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "build-handoff-envelope-"));
+  try {
+    const inputPath = await writeTempJson(tempDir, "resolver.json", makeResolverOutput());
+
+    const result = await runNode([
+      "--input", inputPath,
+      "--repo", "owner/test-repo",
+      "--gate-state", "not valid json",
+    ]);
+    assert.equal(result.code, 1);
+    const parsed = JSON.parse(result.stderr.trim());
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.error, /--gate-state/,
+      `error should mention --gate-state, got: ${parsed.error}`);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("build-handoff-envelope emits flag-specific error for malformed --overrides JSON", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "build-handoff-envelope-"));
+  try {
+    const inputPath = await writeTempJson(tempDir, "resolver.json", makeResolverOutput());
+
+    const result = await runNode([
+      "--input", inputPath,
+      "--repo", "owner/test-repo",
+      "--overrides", "not valid json",
+    ]);
+    assert.equal(result.code, 1);
+    const parsed = JSON.parse(result.stderr.trim());
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.error, /--overrides/,
+      `error should mention --overrides, got: ${parsed.error}`);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("build-handoff-envelope emits actionable error when auto-detected repo slug is missing", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "build-handoff-envelope-"));
+  try {
+    const inputPath = await writeTempJson(tempDir, "resolver.json", makeResolverOutput());
+
+    // Run in a temp dir that is inside a git repo but the envelope builder
+    // resolves repoRoot; the key is no --repo and no usable origin.
+    // We use cwd override via runNodeHelper option but since the script
+    // runs as a child process we can set an env to guide.
+    const result = await runNode(["--input", inputPath], {
+      env: { ...process.env, GIT_DIR: "/nonexistent", GIT_WORK_TREE: "/nonexistent" },
+    });
+    assert.equal(result.code, 1, `expected exit 1, got ${result.code} stdout:${result.stdout} stderr:${result.stderr}`);
+    const parsed = JSON.parse(result.stderr.trim());
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.error, /--repo|origin|slug/i,
+      `error should mention --repo or origin, got: ${parsed.error}`);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

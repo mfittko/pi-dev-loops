@@ -45,6 +45,15 @@ Exit codes:
 
 const parseError = buildParseError(USAGE);
 
+function parseFlagJson(raw, flagName, parseErrorFn) {
+  try {
+    return parseJsonText(raw);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw parseErrorFn(`Invalid JSON for ${flagName}: ${message}`);
+  }
+}
+
 export function parseBuildHandoffEnvelopeCliArgs(argv) {
   const args = [...argv];
   const options = {
@@ -117,16 +126,19 @@ export async function buildHandoffEnvelopeCli(
   } catch { /* keep cwd */ }
 
   // Load resolver output from file
-  const inputText = await readFile(path.resolve(options.inputPath), "utf8");
+  const inputPath = path.resolve(cwd, options.inputPath);
+  const inputText = await readFile(inputPath, "utf8");
   const resolverOutput = parseJsonText(inputText);
 
   // Load dev-loop settings from repo config
-  const { config: settings } = await loadDevLoopConfig({ repoRoot });
+  const configLoadResult = await loadDevLoopConfig({ repoRoot });
+  const hasConfigErrors = Array.isArray(configLoadResult.errors) && configLoadResult.errors.length > 0;
+  const settings = hasConfigErrors ? {} : (configLoadResult.config ?? {});
 
   // Parse optional gate state
   let gateState = {};
   if (options.gateState) {
-    gateState = parseJsonText(options.gateState);
+    gateState = parseFlagJson(options.gateState, "--gate-state", parseError);
   }
 
   // Build options for envelope builder
@@ -136,12 +148,17 @@ export async function buildHandoffEnvelopeCli(
   const repoSlug = options.repo ?? detectRepoSlug(repoRoot);
   if (repoSlug) {
     envelopeOptions.repoSlug = repoSlug;
+  } else {
+    throw parseError(
+      "Repository slug could not be auto-detected from git remote origin. " +
+      "Pass --repo <owner/name> or ensure a git remote 'origin' is configured.",
+    );
   }
   envelopeOptions.repoRoot = repoRoot;
 
   // Parse optional overrides
   if (options.overrides) {
-    envelopeOptions.overrides = parseJsonText(options.overrides);
+    envelopeOptions.overrides = parseFlagJson(options.overrides, "--overrides", parseError);
   }
 
   const envelope = buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState, envelopeOptions);
