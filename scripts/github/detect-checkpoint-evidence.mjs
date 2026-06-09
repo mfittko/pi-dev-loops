@@ -140,7 +140,7 @@ function normalizePrReviewsPayload(payload) {
   if (!Array.isArray(payload)) return [];
   const flat = payload.every((entry) => Array.isArray(entry)) ? payload.flat() : payload;
   return flat
-    .filter((r) => r && typeof r === "object" && typeof r.body === "string" && r.body.trim().length > 0)
+    .filter((r) => r && typeof r === "object" && r.state !== "PENDING" && typeof r.submitted_at === "string" && r.submitted_at.trim().length > 0 && typeof r.body === "string" && r.body.trim().length > 0)
     .map((r) => ({
       id: r.id,
       body: r.body,

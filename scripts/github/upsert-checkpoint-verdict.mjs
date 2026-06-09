@@ -605,7 +605,7 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
   }
   if (existing) {
     const updated = await updateComment({ repo: options.repo, commentId: existing.commentId, body: desiredBody }, { env, ghCommand });
-    // Post-update verification: verify the updated comment is visible via direct
+    // Post-update verification: verify the updated comment is visible via direct API fetch by comment ID.
     // PI_SUBAGENT_RUN_ID is set (production context).
     let updateVerificationWarning = null;
     if (envRunId) {
