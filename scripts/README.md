@@ -93,23 +93,23 @@ Required:
 - `--pr <number>`
 
 Optional:
-- `--force-rerequest-review` — bypass same-head clean-convergence suppression and attempt another explicit request
+- `--force-rerequest-review` — bypass the round cap when new commits exist since the last Copilot review. Refused with `no_changes_since_last_review` when the PR head has not changed since the last review. No-op when the round cap has not been reached.
 
 Contract:
 - checks `requested_reviewers` first so an existing Copilot request is detected without mutating PR state again
 - requests Copilot via `gh pr edit <pr> --repo <owner/name> --add-reviewer @copilot`
 - is suitable both for the first request after ready-for-review and for later explicit re-requests after follow-up fix commits land on the PR head
-- suppresses direct same-head clean re-requests by default when the current head is deterministically clean-converged; use `--force-rerequest-review` to bypass that suppression explicitly
+- enforces a round cap (default: 5, configurable via `maxCopilotRounds` in settings); use `--force-rerequest-review` to bypass the cap only when there are new commits since the last review
 - should be paired with a fresh unresolved-thread check after Copilot posts again; requesting review alone does not complete the loop
 - verifies the result through `gh api repos/<owner>/<name>/pulls/<pr>/requested_reviewers`
 - does **not** rely on `gh pr view --json reviewRequests`, which can be incomplete for Copilot reviewer state
 - normalizes known repository/tooling limitations into a machine-readable `unavailable` result instead of forcing callers to parse ad hoc stderr
 
 Success output shape:
-- `{ "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
+- `{ "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached"|"no_changes_since_last_review"|"suppressed_draft", "repo": "owner/name", "pr": 17, "reviewer": "Copilot", ... }`
 - `unavailable` also includes a `detail` string with the normalized GitHub/CLI limitation
-- `suppressed_same_head_clean` indicates clean convergence on the current head (suppression is always enforced; bypass requires --force-rerequest-review)
-- forced bypass results include `bypassedSameHeadCleanSuppression: true`
+- `round_cap_reached` includes `completedRounds` and `maxRounds` fields
+- `no_changes_since_last_review` is returned by `--force-rerequest-review` when the PR head SHA has not changed since the last Copilot review
 
 Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
