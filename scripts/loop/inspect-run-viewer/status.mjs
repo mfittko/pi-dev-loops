@@ -137,12 +137,7 @@ export function renderOverviewSection(snapshot, _target, stateLabel) {
   const summary = summarizeCurrentPrStatus(snapshot);
   const loopIterations = snapshot?.loopIterations;
 
-  const stateBody = `<div class="viewer-badge-row">
-    ${renderCurrentStateBadge(stateLabel)}
-    ${renderInboxSignalBadge(snapshot)}
-    ${renderBadge(formatStateToken(snapshot?.statusClass), "info")}
-  </div>
-  ${renderStatGrid([
+  const stateBody = `${renderStatGrid([
     { label: "status class", value: renderCodeValue(snapshot?.statusClass) },
     { label: "outer state", value: renderCodeValue(snapshot?.outerState) },
     { label: "outerAction", value: renderCodeValue(snapshot?.outerAction) },
