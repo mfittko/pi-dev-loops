@@ -103,7 +103,8 @@ The loop fails closed when:
 - the artifact bundle is missing
 - the artifact bundle has no named states
 - a named state lacks `screenshotPath` or `statePath`
-- vision mode is requested but a named state screenshot path is not a `screenshot.png` artifact
+- vision mode is requested but a named state screenshot path does not end with `screenshot.png`
+- vision mode is requested but a named state state path does not end with `state.json`
 - the work is not actually a UI slice and the loop was requested anyway
 - an unsupported `uiReviewMode` value (anything other than `designer` or `vision`) fails closed with `blocked_unsupported_review_mode`
 

@@ -55,6 +55,9 @@ export function validateUiDesignerReviewInput(input = {}) {
     if (reviewMode === 'vision' && typeof state.screenshotPath === 'string' && state.screenshotPath.trim().length > 0 && !state.screenshotPath.trim().endsWith('screenshot.png')) {
       incompleteArtifacts.push(`artifactBundle.namedStates[${index}].screenshotPath`);
     }
+    if (reviewMode === 'vision' && typeof state.statePath === 'string' && state.statePath.trim().length > 0 && !state.statePath.trim().endsWith('state.json')) {
+      incompleteArtifacts.push(`artifactBundle.namedStates[${index}].statePath`);
+    }
   });
   if (incompleteArtifacts.length > 0) {
     return {
