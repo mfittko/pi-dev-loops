@@ -186,7 +186,7 @@ test("dedupeRepoSlugOptions returns empty array for empty input", () => {
 test("detectRepoSlug returns owner/repo from git remote", () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repo-slug-test-"));
   try {
-    execFileSync("git", ["init", "-b", "main"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
     execFileSync("git", ["-C", tmpDir, "remote", "add", "origin", "https://github.com/owner/repo.git"]);
     const slug = detectRepoSlug(tmpDir);
     assert.equal(slug, "owner/repo");
@@ -207,7 +207,7 @@ test("detectRepoSlug returns null for non-git directory", () => {
 test("detectRepoSlug returns null when no origin remote", () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repo-slug-test-"));
   try {
-    execFileSync("git", ["init", "-b", "main"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
     const slug = detectRepoSlug(tmpDir);
     assert.equal(slug, null);
   } finally {
@@ -218,7 +218,7 @@ test("detectRepoSlug returns null when no origin remote", () => {
 test("detectRepoSlug returns null for unparseable remote URL", () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repo-slug-test-"));
   try {
-    execFileSync("git", ["init", "-b", "main"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
     // URL with no recognizable owner/name pair after the final : or /
     execFileSync("git", ["-C", tmpDir, "remote", "add", "origin", "https://example.com"]);
     const slug = detectRepoSlug(tmpDir);

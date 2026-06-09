@@ -138,7 +138,7 @@ test("copilot-pr-handoff --repo auto-detected from git remote when omitted", asy
   const path = await import("node:path");
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "handoff-test-"));
   try {
-    execFileSync("git", ["init", "-b", "main"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
     execFileSync("git", ["-C", tmpDir, "remote", "add", "origin", "https://github.com/test-owner/test-repo.git"]);
     const parsed = parseHandoffCliArgs(["--pr", "17"], { cwd: tmpDir });
     assert.equal(parsed.pr, 17);
