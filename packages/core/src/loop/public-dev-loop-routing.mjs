@@ -308,24 +308,19 @@ function buildContractTrace({
   reason,
   watchRequested = false,
   boundary = null,
-  operatorBypass = false,
 }) {
   const effectiveTimeoutMs = waitTimeoutPolicy?.defaultTimeoutMs ?? null;
-  const decision = {
-    selectedGate,
-    routeKind,
-    selectedStrategy,
-    executionMode,
-    watchRequested,
-    contractClassification: resolveStopClassification({ selectedGate, routeKind, canonicalState }),
-    contractJustification: reason,
-  };
-  if (operatorBypass) {
-    decision.operatorBypass = true;
-  }
   return {
     publicEntrypoint,
-    decision,
+    decision: {
+      selectedGate,
+      routeKind,
+      selectedStrategy,
+      executionMode,
+      watchRequested,
+      contractClassification: resolveStopClassification({ selectedGate, routeKind, canonicalState }),
+      contractJustification: reason,
+    },
     waitStrategy: {
       selectedStrategy: routeKind === DEV_LOOP_ROUTE_KIND.WAIT ? selectedStrategy : null,
       waitSemantics,
@@ -1060,25 +1055,6 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const issueAssignmentStateProvided = input.issueAssignmentState !== undefined && input.issueAssignmentState !== null;
   const loopState = normalizeOptionalLoopState(input.loopState);
 
-  // Operator bypass: skipIssueOrigin bypasses issue↔PR linkage/readiness/assignment preconditions for issue targets.
-  // Only settable via acceptance.overrides in the subagent dispatch — not a CLI flag or repo setting.
-  const skipIssueOriginRaw = input.acceptance?.overrides?.skipIssueOrigin;
-  const skipIssueOriginProvided = skipIssueOriginRaw !== undefined && skipIssueOriginRaw !== null;
-  const skipIssueOrigin = skipIssueOriginRaw === true;
-  const skipIssueOriginActive = skipIssueOrigin && canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE;
-  // Fail closed when skipIssueOrigin is provided but not a boolean true/false.
-  if (skipIssueOriginProvided && !skipIssueOrigin && skipIssueOriginRaw !== false) {
-    return buildStartupResumeBundleReconcile({
-      reason: "Operator bypass skipIssueOrigin was provided but is not a boolean value (true/false).",
-      canonicalState,
-      executionMode: effectiveMode,
-    });
-  }
-  // When bypass is active and the effective canonical target remains an ISSUE, report operator_bypass as the issueLinkageResolution.
-  const effectiveBundleIssueLinkageResolution = skipIssueOriginActive
-    ? DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS
-    : normalizedIssueLinkageResolution;
-
   if (asyncRunProvided && asyncRun === null) {
     return buildStartupResumeBundleReconcile({
       reason: "Authoritative startup/resume routing received an invalid async-run registration value.",
@@ -1148,7 +1124,6 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   if (
     canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
     && issueLinkageResolution === null
-    && !skipIssueOriginActive
   ) {
     return buildStartupResumeBundleReconcile({
       reason: "Issue targets require explicit authoritative issue↔PR linkage resolution before routing startup/resume state.",
@@ -1158,7 +1133,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     });
   }
 
-  if (!skipIssueOriginActive && !validateIssueLinkageResolution(canonicalState, issueLinkageResolution)) {
+  if (!validateIssueLinkageResolution(canonicalState, issueLinkageResolution)) {
     return buildStartupResumeBundleReconcile({
       reason: "Issue↔PR linkage resolution is incomplete or conflicts with canonical current state; reconcile before routing startup/resume state.",
       canonicalState,
@@ -1168,8 +1143,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   }
 
   if (
-    !skipIssueOriginActive
-    && canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
+    canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
     && canonicalState.ownership === DEV_LOOP_ACTOR.COPILOT
     && issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR
   ) {
@@ -1245,16 +1219,6 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     retrospectiveCheckpointStateProvided,
   );
 
-  // When the bypass is active but the effective routed canonical target is PR (not issue),
-  // emit not_applicable for issueLinkageResolution and do not set the operatorBypass flag.
-  // This preserves the invariant that PR targets use not_applicable.
-  let finalIssueLinkageResolution = effectiveBundleIssueLinkageResolution;
-  let finalOperatorBypass = skipIssueOriginActive;
-  if (skipIssueOriginActive && effectiveRouted.canonicalState?.target?.kind === DEV_LOOP_TARGET_KIND.PR) {
-    finalIssueLinkageResolution = DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE;
-    finalOperatorBypass = false;
-  }
-
   if (effectiveRouted.routeKind === DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE) {
     return buildStartupResumeBundleReconcile({
       reason: effectiveRouted.reason,
@@ -1306,7 +1270,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED,
     activeArtifact: buildStatusArtifactIdentity(effectiveRouted.canonicalState),
     artifactState,
-    issueLinkageResolution: finalIssueLinkageResolution,
+    issueLinkageResolution: normalizedIssueLinkageResolution,
     canonicalState: effectiveRouted.canonicalState,
     loopState,
     routeKind: effectiveRouted.routeKind,
@@ -1328,14 +1292,13 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
       canonicalState: effectiveRouted.canonicalState,
       reason: effectiveRouted.reason,
-      operatorBypass: finalOperatorBypass,
       boundary: {
         boundaryKind: "startup_resume_refresh",
         refreshRequired: true,
         refreshReason: "Startup/resume answers record the authoritative refreshed loop state that justified the routed path.",
         loopState,
         artifactState,
-        issueLinkageResolution: finalIssueLinkageResolution,
+        issueLinkageResolution: normalizedIssueLinkageResolution,
       },
     }),
   };

@@ -438,6 +438,16 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
   const payload = await runGhJson(["api", "-X", "PATCH", `repos/${repo}/issues/comments/${commentId}`, "-f", `body=${body}`], { env, ghCommand });
   return parseCommentMutationResponse(payload);
 }
+
+async function verifyComment({ repo, commentId }, { env, ghCommand }) {
+  try {
+    const payload = await runGhJson(["api", `repos/${repo}/issues/comments/${commentId}`], { env, ghCommand });
+    return payload?.id != null;
+  } catch {
+    return false;
+  }
+}
+
 export async function upsertCheckpointVerdict(options, { env = process.env, ghCommand = "gh", repoRoot = process.cwd() } = {}) {
   // Root cause 1: allow resurrected sessions to claim ownership when the previous
   // run's coordination record is stale. Without this, a new run ID is rejected even
@@ -595,6 +605,19 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
   }
   if (existing) {
     const updated = await updateComment({ repo: options.repo, commentId: existing.commentId, body: desiredBody }, { env, ghCommand });
+    // Root cause 4: verify the updated comment is visible. Only active when
+    // PI_SUBAGENT_RUN_ID is set (production context).
+    let updateVerificationWarning = null;
+    if (envRunId) {
+      let verified = await verifyComment({ repo: options.repo, commentId: updated.commentId }, { env, ghCommand });
+      if (!verified) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        verified = await verifyComment({ repo: options.repo, commentId: updated.commentId }, { env, ghCommand });
+      }
+      updateVerificationWarning = !verified
+        ? `Post-update verification failed: comment ${updated.commentId} not retrievable after retry.`
+        : null;
+    }
     return {
       ok: true,
       action: "updated",
@@ -607,9 +630,29 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
       commentUrl: updated.commentUrl,
       blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
       ...(warning ? { warning } : {}),
+      ...(updateVerificationWarning ? { verificationWarning: updateVerificationWarning } : {}),
     };
   }
   const created = await createComment({ repo: options.repo, pr: options.pr, body: desiredBody }, { env, ghCommand });
+  // Root cause 4: verify the comment is actually visible before returning.
+  // GitHub API can have brief eventual-consistency windows where a just-posted
+  // comment is not yet returned by paginated list endpoints. A direct fetch
+  // by comment ID confirms the comment is persisted, preventing the evidence
+  // checker from falsely reporting "missing" and triggering a duplicate post.
+  // Only active when PI_SUBAGENT_RUN_ID is set (production context).
+  let verified = true;
+  let verificationWarning = null;
+  if (envRunId) {
+    verified = await verifyComment({ repo: options.repo, commentId: created.commentId }, { env, ghCommand });
+    if (!verified) {
+      // Brief wait then retry — eventual consistency should resolve within ~2s.
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      verified = await verifyComment({ repo: options.repo, commentId: created.commentId }, { env, ghCommand });
+    }
+    verificationWarning = !verified
+      ? `Post-creation verification failed: comment ${created.commentId} not retrievable after retry. The comment was created (API confirmed) but may not appear in list endpoints immediately.`
+      : null;
+  }
   return {
     ok: true,
     action: "created",
@@ -622,6 +665,7 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
     commentUrl: created.commentUrl,
     blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
     ...(warning ? { warning } : {}),
+    ...(verificationWarning ? { verificationWarning } : {}),
   };
 }
 async function main() {

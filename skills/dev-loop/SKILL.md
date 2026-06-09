@@ -110,28 +110,6 @@ Do not preload route packs before the resolver selects the strategy.
 
 All PRs must pass the full gate pipeline before merge. No scope is exempt: docs-only, tooling, meta, configuration, internal-process — all require `draft_gate`, Copilot review, and current-head `pre_approval_gate` evidence.
 
-## Operator bypass (skipIssueOrigin)
-
-For trivial changes (crash fixes, non-contractual doc fixes, typos) where creating a GitHub issue would be disproportionate overhead, the operator can bypass the issue-origin requirement for a single invocation:
-
-```json
-{
-  "agent": "dev-loop",
-  "task": "Fix the stdout crash in dev-loops gates...",
-  "acceptance": {
-    "overrides": {
-      "skipIssueOrigin": true
-    }
-  }
-}
-```
-
-- `skipIssueOrigin: true` bypasses issue↔PR linkage, readiness, and assignment preconditions for this invocation only (no GitHub issue needed when the change is trivial). Only activates for ISSUE-target invocations.
-- It does **not** bypass the draft gate, CI, pre-approval gate, merge preconditions, or Copilot review.
-- It is **only** settable via `acceptance.overrides` in the subagent dispatch — not a CLI flag, not a repo setting.
-- The startup resolver records `issueLinkageResolution: operator_bypass` and `contractTrace.decision.operatorBypass: true` in the output bundle when the effective canonical target remains an ISSUE. If routing results in a PR target, `issueLinkageResolution` is `not_applicable` and `operatorBypass` is not set.
-- See [Artifact Authority Contract](../docs/artifact-authority-contract.md) for the full bypass policy table.
-
 ## Authority boundary
 
 - Source code, tests, config, CI, and shared contract docs are authoritative.
