@@ -18,6 +18,7 @@ import {
   buildAsyncStartRejection,
   ASYNC_START_STATUS,
 } from "../../packages/core/src/loop/async-start-contract.mjs";
+import { detectRepoSlug } from "../../packages/core/src/github/repo-slug.mjs";
 import { loadDevLoopConfig, resolveWorkflowConfig } from "../../packages/core/src/config/config.mjs";
 const USAGE = `Usage:
   resolve-dev-loop-startup.mjs --issue <number>
@@ -127,21 +128,6 @@ export function parseResolveDevLoopStartupCliArgs(argv) {
     throw parseError("--input <path>, --issue <n>, or --pr <n> is required");
   }
   return options;
-}
-function detectRepoSlug(cwd) {
-  try {
-    const url = execFileSync("git", ["remote", "get-url", "origin"], {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-    const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
-    if (!match) throw new Error(`Could not parse owner/name from git remote: ${url}`);
-    return `${match[1]}/${match[2]}`;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Repo auto-detection failed: ${msg}. Set origin remote or use --input.`);
-  }
 }
 function ghJson(args, cwd) {
   try {

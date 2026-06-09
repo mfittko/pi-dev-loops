@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { buildParseError, formatCliError, isCopilotLogin, isDirectCliRun, normalizeTimestamp } from "../_core-helpers.mjs";
 import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.mjs";
-import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
+import { detectRepoSlug, parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import path from "node:path";
 import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
 import { autoDetectSnapshot } from "./detect-copilot-loop-state.mjs";
@@ -28,8 +28,9 @@ Detect the Copilot-loop state for a PR, request Copilot review only when
 a new request is still needed, and emit the recommended next action with
 exact parameters.
 Required:
-  --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
+Optional:
+  --repo <owner/name>   Repository slug (e.g. owner/repo). Auto-detected from git remote when omitted.
 Optional:
   --watch-status <status>   Refresh deterministic loop state after a prior
                            watcher result (changed|timeout|idle). This mode
@@ -161,8 +162,18 @@ export function parseHandoffCliArgs(argv) {
     }
     throw parseError(`Unknown argument: ${token}`);
   }
-  if (options.repo === undefined || options.pr === undefined) {
-    throw parseError("copilot-pr-handoff requires both --repo <owner/name> and --pr <number>");
+  if (options.pr === undefined) {
+    throw parseError("copilot-pr-handoff requires --pr <number>");
+  }
+  if (options.repo === undefined) {
+    try {
+      options.repo = detectRepoSlug(process.cwd());
+    } catch (err) {
+      throw parseError(
+        `--repo not provided and repo auto-detection failed: ${err instanceof Error ? err.message : String(err)}. ` +
+        "Run from a git repo checkout or provide --repo <owner/name>."
+      );
+    }
   }
   try {
     parseRepoSlug(options.repo);

@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 export function isSafeRepoSegment(segment) {
   return typeof segment === "string"
     && segment.length > 0
@@ -80,4 +82,19 @@ export function dedupeRepoSlugOptions(options) {
     uniqueOptions.push(trimmed);
   }
   return uniqueOptions;
+}
+export function detectRepoSlug(cwd) {
+  try {
+    const url = execFileSync("git", ["remote", "get-url", "origin"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
+    if (!match) throw new Error(`Could not parse owner/name from git remote: ${url}`);
+    return `${match[1]}/${match[2]}`;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Repo auto-detection failed: ${msg}. Set origin remote or use --input.`);
+  }
 }

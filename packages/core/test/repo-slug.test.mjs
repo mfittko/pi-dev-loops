@@ -9,6 +9,7 @@ import {
   parseRepoSlugParts,
   repoSlugEquals,
   tryNormalizeRepoSlug,
+  detectRepoSlug,
 } from "../src/github/repo-slug.mjs";
 
 // ---------------------------------------------------------------------------
@@ -173,4 +174,22 @@ test("dedupeRepoSlugOptions skips empty/whitespace-only strings", () => {
 
 test("dedupeRepoSlugOptions returns empty array for empty input", () => {
   assert.deepEqual(dedupeRepoSlugOptions([]), []);
+});
+// ---------------------------------------------------------------------------
+// detectRepoSlug
+// ---------------------------------------------------------------------------
+
+test("detectRepoSlug returns owner/repo from git remote get-url origin", () => {
+  // Run from repo root to get real git remote
+  const slug = detectRepoSlug(process.cwd());
+  assert.ok(typeof slug === "string");
+  assert.match(slug, /^[^/]+\/[^/]+$/);
+  assert.equal(slug, slug.trim());
+});
+
+test("detectRepoSlug throws for non-git directory", () => {
+  assert.throws(
+    () => detectRepoSlug("/tmp"),
+    /Repo auto-detection failed/,
+  );
 });
