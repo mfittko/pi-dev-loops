@@ -63,6 +63,22 @@ test("copilot-pr-handoff --help prints usage and exits 0", async () => {
   assert.equal(helpShort.stdout, helpLong.stdout);
 });
 
+test("copilot-pr-handoff --repo omitted outside git repo emits clear error", async () => {
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "handoff-test-"));
+  try {
+    // Non-git directory: detectRepoSlug returns null, error should be clear
+    assert.throws(
+      () => parseHandoffCliArgs(["--pr", "17"], { cwd: tmpDir }),
+      /Repo auto-detection failed/,
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test("copilot-pr-handoff normalizes watch-status input", async () => {
   const parsed = parseHandoffCliArgs(["--repo", "owner/repo", "--pr", "17", "--watch-status", " Timeout "]);
   assert.equal(parsed.watchStatus, "timeout");
