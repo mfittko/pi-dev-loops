@@ -628,55 +628,6 @@ test("overrides: absent when empty object", () => {
   assert.equal(env.overrides, undefined);
 });
 
-test("acceptance.overrides: skipIssueOrigin populates in acceptance.overrides when provided", () => {
-  const env = buildDevLoopHandoffEnvelope(
-    issueBundle(42),
-    defaultSettings,
-    {},
-    { ...defaultOptions, acceptance: { overrides: { skipIssueOrigin: true } } }
-  );
-
-  assert.equal(env.acceptance.overrides?.skipIssueOrigin, true);
-});
-
-test("acceptance.overrides: absent when not provided", () => {
-  const env = buildDevLoopHandoffEnvelope(
-    issueBundle(42),
-    defaultSettings,
-    {},
-    defaultOptions
-  );
-
-  assert.equal(env.acceptance.overrides, undefined);
-});
-
-test("acceptance.overrides: absent when empty object", () => {
-  const env = buildDevLoopHandoffEnvelope(
-    issueBundle(42),
-    defaultSettings,
-    {},
-    { ...defaultOptions, acceptance: { overrides: {} } }
-  );
-
-  assert.equal(env.acceptance.overrides, undefined);
-});
-
-test("acceptance.overrides: does not affect top-level overrides field", () => {
-  const env = buildDevLoopHandoffEnvelope(
-    issueBundle(42),
-    defaultSettings,
-    {},
-    {
-      ...defaultOptions,
-      overrides: { mergeAuthorized: true },
-      acceptance: { overrides: { skipIssueOrigin: true } },
-    }
-  );
-
-  assert.equal(env.overrides.mergeAuthorized, true);
-  assert.equal(env.acceptance.overrides.skipIssueOrigin, true);
-});
-
 // ===========================================================================
 // 11. Gate config derivation
 // ===========================================================================
@@ -1353,15 +1304,4 @@ test("invariant: every strategy with default stop rules has an acceptance templa
       `Strategy "${s}" missing acceptance template`,
     );
   }
-});
-
-test("acceptance.overrides: array is rejected (not treated as overrides object)", () => {
-  const env = buildDevLoopHandoffEnvelope(
-    issueBundle(42),
-    defaultSettings,
-    {},
-    { ...defaultOptions, acceptance: { overrides: ["skipIssueOrigin"] } }
-  );
-
-  assert.equal(env.acceptance.overrides, undefined);
 });

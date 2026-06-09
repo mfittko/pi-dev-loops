@@ -8,6 +8,9 @@ import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { loadPrGateCoordinationContext } from "../loop/detect-pr-gate-coordination-state.mjs";
 import { evaluatePrGateCoordination, PR_CHECKPOINT_ACTION } from "@pi-dev-loops/core/loop/pr-gate-coordination";
 import { STATE } from "@pi-dev-loops/core/loop/copilot-loop-state";
+import { claimRunnerOwnership } from "../loop/_pr-runner-coordination.mjs";
+import { detectStaleRunner } from "../loop/_stale-runner-detection.mjs";
+import { detectInternalOnly } from "../loop/detect-internal-only-pr.mjs";
 const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
 const GATE_VERDICTS = new Set(["clean", "findings_present", "blocked"]);
 const MAX_GATE_COMMENT_TEXT_LENGTH = 2000;
@@ -435,7 +438,32 @@ async function updateComment({ repo, commentId, body }, { env, ghCommand }) {
   const payload = await runGhJson(["api", "-X", "PATCH", `repos/${repo}/issues/comments/${commentId}`, "-f", `body=${body}`], { env, ghCommand });
   return parseCommentMutationResponse(payload);
 }
+
+async function verifyComment({ repo, commentId }, { env, ghCommand }) {
+  try {
+    const payload = await runGhJson(["api", `repos/${repo}/issues/comments/${commentId}`], { env, ghCommand });
+    return payload?.id != null;
+  } catch {
+    return false;
+  }
+}
+
 export async function upsertCheckpointVerdict(options, { env = process.env, ghCommand = "gh", repoRoot = process.cwd() } = {}) {
+  // Root cause 1: allow resurrected sessions to claim ownership when the previous
+  // run's coordination record is stale. Without this, a new run ID is rejected even
+  // though the old run is dead, forcing manual file deletion.
+  const envRunId = typeof env?.PI_SUBAGENT_RUN_ID === "string" ? env.PI_SUBAGENT_RUN_ID.trim() : "";
+  if (envRunId) {
+    try {
+      const staleCheck = await detectStaleRunner({ repo: options.repo, pr: options.pr, cwd: repoRoot });
+      if (staleCheck.status === "stale_runner") {
+        await claimRunnerOwnership({ repo: options.repo, pr: options.pr, runId: envRunId, cwd: repoRoot, mode: "takeover" });
+      }
+    } catch {
+      // Non-fatal: stale-runner takeover is best-effort. If it fails, the subsequent
+      // loadPrGateCoordinationContext call will surface the real error.
+    }
+  }
   const coordinationContext = await loadPrGateCoordinationContext({ repo: options.repo, pr: options.pr }, { env, ghCommand });
   const evidence = coordinationContext.gateEvidence;
   const canonicalHeadSha = resolveRequestedHeadSha(options.headSha, evidence.currentHeadSha);
@@ -443,6 +471,19 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
   const draftGateConfig = resolveGateConfig(config, "draft");
   const preApprovalGateConfig = resolveGateConfig(config, "preApproval");
   const maxCopilotRounds = resolveRefinementConfig(config, "maxCopilotRounds");
+  // Root cause 2: detect internal-only PRs so the Copilot convergence requirement
+  // is suppressed. Docs-only / tooling-only PRs should go straight to pre_approval_gate
+  // without requiring an external Copilot review cycle.
+  let reviewMode = null;
+  try {
+    const internalResult = await detectInternalOnly({ repo: options.repo, pr: options.pr }, { env, ghCommand });
+    if (internalResult?.ok && internalResult.internalOnly) {
+      reviewMode = "internal_only";
+    }
+  } catch {
+    // Non-fatal: internal-only detection failure is best-effort.
+    // Proceed with the default (external Copilot review) mode.
+  }
   const coordination = evaluatePrGateCoordination({
     repo: coordinationContext.repo,
     pr: coordinationContext.pr,
@@ -461,6 +502,7 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
     draftGateMarker: coordinationContext.gateEvidence.draftGateMarker,
     preApprovalGate: coordinationContext.gateEvidence.preApprovalGate,
     preApprovalGateMarker: coordinationContext.gateEvidence.preApprovalGateMarker,
+    ...(reviewMode ? { reviewMode } : {}),
   });
   if (!options.gate) {
     if (coordination.allowedNextActions.includes(PR_CHECKPOINT_ACTION.RUN_DRAFT_GATE)) {
@@ -563,6 +605,19 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
   }
   if (existing) {
     const updated = await updateComment({ repo: options.repo, commentId: existing.commentId, body: desiredBody }, { env, ghCommand });
+    // Post-update verification: verify the updated comment is visible via direct API fetch by comment ID.
+    // PI_SUBAGENT_RUN_ID is set (production context).
+    let updateVerificationWarning = null;
+    if (envRunId) {
+      let verified = await verifyComment({ repo: options.repo, commentId: updated.commentId }, { env, ghCommand });
+      if (!verified) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        verified = await verifyComment({ repo: options.repo, commentId: updated.commentId }, { env, ghCommand });
+      }
+      updateVerificationWarning = !verified
+        ? `Post-update verification failed: comment ${updated.commentId} not retrievable after retry.`
+        : null;
+    }
     return {
       ok: true,
       action: "updated",
@@ -575,9 +630,29 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
       commentUrl: updated.commentUrl,
       blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
       ...(warning ? { warning } : {}),
+      ...(updateVerificationWarning ? { verificationWarning: updateVerificationWarning } : {}),
     };
   }
   const created = await createComment({ repo: options.repo, pr: options.pr, body: desiredBody }, { env, ghCommand });
+  // Post-creation verification: verify the comment is retrievable before returning.
+  // GitHub API can have brief eventual-consistency windows where a just-posted
+  // comment is not yet returned by paginated list endpoints. A direct fetch
+  // by comment ID confirms the comment is persisted, preventing the evidence
+  // checker from falsely reporting "missing" and triggering a duplicate post.
+  // Only active when PI_SUBAGENT_RUN_ID is set (production context).
+  let verified = true;
+  let verificationWarning = null;
+  if (envRunId) {
+    verified = await verifyComment({ repo: options.repo, commentId: created.commentId }, { env, ghCommand });
+    if (!verified) {
+      // Brief wait then retry — eventual consistency should resolve within ~2s.
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      verified = await verifyComment({ repo: options.repo, commentId: created.commentId }, { env, ghCommand });
+    }
+    verificationWarning = !verified
+      ? `Post-creation verification failed: comment ${created.commentId} not retrievable after retry. The comment was created (API confirmed) but may not appear in list endpoints immediately.`
+      : null;
+  }
   return {
     ok: true,
     action: "created",
@@ -590,6 +665,7 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
     commentUrl: created.commentUrl,
     blockCleanOnFindingSeverities: activeGateConfig.blockCleanOnFindingSeverities,
     ...(warning ? { warning } : {}),
+    ...(verificationWarning ? { verificationWarning } : {}),
   };
 }
 async function main() {

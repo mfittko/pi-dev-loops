@@ -131,7 +131,6 @@ export const DEV_LOOP_ISSUE_LINKAGE_RESOLUTION = Object.freeze({
   RESOLVED_LINKED_PR: "resolved_linked_pr",
   RESOLVED_NO_OPEN_PR: "resolved_no_open_pr",
   NOT_APPLICABLE: "not_applicable",
-  OPERATOR_BYPASS: "operator_bypass",
 });
 
 export const DEV_LOOP_ISSUE_READINESS = Object.freeze({

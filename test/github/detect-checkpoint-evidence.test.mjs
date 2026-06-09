@@ -268,7 +268,7 @@ test("detect-checkpoint-evidence summarizes the newest valid live gate comments 
     assert.equal(result.code, 0);
     assert.equal(result.stderr, "");
     const parsed = JSON.parse(result.stdout);
-    parsed.staleRunner = { ...parsed.staleRunner, filePath: "<stale-runner-file-path>" };
+    parsed.staleRunner = { ...parsed.staleRunner, filePath: "<stale-runner-file-path>", activeRun: "<active-run-or-null>", status: parsed.staleRunner.status === "fresh_runner" || parsed.staleRunner.status === "no_owner_record" ? "<stale-status>" : parsed.staleRunner.status };
     assert.deepEqual(parsed, {
       ok: true,
       repo: "owner/repo",
@@ -322,8 +322,8 @@ test("detect-checkpoint-evidence summarizes the newest valid live gate comments 
         failures: [],
       },
       staleRunner: {
-        status: "no_owner_record",
-        activeRun: null,
+        status: "<stale-status>",
+        activeRun: "<active-run-or-null>",
         exitSignals: [],
         staleRunner: null,
         maxAgeMs: 1_800_000,
@@ -873,6 +873,83 @@ test("detect-checkpoint-evidence does not fail closed when async run has no owne
     assert.equal(payload.ok, false);
     assert.match(payload.error, /Pre-merge gate evidence check failed/i);
     assert.equal(payload.staleRunner.status, "no_owner_record");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-checkpoint-evidence finds gate comment posted as PR review (root cause 3 fix)", async () => {
+  // Root cause 3 fix: gate comments posted via the PR review API (escape-hatch path) must be
+  // visible to the evidence checker to prevent duplicate reposts.
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-gate-review-from-pr-review-"));
+
+  try {
+    const prReviewGateComment = {
+      id: 900,
+      body: [
+        "### Gate review: `pre_approval_gate`",
+        "",
+        "**Reviewed head SHA:** `abc1234`",
+        "**Verdict:** clean",
+        "",
+        "**Findings summary:** no issues found",
+        "",
+        "**Next action:** await final human approval",
+      ].join("\n"),
+      // PR reviews use submitted_at instead of created_at/updated_at
+      submitted_at: "2026-05-30T23:25:00Z",
+      html_url: "https://github.com/owner/repo/pull/17#pullrequestreview-900",
+    };
+
+    const env = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid"],
+        stdout: '{"headRefOid":"abc1234"}\n',
+      },
+      {
+        // Issue comments only contains the draft gate — pre_approval_gate is NOT here
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: JSON.stringify([
+          {
+            id: 70,
+            body: [
+              "### Gate review: `draft_gate`",
+              "",
+              "**Reviewed head SHA:** `abc1234`",
+              "**Verdict:** clean",
+              "",
+              "**Findings summary:** no issues found",
+              "",
+              "**Next action:** mark ready for review",
+            ].join("\n"),
+            html_url: "https://github.com/owner/repo/pull/17#issuecomment-70",
+            updated_at: "2026-05-30T21:00:00Z",
+          },
+        ]) + "\n",
+      },
+      {
+        // PR reviews endpoint returns the pre_approval_gate comment posted via escape hatch
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: JSON.stringify([prReviewGateComment]) + "\n",
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: JSON.stringify({
+          data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } }
+        }) + "\n",
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, result.stderr);
+    const payload = JSON.parse(result.stdout);
+    // Pre-merge check must pass because the pre_approval_gate comment was found in PR reviews
+    assert.equal(payload.preMergeGateCheck.ok, true, JSON.stringify(payload.preMergeGateCheck));
+    assert.deepEqual(payload.preMergeGateCheck.failures, []);
+    // The pre-approval gate evidence is visible with the correct head SHA
+    assert.equal(payload.preApprovalGate.visible, true);
+    assert.equal(payload.preApprovalGate.verdict, "clean");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

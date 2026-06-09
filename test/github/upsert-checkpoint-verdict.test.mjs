@@ -11,6 +11,7 @@ import {
   summarizeCheckpointVerdictText,
   upsertCheckpointVerdict,
 } from "../../scripts/github/upsert-checkpoint-verdict.mjs";
+import { claimRunnerOwnership } from "../../scripts/loop/_pr-runner-coordination.mjs";
 
 const scriptPath = path.resolve("scripts/github/upsert-checkpoint-verdict.mjs");
 
@@ -979,6 +980,14 @@ test("upsert-checkpoint-verdict suppresses duplicate repost when the current sam
           },
         ])}\n`,
       },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: "[]\n",
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files"],
+        stdout: '{"files":[{"path":"src/index.ts"}]}\n',
+      },
     ]);
 
     const result = await runNode([
@@ -1006,8 +1015,8 @@ test("upsert-checkpoint-verdict suppresses duplicate repost when the current sam
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
       blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
-    // 5 gh calls: pr facts + requested_reviewers + review threads + headRefOid + issue comments
-    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
+    // 7 gh calls: pr facts + requested_reviewers + review threads + headRefOid + issue comments + PR reviews + internal-only file check
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 7);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1392,6 +1401,14 @@ test("upsert-checkpoint-verdict expands an abbreviated current-head SHA before m
           },
         ])}\n`,
       },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: "[]\n",
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files"],
+        stdout: '{"files":[{"path":"src/index.ts"}]}\n',
+      },
     ]);
 
     const result = await runNode([
@@ -1419,7 +1436,8 @@ test("upsert-checkpoint-verdict expands an abbreviated current-head SHA before m
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
       blockCleanOnFindingSeverities: ["must-fix", "worth-fixing-now"],
     });
-    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 5);
+    // 7 gh calls: pr facts + requested_reviewers + review threads + headRefOid + issue comments + PR reviews + internal-only file check
+    assert.equal(Number((await readFile(env.GH_COUNTER_PATH, "utf8")).trim()), 7);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1782,6 +1800,139 @@ test("upsert-checkpoint-verdict rejects draft_gate when draftGateAlreadySatisfie
     assert.match(payload.error, /Cannot enter draft_gate on owner\/repo#17/);
     assert.match(payload.error, /draft gate was already satisfied/);
     assert.match(payload.error, /Do not re-post draft_gate/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-checkpoint-verdict skips Copilot convergence requirement for internal-only PRs", async () => {
+  // Root cause 2 fix: when all changed files are internal tooling (scripts/docs/tests/config),
+  // the Copilot review cycle is suppressed and pre_approval_gate may be posted directly.
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-internal-only-"));
+
+  try {
+    const cleanDraftGateComment = buildGateComment({
+      gate: "draft_gate",
+      headSha: "abc1234",
+      verdict: "clean",
+      findingsSummary: "no issues found",
+      nextAction: "mark ready for review",
+      commentId: 101,
+    });
+
+    const env = await writeGhStub(tempDir, [
+      // Standard 5 coordination entries (non-draft PR, successful CI, no Copilot reviews, clean draft gate)
+      ...buildGateCoordinationEntries({
+        isDraft: false,
+        statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+        reviews: [],
+        issueComments: [cleanDraftGateComment],
+      }),
+      // Call 6: PR reviews fetch — no gate comment posted as a review
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: "[]\n",
+      },
+      // Call 7: internal-only file check — all files match scripts/ pattern → internalOnly: true
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files"],
+        stdout: "scripts/github/my-internal-script.mjs\n",
+      },
+      // Call 8: create the pre_approval_gate comment
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments"],
+        stdout: '{"id":200,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-200"}\n',
+      },
+    ]);
+
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "pre_approval_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
+      "--findings-summary", "no issues found",
+      "--next-action", "await final human approval",
+    ], { env });
+
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.action, "created");
+    assert.equal(payload.gate, "pre_approval_gate");
+    assert.equal(payload.commentId, 200);
+    assert.equal(payload.commentUrl, "https://github.com/owner/repo/pull/17#issuecomment-200");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("upsert-checkpoint-verdict performs stale-runner takeover before gate coordination", async () => {
+  // Root cause 1 fix: when a previous run owns the coordination file but is stale,
+  // the new run takes over ownership rather than being rejected.
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-upsert-stale-takeover-"));
+
+  try {
+    // Pre-claim ownership with an old timestamp so the runner is considered stale
+    await claimRunnerOwnership({
+      repo: "owner/repo",
+      pr: 17,
+      runId: "old-run-id",
+      cwd: tempDir,
+      now: "2020-01-01T00:00:00.000Z",
+    });
+
+    const { env: ghEnv } = await writeGhStubHelper(tempDir, [
+      // Standard 5 coordination entries: draft PR, no existing gate comments
+      ...buildGateCoordinationEntries({
+        isDraft: true,
+        statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
+        reviews: [],
+        issueComments: [],
+      }),
+      // Call 6: PR reviews fetch — no reviews
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: "[]\n",
+      },
+      // Call 7: internal-only file check — consumer-facing file, reviewMode stays null
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files"],
+        stdout: "src/index.ts\n",
+      },
+      // Call 8: create the draft_gate comment
+      {
+        assertArgs: ["api", "repos/owner/repo/issues/17/comments"],
+        stdout: '{"id":300,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-300"}\n',
+      },
+    ], { repeatLastOnOverflow: true });
+
+    // Run with the new run ID — old-run-id owned the file but is stale, so takeover should happen
+    const result = await runNode([
+      "--repo", "owner/repo",
+      "--pr", "17",
+      "--gate", "draft_gate",
+      "--head-sha", "abc1234",
+      "--verdict", "clean",
+      "--findings-severity-counts", '{"must-fix":0,"worth-fixing-now":0,"defer":0}',
+      "--findings-summary", "no issues found",
+      "--next-action", "mark ready for review",
+    ], {
+      cwd: tempDir,
+      env: { ...ghEnv, PI_SUBAGENT_RUN_ID: "new-run-id" },
+    });
+
+    // The command should succeed (not fail with ownership_lost) because the stale runner was taken over.
+    // Without the fix, this would fail: "active run is old-run-id, current run is new-run-id".
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.action, "created");
+    assert.equal(payload.gate, "draft_gate");
+    assert.equal(payload.commentId, 300);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

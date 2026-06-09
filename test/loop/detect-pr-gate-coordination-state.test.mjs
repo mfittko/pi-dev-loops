@@ -1088,6 +1088,7 @@ test("detect-pr-gate-coordination-state leaves refinement=present when linked is
       { stdout: jsonLine({ data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } } } } } }) },
       { stdout: jsonLine({ headRefOid: "abc1234567" }) },
       { stdout: jsonLine([[]]) },
+      { stdout: '[]\n' },
       {
         stdout: JSON.stringify({
           body: "## Acceptance criteria\n\n- [ ] First AC\n- [x] Second AC\n",
@@ -1146,6 +1147,7 @@ test("detect-pr-gate-coordination-state resets Copilot round count when draft_ga
         { id: 11, body: ["Gate review: draft_gate", "Reviewed head SHA: aaa1111111111111111111111111111111111111111", "Verdict: clean", "Findings summary: no issues found", "Next action: mark ready for review"].join(String.raw`
 `), html_url: "https://example.test/comment/11", updated_at: "2026-05-31T20:00:00Z" }
       ]]) },
+      { assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/266/reviews?per_page=100"], stdout: '[]\n' },
       // issue view stub for refinement artifact lookup
       {
         assertArgs: ["issue", "view", "527", "--repo", "owner/repo", "--json", "body"],

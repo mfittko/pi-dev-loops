@@ -106,6 +106,10 @@ test("reconcile-draft-gate fails closed when visible draft_gate evidence already
           }),
         }]])}\n`,
       },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
     ]);
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -113,7 +117,7 @@ test("reconcile-draft-gate fails closed when visible draft_gate evidence already
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
     assert.match(JSON.parse(result.stderr).error, /already has a visible draft_gate comment/i);
-    assert.equal(await readGhCallCount(tempDir), 2);
+    assert.equal(await readGhCallCount(tempDir), 3);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -133,6 +137,10 @@ test("reconcile-draft-gate blocks while CI is still pending", async () => {
         stdout: '[]\n',
       },
       {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
         assertArgs: ["pr", "checks", "17", "--repo", "owner/repo", "--json", "bucket,state,name,workflow"],
         stdout: '[{"bucket":"pending","state":"PENDING","name":"verify","workflow":"CI"}]\n',
         exitCode: 8,
@@ -146,7 +154,7 @@ test("reconcile-draft-gate blocks while CI is still pending", async () => {
     const error = JSON.parse(result.stderr).error;
     assert.match(error, /CI is not green/i);
     assert.match(error, /pending/i);
-    assert.equal(await readGhCallCount(tempDir), 3);
+    assert.equal(await readGhCallCount(tempDir), 4);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -166,6 +174,10 @@ test("reconcile-draft-gate treats failing gh pr checks JSON output as blocked ev
         stdout: '[]\n',
       },
       {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
         assertArgs: ["pr", "checks", "17", "--repo", "owner/repo", "--json", "bucket,state,name,workflow"],
         stdout: '[{"bucket":"fail","state":"FAILURE","name":"verify","workflow":"CI"}]\n',
         exitCode: 1,
@@ -179,7 +191,7 @@ test("reconcile-draft-gate treats failing gh pr checks JSON output as blocked ev
     const error = JSON.parse(result.stderr).error;
     assert.match(error, /CI is not green/i);
     assert.match(error, /verify=fail/i);
-    assert.equal(await readGhCallCount(tempDir), 3);
+    assert.equal(await readGhCallCount(tempDir), 4);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -199,6 +211,10 @@ test("reconcile-draft-gate surfaces gh pr checks stderr when exit code 1 has no 
         stdout: '[]\n',
       },
       {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
         assertArgs: ["pr", "checks", "17", "--repo", "owner/repo", "--json", "bucket,state,name,workflow"],
         stderr: 'auth failed\n',
         exitCode: 1,
@@ -210,7 +226,7 @@ test("reconcile-draft-gate surfaces gh pr checks stderr when exit code 1 has no 
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
     assert.match(JSON.parse(result.stderr).error, /Failed to check PR #17 CI status: auth failed/i);
-    assert.equal(await readGhCallCount(tempDir), 3);
+    assert.equal(await readGhCallCount(tempDir), 4);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -230,6 +246,10 @@ test("reconcile-draft-gate blocks when no CI checks are reported", async () => {
         stdout: '[]\n',
       },
       {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
         assertArgs: ["pr", "checks", "17", "--repo", "owner/repo", "--json", "bucket,state,name,workflow"],
         stdout: '[]\n',
       },
@@ -240,7 +260,7 @@ test("reconcile-draft-gate blocks when no CI checks are reported", async () => {
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
     assert.match(JSON.parse(result.stderr).error, /no CI\/check runs were reported/i);
-    assert.equal(await readGhCallCount(tempDir), 3);
+    assert.equal(await readGhCallCount(tempDir), 4);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -267,6 +287,10 @@ test("reconcile-draft-gate skips CI checks when config disables draft requireCi"
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
         stdout: '[]\n',
       },
       {
@@ -301,6 +325,14 @@ test("reconcile-draft-gate skips CI checks when config disables draft requireCi"
         stdout: '[]\n',
       },
       {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files"],
+        stdout: "src/index.ts\n",
+      },
+      {
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
         assertArgContains: ["body=### Gate review: `draft_gate`", "CI optional by config"],
         stdout: '{"id":301,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-301"}\n',
@@ -325,7 +357,7 @@ test("reconcile-draft-gate skips CI checks when config disables draft requireCi"
       commentId: 301,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-301",
     });
-    assert.equal(await readGhCallCount(tempDir), 11);
+    assert.equal(await readGhCallCount(tempDir), 14);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -342,6 +374,10 @@ test("reconcile-draft-gate skips the draft conversion mutation when the PR is al
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
         stdout: '[]\n',
       },
       {
@@ -373,6 +409,14 @@ test("reconcile-draft-gate skips the draft conversion mutation when the PR is al
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
         stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files"],
+        stdout: "src/index.ts\n",
       },
       {
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
@@ -400,7 +444,7 @@ test("reconcile-draft-gate skips the draft conversion mutation when the PR is al
       commentId: 201,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-201",
     });
-    assert.equal(await readGhCallCount(tempDir), 11);
+    assert.equal(await readGhCallCount(tempDir), 14);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -417,6 +461,10 @@ test("reconcile-draft-gate does not mark ready when upsert throws and the PR was
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
         stdout: '[]\n',
       },
       {
@@ -450,6 +498,14 @@ test("reconcile-draft-gate does not mark ready when upsert throws and the PR was
         stdout: '[]\n',
       },
       {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files"],
+        stdout: "src/index.ts\n",
+      },
+      {
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
         stderr: 'boom\n',
         exitCode: 1,
@@ -461,7 +517,7 @@ test("reconcile-draft-gate does not mark ready when upsert throws and the PR was
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
     assert.match(JSON.parse(result.stderr).error, /gh command failed: boom/i);
-    assert.equal(await readGhCallCount(tempDir), 10);
+    assert.equal(await readGhCallCount(tempDir), 13);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -478,6 +534,10 @@ test("reconcile-draft-gate marks the PR ready again if gate-comment upsert throw
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
         stdout: '[]\n',
       },
       {
@@ -516,6 +576,14 @@ test("reconcile-draft-gate marks the PR ready again if gate-comment upsert throw
         stdout: '[]\n',
       },
       {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files"],
+        stdout: "src/index.ts\n",
+      },
+      {
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
         stderr: 'boom\n',
         exitCode: 1,
@@ -531,7 +599,7 @@ test("reconcile-draft-gate marks the PR ready again if gate-comment upsert throw
     assert.equal(result.code, 1);
     assert.equal(result.stdout, "");
     assert.match(JSON.parse(result.stderr).error, /gh command failed: boom/i);
-    assert.equal(await readGhCallCount(tempDir), 12);
+    assert.equal(await readGhCallCount(tempDir), 15);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -548,6 +616,10 @@ test("reconcile-draft-gate converts to draft, posts clean evidence, and marks re
       },
       {
         assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/issues/17/comments?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
         stdout: '[]\n',
       },
       {
@@ -586,6 +658,14 @@ test("reconcile-draft-gate converts to draft, posts clean evidence, and marks re
         stdout: '[]\n',
       },
       {
+        assertArgs: ["api", "--paginate", "--slurp", "repos/owner/repo/pulls/17/reviews?per_page=100"],
+        stdout: '[]\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files"],
+        stdout: "src/index.ts\n",
+      },
+      {
         assertArgs: ["api", "repos/owner/repo/issues/17/comments", "-f"],
         assertArgContains: [
           "body=### Gate review: `draft_gate`",
@@ -615,7 +695,7 @@ test("reconcile-draft-gate converts to draft, posts clean evidence, and marks re
       commentId: 101,
       commentUrl: "https://github.com/owner/repo/pull/17#issuecomment-101",
     });
-    assert.equal(await readGhCallCount(tempDir), 12);
+    assert.equal(await readGhCallCount(tempDir), 15);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
