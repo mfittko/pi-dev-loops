@@ -441,7 +441,18 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
     stdout.write(`${USAGE}\n`);
     return;
   }
-  const { config: devLoopConfig, errors: configErrors = [] } = await loadDevLoopConfig({ repoRoot: process.cwd() });
+  // Resolve repo root to handle subdirectory invocations consistently.
+  // buildAutoResolvedInput() also resolves via git rev-parse;
+  // using the same root for config loading avoids mismatched roots.
+  let repoRoot = process.cwd();
+  try {
+    repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch { /* keep cwd */ }
+  const { config: devLoopConfig, errors: configErrors = [] } = await loadDevLoopConfig({ repoRoot });
   const asyncStartMode = configErrors.length === 0
     ? resolveWorkflowConfig(devLoopConfig, "asyncStartMode")
     : "required";
