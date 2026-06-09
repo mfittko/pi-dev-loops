@@ -269,6 +269,8 @@ test("build-handoff-envelope emits flag-specific error for malformed --gate-stat
     assert.equal(parsed.ok, false);
     assert.match(parsed.error, /--gate-state/,
       `error should mention --gate-state, got: ${parsed.error}`);
+    assert.ok(typeof parsed.usage === "string" && parsed.usage.length > 0,
+      "should include usage field for flag-specific parse error");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -289,6 +291,8 @@ test("build-handoff-envelope emits flag-specific error for malformed --overrides
     assert.equal(parsed.ok, false);
     assert.match(parsed.error, /--overrides/,
       `error should mention --overrides, got: ${parsed.error}`);
+    assert.ok(typeof parsed.usage === "string" && parsed.usage.length > 0,
+      "should include usage field for flag-specific parse error");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -311,6 +315,8 @@ test("build-handoff-envelope emits actionable error when auto-detected repo slug
     assert.equal(parsed.ok, false);
     assert.match(parsed.error, /--repo|origin|slug|resolver/i,
       `error should mention --repo or origin, got: ${parsed.error}`);
+    assert.ok(typeof parsed.usage === "string" && parsed.usage.length > 0,
+      "should include usage field for repo slug parse error");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

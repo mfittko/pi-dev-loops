@@ -189,8 +189,9 @@ export async function runCli(
     const envelope = await buildHandoffEnvelopeCli(options, { cwd });
     stdout.write(`${JSON.stringify(envelope)}\n`);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
+    const msg = formatCliError(err);
+    stderr.write(`${msg}
+`);
     process.exitCode = 1;
   }
 }
