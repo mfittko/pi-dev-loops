@@ -318,22 +318,6 @@ export function summarizeCurrentPrStatus(snapshot) {
     };
   }
 
-  if (copilotState === "round_cap_clean_fallback") {
-    return {
-      headline: "Round cap reached",
-      detail: "Copilot review rounds are exhausted for this clean PR head, so the loop should move to pre_approval_gate instead of requesting another Copilot review.",
-      nextAction: "Run or confirm the current-head pre_approval_gate rather than re-requesting Copilot review.",
-    };
-  }
-
-  if (copilotState === "round_cap_reached") {
-    return {
-      headline: "Round cap reached",
-      detail: "Copilot review rounds are exhausted for this PR head, so no further Copilot re-requests are possible.",
-      nextAction: "Move forward with terminal follow-up for this run instead of requesting another Copilot review.",
-    };
-  }
-
   if (outerState === OUTER_STATE.STAY_WITH_CURRENT_LIVE_OWNER) {
     return {
       headline: "Live owner already active",
@@ -350,7 +334,31 @@ export function summarizeCurrentPrStatus(snapshot) {
     };
   }
 
-  if (outerState === OUTER_STATE.DONE_TERMINAL || statusClass === "done" || outerAction === "done" || copilotState === "done") {
+  if (outerState === OUTER_STATE.DONE_TERMINAL) {
+    return {
+      headline: "PR complete",
+      detail: "The current inspection says this PR is in a terminal done state.",
+      nextAction: "Confirm merge/readiness context or inspect the raw snapshot for terminal evidence.",
+    };
+  }
+
+  if (copilotState === "round_cap_clean_fallback") {
+    return {
+      headline: "Round cap reached",
+      detail: "Copilot review rounds are exhausted for this clean PR head, so the loop should move to pre_approval_gate instead of requesting another Copilot review.",
+      nextAction: "Run or confirm the current-head pre_approval_gate rather than re-requesting Copilot review.",
+    };
+  }
+
+  if (copilotState === "round_cap_reached") {
+    return {
+      headline: "Round cap reached",
+      detail: "Copilot review rounds are exhausted for this PR head, so no further Copilot re-requests are possible.",
+      nextAction: "Move forward with terminal follow-up for this run instead of requesting another Copilot review.",
+    };
+  }
+
+  if (statusClass === "done" || outerAction === "done" || copilotState === "done") {
     return {
       headline: "PR complete",
       detail: "The current inspection says this PR is in a terminal done state.",

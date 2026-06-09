@@ -829,8 +829,10 @@ test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and need
       outerAction: "continue_wait",
       layers: {
         copilot: {
-          currentState: "ready_to_rerequest_review",
-          allowedTransitions: ["waiting_for_copilot_review", "review_request_unavailable", "done"],
+          currentState: "round_cap_clean_fallback",
+          allowedTransitions: [],
+          loopDisposition: "done",
+          terminal: true,
         },
         reviewer: {
           currentState: "review_requested",
