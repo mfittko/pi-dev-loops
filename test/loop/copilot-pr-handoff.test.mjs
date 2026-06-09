@@ -115,11 +115,21 @@ test("copilot-pr-handoff rejects malformed arguments with usage guidance", async
 // Handoff: pr_ready_no_feedback → request → watch
 // ---------------------------------------------------------------------------
 
-test("copilot-pr-handoff --repo auto-detected from git remote when omitted", () => {
-  const parsed = parseHandoffCliArgs(["--pr", "17"]);
-  assert.equal(parsed.pr, 17);
-  assert.ok(typeof parsed.repo === "string" && parsed.repo.length > 0, "repo should be auto-detected");
-  assert.match(parsed.repo, /^[^/]+\/[^/]+$/);
+test("copilot-pr-handoff --repo auto-detected from git remote when omitted", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "handoff-test-"));
+  try {
+    execFileSync("git", ["init", "-b", "main"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["-C", tmpDir, "remote", "add", "origin", "https://github.com/test-owner/test-repo.git"]);
+    const parsed = parseHandoffCliArgs(["--pr", "17"], { cwd: tmpDir });
+    assert.equal(parsed.pr, 17);
+    assert.equal(parsed.repo, "test-owner/test-repo");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_feedback", async () => {

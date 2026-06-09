@@ -196,7 +196,12 @@ test("detectRepoSlug returns owner/repo from git remote", () => {
 });
 
 test("detectRepoSlug returns null for non-git directory", () => {
-  assert.equal(detectRepoSlug("/tmp"), null);
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repo-slug-test-"));
+  try {
+    assert.equal(detectRepoSlug(tmpDir), null);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 test("detectRepoSlug returns null when no origin remote", () => {

@@ -31,7 +31,6 @@ Required:
   --pr <number>         Pull request number
 Optional:
   --repo <owner/name>   Repository slug (e.g. owner/repo). Auto-detected from git remote when omitted.
-Optional:
   --watch-status <status>   Refresh deterministic loop state after a prior
                            watcher result (changed|timeout|idle). This mode
                            never requests review; it only re-detects state.
@@ -127,7 +126,7 @@ function rejectRemovedFlag(token) {
     `${token} has been removed. Copilot re-requests are managed internally. Omit the flag.`,
   );
 }
-export function parseHandoffCliArgs(argv) {
+export function parseHandoffCliArgs(argv, { cwd = process.cwd() } = {}) {
   const args = [...argv];
   const options = {
     help: false,
@@ -166,7 +165,7 @@ export function parseHandoffCliArgs(argv) {
     throw parseError("copilot-pr-handoff requires --pr <number>");
   }
   if (options.repo === undefined) {
-    options.repo = detectRepoSlug(process.cwd());
+    options.repo = detectRepoSlug(cwd);
     if (!options.repo) {
       throw parseError(
         "Repo auto-detection failed. " +
