@@ -395,9 +395,11 @@ export function renderInspectRunViewerHtml({
         
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         const activeTab = document.querySelector('.viewer-tab[data-tab="' + tabName + '"]');
+        if (!activeTab) { return; }
         activeTab.classList.add('active');
         activeTab.setAttribute('aria-selected', 'true');
-        document.getElementById('tab-' + tabName).classList.add('active');
+        const panel = document.getElementById('tab-' + tabName); if (panel) { panel.classList.add('active');
+        }
       }
     </script>
     ${graph === null ? "" : renderMermaidBootScript()}
