@@ -133,7 +133,7 @@ function buildCopilotLoopIterationEntries(snapshot) {
   ];
 }
 
-export function renderOverviewSection(snapshot, stateLabel) {
+export function renderOverviewSection(snapshot) {
   const summary = summarizeCurrentPrStatus(snapshot);
   const loopIterations = snapshot?.loopIterations;
 

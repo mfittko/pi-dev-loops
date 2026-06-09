@@ -354,7 +354,7 @@ export function renderInspectRunViewerHtml({
               </div>
             </div>
             <div class="tab-content active" id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview">
-              ${renderOverviewSection(normalizedSnapshot, stateLabel)}
+              ${renderOverviewSection(normalizedSnapshot)}
             </div>
             <div class="tab-content" id="tab-graph" role="tabpanel" aria-labelledby="tab-btn-graph">
               <section class="viewer-tab-section" aria-label="Graph">
