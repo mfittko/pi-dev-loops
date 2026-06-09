@@ -160,16 +160,30 @@ function resolveTargetPreference(cwd) {
     path.join(cwd, ".devloops.yml"),
     path.join(cwd, ".devloops.json"),
   ];
-  // Check .devloops first (bare or with extension)
+  // Check .devloops first (bare or with extension).
+  // Bare files try YAML first, then JSON fallback (consistent with
+  // config.mjs readConfigFile behavior).
   for (const devloopsPath of devloopsCandidates) {
     try {
       const raw = readFileSync(devloopsPath, "utf8");
       let val;
       if (devloopsPath.endsWith(".json")) {
         val = JSON.parse(raw)?.strategy?.default;
-      } else {
+      } else if (devloopsPath.endsWith(".yaml") || devloopsPath.endsWith(".yml")) {
         const m = raw.match(/strategy:\s*\n\s*default:\s*["']?([^"'\s]+)["']?/);
         val = m ? m[1] : undefined;
+      } else {
+        // Bare file (no recognized extension) — YAML first, JSON fallback
+        const m = raw.match(/strategy:\s*\n\s*default:\s*["']?([^"'\s]+)["']?/);
+        if (m) {
+          val = m[1];
+        } else {
+          try {
+            val = JSON.parse(raw)?.strategy?.default;
+          } catch {
+            // Not valid JSON either — fall through
+          }
+        }
       }
       if (val === "local-first") return "prefer_local";
       if (val === "github-first") return "prefer_github_first";

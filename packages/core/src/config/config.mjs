@@ -422,8 +422,17 @@ async function findConfigFile(basePaths) {
   const candidates = Array.isArray(basePaths) ? basePaths : [basePaths];
 
   for (const basePath of candidates) {
-    // Try bare path first (e.g., .devloops without extension)
-    const bareData = await readConfigFile(basePath);
+    // Try bare path first (e.g., .devloops without extension).
+    // Only ENOENT falls through to extensions; success returns immediately.
+    // Other errors (EISDIR, EACCES) also fall through so extension variants
+    // like .devloops.yaml are still discoverable.
+    let bareData = null;
+    try {
+      bareData = await readConfigFile(basePath);
+    } catch {
+      // Bare path is unreadable (EISDIR, EACCES, etc.) — fall through
+      // to extension variants instead of aborting the search.
+    }
     if (bareData !== null) return { path: basePath, data: bareData };
 
     for (const ext of [".yaml", ".yml", ".json"]) {
