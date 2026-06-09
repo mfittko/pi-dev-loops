@@ -88,6 +88,14 @@ Do not preload route packs before the resolver selects the strategy.
 
 **Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies when `canonicalStateSummary.requiresAsyncDispatch` is `true` (default `required` mode). Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected only for those routes. See [Startup procedure](#startup-procedure).
 
+
+## Read-only info shortcut
+
+The main agent may handle info/handoff requests directly via `npx dev-loops loop info` without dispatching the async `dev-loop` subagent:
+- `npx dev-loops loop info --issue <n>` — human-readable issue state summary (strategy, route, linked PR, next action)
+- `npx dev-loops loop info --pr <n>` — human-readable PR state summary (branch, CI, threads, rounds, action)
+- `npx dev-loops loop info --issue <n> --json` — machine-readable JSON output
+
 ## Guard rules (subagent reference)
 
 **Handoff envelope precedence:** The subagent builds the envelope immediately after authoritative-state resolution and treats it as the first handoff artifact. Read it first, load only `requiredReads`, execute `nextAction`. See [Dev-loop subagent](#dev-loop-subagent-post-dispatch). Derivation contract: [Workflow Handoff Contract](../docs/workflow-handoff-contract.md).
