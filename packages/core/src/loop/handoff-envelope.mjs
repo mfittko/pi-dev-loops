@@ -430,6 +430,10 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
     ? { ...options.overrides }
     : undefined;
 
+  const acceptanceOverrides = options.acceptance?.overrides && typeof options.acceptance.overrides === "object" && Object.keys(options.acceptance.overrides).length > 0
+    ? { ...options.acceptance.overrides }
+    : undefined;
+
   const envelope = {
     handoffVersion: ENVELOPE_HANDOFF_VERSION,
     derivedAt: (now ?? new Date()).toISOString(),
@@ -457,6 +461,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
       criteria: [...template.criteria],
       evidence: [...template.evidence],
       maxFinalizationTurns: template.maxFinalizationTurns,
+      ...(acceptanceOverrides ? { overrides: acceptanceOverrides } : {}),
     },
 
     control: {

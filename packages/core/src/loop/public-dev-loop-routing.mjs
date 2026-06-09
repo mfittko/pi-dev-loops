@@ -308,19 +308,24 @@ function buildContractTrace({
   reason,
   watchRequested = false,
   boundary = null,
+  operatorBypass = false,
 }) {
   const effectiveTimeoutMs = waitTimeoutPolicy?.defaultTimeoutMs ?? null;
+  const decision = {
+    selectedGate,
+    routeKind,
+    selectedStrategy,
+    executionMode,
+    watchRequested,
+    contractClassification: resolveStopClassification({ selectedGate, routeKind, canonicalState }),
+    contractJustification: reason,
+  };
+  if (operatorBypass) {
+    decision.operatorBypass = true;
+  }
   return {
     publicEntrypoint,
-    decision: {
-      selectedGate,
-      routeKind,
-      selectedStrategy,
-      executionMode,
-      watchRequested,
-      contractClassification: resolveStopClassification({ selectedGate, routeKind, canonicalState }),
-      contractJustification: reason,
-    },
+    decision,
     waitStrategy: {
       selectedStrategy: routeKind === DEV_LOOP_ROUTE_KIND.WAIT ? selectedStrategy : null,
       waitSemantics,
@@ -938,6 +943,11 @@ function validateIssueLinkageResolution(canonicalState, issueLinkageResolution) 
       || issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE;
   }
 
+  // Operator bypass is valid for any issue target.
+  if (issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS) {
+    return true;
+  }
+
   if (canonicalState.target.linkedPr !== null) {
     return issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR;
   }
@@ -1055,6 +1065,15 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   const issueAssignmentStateProvided = input.issueAssignmentState !== undefined && input.issueAssignmentState !== null;
   const loopState = normalizeOptionalLoopState(input.loopState);
 
+  // Operator bypass: skipIssueOrigin bypasses the issue-origin requirement for this invocation.
+  // Only settable via acceptance.overrides in the subagent dispatch — not a CLI flag or repo setting.
+  const skipIssueOrigin = input.acceptance?.overrides?.skipIssueOrigin === true;
+  const skipIssueOriginActive = skipIssueOrigin && canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE;
+  // When bypass is active, report operator_bypass as the issueLinkageResolution in the output bundle.
+  const effectiveBundleIssueLinkageResolution = skipIssueOriginActive
+    ? DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS
+    : normalizedIssueLinkageResolution;
+
   if (asyncRunProvided && asyncRun === null) {
     return buildStartupResumeBundleReconcile({
       reason: "Authoritative startup/resume routing received an invalid async-run registration value.",
@@ -1124,6 +1143,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   if (
     canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
     && issueLinkageResolution === null
+    && !skipIssueOriginActive
   ) {
     return buildStartupResumeBundleReconcile({
       reason: "Issue targets require explicit authoritative issue↔PR linkage resolution before routing startup/resume state.",
@@ -1133,7 +1153,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     });
   }
 
-  if (!validateIssueLinkageResolution(canonicalState, issueLinkageResolution)) {
+  if (!skipIssueOriginActive && !validateIssueLinkageResolution(canonicalState, issueLinkageResolution)) {
     return buildStartupResumeBundleReconcile({
       reason: "Issue↔PR linkage resolution is incomplete or conflicts with canonical current state; reconcile before routing startup/resume state.",
       canonicalState,
@@ -1143,7 +1163,8 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   }
 
   if (
-    canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
+    !skipIssueOriginActive
+    && canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE
     && canonicalState.ownership === DEV_LOOP_ACTOR.COPILOT
     && issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_NO_OPEN_PR
   ) {
@@ -1270,7 +1291,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
     bundleKind: DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED,
     activeArtifact: buildStatusArtifactIdentity(effectiveRouted.canonicalState),
     artifactState,
-    issueLinkageResolution: normalizedIssueLinkageResolution,
+    issueLinkageResolution: effectiveBundleIssueLinkageResolution,
     canonicalState: effectiveRouted.canonicalState,
     loopState,
     routeKind: effectiveRouted.routeKind,
@@ -1292,13 +1313,14 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
       waitTimeoutPolicy: effectiveRouted.waitTimeoutPolicy,
       canonicalState: effectiveRouted.canonicalState,
       reason: effectiveRouted.reason,
+      operatorBypass: skipIssueOriginActive,
       boundary: {
         boundaryKind: "startup_resume_refresh",
         refreshRequired: true,
         refreshReason: "Startup/resume answers record the authoritative refreshed loop state that justified the routed path.",
         loopState,
         artifactState,
-        issueLinkageResolution: normalizedIssueLinkageResolution,
+        issueLinkageResolution: effectiveBundleIssueLinkageResolution,
       },
     }),
   };
