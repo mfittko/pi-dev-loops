@@ -133,7 +133,7 @@ function buildCopilotLoopIterationEntries(snapshot) {
   ];
 }
 
-export function renderOverviewSection(snapshot, _target, stateLabel) {
+export function renderOverviewSection(snapshot, stateLabel) {
   const summary = summarizeCurrentPrStatus(snapshot);
   const loopIterations = snapshot?.loopIterations;
 
@@ -519,7 +519,7 @@ function summarizeCurrentPrMode(snapshot) {
   return null;
 }
 
-export function renderCurrentStateBanner(snapshot, target, stateLabel, _graph, selectedTitle = null) {
+export function renderCurrentStateBanner(snapshot, target, stateLabel, selectedTitle = null) {
   const summary = summarizeCurrentPrStatus(snapshot);
   const pullRequestHref = buildPullRequestHref(target);
   const mode = summarizeCurrentPrMode(snapshot);

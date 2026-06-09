@@ -344,7 +344,7 @@ export function renderInspectRunViewerHtml({
                 <p>The dashboard can span all assigned repos or be narrowed to one repo. Sidebar defaults to open PRs from last 7 days and paginates through result set.</p>
               </div>
             </section>`
-          : `${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
+          : `${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, effectiveSelectedTitle)}
             <div class="viewer-tab-shell" role="tablist" aria-label="Inspect run viewer tabs">
               <div class="viewer-tabs">
                 <button id="tab-btn-overview" class="viewer-tab active" role="tab" aria-selected="true" aria-controls="tab-overview" data-tab="overview" onclick="switchTab('overview')">Overview</button>
@@ -354,7 +354,7 @@ export function renderInspectRunViewerHtml({
               </div>
             </div>
             <div class="tab-content active" id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview">
-              ${renderOverviewSection(normalizedSnapshot, target, stateLabel)}
+              ${renderOverviewSection(normalizedSnapshot, stateLabel)}
             </div>
             <div class="tab-content" id="tab-graph" role="tabpanel" aria-labelledby="tab-btn-graph">
               <section class="viewer-tab-section" aria-label="Graph">
