@@ -1251,7 +1251,7 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
   let finalIssueLinkageResolution = effectiveBundleIssueLinkageResolution;
   let finalOperatorBypass = skipIssueOriginActive;
   if (skipIssueOriginActive && effectiveRouted.canonicalState?.target?.kind === DEV_LOOP_TARGET_KIND.PR) {
-    finalIssueLinkageResolution = normalizedIssueLinkageResolution ?? DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE;
+    finalIssueLinkageResolution = DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE;
     finalOperatorBypass = false;
   }
 
